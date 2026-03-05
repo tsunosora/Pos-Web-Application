@@ -1,0 +1,1040 @@
+"use client";
+
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers } from '@/lib/api';
+import { createTransaction } from '@/lib/transactions';
+import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle } from "lucide-react";
+import { useCartStore, CartItem } from '@/store/cart-store';
+import { useState, useMemo, useCallback } from 'react';
+import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+interface AreaModalState {
+    open: boolean;
+    mode: 'add' | 'edit';   // 'add' = new line, 'edit' = update existing line
+    editLineId?: string;
+    product: any;
+    variant: any;
+    unitType: 'm' | 'cm' | 'menit';
+    widthCm: string;
+    heightCm: string;
+    note: string;
+}
+
+const emptyAreaModal = (): AreaModalState => ({
+    open: false, mode: 'add', product: null, variant: null, unitType: 'm', widthCm: '', heightCm: '', note: ''
+});
+
+import { ReceiptSnapshot, handlePrintSnap, handleShareWA } from '@/lib/receipt';
+
+export default function POSPage() {
+    const { data: products, isLoading } = useQuery({ queryKey: ['products'], queryFn: getProducts });
+    const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
+    const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
+    const { data: customers, refetch: refetchCustomers } = useQuery({ queryKey: ['customers'], queryFn: getCustomers });
+    const { data: users } = useQuery({ queryKey: ['users'], queryFn: getUsers });
+
+    const createCustomerMutation = useMutation({
+        mutationFn: createCustomer,
+        onSuccess: () => {
+            refetchCustomers();
+            alert('Pelanggan berhasil disimpan!');
+        }
+    });
+
+    const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isCheckoutModalOpen, setCheckoutModalOpen] = useState(false);
+    const [showPayConfirm, setShowPayConfirm] = useState(false);  // confirmation step
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER'>('CASH');
+    const [selectedBankId, setSelectedBankId] = useState<string>('');
+    const [areaModal, setAreaModal] = useState<AreaModalState>(emptyAreaModal());
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [customerAddress, setCustomerAddress] = useState('');
+    const [isCustomerModalOpen, setCustomerModalOpen] = useState(false);
+    const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+    const [dueDate, setDueDate] = useState('');
+    const [downPayment, setDownPayment] = useState<string>('');
+    const [cashierName, setCashierName] = useState('');
+    const [employeeName, setEmployeeName] = useState('');
+    const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null);
+
+    // Note Modal State for UNIT products
+    const [unitNoteModal, setUnitNoteModal] = useState<{ open: boolean, lineId: string, currentNote: string }>({ open: false, lineId: '', currentNote: '' });
+
+    const cart = useCartStore((state) => state.items);
+    const addItem = useCartStore((state) => state.addItem);
+    const removeItem = useCartStore((state) => state.removeItem);
+    const updateQuantity = useCartStore((state) => state.updateQuantity);
+    const updateAreaDimensions = useCartStore((state) => state.updateAreaDimensions);
+    const updateNote = useCartStore((state) => state.updateNote);
+    const clearCart = useCartStore((state) => state.clearCart);
+    const _subtotal = useCartStore((state) => state.subtotal());
+    const taxRate = settings?.enableTax ? Number(settings.taxRate ?? 10) : 0;
+    const taxAmount = _subtotal * (taxRate / 100);
+    const grandTotal = _subtotal + taxAmount;
+    const subtotal = _subtotal;
+
+    const transactionMutation = useMutation({
+        mutationFn: createTransaction,
+        onSuccess: (data) => {
+            setCheckoutModalOpen(false);
+            clearCart();
+            // Receipt is shown from snapshot captured before cart was cleared
+        }
+    });
+
+    // ---- Pre-payment invoice helpers (from current cart, before transaction) ----
+    const buildCurrentSnap = (): ReceiptSnapshot => ({
+        items: cart.map(item => ({
+            name: item.name,
+            sku: item.sku,
+            qty: item.qty,
+            price: item.price,
+            pricePerUnit: item.pricePerUnit,
+            pricingMode: item.pricingMode,
+            note: item.note,
+            unitType: item.unitType,
+            widthCm: item.widthCm,
+            heightCm: item.heightCm,
+            areaM2: item.areaM2
+        })),
+        subtotal,
+        taxAmount,
+        grandTotal,
+        paymentMethod,
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        customerAddress: customerAddress.trim() || undefined,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+        downPayment: downPayment !== '' ? Number(downPayment) : undefined,
+        cashierName: cashierName.trim() || undefined,
+        employeeName: employeeName.trim() || undefined,
+        logoUrl: settings?.logoImageUrl || undefined,
+        storeName: settings?.storeName || 'Toko',
+        storeAddress: settings?.storeAddress || undefined,
+        storePhone: settings?.storePhone || undefined,
+        taxRate: taxRate,
+        timestamp: new Date()
+    });
+
+    const handlePrintTagihan = () => handlePrintSnap(buildCurrentSnap(), 'TAGIHAN', bankAccounts);
+    const handleShareTagihan = () => handleShareWA(buildCurrentSnap(), 'TAGIHAN', bankAccounts);
+
+    const categories = useMemo(() => {
+        if (!products) return ['Semua'];
+        const cats = new Set(products.map((p: any) => p.category?.name).filter(Boolean));
+        return ['Semua', ...Array.from(cats)] as string[];
+    }, [products]);
+
+    const filteredProducts = useMemo(() => {
+        if (!products) return [];
+        return products.filter((p: any) => {
+            const matchesCat = selectedCategory === 'Semua' || p.category?.name === selectedCategory;
+            const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                p.variants.some((v: any) => v.sku.toLowerCase().includes(searchQuery.toLowerCase()));
+            return matchesCat && matchesSearch;
+        });
+    }, [products, selectedCategory, searchQuery]);
+
+    // Open area modal for a fresh new line (clicking card or '+')
+    const openAreaModalFresh = (product: any, variant: any) => {
+        setAreaModal({ open: true, mode: 'add', product, variant, unitType: 'm', widthCm: '', heightCm: '', note: '' });
+    };
+
+    // Open area modal with existing data to edit a cart line
+    const openAreaModalEdit = (lineId: string, item: typeof cart[0]) => {
+        // Find product + variant from products list
+        const product = products?.find((p: any) => p.id === item.id);
+        const variant = product?.variants?.find((v: any) => v.id === item.productVariantId);
+        setAreaModal({
+            open: true, mode: 'edit', editLineId: lineId,
+            product: product || { id: item.id, name: item.name, pricingMode: 'AREA_BASED' },
+            variant: variant || { id: item.productVariantId, price: item.pricePerUnit, stock: item.stock },
+            unitType: item.unitType || 'm',
+            widthCm: String(item.widthCm || ''),
+            heightCm: String(item.heightCm || ''),
+            note: item.note || ''
+        });
+    };
+
+    const handleProductClick = (product: any, variant: any) => {
+        if (Number(variant.stock) <= 0) return;
+        if (product.pricingMode === 'AREA_BASED') {
+            openAreaModalFresh(product, variant);
+        } else {
+            addItem(product, variant);
+        }
+    };
+
+    const confirmAreaInput = () => {
+        const w = Number(areaModal.widthCm);
+        const h = areaModal.unitType === 'menit' ? 1 : Number(areaModal.heightCm); // height is irrelevant for 1D units like menit
+        if (!w || w <= 0 || (areaModal.unitType !== 'menit' && (!h || h <= 0))) return;
+
+        let areaM2 = 0;
+        if (areaModal.unitType === 'm') areaM2 = w * h;
+        else if (areaModal.unitType === 'cm') areaM2 = (w * h) / 10000;
+        else if (areaModal.unitType === 'menit') areaM2 = w;
+
+        // Note: For custom 1D/cm units, "stock area limit" check might become technically ambiguous depending on business logic,
+        // but since stock is tracked in standard product quantity usually, we'll keep the naive validation here.
+        const stockM2 = Number(areaModal.variant?.stock || 0);
+        if (areaM2 > stockM2) {
+            alert(`Stok bahan tidak cukup! Tersedia: ${stockM2.toFixed(2)} unit, dibutuhkan: ${areaM2.toFixed(2)} unit`);
+            return;
+        }
+        const note = areaModal.note.trim() || undefined;
+
+        if (areaModal.mode === 'edit' && areaModal.editLineId) {
+            updateAreaDimensions(areaModal.editLineId, w, h, areaModal.unitType, Number(areaModal.variant?.price || 0), note);
+        } else {
+            addItem(areaModal.product, areaModal.variant, { widthCm: w, heightCm: h, unitType: areaModal.unitType, note });
+        }
+        setAreaModal(emptyAreaModal());
+    };
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) return;
+
+        if (!customerName || !customerPhone) {
+            alert('Data pelanggan (Nama dan No. HP) wajib diisi untuk melanjutkan transaksi!');
+            return;
+        }
+
+        if (paymentMethod === 'BANK_TRANSFER' && !selectedBankId) {
+            alert('Silakan pilih Rekening Bank tujuan transfer!');
+            return;
+        }
+
+        // Snapshot cart BEFORE clearing (needed for receipt display)
+        const snap: ReceiptSnapshot = {
+            items: [...cart],
+            subtotal,
+            taxAmount,
+            grandTotal,
+            paymentMethod,
+            customerName: customerName.trim() || undefined,
+            customerPhone: customerPhone.trim() || undefined,
+            customerAddress: customerAddress.trim() || undefined,
+            dueDate: dueDate ? new Date(dueDate) : undefined,
+            downPayment: downPayment !== '' ? Number(downPayment) : undefined,
+            cashierName: cashierName.trim() || undefined,
+            employeeName: employeeName.trim() || undefined,
+            logoUrl: settings?.logoImageUrl || undefined,
+            storeName: settings?.storeName || 'Toko',
+            storeAddress: settings?.storeAddress || undefined,
+            storePhone: settings?.storePhone || undefined,
+            taxRate: taxRate,
+            timestamp: new Date()
+        };
+
+        const payload = {
+            items: cart.map(item => ({
+                productVariantId: item.productVariantId,
+                quantity: item.qty,
+                widthCm: item.widthCm ? Number(item.widthCm) : undefined,
+                heightCm: item.heightCm ? Number(item.heightCm) : undefined,
+                unitType: item.unitType,
+                note: item.note
+            })),
+            paymentMethod,
+            discount: 0,
+            customerName: customerName.trim() || undefined,
+            customerPhone: customerPhone.trim() || undefined,
+            customerAddress: customerAddress.trim() || undefined,
+            dueDate: dueDate || undefined,
+            downPayment: downPayment !== '' ? Number(downPayment) : undefined,
+            cashierName: cashierName.trim() || undefined,
+            employeeName: employeeName.trim() || undefined,
+            bankAccountId: selectedBankId ? Number(selectedBankId) : undefined
+        };
+
+        if (!navigator.onLine) {
+            const { saveOfflineTransaction } = await import('@/lib/sync');
+            await saveOfflineTransaction(payload);
+            clearCart(); setCheckoutModalOpen(false);
+            setReceipt(snap);
+        } else {
+            transactionMutation.mutate(payload, {
+                onSuccess: (data) => {
+                    snap.transactionId = data?.id;
+                    setCheckoutModalOpen(false);
+                    clearCart();
+                    setCustomerName(''); setCustomerPhone(''); setCustomerAddress('');
+                    setReceipt(snap);
+                }
+            });
+        }
+    };
+
+    const handleScan = useCallback((scannedSku: string) => {
+        if (!products) return;
+        for (const p of products) {
+            const variantMatch = p.variants.find((v: any) => v.sku.toLowerCase() === scannedSku.toLowerCase());
+            if (variantMatch) { handleProductClick(p, variantMatch); break; }
+        }
+    }, [products]);
+
+    useBarcodeScanner(handleScan);
+
+    const areaPreview = useMemo(() => {
+        if (!areaModal.open || !areaModal.variant) return null;
+        const w = Number(areaModal.widthCm) || 0;
+        const h = areaModal.unitType === 'menit' ? 1 : (Number(areaModal.heightCm) || 0);
+        if (w <= 0 || (areaModal.unitType !== 'menit' && h <= 0)) return null;
+
+        let areaM2 = 0;
+        if (areaModal.unitType === 'm') areaM2 = w * h;
+        else if (areaModal.unitType === 'cm') areaM2 = (w * h) / 10000;
+        else if (areaModal.unitType === 'menit') areaM2 = w;
+
+        const pricePerM2 = Number(areaModal.variant?.price || 0);
+        return { areaM2, computedPrice: areaM2 * pricePerM2, pricePerM2 };
+    }, [areaModal.widthCm, areaModal.heightCm, areaModal.unitType, areaModal.variant, areaModal.open]);
+
+    // Count AREA_BASED lines per variant for the badge
+    const areaLineCount = useMemo(() => {
+        const counts: Record<number, number> = {};
+        cart.forEach(i => {
+            if (i.pricingMode === 'AREA_BASED') counts[i.productVariantId] = (counts[i.productVariantId] || 0) + 1;
+        });
+        return counts;
+    }, [cart]);
+
+    return (
+        <div className="flex h-[calc(100vh-8rem)] gap-6">
+            {/* Product Grid */}
+            <div className="flex-1 flex flex-col glass rounded-xl overflow-hidden">
+                <div className="p-4 border-b border-border bg-card/50">
+                    <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                        <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                            placeholder="Cari produk atau SKU..."
+                            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm" />
+                    </div>
+                </div>
+
+                <div className="p-3 flex gap-2 overflow-x-auto no-scrollbar border-b border-border/50">
+                    {categories.map(cat => (
+                        <button key={cat} onClick={() => setSelectedCategory(cat)}
+                            className={`px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${cat === selectedCategory ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
+                            {cat}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4">
+                    {isLoading ? (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">Memuat Produk...</div>
+                    ) : filteredProducts.length === 0 ? (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">Tidak ada produk.</div>
+                    ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-20">
+                            {filteredProducts.map((p: any) =>
+                                p.variants.map((v: any) => {
+                                    const isAreaBased = p.pricingMode === 'AREA_BASED';
+                                    const unitLineInCart = !isAreaBased && cart.find(i => i.productVariantId === v.id);
+                                    const areaLinesCount = isAreaBased ? (areaLineCount[v.id] || 0) : 0;
+                                    const isInCart = isAreaBased ? areaLinesCount > 0 : !!unitLineInCart;
+                                    const productImages = p.imageUrls ? (() => { try { return JSON.parse(p.imageUrls); } catch { return []; } })() : [];
+                                    const imgSrc = v.variantImageUrl || productImages[0] || p.imageUrl;
+
+                                    return (
+                                        <div key={v.id} onClick={() => Number(v.stock) > 0 && handleProductClick(p, v)}
+                                            className={`bg-card border rounded-xl p-4 transition-all group relative select-none
+                                                ${Number(v.stock) > 0 ? 'cursor-pointer hover:border-primary/50 hover:shadow-md active:scale-[0.97]' : 'opacity-50 cursor-not-allowed grayscale'}
+                                                ${isInCart ? 'border-primary/60 ring-1 ring-primary/30' : 'border-border'}`}
+                                        >
+                                            {/* m² badge */}
+                                            {isAreaBased && (
+                                                <div className="absolute top-2 left-2 z-10 bg-primary/90 text-primary-foreground text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 font-medium">
+                                                    <Ruler className="w-2.5 h-2.5" />m²
+                                                </div>
+                                            )}
+
+                                            {/* Cart badge */}
+                                            {isInCart && (
+                                                <div className="absolute top-2 right-2 z-10 min-w-[22px] h-[22px] bg-primary rounded-full flex items-center justify-center px-1.5">
+                                                    <span className="text-white text-[10px] font-bold leading-none">
+                                                        {isAreaBased ? `${areaLinesCount}×` : `×${(unitLineInCart as any)?.qty ?? 1}`}
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            <div className="aspect-square bg-muted/50 rounded-lg mb-3 flex items-center justify-center overflow-hidden border border-border group-hover:bg-primary/10 transition-colors">
+                                                {imgSrc
+                                                    ? <img src={`${API_BASE}${imgSrc}`} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                                    : <span className="text-4xl text-primary/50 font-bold">{p.name.charAt(0)}</span>
+                                                }
+                                            </div>
+                                            <p className="font-semibold text-sm text-foreground line-clamp-2">{p.name}{v.variantName ? ` — ${v.variantName}` : (v.size ? ` (${v.size})` : '')}</p>
+                                            <p className="text-xs text-muted-foreground truncate mb-1">{v.sku}</p>
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-bold text-primary text-sm">
+                                                    Rp {Number(v.price || 0).toLocaleString('id-ID')}
+                                                    {isAreaBased && <span className="text-xs font-normal text-muted-foreground">/m²</span>}
+                                                </p>
+                                                <p className={`text-xs font-medium ${Number(v.stock) < 10 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                                    {v.stock}{isAreaBased ? 'm²' : ''}
+                                                </p>
+                                            </div>
+
+                                            {/* + button — visible on hover (all product types) */}
+                                            {Number(v.stock) > 0 && (
+                                                <div className="absolute bottom-3 right-3 w-7 h-7 bg-primary text-primary-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-lg scale-90 group-hover:scale-100">
+                                                    <Plus className="w-4 h-4" />
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Cart Sidebar */}
+            <div className="w-[400px] flex flex-col glass rounded-xl overflow-hidden shadow-sm shrink-0">
+                <div className="p-4 bg-primary text-primary-foreground flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-semibold">
+                        <ShoppingCart className="h-5 w-5" />
+                        Keranjang ({cart.length} baris)
+                    </div>
+                    {cart.length > 0 && (
+                        <button onClick={clearCart} className="text-primary-foreground/70 hover:text-primary-foreground" title="Kosongkan">
+                            <Trash2 className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                    {cart.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-40 space-y-2">
+                            <ShoppingCart className="w-12 h-12" />
+                            <p className="text-sm">Keranjang kosong</p>
+                        </div>
+                    ) : (
+                        cart.map((item) => (
+                            <div key={item.lineId} className={`pb-3 border-b border-border/50 last:border-0 last:pb-0 ${item.pricingMode === 'AREA_BASED' ? 'bg-primary/3 rounded-lg px-2 py-2 border border-primary/10' : ''}`}>
+                                <div className="flex gap-3">
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-sm text-foreground leading-tight truncate">{item.name}</p>
+                                        <p className="text-xs text-muted-foreground">{item.sku}</p>
+
+                                        {/* AREA_BASED: dimension display + edit button */}
+                                        {item.pricingMode === 'AREA_BASED' && (
+                                            <div className="mt-1.5 space-y-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <div className="flex items-center gap-1 bg-primary/10 text-primary rounded px-2 py-0.5 text-xs font-medium">
+                                                        <Ruler className="w-3 h-3" />
+                                                        {item.unitType === 'menit'
+                                                            ? `${item.widthCm} unit`
+                                                            : `${item.widthCm}×${item.heightCm} ${item.unitType || 'm'} = ${item.areaM2?.toLocaleString('id-ID')} unit`}
+                                                    </div>
+                                                    <button onClick={() => openAreaModalEdit(item.lineId, item)}
+                                                        className="p-1 text-muted-foreground hover:text-primary transition-colors rounded" title="Ubah dimensi">
+                                                        <RefreshCw className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                                {/* Note display */}
+                                                {item.note && (
+                                                    <div className="flex items-start gap-1 text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1">
+                                                        <StickyNote className="w-3 h-3 shrink-0 mt-0.5 text-primary/60" />
+                                                        <span className="break-words">{item.note}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {/* UNIT: note display */}
+                                        {item.pricingMode === 'UNIT' && item.note && (
+                                            <div className="mt-1.5 flex items-start gap-1 text-xs text-muted-foreground bg-muted/40 rounded px-2 py-1 w-fit">
+                                                <StickyNote className="w-3 h-3 shrink-0 mt-0.5 text-primary/60" />
+                                                <span className="break-words max-w-[200px]">{item.note}</span>
+                                            </div>
+                                        )}
+
+                                        <p className="text-sm font-semibold text-primary mt-1">Rp {item.price.toLocaleString('id-ID')}</p>
+                                    </div>
+
+                                    <div className="flex flex-col items-end gap-2 justify-center shrink-0">
+                                        {item.pricingMode === 'AREA_BASED' ? (
+                                            <button onClick={() => removeItem(item.lineId)}
+                                                className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded transition-colors">
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        ) : (
+                                            <div className="flex flex-col gap-2 items-end">
+                                                <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg p-1 border border-border">
+                                                    <button onClick={() => item.qty > 1 ? updateQuantity(item.lineId, -1) : removeItem(item.lineId)}
+                                                        className="p-1 hover:bg-background rounded text-muted-foreground transition-colors">
+                                                        <Minus className="h-4 w-4" />
+                                                    </button>
+                                                    <span className="w-6 text-center text-sm font-medium">{item.qty}</span>
+                                                    <button onClick={() => updateQuantity(item.lineId, 1)} disabled={item.qty >= item.stock}
+                                                        className="p-1 hover:bg-background rounded text-muted-foreground transition-colors disabled:opacity-50">
+                                                        <Plus className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                                <button onClick={() => setUnitNoteModal({ open: true, lineId: item.lineId, currentNote: item.note || '' })}
+                                                    className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors bg-muted/50 px-2 py-1 rounded">
+                                                    <StickyNote className="w-3 h-3" />
+                                                    {item.note ? 'Edit Catatan' : '+ Catatan'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="p-4 bg-card border-t border-border space-y-2.5 z-10">
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Subtotal</span><span className="font-medium text-foreground">Rp {subtotal.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                        <span>Pajak (10%)</span><span className="font-medium text-foreground">Rp {taxAmount.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="pt-2 border-t border-dashed border-border flex justify-between items-end">
+                        <span className="font-medium">Grand Total</span>
+                        <span className="text-2xl font-bold text-primary">Rp {grandTotal.toLocaleString('id-ID')}</span>
+                    </div>
+                    <button onClick={() => setCheckoutModalOpen(true)} disabled={cart.length === 0}
+                        className="w-full py-3.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold transition-all shadow-md active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 text-base mt-2">
+                        Proses Pembayaran
+                    </button>
+                </div>
+            </div>
+
+            {/* Area Input Modal (Add + Edit with note) */}
+            {areaModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="glass bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">
+                        <div className="p-5 border-b border-border flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
+                                    <Ruler className="w-4 h-4 text-primary" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-sm">
+                                        {areaModal.mode === 'edit' ? 'Edit Dimensi Cetak' : 'Tambah Pekerjaan Cetak'}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">{areaModal.product?.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setAreaModal(emptyAreaModal())} className="p-1 text-muted-foreground hover:text-foreground">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 space-y-4">
+                            {/* Unit Selection */}
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium">Satuan Perhitungan *</label>
+                                <select
+                                    value={areaModal.unitType}
+                                    onChange={e => setAreaModal({ ...areaModal, unitType: e.target.value as 'm' | 'cm' | 'menit' })}
+                                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
+                                >
+                                    <option value="m">Meter (m) - Hitung Luas pxl</option>
+                                    <option value="cm">Centimeter (cm) - Hitung Luas pxl</option>
+                                    <option value="menit">Menit/Jam/Pcs - Hitung Jumlah Langsung</option>
+                                </select>
+                            </div>
+
+                            {/* Dimensions */}
+                            <div className={`grid gap-3 ${areaModal.unitType === 'menit' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">{areaModal.unitType === 'menit' ? 'Jumlah / Durasi *' : 'Lebar *'}</label>
+                                    <input type="number" min="0" step="any" value={areaModal.widthCm}
+                                        onChange={e => setAreaModal({ ...areaModal, widthCm: e.target.value })}
+                                        placeholder={areaModal.unitType === 'cm' ? '120' : (areaModal.unitType === 'm' ? '1.2' : '45')} autoFocus
+                                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center" />
+                                </div>
+                                {areaModal.unitType !== 'menit' && (
+                                    <div className="space-y-1.5">
+                                        <label className="text-sm font-medium">Tinggi *</label>
+                                        <input type="number" min="0" step="any" value={areaModal.heightCm}
+                                            onChange={e => setAreaModal({ ...areaModal, heightCm: e.target.value })}
+                                            placeholder={areaModal.unitType === 'cm' ? '200' : '2.0'}
+                                            className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center" />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Live price preview */}
+                            {areaPreview && (
+                                <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 space-y-1.5">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">{areaModal.unitType === 'menit' ? 'Total Nilai' : 'Luas cetak'}</span>
+                                        <span className="font-bold">{areaPreview.areaM2.toLocaleString('id-ID')} {areaModal.unitType === 'menit' ? 'unit' : (areaModal.unitType === 'cm' ? 'm²' : 'm²')}</span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-muted-foreground">Harga Dasar</span>
+                                        <span className="font-medium">Rp {areaPreview.pricePerM2.toLocaleString('id-ID')}</span>
+                                    </div>
+                                    <div className="flex justify-between border-t border-primary/20 pt-1.5">
+                                        <span className="font-semibold">Total</span>
+                                        <span className="text-lg font-bold text-primary">Rp {areaPreview.computedPrice.toLocaleString('id-ID')}</span>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Note / Description field */}
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium flex items-center gap-1.5">
+                                    <StickyNote className="w-3.5 h-3.5 text-muted-foreground" />
+                                    Nama Desain / Catatan &nbsp;
+                                    <span className="text-xs font-normal text-muted-foreground">(opsional)</span>
+                                </label>
+                                <textarea
+                                    rows={2}
+                                    value={areaModal.note}
+                                    onChange={e => setAreaModal({ ...areaModal, note: e.target.value })}
+                                    placeholder="Contoh: Logo ACME, Laminasi Doff, Salin dari file WA, dll."
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
+                                />
+                                <p className="text-xs text-muted-foreground">Catatan ini akan tampil di keranjang sebagai referensi operator.</p>
+                            </div>
+
+                            <div className="flex gap-3 pt-1">
+                                <button type="button" onClick={() => setAreaModal(emptyAreaModal())}
+                                    className="flex-1 py-2.5 rounded-xl border border-border bg-muted/50 font-medium text-sm hover:bg-muted transition-colors">
+                                    Batal
+                                </button>
+                                <button type="button" onClick={confirmAreaInput} disabled={!areaPreview}
+                                    className="flex-[2] py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors disabled:opacity-40 flex items-center justify-center gap-2">
+                                    <ShoppingCart className="w-4 h-4" />
+                                    {areaModal.mode === 'edit' ? 'Simpan Perubahan' : 'Masukkan Keranjang'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Note Input Modal (For UNIT Products) */}
+            {unitNoteModal.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="glass bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="font-bold text-sm flex items-center gap-2">
+                                <StickyNote className="w-4 h-4 text-primary" />
+                                Tambah Nama Desain / Catatan
+                            </h3>
+                            <button onClick={() => setUnitNoteModal({ open: false, lineId: '', currentNote: '' })} className="p-1 text-muted-foreground hover:text-foreground">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="space-y-3">
+                            <textarea
+                                rows={3}
+                                value={unitNoteModal.currentNote}
+                                onChange={e => setUnitNoteModal({ ...unitNoteModal, currentNote: e.target.value })}
+                                placeholder="Contoh: Desain Banner Spanduk Ultah, Bungkus kado merah, dll."
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
+                                autoFocus
+                            />
+                            <div className="flex gap-2 justify-end">
+                                <button type="button" onClick={() => setUnitNoteModal({ open: false, lineId: '', currentNote: '' })} className="px-4 py-2 rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+                                    Batal
+                                </button>
+                                <button type="button" onClick={() => { updateNote(unitNoteModal.lineId, unitNoteModal.currentNote); setUnitNoteModal({ open: false, lineId: '', currentNote: '' }); }} className="px-5 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-sm hover:bg-primary/90 transition-colors">
+                                    Simpan Catatan
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== CHECKOUT MODAL (redesigned) ===== */}
+            {isCheckoutModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="glass bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[92vh] relative">
+
+                        {/* === CONFIRM PAYMENT OVERLAY === */}
+                        {showPayConfirm && (
+                            <div className="absolute inset-0 z-20 flex items-end justify-stretch bg-background/70 backdrop-blur-sm rounded-2xl">
+                                <div className="w-full bg-card border-t-2 border-primary rounded-b-2xl p-6 space-y-4 shadow-2xl">
+                                    <div className="text-center">
+                                        <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                                            <span className="text-2xl">⚠️</span>
+                                        </div>
+                                        <h3 className="text-lg font-bold">{downPayment !== '' && Number(downPayment) < grandTotal ? 'Konfirmasi DP' : 'Konfirmasi Pembayaran'}</h3>
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            Pastikan pembayaran <strong>Rp {(downPayment !== '' && Number(downPayment) < grandTotal ? Number(downPayment) : grandTotal).toLocaleString('id-ID')}</strong> via <strong>{paymentMethod === 'BANK_TRANSFER' ? 'Transfer Bank' : paymentMethod}</strong> sudah diterima sebelum melanjutkan.
+                                        </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button onClick={() => setShowPayConfirm(false)}
+                                            className="py-3 rounded-xl border-2 border-border bg-background font-bold text-sm hover:bg-muted transition-colors">
+                                            ← Kembali
+                                        </button>
+                                        <button onClick={() => { setShowPayConfirm(false); handleCheckout(); }}
+                                            disabled={transactionMutation.isPending}
+                                            className="py-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            {transactionMutation.isPending ? 'Memproses...' : (downPayment !== '' && Number(downPayment) < grandTotal ? 'Ya, Konfirmasi DP ✓' : 'Ya, Sudah Lunas ✓')}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Header */}
+                        <div className="p-5 border-b border-border flex items-center justify-between shrink-0">
+                            <div>
+                                <h2 className="text-lg font-bold">Tagihan Order</h2>
+                                <p className="text-xs text-muted-foreground">{cart.length} baris item · {new Date().toLocaleDateString('id-ID', { dateStyle: 'medium' })}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-muted-foreground">Grand Total</p>
+                                <p className="text-2xl font-black text-primary">Rp {grandTotal.toLocaleString('id-ID')}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto">
+                            {/* Order summary */}
+                            <div className="p-5 border-b border-border">
+                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Rincian Pesanan</p>
+                                <div className="space-y-2">
+                                    {cart.map((item) => (
+                                        <div key={item.lineId} className="flex gap-2">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium truncate">{item.name}</p>
+                                                {item.pricingMode === 'AREA_BASED'
+                                                    ? <p className="text-xs text-muted-foreground">{item.widthCm}×{item.heightCm}cm = {item.areaM2?.toFixed(4)}m²{item.note ? ` · ${item.note}` : ''}</p>
+                                                    : <p className="text-xs text-muted-foreground">×{item.qty} × Rp {item.pricePerUnit.toLocaleString('id-ID')}</p>
+                                                }
+                                            </div>
+                                            <p className="text-sm font-semibold shrink-0">Rp {item.price.toLocaleString('id-ID')}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-3 pt-3 border-t border-dashed border-border text-sm space-y-1">
+                                    <div className="flex justify-between text-muted-foreground">
+                                        <span>Subtotal</span><span>Rp {subtotal.toLocaleString('id-ID')}</span>
+                                    </div>
+                                    <div className="flex justify-between text-muted-foreground">
+                                        <span>Pajak 10%</span><span>Rp {taxAmount.toLocaleString('id-ID')}</span>
+                                    </div>
+                                    <div className="flex justify-between font-bold pt-1 border-t border-border text-base">
+                                        <span>Total</span><span className="text-primary">Rp {grandTotal.toLocaleString('id-ID')}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Customer & Order Data Form */}
+                            <div className="p-5 border-b border-border space-y-4">
+                                <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Data Pelanggan <span className="text-destructive">*Wajib</span></p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setCustomerModalOpen(true)}
+                                            className="text-xs font-semibold bg-primary/10 text-primary hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                                        >
+                                            <Search className="w-3.5 h-3.5" />
+                                            Cari Data Pelanggan
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div className="relative mb-2">
+                                            <input type="text" placeholder="Nama Pelanggan" value={customerName} onChange={e => setCustomerName(e.target.value)}
+                                                className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary transition-colors" />
+                                            {customerName && !customers?.some((c: any) => c.name.toLowerCase() === customerName.toLowerCase()) && (
+                                                <button type="button" disabled={createCustomerMutation.isPending} onClick={() => createCustomerMutation.mutate({ name: customerName, phone: customerPhone, address: customerAddress })} className="absolute right-0 -bottom-5 text-[10px] text-primary hover:underline">
+                                                    {createCustomerMutation.isPending ? 'Menyimpan...' : 'Simpan Baru +'}
+                                                </button>
+                                            )}
+                                        </div>
+                                        <input type="text" placeholder="No. HP / WhatsApp" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
+                                            className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary transition-colors h-[38px]" />
+                                    </div>
+                                    <input type="text" placeholder="Alamat (opsional)" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)}
+                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary transition-colors" />
+                                </div>
+
+                                <div className="border-t border-dashed border-border pt-4">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Info Tambahan & Pembayaran</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-muted-foreground">Estimasi Selesai</label>
+                                            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                                                className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary transition-colors" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-muted-foreground">Uang Muka (DP) - Opsional</label>
+                                            <input type="number" placeholder="Contoh: 50000" value={downPayment} onChange={e => setDownPayment(e.target.value)} min="0" max={grandTotal}
+                                                className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary transition-colors" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-xs text-muted-foreground">Nama Kasir / Karyawan</label>
+                                            <select value={cashierName} onChange={e => setCashierName(e.target.value)}
+                                                className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary transition-colors appearance-none">
+                                                <option value="">Pilih Kasir/Staff...</option>
+                                                {users?.map((u: any) => (
+                                                    <option key={u.id} value={u.name}>{u.name} {u.role?.name ? `- ${u.role.name}` : ''} {u.phone ? `(${u.phone})` : ''}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    {downPayment !== '' && Number(downPayment) < grandTotal && (
+                                        <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                                            Status Transaksi: PARTIAL (Belum Lunas). Sisa tagihan: Rp {(grandTotal - Number(downPayment)).toLocaleString('id-ID')}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Payment method */}
+                            <div className="p-5 space-y-4">
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Metode Pembayaran</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {(['CASH', 'QRIS', 'BANK_TRANSFER'] as const).map(m => (
+                                            <button key={m} onClick={() => setPaymentMethod(m)}
+                                                className={`py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${paymentMethod === m ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted/50 text-muted-foreground hover:border-primary/30'}`}>
+                                                {m === 'BANK_TRANSFER' ? 'TRANSFER' : m}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {paymentMethod === 'QRIS' && (
+                                    <div className="bg-muted/30 border border-border rounded-xl p-4 text-center">
+                                        <p className="text-xs font-semibold mb-2 text-muted-foreground">Scan QRIS:</p>
+                                        {settings?.qrisImageUrl
+                                            ? <img src={`${API_BASE}${settings.qrisImageUrl}`} alt="QRIS" className="w-40 h-40 object-contain rounded-lg border bg-white p-1 mx-auto shadow-sm" />
+                                            : <div className="w-40 h-28 bg-muted flex items-center justify-center rounded-lg border border-dashed mx-auto text-muted-foreground text-xs p-4">QRIS belum diupload</div>
+                                        }
+                                    </div>
+                                )}
+
+                                {paymentMethod === 'BANK_TRANSFER' && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-semibold text-muted-foreground">Pilih Rekening Bank Tujuan:</p>
+                                        <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                                            {!bankAccounts?.length
+                                                ? <p className="text-xs text-muted-foreground text-center py-3 bg-muted/20 border border-dashed border-border rounded-lg">Belum ada rekening bank.</p>
+                                                : bankAccounts.map((bank: any) => (
+                                                    <label key={bank.id} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${selectedBankId === String(bank.id) ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border bg-background hover:bg-muted/30'}`}>
+                                                        <input
+                                                            type="radio"
+                                                            name="bankSelection"
+                                                            value={bank.id}
+                                                            checked={selectedBankId === String(bank.id)}
+                                                            onChange={(e) => setSelectedBankId(e.target.value)}
+                                                            className="text-primary focus:ring-primary h-4 w-4"
+                                                        />
+                                                        <div className="flex-1">
+                                                            <p className="font-bold text-xs uppercase text-foreground">{bank.bankName}</p>
+                                                            <div className="flex items-center justify-between mt-0.5">
+                                                                <span className="font-mono text-primary font-bold">{bank.accountNumber}</span>
+                                                                <span className="text-xs text-muted-foreground">a.n {bank.accountOwner}</span>
+                                                            </div>
+                                                        </div>
+                                                    </label>
+                                                ))
+                                            }
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Action bar */}
+                        <div className="p-4 border-t border-border bg-muted/20 space-y-2.5 shrink-0">
+                            {/* Invoice actions row */}
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={handlePrintTagihan}
+                                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-border bg-background hover:bg-muted font-semibold text-xs transition-colors">
+                                    <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+                                    Cetak Invoice Tagihan
+                                </button>
+                                <button onClick={handleShareTagihan}
+                                    className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-[#25D366]/40 bg-[#25D366]/5 hover:bg-[#25D366]/10 font-semibold text-xs text-[#25D366] transition-colors">
+                                    <MessageCircle className="w-3.5 h-3.5" />
+                                    Kirim WA Tagihan
+                                </button>
+                            </div>
+                            {/* Main action row */}
+                            <div className="grid grid-cols-3 gap-2">
+                                <button onClick={() => { setCheckoutModalOpen(false); setShowPayConfirm(false); }}
+                                    className="py-3 font-bold rounded-xl border border-border bg-background hover:bg-muted transition-colors text-sm">
+                                    Batal
+                                </button>
+                                <button onClick={() => setShowPayConfirm(true)}
+                                    disabled={transactionMutation.isPending}
+                                    className="col-span-2 py-3 text-primary-foreground font-bold rounded-xl bg-primary hover:bg-primary/90 shadow-md flex items-center justify-center gap-2 disabled:opacity-50 text-sm transition-colors">
+                                    <CheckCircle2 className="w-4 h-4" /> {downPayment !== '' && Number(downPayment) < grandTotal ? 'Konfirmasi Pembayaran DP' : 'Konfirmasi Lunas'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== RECEIPT MODAL (after successful payment) ===== */}
+            {receipt && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="glass bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+                        {/* Success header */}
+                        <div className={`p-6 border-b text-center space-y-2 ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                                <CheckCircle2 className="w-8 h-8 text-white" />
+                            </div>
+                            <h2 className={`text-xl font-bold ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                {receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'Pembayaran DP Berhasil!' : 'Pembayaran Berhasil!'}
+                            </h2>
+                            <p className="text-sm text-muted-foreground">
+                                {receipt.timestamp.toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' })}
+                            </p>
+                        </div>
+
+                        {/* Receipt preview */}
+                        <div className="flex-1 overflow-y-auto p-5 space-y-3">
+                            <div className="text-center border-b border-dashed border-border pb-3 mb-1">
+                                <p className="font-bold text-base">{receipt.storeName}</p>
+                                {receipt.transactionId && <p className="text-xs text-muted-foreground">TRX-{String(receipt.transactionId).padStart(5, '0')}</p>}
+                            </div>
+
+                            {/* Item list */}
+                            <div className="space-y-2">
+                                {receipt.items.map((item, i) => (
+                                    <div key={i} className="flex gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium truncate">{item.name}</p>
+                                            {item.pricingMode === 'AREA_BASED'
+                                                ? <p className="text-xs text-muted-foreground">{item.unitType === 'menit' ? `${item.widthCm} unit` : `${item.widthCm}×${item.heightCm} ${item.unitType || 'm'} = ${item.areaM2?.toFixed(4)} ${item.unitType === 'm' || item.unitType === 'cm' ? 'm²' : 'unit'}`}{item.note ? ` • ${item.note}` : ''}</p>
+                                                : <p className="text-xs text-muted-foreground">×{item.qty} @ Rp {item.pricePerUnit.toLocaleString('id-ID')}</p>
+                                            }
+                                        </div>
+                                        <p className="text-sm font-semibold shrink-0">Rp {item.price.toLocaleString('id-ID')}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Totals */}
+                            <div className="border-t border-dashed border-border pt-3 space-y-1.5">
+                                <div className="flex justify-between text-sm text-muted-foreground">
+                                    <span>Subtotal</span><span>Rp {receipt.subtotal.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between text-sm text-muted-foreground">
+                                    <span>Pajak (10%)</span><span>Rp {receipt.taxAmount.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
+                                    <span>TOTAL</span><span className="text-primary">Rp {receipt.grandTotal.toLocaleString('id-ID')}</span>
+                                </div>
+                            </div>
+
+                            {/* Payment method badge */}
+                            <div className="flex items-center justify-center gap-2 pt-1">
+                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${receipt.paymentMethod === 'CASH' ? 'bg-emerald-500/10 text-emerald-600' :
+                                    receipt.paymentMethod === 'QRIS' ? 'bg-blue-500/10 text-blue-600' :
+                                        'bg-purple-500/10 text-purple-600'
+                                    }`}>
+                                    {receipt.paymentMethod === 'BANK_TRANSFER' ? 'TRANSFER BANK' : receipt.paymentMethod}
+                                </span>
+                                <span className={`text-xs font-bold ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                    {receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? '✓ DP / BELUM LUNAS' : '✓ LUNAS'}
+                                </span>
+                            </div>
+
+                            {/* Outstanding balance if DP */}
+                            {receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal && (
+                                <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center space-y-1">
+                                    <p className="text-xs text-muted-foreground">Sisa Tagihan (Belum Dibayar):</p>
+                                    <p className="font-bold text-amber-600 text-lg">Rp {(receipt.grandTotal - receipt.downPayment).toLocaleString('id-ID')}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="p-4 border-t border-border bg-muted/30 space-y-3">
+                            {/* Print + WA row */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => handlePrintSnap(receipt, (receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
+                                    className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all">
+                                    <Printer className="w-4 h-4 text-muted-foreground" />
+                                    Cetak Struk
+                                </button>
+                                <button onClick={() => handleShareWA(receipt, (receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
+                                    className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#25D366]/40 bg-[#25D366]/5 hover:bg-[#25D366]/10 font-semibold text-sm text-[#25D366] transition-all">
+                                    <MessageCircle className="w-4 h-4" />
+                                    Share ke WA
+                                </button>
+                            </div>
+                            <button onClick={() => setReceipt(null)}
+                                className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-colors text-sm">
+                                Selesai / Transaksi Baru
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Customer Search Sub-Modal */}
+            {isCustomerModalOpen && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-background rounded-3xl shadow-xl border border-border w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200">
+                        <button
+                            onClick={() => { setCustomerModalOpen(false); setCustomerSearchQuery(''); }}
+                            className="absolute top-4 right-4 p-2 text-muted-foreground hover:bg-muted rounded-full transition-colors"
+                        >
+                            <X className="w-5 h-5" />
+                        </button>
+
+                        <h2 className="text-xl font-bold mb-4">Cari Pelanggan</h2>
+
+                        <div className="flex items-center px-4 py-2 mb-4 bg-muted/50 border border-border rounded-xl focus-within:ring-2 ring-primary/20 transition-all">
+                            <Search className="w-5 h-5 text-muted-foreground mr-3" />
+                            <input
+                                type="text"
+                                placeholder="Ketik nama atau no HP..."
+                                value={customerSearchQuery}
+                                onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                                className="w-full bg-transparent border-none outline-none text-sm"
+                                autoFocus
+                            />
+                        </div>
+
+                        <div className="max-h-[300px] overflow-y-auto pr-2 space-y-2">
+                            {customers?.filter((c: any) =>
+                                c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+                                (c.phone && c.phone.includes(customerSearchQuery))
+                            ).length === 0 ? (
+                                <p className="text-center text-sm text-muted-foreground py-4">Pencarian tidak ditemukan.</p>
+                            ) : (
+                                customers?.filter((c: any) =>
+                                    c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
+                                    (c.phone && c.phone.includes(customerSearchQuery))
+                                ).map((customer: any) => (
+                                    <div key={customer.id} className="flex flex-col p-3 rounded-xl border border-border hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
+                                        onClick={() => {
+                                            setCustomerName(customer.name);
+                                            setCustomerPhone(customer.phone || '');
+                                            setCustomerAddress(customer.address || '');
+                                            setCustomerModalOpen(false);
+                                            setCustomerSearchQuery('');
+                                        }}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-semibold text-sm">{customer.name}</span>
+                                            <button className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded-md font-medium">Pilih</button>
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">{customer.phone || '-'}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}

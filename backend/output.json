@@ -1,0 +1,84 @@
+Last 10 Cashflows: [
+  {
+    "id": 2,
+    "type": "INCOME",
+    "category": "Pelunasan DP",
+    "amount": "24000",
+    "note": "Pelunasan Invoice INV-20260304-0006 untuk Bpk/Ibu Faisal via BANK_TRANSFER",
+    "userId": null,
+    "date": "2026-03-04T19:11:28.080Z",
+    "createdAt": "2026-03-04T19:11:28.080Z",
+    "updatedAt": "2026-03-04T19:11:28.080Z"
+  },
+  {
+    "id": 1,
+    "type": "INCOME",
+    "category": "Pelunasan DP",
+    "amount": "72000",
+    "note": "Pelunasan Invoice INV-20260304-0005 untuk Bpk/Ibu Faisal via CASH",
+    "userId": null,
+    "date": "2026-03-04T19:05:26.169Z",
+    "createdAt": "2026-03-04T19:05:26.169Z",
+    "updatedAt": "2026-03-04T19:05:26.169Z"
+  }
+]
+
+Last 3 Transactions: [
+  {
+    "id": 11,
+    "invoiceNumber": "INV-20260304-0006",
+    "totalAmount": "34000",
+    "tax": "0",
+    "discount": "0",
+    "grandTotal": "34000",
+    "paymentMethod": "BANK_TRANSFER",
+    "status": "PAID",
+    "customerName": "Faisal",
+    "customerPhone": "0821313",
+    "customerAddress": "JAlan lurus",
+    "dueDate": "2026-03-06T00:00:00.000Z",
+    "downPayment": "34000",
+    "cashierName": "Lyan",
+    "employeeName": null,
+    "createdAt": "2026-03-04T19:10:39.707Z",
+    "updatedAt": "2026-03-04T19:11:28.085Z"
+  },
+  {
+    "id": 10,
+    "invoiceNumber": "INV-20260304-0005",
+    "totalAmount": "102000",
+    "tax": "0",
+    "discount": "0",
+    "grandTotal": "102000",
+    "paymentMethod": "CASH",
+    "status": "PAID",
+    "customerName": "Faisal",
+    "customerPhone": "0821313",
+    "customerAddress": "JAlan lurus",
+    "dueDate": "2026-03-06T00:00:00.000Z",
+    "downPayment": "102000",
+    "cashierName": "Lyan",
+    "employeeName": null,
+    "createdAt": "2026-03-04T19:02:02.523Z",
+    "updatedAt": "2026-03-04T19:05:26.172Z"
+  },
+  {
+    "id": 9,
+    "invoiceNumber": "INV-20260304-0004",
+    "totalAmount": "6.8",
+    "tax": "0",
+    "discount": "0",
+    "grandTotal": "6.8",
+    "paymentMethod": "CASH",
+    "status": "PAID",
+    "customerName": "Faisal",
+    "customerPhone": "0821313",
+    "customerAddress": "JAlan lurus",
+    "dueDate": "2026-03-06T00:00:00.000Z",
+    "downPayment": "30000",
+    "cashierName": "Lyan",
+    "employeeName": null,
+    "createdAt": "2026-03-04T18:53:33.860Z",
+    "updatedAt": "2026-03-04T18:53:33.860Z"
+  }
+]

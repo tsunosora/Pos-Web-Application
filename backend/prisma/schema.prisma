@@ -1,0 +1,401 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String @unique @db.VarChar(20)
+  users User[]
+
+  @@map("roles")
+}
+
+model Branch {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(100)
+  address   String?   @db.Text
+  latitude  Decimal?  @db.Decimal(9, 6)
+  longitude Decimal?  @db.Decimal(9, 6)
+  createdAt DateTime? @default(now()) @map("created_at")
+
+  @@map("branches")
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  name         String?   @db.VarChar(100)
+  email        String    @unique @db.VarChar(100)
+  phone        String?   @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(200)
+  roleId       Int?      @map("role_id")
+  createdAt    DateTime? @default(now()) @map("created_at")
+  updatedAt    DateTime? @default(now()) @map("updated_at")
+
+  role      Role?      @relation(fields: [roleId], references: [id])
+  cashflows Cashflow[]
+
+  @@map("users")
+}
+
+model Category {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(100)
+  products  Product[]
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model Unit {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(50)
+  products  Product[]
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  @@map("units")
+}
+
+model Product {
+  id           Int         @id @default(autoincrement())
+  name         String      @db.VarChar(200)
+  description  String?     @db.Text
+  categoryId   Int         @map("category_id")
+  unitId       Int         @map("unit_id")
+  imageUrl     String?     @map("image_url") @db.Text
+  imageUrls    String?     @map("image_urls") @db.Text
+  pricingMode  PricingMode @default(UNIT) @map("pricing_mode")
+  pricePerUnit Decimal?    @map("price_per_unit") @db.Decimal(15, 2)
+  createdAt    DateTime?   @default(now()) @map("created_at")
+  updatedAt    DateTime?   @default(now()) @updatedAt @map("updated_at")
+
+  category    Category         @relation(fields: [categoryId], references: [id])
+  unit        Unit             @relation(fields: [unitId], references: [id])
+  variants    ProductVariant[]
+  ingredients Ingredient[]
+
+  @@map("products")
+}
+
+model ProductVariant {
+  id              Int       @id @default(autoincrement())
+  productId       Int       @map("product_id")
+  sku             String    @unique @db.VarChar(100)
+  variantName     String?   @map("variant_name") @db.VarChar(100)
+  price           Decimal   @db.Decimal(15, 2)
+  stock           Int       @default(0)
+  size            String?   @db.VarChar(50)
+  color           String?   @db.VarChar(50)
+  variantImageUrl String?   @map("variant_image_url") @db.Text
+  createdAt       DateTime? @default(now()) @map("created_at")
+  updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  batches          Batch[]
+  movements        StockMovement[]
+  transactionItems TransactionItem[]
+  hppVariableCosts HppVariableCost[]
+
+  @@map("product_variants")
+}
+
+model Ingredient {
+  id        Int     @id @default(autoincrement())
+  productId Int     @map("product_id")
+  name      String  @db.VarChar(200)
+  quantity  Decimal @db.Decimal(10, 3)
+  unit      String  @db.VarChar(50)
+  price     Decimal @default(0) @db.Decimal(15, 2)
+  subtotal  Decimal @default(0) @db.Decimal(15, 2)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("ingredients")
+}
+
+model Batch {
+  id               Int       @id @default(autoincrement())
+  productVariantId Int       @map("product_variant_id")
+  batchNumber      String    @unique @map("batch_number") @db.VarChar(100)
+  expirationDate   DateTime? @map("expiration_date") @db.Date
+  stock            Int       @default(0)
+  createdAt        DateTime? @default(now()) @map("created_at")
+  updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@map("batches")
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum PricingMode {
+  UNIT
+  AREA_BASED
+}
+
+model StockMovement {
+  id               Int          @id @default(autoincrement())
+  productVariantId Int          @map("product_variant_id")
+  type             MovementType
+  quantity         Int
+  reason           String?      @db.VarChar(255)
+  date             DateTime?    @default(now())
+  createdAt        DateTime?    @default(now()) @map("created_at")
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@map("stock_movements")
+}
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  BANK_TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  PARTIAL
+  PAID
+  FAILED
+}
+
+model Transaction {
+  id              Int               @id @default(autoincrement())
+  invoiceNumber   String            @unique @map("invoice_number") @db.VarChar(100)
+  totalAmount     Decimal           @map("total_amount") @db.Decimal(15, 2)
+  tax             Decimal           @db.Decimal(15, 2)
+  discount        Decimal           @default(0) @db.Decimal(15, 2)
+  grandTotal      Decimal           @map("grand_total") @db.Decimal(15, 2)
+  paymentMethod   PaymentMethod     @map("payment_method")
+  status          TransactionStatus @default(PENDING)
+  customerName    String?           @map("customer_name") @db.VarChar(200)
+  customerPhone   String?           @map("customer_phone") @db.VarChar(50)
+  customerAddress String?           @map("customer_address") @db.Text
+  dueDate         DateTime?         @map("due_date")
+  downPayment     Decimal           @default(0) @map("down_payment") @db.Decimal(15, 2)
+  cashierName     String?           @map("cashier_name") @db.VarChar(100)
+  employeeName    String?           @map("employee_name") @db.VarChar(100)
+  bankAccountId   Int?              @map("bank_account_id")
+  createdAt       DateTime?         @default(now()) @map("created_at")
+  updatedAt       DateTime?         @default(now()) @updatedAt @map("updated_at")
+
+  items       TransactionItem[]
+  bankAccount BankAccount?      @relation(fields: [bankAccountId], references: [id])
+
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id               Int       @id @default(autoincrement())
+  transactionId    Int       @map("transaction_id")
+  productVariantId Int       @map("product_variant_id")
+  quantity         Int
+  priceAtTime      Decimal   @map("price_at_time") @db.Decimal(15, 2)
+  widthCm          Decimal?  @map("width_cm") @db.Decimal(10, 2)
+  heightCm         Decimal?  @map("height_cm") @db.Decimal(10, 2)
+  areaCm2          Decimal?  @map("area_cm2") @db.Decimal(15, 4)
+  note             String?   @db.Text
+  createdAt        DateTime? @default(now()) @map("created_at")
+
+  transaction    Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@map("transaction_items")
+}
+
+enum CashflowType {
+  INCOME
+  EXPENSE
+}
+
+model Cashflow {
+  id            Int            @id @default(autoincrement())
+  type          CashflowType
+  category      String         @db.VarChar(100)
+  amount        Decimal        @db.Decimal(15, 2)
+  note          String?        @db.Text
+  userId        Int?           @map("user_id")
+  bankAccountId Int?           @map("bank_account_id")
+  paymentMethod PaymentMethod? @map("payment_method")
+  date          DateTime       @default(now())
+  createdAt     DateTime?      @default(now()) @map("created_at")
+  updatedAt     DateTime?      @default(now()) @updatedAt @map("updated_at")
+
+  user        User?        @relation(fields: [userId], references: [id])
+  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
+
+  @@map("cashflows")
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(100)
+  clientName    String        @map("client_name") @db.VarChar(200)
+  date          DateTime      @default(now())
+  dueDate       DateTime      @map("due_date")
+  status        InvoiceStatus @default(DRAFT)
+  total         Decimal       @default(0) @db.Decimal(15, 2)
+  createdAt     DateTime?     @default(now()) @map("created_at")
+  updatedAt     DateTime?     @default(now()) @updatedAt @map("updated_at")
+
+  items InvoiceItem[]
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          Int     @id @default(autoincrement())
+  invoiceId   Int     @map("invoice_id")
+  description String  @db.VarChar(255)
+  quantity    Int
+  price       Decimal @db.Decimal(15, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@map("invoice_items")
+}
+
+// ----- HPP Calculator & Recipe Templates ----- //
+
+model HppWorksheet {
+  id           Int       @id @default(autoincrement())
+  productName  String    @map("product_name") @db.VarChar(200)
+  targetVolume Int       @default(1) @map("target_volume")
+  targetMargin Decimal   @default(50) @map("target_margin") @db.Decimal(10, 2)
+  createdAt    DateTime? @default(now()) @map("created_at")
+  updatedAt    DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  variableCosts HppVariableCost[]
+  fixedCosts    HppFixedCost[]
+
+  @@map("hpp_worksheets")
+}
+
+model HppVariableCost {
+  id                 Int      @id @default(autoincrement())
+  worksheetId        Int      @map("worksheet_id")
+  productVariantId   Int?     @map("product_variant_id") // null if custom material
+  customMaterialName String?  @map("custom_material_name") @db.VarChar(200)
+  customPrice        Decimal? @map("custom_price") @db.Decimal(15, 2)
+  usageAmount        Decimal  @map("usage_amount") @db.Decimal(15, 4)
+  usageUnit          String   @map("usage_unit") @db.VarChar(50)
+
+  worksheet      HppWorksheet    @relation(fields: [worksheetId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+
+  @@map("hpp_variable_costs")
+}
+
+model HppFixedCost {
+  id          Int     @id @default(autoincrement())
+  worksheetId Int     @map("worksheet_id")
+  name        String  @db.VarChar(150)
+  amount      Decimal @db.Decimal(15, 2)
+
+  worksheet HppWorksheet @relation(fields: [worksheetId], references: [id], onDelete: Cascade)
+
+  @@map("hpp_fixed_costs")
+}
+
+model StoreSettings {
+  id                    Int       @id @default(autoincrement())
+  storeName             String    @map("store_name") @db.VarChar(200)
+  storeAddress          String?   @map("store_address") @db.Text
+  storePhone            String?   @map("store_phone") @db.VarChar(50)
+  qrisImageUrl          String?   @map("qris_image_url") @db.Text
+  logoImageUrl          String?   @map("logo_image_url") @db.Text
+  enableAdvancedPricing Boolean   @default(false) @map("enable_advanced_pricing")
+  enableTax             Boolean   @default(true) @map("enable_tax")
+  taxRate               Decimal   @default(10) @map("tax_rate") @db.Decimal(5, 2)
+  createdAt             DateTime? @default(now()) @map("created_at")
+  updatedAt             DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+
+model BankAccount {
+  id            Int       @id @default(autoincrement())
+  bankName      String    @map("bank_name") @db.VarChar(100)
+  accountNumber String    @map("account_number") @db.VarChar(100)
+  accountOwner  String    @map("account_owner") @db.VarChar(100)
+  currentBalance Decimal  @default(0) @map("current_balance") @db.Decimal(15, 2)
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime? @default(now()) @map("created_at")
+  updatedAt     DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  transactions Transaction[]
+  cashflows    Cashflow[]
+
+  @@map("bank_accounts")
+}
+
+model Customer {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(100)
+  phone     String?   @db.VarChar(50)
+  address   String?   @db.Text
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  @@map("customers")
+}
+
+model ShiftReport {
+  id                 Int       @id @default(autoincrement())
+  adminName          String    @map("admin_name") @db.VarChar(100)
+  shiftName          String    @map("shift_name") @db.VarChar(50)
+  openedAt           DateTime  @map("opened_at")
+  closedAt           DateTime  @map("closed_at") @default(now())
+
+  // Cash Information
+  expectedCash       Decimal   @map("expected_cash") @db.Decimal(15, 2)
+  actualCash         Decimal   @map("actual_cash") @db.Decimal(15, 2)
+  cashDifference     Decimal   @map("cash_difference") @db.Decimal(15, 2)
+
+  // QRIS Information
+  expectedQris       Decimal   @map("expected_qris") @db.Decimal(15, 2)
+  actualQris         Decimal   @map("actual_qris") @db.Decimal(15, 2)
+  qrisDifference     Decimal   @map("qris_difference") @db.Decimal(15, 2)
+
+  // Transfer Information
+  expectedTransfer   Decimal   @map("expected_transfer") @db.Decimal(15, 2)
+  actualTransfer     Decimal   @map("actual_transfer") @db.Decimal(15, 2)
+  transferDifference Decimal   @map("transfer_difference") @db.Decimal(15, 2)
+
+  // Detailed breakdowns for WA report
+  expectedBankBalances Json?   @map("expected_bank_balances")
+  actualBankBalances   Json?   @map("actual_bank_balances")
+  shiftExpenses        Json?   @map("shift_expenses")
+
+  expensesTotal      Decimal   @map("expenses_total") @db.Decimal(15, 2)
+  notes              String?   @db.Text
+  proofImages        Json?     @map("proof_images") // Store array of uploaded image paths
+  createdAt          DateTime? @default(now()) @map("created_at")
+
+  @@map("shift_reports")
+}

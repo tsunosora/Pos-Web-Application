@@ -1,0 +1,93 @@
+# ============================================================
+# DEPENDENCIES - Jangan upload, ukurannya sangat besar
+# ============================================================
+node_modules/
+.pnp
+.pnp.js
+
+# ============================================================
+# ENVIRONMENT VARIABLES - Berisi password/secret, JANGAN upload!
+# ============================================================
+.env
+.env.*
+!.env.example
+
+# ============================================================
+# BUILD OUTPUT - Dihasilkan otomatis, tidak perlu di-upload
+# ============================================================
+# NextJS
+frontend/.next/
+frontend/out/
+frontend/build/
+
+# NestJS
+backend/dist/
+
+# TypeScript
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
+
+# ============================================================
+# WHATSAPP BOT SESSION - Data sesi private, JANGAN upload!
+# ============================================================
+backend/.wwebjs_auth/
+backend/.wwebjs_cache/
+backend/whatsapp-auth/
+.wwebjs_auth/
+.wwebjs_cache/
+whatsapp-auth/
+
+# ============================================================
+# UPLOADS - Foto produk tidak perlu di-upload ke GitHub
+# ============================================================
+backend/public/uploads/*
+!backend/public/uploads/.gitkeep
+
+# ============================================================
+# LOG FILES - File debug/error, tidak diperlukan
+# ============================================================
+*.log
+build_err.log
+error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================
+# OUTPUT / TEMPORARY FILES
+# ============================================================
+output.json
+backend/check-db.js
+backend/test-cashflows.ts
+backend/test-images.ts
+
+# ============================================================
+# IDE / EDITOR - Konfigurasi lokal editor kamu
+# ============================================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# ============================================================
+# DOKUMENTASI INTERNAL - Tidak perlu di repo publik
+# ============================================================
+wabot_admin_report/
+wireframes/
+documentation.zip
+tasks.json
+*.md
+!README.md
+!DEVELOPMENT_NOTES.md
+!setup.md
+
+# ============================================================
+# OS FILES
+# ============================================================
+.DS_Store
+desktop.ini
