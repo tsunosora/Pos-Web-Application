@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
-import { CloseShiftDto } from './reports.controller';
+import { CloseShiftDto, StructuredExpenses } from './reports.controller';
 
 @Injectable()
 export class ReportsService {
@@ -11,6 +11,15 @@ export class ReportsService {
         private readonly prisma: PrismaService,
         private readonly whatsappService: WhatsappService,
     ) { }
+
+    // Ambil daftar staff/kasir untuk dropdown
+    async getStaffList() {
+        const users = await this.prisma.user.findMany({
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' },
+        });
+        return users.filter(u => u.name); // hanya yang punya nama
+    }
 
     async calculateCurrentShiftExpectations() {
         const lastShift = await (this.prisma as any).shiftReport.findFirst({
@@ -88,17 +97,15 @@ export class ReportsService {
             systemBankBalances[bName] = startBalance + income - expense;
         }
 
-        // System expected absolute cash in drawer:
-        // usually we don't track absolute cash in drawer across days, just net shift cash.
         const expectedCash = grossCash - cashExpenseTotal;
-        const expectedQris = grossQris; // typically Qris has no direct expenses from app
-        const expectedTransfer = grossTransfer - (expensesTotal - cashExpenseTotal); // approx
+        const expectedQris = grossQris;
+        const expectedTransfer = grossTransfer - (expensesTotal - cashExpenseTotal);
 
         return {
             openedAt,
-            expectedCash,    // net
-            expectedQris,    // net
-            expectedTransfer, // net
+            expectedCash,
+            expectedQris,
+            expectedTransfer,
             grossCash,
             grossQris,
             grossTransfer,
@@ -118,9 +125,21 @@ export class ReportsService {
             where: { isActive: true }
         });
 
+        // Hitung total pengeluaran dari structuredExpenses jika ada
+        let expensesTotalCalc = dto.expensesTotal;
+        if (dto.structuredExpenses) {
+            let total = 0;
+            for (const items of Object.values(dto.structuredExpenses)) {
+                for (const item of items) {
+                    total += Number(item.amount);
+                }
+            }
+            expensesTotalCalc = total;
+        }
+
         const shift: any = await (this.prisma as any).shiftReport.create({
             data: {
-                adminName: dto.adminName || 'Admin',
+                adminName: dto.adminName || 'Kasir',
                 shiftName: dto.shiftName || 'Shift Siang',
                 openedAt: dto.openedAt,
                 closedAt: dto.closedAt,
@@ -137,20 +156,26 @@ export class ReportsService {
                 actualTransfer: dto.actualTransfer,
                 transferDifference,
 
-                expensesTotal: dto.expensesTotal,
+                expensesTotal: expensesTotalCalc,
                 notes: dto.notes,
                 proofImages: proofImages,
 
                 expectedBankBalances: dto.expectedBankBalances || {},
                 actualBankBalances: dto.actualBankBalances || {},
+                realBankBalances: dto.realBankBalances || {},
                 shiftExpenses: dto.shiftExpenses || [],
+                structuredExpenses: dto.structuredExpenses || {},
             },
         });
 
-        // Update active banks with the ACTUAL balances given by the cashier!
-        if (dto.actualBankBalances) {
+        // Update saldo bank dengan SALDO REAL yang diinput kasir
+        const balancesToUpdate = dto.realBankBalances && Object.keys(dto.realBankBalances).length > 0
+            ? dto.realBankBalances
+            : dto.actualBankBalances;
+
+        if (balancesToUpdate) {
             for (const bank of activeBanks) {
-                const actual = dto.actualBankBalances[bank.bankName];
+                const actual = balancesToUpdate[bank.bankName];
                 if (actual !== undefined && actual !== null) {
                     await (this.prisma as any).bankAccount.update({
                         where: { id: bank.id },
@@ -161,11 +186,17 @@ export class ReportsService {
         }
 
         const settings = await this.prisma.storeSettings.findFirst();
-
-        // Regenerate the expectations for standard formatting
         const expectedData = await this.calculateCurrentShiftExpectations();
 
-        const reportMsg = this.formatWhatsappMessage(shift, expectedData, dto.actualBankBalances || {}, dto.actualQris, settings);
+        const reportMsg = this.formatWhatsappMessage(
+            shift,
+            expectedData,
+            dto.actualBankBalances || {},
+            dto.realBankBalances || {},
+            dto.actualQris,
+            dto.structuredExpenses,
+            settings
+        );
 
         this.whatsappService.sendReport(reportMsg, proofImages).catch((err) => {
             this.logger.error('Background WhatsApp send failed', err);
@@ -174,81 +205,93 @@ export class ReportsService {
         return { success: true, message: 'Shift closed successfully.', data: shift };
     }
 
-    private formatWhatsappMessage(shift: any, exp: any, actualBankBalances: any, actualQris: number, settings?: any): string {
+    private formatWhatsappMessage(
+        shift: any,
+        exp: any,
+        actualBankBalances: Record<string, number>,  // Saldo Laporan mBanking
+        realBankBalances: Record<string, number>,    // Saldo Real di Bank
+        actualQris: number,
+        structuredExpenses: StructuredExpenses | undefined,
+        settings?: any
+    ): string {
         const formatRp = (val: number) => {
-            return new Intl.NumberFormat('id-ID', {
-                style: 'currency',
-                currency: 'IDR',
+            return 'Rp ' + new Intl.NumberFormat('id-ID', {
                 minimumFractionDigits: 0
-            }).format(val || 0).replace('Rp', 'Rp.');
+            }).format(val || 0);
         };
 
-        const formatNb = (val: number) => {
-            return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 0 }).format(val || 0);
-        };
-
-        const storeName = settings?.storeName || 'VOLIKO';
-        const dateString = new Date(shift.openedAt).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const storeName = settings?.storeName || 'TOKO';
+        const dateStr = new Date(shift.openedAt).toLocaleDateString('id-ID', {
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+        });
 
         let msg = `${storeName.toUpperCase()}\n`;
         msg += `CS: ${shift.adminName}\n\n`;
+        msg += `Penerimaan ${dateStr} || ${shift.shiftName}\n\n`;
 
-        msg += `Penerimaan ${dateString} || ${shift.shiftName}\n\n`;
-
+        // Pendapatan: Cash dulu, lalu Bank Transfer per rekening, lalu QRIS, lalu Total
         msg += `Cash : ${formatRp(exp.grossCash)}\n`;
 
         let totalIncome = exp.grossCash + exp.grossQris;
-        for (const [bank, amount] of Object.entries(exp.grossBankIncomes)) {
-            msg += `${bank.toUpperCase()} : ${formatRp(amount as number)}\n`;
-            totalIncome += (amount as number);
+        for (const [bank, amount] of Object.entries(exp.grossBankIncomes as Record<string, number>)) {
+            msg += `${bank.toUpperCase()} : ${formatRp(amount)}\n`;
+            totalIncome += amount;
         }
 
-        msg += `QRIS : ${formatNb(exp.grossQris)}\n\n`;
+        msg += `QRIS : ${formatRp(exp.grossQris)}\n\n`;
         msg += `Total : ${formatRp(totalIncome)}\n\n`;
 
-        msg += `========================================\n`;
-        msg += `Pengeluaran Cash :\n`;
-        const cashExps = exp.shiftExpenses.filter((e: any) => e.method === 'CASH');
-        if (cashExps.length > 0) {
-            cashExps.forEach((e: any, idx: number) => {
-                msg += `${idx + 1}. ${e.note} : ${formatNb(e.amount)}\n`;
-            });
+        msg += `===============================\n`;
+
+        // Pengeluaran Terstruktur
+        if (structuredExpenses && Object.keys(structuredExpenses).length > 0) {
+            // Pengeluaran per bank terlebih dahulu
+            for (const [method, items] of Object.entries(structuredExpenses)) {
+                if (method === 'CASH') continue; // cash belakangan
+                if (!items || items.length === 0) continue;
+                msg += `\nPengeluaran ${method.toUpperCase()} :\n`;
+                items.forEach((item, idx) => {
+                    msg += `${idx + 1}. ${item.name} : ${formatRp(item.amount)}\n`;
+                });
+            }
+            // Pengeluaran Cash
+            const cashItems = structuredExpenses['CASH'];
+            if (cashItems && cashItems.length > 0) {
+                msg += `\nPengeluaran Cash :\n`;
+                cashItems.forEach((item, idx) => {
+                    msg += `${idx + 1}. ${item.name} : ${formatRp(item.amount)}\n`;
+                });
+            }
         } else {
-            msg += `-\n`;
-        }
-        msg += `\ncash real = ${formatNb(shift.actualCash)}\n\n`; // using cashier physical cash input here
-
-        // Other bank expenses
-        const nonCashExps = exp.shiftExpenses.filter((e: any) => e.method !== 'CASH');
-        const groupedNonCash: Record<string, any[]> = {};
-        nonCashExps.forEach((e: any) => {
-            const key = e.method === 'QRIS' ? 'QRIS' : (e.bankName || 'TRANSFER');
-            if (!groupedNonCash[key]) groupedNonCash[key] = [];
-            groupedNonCash[key].push(e);
-        });
-
-        for (const [key, exps] of Object.entries(groupedNonCash)) {
-            msg += `Pengeluaran ${key.toUpperCase()} :\n`;
-            (exps as any[]).forEach((e, idx) => {
-                msg += `${idx + 1}. ${e.note} : ${formatNb(e.amount)}\n`;
-            });
-            msg += `\n`;
+            // Fallback ke shiftExpenses lama (dari cashflow sistem)
+            const cashExps = (exp.shiftExpenses || []).filter((e: any) => e.method === 'CASH');
+            if (cashExps.length > 0) {
+                msg += `\nPengeluaran Cash :\n`;
+                cashExps.forEach((e: any, idx: number) => {
+                    msg += `${idx + 1}. ${e.note} : ${formatRp(e.amount)}\n`;
+                });
+            }
         }
 
-        msg += `========================================\n\n`;
+        msg += `\nCash real : ${formatRp(shift.actualCash)}\n`;
+        msg += `===============================\n\n`;
 
-        // Saldo Actuals (Cashier Inputted)
+        // Saldo Laporan mBanking (yang kasir lihat di layar)
         for (const bank of Object.keys(exp.systemBankBalances)) {
-            const act = actualBankBalances[bank] || 0;
-            msg += `Saldo ${bank.toUpperCase()} pada saat laporan : ${formatRp(act)}\n`;
+            const laporan = actualBankBalances[bank] || 0;
+            msg += `Saldo ${bank.toUpperCase()} pada saat laporan : ${formatRp(laporan)}\n`;
         }
-        msg += `Saldo QRIS pada saat laporan : ${formatNb(actualQris)}\n\n`;
+        msg += `Saldo QRIS pada saat laporan : ${formatRp(actualQris)}\n\n`;
 
-        // Saldo Systems
-        for (const [bank, sysAmt] of Object.entries(exp.systemBankBalances)) {
-            msg += `${bank.toUpperCase()} : ${formatRp(sysAmt as number)}\n`;
+        // Saldo Real di Bank (yang benar-benar tercatat)
+        const hasRealBalances = Object.keys(realBankBalances).length > 0;
+        for (const bank of Object.keys(exp.systemBankBalances)) {
+            const real = hasRealBalances
+                ? (realBankBalances[bank] || 0)
+                : (actualBankBalances[bank] || 0);
+            msg += `${bank.toUpperCase()} : ${formatRp(real)}\n`;
         }
-        msg += `QRIS : ${formatNb(exp.expectedQris)}\n`; // Since QRIS has no baseline we just show shift net
+        msg += `QRIS : ${formatRp(actualQris)}\n`;
 
         return msg;
     }

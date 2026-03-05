@@ -191,7 +191,7 @@ export default function WhatsappSettingsPage() {
 
                         <div className="space-y-3">
                             <h3 className="font-bold text-slate-800">1. Konfigurasi Grup Laporan (Penting)</h3>
-                            <p className="text-slate-600 text-sm leading-relaxed">
+                            <div className="text-slate-600 text-sm leading-relaxed">
                                 Agar sistem dapat mengirim laporan shift secara otomatis, sistem harus mengetahui "ID Grup WhatsApp".
                                 <br /><br />
                                 <strong>Langkah Pengaturan Awal:</strong>
@@ -201,7 +201,8 @@ export default function WhatsappSettingsPage() {
                                     <li>Bot akan membalas dengan sederet angka berakhiran <code>@g.us</code>.</li>
                                     <li>Salin ID tersebut dan pastikan sudah dimasukkan ke variabel <code>WHATSAPP_REPORT_GROUP_ID</code> di server/komputer Anda, lalu restart server (npm run dev).</li>
                                 </ol>
-                            </p>
+                            </div>
+
                         </div>
 
                         <div className="space-y-3">

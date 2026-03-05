@@ -159,6 +159,8 @@ export const getBankAccounts = async () => (await api.get('/bank-accounts')).dat
 export const createBankAccount = async (data: any) => (await api.post('/bank-accounts', data)).data;
 export const updateBankAccount = async (id: number, data: any) => (await api.patch(`/bank-accounts/${id}`, data)).data;
 export const deleteBankAccount = async (id: number) => (await api.delete(`/bank-accounts/${id}`)).data;
+export const resetBankBalance = async (id: number, newBalance: number) =>
+    (await api.patch(`/bank-accounts/${id}/reset-balance`, { newBalance })).data;
 
 // Customers
 export const getCustomers = async () => (await api.get('/customers')).data;
@@ -168,6 +170,7 @@ export const deleteCustomer = async (id: number) => (await api.delete(`/customer
 
 // Reports
 export const getShiftExpectations = async () => (await api.get('/reports/current-shift')).data;
+export const getStaffList = async () => (await api.get('/reports/staff-list')).data;
 export const closeShift = async (formData: FormData) => (await api.post('/reports/close-shift', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
 })).data;

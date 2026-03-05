@@ -4,12 +4,16 @@ import { ReportsService } from './reports.service';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 
+export type StructuredExpenseItem = { name: string; amount: number };
+export type StructuredExpenses = Record<string, StructuredExpenseItem[]>;
+// e.g. { "CASH": [{name: "Beli gula", amount: 28000}], "BCA": [{...}] }
+
 // Define the payload for closing a shift
 export class CloseShiftDto {
     adminName: string;
     shiftName: string;
-    openedAt: Date | string; // from the client
-    closedAt: Date | string; // from the client
+    openedAt: Date | string;
+    closedAt: Date | string;
 
     actualCash: number;
     actualQris: number;
@@ -17,14 +21,16 @@ export class CloseShiftDto {
     expensesTotal: number;
     notes?: string;
 
-    // Expected totals passed by the client to be verified/saved
+    // Expected totals passed by the client
     expectedCash: number;
     expectedQris: number;
     expectedTransfer: number;
 
     expectedBankBalances?: Record<string, number>;
-    actualBankBalances?: Record<string, number>;
+    actualBankBalances?: Record<string, number>;   // Saldo Laporan mBanking
+    realBankBalances?: Record<string, number>;     // Saldo Real di Bank
     shiftExpenses?: any[];
+    structuredExpenses?: StructuredExpenses;       // Pengeluaran terstruktur per metode
 }
 
 @Controller('reports')
@@ -36,9 +42,15 @@ export class ReportsController {
         return this.reportsService.calculateCurrentShiftExpectations();
     }
 
+    // Endpoint untuk dropdown daftar staff/kasir
+    @Get('staff-list')
+    async getStaffList() {
+        return this.reportsService.getStaffList();
+    }
+
     @Post('close-shift')
     @UseInterceptors(
-        FilesInterceptor('proofImages', 5, {
+        FilesInterceptor('proofImages', 20, {
             storage: diskStorage({
                 destination: './uploads/proofs',
                 filename: (req, file, cb) => {
@@ -49,7 +61,7 @@ export class ReportsController {
         }),
     )
     async closeShift(
-        @Body() body: any, // Use any or a partial DTO because multipart sometimes strings values
+        @Body() body: any,
         @UploadedFiles() files: Express.Multer.File[],
     ) {
         const dto: CloseShiftDto = {
@@ -67,7 +79,9 @@ export class ReportsController {
             expectedTransfer: Number(body.expectedTransfer),
             expectedBankBalances: body.expectedBankBalances ? JSON.parse(body.expectedBankBalances) : undefined,
             actualBankBalances: body.actualBankBalances ? JSON.parse(body.actualBankBalances) : undefined,
+            realBankBalances: body.realBankBalances ? JSON.parse(body.realBankBalances) : undefined,
             shiftExpenses: body.shiftExpenses ? JSON.parse(body.shiftExpenses) : undefined,
+            structuredExpenses: body.structuredExpenses ? JSON.parse(body.structuredExpenses) : undefined,
         };
 
         const uploadedPaths = files ? files.map((f) => f.path) : [];

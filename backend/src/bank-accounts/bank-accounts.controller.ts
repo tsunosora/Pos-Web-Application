@@ -22,6 +22,11 @@ export class BankAccountsController {
         return this.bankAccountsService.update(+id, data);
     }
 
+    @Patch(':id/reset-balance')
+    resetBalance(@Param('id') id: string, @Body() body: { newBalance: number }) {
+        return this.bankAccountsService.resetBalance(+id, body.newBalance);
+    }
+
     @Delete(':id')
     remove(@Param('id') id: string) {
         return this.bankAccountsService.remove(+id);

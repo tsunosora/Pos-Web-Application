@@ -22,6 +22,13 @@ export class BankAccountsService {
         });
     }
 
+    async resetBalance(id: number, newBalance: number) {
+        return this.prisma.bankAccount.update({
+            where: { id },
+            data: { currentBalance: newBalance },
+        });
+    }
+
     async remove(id: number) {
         return this.prisma.bankAccount.delete({
             where: { id },

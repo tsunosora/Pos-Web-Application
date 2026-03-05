@@ -389,8 +389,10 @@ model ShiftReport {
 
   // Detailed breakdowns for WA report
   expectedBankBalances Json?   @map("expected_bank_balances")
-  actualBankBalances   Json?   @map("actual_bank_balances")
+  actualBankBalances   Json?   @map("actual_bank_balances")   // Saldo Laporan mBanking
+  realBankBalances     Json?   @map("real_bank_balances")     // Saldo Real di Bank
   shiftExpenses        Json?   @map("shift_expenses")
+  structuredExpenses   Json?   @map("structured_expenses")   // Pengeluaran terstruktur per metode
 
   expensesTotal      Decimal   @map("expenses_total") @db.Decimal(15, 2)
   notes              String?   @db.Text

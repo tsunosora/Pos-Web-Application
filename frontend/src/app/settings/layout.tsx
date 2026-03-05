@@ -1,4 +1,4 @@
-import { Store, CreditCard, Users, Settings, MessageCircle } from 'lucide-react';
+import { Store, CreditCard, Users, Settings, MessageCircle, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +28,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                     <Link href="/settings/whatsapp" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
                         <MessageCircle className="h-4 w-4" />
                         Bot WhatsApp
+                    </Link>
+                    <Link href="/settings/bank-accounts" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                        <Building2 className="h-4 w-4" />
+                        Rekening Bank
                     </Link>
                 </div>
             </div>
