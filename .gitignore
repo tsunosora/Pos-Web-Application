@@ -44,8 +44,8 @@ backend/public/uploads/*
 !backend/public/uploads/.gitkeep
 backend/uploads/*
 !backend/uploads/.gitkeep
-backend/public/uploads/proofs/*
 backend/uploads/proofs/*
+!backend/uploads/proofs/.gitkeep
 
 # ============================================================
 # LOG FILES - File debug/error, tidak diperlukan
