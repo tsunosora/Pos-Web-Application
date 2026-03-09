@@ -121,7 +121,7 @@ Halaman untuk mengelola semua produk, varian, bahan baku, dan stok yang dijual d
 
 Cocok untuk produk yang punya variasi. Contoh:
 - Kaos → Varian: S, M, L, XL (stok dan harga bisa berbeda per varian)
-- Tinta Printer → Varian: Hitam, Cyan, Magenta, Yellow
+- Tinta Printer → Varian: Hitam, Cyan, Magenta, Yellow.
 
 ---
 
