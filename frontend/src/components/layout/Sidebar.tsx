@@ -19,6 +19,7 @@ import {
     Store,
     ClipboardList,
     Printer,
+    Truck,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +32,7 @@ const navigation = [
     { name: "Laporan Laba Kotor", href: "/reports/profit", icon: BarChart3 },
     { name: "Daftar DP / Piutang", href: "/transactions/dp", icon: Wallet },
     { name: "Manajemen Stok", href: "/inventory", icon: Package },
+    { name: "Data Supplier", href: "/inventory/suppliers", icon: Truck },
     { name: "Stok Opname", href: "/inventory/opname", icon: ClipboardList },
     { name: "Antrian Produksi", href: "/produksi", icon: Printer },
     { name: "Cashflow Bisnis", href: "/cashflow", icon: Banknote },

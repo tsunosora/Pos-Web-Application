@@ -136,6 +136,7 @@ model ProductVariant {
   opnameItems      StockOpnameItem[]
   rollJobs         ProductionJob[]   @relation("RollUsedInJob")
   batchRolls       ProductionBatch[] @relation("RollUsedInBatch")
+  supplierItems    SupplierItem[]
 
   @@map("product_variants")
 }
@@ -520,6 +521,37 @@ model ProductionBatch {
   jobs        ProductionJob[]
 
   @@map("production_batches")
+}
+
+model Supplier {
+  id            Int            @id @default(autoincrement())
+  name          String         @db.VarChar(200)
+  contactPerson String?        @map("contact_person") @db.VarChar(200)
+  phone         String?        @db.VarChar(50)
+  email         String?        @db.VarChar(200)
+  address       String?        @db.Text
+  notes         String?        @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @default(now()) @updatedAt @map("updated_at")
+
+  items SupplierItem[]
+
+  @@map("suppliers")
+}
+
+model SupplierItem {
+  id               Int      @id @default(autoincrement())
+  supplierId       Int      @map("supplier_id")
+  productVariantId Int      @map("product_variant_id")
+  purchasePrice    Decimal  @map("purchase_price") @db.Decimal(15, 2)
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  supplier       Supplier       @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@map("supplier_items")
 }
 
 model ShiftReport {
