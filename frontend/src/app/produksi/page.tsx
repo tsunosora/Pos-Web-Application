@@ -150,7 +150,7 @@ export default function ProduksiPage() {
             ]);
             setJobs(j);
             setRolls(r);
-            setStats(s);
+            setStats({ antrian: 0, proses: 0, menungguPasang: 0, pasang: 0, selesai: 0, ...s });
         } catch (e) {
             console.error(e);
         } finally {
