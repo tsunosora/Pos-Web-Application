@@ -63,6 +63,7 @@ export default function EditProductPage() {
     const [productType, setProductType] = useState<'SELLABLE' | 'RAW_MATERIAL' | 'SERVICE'>('SELLABLE');
     const [pricePerUnit, setPricePerUnit] = useState('');
     const [requiresProduction, setRequiresProduction] = useState(false);
+    const [hasAssemblyStage, setHasAssemblyStage] = useState(false);
     const [imageFiles, setImageFiles] = useState<(File | null)[]>([null, null, null, null]);
     const [imagePreviews, setImagePreviews] = useState<(string | null)[]>([null, null, null, null]);
     const [existingImageUrls, setExistingImageUrls] = useState<(string | null)[]>([null, null, null, null]);
@@ -91,6 +92,7 @@ export default function EditProductPage() {
             setProductType(product.productType || 'SELLABLE');
             setPricePerUnit(product.pricePerUnit ? String(product.pricePerUnit) : '');
             setRequiresProduction(product.requiresProduction || false);
+            setHasAssemblyStage(product.hasAssemblyStage || false);
 
             // Parse existing images
             let existingUrls: (string | null)[] = [null, null, null, null];
@@ -151,6 +153,7 @@ export default function EditProductPage() {
                 pricingMode,
                 productType,
                 requiresProduction,
+                hasAssemblyStage,
                 pricePerUnit: pricingMode === 'AREA_BASED' ? Number(pricePerUnit) : null,
                 variants: variants.map(v => ({
                     id: v.id,
@@ -405,6 +408,16 @@ export default function EditProductPage() {
                                         <p className="text-xs text-muted-foreground">Aktifkan untuk produk cetak yang dikerjakan operator mesin. Stok roll dipotong saat operator konfirmasi.</p>
                                     </div>
                                 </label>
+                                {requiresProduction && (
+                                    <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-border hover:border-amber-400/50 transition-colors bg-amber-500/5 mt-2">
+                                        <input type="checkbox" checked={hasAssemblyStage} onChange={e => setHasAssemblyStage(e.target.checked)}
+                                            className="w-4 h-4 rounded accent-amber-500" />
+                                        <div>
+                                            <p className="text-sm font-medium">Produk Rakitan — Ada Tahap Pemasangan</p>
+                                            <p className="text-xs text-muted-foreground">Aktifkan jika setelah cetak masih ada tahap assembly (pasang rangka, pasang frame, dll). Stok komponen (BOM) dipotong saat operator konfirmasi pemasangan.</p>
+                                        </div>
+                                    </label>
+                                )}
                             </div>
                         )}
                     </div>
@@ -530,7 +543,11 @@ export default function EditProductPage() {
                             <FlaskConical className="w-5 h-5 text-muted-foreground" />
                             <div>
                                 <h2 className="text-base font-semibold">Bahan (Ingredient)</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">Opsional — untuk kalkulasi HPP.</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {requiresProduction && hasAssemblyStage
+                                        ? 'Komponen rakitan (rangka, frame, dll) — dipotong stok saat tahap Pemasangan dimulai.'
+                                        : 'Opsional — untuk kalkulasi HPP.'}
+                                </p>
                             </div>
                         </div>
                         <button

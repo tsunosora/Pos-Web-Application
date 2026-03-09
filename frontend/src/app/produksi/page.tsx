@@ -5,6 +5,7 @@ import {
     getProductionJobs, getProductionRolls, getProductionStats,
     verifyOperatorPin, startProductionJob, completeProductionJob,
     pickupProductionJob, createProductionBatch, completeProductionBatch,
+    startAssemblyJob, completeAssemblyJob,
 } from '@/lib/api';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -91,7 +92,7 @@ function getSambungInfo(widthCm: number | null, heightCm: number | null, rollEff
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
-type Tab = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL';
+type Tab = 'ANTRIAN' | 'PROSES' | 'MENUNGGU_PASANG' | 'PASANG' | 'SELESAI' | 'DIAMBIL';
 
 // ── component ─────────────────────────────────────────────────────────────────
 export default function ProduksiPage() {
@@ -103,7 +104,7 @@ export default function ProduksiPage() {
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<any[]>([]);
     const [rolls, setRolls] = useState<any[]>([]);
-    const [stats, setStats] = useState({ antrian: 0, proses: 0, selesai: 0 });
+    const [stats, setStats] = useState({ antrian: 0, proses: 0, menungguPasang: 0, pasang: 0, selesai: 0 });
     const [loading, setLoading] = useState(false);
 
     // Gang print mode
@@ -123,6 +124,14 @@ export default function ProduksiPage() {
     const [batchModal, setBatchModal] = useState(false);
     const [batchUseWaste, setBatchUseWaste] = useState(false);
     const [batchRollId, setBatchRollId] = useState<number | null>(null);
+
+    // Assembly modal
+    const [assemblyModal, setAssemblyModal] = useState<{ open: boolean; job: any | null }>({ open: false, job: null });
+    const [assemblyNote, setAssemblyNote] = useState('');
+
+    // Search & detail
+    const [searchQuery, setSearchQuery] = useState('');
+    const [detailJob, setDetailJob] = useState<any | null>(null);
 
     const refreshInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -178,8 +187,17 @@ export default function ProduksiPage() {
         }
     };
 
-    // ── filter jobs by tab ─────────────────────────────────────────────────────
-    const filteredJobs = jobs.filter(j => j.status === tab);
+    // ── filter jobs by tab + search ────────────────────────────────────────────
+    const filteredJobs = jobs.filter(j => {
+        if (j.status !== tab) return false;
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        return (
+            (j.transaction?.customerName ?? '').toLowerCase().includes(q) ||
+            (j.transaction?.invoiceNumber ?? '').toLowerCase().includes(q) ||
+            (j.jobNumber ?? '').toLowerCase().includes(q)
+        );
+    });
 
     // ── roll helpers ───────────────────────────────────────────────────────────
     const maxRollEffectiveWidth = rolls.reduce((max: number, r: any) =>
@@ -313,6 +331,36 @@ export default function ProduksiPage() {
         }
     };
 
+    // ── assembly actions ────────────────────────────────────────────────────────
+    const openAssemblyModal = (job: any) => {
+        setAssemblyModal({ open: true, job });
+        setAssemblyNote('');
+    };
+
+    const handleStartAssembly = async () => {
+        if (!assemblyModal.job) return;
+        setModalLoading(true);
+        try {
+            await startAssemblyJob(assemblyModal.job.id, assemblyNote || undefined);
+            setAssemblyModal({ open: false, job: null });
+            await loadData();
+        } catch (e: any) {
+            alert(e.message || 'Gagal memulai pemasangan');
+        } finally {
+            setModalLoading(false);
+        }
+    };
+
+    const handleCompleteAssembly = async (id: number) => {
+        if (!confirm('Tandai job ini sebagai selesai pemasangan?')) return;
+        try {
+            await completeAssemblyJob(id);
+            await loadData();
+        } catch (e: any) {
+            alert(e.message || 'Gagal menyelesaikan pemasangan');
+        }
+    };
+
     // ── open batch modal ───────────────────────────────────────────────────────
     const openBatchModal = () => {
         if (selectedIds.size < 2) { alert('Pilih minimal 2 job untuk digabung.'); return; }
@@ -405,6 +453,8 @@ export default function ProduksiPage() {
                 {([
                     { key: 'ANTRIAN', label: 'Antrian', count: stats.antrian, color: 'text-amber-600' },
                     { key: 'PROSES', label: 'Proses', count: stats.proses, color: 'text-blue-600' },
+                    { key: 'MENUNGGU_PASANG', label: 'Menunggu Pasang', count: stats.menungguPasang, color: 'text-orange-600' },
+                    { key: 'PASANG', label: 'Dipasang', count: stats.pasang, color: 'text-amber-700' },
                     { key: 'SELESAI', label: 'Selesai', count: stats.selesai, color: 'text-green-600' },
                     { key: 'DIAMBIL', label: 'Diambil', count: null, color: 'text-muted-foreground' },
                 ] as const).map(t => (
@@ -416,6 +466,30 @@ export default function ProduksiPage() {
                         )}
                     </button>
                 ))}
+            </div>
+
+            {/* Search bar */}
+            <div className="bg-background border-b border-border px-4 py-2.5">
+                <div className="relative max-w-2xl mx-auto">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Cari nama pelanggan, no. invoice, no. job..."
+                        className="w-full pl-9 pr-9 py-2 bg-muted rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                    />
+                    {searchQuery && (
+                        <button onClick={() => setSearchQuery('')}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Gang mode toolbar */}
@@ -453,7 +527,8 @@ export default function ProduksiPage() {
                         <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                         </svg>
-                        <p className="font-medium">Tidak ada job di tab ini</p>
+                        <p className="font-medium">{searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : 'Tidak ada job di tab ini'}</p>
+                        {searchQuery && <button onClick={() => setSearchQuery('')} className="mt-2 text-xs text-primary underline">Hapus pencarian</button>}
                     </div>
                 )}
 
@@ -487,12 +562,12 @@ export default function ProduksiPage() {
                                             </button>
                                         </div>
                                         <div className="divide-y divide-border">
-                                            {batchJobs.map(j => <JobCard key={j.id} job={j} tab={tab} gangMode={false} selected={false} onSelect={() => {}} onProcess={() => {}} onComplete={handleCompleteJob} onPickup={handlePickupJob} maxRollEffectiveWidth={maxRollEffectiveWidth} />)}
+                                            {batchJobs.map(j => <JobCard key={j.id} job={j} tab={tab} gangMode={false} selected={false} onSelect={() => {}} onProcess={() => {}} onComplete={handleCompleteJob} onPickup={handlePickupJob} onStartAssembly={openAssemblyModal} onCompleteAssembly={handleCompleteAssembly} onDetail={setDetailJob} maxRollEffectiveWidth={maxRollEffectiveWidth} />)}
                                         </div>
                                     </div>
                                 ))}
                                 {soloJobs.map(j => (
-                                    <JobCard key={j.id} job={j} tab={tab} gangMode={false} selected={false} onSelect={() => {}} onProcess={() => {}} onComplete={handleCompleteJob} onPickup={handlePickupJob} maxRollEffectiveWidth={maxRollEffectiveWidth} />
+                                    <JobCard key={j.id} job={j} tab={tab} gangMode={false} selected={false} onSelect={() => {}} onProcess={() => {}} onComplete={handleCompleteJob} onPickup={handlePickupJob} onStartAssembly={openAssemblyModal} onCompleteAssembly={handleCompleteAssembly} onDetail={setDetailJob} maxRollEffectiveWidth={maxRollEffectiveWidth} />
                                 ))}
                             </>
                         );
@@ -501,7 +576,9 @@ export default function ProduksiPage() {
                     filteredJobs.map(j => (
                         <JobCard key={j.id} job={j} tab={tab} gangMode={gangMode} selected={selectedIds.has(j.id)}
                             onSelect={() => toggleSelect(j.id)} onProcess={() => openProcess(j)}
-                            onComplete={handleCompleteJob} onPickup={handlePickupJob} maxRollEffectiveWidth={maxRollEffectiveWidth} />
+                            onComplete={handleCompleteJob} onPickup={handlePickupJob}
+                            onStartAssembly={openAssemblyModal} onCompleteAssembly={handleCompleteAssembly}
+                            onDetail={setDetailJob} maxRollEffectiveWidth={maxRollEffectiveWidth} />
                     ))
                 )}
             </main>
@@ -572,17 +649,28 @@ export default function ProduksiPage() {
                                                 return (
                                                     <button key={roll.id} type="button" onClick={() => setSelectedRollId(roll.id)}
                                                         className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${selectedRollId === roll.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'}`}>
-                                                        <div className="flex items-center justify-between">
-                                                            <div>
-                                                                <p className="text-sm font-medium">{roll.product?.name} {roll.variantName ? `- ${roll.variantName}` : ''}</p>
-                                                                <p className="text-xs text-muted-foreground">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold truncate">{roll.product?.name}{roll.variantName ? ` — ${roll.variantName}` : ''}</p>
+                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {roll.product?.productType === 'RAW_MATERIAL'
+                                                                        ? <span className="text-[10px] font-bold px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-md">Bahan Baku</span>
+                                                                        : <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-md">Produk Jual</span>
+                                                                    }
+                                                                    {roll.product?.category?.name && (
+                                                                        <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded-md">{roll.product.category.name}</span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground mt-1">
                                                                     Stok: {stockM2} m² {cukup ? `→ sisa ${afterDeduct} m²` : '(stok kurang)'}
                                                                 </p>
                                                             </div>
-                                                            {cukup
-                                                                ? <span className="text-xs px-2 py-0.5 bg-green-500/15 text-green-700 rounded-full font-medium">Cukup</span>
-                                                                : <span className="text-xs px-2 py-0.5 bg-red-500/15 text-red-600 rounded-full font-medium">Kurang</span>
-                                                            }
+                                                            <div className="shrink-0 mt-0.5">
+                                                                {cukup
+                                                                    ? <span className="text-xs px-2 py-0.5 bg-green-500/15 text-green-700 rounded-full font-medium">Cukup</span>
+                                                                    : <span className="text-xs px-2 py-0.5 bg-red-500/15 text-red-600 rounded-full font-medium">Kurang</span>
+                                                                }
+                                                            </div>
                                                         </div>
                                                     </button>
                                                 );
@@ -720,17 +808,28 @@ export default function ProduksiPage() {
                                                 return (
                                                     <button key={r.id} type="button" onClick={() => setBatchRollId(r.id)}
                                                         className={`w-full text-left px-4 py-3 rounded-xl border-2 transition-all ${batchRollId === r.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'}`}>
-                                                        <div className="flex items-center justify-between">
-                                                            <div>
-                                                                <p className="text-sm font-medium">{r.product?.name} {r.variantName ? `- ${r.variantName}` : ''}</p>
-                                                                <p className="text-xs text-muted-foreground">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold truncate">{r.product?.name}{r.variantName ? ` — ${r.variantName}` : ''}</p>
+                                                                <div className="flex flex-wrap gap-1 mt-1">
+                                                                    {r.product?.productType === 'RAW_MATERIAL'
+                                                                        ? <span className="text-[10px] font-bold px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-md">Bahan Baku</span>
+                                                                        : <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-md">Produk Jual</span>
+                                                                    }
+                                                                    {r.product?.category?.name && (
+                                                                        <span className="text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded-md">{r.product.category.name}</span>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground mt-1">
                                                                     Stok: {stockM2} m² {cukup ? `→ sisa ${afterDeduct} m²` : '(stok kurang)'}
                                                                 </p>
                                                             </div>
-                                                            {cukup
-                                                                ? <span className="text-xs px-2 py-0.5 bg-green-500/15 text-green-700 rounded-full font-medium">Cukup</span>
-                                                                : <span className="text-xs px-2 py-0.5 bg-red-500/15 text-red-600 rounded-full font-medium">Kurang</span>
-                                                            }
+                                                            <div className="shrink-0 mt-0.5">
+                                                                {cukup
+                                                                    ? <span className="text-xs px-2 py-0.5 bg-green-500/15 text-green-700 rounded-full font-medium">Cukup</span>
+                                                                    : <span className="text-xs px-2 py-0.5 bg-red-500/15 text-red-600 rounded-full font-medium">Kurang</span>
+                                                                }
+                                                            </div>
                                                         </div>
                                                     </button>
                                                 );
@@ -754,12 +853,184 @@ export default function ProduksiPage() {
                     </div>
                 </div>
             )}
+
+            {/* ── Assembly Modal ─────────────────────────────────────────────────────── */}
+            {assemblyModal.open && assemblyModal.job && (
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/60 backdrop-blur-sm p-4">
+                    <div className="w-full max-w-lg bg-card rounded-2xl border border-border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                        <div className="p-4 border-b border-border flex items-center justify-between">
+                            <div>
+                                <h2 className="font-bold">Mulai Pasang — #{assemblyModal.job.jobNumber}</h2>
+                                <p className="text-xs text-muted-foreground">
+                                    {assemblyModal.job.transactionItem?.productVariant?.product?.name} · {assemblyModal.job.transaction?.customerName || 'Tanpa nama'}
+                                </p>
+                            </div>
+                            <button onClick={() => setAssemblyModal({ open: false, job: null })}
+                                className="p-1 text-muted-foreground hover:text-foreground">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="overflow-y-auto flex-1 p-4 space-y-4">
+                            {/* BOM ingredients that will be deducted */}
+                            {(() => {
+                                const ingredients = assemblyModal.job.transactionItem?.productVariant?.product?.ingredients || [];
+                                const linkedIngredients = ingredients.filter((ing: any) => ing.rawMaterialVariantId);
+                                return ingredients.length > 0 ? (
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-semibold">Komponen yang akan dipotong stok:</p>
+                                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 divide-y divide-amber-500/20">
+                                            {ingredients.map((ing: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                                                    <span className="text-foreground font-medium">{ing.name}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono text-muted-foreground">{ing.quantity} {ing.unit}</span>
+                                                        {ing.rawMaterialVariantId
+                                                            ? <span className="text-xs px-1.5 py-0.5 bg-green-500/15 text-green-700 rounded font-medium">Terhubung stok</span>
+                                                            : <span className="text-xs px-1.5 py-0.5 bg-muted text-muted-foreground rounded">Manual</span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {linkedIngredients.length === 0 && (
+                                            <p className="text-xs text-muted-foreground">Tidak ada komponen yang terhubung ke stok — tidak ada pemotongan stok otomatis.</p>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="p-3 bg-muted/40 rounded-xl text-sm text-muted-foreground">
+                                        Tidak ada komponen BOM terdaftar untuk produk ini.
+                                    </div>
+                                );
+                            })()}
+
+                            <div className="space-y-1">
+                                <label className="text-sm font-semibold">Catatan Pemasangan (opsional)</label>
+                                <textarea rows={2} value={assemblyNote} onChange={e => setAssemblyNote(e.target.value)}
+                                    placeholder="Catatan proses pemasangan, jenis rangka, dll."
+                                    className="w-full px-3 py-2 border border-border bg-background rounded-xl outline-none focus:border-primary text-sm resize-none" />
+                            </div>
+                        </div>
+
+                        <div className="p-4 border-t border-border flex gap-3">
+                            <button type="button" onClick={() => setAssemblyModal({ open: false, job: null })}
+                                className="flex-1 py-3 border border-border rounded-xl text-sm font-medium hover:bg-muted transition-colors">
+                                Batal
+                            </button>
+                            <button type="button" onClick={handleStartAssembly} disabled={modalLoading}
+                                className="flex-[2] py-3 bg-amber-500 text-white rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
+                                {modalLoading ? 'Memproses...' : 'Konfirmasi Mulai Pasang'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* ── Invoice Detail Modal ──────────────────────────────────────────────── */}
+            {detailJob && (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                    onClick={() => setDetailJob(null)}>
+                    <div className="bg-card rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+                        onClick={e => e.stopPropagation()}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-4 border-b border-border">
+                            <div>
+                                <h3 className="font-bold text-foreground">Detail Invoice</h3>
+                                <p className="text-xs font-mono text-muted-foreground">{detailJob.transaction?.invoiceNumber ?? '—'}</p>
+                            </div>
+                            <button onClick={() => setDetailJob(null)}
+                                className="p-2 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Body */}
+                        <div className="p-4 space-y-3 max-h-[75vh] overflow-y-auto">
+                            {/* Express / deadline banner */}
+                            {(detailJob.priority === 'EXPRESS' || detailJob.transaction?.productionDeadline) && (
+                                <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-1">
+                                    {detailJob.priority === 'EXPRESS' && (
+                                        <p className="text-xs font-bold text-red-600">⚡ EXPRESS ORDER</p>
+                                    )}
+                                    {detailJob.transaction?.productionDeadline && (
+                                        <p className="text-xs text-red-600">
+                                            Deadline: {new Date(detailJob.transaction.productionDeadline).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+                                    )}
+                                    {detailJob.transaction?.productionNotes && (
+                                        <p className="text-xs text-red-600">{detailJob.transaction.productionNotes}</p>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Info rows */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Pelanggan</span>
+                                    <span className="text-sm font-semibold">{detailJob.transaction?.customerName || 'Tanpa nama'}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Tanggal</span>
+                                    <span className="text-sm">{detailJob.transaction?.createdAt
+                                        ? new Date(detailJob.transaction.createdAt).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                                        : '—'}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Nomor Job</span>
+                                    <span className="text-sm font-mono">{detailJob.jobNumber}</span>
+                                </div>
+                            </div>
+
+                            <div className="border-t border-border" />
+
+                            {/* Item detail */}
+                            <div className="bg-muted/40 rounded-xl p-3 space-y-1.5">
+                                <p className="text-sm font-semibold">{detailJob.transactionItem?.productVariant?.product?.name ?? '—'}</p>
+                                {detailJob.transactionItem?.variantName && (
+                                    <p className="text-xs text-muted-foreground">{detailJob.transactionItem.variantName}</p>
+                                )}
+                                {getDimLabel(detailJob) && (
+                                    <p className="text-xs text-primary font-mono font-bold">{getDimLabel(detailJob)}</p>
+                                )}
+                                {detailJob.transactionItem?.quantity != null && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Qty: {detailJob.transactionItem.quantity}
+                                        {detailJob.transactionItem?.price != null && (
+                                            <> × Rp {Number(detailJob.transactionItem.price).toLocaleString('id-ID')}</>
+                                        )}
+                                    </p>
+                                )}
+                                {detailJob.transactionItem?.note && (
+                                    <p className="text-xs text-muted-foreground">Catatan: {detailJob.transactionItem.note}</p>
+                                )}
+                            </div>
+
+                            <div className="border-t border-border" />
+
+                            {/* Payment & total */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Pembayaran</span>
+                                    <span className="text-sm font-medium capitalize">{(detailJob.transaction?.paymentMethod ?? '—').toLowerCase()}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm font-bold">Total Invoice</span>
+                                    <span className="text-sm font-bold text-primary">Rp {Number(detailJob.transaction?.total ?? 0).toLocaleString('id-ID')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
 // ── Job Card ──────────────────────────────────────────────────────────────────
-function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onComplete, onPickup, maxRollEffectiveWidth }: {
+function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onComplete, onPickup, onStartAssembly, onCompleteAssembly, onDetail, maxRollEffectiveWidth }: {
     job: any;
     tab: Tab;
     gangMode: boolean;
@@ -768,6 +1039,9 @@ function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onComplete
     onProcess: () => void;
     onComplete: (id: number) => void;
     onPickup: (id: number) => void;
+    onStartAssembly: (job: any) => void;
+    onCompleteAssembly: (id: number) => void;
+    onDetail: (job: any) => void;
     maxRollEffectiveWidth: number;
 }) {
     const dl = formatDeadline(job.deadline ?? job.transaction?.productionDeadline);
@@ -840,6 +1114,14 @@ function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onComplete
                 {/* Action buttons */}
                 {!gangMode && (
                     <div className="mt-3 flex gap-2 justify-end">
+                        {/* Detail invoice button — selalu tampil */}
+                        <button onClick={e => { e.stopPropagation(); onDetail(job); }}
+                            className="p-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            title="Lihat detail invoice">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </button>
                         {tab === 'ANTRIAN' && (
                             <button onClick={e => { e.stopPropagation(); onProcess(); }}
                                 className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-bold active:scale-95 transition-transform">
@@ -850,6 +1132,18 @@ function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onComplete
                             <button onClick={() => onComplete(job.id)}
                                 className="px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-bold active:scale-95 transition-transform">
                                 Selesai
+                            </button>
+                        )}
+                        {tab === 'MENUNGGU_PASANG' && (
+                            <button onClick={() => onStartAssembly(job)}
+                                className="px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-bold active:scale-95 transition-transform">
+                                Mulai Pasang
+                            </button>
+                        )}
+                        {tab === 'PASANG' && (
+                            <button onClick={() => onCompleteAssembly(job.id)}
+                                className="px-4 py-2 bg-green-500 text-white rounded-xl text-sm font-bold active:scale-95 transition-transform">
+                                Selesai Pasang
                             </button>
                         )}
                         {tab === 'SELESAI' && (

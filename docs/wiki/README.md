@@ -28,7 +28,7 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 10 | [📄 Invoice & Penawaran Harga](invoice-sph.md) | Buat invoice & SPH profesional untuk klien B2B |
 | 11 | [🗺️ Peta Cuan Lokasi](peta-cuan.md) | Peta cabang, kompetitor, dan pencarian bisnis |
 | 12 | [🎨 Tampilan Login](#-10-pengaturan-tampilan-halaman-login) | Upload foto latar, atur tagline, animated logo |
-| 13 | [🖨️ Antrian Produksi](produksi.md) | Kelola antrian cetak, job satuan & batch, stok roll 🆕 |
+| 13 | [🖨️ Antrian Produksi](produksi.md) | Antrian cetak, job satuan & batch, produk rakitan multi-tahap, search, detail invoice 🆕 |
 | 14 | [📋 Stok Opname](stock-opname.md) | Hitung fisik stok via link operator untuk karyawan 🆕 |
 
 ---
@@ -331,10 +331,10 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [💰 Cashflow Bisnis](cashflow.md) | Arus kas, chart tren, kategorisasi, export Excel |
 | [📄 Invoice & Penawaran Harga](invoice-sph.md) | Invoice B2B, SPH, catalog picker, area-based pricing |
 | [🗺️ Peta Cuan Lokasi](peta-cuan.md) | Peta cabang, kompetitor, pencarian bisnis by keyword |
-| [🖨️ Antrian Produksi](produksi.md) | Antrian cetak per job, gabung batch, stok roll, PIN operator 🆕 |
+| [🖨️ Antrian Produksi](produksi.md) | Antrian cetak, batch, produk rakitan multi-tahap, search pelanggan, detail invoice 🆕 |
 | [📋 Stok Opname](stock-opname.md) | Link operator blind count, review admin, update stok otomatis 🆕 |
 | [🚀 Panduan Deployment Cloudflare](deployment.md) | Setup produksi di Home Server (MySQL, PM2, Cloudflare Tunnel) |
 
 ---
 
-*Dokumentasi PosPro — Terakhir diperbarui: 8 Maret 2026*
+*Dokumentasi PosPro — Terakhir diperbarui: 9 Maret 2026*

@@ -39,6 +39,16 @@ export class ProductionController {
         return this.productionService.completeJob(id, operatorNote);
     }
 
+    @Post('jobs/:id/start-assembly')
+    startAssembly(@Param('id', ParseIntPipe) id: number, @Body('assemblyNote') assemblyNote?: string) {
+        return this.productionService.startAssembly(id, assemblyNote);
+    }
+
+    @Post('jobs/:id/complete-assembly')
+    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body('assemblyNote') assemblyNote?: string) {
+        return this.productionService.completeAssembly(id, assemblyNote);
+    }
+
     @Post('jobs/:id/pickup')
     pickupJob(@Param('id', ParseIntPipe) id: number) {
         return this.productionService.pickupJob(id);

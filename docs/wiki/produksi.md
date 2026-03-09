@@ -6,6 +6,8 @@
 
 ## Konsep Dasar
 
+### Produk Cetak Biasa
+
 ```
 [Kasir checkout item cetak]
          ↓
@@ -13,13 +15,30 @@
          ↓
 [Operator buka /produksi (PIN)]
          ↓
-[Pilih job → Start → pilih bahan roll → potong stok]
+[Pilih job → Mulai → pilih bahan roll → potong stok]
          ↓
-  PROSES → SELESAI → DIAMBIL
+  ANTRIAN → PROSES → SELESAI → DIAMBIL
+```
+
+### Produk Rakitan (contoh: Standing Banner, Neon Box)
+
+```
+[Kasir checkout item cetak + rakitan]
+         ↓
+[ProductionJob ANTRIAN dibuat otomatis]
+         ↓
+[Operator Mulai Cetak → potong stok bahan roll]
+         ↓
+  PROSES → MENUNGGU PASANG
+         ↓
+[Operator Mulai Pasang → potong stok BOM (rangka, frame, dll)]
+         ↓
+  DIPASANG → SELESAI → DIAMBIL
 ```
 
 Poin penting:
 - **Produk dengan flag "Perlu Produksi"**: stok bahan roll **tidak dipotong** saat kasir checkout — pemotongan terjadi saat operator klik **Mulai Cetak**
+- **Produk Rakitan**: stok bahan rakitan (BOM) dipotong saat operator klik **Mulai Pasang** — bukan saat checkout
 - **Produk tanpa flag** (AREA_BASED biasa): stok langsung terpotong saat transaksi, tidak membuat job produksi
 - Halaman `/produksi` bersifat **publik** — tidak perlu login JWT, cukup PIN operator
 
@@ -51,7 +70,20 @@ Produk yang dicentang akan membuat **antrian job** setiap kali terjadi penjualan
 
 ---
 
-### 3. Daftarkan Bahan Roll (Opsional)
+### 3. Setup Produk Rakitan (Opsional)
+
+Untuk produk yang memerlukan tahap pemasangan setelah cetak (contoh: Standing Banner Segitiga, Neon Box):
+
+1. Centang **"Perlu Proses Produksi"** terlebih dahulu
+2. Centang **"Produk Rakitan — Ada Tahap Pemasangan"** (opsi ini muncul setelah flag produksi aktif)
+3. Di bagian **Ingredient / Bahan Baku**, tambahkan komponen rakitan (contoh: rangka aluminium, frame) beserta jumlahnya
+4. Simpan produk
+
+> Stok komponen rakitan akan dipotong otomatis saat operator memulai tahap pemasangan — bukan saat cetak selesai.
+
+---
+
+### 4. Daftarkan Bahan Roll (Opsional)
 
 Bahan roll adalah stok kain/vinyl/laminasi yang dipakai saat mencetak. Daftarkan sebagai produk varian biasa:
 
@@ -77,9 +109,18 @@ Di bagian atas terdapat **stats ringkasan**:
 |---|---|
 | 🟡 Antrian | Job yang belum dikerjakan |
 | 🔵 Proses | Job sedang dikerjakan |
+| 🟠 Menunggu Pasang | Cetak selesai, menunggu tahap pemasangan |
+| 🟤 Dipasang | Sedang dalam proses pemasangan |
 | 🟢 Selesai | Job selesai, menunggu diambil pelanggan |
 
-Di bawahnya terdapat **tab filter**: ANTRIAN · PROSES · SELESAI · DIAMBIL
+Di bawahnya terdapat **tab filter**: ANTRIAN · PROSES · MENUNGGU PASANG · DIPASANG · SELESAI · DIAMBIL
+
+### Mencari Job
+
+Gunakan **search bar** di bawah tab untuk mencari job secara cepat. Bisa cari berdasarkan:
+- Nama pelanggan
+- Nomor invoice (contoh: `TRX-20260309-001`)
+- Nomor job (contoh: `JOB-20260309-0042`)
 
 ---
 
@@ -98,8 +139,15 @@ Untuk mengerjakan satu job cetak secara terpisah.
 
 **Selesaikan Job:**
 1. Di tab PROSES, klik **✓ Selesai**
-2. Tambahkan catatan akhir jika perlu
-3. Status berubah ke **SELESAI**
+2. Jika produk biasa → status langsung **SELESAI**
+3. Jika produk rakitan → status berubah ke **MENUNGGU PASANG**
+
+**Tahap Pemasangan (Produk Rakitan):**
+1. Di tab MENUNGGU PASANG, klik **Mulai Pasang**
+2. Dialog menampilkan daftar komponen BOM yang akan dipotong stoknya
+3. Tambahkan catatan pemasangan jika perlu
+4. Klik **Konfirmasi Mulai Pasang** → status berubah ke **DIPASANG** + stok komponen terpotong
+5. Setelah selesai pasang, klik **Selesai Pasang** → status **SELESAI**
 
 **Tandai Diambil:**
 1. Di tab SELESAI, klik **📦 Diambil** saat pelanggan mengambil pesanan
@@ -134,6 +182,28 @@ Setiap kartu job di antrian menampilkan:
 | **Deadline** | Waktu tersisa — merah jika < 2 jam, **"TERLAMBAT"** jika sudah lewat |
 | **Catatan Kasir** | Instruksi finishing dari kasir/pelanggan |
 
+### Tombol Detail Invoice
+
+Setiap kartu job memiliki tombol **ikon dokumen** (📄) di pojok kanan bawah. Klik untuk melihat detail lengkap transaksi dari kasir, meliputi:
+
+- Nama pelanggan & tanggal transaksi
+- Detail produk: nama, ukuran cetak, catatan
+- Metode pembayaran & total invoice
+- Info Express/Deadline (jika ada)
+
+Tombol ini bisa diakses dari semua tab tanpa perlu login ke sistem kasir.
+
+---
+
+## Memilih Bahan dari Stok
+
+Saat dialog proses muncul, daftar bahan roll tersedia menampilkan:
+
+- **Nama produk & varian**
+- **Badge tipe**: `Bahan Baku` (oranye) atau `Produk Jual` (biru) — untuk memudahkan operator membedakan jenis stok
+- **Badge kategori**: nama kategori produk (abu-abu), contoh: "Vinyl", "Kain", "Laminasi"
+- **Status stok**: sisa stok setelah dipotong — badge **Cukup** (hijau) atau **Kurang** (merah)
+
 ---
 
 ## Prioritas Job
@@ -149,11 +219,12 @@ Order EXPRESS juga bisa diatur dengan **Deadline** (tanggal & jam selesai). Job 
 
 ## Pemotongan Stok Bahan
 
-| Kondisi | Stok yang dipotong |
-|---|---|
-| Pakai bahan roll baru (usedWaste = false) | Stok varian roll berkurang sebesar `luas m²` (dibulatkan ke atas) |
-| Pakai sisa/waste (usedWaste = true) | Tidak ada pemotongan stok |
-| Batch dengan bahan roll | Stok dipotong total luas gabungan semua job dalam batch |
+| Kondisi | Stok yang dipotong | Waktu |
+|---|---|---|
+| Pakai bahan roll baru | Stok varian roll berkurang sebesar `luas m²` (dibulatkan ke atas) | Saat klik **Mulai Cetak** |
+| Pakai sisa/waste | Tidak ada pemotongan stok | — |
+| Batch dengan bahan roll | Stok dipotong total luas gabungan semua job dalam batch | Saat klik **Buat Batch** |
+| Produk rakitan (BOM) | Stok komponen rakitan (rangka, frame, dll) dipotong | Saat klik **Mulai Pasang** |
 
 Setiap pemotongan tercatat di **Riwayat Stok** (`StockMovement`) dengan keterangan nomor job/batch.
 
@@ -173,6 +244,15 @@ Setiap pemotongan tercatat di **Riwayat Stok** (`StockMovement`) dengan keterang
 **Q: Apakah bisa ada beberapa operator yang buka halaman produksi bersamaan?**
 > Ya — halaman ini real-time dan bisa dibuka di banyak perangkat sekaligus.
 
+**Q: Stok komponen rakitan tidak terpotong saat cetak — apakah itu normal?**
+> Ya, itu disengaja. Stok bahan cetak (roll) dipotong saat Mulai Cetak. Stok komponen rakitan (rangka, dll) baru dipotong saat Mulai Pasang. Ini memastikan stok hanya berkurang ketika bahan benar-benar dipakai di tahapannya masing-masing.
+
+**Q: Bisa cari job berdasarkan nama pelanggan?**
+> Ya. Gunakan search bar di bawah tab untuk cari berdasarkan nama pelanggan, nomor invoice, atau nomor job.
+
+**Q: Bagaimana cara lihat detail order dari kasir tanpa harus masuk ke sistem?**
+> Klik ikon dokumen (📄) di pojok kanan bawah kartu job. Modal detail invoice akan muncul dengan semua info transaksi lengkap.
+
 ---
 
-*Wiki PosPro — Terakhir diperbarui: 8 Maret 2026*
+*Wiki PosPro — Terakhir diperbarui: 9 Maret 2026*

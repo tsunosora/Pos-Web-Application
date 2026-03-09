@@ -21,7 +21,7 @@ export class ProductionService {
             },
             transactionItem: {
                 include: {
-                    productVariant: { include: { product: true } },
+                    productVariant: { include: { product: { include: { ingredients: { include: { rawMaterialVariant: true } } } } } },
                 },
             },
             rollVariant: { include: { product: true } },
@@ -120,16 +120,104 @@ export class ProductionService {
     }
 
     async completeJob(id: number, operatorNote?: string) {
-        const job = await (this.prisma as any).productionJob.findUnique({ where: { id } });
+        const job = await (this.prisma as any).productionJob.findUnique({
+            where: { id },
+            include: {
+                transactionItem: {
+                    include: {
+                        productVariant: {
+                            include: { product: true }
+                        }
+                    }
+                }
+            }
+        });
         if (!job) throw new NotFoundException('Job tidak ditemukan');
         if (job.status !== 'PROSES') throw new BadRequestException('Job belum dalam status PROSES');
+
+        const hasAssemblyStage = job.transactionItem?.productVariant?.product?.hasAssemblyStage === true;
+        const nextStatus = hasAssemblyStage ? 'MENUNGGU_PASANG' : 'SELESAI';
+
+        return (this.prisma as any).productionJob.update({
+            where: { id },
+            data: {
+                status: nextStatus,
+                completedAt: new Date(),
+                ...(operatorNote ? { operatorNote } : {}),
+            },
+            include: this.jobInclude(),
+        });
+    }
+
+    async startAssembly(id: number, assemblyNote?: string) {
+        return this.prisma.$transaction(async (tx) => {
+            const job = await (tx as any).productionJob.findUnique({
+                where: { id },
+                include: {
+                    transactionItem: {
+                        include: {
+                            productVariant: {
+                                include: {
+                                    product: {
+                                        include: {
+                                            ingredients: { include: { rawMaterialVariant: true } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            if (!job) throw new NotFoundException('Job tidak ditemukan');
+            if (job.status !== 'MENUNGGU_PASANG') throw new BadRequestException('Job belum dalam status MENUNGGU_PASANG');
+
+            // Deduct BOM ingredients (assembly materials like rangka)
+            const ingredients = job.transactionItem?.productVariant?.product?.ingredients || [];
+            for (const ing of ingredients) {
+                if (ing.rawMaterialVariantId) {
+                    const rawVariant = await (tx as any).productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
+                    if (rawVariant) {
+                        const newStock = Number(rawVariant.stock) - Number(ing.quantity);
+                        await (tx as any).productVariant.update({
+                            where: { id: rawVariant.id },
+                            data: { stock: newStock < 0 ? 0 : newStock }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                productVariantId: rawVariant.id,
+                                type: 'OUT',
+                                quantity: Math.ceil(Number(ing.quantity)),
+                                reason: `Pemasangan Job #${job.jobNumber} — ${ing.name}`
+                            }
+                        });
+                    }
+                }
+            }
+
+            return (tx as any).productionJob.update({
+                where: { id },
+                data: {
+                    status: 'PASANG',
+                    assemblyStartedAt: new Date(),
+                    ...(assemblyNote ? { assemblyNote } : {})
+                },
+                include: this.jobInclude(),
+            });
+        });
+    }
+
+    async completeAssembly(id: number, assemblyNote?: string) {
+        const job = await (this.prisma as any).productionJob.findUnique({ where: { id } });
+        if (!job) throw new NotFoundException('Job tidak ditemukan');
+        if (job.status !== 'PASANG') throw new BadRequestException('Job belum dalam status PASANG');
 
         return (this.prisma as any).productionJob.update({
             where: { id },
             data: {
                 status: 'SELESAI',
-                completedAt: new Date(),
-                ...(operatorNote ? { operatorNote } : {}),
+                assemblyCompletedAt: new Date(),
+                ...(assemblyNote ? { assemblyNote } : {})
             },
             include: this.jobInclude(),
         });
@@ -247,11 +335,13 @@ export class ProductionService {
     }
 
     async getStats() {
-        const [antrian, proses, selesai] = await Promise.all([
+        const [antrian, proses, menungguPasang, pasang, selesai] = await Promise.all([
             (this.prisma as any).productionJob.count({ where: { status: 'ANTRIAN' } }),
             (this.prisma as any).productionJob.count({ where: { status: 'PROSES' } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'MENUNGGU_PASANG' } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'PASANG' } }),
             (this.prisma as any).productionJob.count({ where: { status: 'SELESAI' } }),
         ]);
-        return { antrian, proses, selesai };
+        return { antrian, proses, menungguPasang, pasang, selesai };
     }
 }

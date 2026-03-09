@@ -324,6 +324,26 @@ export const pickupProductionJob = async (id: number): Promise<any> => {
     return res.json();
 };
 
+export const startAssemblyJob = async (id: number, assemblyNote?: string): Promise<any> => {
+    const res = await fetch(`${API_BASE_PROD()}/production/jobs/${id}/start-assembly`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assemblyNote }),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Gagal memulai pemasangan');
+    return res.json();
+};
+
+export const completeAssemblyJob = async (id: number, assemblyNote?: string): Promise<any> => {
+    const res = await fetch(`${API_BASE_PROD()}/production/jobs/${id}/complete-assembly`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assemblyNote }),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Gagal menyelesaikan pemasangan');
+    return res.json();
+};
+
 export const createProductionBatch = async (data: {
     jobIds: number[];
     rollVariantId?: number;

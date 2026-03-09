@@ -97,6 +97,7 @@ model Product {
   productType        ProductType @default(SELLABLE) @map("product_type")
   pricePerUnit       Decimal?    @map("price_per_unit") @db.Decimal(15, 2)
   requiresProduction Boolean     @default(false) @map("requires_production")
+  hasAssemblyStage   Boolean     @default(false) @map("has_assembly_stage")
   createdAt          DateTime?   @default(now()) @map("created_at")
   updatedAt          DateTime?   @default(now()) @updatedAt @map("updated_at")
 
@@ -486,9 +487,12 @@ model ProductionJob {
   rollVariantId     Int?     @map("roll_variant_id")
   rollLengthUsed    Decimal? @map("roll_length_used") @db.Decimal(10, 2)
   batchId           Int?     @map("batch_id")
-  startedAt         DateTime? @map("started_at")
-  completedAt       DateTime? @map("completed_at")
-  pickedUpAt        DateTime? @map("picked_up_at")
+  startedAt           DateTime? @map("started_at")
+  completedAt         DateTime? @map("completed_at")
+  assemblyStartedAt   DateTime? @map("assembly_started_at")
+  assemblyCompletedAt DateTime? @map("assembly_completed_at")
+  assemblyNote        String?   @map("assembly_note") @db.Text
+  pickedUpAt          DateTime? @map("picked_up_at")
   createdAt         DateTime? @default(now()) @map("created_at")
   updatedAt         DateTime? @default(now()) @updatedAt @map("updated_at")
 

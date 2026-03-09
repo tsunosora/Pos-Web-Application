@@ -71,6 +71,7 @@ export default function AddProductPage() {
     const [productType, setProductType] = useState<'SELLABLE' | 'RAW_MATERIAL' | 'SERVICE'>('SELLABLE');
     const [pricePerUnit, setPricePerUnit] = useState('');
     const [requiresProduction, setRequiresProduction] = useState(false);
+    const [hasAssemblyStage, setHasAssemblyStage] = useState(false);
 
     // Multi-image state (up to 4)
     const [imageFiles, setImageFiles] = useState<(File | null)[]>([null, null, null, null]);
@@ -182,6 +183,7 @@ export default function AddProductPage() {
             pricingMode,
             productType,
             requiresProduction,
+            hasAssemblyStage,
             pricePerUnit: pricingMode === 'AREA_BASED' ? Number(pricePerUnit) : undefined,
             variants: variants.map(v => ({
                 sku: v.sku,
@@ -373,6 +375,16 @@ export default function AddProductPage() {
                                 </div>
                             </label>
                         )}
+                        {pricingMode === 'AREA_BASED' && requiresProduction && (
+                            <label className="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-border hover:border-amber-400/50 transition-colors bg-amber-500/5 mt-2">
+                                <input type="checkbox" checked={hasAssemblyStage} onChange={e => setHasAssemblyStage(e.target.checked)}
+                                    className="w-4 h-4 rounded accent-amber-500" />
+                                <div>
+                                    <p className="text-sm font-medium">Produk Rakitan — Ada Tahap Pemasangan</p>
+                                    <p className="text-xs text-muted-foreground">Aktifkan jika setelah cetak masih ada tahap assembly (pasang rangka, pasang frame, dll). Stok komponen (BOM) dipotong saat operator konfirmasi pemasangan.</p>
+                                </div>
+                            </label>
+                        )}
                     </div>
                 )}
 
@@ -511,7 +523,11 @@ export default function AddProductPage() {
                             <FlaskConical className="w-5 h-5 text-muted-foreground" />
                             <div>
                                 <h2 className="text-base font-semibold">Bahan (Ingredient)</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">Opsional — untuk kalkulasi HPP dan manajemen bahan baku.</p>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    {requiresProduction && hasAssemblyStage
+                                        ? 'Komponen rakitan (rangka, frame, dll) — dipotong stok saat tahap Pemasangan dimulai.'
+                                        : 'Opsional — untuk kalkulasi HPP dan manajemen bahan baku.'}
+                                </p>
                             </div>
                         </div>
                         <button

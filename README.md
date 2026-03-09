@@ -8,7 +8,7 @@
 
 **Solusi kasir modern untuk toko kelontong, percetakan digital, café, dan usaha kecil menengah lainnya.**
 
-> 🆕 **Update Maret 2026** — Ditambahkan: **Antrian Produksi** (antrian cetak per job) & **Stok Opname** (hitung fisik stok via link operator).
+> 🆕 **Update Maret 2026** — Ditambahkan: **Antrian Produksi** (antrian cetak per job, produk rakitan multi-tahap) & **Stok Opname** (hitung fisik stok via link operator). HPP kini mendukung input **Lebar × Tinggi m²** per baris bahan baku.
 
 ---
 
@@ -67,6 +67,8 @@ Cukup buka browser, tap, dan transaksi selesai — tanpa perlu instalasi aplikas
 - Lihat riwayat semua transaksi dengan filter tanggal
 - Laporan **Profit** — kalkulasi margin per produk
 - Laporan **HPP** (Harga Pokok Penjualan) untuk analisis biaya produksi
+  - Setiap bahan baku dapat diinput **Lebar × Tinggi (m)** untuk auto-hitung luas m² — cocok untuk bahan banner/vinyl
+  - Toggle mode L×T per baris; hasil `= X.XXXX m²` tampil langsung
 - Export laporan ke Excel
 
 ### 🔄 8. Laporan Tutup Shift Kasir
@@ -100,8 +102,18 @@ Khusus untuk toko percetakan digital — setiap order cetak yang masuk dari kasi
 - Operator membuka halaman `/produksi` langsung dari HP (tanpa login, cukup PIN)
 - Kelola antrian: **Satuan** (per job) atau **Gabung Cetak** (beberapa job dalam satu lembaran/batch)
 - Saat mulai cetak: pilih bahan roll yang dipakai → stok bahan otomatis terpotong sesuai luas (m²)
+- **Badge kategori** di picker bahan (Bahan Baku / Produk Jual + nama kategori) untuk memudahkan operator memilih
+- **Cari job** berdasarkan nama pelanggan, nomor invoice, atau nomor job langsung dari halaman antrian
+- **Tombol detail invoice** di setiap job card — operator bisa lihat info transaksi lengkap dari kasir tanpa harus login ke sistem
 - Alur status job: **ANTRIAN → PROSES → SELESAI → DIAMBIL**
 - Job EXPRESS selalu muncul di urutan paling atas antrian
+
+**Produk Rakitan (Multi-Tahap Produksi):**
+- Untuk produk yang butuh proses lebih dari sekadar cetak (contoh: Standing Banner — cetak + pasang rangka)
+- Centang **"Produk Rakitan — Ada Tahap Pemasangan"** saat buat/edit produk (hanya muncul jika produk sudah bertanda "Perlu Proses Produksi")
+- Bahan rakitan (rangka, frame, dll) didaftarkan sebagai **Ingredient** produk
+- Alur status diperluas: **ANTRIAN → PROSES → MENUNGGU PASANG → DIPASANG → SELESAI → DIAMBIL**
+- Stok bahan rakitan (BOM) dipotong otomatis saat operator klik **Mulai Pasang** — bukan saat checkout
 
 ### 📋 12. Stok Opname
 
@@ -593,8 +605,10 @@ Pos-Web-Application/
 - [x] Penawaran Harga / SPH untuk klien B2B
 - [x] Peta Cuan Lokasi
 - [x] Kustomisasi tampilan halaman login (background slideshow, taglines, animated logo)
-- [x] Antrian Produksi — job cetak, batch, manajemen roll, PIN operator
+- [x] Antrian Produksi — job cetak, batch, manajemen roll, PIN operator, produk rakitan multi-tahap
+- [x] Antrian Produksi — pencarian pelanggan, detail invoice, badge kategori bahan
 - [x] Stok Opname — link operator, blind count, review & konfirmasi stok
+- [x] HPP Calculator — input Lebar × Tinggi m² per baris bahan baku (auto-hitung luas)
 - [ ] Mode offline (PWA)
 - [ ] Notifikasi stok menipis otomatis
 - [ ] Fitur loyalty point pelanggan

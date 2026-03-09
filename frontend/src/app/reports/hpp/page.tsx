@@ -162,6 +162,11 @@ interface VariableCost {
     priceUnit: string; // Stored just for UI display info
     isCustom?: boolean; // true = manually typed name, false = from stock
     isAcuanStok?: boolean; // Menentukan stok awal produk dari bahan ini
+    isAreaBased?: boolean; // mode lebar x tinggi (m²)
+    widthM?: number;
+    heightM?: number;
+    widthMStr?: string;  // raw string input untuk widthM (agar bisa ketik "0,6")
+    heightMStr?: string; // raw string input untuk heightM
 }
 
 interface FixedCost {
@@ -461,10 +466,30 @@ export default function HppCalculatorPage() {
 
     // Handlers for Variable Costs
     const addVariableCost = () => {
-        setVariableCosts([...variableCosts, {
+        setVariableCosts(prev => [...prev, {
             id: Date.now().toString(),
-            name: "", usageAmount: 0, usageUnit: "pcs", price: 0, priceUnit: "pcs", isAcuanStok: false
+            name: "", usageAmount: 0, usageUnit: "pcs", price: 0, priceUnit: "pcs", isAcuanStok: false,
+            isAreaBased: false, widthM: 0, heightM: 0, widthMStr: '', heightMStr: '',
         }]);
+    };
+
+    const toggleAreaMode = (id: string, on: boolean) => {
+        setVariableCosts(prev => prev.map(v => {
+            if (v.id !== id) return v;
+            if (on) return { ...v, isAreaBased: true, usageUnit: 'm²', widthM: 0, heightM: 0, widthMStr: '', heightMStr: '', usageAmount: 0 };
+            return { ...v, isAreaBased: false };
+        }));
+    };
+
+    const updateAreaDimension = (id: string, field: 'widthM' | 'heightM', raw: string) => {
+        const value = parseFloat(raw.replace(',', '.')) || 0;
+        const strField = field === 'widthM' ? 'widthMStr' : 'heightMStr';
+        setVariableCosts(prev => prev.map(v => {
+            if (v.id !== id) return v;
+            const newW = field === 'widthM' ? value : (v.widthM || 0);
+            const newH = field === 'heightM' ? value : (v.heightM || 0);
+            return { ...v, [field]: value, [strField]: raw, usageAmount: newW * newH };
+        }));
     };
 
     const removeVariableCost = (id: string) => {
@@ -472,12 +497,7 @@ export default function HppCalculatorPage() {
     };
 
     const updateVariableCost = (id: string, field: keyof VariableCost, value: any) => {
-        if (field === 'isAcuanStok' && value === true) {
-            // Uncheck others if this one is checked
-            setVariableCosts(variableCosts.map(v => v.id === id ? { ...v, [field]: value } : { ...v, isAcuanStok: false }));
-        } else {
-            setVariableCosts(variableCosts.map(v => v.id === id ? { ...v, [field]: value } : v));
-        }
+        setVariableCosts(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
     };
 
     // Applies all fields from a selected stock variant to a VariableCost row in one atomic update
@@ -774,7 +794,7 @@ export default function HppCalculatorPage() {
                                         {/* Acuan Stok */}
                                         {!v.isCustom && v.productVariantId && (
                                             <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer" title="Stok Produk akhir dihitung berdasarkan sisa stok bahan ini dibagi Takaran.">
-                                                <input type="radio" name="acuanStok" checked={v.isAcuanStok || false} onChange={() => updateVariableCost(v.id, 'isAcuanStok', true)} className="w-4 h-4 text-primary cursor-pointer" />
+                                                <input type="checkbox" checked={v.isAcuanStok || false} onChange={(e) => updateVariableCost(v.id, 'isAcuanStok', e.target.checked)} className="w-4 h-4 text-primary cursor-pointer rounded" />
                                                 Jadikan Acuan Stok Produk
                                             </label>
                                         )}
@@ -783,17 +803,38 @@ export default function HppCalculatorPage() {
                                         <div className="grid grid-cols-2 gap-3">
                                             <div className="space-y-1">
                                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Takaran / Pcs</p>
-                                                <div className="flex gap-1.5">
-                                                    <input type="number" value={v.usageAmount || ''} onChange={(e) => updateVariableCost(v.id, 'usageAmount', Number(e.target.value))}
-                                                        className="w-16 px-2 py-2 bg-background border border-border rounded-[6px] text-[13px] font-medium text-foreground outline-none focus:border-primary text-center" placeholder="0" />
-                                                    <select value={v.usageUnit} onChange={(e) => updateVariableCost(v.id, 'usageUnit', e.target.value)}
-                                                        className="flex-1 pl-2 pr-1 py-2 border border-border rounded-[6px] bg-background text-[12px] text-foreground font-semibold outline-none cursor-pointer focus:border-primary">
-                                                        <option value="gram">gram</option><option value="kg">kg</option><option value="mg">mg</option>
-                                                        <option value="ml">ml</option><option value="L">L</option><option value="gelas">gelas</option><option value="sdm">sdm</option><option value="sdt">sdt</option>
-                                                        <option value="pcs">pcs</option><option value="buah">buah</option><option value="lembar">lembar</option><option value="bungkus">bungkus</option><option value="box">box</option><option value="pak">pak</option>
-                                                        <option value="cm">cm</option><option value="m">m</option>
-                                                    </select>
-                                                </div>
+                                                {v.isAreaBased ? (
+                                                    <div className="space-y-1.5">
+                                                        <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 rounded-[8px] px-2.5 py-2">
+                                                            <span className="text-[10px] font-bold text-blue-500 shrink-0">L</span>
+                                                            <input type="text" inputMode="decimal" value={v.widthMStr ?? ''} onChange={(e) => updateAreaDimension(v.id, 'widthM', e.target.value)}
+                                                                className="flex-1 min-w-0 bg-transparent text-center text-[13px] font-semibold text-blue-700 outline-none placeholder:text-blue-300" placeholder="0" />
+                                                            <span className="text-[12px] text-blue-400 font-bold shrink-0">×</span>
+                                                            <span className="text-[10px] font-bold text-blue-500 shrink-0">T</span>
+                                                            <input type="text" inputMode="decimal" value={v.heightMStr ?? ''} onChange={(e) => updateAreaDimension(v.id, 'heightM', e.target.value)}
+                                                                className="flex-1 min-w-0 bg-transparent text-center text-[13px] font-semibold text-blue-700 outline-none placeholder:text-blue-300" placeholder="0" />
+                                                            <span className="text-[10px] font-semibold text-blue-500 shrink-0">m</span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between px-0.5">
+                                                            <span className="text-[11px] text-blue-600 font-mono font-bold">= {((v.widthM || 0) * (v.heightM || 0)).toFixed(4)} m²</span>
+                                                            <button onClick={() => toggleAreaMode(v.id, false)} className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors" title="Kembali ke mode satuan">✕ kembali</button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex gap-1.5">
+                                                        <input type="number" value={v.usageAmount || ''} onChange={(e) => updateVariableCost(v.id, 'usageAmount', Number(e.target.value))}
+                                                            className="w-14 px-2 py-2 bg-background border border-border rounded-[6px] text-[13px] font-medium text-foreground outline-none focus:border-primary text-center" placeholder="0" />
+                                                        <select value={v.usageUnit} onChange={(e) => updateVariableCost(v.id, 'usageUnit', e.target.value)}
+                                                            className="flex-1 pl-2 pr-1 py-2 border border-border rounded-[6px] bg-background text-[12px] text-foreground font-semibold outline-none cursor-pointer focus:border-primary">
+                                                            <option value="gram">gram</option><option value="kg">kg</option><option value="mg">mg</option>
+                                                            <option value="ml">ml</option><option value="L">L</option><option value="gelas">gelas</option><option value="sdm">sdm</option><option value="sdt">sdt</option>
+                                                            <option value="pcs">pcs</option><option value="buah">buah</option><option value="lembar">lembar</option><option value="bungkus">bungkus</option><option value="box">box</option><option value="pak">pak</option>
+                                                            <option value="cm">cm</option><option value="m">m</option><option value="m²">m²</option>
+                                                        </select>
+                                                        <button onClick={() => toggleAreaMode(v.id, true)} title="Hitung luas Lebar × Tinggi (m²)"
+                                                            className="px-1.5 py-2 border border-dashed border-border rounded-[6px] text-[10px] font-bold text-muted-foreground hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all shrink-0">m²</button>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="space-y-1">
                                                 <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Harga</p>
@@ -874,33 +915,64 @@ export default function HppCalculatorPage() {
                                                 <td className="px-2 py-2 md:py-3 align-middle text-center">
                                                     {!v.isCustom && v.productVariantId && (
                                                         <div className="flex justify-center" title="Stok Produk akhir akan dihitung berdasarkan sisa stok bahan ini dibagi Takaran.">
-                                                            <input type="radio" name="acuanStok" checked={v.isAcuanStok || false} onChange={() => updateVariableCost(v.id, 'isAcuanStok', true)} className="w-4 h-4 text-primary focus:ring-primary/50 cursor-pointer" />
+                                                            <input type="checkbox" checked={v.isAcuanStok || false} onChange={(e) => updateVariableCost(v.id, 'isAcuanStok', e.target.checked)} className="w-4 h-4 text-primary focus:ring-primary/50 cursor-pointer rounded" />
                                                         </div>
                                                     )}
                                                 </td>
                                                 <td className="px-3 py-2 md:py-3 align-middle">
-                                                    <div className="flex gap-2">
-                                                        <input type="number" value={v.usageAmount || ''} onChange={(e) => updateVariableCost(v.id, 'usageAmount', Number(e.target.value))}
-                                                            className="w-[70px] px-3 py-2 bg-background border border-border rounded-[6px] text-[13px] font-medium text-foreground outline-none focus:border-primary text-center" placeholder="0" />
-                                                        <div className="relative">
-                                                            <select value={v.usageUnit} onChange={(e) => updateVariableCost(v.id, 'usageUnit', e.target.value)}
-                                                                className="appearance-none w-[80px] pl-3 pr-6 py-2 border border-border rounded-[6px] bg-background text-[13px] text-foreground font-semibold outline-none cursor-pointer focus:border-primary">
-                                                                <optgroup label="Berat">
-                                                                    <option value="gram">gram</option><option value="kg">kg</option><option value="mg">mg</option>
-                                                                </optgroup>
-                                                                <optgroup label="Volume">
-                                                                    <option value="ml">ml</option><option value="L">L</option><option value="gelas">gelas</option><option value="sdm">sdm</option><option value="sdt">sdt</option>
-                                                                </optgroup>
-                                                                <optgroup label="Satuan">
-                                                                    <option value="pcs">pcs</option><option value="buah">buah</option><option value="lembar">lembar</option><option value="bungkus">bungkus</option><option value="box">box</option><option value="pak">pak</option>
-                                                                </optgroup>
-                                                                <optgroup label="Panjang">
-                                                                    <option value="cm">cm</option><option value="m">m</option>
-                                                                </optgroup>
-                                                            </select>
-                                                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-muted-foreground opacity-70" />
+                                                    {v.isAreaBased ? (
+                                                        <div className="space-y-1.5 min-w-[155px]">
+                                                            <div className="flex items-center gap-1 bg-blue-50 border border-blue-200 rounded-[8px] px-2 py-1.5">
+                                                                <span className="text-[10px] font-bold text-blue-500 shrink-0">L</span>
+                                                                <input
+                                                                    type="text" inputMode="decimal"
+                                                                    value={v.widthMStr ?? ''}
+                                                                    onChange={e => updateAreaDimension(v.id, 'widthM', e.target.value)}
+                                                                    className="w-0 flex-1 bg-transparent text-center text-[13px] font-semibold text-blue-700 outline-none placeholder:text-blue-300"
+                                                                    placeholder="0"
+                                                                />
+                                                                <span className="text-[12px] text-blue-400 font-bold shrink-0">×</span>
+                                                                <span className="text-[10px] font-bold text-blue-500 shrink-0">T</span>
+                                                                <input
+                                                                    type="text" inputMode="decimal"
+                                                                    value={v.heightMStr ?? ''}
+                                                                    onChange={e => updateAreaDimension(v.id, 'heightM', e.target.value)}
+                                                                    className="w-0 flex-1 bg-transparent text-center text-[13px] font-semibold text-blue-700 outline-none placeholder:text-blue-300"
+                                                                    placeholder="0"
+                                                                />
+                                                                <span className="text-[10px] font-semibold text-blue-500 shrink-0">m</span>
+                                                            </div>
+                                                            <div className="flex items-center justify-between px-0.5">
+                                                                <span className="text-[11px] text-blue-600 font-mono font-bold">= {((v.widthM || 0) * (v.heightM || 0)).toFixed(4)} m²</span>
+                                                                <button type="button" onClick={() => toggleAreaMode(v.id, false)} className="text-[10px] text-muted-foreground hover:text-red-500 transition-colors" title="Kembali ke mode satuan">✕</button>
+                                                            </div>
                                                         </div>
-                                                    </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <input type="number" value={v.usageAmount || ''} onChange={(e) => updateVariableCost(v.id, 'usageAmount', Number(e.target.value))}
+                                                                className="w-[70px] px-3 py-2 bg-background border border-border rounded-[6px] text-[13px] font-medium text-foreground outline-none focus:border-primary text-center" placeholder="0" />
+                                                            <div className="relative">
+                                                                <select value={v.usageUnit} onChange={(e) => updateVariableCost(v.id, 'usageUnit', e.target.value)}
+                                                                    className="appearance-none w-[80px] pl-3 pr-6 py-2 border border-border rounded-[6px] bg-background text-[13px] text-foreground font-semibold outline-none cursor-pointer focus:border-primary">
+                                                                    <optgroup label="Berat">
+                                                                        <option value="gram">gram</option><option value="kg">kg</option><option value="mg">mg</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Volume">
+                                                                        <option value="ml">ml</option><option value="L">L</option><option value="gelas">gelas</option><option value="sdm">sdm</option><option value="sdt">sdt</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Satuan">
+                                                                        <option value="pcs">pcs</option><option value="buah">buah</option><option value="lembar">lembar</option><option value="bungkus">bungkus</option><option value="box">box</option><option value="pak">pak</option>
+                                                                    </optgroup>
+                                                                    <optgroup label="Panjang / Luas">
+                                                                        <option value="cm">cm</option><option value="m">m</option><option value="m²">m²</option>
+                                                                    </optgroup>
+                                                                </select>
+                                                                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none text-muted-foreground opacity-70" />
+                                                            </div>
+                                                            <button type="button" onClick={() => toggleAreaMode(v.id, true)} title="Hitung luas dari Lebar × Tinggi (m²)"
+                                                                className="px-1.5 py-2 border border-dashed border-border rounded-[6px] text-[10px] font-bold text-muted-foreground hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-all shrink-0">m²</button>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-2 md:py-3 align-middle">
                                                     <div className="flex bg-background border border-border rounded-[6px] overflow-hidden min-w-[110px] focus-within:border-primary focus-within:ring-1 focus-within:ring-primary/20">
