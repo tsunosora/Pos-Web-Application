@@ -18,19 +18,21 @@ export class BackupController {
         return this.backupService.getGroups();
     }
 
-    // POST /backup/export — stream ZIP langsung ke client (data.json + folder uploads)
-    // Body: { groups: ['all'] } atau { groups: ['products', 'transactions', ...] }
+    // POST /backup/export — stream ZIP langsung ke client
+    // Body: { groups: ['all'], includeImages: true }
     @Post('export')
     async exportBackup(
-        @Body() body: { groups: string[] },
+        @Body() body: { groups: string[]; includeImages?: boolean },
         @Res() res: Response,
     ) {
         const groups = body.groups || ['all'];
         const isAll = groups.includes('all');
+        const includeImages = body.includeImages !== false; // default true
 
         const dateStr = new Date().toISOString().split('T')[0];
         const label = isAll ? 'full' : groups.join('-');
-        const filename = `pospro-backup-${label}-${dateStr}.zip`;
+        const suffix = includeImages ? '' : '-dataonly';
+        const filename = `pospro-backup-${label}${suffix}-${dateStr}.zip`;
 
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -38,6 +40,7 @@ export class BackupController {
         await this.backupService.streamBackupZip(
             isAll ? 'all' : (groups as BackupGroupKey[]),
             res,
+            includeImages,
         );
     }
 

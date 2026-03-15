@@ -21,6 +21,7 @@ export default function BackupPage() {
 
     // ── Export state ────────────────────────────────────────────────────────
     const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
+    const [includeImages, setIncludeImages] = useState(true);
     const [isExporting, setIsExporting] = useState(false);
     const [exportSuccess, setExportSuccess] = useState(false);
 
@@ -60,10 +61,11 @@ export default function BackupPage() {
         setExportSuccess(false);
         try {
             const groupList = allSelected ? ["all"] : [...selectedGroups];
-            const blob = await exportBackup(groupList);
+            const blob = await exportBackup(groupList, includeImages);
             const dateStr = new Date().toISOString().split("T")[0];
             const label = allSelected ? "full" : [...selectedGroups].join("-");
-            const filename = `pospro-backup-${label}-${dateStr}.zip`;
+            const suffix = includeImages ? "" : "-dataonly";
+            const filename = `pospro-backup-${label}${suffix}-${dateStr}.zip`;
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -213,6 +215,27 @@ export default function BackupPage() {
                             </label>
                         ))}
                     </div>
+
+                    {/* Toggle sertakan foto */}
+                    <label className="flex items-center justify-between p-3 rounded-lg border border-border cursor-pointer hover:bg-muted/30 transition-colors">
+                        <div>
+                            <p className="text-sm font-medium flex items-center gap-2">
+                                <Image className="w-4 h-4 text-muted-foreground" />
+                                Sertakan Foto & Gambar
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                {includeImages
+                                    ? "Foto produk & logo akan masuk ke ZIP (file lebih besar, lebih lama)"
+                                    : "Hanya data — lebih cepat, file lebih kecil"}
+                            </p>
+                        </div>
+                        <div
+                            onClick={() => setIncludeImages(v => !v)}
+                            className={`relative w-10 h-5 rounded-full transition-colors shrink-0 ${includeImages ? "bg-blue-500" : "bg-muted"}`}
+                        >
+                            <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${includeImages ? "translate-x-5" : ""}`} />
+                        </div>
+                    </label>
 
                     <button
                         type="button"

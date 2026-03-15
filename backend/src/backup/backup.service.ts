@@ -82,10 +82,14 @@ const UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'public', 'uploads');
 export class BackupService {
     constructor(private prisma: PrismaService) {}
 
-    // ── Export / Backup — stream ZIP langsung ke response (tidak buffer di memori) ──
+    // ── Export / Backup — stream ZIP langsung ke response ──────────────────
 
-    async streamBackupZip(selectedGroups: BackupGroupKey[] | 'all', outputStream: any): Promise<void> {
-        // ── 1. Kumpulkan data DB ───────────────────────────────────────────
+    async streamBackupZip(
+        selectedGroups: BackupGroupKey[] | 'all',
+        outputStream: any,
+        includeImages = true,
+    ): Promise<void> {
+        // ── 1. Kumpulkan data DB secara PARALLEL ──────────────────────────
         let tablesToExport: string[];
         if (selectedGroups === 'all') {
             tablesToExport = Object.values(BACKUP_GROUPS).flatMap(g => [...g.tables]);
@@ -94,18 +98,23 @@ export class BackupService {
         }
         tablesToExport = [...new Set(tablesToExport)];
 
+        // Query semua tabel secara paralel — jauh lebih cepat dari sequential loop
+        const results = await Promise.all(
+            tablesToExport.map(async (table) => {
+                try {
+                    const rows = await (this.prisma as any)[table].findMany();
+                    return { table, rows };
+                } catch {
+                    return { table, rows: [] };
+                }
+            })
+        );
+
         const data: Record<string, any[]> = {};
         const counts: Record<string, number> = {};
-
-        for (const table of tablesToExport) {
-            try {
-                const rows = await (this.prisma as any)[table].findMany();
-                data[table] = rows;
-                counts[table] = rows.length;
-            } catch {
-                data[table] = [];
-                counts[table] = 0;
-            }
+        for (const { table, rows } of results) {
+            data[table] = rows;
+            counts[table] = rows.length;
         }
 
         const backupJson = {
@@ -116,13 +125,14 @@ export class BackupService {
                 tables: tablesToExport,
                 groups: selectedGroups === 'all' ? Object.keys(BACKUP_GROUPS) : selectedGroups,
                 rowCounts: counts,
+                includesImages: includeImages,
             },
             data,
         };
 
-        // ── 2. Stream ZIP langsung ke outputStream (response) ─────────────
-        // Level kompresi 1 = paling cepat (foto sudah compressed, tidak perlu zip berat)
+        // ── 2. Stream ZIP langsung ke response ────────────────────────────
         return new Promise<void>((resolve, reject) => {
+            // Kompresi level 1 untuk data.json, store mode (level 0) untuk gambar
             const archive = archiver('zip', { zlib: { level: 1 } });
 
             archive.on('error', reject);
@@ -131,12 +141,12 @@ export class BackupService {
             // Pipe langsung ke response — tidak buffer di RAM
             archive.pipe(outputStream);
 
-            // Tambahkan data.json ke ZIP
+            // Tambahkan data.json
             archive.append(JSON.stringify(backupJson, null, 2), { name: 'data.json' });
 
-            // Tambahkan folder uploads jika ada
-            if (fs.existsSync(UPLOADS_DIR)) {
-                archive.directory(UPLOADS_DIR, 'uploads');
+            // Tambahkan folder uploads tanpa kompresi ulang (gambar sudah terkompresi)
+            if (includeImages && fs.existsSync(UPLOADS_DIR)) {
+                archive.directory(UPLOADS_DIR, 'uploads', { store: true } as any);
             }
 
             archive.finalize();
