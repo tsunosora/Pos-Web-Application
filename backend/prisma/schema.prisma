@@ -102,10 +102,11 @@ model Product {
   createdAt          DateTime?   @default(now()) @map("created_at")
   updatedAt          DateTime?   @default(now()) @updatedAt @map("updated_at")
 
-  category    Category         @relation(fields: [categoryId], references: [id])
-  unit        Unit             @relation(fields: [unitId], references: [id])
-  variants    ProductVariant[]
-  ingredients Ingredient[]
+  category      Category         @relation(fields: [categoryId], references: [id])
+  unit          Unit             @relation(fields: [unitId], references: [id])
+  variants      ProductVariant[]
+  ingredients   Ingredient[]
+  hppWorksheets HppWorksheet[]
 
   @@map("products")
 }
@@ -356,6 +357,7 @@ model HppWorksheet {
   targetVolume     Int       @default(1) @map("target_volume")
   targetMargin     Decimal   @default(50) @map("target_margin") @db.Decimal(10, 2)
   productVariantId Int?      @map("product_variant_id")
+  productId        Int?      @map("product_id")
   appliedAt        DateTime? @map("applied_at")
   createdAt        DateTime? @default(now()) @map("created_at")
   updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at")
@@ -363,6 +365,7 @@ model HppWorksheet {
   variableCosts  HppVariableCost[]
   fixedCosts     HppFixedCost[]
   productVariant ProductVariant?   @relation(fields: [productVariantId], references: [id], onDelete: SetNull)
+  product        Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@map("hpp_worksheets")
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
     Plus, Edit2, Trash2, Image as ImageIcon, Target,
     Search, Download, Trash, ChevronDown, Check, Store, Package, Map,
@@ -8,7 +9,7 @@ import {
     Calculator, ArrowRight, Loader2, Save, X, Database
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getHppWorksheets, createHppWorksheet, updateHppWorksheet, deleteHppWorksheet, getProducts, createProduct, getCategories, getUnits, uploadProductImage, uploadProductImages, addProductVariant, updateProductVariant, applyHppToVariant, applyHppToVariants, applyHppVariantsCustom, uploadVariantImage, replaceVariantPriceTiers } from "@/lib/api";
+import { getHppWorksheets, createHppWorksheet, updateHppWorksheet, deleteHppWorksheet, getHppWorksheetByProduct, getProducts, createProduct, updateProduct, getCategories, getUnits, uploadProductImage, uploadProductImages, addProductVariant, updateProductVariant, applyHppToVariant, applyHppToVariants, applyHppVariantsCustom, uploadVariantImage, replaceVariantPriceTiers } from "@/lib/api";
 
 function CustomNameInput({ value, onChange, onSwitchToStock }: { value: string; onChange: (val: string) => void; onSwitchToStock: () => void }) {
     const [local, setLocal] = useState(value);
@@ -176,6 +177,15 @@ interface FixedCost {
 }
 
 export default function HppCalculatorPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const editProductId = searchParams.get('editProductId') ? parseInt(searchParams.get('editProductId')!) : null;
+
+    const [editMode, setEditMode] = useState(false);
+    const [editingProductId, setEditingProductId] = useState<number | null>(null);
+    const [editingWorksheetId, setEditingWorksheetId] = useState<number | null>(null);
+    const [hasLoadedEdit, setHasLoadedEdit] = useState(false);
+
     const [isLoading, setIsLoading] = useState(true);
     const [worksheets, setWorksheets] = useState<any[]>([]);
     const [dbProducts, setDbProducts] = useState<any[]>([]); // For getting stock/inventory items
@@ -238,6 +248,7 @@ export default function HppCalculatorPage() {
         heightM: string;
         multiplier: string;
         linkedVariantId: number | null;
+        existingVariantId?: number | null;
         isNew?: boolean;
         newProductName?: string;
         newVariantName?: string;
@@ -277,6 +288,82 @@ export default function HppCalculatorPage() {
     useEffect(() => {
         loadInitialData();
     }, []);
+
+    // Edit mode: load product + worksheet when editProductId param is present (run once)
+    useEffect(() => {
+        if (!editProductId || isLoading || !dbProducts.length || hasLoadedEdit) return;
+
+        const product = dbProducts.find((p: any) => p.id === editProductId);
+        if (!product) return;
+
+        setHasLoadedEdit(true);
+
+        setEditMode(true);
+        setEditingProductId(editProductId);
+        setProductName(product.name);
+        setProductCategory(String(product.categoryId || ''));
+        setSellingPricingMode(product.pricingMode || 'UNIT');
+
+        // Load variants → variantCalcRows
+        if (product.variants?.length > 0) {
+            const rows = product.variants.map((v: any) => ({
+                id: `edit-${v.id}`,
+                name: v.variantName || '',
+                existingVariantId: v.id,
+                widthM: '',
+                heightM: '',
+                multiplier: '1',
+                linkedVariantId: v.id,
+                isNew: false,
+                customPrice: Number(v.price) || null,
+                additionalCost: null,
+                priceTiers: (v.priceTiers || []).map((t: any) => ({
+                    tierName: t.tierName || '',
+                    minQty: String(t.minQty),
+                    maxQty: t.maxQty ? String(t.maxQty) : '',
+                    price: String(t.price),
+                })),
+                showTierEditor: (v.priceTiers?.length || 0) > 0,
+            }));
+            setVariantCalcRows(rows);
+            setShowVariantCalc(rows.length > 1 || rows.some((r: any) => r.name || r.priceTiers?.length));
+            setVariantCalcMode('unit');
+        }
+
+        // Try to load worksheet for this product (any of the 3 scenarios)
+        getHppWorksheetByProduct(editProductId).then((ws: any) => {
+            if (!ws) return; // no worksheet yet — user fills from scratch
+            setActiveWorksheetId(ws.id);
+            setEditingWorksheetId(ws.id);
+            setTargetVolume(ws.targetVolume);
+            setTargetMargin(Number(ws.targetMargin));
+
+            setVariableCosts(ws.variableCosts.map((vc: any) => {
+                const variant = vc.productVariant;
+                const isCustom = !variant;
+                return {
+                    id: vc.id.toString(),
+                    productVariantId: vc.productVariantId,
+                    name: isCustom
+                        ? vc.customMaterialName
+                        : (variant?.variantName ? `${variant.product?.name} - ${variant.variantName}` : variant?.product?.name || 'Unknown'),
+                    usageAmount: Number(vc.usageAmount),
+                    usageUnit: vc.usageUnit,
+                    price: isCustom ? Number(vc.customPrice || 0) : Number(variant?.price || 0),
+                    priceUnit: variant?.product?.unit?.name || 'unit',
+                    isCustom,
+                };
+            }));
+
+            setFixedCosts(ws.fixedCosts.map((fc: any) => ({
+                id: fc.id.toString(),
+                name: fc.name,
+                amount: Number(fc.amount),
+            })));
+
+            setHasCalculated(true);
+        }).catch(() => { /* no worksheet — that's fine */ });
+    }, [editProductId, isLoading, dbProducts]);
 
     const loadInitialData = async () => {
         setIsLoading(true);
@@ -704,9 +791,28 @@ export default function HppCalculatorPage() {
                 }
             }
 
-            // Ask to optionally save the worksheet as well
-            if (confirm("Produk berhasil disiapkan! Apakah Anda juga ingin menyimpan lembar kerja (Worksheet) ini agar bisa diedit di kemudian hari?")) {
-                await handleSaveWorksheet();
+            // Auto-save worksheet linked to the new product
+            const wsAutoPayload = {
+                productName,
+                targetVolume,
+                targetMargin,
+                productId: newProduct.id,
+                productVariantId: newProduct.variants?.[0]?.id || null,
+                variableCosts: variableCosts
+                    .filter(vc => vc.productVariantId || (vc.name && vc.price > 0))
+                    .map(vc => ({
+                        productVariantId: vc.productVariantId || null,
+                        customMaterialName: !vc.productVariantId ? vc.name : null,
+                        customPrice: !vc.productVariantId ? vc.price : null,
+                        usageAmount: vc.usageAmount,
+                        usageUnit: vc.usageUnit,
+                    })),
+                fixedCosts: fixedCosts.map(fc => ({ name: fc.name, amount: fc.amount })),
+            };
+            if (activeWorksheetId) {
+                await updateHppWorksheet(activeWorksheetId, wsAutoPayload);
+            } else if (wsAutoPayload.variableCosts.length > 0 || wsAutoPayload.fixedCosts.length > 0) {
+                await createHppWorksheet(wsAutoPayload);
             }
 
             const variantInfo = activeMultiRows.length > 0
@@ -714,10 +820,112 @@ export default function HppCalculatorPage() {
                 : `SKU: ${sku}`;
             alert(`Produk "${productName}" berhasil dibuat!\n${variantInfo}`);
             // Redirect to product management
-            window.location.href = '/inventory/products';
+            window.location.href = '/inventory';
         } catch (error: any) {
             console.error(error);
             alert(`Gagal menyimpan produk: ${error?.response?.data?.message || error.message || 'Terjadi kesalahan'}`);
+        } finally {
+            setIsSavingProduct(false);
+        }
+    };
+
+    const handleUpdateProduct = async () => {
+        if (!editingProductId || !editMode) return;
+        if (!productName) return alert("Nama produk wajib diisi!");
+        if (isSavingProduct) return;
+        setIsSavingProduct(true);
+
+        try {
+            const categoryId = productCategory ? parseInt(productCategory) : null;
+            if (!categoryId) { setIsSavingProduct(false); return alert("Pilih kategori produk!"); }
+
+            // Use the product's actual unitId, not just 'pcs'
+            const product = dbProducts.find((p: any) => p.id === editingProductId);
+            const unitId = product?.unitId || dbUnits.find((u: any) => u.name === 'pcs')?.id || dbUnits[0]?.id;
+            if (!unitId) { setIsSavingProduct(false); return alert("Tambahkan unit terlebih dahulu."); }
+
+            const activeMultiRows = variantCalcRows.filter(r => r.name.trim() !== '' || r.existingVariantId);
+            let variantsPayload: any[];
+
+            if (activeMultiRows.length > 0) {
+                variantsPayload = activeMultiRows.map(row => {
+                    const { hppFinal } = calcHppFinal(row);
+                    const rowPrice = row.customPrice && row.customPrice > 0
+                        ? row.customPrice
+                        : (hppFinal > 0 ? Math.round(hppFinal * (1 + targetMargin / 100)) : 0);
+                    const isNew = !row.existingVariantId;
+                    const skuBase = (row.name.trim() || productName).split(/\s+/).map((w: string) => w[0] || '').join('').toUpperCase().substring(0, 5);
+                    return {
+                        ...(row.existingVariantId ? { id: row.existingVariantId } : { sku: `HPP-${skuBase}-${Math.floor(1000 + Math.random() * 9000)}`, stock: 0 }),
+                        variantName: row.name.trim() || null,
+                        price: rowPrice,
+                        hpp: hppFinal > 0 ? hppFinal : Math.round(hppPerPcs),
+                        priceTiers: buildTiersPayload(row),
+                    };
+                });
+            } else {
+                const existingVariant = product?.variants?.[0];
+                const sellingPrice = customSellingPrice && customSellingPrice > 0
+                    ? customSellingPrice
+                    : (hppPerPcs > 0 ? Math.round(hppPerPcs * (1 + targetMargin / 100)) : 0);
+                variantsPayload = [{
+                    ...(existingVariant?.id ? { id: existingVariant.id } : {}),
+                    price: sellingPrice,
+                    hpp: Math.round(hppPerPcs),
+                }];
+            }
+
+            const ingredients = variableCosts
+                .filter((vc: any) => vc.name && vc.usageAmount > 0)
+                .map((vc: any) => ({
+                    name: String(vc.name),
+                    quantity: vc.usageAmount,
+                    unit: vc.usageUnit || 'unit',
+                    price: vc.price || 0,
+                    subtotal: calculateVariableSubtotal(vc),
+                    rawMaterialVariantId: vc.productVariantId || null,
+                }));
+
+            const wsPayload = {
+                productName,
+                targetVolume,
+                targetMargin,
+                productId: editingProductId,
+                productVariantId: linkedVariantId || null,
+                variableCosts: variableCosts
+                    .filter((vc: any) => vc.productVariantId || (vc.name && vc.price > 0))
+                    .map((vc: any) => ({
+                        productVariantId: vc.productVariantId || null,
+                        customMaterialName: !vc.productVariantId ? vc.name : null,
+                        customPrice: !vc.productVariantId ? vc.price : null,
+                        usageAmount: vc.usageAmount,
+                        usageUnit: vc.usageUnit || 'unit',
+                    })),
+                fixedCosts: fixedCosts.map((fc: any) => ({ name: fc.name, amount: fc.amount })),
+            };
+
+            await updateProduct(editingProductId as number, {
+                name: productName,
+                categoryId,
+                unitId,
+                pricingMode: sellingPricingMode,
+                variants: variantsPayload,
+                ingredients,
+            });
+
+            if (editingWorksheetId) {
+                await updateHppWorksheet(editingWorksheetId, wsPayload);
+            } else {
+                const newWs = await createHppWorksheet(wsPayload);
+                setEditingWorksheetId(newWs.id);
+                setActiveWorksheetId(newWs.id);
+            }
+
+            alert(`Produk "${productName}" berhasil diperbarui!`);
+            router.push('/inventory');
+        } catch (error: any) {
+            const msg = error?.response?.data?.message || error?.message || 'Unknown error';
+            alert(`Gagal memperbarui produk: ${msg}`);
         } finally {
             setIsSavingProduct(false);
         }
@@ -968,7 +1176,12 @@ export default function HppCalculatorPage() {
 
                         <div className="w-px h-6 bg-border hidden sm:block" />
 
-                        {activeWorksheetId && (
+                        {editMode && (
+                            <span className="text-xs font-bold text-blue-700 bg-blue-100 border border-blue-200 px-2.5 py-1 rounded-full">
+                                Mode Edit: {productName || '...'}
+                            </span>
+                        )}
+                        {!editMode && activeWorksheetId && (
                             <span className="text-xs font-semibold text-primary bg-primary/10 px-2.5 py-1 rounded-full">
                                 #{activeWorksheetId} · {productName || 'Tanpa Nama'}
                             </span>
@@ -1868,12 +2081,22 @@ export default function HppCalculatorPage() {
                                             </div>
                                         </div>
 
-                                        <button
-                                            onClick={handleSaveAsProduct}
-                                            disabled={isSavingProduct}
-                                            className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold text-[13px] py-3 rounded-[10px] shadow-sm transition-all disabled:opacity-60">
-                                            {isSavingProduct ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />} {isSavingProduct ? 'Menyimpan...' : 'Simpan Perhitungan & Jadikan Produk'}
-                                        </button>
+                                        {editMode ? (
+                                            <button
+                                                onClick={handleUpdateProduct}
+                                                disabled={isSavingProduct || !hasCalculated}
+                                                className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[13px] py-3 rounded-[10px] shadow-sm transition-all disabled:opacity-60">
+                                                {isSavingProduct ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                                {isSavingProduct ? 'Menyimpan...' : 'Simpan Perubahan Produk'}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                onClick={handleSaveAsProduct}
+                                                disabled={isSavingProduct}
+                                                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold text-[13px] py-3 rounded-[10px] shadow-sm transition-all disabled:opacity-60">
+                                                {isSavingProduct ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShoppingBag className="w-4 h-4" />} {isSavingProduct ? 'Menyimpan...' : 'Simpan Perhitungan & Jadikan Produk'}
+                                            </button>
+                                        )}
                                         <div className="grid grid-cols-2 gap-2">
                                             <button
                                                 onClick={() => { setShowAddVariantModal(true); setAddVariantProductId(null); setAddVariantName(""); }}

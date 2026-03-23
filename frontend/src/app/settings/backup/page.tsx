@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     Download, Upload, Database, CheckSquare, Square, Shield,
     AlertTriangle, CheckCircle2, Loader2, ChevronDown, ChevronUp,
-    Trash2, ArrowLeft, Info, FileArchive, Image
+    Trash2, ArrowLeft, Info, FileArchive, Image, Zap, MessageCircle
 } from "lucide-react";
 import Link from "next/link";
 import { getBackupGroups, exportBackup, previewBackupFile, restoreBackup } from "@/lib/api";
@@ -39,10 +39,18 @@ export default function BackupPage() {
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // ── Export helpers ──────────────────────────────────────────────────────
+    // ── Auto-select all groups saat grup dimuat ─────────────────────────────
     const allGroupKeys = groups.map((g: any) => g.key);
     const allSelected = allGroupKeys.length > 0 && allGroupKeys.every((k: string) => selectedGroups.has(k));
 
+    useEffect(() => {
+        if (allGroupKeys.length > 0 && selectedGroups.size === 0) {
+            setSelectedGroups(new Set(allGroupKeys));
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allGroupKeys.length]);
+
+    // ── Export helpers ──────────────────────────────────────────────────────
     const toggleGroup = (key: string) => {
         setSelectedGroups(prev => {
             const next = new Set(prev);
@@ -55,15 +63,18 @@ export default function BackupPage() {
         setSelectedGroups(allSelected ? new Set() : new Set(allGroupKeys));
     };
 
-    const handleExport = async () => {
-        if (selectedGroups.size === 0) return alert("Pilih minimal satu grup data untuk dibackup.");
+    const handleExport = async (forceAll = false) => {
+        const groupsToUse = forceAll ? new Set(allGroupKeys) : selectedGroups;
+        if (groupsToUse.size === 0) return alert("Pilih minimal satu grup data untuk dibackup.");
+        if (forceAll) setSelectedGroups(new Set(allGroupKeys));
         setIsExporting(true);
         setExportSuccess(false);
         try {
-            const groupList = allSelected ? ["all"] : [...selectedGroups];
+            const isAll = allGroupKeys.length > 0 && allGroupKeys.every((k: string) => groupsToUse.has(k));
+            const groupList = isAll ? ["all"] : [...groupsToUse];
             const blob = await exportBackup(groupList, includeImages);
             const dateStr = new Date().toISOString().split("T")[0];
-            const label = allSelected ? "full" : [...selectedGroups].join("-");
+            const label = isAll ? "full" : [...groupsToUse].join("-");
             const suffix = includeImages ? "" : "-dataonly";
             const filename = `pospro-backup-${label}${suffix}-${dateStr}.zip`;
             const url = URL.createObjectURL(blob);
@@ -73,7 +84,7 @@ export default function BackupPage() {
             a.click();
             URL.revokeObjectURL(url);
             setExportSuccess(true);
-            setTimeout(() => setExportSuccess(false), 3000);
+            setTimeout(() => setExportSuccess(false), 4000);
         } catch {
             alert("Gagal mengekspor backup.");
         } finally {
@@ -155,7 +166,38 @@ export default function BackupPage() {
                     <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                         <Database className="w-6 h-6 text-primary" /> Backup & Recovery
                     </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Ekspor data & foto ke file ZIP, atau restore dari file backup ke sistem baru.</p>
+                    <p className="text-sm text-muted-foreground mt-0.5">Ekspor semua data & foto ke file ZIP, atau restore dari file backup ke sistem baru.</p>
+                </div>
+            </div>
+
+            {/* ── QUICK ACTION: Backup Lengkap ─────────────────────────────── */}
+            <div className="glass p-5 rounded-xl border border-primary/30 bg-primary/5 shadow-sm">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                    <div className="flex items-center gap-3 flex-1">
+                        <div className="p-2.5 bg-primary/10 rounded-xl">
+                            <Zap className="w-5 h-5 text-primary" />
+                        </div>
+                        <div>
+                            <p className="font-bold text-sm text-foreground">Backup Lengkap Semua Data</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Semua grup data + foto + konfigurasi WhatsApp dalam satu file ZIP. Ideal untuk migrasi atau pindah server.
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => handleExport(true)}
+                        disabled={isExporting}
+                        className="shrink-0 flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 px-5 py-2.5 rounded-xl font-semibold text-sm transition-colors shadow-md whitespace-nowrap"
+                    >
+                        {isExporting ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Membuat ZIP...</>
+                        ) : exportSuccess ? (
+                            <><CheckCircle2 className="w-4 h-4" /> Berhasil!</>
+                        ) : (
+                            <><Download className="w-4 h-4" /> Backup Semua Sekarang</>
+                        )}
+                    </button>
                 </div>
             </div>
 
@@ -168,8 +210,8 @@ export default function BackupPage() {
                             <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                            <h2 className="text-base font-semibold">Ekspor Backup</h2>
-                            <p className="text-xs text-muted-foreground">Pilih data yang ingin disimpan. Hasil backup berupa file <strong>.zip</strong> berisi data + foto.</p>
+                            <h2 className="text-base font-semibold">Ekspor Backup Pilihan</h2>
+                            <p className="text-xs text-muted-foreground">Pilih grup data tertentu yang ingin disimpan.</p>
                         </div>
                     </div>
 
@@ -180,6 +222,7 @@ export default function BackupPage() {
                             <p className="font-semibold">Isi file ZIP backup:</p>
                             <p>• <strong>data.json</strong> — semua record database yang dipilih</p>
                             <p>• <strong>uploads/</strong> — semua foto produk, logo, dll.</p>
+                            <p>• <strong>whatsapp_bot_config.json</strong> — grup & konfigurasi bot WA</p>
                         </div>
                     </div>
 
@@ -239,7 +282,7 @@ export default function BackupPage() {
 
                     <button
                         type="button"
-                        onClick={handleExport}
+                        onClick={() => handleExport(false)}
                         disabled={isExporting || selectedGroups.size === 0}
                         className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 px-5 py-3 rounded-xl font-semibold text-sm transition-colors shadow-md"
                     >
@@ -261,7 +304,7 @@ export default function BackupPage() {
                         </div>
                         <div>
                             <h2 className="text-base font-semibold">Restore dari Backup</h2>
-                            <p className="text-xs text-muted-foreground">Upload file backup <strong>.zip</strong> untuk memulihkan data & foto.</p>
+                            <p className="text-xs text-muted-foreground">Upload file backup <strong>.zip</strong> untuk memulihkan data, foto & config WA.</p>
                         </div>
                     </div>
 
@@ -304,16 +347,24 @@ export default function BackupPage() {
                             {restorePreview && !previewLoading && (
                                 <>
                                     {/* Meta info */}
-                                    <div className="text-xs space-y-1 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <div className="text-xs space-y-1.5 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                                         <p className="font-semibold text-blue-700 dark:text-blue-400">Info Backup</p>
                                         <p className="text-muted-foreground">Dibuat: {new Date(restorePreview.meta.createdAt).toLocaleString('id-ID')}</p>
                                         <p className="text-muted-foreground">Aplikasi: {restorePreview.meta.app} v{restorePreview.meta.version}</p>
-                                        {isZipFile && restorePreview.imageCount !== undefined && (
-                                            <p className="text-muted-foreground flex items-center gap-1">
-                                                <Image className="w-3 h-3" />
-                                                {restorePreview.imageCount} file foto akan dipulihkan
-                                            </p>
-                                        )}
+                                        <div className="flex flex-wrap gap-3 mt-1">
+                                            {isZipFile && restorePreview.imageCount !== undefined && (
+                                                <span className="flex items-center gap-1 text-muted-foreground">
+                                                    <Image className="w-3 h-3" />
+                                                    {restorePreview.imageCount} foto
+                                                </span>
+                                            )}
+                                            {restorePreview.hasWaConfig && (
+                                                <span className="flex items-center gap-1 text-green-700 dark:text-green-400 font-medium">
+                                                    <MessageCircle className="w-3 h-3" />
+                                                    Konfigurasi WhatsApp tersedia
+                                                </span>
+                                            )}
+                                        </div>
                                     </div>
 
                                     {/* Pilih mode restore */}
@@ -400,7 +451,7 @@ export default function BackupPage() {
                                             <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-semibold text-sm">
                                                 <CheckCircle2 className="w-4 h-4" /> {restoreResult.message}
                                             </div>
-                                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div className="grid grid-cols-4 gap-2 text-xs">
                                                 <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
                                                     <p className="text-lg font-bold text-green-700 dark:text-green-400">{restoreResult.totalRestored}</p>
                                                     <p className="text-muted-foreground">Baris Data</p>
@@ -412,6 +463,12 @@ export default function BackupPage() {
                                                 <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
                                                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{restoreResult.imagesRestored ?? 0}</p>
                                                     <p className="text-muted-foreground">Foto</p>
+                                                </div>
+                                                <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
+                                                    <p className={`text-lg font-bold ${restoreResult.waConfigRestored ? "text-green-600" : "text-muted-foreground"}`}>
+                                                        {restoreResult.waConfigRestored ? "✓" : "–"}
+                                                    </p>
+                                                    <p className="text-muted-foreground">Config WA</p>
                                                 </div>
                                             </div>
                                             {restoreResult.errors?.length > 0 && (
@@ -436,18 +493,22 @@ export default function BackupPage() {
                 <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
                     <Shield className="w-4 h-4 text-primary" /> Panduan Backup & Recovery
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted-foreground">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs text-muted-foreground">
                     <div className="space-y-1.5">
                         <p className="font-semibold text-foreground">📦 Isi File ZIP Backup</p>
-                        <p>File backup berisi <strong>data.json</strong> (semua record database) dan folder <strong>uploads/</strong> (semua foto produk, logo toko, dll). Semua dalam satu file.</p>
+                        <p>File backup berisi <strong>data.json</strong> (database), folder <strong>uploads/</strong> (foto), dan <strong>whatsapp_bot_config.json</strong> (grup & setting bot WA).</p>
                     </div>
                     <div className="space-y-1.5">
                         <p className="font-semibold text-foreground">🖥️ Migrasi Sistem Baru</p>
-                        <p>Backup semua data → Install PosPro di PC baru → Restore dengan mode <strong>Overwrite</strong>. Data dan foto akan dipulihkan otomatis.</p>
+                        <p>Klik <strong>Backup Semua Sekarang</strong> → Install PosPro di PC baru → Restore dengan mode <strong>Overwrite</strong>. Data, foto & config WA pulih otomatis.</p>
                     </div>
                     <div className="space-y-1.5">
                         <p className="font-semibold text-foreground">⚠️ Perbedaan Mode</p>
                         <p><strong>Skip Existing</strong>: tidak menimpa data yang sudah ada. <strong>Overwrite</strong>: hapus & tulis ulang. Gunakan Overwrite hanya di sistem kosong/baru.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                        <p className="font-semibold text-foreground">💬 WhatsApp Bot</p>
+                        <p>Config grup WA dipulihkan otomatis dari backup. Namun <strong>QR Code perlu di-scan ulang</strong> di sistem baru karena sesi auth tidak dapat dipindahkan.</p>
                     </div>
                 </div>
             </div>
@@ -457,7 +518,7 @@ export default function BackupPage() {
                 <Info className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
                 <div>
                     <p className="font-semibold text-foreground mb-1">Backup file .json lama tetap bisa direstore</p>
-                    <p>Format .json dari versi sebelumnya masih kompatibel. Upload file .json dan sistem akan otomatis mendeteksinya. Namun foto tidak akan termasuk karena format lama tidak mendukung.</p>
+                    <p>Format .json dari versi sebelumnya masih kompatibel. Upload file .json dan sistem akan otomatis mendeteksinya. Namun foto dan konfigurasi WhatsApp tidak akan termasuk karena format lama tidak mendukung.</p>
                 </div>
             </div>
 
@@ -475,6 +536,9 @@ export default function BackupPage() {
                             Anda akan merestore <strong>{selectedRestoreTables.size} tabel</strong> dari file <strong>{restoreFile?.name}</strong> dengan mode <strong>{restoreMode === "overwrite" ? "Overwrite (hapus & tulis ulang)" : "Skip Existing"}</strong>.
                             {isZipFile && restorePreview?.imageCount > 0 && (
                                 <span> Foto sebanyak <strong>{restorePreview.imageCount} file</strong> juga akan dipulihkan.</span>
+                            )}
+                            {restorePreview?.hasWaConfig && (
+                                <span> Konfigurasi WhatsApp juga akan dipulihkan.</span>
                             )}
                         </p>
                         {restoreMode === "overwrite" && (

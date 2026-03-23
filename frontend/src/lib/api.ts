@@ -59,6 +59,7 @@ export const applyHppVariantsCustom = async (
     variants: { variantId: number; hppPerUnit: number; scaleFactor: number }[]
 ) => (await api.post(`/hpp/${worksheetId}/apply-variants-custom`, { variants })).data;
 export const deleteHppWorksheet = async (id: number) => (await api.delete(`/hpp/${id}`)).data;
+export const getHppWorksheetByProduct = async (productId: number) => (await api.get(`/hpp/by-product/${productId}`)).data;
 
 // Bulk Import
 export const bulkImportProducts = async (data: { products: any[] }) =>

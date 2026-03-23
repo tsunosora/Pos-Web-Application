@@ -75,8 +75,10 @@ const RESTORE_ORDER = [
     'shiftReport',
 ];
 
-// Path folder uploads gambar
+// Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)
 const UPLOADS_DIR = path.join(__dirname, '..', '..', '..', 'public', 'uploads');
+// Path config WhatsApp bot
+const WA_CONFIG_PATH = path.join(__dirname, '..', '..', '..', 'whatsapp_bot_config.json');
 
 @Injectable()
 export class BackupService {
@@ -117,15 +119,18 @@ export class BackupService {
             counts[table] = rows.length;
         }
 
+        const hasWaConfig = fs.existsSync(WA_CONFIG_PATH);
+
         const backupJson = {
             meta: {
-                version: '2.0',
+                version: '2.1',
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,
                 groups: selectedGroups === 'all' ? Object.keys(BACKUP_GROUPS) : selectedGroups,
                 rowCounts: counts,
                 includesImages: includeImages,
+                includesWaConfig: hasWaConfig,
             },
             data,
         };
@@ -147,6 +152,11 @@ export class BackupService {
             // Tambahkan folder uploads tanpa kompresi ulang (gambar sudah terkompresi)
             if (includeImages && fs.existsSync(UPLOADS_DIR)) {
                 archive.directory(UPLOADS_DIR, 'uploads', { store: true } as any);
+            }
+
+            // Tambahkan konfigurasi WhatsApp bot jika ada
+            if (hasWaConfig) {
+                archive.file(WA_CONFIG_PATH, { name: 'whatsapp_bot_config.json' });
             }
 
             archive.finalize();
@@ -174,12 +184,13 @@ export class BackupService {
                 count: rows.length,
             })),
             imageCount: 0,
+            hasWaConfig: false,
         };
     }
 
     // ── Preview Backup ZIP ───────────────────────────────────────────────────
 
-    parseBackupZip(fileBuffer: Buffer): { meta: any; preview: { table: string; count: number }[]; imageCount: number } {
+    parseBackupZip(fileBuffer: Buffer): { meta: any; preview: { table: string; count: number }[]; imageCount: number; hasWaConfig: boolean } {
         let zip: any;
         try {
             zip = new AdmZip(fileBuffer);
@@ -207,6 +218,8 @@ export class BackupService {
             (e: any) => e.entryName.startsWith('uploads/') && !e.isDirectory
         );
 
+        const hasWaConfig = !!zip.getEntry('whatsapp_bot_config.json');
+
         return {
             meta: parsed.meta,
             preview: Object.entries(parsed.data as Record<string, any[]>).map(([table, rows]) => ({
@@ -214,6 +227,7 @@ export class BackupService {
                 count: rows.length,
             })),
             imageCount: imageEntries.length,
+            hasWaConfig,
         };
     }
 
@@ -328,30 +342,74 @@ export class BackupService {
             }
         }
 
+        // ── Restore konfigurasi WhatsApp dari ZIP ─────────────────────────
+        let waConfigRestored = false;
+        if (zip) {
+            const waConfigEntry = zip.getEntry('whatsapp_bot_config.json');
+            if (waConfigEntry) {
+                // Pada mode skip, jangan timpa config yang sudah ada
+                if (mode === 'overwrite' || !fs.existsSync(WA_CONFIG_PATH)) {
+                    try {
+                        fs.writeFileSync(WA_CONFIG_PATH, waConfigEntry.getData());
+                        waConfigRestored = true;
+                    } catch {
+                        // Gagal tulis config — tidak fatal
+                    }
+                }
+            }
+        }
+
         const totalRestored = Object.values(result).reduce((s, r) => s + r.success, 0);
         const totalSkipped = Object.values(result).reduce((s, r) => s + r.skipped, 0);
         const errors = Object.entries(result)
             .filter(([, r]) => r.error)
             .map(([t, r]) => `${t}: ${r.error}`);
 
+        const parts = [`${totalRestored} baris data berhasil`, `${totalSkipped} dilewati`, `${imagesRestored} foto dipulihkan`];
+        if (waConfigRestored) parts.push('konfigurasi WhatsApp dipulihkan');
+
         return {
-            message: `Restore selesai. ${totalRestored} baris data berhasil, ${totalSkipped} dilewati, ${imagesRestored} gambar dipulihkan.`,
+            message: `Restore selesai. ${parts.join(', ')}.`,
             totalRestored,
             totalSkipped,
             imagesRestored,
+            waConfigRestored,
             errors,
             detail: result,
         };
     }
 
-    // Bersihkan fields relasi nested sebelum insert
+    // Bersihkan fields relasi nested sebelum insert.
+    // Data dari JSON.parse tidak mengandung Prisma-specific types (Date/Decimal objects),
+    // hanya primitives, JSON objects, dan JSON arrays — semua harus dipertahankan.
     private cleanRow(row: any): any {
         const cleaned: any = {};
         for (const [key, val] of Object.entries(row)) {
-            if (val !== null && typeof val === 'object' && !Array.isArray(val) && !(val instanceof Date) && !this.isDateString(val as any)) {
-                continue;
+            // Lewati nested Prisma relation objects (ditandai dengan field 'id' sendiri)
+            // Dalam praktiknya ini tidak muncul karena kita pakai findMany() tanpa include,
+            // tapi sebagai precaution tetap kita filter.
+            if (
+                val !== null &&
+                typeof val === 'object' &&
+                !Array.isArray(val) &&
+                !(val instanceof Date) &&
+                'id' in (val as any) &&
+                ('createdAt' in (val as any) || 'updatedAt' in (val as any))
+            ) {
+                continue; // Nested Prisma model — lewati
             }
-            if (Array.isArray(val)) continue;
+            // Lewati array of nested Prisma objects (relation lists)
+            if (
+                Array.isArray(val) &&
+                val.length > 0 &&
+                typeof val[0] === 'object' &&
+                val[0] !== null &&
+                'id' in val[0] &&
+                ('createdAt' in val[0] || 'updatedAt' in val[0])
+            ) {
+                continue; // Nested relation array — lewati
+            }
+            // Pertahankan semua nilai lainnya termasuk JSON fields (objects/arrays biasa)
             cleaned[key] = val;
         }
         return cleaned;

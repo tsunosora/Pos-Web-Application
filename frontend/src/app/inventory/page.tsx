@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, logStockMovement, deleteProduct, bulkDeleteProducts, bulkImportProducts } from '@/lib/api';
 import { downloadBulkTemplate, parseBulkExcel, BulkProductInput } from '@/lib/bulk-import';
-import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload } from 'lucide-react';
+import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -460,6 +460,9 @@ export default function InventoryPage() {
                                                                 <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="flex items-center gap-1 text-xs border border-border bg-muted/50 px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors">
                                                                     <Pencil className="h-3 w-3" /> Edit
                                                                 </button>
+                                                                <button onClick={() => router.push(`/reports/hpp?editProductId=${product.id}`)} className="flex items-center gap-1 text-xs border border-blue-200 bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 transition-colors" title="Edit via Kalkulator HPP">
+                                                                    <Calculator className="h-3 w-3" /> HPP
+                                                                </button>
                                                                 {deletingProductId === product.id ? (
                                                                     <div className="flex items-center gap-1">
                                                                         <span className="text-xs text-destructive">Hapus?</span>
@@ -616,6 +619,9 @@ export default function InventoryPage() {
                                                             <>
                                                                 <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="flex items-center gap-1 text-xs border border-border bg-muted/50 px-2 py-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100" title="Edit Produk">
                                                                     <Pencil className="h-3 w-3" /> Edit
+                                                                </button>
+                                                                <button onClick={() => router.push(`/reports/hpp?editProductId=${product.id}`)} className="flex items-center gap-1 text-xs border border-blue-200 bg-blue-50 text-blue-700 px-2 py-1 rounded hover:bg-blue-100 transition-colors opacity-0 group-hover:opacity-100" title="Edit via Kalkulator HPP">
+                                                                    <Calculator className="h-3 w-3" /> HPP
                                                                 </button>
                                                                 {deletingProductId === product.id ? (
                                                                     <div className="flex items-center gap-1">

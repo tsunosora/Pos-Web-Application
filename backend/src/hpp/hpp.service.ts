@@ -38,13 +38,38 @@ export class HppService {
         });
     }
 
+    async findByProduct(productId: number) {
+        // Try by productId first (new link)
+        const ws = await (this.prisma as any).hppWorksheet.findFirst({
+            where: { productId },
+            include: worksheetInclude,
+            orderBy: { updatedAt: 'desc' }
+        });
+        if (ws) return ws;
+
+        // Fallback: find by productVariantId for any variant of this product (backward compat)
+        const variants = await this.prisma.productVariant.findMany({
+            where: { productId },
+            select: { id: true }
+        });
+        if (!variants.length) return null;
+        const variantIds = variants.map(v => v.id);
+        return this.prisma.hppWorksheet.findFirst({
+            where: { productVariantId: { in: variantIds } },
+            include: worksheetInclude,
+            orderBy: { updatedAt: 'desc' }
+        });
+    }
+
     async create(data: any) {
-        return this.prisma.hppWorksheet.create({
+        const prismaAny = this.prisma as any;
+        return prismaAny.hppWorksheet.create({
             data: {
                 productName: data.productName,
                 targetVolume: data.targetVolume,
                 targetMargin: data.targetMargin,
                 productVariantId: data.productVariantId || null,
+                productId: data.productId || null,
                 variableCosts: {
                     create: data.variableCosts.map((vc: any) => ({
                         productVariantId: vc.productVariantId || null,
@@ -69,13 +94,15 @@ export class HppService {
         await this.prisma.hppVariableCost.deleteMany({ where: { worksheetId: id } });
         await this.prisma.hppFixedCost.deleteMany({ where: { worksheetId: id } });
 
-        return this.prisma.hppWorksheet.update({
+        const prismaAny = this.prisma as any;
+        return prismaAny.hppWorksheet.update({
             where: { id },
             data: {
                 productName: data.productName,
                 targetVolume: data.targetVolume,
                 targetMargin: data.targetMargin,
-                productVariantId: data.productVariantId !== undefined ? (data.productVariantId || null) : undefined,
+                ...(data.productVariantId !== undefined ? { productVariantId: data.productVariantId || null } : {}),
+                ...(data.productId !== undefined ? { productId: data.productId || null } : {}),
                 variableCosts: {
                     create: data.variableCosts.map((vc: any) => ({
                         productVariantId: vc.productVariantId || null,

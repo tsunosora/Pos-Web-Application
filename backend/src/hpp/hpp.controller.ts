@@ -22,6 +22,11 @@ export class HppController {
         return this.hppService.findByVariant(variantId);
     }
 
+    @Get('by-product/:productId')
+    findByProduct(@Param('productId', ParseIntPipe) productId: number) {
+        return this.hppService.findByProduct(productId);
+    }
+
     @Get(':id')
     findOne(@Param('id') id: string) {
         return this.hppService.findOne(+id);
