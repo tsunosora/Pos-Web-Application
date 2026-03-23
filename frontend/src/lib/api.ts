@@ -89,6 +89,7 @@ export const getProduct = async (id: number) => (await api.get(`/products/${id}`
 export const createProduct = async (data: any) => (await api.post('/products', data)).data;
 export const updateProduct = async (id: number, data: any) => (await api.patch(`/products/${id}`, data)).data;
 export const deleteProduct = async (id: number) => (await api.delete(`/products/${id}`)).data;
+export const bulkDeleteProducts = async (ids: number[]) => (await api.delete('/products/bulk', { data: { ids } })).data;
 
 export const uploadProductImage = async (id: number, file: File) => {
     const formData = new FormData();

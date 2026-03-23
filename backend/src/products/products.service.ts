@@ -243,6 +243,13 @@ export class ProductsService {
         return this.prisma.product.delete({ where: { id } });
     }
 
+    async bulkRemove(ids: number[]) {
+        const results = await Promise.allSettled(ids.map(id => this.remove(id)));
+        const deleted = results.filter(r => r.status === 'fulfilled').length;
+        const failed  = results.filter(r => r.status === 'rejected').length;
+        return { deleted, failed };
+    }
+
     // ── Variant management ──────────────────────────────────────────────────
 
     async addVariant(productId: number, variantData: any) {

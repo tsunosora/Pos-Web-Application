@@ -41,6 +41,11 @@ export class ProductsController {
         return this.productsService.bulkImport(payload);
     }
 
+    @Delete('bulk')
+    bulkRemove(@Body() payload: { ids: number[] }) {
+        return this.productsService.bulkRemove(payload.ids);
+    }
+
     @Get()
     findAll() {
         return this.productsService.findAll();
