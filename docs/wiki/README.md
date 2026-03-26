@@ -14,15 +14,18 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 
 ## Daftar Isi Wiki
 
+> **Baru di sini?** Mulai dari [🔄 Alur Bisnis](alur-bisnis.md) untuk memahami bagaimana semua fitur terhubung, lalu baca panduan sesuai peran Anda.
+
 | # | Halaman | Ringkasan |
 |---|---|---|
+| 0 | [🔄 Alur Bisnis](alur-bisnis.md) | Setup awal, alur harian kasir, alur produksi, review keuangan — **mulai dari sini** |
 | 1 | [Login & Dashboard](#-1-login-ke-aplikasi) | Cara masuk dan membaca ringkasan bisnis harian |
 | 2 | [Kasir / POS](#-3-kasir--point-of-sale-pos) | Cara melayani pelanggan dan mencatat transaksi |
 | 3 | [Manajemen Produk & Stok](#-4-manajemen-produk--stok) | Cara kelola produk, varian, foto, stok, harga bertingkat |
 | 4 | [DP / Piutang](#-5-daftar-dp--piutang) | Melacak pelanggan yang belum lunas |
 | 5 | [Laporan Penjualan](#-6-laporan-penjualan) | Riwayat semua transaksi dengan filter tanggal |
 | 6 | [Laporan Tutup Shift](#-7-laporan-tutup-shift-) | Rekonsiliasi kas dan rekening bank akhir shift |
-| 7 | [Laporan Laba Kotor](#-laporan-laba-kotor) | Profit & margin per produk berdasarkan HPP 🆕 |
+| 7 | [Laporan Laba Kotor](#-laporan-laba-kotor) | Profit & margin per produk berdasarkan HPP |
 | 8 | [Data Pelanggan](#-8-data-pelanggan) | Database & riwayat belanja pelanggan |
 | 9 | [WhatsApp Bot](#-9-pengaturan-whatsapp-bot) | Setup bot laporan otomatis ke grup WA owner |
 | 10 | [💰 Cashflow Bisnis](cashflow.md) | Arus kas pemasukan & pengeluaran, chart, export |
@@ -33,7 +36,8 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 15 | [📋 Stok Opname](stock-opname.md) | Hitung fisik stok via link operator untuk karyawan |
 | 16 | [🏭 Data Supplier](suppliers.md) | Kelola data supplier dan harga beli per varian produk |
 | 17 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, preview, dan restore dari file |
-| 18 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk 🆕 |
+| 18 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
+| 19 | [🚀 Panduan Deployment](deployment.md) | Setup di home server / VPS dengan Cloudflare Tunnel |
 
 ---
 
@@ -433,6 +437,7 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 
 | Wiki | Isi |
 |---|---|
+| [🔄 Alur Bisnis](alur-bisnis.md) | **Mulai dari sini** — setup awal, alur harian, alur produksi, review keuangan |
 | [💰 Cashflow Bisnis](cashflow.md) | Arus kas, chart tren, kategorisasi, export Excel |
 | [📄 Invoice & Penawaran Harga](invoice-sph.md) | Invoice B2B, SPH, catalog picker, area-based pricing |
 | [🗺️ Peta Cuan Lokasi](peta-cuan.md) | Peta cabang, kompetitor, pencarian bisnis by keyword |
@@ -440,9 +445,9 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [📋 Stok Opname](stock-opname.md) | Link operator blind count, review admin, update stok otomatis |
 | [🏭 Data Supplier](suppliers.md) | Kelola supplier dan harga beli per varian produk |
 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, restore dengan mode skip/overwrite |
-| [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk 🆕 |
+| [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | [🚀 Panduan Deployment Cloudflare](deployment.md) | Setup produksi di Home Server (MySQL, PM2, Cloudflare Tunnel) |
 
 ---
 
-*Dokumentasi PosPro — Terakhir diperbarui: 23 Maret 2026 | v2.7 — Harga Bertingkat (Price Tiers), Kalkulator HPP Multi-Varian, Laporan Laba Kotor, Impor Produk Massal, Roll Material, Tipe Produk*
+*Dokumentasi PosPro — Terakhir diperbarui: 26 Maret 2026 | v2.8 — Alur Bisnis, Supplier Management, Backup & Restore, Stok Opname, Antrian Produksi Rakitan, HPP Multi-Varian, Harga Bertingkat*

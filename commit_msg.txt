@@ -1,0 +1,24 @@
+feat: major update - component modularization, API refactoring, and documentation enhancement
+
+This major update introduces significant improvements across the frontend, backend, and documentation, focusing on code maintainability, security, and feature completeness.
+
+Frontend:
+- Implemented modular component architecture across key features.
+- Customers: Extracted Analytics UI into `AnalyticsModal.tsx`.
+- Inventory/Suppliers: Modularized with `DetailModal.tsx`, `ItemFormModal.tsx`, `SupplierFormModal.tsx`, and defined strict typing in `types.ts`.
+- Invoices: Added `FormModal.tsx` and `PrintModal.tsx` with dedicated `types.ts`.
+- Produksi (Production): Created `JobCard.tsx` and extracted utilities to `produksi-utils.ts`.
+- Reports (HPP): Introduced `HppInputs.tsx` and related types.
+- POS: Updated POS page components for better state management.
+- Refactored `src/lib/api.ts` and introduced `src/lib/api/` directory. Removed deprecated `transactions.ts`.
+- Updated `SyncManager.tsx`.
+
+Backend:
+- Enhanced security configuration by removing hardcoded `whatsapp_bot_config.json`.
+- Introduced template configuration files: `whatsapp_bot_config.example.json` and `.env.example`.
+- Updated `main.ts` and `transactions.service.ts` to accommodate API changes.
+
+Documentation & Configuration:
+- Added comprehensive business flow document (`alur-bisnis.md`).
+- Significantly updated `README.md`, `deployment.md`, and `hpp-calculator.md` in the wiki.
+- Updated `.gitignore` and `.claude/settings.local.json`.

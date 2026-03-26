@@ -27,7 +27,7 @@ Buat database baru untuk PosPro (misalnya bernama `pospro_db`):
 
 ```sql
 CREATE DATABASE pospro_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'pospro_user'@'localhost' IDENTIFIED BY 'PasswordKuatAnda123!';
+CREATE USER 'pospro_user'@'localhost' IDENTIFIED BY '<PASSWORD_ANDA>';
 GRANT ALL PRIVILEGES ON pospro_db.* TO 'pospro_user'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
@@ -61,7 +61,7 @@ Edit file `.env` (misal menggunakan `nano .env`) dan sesuaikan `DATABASE_URL` ke
 
 ```env
 # Ubah kredensial sesuai dengan MySQL yang Anda buat di Langkah 1
-DATABASE_URL="mysql://pospro_user:PasswordKuatAnda123!@localhost:3306/pospro_db"
+DATABASE_URL="mysql://pospro_user:<PASSWORD_ANDA>@localhost:3306/pospro_db"
 
 PORT=3001
 JWT_SECRET="ganti_dengan_secret_key_yang_sangat_rumit_dan_panjang_sekali"

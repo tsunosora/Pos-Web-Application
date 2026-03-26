@@ -186,6 +186,66 @@ Hitung fisik stok gudang dengan sistem link operator yang aman dan terstruktur.
 
 ---
 
+## 🔄 Alur Penggunaan
+
+```
+SETUP AWAL (sekali)
+┌─────────────────────────────────────────────────────────────────┐
+│  /settings/general  →  Isi nama toko, logo, pajak, PIN operator │
+│  /settings/users    →  Tambah akun kasir & staf                  │
+│  /inventory         →  Input produk, varian, stok awal, HPP      │
+│  /settings/whatsapp →  Scan QR Code bot WhatsApp                 │
+└─────────────────────────────────────────────────────────────────┘
+              ↓
+OPERASIONAL HARIAN
+┌──────────────────────────────────────────────────────────────────────────┐
+│                                                                          │
+│  /pos ──────────────────────────────────────────────────────────────────┐│
+│  (Kasir melayani pelanggan)                                             ││
+│    │                                                                    ││
+│    ├── Transaksi LUNAS ───────────→ Cashflow INCOME otomatis terbuat   ││
+│    ├── Transaksi DP ─────────────→ Masuk /transactions/dp (piutang)   ││
+│    ├── Produk cetak (AREA_BASED) →  Job otomatis masuk /produksi       ││
+│    └── Stok terpotong otomatis                                         ││
+│                                                                    ↓    ││
+│  /produksi (operator mesin, tanpa login, pakai PIN)             /trans/dp││
+│    → Proses job cetak → pilih roll bahan → stok bahan terpotong  → Lunasi││
+│                                                                         ││
+└─────────────────────────────────────────────────────────────────────────┘│
+              ↓                                                             │
+AKHIR SHIFT                                                                │
+┌─────────────────────────────────────────────────────────────────┐       │
+│  /pos/close-shift                                               │       │
+│  → Sistem vs Aktual → Upload bukti foto                         │       │
+│  → Laporan terkirim ke grup WhatsApp owner otomatis             │       │
+│  → Saldo rekening bank ter-update                               │       │
+└─────────────────────────────────────────────────────────────────┘       │
+              ↓                                                             │
+REVIEW PERIODIK (pemilik toko)                                             │
+┌─────────────────────────────────────────────────────────────────┐       │
+│  /cashflow      → Pemasukan & pengeluaran, chart tren 6 bulan   │       │
+│  /reports/sales → Riwayat transaksi + export Excel              │       │
+│  /reports/profit→ Margin profit per produk                      │       │
+│  /customers     → Analitik pelanggan, frekuensi, nilai rata-rata│       │
+│  /invoices      → Buat invoice B2B / Penawaran Harga (SPH)      │       │
+│  /maps          → Peta cabang + kompetitor di sekitar toko      │       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Bagaimana Data Mengalir Antar Modul
+
+| Kejadian di POS | Efek Otomatis di Modul Lain |
+|---|---|
+| Transaksi lunas | Cashflow INCOME terbuat, stok terpotong |
+| Transaksi DP | Masuk daftar piutang, cashflow INCOME sebesar DP saja |
+| Pelunasan piutang | Cashflow INCOME terbuat untuk sisa tagihan |
+| Produk cetak (requiresProduction) | Job baru masuk antrian `/produksi` |
+| Operator mulai cetak | Stok bahan roll terpotong sesuai luas m² |
+| Tutup shift kasir | Laporan shift WA terkirim, saldo rekening ter-update |
+| Stok opname selesai | StockMovement ADJUST tercatat, stok diperbarui |
+
+---
+
 ## 🔧 Teknologi yang Digunakan
 
 ### Frontend
@@ -560,7 +620,22 @@ Pos-Web-Application/
         │   ├── customers/          # Data pelanggan
         │   └── reports/            # Laporan penjualan, profit, HPP
         ├── lib/
-        │   ├── api.ts              # Semua fungsi API (axios instance)
+        │   ├── api.ts              # Barrel re-export (import dari sini tetap bekerja)
+        │   ├── api/                # Sub-modul API per domain
+        │   │   ├── client.ts       # Axios instance + JWT interceptor
+        │   │   ├── products.ts     # Produk, varian, stok, impor massal
+        │   │   ├── transactions.ts # POS checkout, DP, rekening bank
+        │   │   ├── cashflow.ts     # Arus kas & laporan bulanan
+        │   │   ├── reports.ts      # Dashboard, penjualan, shift close
+        │   │   ├── invoices.ts     # Invoice & SPH
+        │   │   ├── customers.ts    # Data pelanggan
+        │   │   ├── settings.ts     # Pengaturan toko, user, cabang
+        │   │   ├── hpp.ts          # Kalkulator HPP
+        │   │   ├── production.ts   # Antrian produksi (publik, no-JWT)
+        │   │   ├── opname.ts       # Stok opname (admin + publik)
+        │   │   ├── suppliers.ts    # Supplier & harga beli
+        │   │   ├── whatsapp.ts     # Bot WhatsApp
+        │   │   └── backup.ts       # Backup & restore
         │   ├── receipt.ts          # Generator struk kasir
         │   └── export.ts           # Helper export Excel
         └── store/
@@ -573,15 +648,16 @@ Pos-Web-Application/
 
 | Dokumen | Isi |
 |---|---|
-| [Panduan Umum](docs/wiki/README.md) | Login, Dashboard, Kasir, Produk, Tutup Shift |
-| [Kalkulator HPP](docs/wiki/hpp-calculator.md) | Worksheet HPP, multi-varian, biaya tambah, simpan produk 🆕 |
+| [🔄 Alur Bisnis](docs/wiki/alur-bisnis.md) | **Mulai dari sini** — setup awal, alur kasir harian, alur produksi, review keuangan |
+| [Panduan Umum](docs/wiki/README.md) | Login, Dashboard, Kasir, Produk, Tutup Shift, WhatsApp Bot |
+| [Kalkulator HPP](docs/wiki/hpp-calculator.md) | Worksheet HPP, multi-varian, biaya tambah, simpan produk |
 | [Cashflow Bisnis](docs/wiki/cashflow.md) | Cara kelola arus kas, filter, chart, export |
-| [Invoice & Penawaran Harga](docs/wiki/invoice-sph.md) | Buat invoice, SPH, catalog picker |
-| [Peta Cuan Lokasi](docs/wiki/peta-cuan.md) | Kelola cabang, tambah kompetitor |
-| [Antrian Produksi](docs/wiki/produksi.md) | Antrian cetak, job satuan & batch, stok roll |
-| [Stok Opname](docs/wiki/stock-opname.md) | Hitung fisik stok via link operator |
-| [Data Supplier](docs/wiki/suppliers.md) | Kelola supplier dan harga beli per varian 🆕 |
-| [Backup & Restore](docs/wiki/backup.md) | Backup database ke ZIP, restore skip/overwrite 🆕 |
+| [Invoice & Penawaran Harga](docs/wiki/invoice-sph.md) | Buat invoice, SPH, catalog picker, konversi SPH ke invoice |
+| [Peta Cuan Lokasi](docs/wiki/peta-cuan.md) | Kelola cabang, tambah kompetitor, pencarian bisnis |
+| [Antrian Produksi](docs/wiki/produksi.md) | Antrian cetak, job satuan & batch, produk rakitan multi-tahap |
+| [Stok Opname](docs/wiki/stock-opname.md) | Hitung fisik stok via link operator, blind count, konfirmasi selisih |
+| [Data Supplier](docs/wiki/suppliers.md) | Kelola supplier dan harga beli per varian |
+| [Backup & Restore](docs/wiki/backup.md) | Backup database ke ZIP, restore skip/overwrite |
 | [Deployment Cloudflare](docs/wiki/deployment.md) | Setup produksi di home server (MySQL, PM2, Cloudflare Tunnel) |
 
 ---

@@ -66,6 +66,11 @@ backend/test-cashflows.ts
 backend/test-images.ts
 
 # ============================================================
+# WHATSAPP BOT CONFIG - Berisi group ID private, JANGAN upload!
+# ============================================================
+backend/whatsapp_bot_config.json
+
+# ============================================================
 # IDE / EDITOR - Konfigurasi lokal editor kamu
 # ============================================================
 .vscode/

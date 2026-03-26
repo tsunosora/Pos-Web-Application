@@ -4,7 +4,14 @@
       "Bash(npx tsc:*)",
       "Bash(node:*)",
       "Bash(npx prisma:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(find backend/src -name \"*.spec.ts\" -type f -exec wc -l {} +)",
+      "Bash(find . -path ./node_modules -prune -o -name \"*.ts\" -type f -exec grep -l \"export const\\\\|export function\\\\|export class\" {})",
+      "Bash(find /d/FAISAL/appdev/comprehensive-pos-web-application -maxdepth 2 -name README* -o -name *.md)",
+      "Bash(find /d/FAISAL/appdev/comprehensive-pos-web-application/backend/src -name \"*.service.ts\" -exec wc -l {} +)",
+      "Bash(wc -l pos/page.tsx inventory/page.tsx inventory/products/[id]/edit/page.tsx reports/hpp/page.tsx)",
+      "Bash(wc -l \"D:/FAISAL/appdev/comprehensive-pos-web-application/frontend/src/app/inventory/products/\"*\"/edit/page.tsx\")",
+      "Bash(npm run:*)"
     ]
   }
 }

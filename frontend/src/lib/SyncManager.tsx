@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getOfflineTransactions, clearOfflineTransaction } from "./sync";
-import { createTransaction } from "./transactions";
+import { createTransaction } from "./api";
 import { Wifi, WifiOff } from "lucide-react";
 
 export function SyncManager() {

@@ -29,7 +29,6 @@ export class TransactionsService {
         productionDeadline?: string;
         productionNotes?: string;
     }) {
-        console.log("PAYLOAD RECEIVED:", data);
         return this.prisma.$transaction(async (tx) => {
             const settings = await tx.storeSettings.findFirst();
             const enableTax = settings?.enableTax ?? true;
@@ -58,7 +57,6 @@ export class TransactionsService {
 
                 const requiresProduction = (variant.product as any).requiresProduction === true;
                 const trackStock = (variant.product as any).trackStock !== false;
-                console.log(`[PRODUKSI DEBUG] variant=${variant.id} product="${variant.product.name}" requiresProduction=${(variant.product as any).requiresProduction} (bool=${requiresProduction})`);
 
                 // Resolve tier price for UNIT mode
                 const priceTiers: any[] = (variant as any).priceTiers || [];

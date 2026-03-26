@@ -1,8 +1,7 @@
 "use client";
 
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers } from '@/lib/api';
-import { createTransaction } from '@/lib/transactions';
+import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers, createTransaction } from '@/lib/api';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCartStore, CartItem } from '@/store/cart-store';

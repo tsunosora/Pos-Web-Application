@@ -65,7 +65,7 @@ export function Header() {
     const storeName = settings?.storeName || 'PosPro';
 
     return (
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-x-4 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-x-4 border-b border-border bg-background/80 backdrop-blur-md px-4 sm:gap-x-6 sm:px-6 lg:px-8">
             {/* Hamburger mobile */}
             <button type="button" className="-m-2.5 p-2.5 text-foreground lg:hidden" onClick={toggleSidebar}>
                 <Menu className="h-6 w-6" />
