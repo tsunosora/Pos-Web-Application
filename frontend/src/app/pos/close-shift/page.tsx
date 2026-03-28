@@ -31,6 +31,7 @@ export default function CloseShiftPage() {
     // ─── State: Saldo Aktual ─────────────────────────────────────────────
     const [actualCash, setActualCash] = useState<number>(0);
     const [actualQris, setActualQris] = useState<number>(0);
+    const [realQrisBalance, setRealQrisBalance] = useState<number>(0);
     // Saldo Laporan mBanking (yang tertera di layar saat lapor)
     const [actualBankBalances, setActualBankBalances] = useState<Record<string, number>>({});
     // Saldo Real di Bank (yang benar-benar ada / transfer actua)
@@ -128,6 +129,11 @@ export default function CloseShiftPage() {
         setKasbon(prev => prev.map((k, i) => i === idx ? { ...k, [field]: field === 'amount' ? Number(value) : value } : k));
     const removeKasbon = (idx: number) => setKasbon(prev => prev.filter((_, i) => i !== idx));
     const getTotalKasbon = () => kasbon.reduce((sum, k) => sum + (Number(k.amount) || 0), 0);
+    const getCashExpenseTotal = () =>
+        (structuredExpenses['CASH'] || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    const getTotalKasbonToko = () =>
+        kasbon.filter(k => !k.source || k.source === 'Kas Toko')
+              .reduce((sum, k) => sum + (Number(k.amount) || 0), 0);
 
     // ─── Helper: Setor Kas ───────────────────────────────────────────────
     const bankOptions = Object.keys(shiftData?.systemBankBalances || {});
@@ -147,7 +153,11 @@ export default function CloseShiftPage() {
     // ─── Adjusted Expected ───────────────────────────────────────────────
     // Setor kas: kas berkurang, bank bertambah
     // Tarik tunai: kas bertambah, bank berkurang
-    const adjustedExpectedCash = (shiftData?.expectedCash || 0) - getTotalSetorKas() + getTotalTarikTunai();
+    const adjustedExpectedCash = (shiftData?.expectedCash || 0)
+        - getTotalSetorKas()
+        + getTotalTarikTunai()
+        - getCashExpenseTotal()
+        - getTotalKasbonToko();
     const getAdjustedExpectedBank = (bankName: string) => {
         const base = shiftData?.systemBankBalances?.[bankName] || 0;
         const setor = setorKas.filter(s => s.bankName === bankName).reduce((sum, s) => sum + s.amount, 0);
@@ -188,6 +198,7 @@ export default function CloseShiftPage() {
 
         formData.append('actualCash', String(actualCash));
         formData.append('actualQris', String(actualQris));
+        formData.append('realQrisBalance', String(realQrisBalance));
         formData.append('actualTransfer', '0');
         formData.append('expensesTotal', String(getTotalExpenses()));
         formData.append('notes', notes);
@@ -697,6 +708,49 @@ export default function CloseShiftPage() {
                                         </div>
                                     );
                                 })}
+
+                                {/* QRIS sebagai rekening */}
+                                <div className="p-4 border rounded-xl bg-white space-y-3">
+                                    <p className="font-bold text-slate-800">📱 QRIS</p>
+                                    <p className="text-xs text-slate-400">Target sistem: {formatCurrency(shiftData?.expectedQris || 0)}</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs text-slate-500">Saldo di Aplikasi QRIS</Label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                <Input
+                                                    type="number" min="0"
+                                                    className="pl-9 text-right text-sm"
+                                                    value={actualQris || ''}
+                                                    onChange={(e) => setActualQris(Number(e.target.value))}
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs text-slate-500">Saldo Real QRIS</Label>
+                                            <div className="relative">
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                <Input
+                                                    type="number" min="0"
+                                                    className="pl-9 text-right text-sm font-bold"
+                                                    value={realQrisBalance || ''}
+                                                    onChange={(e) => setRealQrisBalance(Number(e.target.value))}
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center text-xs pt-1">
+                                        <span className="text-slate-500">Selisih sistem vs aktual</span>
+                                        {renderBadge(diff(actualQris, shiftData?.expectedQris || 0))}
+                                    </div>
+                                    {realQrisBalance !== actualQris && realQrisBalance > 0 && (
+                                        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-1.5 rounded">
+                                            ⚠️ Saldo laporan vs real berbeda: {formatCurrency(Math.abs(realQrisBalance - actualQris))}
+                                        </p>
+                                    )}
+                                </div>
 
                                 {(!shiftData?.systemBankBalances || Object.keys(shiftData.systemBankBalances).length === 0) && (
                                     <p className="text-sm text-slate-400 text-center p-4 border rounded italic">
