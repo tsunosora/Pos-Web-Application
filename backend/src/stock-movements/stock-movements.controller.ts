@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { StockMovementsService } from './stock-movements.service';
 import { MovementType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -16,6 +16,17 @@ export class StockMovementsController {
     @Get()
     findAll() {
         return this.stockMovementsService.findAll();
+    }
+
+    @Get('waste')
+    findWaste(
+        @Query('variantId') variantId: string,
+        @Query('since') since: string,
+    ) {
+        return this.stockMovementsService.findWasteByVariantSince(
+            parseInt(variantId),
+            since ? new Date(since) : new Date(0),
+        );
     }
 
     @Get(':id')

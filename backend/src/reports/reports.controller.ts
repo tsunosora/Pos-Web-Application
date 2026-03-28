@@ -13,6 +13,7 @@ export type StructuredExpenses = Record<string, StructuredExpenseItem[]>;
 export class CloseShiftDto {
     adminName: string;
     shiftName: string;
+    reportDate?: string;        // tanggal laporan WA (YYYY-MM-DD), opsional
     openedAt: Date | string;
     closedAt: Date | string;
 
@@ -32,7 +33,7 @@ export class CloseShiftDto {
     realBankBalances?: Record<string, number>;     // Saldo Real di Bank
     shiftExpenses?: any[];
     structuredExpenses?: StructuredExpenses;       // Pengeluaran terstruktur per metode
-    kasbon?: { name: string; amount: number }[];        // Kasbon karyawan
+    kasbon?: { name: string; amount: number; source?: string }[];  // Kasbon karyawan
     setorKas?: { bankName: string; amount: number }[];  // Setor kas ke rekening
     tarikTunai?: { bankName: string; amount: number }[]; // Tarik tunai dari rekening ke kas
 }
@@ -76,6 +77,7 @@ export class ReportsController {
         const dto: CloseShiftDto = {
             adminName: body.adminName,
             shiftName: body.shiftName,
+            reportDate: body.reportDate || undefined,
             openedAt: new Date(body.openedAt),
             closedAt: new Date(body.closedAt),
             actualCash: Number(body.actualCash),

@@ -26,6 +26,7 @@ export default function CloseShiftPage() {
     // ─── State: Data Kasir & Shift ───────────────────────────────────────
     const [adminName, setAdminName] = useState('');
     const [shiftName, setShiftName] = useState('Shift Pagi');
+    const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
 
     // ─── State: Saldo Aktual ─────────────────────────────────────────────
     const [actualCash, setActualCash] = useState<number>(0);
@@ -39,7 +40,7 @@ export default function CloseShiftPage() {
     const [structuredExpenses, setStructuredExpenses] = useState<StructuredExpenses>({});
 
     // ─── State: Kasbon & Setor Kas & Tarik Tunai ────────────────────────
-    const [kasbon, setKasbon] = useState<{ name: string; amount: number }[]>([]);
+    const [kasbon, setKasbon] = useState<{ name: string; amount: number; source: string }[]>([]);
     const [setorKas, setSetorKas] = useState<{ bankName: string; amount: number }[]>([]);
     const [tarikTunai, setTarikTunai] = useState<{ bankName: string; amount: number }[]>([]);
 
@@ -122,8 +123,8 @@ export default function CloseShiftPage() {
     };
 
     // ─── Helper: Kasbon ──────────────────────────────────────────────────
-    const addKasbon = () => setKasbon(prev => [...prev, { name: '', amount: 0 }]);
-    const updateKasbon = (idx: number, field: 'name' | 'amount', value: string | number) =>
+    const addKasbon = () => setKasbon(prev => [...prev, { name: '', amount: 0, source: 'Kas Toko' }]);
+    const updateKasbon = (idx: number, field: 'name' | 'amount' | 'source', value: string | number) =>
         setKasbon(prev => prev.map((k, i) => i === idx ? { ...k, [field]: field === 'amount' ? Number(value) : value } : k));
     const removeKasbon = (idx: number) => setKasbon(prev => prev.filter((_, i) => i !== idx));
     const getTotalKasbon = () => kasbon.reduce((sum, k) => sum + (Number(k.amount) || 0), 0);
@@ -177,6 +178,7 @@ export default function CloseShiftPage() {
         const formData = new FormData();
         formData.append('adminName', adminName);
         formData.append('shiftName', shiftName);
+        formData.append('reportDate', reportDate);
         formData.append('openedAt', shiftData.openedAt || new Date().toISOString());
         formData.append('closedAt', new Date().toISOString());
 
@@ -357,6 +359,19 @@ export default function CloseShiftPage() {
                                             ))}
                                         </select>
                                     </div>
+                                </div>
+
+                                {/* Tanggal Laporan */}
+                                <div className="space-y-2 mt-4">
+                                    <Label className="text-slate-700 font-semibold">Tanggal Laporan</Label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={reportDate}
+                                        onChange={(e) => setReportDate(e.target.value)}
+                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    />
+                                    <p className="text-xs text-slate-500">Tanggal yang akan tampil di laporan WhatsApp.</p>
                                 </div>
                             </CardContent>
                         </Card>
@@ -578,16 +593,33 @@ export default function CloseShiftPage() {
                                         <p className="text-xs text-slate-400 italic pl-1">Belum ada kasbon</p>
                                     )}
                                     {kasbon.map((k, idx) => (
-                                        <div key={idx} className="flex gap-2 items-center">
-                                            <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
-                                            <Input placeholder="Nama karyawan" className="flex-1 text-sm" value={k.name} onChange={(e) => updateKasbon(idx, 'name', e.target.value)} />
-                                            <div className="relative w-36">
-                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
-                                                <Input type="number" min="0" className="pl-7 text-right text-sm" value={k.amount || ''} onChange={(e) => updateKasbon(idx, 'amount', e.target.value)} placeholder="0" />
+                                        <div key={idx} className="space-y-1.5 p-2.5 rounded-lg border border-slate-200 bg-slate-50">
+                                            <div className="flex gap-2 items-center">
+                                                <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
+                                                <Input placeholder="Nama karyawan" className="flex-1 text-sm bg-white" value={k.name} onChange={(e) => updateKasbon(idx, 'name', e.target.value)} />
+                                                <div className="relative w-36">
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                    <Input type="number" min="0" className="pl-7 text-right text-sm bg-white" value={k.amount || ''} onChange={(e) => updateKasbon(idx, 'amount', e.target.value)} placeholder="0" />
+                                                </div>
+                                                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeKasbon(idx)}>
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
                                             </div>
-                                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeKasbon(idx)}>
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
+                                            <div className="flex items-center gap-2 pl-7">
+                                                <span className="text-xs text-slate-500 shrink-0">Sumber:</span>
+                                                <select
+                                                    className="flex-1 h-7 text-xs rounded border border-slate-200 bg-white px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                                                    value={k.source}
+                                                    onChange={(e) => updateKasbon(idx, 'source', e.target.value)}
+                                                >
+                                                    <option value="Kas Toko">Kas Toko (mengurangi saldo toko)</option>
+                                                    <option value="Owner">Owner / Pemilik</option>
+                                                    <option value="Lainnya">Lainnya (tidak mengurangi saldo toko)</option>
+                                                </select>
+                                            </div>
+                                            {k.source !== 'Kas Toko' && (
+                                                <p className="text-xs text-blue-600 pl-7">ℹ️ Kasbon ini tidak mengurangi saldo kas toko.</p>
+                                            )}
                                         </div>
                                     ))}
                                     {kasbon.length > 0 && (

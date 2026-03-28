@@ -78,6 +78,11 @@ export const getStockMovements = async () => (await api.get('/stock-movements'))
 export const logStockMovement = async (data: { productVariantId: number; type: 'IN' | 'OUT' | 'ADJUST'; quantity: number; reason?: string }) => {
     return (await api.post('/stock-movements', data)).data;
 };
+export const getWasteMovements = async (variantId: number, since?: string) => {
+    const params = new URLSearchParams({ variantId: String(variantId) });
+    if (since) params.append('since', since);
+    return (await api.get(`/stock-movements/waste?${params.toString()}`)).data;
+};
 
 // Batches
 export const getBatches = async () => (await api.get('/batches')).data;

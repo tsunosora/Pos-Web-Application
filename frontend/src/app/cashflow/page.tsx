@@ -4,11 +4,11 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Plus, ArrowDownRight, ArrowUpRight, ArrowRightLeft, Loader2,
-    Pencil, Trash2, TrendingUp, BarChart3, Download, Filter, X
+    Pencil, Trash2, TrendingUp, BarChart3, Download, Filter, X, Store
 } from "lucide-react";
 import {
     getCashflows, createCashflow, updateCashflow, deleteCashflow,
-    getCashflowMonthlyTrend, getCashflowCategoryBreakdown
+    getCashflowMonthlyTrend, getCashflowCategoryBreakdown, getCashflowPlatformBreakdown
 } from "@/lib/api";
 import dayjs from "dayjs";
 import {
@@ -21,6 +21,7 @@ type CashflowEntry = {
     id: number;
     type: 'INCOME' | 'EXPENSE';
     category: string;
+    platformSource?: string | null;
     amount: string;
     note?: string;
     date: string;
@@ -39,6 +40,7 @@ const PERIODS: { key: PeriodKey; label: string }[] = [
 
 const INCOME_CATEGORIES = ['Penjualan Lunas', 'Pembayaran DP', 'Pelunasan DP', 'Modal Usaha', 'Investasi', 'Pinjaman', 'Lainnya'];
 const EXPENSE_CATEGORIES = ['Operasional', 'Bahan Baku', 'Gaji Karyawan', 'Sewa', 'Listrik & Air', 'Transportasi', 'Marketing', 'Pemeliharaan', 'Pajak', 'Lainnya'];
+const PLATFORM_OPTIONS = ['POS (Offline)', 'Tokopedia', 'Shopee', 'Lincah', 'TikTok Shop', 'Lainnya'];
 
 function getPeriodDates(period: PeriodKey): { startDate?: string; endDate?: string } {
     const now = dayjs();
@@ -60,11 +62,16 @@ function EditModal({ entry, onClose, onSave, isPending }: { entry: CashflowEntry
     const [category, setCategory] = useState(entry.category);
     const [amount, setAmount] = useState(parseFloat(entry.amount).toString());
     const [note, setNote] = useState(entry.note ?? '');
+    const [platformSource, setPlatformSource] = useState(entry.platformSource ?? 'POS (Offline)');
+    const [customPlatform, setCustomPlatform] = useState('');
     const categories = entry.type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(entry.id, { category, amount: parseFloat(amount), note });
+        const finalPlatform = entry.type === 'INCOME'
+            ? (platformSource === 'Lainnya' ? (customPlatform || 'Lainnya') : platformSource)
+            : null;
+        onSave(entry.id, { category, amount: parseFloat(amount), note, platformSource: finalPlatform });
     };
 
     return (
@@ -82,6 +89,23 @@ function EditModal({ entry, onClose, onSave, isPending }: { entry: CashflowEntry
                             {!categories.includes(category) && <option value={category}>{category}</option>}
                         </select>
                     </div>
+                    {entry.type === 'INCOME' && (
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium text-foreground">Platform Sumber</label>
+                            <select value={platformSource} onChange={e => setPlatformSource(e.target.value)} className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                {PLATFORM_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                            {platformSource === 'Lainnya' && (
+                                <input
+                                    type="text"
+                                    value={customPlatform}
+                                    onChange={e => setCustomPlatform(e.target.value)}
+                                    placeholder="Nama platform..."
+                                    className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                            )}
+                        </div>
+                    )}
                     <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">Nominal (Rp)</label>
                         <input required type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
@@ -114,6 +138,8 @@ export default function CashflowPage() {
     const [customCategory, setCustomCategory] = useState('');
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
+    const [platformSource, setPlatformSource] = useState('POS (Offline)');
+    const [customPlatform, setCustomPlatform] = useState('');
 
     // Edit + delete
     const [editEntry, setEditEntry] = useState<CashflowEntry | null>(null);
@@ -137,26 +163,36 @@ export default function CashflowPage() {
         queryFn: () => getCashflowCategoryBreakdown(startDate, endDate),
     });
 
+    const { data: platformData } = useQuery({
+        queryKey: ['cashflow-platforms', startDate, endDate],
+        queryFn: () => getCashflowPlatformBreakdown(startDate, endDate),
+    });
+
+    const invalidateAll = () => {
+        queryClient.invalidateQueries({ queryKey: ['cashflows'] });
+        queryClient.invalidateQueries({ queryKey: ['cashflow-categories'] });
+        queryClient.invalidateQueries({ queryKey: ['cashflow-trend'] });
+        queryClient.invalidateQueries({ queryKey: ['cashflow-platforms'] });
+    };
+
     const createMutation = useMutation({
         mutationFn: createCashflow,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cashflows'] });
-            queryClient.invalidateQueries({ queryKey: ['cashflow-categories'] });
-            queryClient.invalidateQueries({ queryKey: ['cashflow-trend'] });
+            invalidateAll();
             setIsDialogOpen(false);
             setCategory('');
             setCustomCategory('');
             setAmount('');
             setNote('');
+            setPlatformSource('POS (Offline)');
+            setCustomPlatform('');
         },
     });
 
     const updateMutation = useMutation({
         mutationFn: ({ id, data }: { id: number; data: any }) => updateCashflow(id, data),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cashflows'] });
-            queryClient.invalidateQueries({ queryKey: ['cashflow-categories'] });
-            queryClient.invalidateQueries({ queryKey: ['cashflow-trend'] });
+            invalidateAll();
             setEditEntry(null);
         },
     });
@@ -164,9 +200,7 @@ export default function CashflowPage() {
     const deleteMutation = useMutation({
         mutationFn: deleteCashflow,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['cashflows'] });
-            queryClient.invalidateQueries({ queryKey: ['cashflow-categories'] });
-            queryClient.invalidateQueries({ queryKey: ['cashflow-trend'] });
+            invalidateAll();
             setDeleteId(null);
         },
     });
@@ -175,7 +209,10 @@ export default function CashflowPage() {
         e.preventDefault();
         const finalCategory = category === 'Lainnya' ? customCategory : category;
         if (!finalCategory || !amount) return;
-        createMutation.mutate({ type, category: finalCategory, amount: parseFloat(amount), note });
+        const finalPlatform = type === 'INCOME'
+            ? (platformSource === 'Lainnya' ? (customPlatform || 'Lainnya') : platformSource)
+            : null;
+        createMutation.mutate({ type, category: finalCategory, amount: parseFloat(amount), note, platformSource: finalPlatform });
     };
 
     const entries: CashflowEntry[] = data?.list ?? [];
@@ -195,6 +232,7 @@ export default function CashflowPage() {
             'Tanggal': dayjs(e.date).format('DD/MM/YYYY HH:mm'),
             'Tipe': e.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran',
             'Kategori': e.category,
+            'Platform': e.platformSource ?? '-',
             'Nominal': parseFloat(e.amount),
             'Catatan': e.note ?? '',
             'Sumber': e.userId ? 'Manual' : 'Otomatis (Transaksi)',
@@ -329,24 +367,46 @@ export default function CashflowPage() {
                 </div>
             </div>
 
-            {/* Income category breakdown */}
-            {incomeCategories.length > 0 && (
-                <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                        <BarChart3 className="h-4 w-4 text-emerald-500" />
-                        <h3 className="font-semibold text-foreground">Pemasukan per Kategori</h3>
+            {/* Income category + platform breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Income category breakdown */}
+                {incomeCategories.length > 0 && (
+                    <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <BarChart3 className="h-4 w-4 text-emerald-500" />
+                            <h3 className="font-semibold text-foreground">Pemasukan per Kategori</h3>
+                        </div>
+                        <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={incomeCategories.slice(0, 7)} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: any) => fmtShort(v)} className="text-muted-foreground" />
+                                <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} width={130} className="text-muted-foreground" />
+                                <Tooltip formatter={(v: any) => fmt(v)} />
+                                <Bar dataKey="total" name="Pemasukan" fill="#10b981" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
                     </div>
-                    <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={incomeCategories.slice(0, 7)} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                            <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: any) => fmtShort(v)} className="text-muted-foreground" />
-                            <YAxis type="category" dataKey="category" tick={{ fontSize: 11 }} width={130} className="text-muted-foreground" />
-                            <Tooltip formatter={(v: any) => fmt(v)} />
-                            <Bar dataKey="total" name="Pemasukan" fill="#10b981" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
-                </div>
-            )}
+                )}
+
+                {/* Platform breakdown */}
+                {platformData && platformData.length > 0 && (
+                    <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Store className="h-4 w-4 text-primary" />
+                            <h3 className="font-semibold text-foreground">Pemasukan per Platform</h3>
+                        </div>
+                        <ResponsiveContainer width="100%" height={200}>
+                            <BarChart data={platformData.slice(0, 7)} layout="vertical" margin={{ top: 0, right: 10, left: 0, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v: any) => fmtShort(v)} className="text-muted-foreground" />
+                                <YAxis type="category" dataKey="platform" tick={{ fontSize: 11 }} width={110} className="text-muted-foreground" />
+                                <Tooltip formatter={(v: any) => fmt(v)} />
+                                <Bar dataKey="total" name="Pemasukan" fill="#6366f1" radius={[0, 4, 4, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                )}
+            </div>
 
             {/* History list */}
             <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
@@ -378,6 +438,9 @@ export default function CashflowPage() {
                                             <h4 className="font-medium text-foreground">{entry.category}</h4>
                                             {!entry.userId && (
                                                 <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">Otomatis</span>
+                                            )}
+                                            {entry.type === 'INCOME' && entry.platformSource && (
+                                                <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{entry.platformSource}</span>
                                             )}
                                         </div>
                                         <p className="text-sm text-muted-foreground truncate">{dayjs(entry.date).format('DD MMM YYYY HH:mm')} &bull; {entry.note || '-'}</p>
@@ -440,6 +503,23 @@ export default function CashflowPage() {
                                     <input required type="text" value={customCategory} onChange={e => setCustomCategory(e.target.value)} placeholder="Nama kategori..." className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                                 )}
                             </div>
+                            {type === 'INCOME' && (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Platform Sumber</label>
+                                    <select value={platformSource} onChange={e => setPlatformSource(e.target.value)} className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                        {PLATFORM_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                    {platformSource === 'Lainnya' && (
+                                        <input
+                                            type="text"
+                                            value={customPlatform}
+                                            onChange={e => setCustomPlatform(e.target.value)}
+                                            placeholder="Nama platform (misal: Lazada, Grab Food...)"
+                                            className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                        />
+                                    )}
+                                </div>
+                            )}
                             <div className="space-y-2">
                                 <label className="text-sm font-medium text-foreground">Nominal (Rp)</label>
                                 <input required type="number" min="0" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />

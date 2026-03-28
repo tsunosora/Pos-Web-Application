@@ -53,4 +53,17 @@ export class StockMovementsService {
         if (!movement) throw new NotFoundException('Stock movement not found');
         return movement;
     }
+
+    async findWasteByVariantSince(variantId: number, since: Date) {
+        return this.prisma.stockMovement.findMany({
+            where: {
+                productVariantId: variantId,
+                type: 'OUT',
+                reason: { startsWith: 'Susut:' },
+                date: { gte: since },
+            },
+            orderBy: { date: 'desc' },
+            select: { id: true, quantity: true, reason: true, date: true },
+        });
+    }
 }

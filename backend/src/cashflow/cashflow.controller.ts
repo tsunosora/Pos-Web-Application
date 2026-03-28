@@ -28,8 +28,13 @@ export class CashflowController {
         return this.cashflowService.getCategoryBreakdown(startDate, endDate);
     }
 
+    @Get('platform-breakdown')
+    getPlatformBreakdown(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
+        return this.cashflowService.getPlatformBreakdown(startDate, endDate);
+    }
+
     @Patch(':id')
-    update(@Param('id') id: string, @Body() data: { category?: string; amount?: number; note?: string }) {
+    update(@Param('id') id: string, @Body() data: { category?: string; amount?: number; note?: string; platformSource?: string | null }) {
         return this.cashflowService.update(+id, data);
     }
 

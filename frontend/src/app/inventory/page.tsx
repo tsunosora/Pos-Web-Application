@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const WASTE_TYPES = ['Gagal Cetak', 'Percobaan/Test Print', 'Sampel', 'Rusak Cetak', 'Lainnya'];
 
 /** Harga display: ambil harga tier pertama (minQty terkecil) jika ada, fallback ke variant.price */
 function getEffectivePrice(variant: any): number {
@@ -43,6 +44,11 @@ export default function InventoryPage() {
 
     // Delete confirm
     const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
+
+    // Waste modal
+    const [showWasteModal, setShowWasteModal] = useState(false);
+    const [wasteVariant, setWasteVariant] = useState<any>(null);
+    const [wasteForm, setWasteForm] = useState({ quantity: '', panjang: '', lebar: '', wasteType: 'Gagal Cetak', notes: '', operatorName: '' });
 
     // Expanded products (variant accordion)
     const [expandedProducts, setExpandedProducts] = useState<Set<number>>(new Set());
@@ -150,6 +156,27 @@ export default function InventoryPage() {
         });
     };
 
+    const handleWasteSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!wasteVariant || !wasteForm.operatorName.trim()) return;
+        if (wasteVariant.isRollMaterial && (!wasteForm.panjang || !wasteForm.lebar)) return;
+        if (!wasteVariant.isRollMaterial && !wasteForm.quantity) return;
+        const reason = `Susut: ${wasteForm.wasteType}${wasteForm.notes ? ` - ${wasteForm.notes}` : ''} (Operator: ${wasteForm.operatorName.trim()})`;
+        const qty = wasteVariant.isRollMaterial
+            ? Math.ceil(Number(wasteForm.panjang) * Number(wasteForm.lebar))
+            : Number(wasteForm.quantity);
+        movementMutation.mutate(
+            { productVariantId: wasteVariant.id, type: 'OUT', quantity: qty, reason },
+            {
+                onSuccess: () => {
+                    setShowWasteModal(false);
+                    setWasteVariant(null);
+                    setWasteForm({ quantity: '', panjang: '', lebar: '', wasteType: 'Gagal Cetak', notes: '', operatorName: '' });
+                },
+            }
+        );
+    };
+
     // Unique categories for filter dropdown
     const categoryOptions = useMemo(() => {
         if (!products) return [];
@@ -245,6 +272,12 @@ export default function InventoryPage() {
                         className="flex items-center gap-2 bg-muted text-foreground px-4 py-2 rounded-lg font-medium hover:bg-muted/80 transition-colors border border-border text-sm"
                     >
                         <Upload className="h-4 w-4" /> Import Bulk
+                    </button>
+                    <button
+                        onClick={() => { setWasteVariant(null); setShowWasteModal(true); }}
+                        className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-amber-600 transition-colors shadow-sm text-sm"
+                    >
+                        <Trash2 className="h-4 w-4" /> Catat Susut
                     </button>
                     <Link href="/inventory/products/new" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm text-sm">
                         <Plus className="h-4 w-4" /> Tambah Produk
@@ -455,6 +488,9 @@ export default function InventoryPage() {
                                                         <button onClick={() => openMovementModal(variant)} className="flex items-center gap-1 text-primary text-xs border border-primary/20 bg-primary/10 px-2.5 py-1.5 rounded-lg">
                                                             <RefreshCw className="h-3 w-3" /> Sesuaikan Stok
                                                         </button>
+                                                        <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); }} className="flex items-center gap-1 text-amber-700 text-xs border border-amber-200 bg-amber-50 px-2.5 py-1.5 rounded-lg hover:bg-amber-100 transition-colors" title="Catat Susut Bahan">
+                                                            <Trash2 className="h-3 w-3" /> Susut
+                                                        </button>
                                                         {isFirst && (
                                                             <>
                                                                 <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="flex items-center gap-1 text-xs border border-border bg-muted/50 px-2.5 py-1.5 rounded-lg hover:bg-muted transition-colors">
@@ -615,6 +651,9 @@ export default function InventoryPage() {
                                                         <button onClick={() => openMovementModal(variant)} className="flex items-center gap-1 text-primary hover:text-primary/80 transition-colors text-xs border border-primary/20 bg-primary/10 px-2 py-1 rounded" title="Adjust Stok">
                                                             <RefreshCw className="h-3 w-3" /> Stok
                                                         </button>
+                                                        <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); }} className="flex items-center gap-1 text-amber-700 hover:text-amber-800 transition-colors text-xs border border-amber-200 bg-amber-50 px-2 py-1 rounded" title="Catat Susut">
+                                                            <Trash2 className="h-3 w-3" /> Susut
+                                                        </button>
                                                         {isFirst && (
                                                             <>
                                                                 <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="flex items-center gap-1 text-xs border border-border bg-muted/50 px-2 py-1 rounded hover:bg-muted transition-colors opacity-0 group-hover:opacity-100" title="Edit Produk">
@@ -728,6 +767,138 @@ export default function InventoryPage() {
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-muted font-medium text-sm">Batal</button>
                                 <button type="submit" disabled={movementMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 text-sm">
                                     {movementMutation.isPending ? 'Memproses...' : 'Simpan Stok'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Waste Recording Modal */}
+            {showWasteModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                    <div className="glass bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden">
+                        <div className="flex items-center justify-between p-4 border-b border-border">
+                            <h3 className="font-semibold text-lg">Catat Susut Bahan</h3>
+                            <button onClick={() => setShowWasteModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+                        </div>
+                        <form onSubmit={handleWasteSubmit} className="p-4 space-y-4">
+                            {!wasteVariant ? (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Pilih Varian Produk *</label>
+                                    <select
+                                        required
+                                        onChange={e => {
+                                            const allVariants = (products as any[])?.flatMap((p: any) => p.variants) ?? [];
+                                            setWasteVariant(allVariants.find((v: any) => v.id === Number(e.target.value)) ?? null);
+                                        }}
+                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                    >
+                                        <option value="">-- Pilih Varian --</option>
+                                        {(products as any[])?.flatMap((p: any) =>
+                                            p.variants.map((v: any) => (
+                                                <option key={v.id} value={v.id}>{p.name} — {v.sku}</option>
+                                            ))
+                                        )}
+                                    </select>
+                                </div>
+                            ) : (
+                                <div className="bg-muted p-3 rounded-lg border border-border/50 text-sm flex items-center justify-between">
+                                    <div>
+                                        <p className="text-muted-foreground text-xs">Bahan terpilih:</p>
+                                        <p className="font-medium">{wasteVariant.sku}{wasteVariant.variantName ? ` — ${wasteVariant.variantName}` : ''} <span className="text-muted-foreground font-normal">| Stok: {wasteVariant.stock}</span></p>
+                                    </div>
+                                    <button type="button" onClick={() => setWasteVariant(null)} className="text-xs text-muted-foreground hover:text-foreground">Ganti</button>
+                                </div>
+                            )}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Nama Operator *</label>
+                                <input
+                                    required
+                                    type="text"
+                                    value={wasteForm.operatorName}
+                                    onChange={e => setWasteForm({ ...wasteForm, operatorName: e.target.value })}
+                                    placeholder="Masukkan nama operator"
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Jenis Susut *</label>
+                                <select
+                                    value={wasteForm.wasteType}
+                                    onChange={e => setWasteForm({ ...wasteForm, wasteType: e.target.value })}
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                >
+                                    {WASTE_TYPES.map(w => <option key={w} value={w}>{w}</option>)}
+                                </select>
+                            </div>
+                            {wasteVariant?.isRollMaterial ? (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Ukuran Banner (m) *</label>
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 space-y-1">
+                                            <span className="text-xs text-muted-foreground">Panjang</span>
+                                            <input
+                                                required
+                                                type="number"
+                                                min="0.01"
+                                                step="0.01"
+                                                value={wasteForm.panjang}
+                                                onChange={e => setWasteForm({ ...wasteForm, panjang: e.target.value })}
+                                                className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                                placeholder="Contoh: 3"
+                                            />
+                                        </div>
+                                        <span className="text-muted-foreground mt-4">×</span>
+                                        <div className="flex-1 space-y-1">
+                                            <span className="text-xs text-muted-foreground">Lebar</span>
+                                            <input
+                                                required
+                                                type="number"
+                                                min="0.01"
+                                                step="0.01"
+                                                value={wasteForm.lebar}
+                                                onChange={e => setWasteForm({ ...wasteForm, lebar: e.target.value })}
+                                                className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                                placeholder="Contoh: 1.5"
+                                            />
+                                        </div>
+                                    </div>
+                                    {wasteForm.panjang && wasteForm.lebar && (
+                                        <p className="text-xs text-amber-600 font-medium">
+                                            Luas: {(Number(wasteForm.panjang) * Number(wasteForm.lebar)).toFixed(2)} m² → disimpan sebagai {Math.ceil(Number(wasteForm.panjang) * Number(wasteForm.lebar))} m²
+                                        </p>
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Jumlah *</label>
+                                    <input
+                                        required
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        value={wasteForm.quantity}
+                                        onChange={e => setWasteForm({ ...wasteForm, quantity: e.target.value })}
+                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                        placeholder="Jumlah yang terbuang/rusak"
+                                    />
+                                </div>
+                            )}
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium">Keterangan (Opsional)</label>
+                                <input
+                                    type="text"
+                                    value={wasteForm.notes}
+                                    onChange={e => setWasteForm({ ...wasteForm, notes: e.target.value })}
+                                    placeholder="Misal: percobaan cetak banner A3 ukuran 2x3m"
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary text-sm"
+                                />
+                            </div>
+                            <div className="pt-4 flex justify-end gap-2">
+                                <button type="button" onClick={() => setShowWasteModal(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-muted font-medium text-sm">Batal</button>
+                                <button type="submit" disabled={movementMutation.isPending || !wasteVariant} className="px-4 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 disabled:opacity-50 text-sm">
+                                    {movementMutation.isPending ? 'Menyimpan...' : 'Catat Susut'}
                                 </button>
                             </div>
                         </form>

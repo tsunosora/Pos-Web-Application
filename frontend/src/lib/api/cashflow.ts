@@ -16,3 +16,9 @@ export const getCashflowCategoryBreakdown = async (startDate?: string, endDate?:
     if (endDate) params.append('endDate', endDate);
     return (await api.get(`/cashflow/category-breakdown?${params.toString()}`)).data;
 };
+export const getCashflowPlatformBreakdown = async (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return (await api.get(`/cashflow/platform-breakdown?${params.toString()}`)).data;
+};

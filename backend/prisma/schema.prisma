@@ -283,8 +283,9 @@ model Cashflow {
   note          String?        @db.Text
   userId        Int?           @map("user_id")
   bankAccountId Int?           @map("bank_account_id")
-  paymentMethod PaymentMethod? @map("payment_method")
-  date          DateTime       @default(now())
+  paymentMethod  PaymentMethod? @map("payment_method")
+  platformSource String?        @map("platform_source") @db.VarChar(100)
+  date           DateTime       @default(now())
   createdAt     DateTime?      @default(now()) @map("created_at")
   updatedAt     DateTime?      @default(now()) @updatedAt @map("updated_at")
 
@@ -475,6 +476,8 @@ model StockOpnameItem {
   systemStock      Int      @map("system_stock")
   actualStock      Int      @map("actual_stock")
   variance         Int
+  isEstimated      Boolean  @default(false) @map("is_estimated")
+  estimationNotes  String?  @map("estimation_notes") @db.Text
   submittedAt      DateTime @default(now()) @map("submitted_at")
 
   session        StockOpnameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

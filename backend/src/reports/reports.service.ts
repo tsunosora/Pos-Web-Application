@@ -244,6 +244,10 @@ export class ReportsService {
             expensesTotalCalc = total;
         }
 
+        // Hitung data shift SEBELUM menyimpan, agar lastShift.closedAt belum berubah
+        const settings = await this.prisma.storeSettings.findFirst();
+        const expectedData = await this.calculateCurrentShiftExpectations();
+
         const shift: any = await (this.prisma as any).shiftReport.create({
             data: {
                 adminName: dto.adminName || 'Kasir',
@@ -295,9 +299,6 @@ export class ReportsService {
             }
         }
 
-        const settings = await this.prisma.storeSettings.findFirst();
-        const expectedData = await this.calculateCurrentShiftExpectations();
-
         const reportMsg = this.formatWhatsappMessage(
             shift,
             expectedData,
@@ -309,6 +310,7 @@ export class ReportsService {
             dto.kasbon || [],
             dto.setorKas || [],
             dto.tarikTunai || [],
+            dto.reportDate,
         );
 
         this.whatsappService.sendReport(reportMsg, proofImages).catch((err) => {
@@ -326,9 +328,10 @@ export class ReportsService {
         actualQris: number,
         structuredExpenses: StructuredExpenses | undefined,
         settings?: any,
-        kasbon: { name: string; amount: number }[] = [],
+        kasbon: { name: string; amount: number; source?: string }[] = [],
         setorKas: { bankName: string; amount: number }[] = [],
         tarikTunai: { bankName: string; amount: number }[] = [],
+        reportDate?: string,
     ): string {
         const formatRp = (val: number) => {
             return 'Rp ' + new Intl.NumberFormat('id-ID', {
@@ -337,7 +340,8 @@ export class ReportsService {
         };
 
         const storeName = settings?.storeName || 'TOKO';
-        const dateStr = new Date(shift.openedAt).toLocaleDateString('id-ID', {
+        const dateBase = reportDate ? new Date(reportDate + 'T12:00:00') : new Date(shift.closedAt || shift.openedAt);
+        const dateStr = dateBase.toLocaleDateString('id-ID', {
             weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
         });
 
@@ -407,13 +411,29 @@ export class ReportsService {
 
         // Kasbon Karyawan
         if (kasbon && kasbon.length > 0) {
-            msg += `\n👤 Kasbon Karyawan :\n`;
-            kasbon.forEach((k, i) => {
-                msg += `  ${i + 1}. ${k.name} : ${formatRp(k.amount)}\n`;
-            });
-            if (kasbon.length > 1) {
-                const totalKasbon = kasbon.reduce((sum, k) => sum + k.amount, 0);
-                msg += `  Total : ${formatRp(totalKasbon)}\n`;
+            const kasbonToko = kasbon.filter(k => !k.source || k.source === 'Kas Toko');
+            const kasbonLuar = kasbon.filter(k => k.source && k.source !== 'Kas Toko');
+
+            if (kasbonToko.length > 0) {
+                msg += `\n👤 Kasbon Karyawan (Kas Toko) :\n`;
+                kasbonToko.forEach((k, i) => {
+                    msg += `  ${i + 1}. ${k.name} : ${formatRp(k.amount)}\n`;
+                });
+                if (kasbonToko.length > 1) {
+                    const total = kasbonToko.reduce((sum, k) => sum + k.amount, 0);
+                    msg += `  Total : ${formatRp(total)}\n`;
+                }
+            }
+
+            if (kasbonLuar.length > 0) {
+                msg += `\n👤 Kasbon Karyawan (Di luar kas toko) :\n`;
+                kasbonLuar.forEach((k, i) => {
+                    msg += `  ${i + 1}. ${k.name} : ${formatRp(k.amount)} [${k.source}]\n`;
+                });
+                if (kasbonLuar.length > 1) {
+                    const total = kasbonLuar.reduce((sum, k) => sum + k.amount, 0);
+                    msg += `  Total : ${formatRp(total)}\n`;
+                }
             }
         }
 

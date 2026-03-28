@@ -103,10 +103,38 @@ export class CashflowService {
         };
     }
 
-    async update(id: number, data: { category?: string; amount?: number; note?: string }) {
+    async update(id: number, data: { category?: string; amount?: number; note?: string; platformSource?: string | null }) {
         const entry = await this.prisma.cashflow.findUnique({ where: { id } });
         if (!entry) throw new NotFoundException('Cashflow entry not found');
         return this.prisma.cashflow.update({ where: { id }, data });
+    }
+
+    async getPlatformBreakdown(startDate?: string, endDate?: string) {
+        const where: Prisma.CashflowWhereInput = { type: CashflowType.INCOME };
+        if (startDate || endDate) {
+            where.date = {};
+            if (startDate) (where.date as any).gte = new Date(startDate);
+            if (endDate) {
+                const end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                (where.date as any).lte = end;
+            }
+        }
+
+        const cashflows = await (this.prisma as any).cashflow.findMany({
+            where,
+            select: { platformSource: true, amount: true },
+        });
+
+        const platformMap: Record<string, number> = {};
+        for (const cf of cashflows) {
+            const key = cf.platformSource ?? 'POS (Offline)';
+            platformMap[key] = (platformMap[key] ?? 0) + parseFloat(cf.amount.toString());
+        }
+
+        return Object.entries(platformMap)
+            .map(([platform, total]) => ({ platform, total }))
+            .sort((a, b) => b.total - a.total);
     }
 
     async remove(id: number) {

@@ -57,7 +57,15 @@ export class StockOpnamePublicController {
     @Post(':token/submit')
     submit(
         @Param('token') token: string,
-        @Body() dto: { operatorName: string; items: { productVariantId: number; actualStock: number }[] },
+        @Body() dto: {
+            operatorName: string;
+            items: {
+                productVariantId: number;
+                actualStock: number;
+                isEstimated?: boolean;
+                estimationNotes?: string;
+            }[];
+        },
     ) {
         return this.svc.submitItems(token, dto);
     }

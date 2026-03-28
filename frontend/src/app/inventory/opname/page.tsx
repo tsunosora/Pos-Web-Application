@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getOpnameSessions, startOpnameSession, cancelOpnameSession,
-    finishOpnameSession, getOpnameSessionDetail, getCategories,
+    finishOpnameSession, getOpnameSessionDetail, getCategories, getWasteMovements,
 } from '@/lib/api';
 import {
     ClipboardList, Plus, X, CheckCircle2, Clock, Ban, ChevronRight,
@@ -141,6 +141,27 @@ function StartModal({ onClose, onCreated }: { onClose: () => void; onCreated: (i
     );
 }
 
+// ─── Waste History per Variant ────────────────────────────────────────────────
+function VariantWasteHistory({ variantId, since }: { variantId: number; since: string }) {
+    const { data: waste = [] } = useQuery({
+        queryKey: ['waste', variantId, since],
+        queryFn: () => getWasteMovements(variantId, since),
+        staleTime: 60_000,
+    });
+
+    if (!waste.length) return null;
+
+    return (
+        <div className="mt-1 space-y-0.5">
+            {waste.map((w: any) => (
+                <p key={w.id} className="text-[10px] text-amber-600 leading-tight">
+                    {new Date(w.date).toLocaleDateString('id-ID')} — {w.reason} <span className="font-medium">(-{w.quantity})</span>
+                </p>
+            ))}
+        </div>
+    );
+}
+
 // ─── Detail Sesi + Review ─────────────────────────────────────────────────────
 function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () => void }) {
     const qc = useQueryClient();
@@ -171,7 +192,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                     inputs: [],
                 });
             }
-            map.get(vid).inputs.push({ operator: item.operatorName, actual: item.actualStock, variance: item.variance, submittedAt: item.submittedAt });
+            map.get(vid).inputs.push({ operator: item.operatorName, actual: item.actualStock, variance: item.variance, submittedAt: item.submittedAt, isEstimated: item.isEstimated, estimationNotes: item.estimationNotes });
         }
         return map;
     }, [session?.items]);
@@ -205,6 +226,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
     if (isLoading) return <div className="p-8 text-center text-muted-foreground">Memuat...</div>;
     if (!session) return <div className="p-8 text-center text-muted-foreground">Sesi tidak ditemukan</div>;
 
+    const lookback30days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const operators = [...new Set<string>(session.items.map((i: any) => i.operatorName as string))];
     const hasMismatch = Array.from(variantMap.values()).some((v: any) => {
         const latestActual = v.inputs[0]?.actual;
@@ -298,6 +320,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                                                 <div>
                                                     <p className="font-medium">{v.productName}</p>
                                                     {v.variantName && <p className="text-xs text-muted-foreground">{v.variantName}</p>}
+                                                    <VariantWasteHistory variantId={v.variantId} since={lookback30days} />
                                                 </div>
                                             </div>
                                         </td>
@@ -307,9 +330,19 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                                             return (
                                                 <td key={op} className="p-3 text-center">
                                                     {inp ? (
-                                                        <span className={`font-mono font-medium ${inp.variance !== 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                                                            {inp.actual}
-                                                        </span>
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <span className={`font-mono font-medium ${inp.variance !== 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                                                {inp.actual}
+                                                            </span>
+                                                            {inp.isEstimated && (
+                                                                <span
+                                                                    className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded cursor-help border border-amber-300"
+                                                                    title={inp.estimationNotes ?? 'Nilai estimasi (tidak terukur tepat)'}
+                                                                >
+                                                                    ~Est.
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <span className="text-muted-foreground/40">—</span>
                                                     )}

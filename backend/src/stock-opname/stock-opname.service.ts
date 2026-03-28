@@ -164,6 +164,7 @@ export class StockOpnameService {
                         size: true,
                         color: true,
                         variantImageUrl: true,
+                        isRollMaterial: true,
                         // Sengaja TIDAK sertakan field `stock` — blind count
                     },
                 },
@@ -179,7 +180,12 @@ export class StockOpnameService {
         token: string,
         dto: {
             operatorName: string;
-            items: { productVariantId: number; actualStock: number }[];
+            items: {
+                productVariantId: number;
+                actualStock: number;
+                isEstimated?: boolean;
+                estimationNotes?: string;
+            }[];
         },
     ) {
         await this.verifyToken(token);
@@ -201,15 +207,27 @@ export class StockOpnameService {
             where: { sessionId: token, operatorName: dto.operatorName.trim() },
         });
 
-        await this.prisma.stockOpnameItem.createMany({
-            data: dto.items.map(item => ({
-                sessionId: token,
-                operatorName: dto.operatorName.trim(),
-                productVariantId: item.productVariantId,
-                systemStock: stockMap.get(item.productVariantId) ?? 0,
-                actualStock: item.actualStock,
-                variance: item.actualStock - (stockMap.get(item.productVariantId) ?? 0),
-            })),
+        await (this.prisma as any).stockOpnameItem.createMany({
+            data: dto.items.map(item => {
+                const rounded = Math.round(item.actualStock);
+                const sysStock = stockMap.get(item.productVariantId) ?? 0;
+                let notes: string | null = null;
+                if (item.isEstimated) {
+                    notes = `Nilai estimasi: ${item.actualStock}${item.estimationNotes ? ` — ${item.estimationNotes}` : ''}`;
+                } else if (item.estimationNotes) {
+                    notes = item.estimationNotes;
+                }
+                return {
+                    sessionId: token,
+                    operatorName: dto.operatorName.trim(),
+                    productVariantId: item.productVariantId,
+                    systemStock: sysStock,
+                    actualStock: rounded,
+                    variance: rounded - sysStock,
+                    isEstimated: item.isEstimated ?? false,
+                    estimationNotes: notes,
+                };
+            }),
         });
 
         return { message: 'Data berhasil disimpan', count: dto.items.length };

@@ -24,7 +24,15 @@ export const getOpnameProducts = async (token: string) => {
 };
 export const submitOpnameItems = async (
     token: string,
-    data: { operatorName: string; items: { productVariantId: number; actualStock: number }[] },
+    data: {
+        operatorName: string;
+        items: {
+            productVariantId: number;
+            actualStock: number;
+            isEstimated?: boolean;
+            estimationNotes?: string;
+        }[];
+    },
 ) => {
     const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     const res = await fetch(`${base}/stock-opname/public/${token}/submit`, {

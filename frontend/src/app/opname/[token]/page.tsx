@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { verifyOpnameToken, getOpnameProducts, submitOpnameItems } from '@/lib/api';
 import { CheckCircle2, Minus, Plus, Send, AlertCircle, Loader2, ClipboardList } from 'lucide-react';
 
-const STORAGE_KEY = (token: string) => `opname_draft_${token}`;
+const STORAGE_KEY = (token: string) => `opname_draft_v2_${token}`;
 
 type VerifyResult = {
     sessionId: string;
@@ -22,6 +22,7 @@ type Variant = {
     size: string | null;
     color: string | null;
     variantImageUrl: string | null;
+    isRollMaterial: boolean;
 };
 
 type Product = {
@@ -31,6 +32,12 @@ type Product = {
     category: { name: string };
     unit: { name: string };
     variants: Variant[];
+};
+
+type EstimationData = {
+    isEstimated: boolean;
+    decimalVal: string;
+    notes: string;
 };
 
 // ─── Name Entry Screen ────────────────────────────────────────────────────────
@@ -87,7 +94,9 @@ function NameEntry({ session, onConfirm }: { session: VerifyResult; onConfirm: (
 
 // ─── Counter per Variant ──────────────────────────────────────────────────────
 function VariantCounter({
-    variant, productName, imageUrl, unit, count, onChange,
+    variant, productName, imageUrl, unit,
+    count, onChange,
+    estimation, onEstimateToggle, onDecimalChange, onNotesChange,
 }: {
     variant: Variant;
     productName: string;
@@ -95,50 +104,100 @@ function VariantCounter({
     unit: string;
     count: number;
     onChange: (val: number) => void;
+    estimation: EstimationData;
+    onEstimateToggle: () => void;
+    onDecimalChange: (val: string) => void;
+    onNotesChange: (val: string) => void;
 }) {
     const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     const img = variant.variantImageUrl || imageUrl;
     const label = [variant.variantName, variant.size, variant.color].filter(Boolean).join(' · ');
 
     return (
-        <div className="flex items-center gap-3 p-3.5 bg-card rounded-xl border border-border">
-            {img ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={`${base}${img}`} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" />
-            ) : (
-                <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                    <ClipboardList className="h-5 w-5 text-muted-foreground/40" />
+        <div className={`p-3.5 bg-card rounded-xl border ${estimation.isEstimated ? 'border-amber-400/50' : 'border-border'}`}>
+            <div className="flex items-center gap-3">
+                {img ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={`${base}${img}`} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" />
+                ) : (
+                    <div className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                        <ClipboardList className="h-5 w-5 text-muted-foreground/40" />
+                    </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm leading-tight">{productName}</p>
+                    {label && <p className="text-xs text-muted-foreground mt-0.5">{label}</p>}
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs text-muted-foreground">{unit}</p>
+                        {variant.isRollMaterial && (
+                            <button
+                                type="button"
+                                onClick={onEstimateToggle}
+                                className={`text-[10px] px-2 py-0.5 rounded-full border transition-colors ${estimation.isEstimated
+                                    ? 'bg-amber-500/20 text-amber-700 border-amber-500/40'
+                                    : 'bg-muted text-muted-foreground border-border hover:bg-amber-50 hover:text-amber-700 hover:border-amber-300'
+                                    }`}
+                            >
+                                {estimation.isEstimated ? '~ Estimasi aktif' : 'Gunakan Estimasi'}
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Counter — integer mode */}
+                {!estimation.isEstimated && (
+                    <div className="flex items-center gap-2 shrink-0">
+                        <button
+                            onClick={() => onChange(Math.max(0, count - 1))}
+                            className="h-9 w-9 rounded-full border border-border flex items-center justify-center hover:bg-muted active:scale-95 transition-all"
+                        >
+                            <Minus className="h-4 w-4" />
+                        </button>
+                        <input
+                            type="number"
+                            min={0}
+                            value={count}
+                            onChange={e => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+                            className="w-14 text-center text-lg font-bold border border-border rounded-lg py-1 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                        <button
+                            onClick={() => onChange(count + 1)}
+                            className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 transition-all"
+                        >
+                            <Plus className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Estimation mode — decimal input + notes */}
+            {estimation.isEstimated && (
+                <div className="mt-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            min={0}
+                            step={0.1}
+                            value={estimation.decimalVal}
+                            onChange={e => onDecimalChange(e.target.value)}
+                            placeholder="Estimasi m²"
+                            className="flex-1 text-center text-base font-bold border border-amber-400 rounded-lg py-2 bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400/30 text-amber-900"
+                        />
+                        <span className="text-xs text-amber-700 font-medium shrink-0">{unit}</span>
+                    </div>
+                    <input
+                        type="text"
+                        value={estimation.notes}
+                        onChange={e => onNotesChange(e.target.value)}
+                        placeholder="Catatan estimasi (misal: sisa ±30% dari roll baru 50m²)"
+                        className="w-full text-xs border border-amber-300 rounded-lg px-3 py-2 bg-amber-50/50 focus:outline-none focus:ring-2 focus:ring-amber-300/30 text-amber-800"
+                    />
+                    <p className="text-[10px] text-amber-600">
+                        Nilai estimasi akan dicatat dengan tanda (~) pada laporan admin.
+                    </p>
                 </div>
             )}
-
-            <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm leading-tight">{productName}</p>
-                {label && <p className="text-xs text-muted-foreground mt-0.5">{label}</p>}
-                <p className="text-xs text-muted-foreground">{unit}</p>
-            </div>
-
-            {/* Counter */}
-            <div className="flex items-center gap-2 shrink-0">
-                <button
-                    onClick={() => onChange(Math.max(0, count - 1))}
-                    className="h-9 w-9 rounded-full border border-border flex items-center justify-center hover:bg-muted active:scale-95 transition-all"
-                >
-                    <Minus className="h-4 w-4" />
-                </button>
-                <input
-                    type="number"
-                    min={0}
-                    value={count}
-                    onChange={e => onChange(Math.max(0, parseInt(e.target.value) || 0))}
-                    className="w-14 text-center text-lg font-bold border border-border rounded-lg py-1 bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
-                <button
-                    onClick={() => onChange(count + 1)}
-                    className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 transition-all"
-                >
-                    <Plus className="h-4 w-4" />
-                </button>
-            </div>
         </div>
     );
 }
@@ -152,6 +211,7 @@ function CountingScreen({
     products: Product[];
 }) {
     const [counts, setCounts] = useState<Record<number, number>>({});
+    const [estimations, setEstimations] = useState<Record<number, EstimationData>>({});
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -160,19 +220,50 @@ function CountingScreen({
     useEffect(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY(token));
-            if (saved) setCounts(JSON.parse(saved));
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed.counts) setCounts(parsed.counts);
+                if (parsed.estimations) setEstimations(parsed.estimations);
+            }
         } catch { /* ignore */ }
     }, [token]);
 
     // Auto-save to localStorage
-    const save = useCallback((c: Record<number, number>) => {
-        try { localStorage.setItem(STORAGE_KEY(token), JSON.stringify(c)); } catch { /* ignore */ }
+    const save = useCallback((c: Record<number, number>, e: Record<number, EstimationData>) => {
+        try { localStorage.setItem(STORAGE_KEY(token), JSON.stringify({ counts: c, estimations: e })); } catch { /* ignore */ }
     }, [token]);
 
     const handleChange = (variantId: number, val: number) => {
         setCounts(prev => {
             const next = { ...prev, [variantId]: val };
-            save(next);
+            save(next, estimations);
+            return next;
+        });
+    };
+
+    const handleEstimateToggle = (variantId: number) => {
+        setEstimations(prev => {
+            const cur = prev[variantId] ?? { isEstimated: false, decimalVal: '', notes: '' };
+            const next = { ...prev, [variantId]: { ...cur, isEstimated: !cur.isEstimated } };
+            save(counts, next);
+            return next;
+        });
+    };
+
+    const handleDecimalChange = (variantId: number, val: string) => {
+        setEstimations(prev => {
+            const cur = prev[variantId] ?? { isEstimated: true, decimalVal: '', notes: '' };
+            const next = { ...prev, [variantId]: { ...cur, decimalVal: val } };
+            save(counts, next);
+            return next;
+        });
+    };
+
+    const handleNotesChange = (variantId: number, val: string) => {
+        setEstimations(prev => {
+            const cur = prev[variantId] ?? { isEstimated: true, decimalVal: '', notes: '' };
+            const next = { ...prev, [variantId]: { ...cur, notes: val } };
+            save(counts, next);
             return next;
         });
     };
@@ -182,10 +273,22 @@ function CountingScreen({
         setError(null);
         try {
             const items = products.flatMap(p =>
-                p.variants.map(v => ({
-                    productVariantId: v.id,
-                    actualStock: counts[v.id] ?? 0,
-                }))
+                p.variants.map(v => {
+                    const est = estimations[v.id];
+                    if (est?.isEstimated) {
+                        return {
+                            productVariantId: v.id,
+                            actualStock: parseFloat(est.decimalVal) || 0,
+                            isEstimated: true,
+                            estimationNotes: est.notes || undefined,
+                        };
+                    }
+                    return {
+                        productVariantId: v.id,
+                        actualStock: counts[v.id] ?? 0,
+                        isEstimated: false,
+                    };
+                })
             );
             await submitOpnameItems(token, { operatorName, items });
             localStorage.removeItem(STORAGE_KEY(token));
@@ -218,7 +321,13 @@ function CountingScreen({
     }, {});
 
     const totalVariants = products.reduce((s, p) => s + p.variants.length, 0);
-    const filled = Object.keys(counts).filter(k => counts[Number(k)] > 0).length;
+    const filled = products.reduce((s, p) =>
+        s + p.variants.filter(v => {
+            const est = estimations[v.id];
+            if (est?.isEstimated) return !!est.decimalVal;
+            return (counts[v.id] ?? 0) > 0;
+        }).length
+    , 0);
 
     return (
         <div className="min-h-screen bg-background pb-32">
@@ -247,6 +356,7 @@ function CountingScreen({
                 <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 text-xs">
                     Hitung fisik produk di gudang. Stok komputer sengaja disembunyikan agar hasil hitungan akurat.
                     Data tersimpan otomatis — Anda bisa kembali melanjutkan jika sinyal terputus.
+                    Untuk bahan roll (banner), gunakan tombol <strong>Gunakan Estimasi</strong> jika tidak bisa diukur tepat.
                 </div>
 
                 {Object.entries(grouped).map(([cat, prods]) => (
@@ -263,6 +373,10 @@ function CountingScreen({
                                         unit={p.unit.name}
                                         count={counts[v.id] ?? 0}
                                         onChange={val => handleChange(v.id, val)}
+                                        estimation={estimations[v.id] ?? { isEstimated: false, decimalVal: '', notes: '' }}
+                                        onEstimateToggle={() => handleEstimateToggle(v.id)}
+                                        onDecimalChange={val => handleDecimalChange(v.id, val)}
+                                        onNotesChange={val => handleNotesChange(v.id, val)}
                                     />
                                 ))
                             )}
