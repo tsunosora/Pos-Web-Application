@@ -10,6 +10,7 @@ export type StructuredExpenses = Record<string, StructuredExpenseItem[]>;
 // e.g. { "CASH": [{name: "Beli gula", amount: 28000}], "BCA": [{...}] }
 
 export type AdditionalIncomeItem = { bankName: string; amount: number; description: string };
+export type PaymentExchangeItem = { from: string; to: string; amount: number; description: string };
 
 // Define the payload for closing a shift
 export class CloseShiftDto {
@@ -40,6 +41,7 @@ export class CloseShiftDto {
     tarikTunai?: { bankName: string; amount: number }[]; // Tarik tunai dari rekening ke kas
     tukarTransferKeCash?: number; // Konversi transfer masuk menjadi kas fisik
     additionalIncomes?: AdditionalIncomeItem[]; // Pemasukan eksternal langsung ke rekening
+    paymentExchanges?: PaymentExchangeItem[]; // Pertukaran antar metode (QRIS↔Tunai, titip transfer, dll)
 }
 
 @Controller('reports')
@@ -102,6 +104,7 @@ export class ReportsController {
             tarikTunai: body.tarikTunai ? JSON.parse(body.tarikTunai) : [],
             tukarTransferKeCash: Number(body.tukarTransferKeCash || 0),
             additionalIncomes: body.additionalIncomes ? JSON.parse(body.additionalIncomes) : [],
+            paymentExchanges: body.paymentExchanges ? JSON.parse(body.paymentExchanges) : [],
         };
 
         const uploadedPaths = files ? files.map((f) => f.path) : [];

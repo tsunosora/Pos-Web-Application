@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem } from './reports.controller';
+import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
 
 @Injectable()
 export class ReportsService {
@@ -379,6 +379,7 @@ export class ReportsService {
             dto.reportDate,
             dto.tukarTransferKeCash || 0,
             dto.additionalIncomes || [],
+            dto.paymentExchanges || [],
         );
 
         this.whatsappService.sendReport(reportMsg, proofImages).catch((err) => {
@@ -420,6 +421,7 @@ export class ReportsService {
         reportDate?: string,
         tukarTransferKeCash: number = 0,
         additionalIncomes: AdditionalIncomeItem[] = [],
+        paymentExchanges: PaymentExchangeItem[] = [],
     ): string {
         const formatRp = (val: number) => {
             return 'Rp ' + new Intl.NumberFormat('id-ID', {
@@ -513,6 +515,15 @@ export class ReportsService {
             msg += `\n💱 Tukar Transfer ke Cash : ${formatRp(tukarTransferKeCash)}\n`;
         }
 
+        // Pertukaran Metode Pembayaran & Titip Transfer
+        if (paymentExchanges && paymentExchanges.length > 0) {
+            msg += `\n🔄 Pertukaran Metode Pembayaran :\n`;
+            paymentExchanges.forEach((ex, idx) => {
+                const label = ex.description ? ` (${ex.description})` : '';
+                msg += `  ${idx + 1}. ${ex.from} → ${ex.to}${label} : ${formatRp(ex.amount)}\n`;
+            });
+        }
+
         // Kasbon Karyawan
         if (kasbon && kasbon.length > 0) {
             const kasbonToko = kasbon.filter(k => !k.source || k.source === 'Kas Toko');
@@ -550,24 +561,39 @@ export class ReportsService {
         const totalKasbonToko = kasbon
             .filter(k => !k.source || k.source === 'Kas Toko')
             .reduce((s, k) => s + Number(k.amount), 0);
+        const exchangeCashEffect = paymentExchanges.reduce((sum, ex) => {
+            if (ex.to === 'CASH') return sum + ex.amount;
+            if (ex.from === 'CASH') return sum - ex.amount;
+            return sum;
+        }, 0);
         const saldoKasBersih = Number(shift.actualCash)
             - totalCashExpenses
             - totalSetorKas
             + totalTarikTunai
             + tukarTransferKeCash
-            - totalKasbonToko;
+            - totalKasbonToko
+            + exchangeCashEffect;
 
         msg += `\nCash real : ${formatRp(Number(shift.actualCash))}\n`;
         msg += `Saldo Kas Bersih : ${formatRp(saldoKasBersih)}\n`;
         msg += `===============================\n\n`;
 
-        // Adjust target saldo rekening dengan pemasukan tambahan
-        // (karena cashflow baru dibuat setelah expectedData dihitung)
+        // Adjust target saldo rekening dengan pemasukan tambahan + pertukaran metode
         const adjustedSystemBankBalances: Record<string, number> = { ...exp.systemBankBalances };
         for (const inc of additionalIncomes) {
             if (inc.bankName && inc.amount > 0) {
                 adjustedSystemBankBalances[inc.bankName] =
                     (adjustedSystemBankBalances[inc.bankName] || 0) + inc.amount;
+            }
+        }
+        for (const ex of paymentExchanges) {
+            if (ex.amount > 0) {
+                if (adjustedSystemBankBalances[ex.from] !== undefined) {
+                    adjustedSystemBankBalances[ex.from] -= ex.amount;
+                }
+                if (adjustedSystemBankBalances[ex.to] !== undefined) {
+                    adjustedSystemBankBalances[ex.to] += ex.amount;
+                }
             }
         }
 

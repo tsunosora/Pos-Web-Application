@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
     ArrowLeft, Camera, CheckCircle2, ChevronRight,
-    Calculator, AlertTriangle, Plus, Trash2, Users, Clock, Banknote, UserCheck
+    Calculator, AlertTriangle, Plus, Trash2, Users, Clock, Banknote, UserCheck, ArrowRightLeft
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,6 +21,8 @@ type ExpenseItem = { name: string; amount: number };
 type StructuredExpenses = Record<string, ExpenseItem[]>;
 // Pemasukan tambahan langsung ke rekening dari luar POS
 type AdditionalIncomeItem = { bankName: string; amount: number; description: string };
+// Pertukaran antar metode pembayaran (QRIS↔Tunai, titip transfer, dll)
+type PaymentExchangeItem = { from: string; to: string; amount: number; description: string };
 
 export default function CloseShiftPage() {
     const router = useRouter();
@@ -48,6 +50,7 @@ export default function CloseShiftPage() {
     const [tarikTunai, setTarikTunai] = useState<{ bankName: string; amount: number }[]>([]);
     const [tukarTransferKeCash, setTukarTransferKeCash] = useState<number>(0);
     const [additionalIncomes, setAdditionalIncomes] = useState<AdditionalIncomeItem[]>([]);
+    const [paymentExchanges, setPaymentExchanges] = useState<PaymentExchangeItem[]>([]);
 
     // ─── State: Catatan & Bukti ──────────────────────────────────────────
     const [notes, setNotes] = useState('');
@@ -150,6 +153,29 @@ export default function CloseShiftPage() {
     const getTotalAdditionalIncomes = () =>
         additionalIncomes.reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
 
+    // ─── Helper: Pertukaran Metode Pembayaran ────────────────────────────
+    const addPaymentExchange = () =>
+        setPaymentExchanges(prev => [...prev, { from: 'QRIS', to: 'CASH', amount: 0, description: '' }]);
+    const updatePaymentExchange = (idx: number, field: keyof PaymentExchangeItem, value: string | number) =>
+        setPaymentExchanges(prev => prev.map((e, i) =>
+            i === idx ? { ...e, [field]: field === 'amount' ? Number(value) : value } : e));
+    const removePaymentExchange = (idx: number) =>
+        setPaymentExchanges(prev => prev.filter((_, i) => i !== idx));
+
+    const getExchangeCashEffect = () =>
+        paymentExchanges.reduce((sum, e) => {
+            if (e.to === 'CASH') return sum + (Number(e.amount) || 0);
+            if (e.from === 'CASH') return sum - (Number(e.amount) || 0);
+            return sum;
+        }, 0);
+
+    const getExchangeBankEffect = (bankName: string) =>
+        paymentExchanges.reduce((sum, e) => {
+            if (e.to === bankName) return sum + (Number(e.amount) || 0);
+            if (e.from === bankName) return sum - (Number(e.amount) || 0);
+            return sum;
+        }, 0);
+
     // ─── Helper: Setor Kas ───────────────────────────────────────────────
     const bankOptions = Object.keys(shiftData?.systemBankBalances || {});
     const addSetorKas = () => setSetorKas(prev => [...prev, { bankName: bankOptions[0] || '', amount: 0 }]);
@@ -174,7 +200,8 @@ export default function CloseShiftPage() {
         + getTotalTarikTunai()
         + tukarTransferKeCash
         - getCashExpenseTotal()
-        - getTotalKasbonToko();
+        - getTotalKasbonToko()
+        + getExchangeCashEffect();
     const getAdjustedExpectedBank = (bankName: string) => {
         const base = shiftData?.systemBankBalances?.[bankName] || 0;
         const setor = setorKas.filter(s => s.bankName === bankName).reduce((sum, s) => sum + s.amount, 0);
@@ -182,7 +209,8 @@ export default function CloseShiftPage() {
         const additional = additionalIncomes
             .filter(i => i.bankName === bankName)
             .reduce((sum, i) => sum + (Number(i.amount) || 0), 0);
-        return base + setor - tarik + additional;
+        const exchange = getExchangeBankEffect(bankName);
+        return base + setor - tarik + additional + exchange;
     };
 
     // ─── Helper: Format & Badge ──────────────────────────────────────────
@@ -233,6 +261,7 @@ export default function CloseShiftPage() {
         formData.append('tarikTunai', JSON.stringify(tarikTunai.filter(s => s.bankName && s.amount > 0)));
         formData.append('additionalIncomes', JSON.stringify(additionalIncomes.filter(i => i.bankName && i.amount > 0)));
         formData.append('tukarTransferKeCash', String(tukarTransferKeCash || 0));
+        formData.append('paymentExchanges', JSON.stringify(paymentExchanges.filter(e => e.amount > 0)));
 
         files.forEach(file => formData.append('proofImages', file));
         closeShiftMutation.mutate(formData);
@@ -256,6 +285,26 @@ export default function CloseShiftPage() {
     const expectedQris = shiftData?.expectedQris || 0;
     let grossAll = (shiftData?.grossCash || 0) + (shiftData?.grossQris || 0);
     Object.values(shiftData?.grossBankIncomes || {}).forEach((v: any) => grossAll += v);
+
+    // Adjusted QRIS target (real-time from payment exchanges)
+    const adjustedExpectedQris = expectedQris + paymentExchanges.reduce((sum, ex) => {
+        if (ex.to === 'QRIS') return sum + (Number(ex.amount) || 0);
+        if (ex.from === 'QRIS') return sum - (Number(ex.amount) || 0);
+        return sum;
+    }, 0);
+
+    // Net effects on non-system payment methods (Dana, GoPay, OVO, etc.) from exchanges
+    const nonSystemExchangeEffects: Record<string, number> = {};
+    const systemMethods = new Set(['CASH', 'QRIS', ...bankOptions]);
+    for (const ex of paymentExchanges) {
+        if (!ex.amount || ex.amount <= 0) continue;
+        if (!systemMethods.has(ex.from)) {
+            nonSystemExchangeEffects[ex.from] = (nonSystemExchangeEffects[ex.from] || 0) - ex.amount;
+        }
+        if (!systemMethods.has(ex.to)) {
+            nonSystemExchangeEffects[ex.to] = (nonSystemExchangeEffects[ex.to] || 0) + ex.amount;
+        }
+    }
 
     const SHIFT_OPTIONS = ['Shift Pagi', 'Shift Siang', 'Long Shift'];
 
@@ -319,29 +368,92 @@ export default function CloseShiftPage() {
                                     </div>
                                 </div>
 
-                                {/* Target Saldo Sistem */}
+                                {/* Target Saldo Kasir — real-time */}
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Saldo Kasir</p>
-                                    <div className="flex justify-between py-1 border-b">
-                                        <span className="text-slate-600">Uang tunai di laci</span>
-                                        <span className="font-semibold text-slate-800">{formatCurrency(expectedCash)}</span>
-                                    </div>
-                                    <div className="flex justify-between py-1 border-b">
-                                        <span className="text-slate-600">EDC QRIS shift ini</span>
-                                        <span className="font-semibold text-slate-800">{formatCurrency(expectedQris)}</span>
-                                    </div>
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                        Target Saldo
+                                        <span className="text-indigo-400 font-normal normal-case">(live)</span>
+                                    </p>
+
+                                    {/* Cash */}
+                                    {(() => {
+                                        const base = shiftData?.expectedCash || 0;
+                                        const d = adjustedExpectedCash - base;
+                                        return (
+                                            <div className="flex justify-between items-center py-1 border-b gap-2">
+                                                <span className="text-slate-600">💵 Tunai di laci</span>
+                                                <div className="text-right">
+                                                    <span className="font-semibold text-slate-800">{formatCurrency(adjustedExpectedCash)}</span>
+                                                    {d !== 0 && (
+                                                        <p className={`text-xs ${d > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                            {d > 0 ? '+' : ''}{formatCurrency(d)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {/* QRIS */}
+                                    {(() => {
+                                        const d = adjustedExpectedQris - expectedQris;
+                                        return (
+                                            <div className="flex justify-between items-center py-1 border-b gap-2">
+                                                <span className="text-slate-600">📱 QRIS</span>
+                                                <div className="text-right">
+                                                    <span className="font-semibold text-slate-800">{formatCurrency(adjustedExpectedQris)}</span>
+                                                    {d !== 0 && (
+                                                        <p className={`text-xs ${d > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                            {d > 0 ? '+' : ''}{formatCurrency(d)}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
 
-                                {/* Saldo Sistem per Bank */}
-                                <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Saldo Bank</p>
-                                    {shiftData?.systemBankBalances && Object.entries(shiftData.systemBankBalances).map(([bank, sysval]: [string, any]) => (
-                                        <div key={bank} className="flex justify-between items-center bg-white p-2 border rounded">
-                                            <span className="text-slate-600">{bank}</span>
-                                            <span className="font-bold text-slate-800">{formatCurrency(sysval)}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                {/* Target Bank — real-time */}
+                                {shiftData?.systemBankBalances && Object.keys(shiftData.systemBankBalances).length > 0 && (
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Bank</p>
+                                        {Object.entries(shiftData.systemBankBalances).map(([bank, sysval]: [string, any]) => {
+                                            const adjusted = getAdjustedExpectedBank(bank);
+                                            const d = adjusted - sysval;
+                                            return (
+                                                <div key={bank} className="flex justify-between items-center bg-white p-2 border rounded gap-2">
+                                                    <span className="text-slate-600 text-sm">💳 {bank}</span>
+                                                    <div className="text-right">
+                                                        <span className="font-bold text-slate-800">{formatCurrency(adjusted)}</span>
+                                                        {d !== 0 && (
+                                                            <p className={`text-xs ${d > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                                {d > 0 ? '+' : ''}{formatCurrency(d)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+
+                                {/* Non-system payment methods (Dana, GoPay, OVO, dll) — hanya jika ada pertukaran */}
+                                {Object.keys(nonSystemExchangeEffects).length > 0 && (
+                                    <div className="space-y-1 pt-1 border-t border-indigo-100">
+                                        <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
+                                            <ArrowRightLeft className="w-3 h-3" /> Pertukaran Aktif
+                                        </p>
+                                        {Object.entries(nonSystemExchangeEffects).map(([method, effect]) => (
+                                            <div key={method} className="flex justify-between items-center bg-indigo-50 p-2 border border-indigo-100 rounded gap-2">
+                                                <span className="text-slate-700 text-sm font-medium">💳 {method}</span>
+                                                <span className={`font-bold text-sm ${effect > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                    {effect > 0 ? '+' : ''}{formatCurrency(effect)}
+                                                </span>
+                                            </div>
+                                        ))}
+                                        <p className="text-xs text-indigo-400 italic">Net perubahan dari pertukaran shift ini.</p>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
@@ -702,6 +814,87 @@ export default function CloseShiftPage() {
                                             💡 Target kas tunai otomatis bertambah {formatCurrency(tukarTransferKeCash)} dari konversi transfer.
                                         </p>
                                     )}
+                                </div>
+
+                                {/* Pertukaran Metode Pembayaran */}
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
+                                            <ArrowRightLeft className="w-4 h-4 text-indigo-600" /> Pertukaran Metode Pembayaran
+                                        </p>
+                                        <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addPaymentExchange}>
+                                            <Plus className="w-3 h-3" /> Tambah
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-slate-500">
+                                        Catat penukaran antar metode: QRIS↔Tunai, Transfer↔Tunai, atau titip transfer karyawan.
+                                    </p>
+                                    {paymentExchanges.length === 0 && (
+                                        <p className="text-xs text-slate-400 italic pl-1">Belum ada pertukaran</p>
+                                    )}
+                                    {paymentExchanges.map((ex, idx) => {
+                                        const allMethods = ['CASH', 'QRIS', ...bankOptions, 'Dana', 'GoPay', 'OVO', 'ShopeePay', 'LinkAja'];
+                                        const impacts: string[] = [];
+                                        if (ex.amount > 0) {
+                                            if (ex.to === 'CASH') impacts.push(`Tunai +${formatCurrency(ex.amount)}`);
+                                            if (ex.from === 'CASH') impacts.push(`Tunai −${formatCurrency(ex.amount)}`);
+                                            if (bankOptions.includes(ex.from) && ex.from !== 'CASH') impacts.push(`${ex.from} −${formatCurrency(ex.amount)}`);
+                                            if (bankOptions.includes(ex.to) && ex.to !== 'CASH') impacts.push(`${ex.to} +${formatCurrency(ex.amount)}`);
+                                        }
+                                        return (
+                                            <div key={idx} className="p-2.5 rounded-lg border border-indigo-100 bg-indigo-50/40 space-y-2">
+                                                <div className="flex gap-2 items-center">
+                                                    <span className="text-slate-400 text-sm w-5 text-right shrink-0">{idx + 1}.</span>
+                                                    <select
+                                                        className="flex-1 h-9 text-sm rounded border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                                                        value={ex.from}
+                                                        onChange={(e) => updatePaymentExchange(idx, 'from', e.target.value)}
+                                                    >
+                                                        {allMethods.map(m => <option key={m} value={m}>{m === 'CASH' ? '💵 CASH' : m === 'QRIS' ? '📱 QRIS' : `💳 ${m}`}</option>)}
+                                                    </select>
+                                                    <ArrowRightLeft className="w-4 h-4 text-slate-400 shrink-0" />
+                                                    <select
+                                                        className="flex-1 h-9 text-sm rounded border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                                                        value={ex.to}
+                                                        onChange={(e) => updatePaymentExchange(idx, 'to', e.target.value)}
+                                                    >
+                                                        {allMethods.map(m => <option key={m} value={m}>{m === 'CASH' ? '💵 CASH' : m === 'QRIS' ? '📱 QRIS' : `💳 ${m}`}</option>)}
+                                                    </select>
+                                                    <div className="relative w-32 shrink-0">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                        <Input
+                                                            type="number" min="0"
+                                                            className="pl-7 text-right text-sm"
+                                                            value={ex.amount || ''}
+                                                            onChange={(e) => updatePaymentExchange(idx, 'amount', e.target.value)}
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                    <Button type="button" variant="ghost" size="icon"
+                                                        className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                        onClick={() => removePaymentExchange(idx)}>
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                                <div className="pl-7">
+                                                    <Input
+                                                        placeholder="Keterangan (nama karyawan, alasan...)"
+                                                        className="text-xs bg-white"
+                                                        value={ex.description}
+                                                        onChange={(e) => updatePaymentExchange(idx, 'description', e.target.value)}
+                                                    />
+                                                </div>
+                                                {impacts.length > 0 && (
+                                                    <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1 ml-7">
+                                                        💡 Dampak target: {impacts.join(' • ')}
+                                                    </p>
+                                                )}
+                                                {ex.amount > 0 && impacts.length === 0 && (
+                                                    <p className="text-xs text-slate-400 italic ml-7">ℹ️ Dicatat di laporan, tidak mempengaruhi target saldo sistem.</p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
 
                                 {/* Kasbon Karyawan */}
