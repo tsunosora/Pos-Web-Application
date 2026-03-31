@@ -10,7 +10,7 @@ import Link from 'next/link';
 
 export default function DPTransactionsPage() {
     const queryClient = useQueryClient();
-    const { data: transactions, isLoading } = useQuery({ queryKey: ['transactions'], queryFn: getTransactions });
+    const { data: transactions, isLoading } = useQuery({ queryKey: ['transactions'], queryFn: () => getTransactions() });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
 
