@@ -31,6 +31,10 @@ export default function CloseShiftPage() {
     const [adminName, setAdminName] = useState('');
     const [shiftName, setShiftName] = useState('Shift Pagi');
     const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+    const [closeTime, setCloseTime] = useState(() => {
+        const now = new Date();
+        return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    });
 
     // ─── State: Saldo Aktual ─────────────────────────────────────────────
     const [actualCash, setActualCash] = useState<number>(0);
@@ -231,14 +235,28 @@ export default function CloseShiftPage() {
         if (!shiftData) return;
         if (!adminName) { alert('Pilih nama kasir terlebih dahulu!'); return; }
 
-        if (!confirm(`Apakah data sudah benar?\n\nKasir: ${adminName}\nShift: ${shiftName}\n\nSetelah dikirim, hanya Admin yang bisa melakukan koreksi.`)) return;
+        // Build closedAt from selected date + close time — avoid wrong date if submitted late
+        const closedAtDate = new Date(`${reportDate}T${closeTime}:00`);
+        // Validate: closedAt must not be in the future
+        if (closedAtDate > new Date()) {
+            alert('⚠️ Waktu tutup shift tidak boleh di masa depan. Periksa tanggal dan jam tutup shift.');
+            return;
+        }
+
+        // openedAt: use last shift closedAt, but cap it to reportDate if it's after closedAtDate
+        const openedAtRaw = shiftData.openedAt ? new Date(shiftData.openedAt) : null;
+        const openedAt = openedAtRaw && openedAtRaw < closedAtDate
+            ? openedAtRaw.toISOString()
+            : new Date(`${reportDate}T00:00:00`).toISOString();
+
+        if (!confirm(`Apakah data sudah benar?\n\nKasir: ${adminName}\nShift: ${shiftName}\nTanggal: ${reportDate}\nJam Tutup: ${closeTime}\n\nSetelah dikirim, hanya Admin yang bisa melakukan koreksi.`)) return;
 
         const formData = new FormData();
         formData.append('adminName', adminName);
         formData.append('shiftName', shiftName);
         formData.append('reportDate', reportDate);
-        formData.append('openedAt', shiftData.openedAt || new Date().toISOString());
-        formData.append('closedAt', new Date().toISOString());
+        formData.append('openedAt', openedAt);
+        formData.append('closedAt', closedAtDate.toISOString());
 
         formData.append('expectedCash', String(adjustedExpectedCash));
         formData.append('expectedQris', String(shiftData.expectedQris || 0));
@@ -506,17 +524,40 @@ export default function CloseShiftPage() {
                                     </div>
                                 </div>
 
-                                {/* Tanggal Laporan */}
+                                {/* Tanggal & Jam Tutup Shift */}
                                 <div className="space-y-2 mt-4">
-                                    <Label className="text-slate-700 font-semibold">Tanggal Laporan</Label>
-                                    <input
-                                        type="date"
-                                        required
-                                        value={reportDate}
-                                        onChange={(e) => setReportDate(e.target.value)}
-                                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                    />
-                                    <p className="text-xs text-slate-500">Tanggal yang akan tampil di laporan WhatsApp.</p>
+                                    <Label className="text-slate-700 font-semibold">Tanggal & Jam Tutup Shift</Label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-slate-500">Tanggal</p>
+                                            <input
+                                                type="date"
+                                                required
+                                                value={reportDate}
+                                                max={new Date().toISOString().slice(0, 10)}
+                                                onChange={(e) => setReportDate(e.target.value)}
+                                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-slate-500">Jam Tutup</p>
+                                            <input
+                                                type="time"
+                                                required
+                                                value={closeTime}
+                                                onChange={(e) => setCloseTime(e.target.value)}
+                                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                            />
+                                        </div>
+                                    </div>
+                                    {reportDate !== new Date().toISOString().slice(0, 10) && (
+                                        <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                            <p className="text-xs text-amber-700">
+                                                Laporan akan dicatat pada tanggal <strong>{reportDate}</strong> jam <strong>{closeTime}</strong>. Semua cashflow shift ini akan menggunakan tanggal tersebut.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
