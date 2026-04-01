@@ -38,6 +38,46 @@ export const payOffTransaction = async (id: number, data: { paymentMethod: strin
 export const updateTransactionPaymentMethod = async (id: number, data: { paymentMethod: string; bankAccountId?: number }) =>
     (await api.patch(`/transactions/${id}/payment-method`, data)).data;
 
+// Edit Transaction
+type EditItemPayload = {
+    id: number;
+    quantity?: number;
+    widthCm?: number;
+    heightCm?: number;
+    unitType?: string;
+};
+type EditTransactionPayload = {
+    items: EditItemPayload[];
+    discount?: number;
+    customerName?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+};
+export const editTransaction = async (id: number, data: EditTransactionPayload) =>
+    (await api.patch(`/transactions/${id}`, data)).data;
+export const submitEditRequest = async (id: number, data: EditTransactionPayload & { reason: string }) =>
+    (await api.post(`/transactions/${id}/edit-request`, data)).data;
+
+export type TransactionEditRequest = {
+    id: number;
+    transactionId: number;
+    status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    reason: string;
+    editData: EditTransactionPayload;
+    reviewNote: string | null;
+    createdAt: string;
+    updatedAt: string;
+    transaction: { id: number; invoiceNumber: string; grandTotal: string; status: string; items: any[] };
+    requestedBy: { id: number; name: string | null; email: string };
+    reviewedBy: { id: number; name: string | null; email: string } | null;
+};
+export const getTransactionEditRequests = async (status?: string) => {
+    const query = status ? `?status=${status}` : '';
+    return (await api.get(`/transactions/edit-requests${query}`)).data as TransactionEditRequest[];
+};
+export const reviewTransactionEditRequest = async (requestId: number, data: { approved: boolean; reviewNote?: string }) =>
+    (await api.patch(`/transactions/edit-requests/${requestId}/review`, data)).data;
+
 // Bank Accounts
 export const getBankAccounts = async () => (await api.get('/bank-accounts')).data;
 export const createBankAccount = async (data: any) => (await api.post('/bank-accounts', data)).data;

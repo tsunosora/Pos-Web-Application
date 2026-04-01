@@ -6,8 +6,10 @@ import { getSalesSummary, getTransactions, getSettings, getBankAccounts } from '
 import { updateTransactionPaymentMethod } from '@/lib/api/transactions';
 import { mapTransactionToReceipt, handlePrintSnap, handleShareWA } from '@/lib/receipt';
 import { exportToExcel, exportToPDF } from '@/lib/export';
-import { Download, BarChart, CreditCard, Banknote, Landmark, X, Receipt, Printer, MessageCircle, FileSpreadsheet, Pencil, Check, CalendarDays } from "lucide-react";
+import { Download, BarChart, CreditCard, Banknote, Landmark, X, Receipt, Printer, MessageCircle, FileSpreadsheet, Pencil, Check, CalendarDays, PenSquare } from "lucide-react";
 import dayjs from "dayjs";
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import EditTransactionModal from './EditTransactionModal';
 
 type SalesPeriodKey = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom';
 
@@ -56,8 +58,10 @@ export default function SalesReportPage() {
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
 
+    const { isManager } = useCurrentUser();
     const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
     const [editPayment, setEditPayment] = useState<{ method: string; bankId: string } | null>(null);
+    const [showEditModal, setShowEditModal] = useState(false);
 
     const updatePaymentMutation = useMutation({
         mutationFn: ({ id, method, bankId }: { id: number; method: string; bankId: string }) =>
@@ -482,6 +486,15 @@ export default function SalesReportPage() {
                                 >
                                     <MessageCircle className="w-4 h-4" /> WA
                                 </button>
+                                {(selectedTransaction.status === 'PAID' || selectedTransaction.status === 'PARTIAL') && (
+                                    <button
+                                        onClick={() => setShowEditModal(true)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-500/20 transition-colors outline-none"
+                                    >
+                                        <PenSquare className="w-4 h-4" />
+                                        {isManager ? 'Edit' : 'Ajukan Edit'}
+                                    </button>
+                                )}
                             </div>
                             <button onClick={() => { setSelectedTransaction(null); setEditPayment(null); }} className="px-4 py-2 bg-background border border-border rounded-lg text-sm font-medium hover:bg-muted transition-colors">
                                 Tutup
@@ -489,6 +502,23 @@ export default function SalesReportPage() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Edit Transaction Modal */}
+            {showEditModal && selectedTransaction && (
+                <EditTransactionModal
+                    transaction={selectedTransaction}
+                    isManager={isManager}
+                    onClose={() => setShowEditModal(false)}
+                    onSuccess={(updated) => {
+                        setShowEditModal(false);
+                        if (updated) {
+                            setSelectedTransaction(updated);
+                            queryClient.invalidateQueries({ queryKey: ['transactions', startDate, endDate] });
+                            queryClient.invalidateQueries({ queryKey: ['salesSummary', startDate, endDate] });
+                        }
+                    }}
+                />
             )}
         </div>
     );

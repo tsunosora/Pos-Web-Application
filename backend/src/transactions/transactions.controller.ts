@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, ParseIntPipe, UseGuards, Query, Request } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { PaymentMethod } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -51,6 +51,27 @@ export class TransactionsController {
         return this.transactionsService.getSummaryReport(startDate, endDate);
     }
 
+    // Static routes MUST come before :id to avoid NestJS swallowing them
+    @Get('edit-requests')
+    getEditRequests(@Query('status') status?: string) {
+        return this.transactionsService.getEditRequests(status);
+    }
+
+    @Patch('edit-requests/:requestId/review')
+    reviewEditRequest(
+        @Param('requestId', ParseIntPipe) requestId: number,
+        @Request() req: any,
+        @Body() body: { approved: boolean; reviewNote?: string },
+    ) {
+        return this.transactionsService.reviewEditRequest(
+            requestId,
+            req.user.userId,
+            req.user.role,
+            body.approved,
+            body.reviewNote,
+        );
+    }
+
     @Get(':id')
     findOne(@Param('id', ParseIntPipe) id: number) {
         return this.transactionsService.findOne(id);
@@ -64,5 +85,37 @@ export class TransactionsController {
     @Patch(':id/payment-method')
     updatePaymentMethod(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod; bankAccountId?: number }) {
         return this.transactionsService.updatePaymentMethod(id, body);
+    }
+
+    @Patch(':id')
+    editTransactionDirect(
+        @Param('id', ParseIntPipe) id: number,
+        @Request() req: any,
+        @Body() body: {
+            items: { id: number; quantity?: number; widthCm?: number; heightCm?: number; unitType?: string }[];
+            discount?: number;
+            customerName?: string;
+            customerPhone?: string;
+            customerAddress?: string;
+        },
+    ) {
+        return this.transactionsService.editTransactionDirect(id, req.user.role, body);
+    }
+
+    @Post(':id/edit-request')
+    createEditRequest(
+        @Param('id', ParseIntPipe) id: number,
+        @Request() req: any,
+        @Body() body: {
+            reason: string;
+            items: { id: number; quantity?: number; widthCm?: number; heightCm?: number; unitType?: string }[];
+            discount?: number;
+            customerName?: string;
+            customerPhone?: string;
+            customerAddress?: string;
+        },
+    ) {
+        const { reason, ...editData } = body;
+        return this.transactionsService.createEditRequest(id, req.user.userId, reason, editData);
     }
 }

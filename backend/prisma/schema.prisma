@@ -60,8 +60,10 @@ model User {
 
   role      Role?      @relation(fields: [roleId], references: [id])
   cashflows Cashflow[]
-  cashflowRequests  CashflowChangeRequest[] @relation("CashflowRequests")
-  cashflowReviews   CashflowChangeRequest[] @relation("CashflowReviews")
+  cashflowRequests    CashflowChangeRequest[]    @relation("CashflowRequests")
+  cashflowReviews     CashflowChangeRequest[]    @relation("CashflowReviews")
+  editRequests        TransactionEditRequest[]   @relation("EditRequests")
+  editReviews         TransactionEditRequest[]   @relation("EditReviews")
 
   @@map("users")
 }
@@ -246,8 +248,9 @@ model Transaction {
   updatedAt          DateTime?         @default(now()) @updatedAt @map("updated_at")
 
   items          TransactionItem[]
-  bankAccount    BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  bankAccount    BankAccount?           @relation(fields: [bankAccountId], references: [id])
   productionJobs ProductionJob[]
+  editRequests   TransactionEditRequest[]
 
   @@map("transactions")
 }
@@ -328,6 +331,31 @@ model CashflowChangeRequest {
   reviewer  User?    @relation("CashflowReviews",  fields: [reviewedBy],  references: [id])
 
   @@map("cashflow_change_requests")
+}
+
+enum EditRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model TransactionEditRequest {
+  id            Int               @id @default(autoincrement())
+  transactionId Int               @map("transaction_id")
+  requestedById Int               @map("requested_by_id")
+  reviewedById  Int?              @map("reviewed_by_id")
+  status        EditRequestStatus @default(PENDING)
+  reason        String            @db.Text
+  editData      Json              @map("edit_data")
+  reviewNote    String?           @map("review_note") @db.Text
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @default(now()) @updatedAt @map("updated_at")
+
+  transaction  Transaction @relation(fields: [transactionId], references: [id])
+  requestedBy  User        @relation("EditRequests", fields: [requestedById], references: [id])
+  reviewedBy   User?       @relation("EditReviews",  fields: [reviewedById], references: [id])
+
+  @@map("transaction_edit_requests")
 }
 
 enum InvoiceStatus {

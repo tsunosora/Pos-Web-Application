@@ -35,7 +35,10 @@
       "Read(//backend/**)",
       "Bash(ls -la /backend)",
       "Bash(sqlite3 /dev/null \"SELECT name FROM sqlite_master;\")",
-      "Bash(find D:WEBDEVPos-Web-Application -type f -path */src/* -name *controller*)"
+      "Bash(find D:WEBDEVPos-Web-Application -type f -path */src/* -name *controller*)",
+      "Bash(find /d/FAISAL/appdev/comprehensive-pos-web-application/frontend/src/app/transactions -type f -name *.tsx -o -name *.ts)",
+      "Bash(find D:FAISALappdevcomprehensive-pos-web-applicationbackendsrcauth -type f -name *.ts)",
+      "Bash(find D:FAISALappdevcomprehensive-pos-web-applicationbackendsrc -type f -name *user*)"
     ]
   }
 }

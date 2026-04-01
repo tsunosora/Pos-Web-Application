@@ -20,10 +20,13 @@ import {
     ClipboardList,
     Printer,
     Truck,
+    ClipboardEdit,
 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { getTransactionEditRequests } from "@/lib/api/transactions";
 
 const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -45,6 +48,7 @@ const navigation = [
 export function Sidebar() {
     const pathname = usePathname();
     const { isSidebarOpen, closeSidebar } = useUIStore();
+    const { isManager } = useCurrentUser();
 
     // Ambil nama dan logo toko dari settings
     const { data: settings } = useQuery({
@@ -52,6 +56,15 @@ export function Sidebar() {
         queryFn: getSettings,
         staleTime: 5 * 60 * 1000,
     });
+
+    const { data: pendingEditRequests } = useQuery({
+        queryKey: ['transaction-edit-requests', 'PENDING'],
+        queryFn: () => getTransactionEditRequests('PENDING'),
+        enabled: isManager,
+        staleTime: 60_000,
+        refetchInterval: 60_000,
+    });
+    const pendingEditCount = pendingEditRequests?.length ?? 0;
 
     const storeName = settings?.storeName || 'PosPro';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -131,6 +144,33 @@ export function Sidebar() {
                                 </Link>
                             );
                         })}
+
+                        {/* Permintaan Edit — hanya untuk Admin/Owner */}
+                        {isManager && (
+                            <Link
+                                href="/transactions/edit-requests"
+                                onClick={() => { if (window.innerWidth < 1024) closeSidebar(); }}
+                                className={cn(
+                                    pathname === '/transactions/edit-requests'
+                                        ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                                        : "hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+                                    "group flex items-center rounded-md px-3 py-2.5 text-sm font-medium transition-all"
+                                )}
+                            >
+                                <ClipboardEdit
+                                    className={cn(
+                                        pathname === '/transactions/edit-requests' ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/70 group-hover:text-sidebar-accent-foreground",
+                                        "mr-3 h-5 w-5 flex-shrink-0 transition-colors"
+                                    )}
+                                />
+                                Permintaan Edit
+                                {pendingEditCount > 0 && (
+                                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                                        {pendingEditCount > 9 ? '9+' : pendingEditCount}
+                                    </span>
+                                )}
+                            </Link>
+                        )}
                     </nav>
                 </div>
 

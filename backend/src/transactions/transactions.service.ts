@@ -1,7 +1,23 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod, TransactionStatus, CashflowType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+
+type EditItemData = {
+    id: number;
+    quantity?: number;
+    widthCm?: number;
+    heightCm?: number;
+    unitType?: string;
+};
+
+type TransactionEditData = {
+    items: EditItemData[];
+    discount?: number;
+    customerName?: string;
+    customerPhone?: string;
+    customerAddress?: string;
+};
 
 @Injectable()
 export class TransactionsService {
@@ -784,5 +800,357 @@ export class TransactionsService {
             alerts: { count: lowStockCount, items: lowStockItems.map(item => ({ name: `${item.product.name} ${item.size ? `(${item.size})` : ''}`.trim(), stock: item.stock, limit: 10 })) },
             salesChart
         };
+    }
+
+    // ─── Edit Transaction Feature ───────────────────────────────────────────
+
+    private async isAdminOrOwner(roleId: number | null): Promise<boolean> {
+        if (!roleId) return false;
+        const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+        if (!role) return false;
+        const n = role.name.toLowerCase();
+        return n === 'admin' || n === 'owner' || n === 'pemilik' || n.includes('manager') || n.includes('manajer') || n.includes('supervisor') || n.includes('kepala');
+    }
+
+    private async applyTransactionEdit(tx: any, transactionId: number, editData: TransactionEditData): Promise<void> {
+        const transaction = await tx.transaction.findUniqueOrThrow({
+            where: { id: transactionId },
+            include: {
+                items: {
+                    include: {
+                        productVariant: {
+                            include: {
+                                product: { include: { ingredients: true } },
+                                variantIngredients: true,
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!['PAID', 'PARTIAL'].includes(transaction.status)) {
+            throw new BadRequestException('Hanya transaksi PAID atau PARTIAL yang dapat diedit');
+        }
+
+        const settings = await tx.storeSettings.findFirst();
+        const enableTax = settings?.enableTax ?? true;
+        const taxRate = settings?.taxRate ? Number(settings.taxRate) : 10;
+
+        let newSubtotal = 0;
+
+        for (const editItem of editData.items) {
+            const txItem = transaction.items.find((i: any) => i.id === editItem.id);
+            if (!txItem) throw new NotFoundException(`Item ID ${editItem.id} tidak ditemukan di transaksi ini`);
+
+            const variant = txItem.productVariant;
+            const product = variant.product;
+            const pricingMode = product.pricingMode || 'UNIT';
+            const trackStock = product.trackStock !== false;
+            const variantIngredients: any[] = variant.variantIngredients || [];
+            const productIngredients: any[] = product.ingredients || [];
+
+            if (pricingMode === 'AREA_BASED') {
+                const newW = editItem.widthCm ?? Number(txItem.widthCm);
+                const newH = editItem.heightCm ?? Number(txItem.heightCm ?? 1);
+                const unitType = editItem.unitType || 'm';
+
+                let newPriceMultiplier = 0;
+                let newAreaM2 = 0;
+
+                if (unitType === 'm') {
+                    newPriceMultiplier = newW * newH;
+                    newAreaM2 = newW * newH;
+                } else if (unitType === 'cm') {
+                    newPriceMultiplier = newW * newH;
+                    newAreaM2 = (newW * newH) / 10000;
+                } else if (unitType === 'menit') {
+                    newPriceMultiplier = newW;
+                    newAreaM2 = newW;
+                } else {
+                    newPriceMultiplier = (newW * newH) / 10000;
+                    newAreaM2 = (newW * newH) / 10000;
+                }
+
+                const newAreaCm2 = newAreaM2 * 10000;
+                const oldAreaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
+                const areaDelta = newAreaM2 - oldAreaM2;
+
+                if (trackStock && Math.abs(areaDelta) > 0.0001) {
+                    const currentVariant = await tx.productVariant.findUnique({ where: { id: variant.id } });
+                    if (areaDelta > 0) {
+                        if (Number(currentVariant.stock) < areaDelta) {
+                            throw new BadRequestException(
+                                `Stok bahan ${product.name} tidak cukup. Tersisa: ${Number(currentVariant.stock).toFixed(2)} m², dibutuhkan: ${areaDelta.toFixed(2)} m²`
+                            );
+                        }
+                        await tx.productVariant.update({
+                            where: { id: variant.id },
+                            data: { stock: Math.floor((Number(currentVariant.stock) - areaDelta) * 100) / 100 }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                productVariantId: variant.id,
+                                type: 'OUT',
+                                quantity: Math.ceil(areaDelta * 100),
+                                reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`,
+                            }
+                        });
+                    } else {
+                        const returnM2 = Math.abs(areaDelta);
+                        await tx.productVariant.update({
+                            where: { id: variant.id },
+                            data: { stock: Math.floor((Number(currentVariant.stock) + returnM2) * 100) / 100 }
+                        });
+                        await tx.stockMovement.create({
+                            data: {
+                                productVariantId: variant.id,
+                                type: 'IN',
+                                quantity: Math.ceil(returnM2 * 100),
+                                reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`,
+                            }
+                        });
+                    }
+
+                    // Adjust product-level BOM (AREA_BASED)
+                    for (const ing of productIngredients) {
+                        if (ing.rawMaterialVariantId) {
+                            const rawVariant = await tx.productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
+                            if (rawVariant) {
+                                const ingDelta = Number(ing.quantity) * areaDelta;
+                                if (ingDelta > 0) {
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(ingDelta * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                } else if (ingDelta < 0) {
+                                    const ret = Math.abs(ingDelta);
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                }
+                            }
+                        }
+                    }
+
+                    // Adjust variant-level BOM (AREA_BASED)
+                    for (const ing of variantIngredients) {
+                        if (ing.rawMaterialVariantId && !ing.isServiceCost) {
+                            const rawVariant = await tx.productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
+                            if (rawVariant) {
+                                const ingDelta = Number(ing.quantity) * areaDelta;
+                                if (ingDelta > 0) {
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(ingDelta * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                } else if (ingDelta < 0) {
+                                    const ret = Math.abs(ingDelta);
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                const unitPrice = Number(variant.price);
+                const newLineTotal = newPriceMultiplier * unitPrice;
+
+                await tx.transactionItem.update({
+                    where: { id: txItem.id },
+                    data: { widthCm: newW, heightCm: newH, areaCm2: newAreaCm2, priceAtTime: newLineTotal }
+                });
+                newSubtotal += newLineTotal;
+
+            } else {
+                // UNIT mode
+                const newQty = editItem.quantity ?? txItem.quantity;
+                if (newQty < 1) throw new BadRequestException(`Jumlah item minimal 1`);
+                const delta = newQty - txItem.quantity;
+
+                if (trackStock && delta !== 0) {
+                    const currentVariant = await tx.productVariant.findUnique({ where: { id: variant.id } });
+                    if (delta > 0) {
+                        if (Number(currentVariant.stock) < delta) {
+                            throw new BadRequestException(`Stok tidak cukup untuk ${product.name}. Tersisa: ${currentVariant.stock}`);
+                        }
+                        await tx.productVariant.update({ where: { id: variant.id }, data: { stock: Number(currentVariant.stock) - delta } });
+                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'OUT', quantity: delta, reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty bertambah)` } });
+                    } else {
+                        const returnQty = Math.abs(delta);
+                        await tx.productVariant.update({ where: { id: variant.id }, data: { stock: Number(currentVariant.stock) + returnQty } });
+                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'IN', quantity: returnQty, reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty berkurang)` } });
+                    }
+
+                    // Adjust product-level BOM (UNIT)
+                    for (const ing of productIngredients) {
+                        if (ing.rawMaterialVariantId) {
+                            const rawVariant = await tx.productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
+                            if (rawVariant) {
+                                const ingDelta = Number(ing.quantity) * delta;
+                                if (ingDelta > 0) {
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(Math.abs(ingDelta) * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                } else if (ingDelta < 0) {
+                                    const ret = Math.abs(ingDelta);
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                }
+                            }
+                        }
+                    }
+
+                    // Adjust variant-level BOM (UNIT)
+                    for (const ing of variantIngredients) {
+                        if (ing.rawMaterialVariantId && !ing.isServiceCost) {
+                            const rawVariant = await tx.productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
+                            if (rawVariant) {
+                                const ingDelta = Number(ing.quantity) * delta;
+                                if (ingDelta > 0) {
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(Math.abs(ingDelta) * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                } else if (ingDelta < 0) {
+                                    const ret = Math.abs(ingDelta);
+                                    await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
+                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                }
+                            }
+                        }
+                    }
+                }
+
+                await tx.transactionItem.update({ where: { id: txItem.id }, data: { quantity: newQty } });
+                newSubtotal += Number(txItem.priceAtTime) * newQty;
+            }
+        }
+
+        // Items NOT in editData keep their existing subtotals
+        for (const existingItem of transaction.items) {
+            const wasEdited = editData.items.some((e) => e.id === existingItem.id);
+            if (!wasEdited) {
+                if (existingItem.widthCm !== null) {
+                    newSubtotal += Number(existingItem.priceAtTime);
+                } else {
+                    newSubtotal += Number(existingItem.priceAtTime) * existingItem.quantity;
+                }
+            }
+        }
+
+        const discountAmount = editData.discount !== undefined ? editData.discount : Number(transaction.discount);
+        const amountAfterDiscount = newSubtotal - discountAmount;
+        const taxAmount = enableTax ? amountAfterDiscount * (taxRate / 100) : 0;
+        const newGrandTotal = amountAfterDiscount + taxAmount;
+
+        await tx.transaction.update({
+            where: { id: transactionId },
+            data: {
+                totalAmount: newSubtotal,
+                discount: discountAmount,
+                tax: taxAmount,
+                grandTotal: newGrandTotal,
+                customerName: editData.customerName !== undefined ? editData.customerName : transaction.customerName,
+                customerPhone: editData.customerPhone !== undefined ? editData.customerPhone : transaction.customerPhone,
+                customerAddress: editData.customerAddress !== undefined ? editData.customerAddress : transaction.customerAddress,
+            }
+        });
+
+        // Update cashflow if PAID
+        if (transaction.status === 'PAID') {
+            await tx.cashflow.updateMany({
+                where: { note: { contains: transaction.invoiceNumber }, type: CashflowType.INCOME },
+                data: { amount: newGrandTotal }
+            });
+        }
+    }
+
+    async editTransactionDirect(id: number, roleId: number | null, editData: TransactionEditData) {
+        if (!(await this.isAdminOrOwner(roleId))) {
+            throw new ForbiddenException('Hanya Admin/Owner yang dapat mengedit transaksi langsung');
+        }
+        return this.prisma.$transaction(async (tx) => {
+            await this.applyTransactionEdit(tx, id, editData);
+            return tx.transaction.findUniqueOrThrow({
+                where: { id },
+                include: { items: { include: { productVariant: { include: { product: true } } } } }
+            });
+        });
+    }
+
+    async createEditRequest(transactionId: number, requestedById: number, reason: string, editData: TransactionEditData) {
+        const transaction = await this.prisma.transaction.findUnique({ where: { id: transactionId } });
+        if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan');
+        if (!['PAID', 'PARTIAL'].includes(transaction.status)) {
+            throw new BadRequestException('Hanya transaksi PAID atau PARTIAL yang dapat diedit');
+        }
+
+        const existing = await (this.prisma as any).transactionEditRequest.findFirst({
+            where: { transactionId, status: 'PENDING' }
+        });
+        if (existing) throw new BadRequestException('Sudah ada permintaan edit yang menunggu untuk transaksi ini');
+
+        const requester = await this.prisma.user.findUnique({ where: { id: requestedById }, select: { name: true } });
+
+        const request = await (this.prisma as any).transactionEditRequest.create({
+            data: { transactionId, requestedById, reason, editData: editData as any, status: 'PENDING' }
+        });
+
+        this.notificationsService.emit({
+            type: 'system',
+            title: 'Permintaan Edit Transaksi',
+            message: `${requester?.name || 'Kasir'} meminta edit transaksi ${transaction.invoiceNumber}`,
+        });
+
+        return request;
+    }
+
+    async getEditRequests(status?: string) {
+        return (this.prisma as any).transactionEditRequest.findMany({
+            where: status ? { status } : undefined,
+            orderBy: { createdAt: 'desc' },
+            include: {
+                transaction: { select: { id: true, invoiceNumber: true, grandTotal: true, status: true, items: { include: { productVariant: { include: { product: true } } } } } },
+                requestedBy: { select: { id: true, name: true, email: true } },
+                reviewedBy: { select: { id: true, name: true, email: true } },
+            }
+        });
+    }
+
+    async reviewEditRequest(requestId: number, reviewerId: number, reviewerRoleId: number | null, approved: boolean, reviewNote?: string) {
+        if (!(await this.isAdminOrOwner(reviewerRoleId))) {
+            throw new ForbiddenException('Hanya Admin/Owner yang dapat mereview permintaan edit');
+        }
+
+        const req = await (this.prisma as any).transactionEditRequest.findUnique({ where: { id: requestId } });
+        if (!req) throw new NotFoundException('Permintaan edit tidak ditemukan');
+        if (req.status !== 'PENDING') throw new BadRequestException('Permintaan ini sudah diproses');
+
+        if (approved) {
+            await this.prisma.$transaction(async (tx) => {
+                await this.applyTransactionEdit(tx, req.transactionId, req.editData as TransactionEditData);
+                await (tx as any).transactionEditRequest.update({
+                    where: { id: requestId },
+                    data: { status: 'APPROVED', reviewedById: reviewerId, reviewNote: reviewNote || null }
+                });
+            });
+            this.notificationsService.emit({
+                type: 'system',
+                title: 'Permintaan Edit Disetujui',
+                message: `Perubahan transaksi telah diterapkan.${reviewNote ? ` Catatan: ${reviewNote}` : ''}`,
+            });
+        } else {
+            await (this.prisma as any).transactionEditRequest.update({
+                where: { id: requestId },
+                data: { status: 'REJECTED', reviewedById: reviewerId, reviewNote: reviewNote || null }
+            });
+            this.notificationsService.emit({
+                type: 'system',
+                title: 'Permintaan Edit Ditolak',
+                message: `Permintaan ditolak.${reviewNote ? ` Alasan: ${reviewNote}` : ''}`,
+            });
+        }
+
+        return (this.prisma as any).transactionEditRequest.findUnique({
+            where: { id: requestId },
+            include: {
+                transaction: { select: { id: true, invoiceNumber: true } },
+                requestedBy: { select: { id: true, name: true, email: true } },
+            }
+        });
     }
 }
