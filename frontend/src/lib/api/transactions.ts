@@ -32,6 +32,8 @@ export const createTransaction = async (data: {
     productionPriority?: 'NORMAL' | 'EXPRESS';
     productionDeadline?: string;
     productionNotes?: string;
+    transactionDate?: string;  // backdate: "YYYY-MM-DD" — createdAt transaksi
+    cashflowDate?: string;     // "YYYY-MM-DD" — tanggal cashflow (kosong = sama dgn transactionDate)
 }) => (await api.post('/transactions', data)).data;
 export const payOffTransaction = async (id: number, data: { paymentMethod: string, bankAccountId?: number }) =>
     (await api.post(`/transactions/${id}/pay-off`, data)).data;

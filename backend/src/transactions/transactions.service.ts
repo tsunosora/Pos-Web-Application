@@ -52,6 +52,8 @@ export class TransactionsService {
         productionPriority?: string;
         productionDeadline?: string;
         productionNotes?: string;
+        transactionDate?: string; // ISO date backdate: "2026-03-29" — sets transaction createdAt
+        cashflowDate?: string;    // ISO date for cashflow: jika diisi, cashflow.date = ini (hari ini = masuk shift hari ini)
     }) {
         return this.prisma.$transaction(async (tx) => {
             const settings = await tx.storeSettings.findFirst();
@@ -306,9 +308,19 @@ export class TransactionsService {
             const downPayment = data.downPayment !== undefined ? data.downPayment : grandTotal;
             const status = downPayment < grandTotal ? TransactionStatus.PARTIAL : TransactionStatus.PAID;
 
-            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            // ── Backdate support ──────────────────────────────────────────────
+            // effectiveDate = tanggal nota (backdate atau hari ini)
+            const effectiveDate = data.transactionDate ? new Date(data.transactionDate + 'T00:00:00') : new Date();
+            // effectiveCashflowDate = tanggal cashflow (bisa hari ini jika user minta masuk shift hari ini)
+            const effectiveCashflowDate = data.cashflowDate ? new Date(data.cashflowDate + 'T00:00:00') : effectiveDate;
+
+            const dateStr = effectiveDate.toISOString().split('T')[0].replace(/-/g, '');
+            const startOfEffectiveDay = new Date(effectiveDate);
+            startOfEffectiveDay.setHours(0, 0, 0, 0);
+            const endOfEffectiveDay = new Date(effectiveDate);
+            endOfEffectiveDay.setHours(23, 59, 59, 999);
             const count = await tx.transaction.count({
-                where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } }
+                where: { createdAt: { gte: startOfEffectiveDay, lte: endOfEffectiveDay } }
             });
             const invoiceNumber = `INV-${dateStr}-${(count + 1).toString().padStart(4, '0')}`;
 
@@ -335,6 +347,7 @@ export class TransactionsService {
                     productionPriority: data.productionPriority || 'NORMAL',
                     productionDeadline: data.productionDeadline ? new Date(data.productionDeadline) : null,
                     productionNotes: data.productionNotes || null,
+                    createdAt: effectiveDate,  // backdate support
                     items: { create: itemsForCreate }
                 },
                 include: { items: true, bankAccount: true }
@@ -373,6 +386,7 @@ export class TransactionsService {
                         paymentMethod: data.paymentMethod,
                         bankAccountId: data.bankAccountId || null,
                         note: `Pembayaran Invoice ${invoiceNumber}${customerInfo} via ${data.paymentMethod}`,
+                        date: effectiveCashflowDate,  // backdate / cashflow date support
                     }
                 });
             }

@@ -2,12 +2,13 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers, createTransaction } from '@/lib/api';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check } from "lucide-react";
+import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCartStore, CartItem } from '@/store/cart-store';
 import { useState, useMemo, useCallback } from 'react';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { useNotificationStore } from '@/store/notification-store';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -45,6 +46,7 @@ export default function POSPage() {
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
     const { data: customers, refetch: refetchCustomers } = useQuery({ queryKey: ['customers'], queryFn: getCustomers });
     const { data: users } = useQuery({ queryKey: ['users'], queryFn: getUsers });
+    const { isManager } = useCurrentUser();
 
     const createCustomerMutation = useMutation({
         mutationFn: createCustomer,
@@ -75,6 +77,11 @@ export default function POSPage() {
     const [productionPriority, setProductionPriority] = useState<'NORMAL' | 'EXPRESS'>('NORMAL');
     const [productionDeadline, setProductionDeadline] = useState('');
     const [productionNotes, setProductionNotes] = useState('');
+
+    // Backdate state (khusus manager)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const [transactionDate, setTransactionDate] = useState('');       // kosong = hari ini
+    const [cashflowToday, setCashflowToday] = useState(false);        // true = cashflow masuk shift hari ini
 
     // Note Modal State for UNIT products
     const [unitNoteModal, setUnitNoteModal] = useState<{ open: boolean, lineId: string, currentNote: string }>({ open: false, lineId: '', currentNote: '' });
@@ -282,6 +289,9 @@ export default function POSPage() {
             productionPriority,
             productionDeadline: productionDeadline || undefined,
             productionNotes: productionNotes.trim() || undefined,
+            // Backdate fields (only sent if manager filled them)
+            transactionDate: transactionDate || undefined,
+            cashflowDate: (transactionDate && cashflowToday) ? todayStr : undefined,
         };
 
         if (!navigator.onLine) {
@@ -299,6 +309,7 @@ export default function POSPage() {
                     setCustomerName(''); setCustomerPhone(''); setCustomerAddress('');
                     setProductionPriority('NORMAL'); setProductionDeadline(''); setProductionNotes('');
                     setPaymentMethod('CASH'); setSelectedBankId('');
+                    setTransactionDate(''); setCashflowToday(false);
                     setReceipt(snap);
 
                     // Notif transaksi berhasil
@@ -1105,6 +1116,47 @@ export default function POSPage() {
                                 )}
                             </div>
                         </div>
+
+                        {/* Backdate section — hanya untuk manager */}
+                        {isManager && (
+                            <div className="px-4 pb-3">
+                                <div className={`rounded-xl border p-3 space-y-2.5 transition-colors ${transactionDate ? 'border-amber-400/60 bg-amber-500/5' : 'border-border bg-muted/20'}`}>
+                                    <div className="flex items-center gap-2">
+                                        <CalendarClock className={`w-4 h-4 shrink-0 ${transactionDate ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                                        <span className="text-xs font-semibold text-foreground">Tanggal Nota (Nota Terlambat)</span>
+                                        {transactionDate && (
+                                            <span className="ml-auto text-[10px] font-bold text-amber-600 bg-amber-500/15 px-2 py-0.5 rounded-full">BACKDATE</span>
+                                        )}
+                                    </div>
+                                    <input
+                                        type="date"
+                                        value={transactionDate}
+                                        max={todayStr}
+                                        onChange={e => { setTransactionDate(e.target.value); if (!e.target.value) setCashflowToday(false); }}
+                                        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-amber-400/50"
+                                    />
+                                    {transactionDate && (
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                checked={cashflowToday}
+                                                onChange={e => setCashflowToday(e.target.checked)}
+                                                className="w-4 h-4 accent-primary rounded"
+                                            />
+                                            <span className="text-xs text-muted-foreground">
+                                                Masukkan pendapatan ke <span className="font-semibold text-primary">shift hari ini</span> (cashflow hari ini)
+                                            </span>
+                                        </label>
+                                    )}
+                                    {transactionDate && (
+                                        <p className="text-[11px] text-amber-600 leading-relaxed">
+                                            ⚠️ Transaksi akan tercatat pada <strong>{new Date(transactionDate + 'T00:00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</strong>.
+                                            {cashflowToday ? ' Pendapatan masuk shift hari ini.' : ' Pendapatan masuk ke tanggal tersebut.'}
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Action bar */}
                         <div className="p-4 border-t border-border bg-muted/20 space-y-2.5 shrink-0">

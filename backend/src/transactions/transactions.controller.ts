@@ -21,6 +21,11 @@ export class TransactionsController {
         cashierName?: string;
         employeeName?: string;
         bankAccountId?: number;
+        productionPriority?: string;
+        productionDeadline?: string;
+        productionNotes?: string;
+        transactionDate?: string;  // backdate: "YYYY-MM-DD"
+        cashflowDate?: string;     // cashflow date override (untuk masuk shift hari ini)
     }) {
         return this.transactionsService.create(createTransactionDto);
     }
