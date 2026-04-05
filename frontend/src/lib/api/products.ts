@@ -83,6 +83,18 @@ export const getWasteMovements = async (variantId: number, since?: string) => {
     if (since) params.append('since', since);
     return (await api.get(`/stock-movements/waste?${params.toString()}`)).data;
 };
+export const getVariantStockHistory = async (variantId: number, page = 1, limit = 50) =>
+    (await api.get(`/products/variants/${variantId}/stock-history?page=${page}&limit=${limit}`)).data;
+
+// Stock Purchases (Pembelian Bahan Baku)
+export const createStockPurchase = async (data: {
+    invoiceNumber?: string;
+    supplierId?: number;
+    notes?: string;
+    items: { productVariantId: number; quantity: number; unitPrice?: number }[];
+}) => (await api.post('/stock-purchases', data)).data;
+
+export const getStockPurchases = async () => (await api.get('/stock-purchases')).data;
 
 // Public product detail (no JWT — untuk halaman share ke customer)
 export const getPublicProduct = async (id: number) => {

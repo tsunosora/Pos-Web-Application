@@ -146,6 +146,7 @@ model ProductVariant {
   variantIngredients      VariantIngredient[] @relation("VariantBOM")
   variantIngredientsAsRaw VariantIngredient[] @relation("VariantRawMaterial")
   hppWorksheets           HppWorksheet[]
+  purchaseItems           StockPurchaseItem[]
 
   @@map("product_variants")
 }
@@ -203,6 +204,8 @@ model StockMovement {
   type             MovementType
   quantity         Int
   reason           String?      @db.VarChar(255)
+  balanceAfter     Float?       @map("balance_after")
+  referenceId      String?      @db.VarChar(100) @map("reference_id")
   date             DateTime?    @default(now())
   createdAt        DateTime?    @default(now()) @map("created_at")
 
@@ -620,7 +623,8 @@ model Supplier {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
 
-  items SupplierItem[]
+  items          SupplierItem[]
+  stockPurchases StockPurchase[]
 
   @@map("suppliers")
 }
@@ -638,6 +642,34 @@ model SupplierItem {
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@map("supplier_items")
+}
+
+// ----- Stock Purchase (Pembelian Bahan Baku) ----- //
+
+model StockPurchase {
+  id            Int      @id @default(autoincrement())
+  invoiceNumber String?  @db.VarChar(100) @map("invoice_number")
+  supplierId    Int?     @map("supplier_id")
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  supplier Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items    StockPurchaseItem[]
+
+  @@map("stock_purchases")
+}
+
+model StockPurchaseItem {
+  id               Int      @id @default(autoincrement())
+  purchaseId       Int      @map("purchase_id")
+  productVariantId Int      @map("product_variant_id")
+  quantity         Int
+  unitPrice        Decimal? @db.Decimal(15, 2) @map("unit_price")
+
+  purchase       StockPurchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@map("stock_purchase_items")
 }
 
 // ----- Variant Price Tiers (Harga Bertingkat) ----- //

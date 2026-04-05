@@ -103,7 +103,9 @@ export class StockOpnameService {
                         type: 'ADJUST',
                         quantity: Math.abs(diff),
                         reason: `Stok Opname #${id.slice(0, 8)} — ${diff > 0 ? '+' : ''}${diff}`,
-                    },
+                        balanceAfter: item.confirmedStock,
+                        referenceId: `opname-${id.slice(0, 8)}`,
+                    } as any,
                 });
             }
         }

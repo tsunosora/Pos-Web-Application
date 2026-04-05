@@ -60,7 +60,22 @@ export class ProductsService {
             include: {
                 category: true,
                 unit: true,
-                variants: { include: variantInclude },
+                variants: {
+                    include: {
+                        ...variantInclude,
+                        movements: {
+                            where: {
+                                OR: [
+                                    { referenceId: 'initial-stock' },
+                                    { reason: { contains: 'Stok Awal' } },
+                                ],
+                            } as any,
+                            orderBy: { createdAt: 'asc' as const },
+                            take: 1,
+                            select: { quantity: true, balanceAfter: true, createdAt: true },
+                        },
+                    },
+                },
                 ingredients: true
             }
         });
@@ -289,17 +304,45 @@ export class ProductsService {
                 data: variantIngredients.map((ing: any) => ({ ...ing, variantId: variant.id }))
             });
         }
+        // Catat stok awal jika > 0
+        if (Number(data.stock) > 0) {
+            await this.prisma.stockMovement.create({
+                data: {
+                    productVariantId: variant.id,
+                    type: 'IN',
+                    quantity: Number(data.stock),
+                    reason: 'Stok Awal',
+                    balanceAfter: Number(data.stock),
+                    referenceId: 'initial-stock',
+                } as any,
+            });
+        }
         return this.prisma.productVariant.findUnique({ where: { id: variant.id }, include: variantInclude });
     }
 
     async updateVariant(variantId: number, variantData: any) {
         const { priceTiers, variantIngredients, ...data } = variantData;
+        const oldVariant = await this.prisma.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } });
         await this.prisma.productVariant.update({ where: { id: variantId }, data });
         if (priceTiers !== undefined) {
             await this.replacePriceTiers(variantId, priceTiers);
         }
         if (variantIngredients !== undefined) {
             await this.replaceVariantIngredients(variantId, variantIngredients);
+        }
+        // Catat pergerakan stok jika ada perubahan stok manual
+        if (oldVariant && data.stock !== undefined && Number(data.stock) !== Number(oldVariant.stock)) {
+            const newStock = Number(data.stock);
+            await this.prisma.stockMovement.create({
+                data: {
+                    productVariantId: variantId,
+                    type: 'ADJUST',
+                    quantity: Math.round(Math.abs(newStock - Number(oldVariant.stock)) * 100),
+                    reason: 'Penyesuaian Manual',
+                    balanceAfter: newStock,
+                    referenceId: 'manual-adjust',
+                } as any,
+            });
         }
         return this.prisma.productVariant.findUnique({ where: { id: variantId }, include: variantInclude });
     }
@@ -378,5 +421,30 @@ export class ProductsService {
 
     async removeVariantIngredient(ingredientId: number) {
         return this.prisma.variantIngredient.delete({ where: { id: ingredientId } });
+    }
+
+    // ── Stock History ───────────────────────────────────────────────────────
+
+    async getVariantStockHistory(variantId: number, page = 1, limit = 50) {
+        const skip = (page - 1) * limit;
+        const [movements, total] = await Promise.all([
+            (this.prisma as any).stockMovement.findMany({
+                where: { productVariantId: variantId },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+                select: {
+                    id: true,
+                    type: true,
+                    quantity: true,
+                    reason: true,
+                    balanceAfter: true,
+                    referenceId: true,
+                    createdAt: true,
+                },
+            }),
+            (this.prisma as any).stockMovement.count({ where: { productVariantId: variantId } }),
+        ]);
+        return { movements, total, page, limit };
     }
 }

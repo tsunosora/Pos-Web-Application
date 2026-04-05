@@ -100,7 +100,9 @@ export class ProductionService {
                         type: 'OUT',
                         quantity: areaToDeduct,
                         reason: `Produksi Job #${job.jobNumber} (${data.rollAreaM2.toFixed(2)}m²)`,
-                    },
+                        balanceAfter: newStock,
+                        referenceId: job.jobNumber,
+                    } as any,
                 });
             }
 
@@ -183,13 +185,16 @@ export class ProductionService {
                             where: { id: rawVariant.id },
                             data: { stock: newStock < 0 ? 0 : newStock }
                         });
+                        const newRawStock = Number(rawVariant.stock) - Number(ing.quantity) < 0 ? 0 : Number(rawVariant.stock) - Number(ing.quantity);
                         await tx.stockMovement.create({
                             data: {
                                 productVariantId: rawVariant.id,
                                 type: 'OUT',
                                 quantity: Math.ceil(Number(ing.quantity)),
-                                reason: `Pemasangan Job #${job.jobNumber} — ${ing.name}`
-                            }
+                                reason: `Pemasangan Job #${job.jobNumber} — ${ing.name}`,
+                                balanceAfter: newRawStock,
+                                referenceId: job.jobNumber,
+                            } as any,
                         });
                     }
                 }
@@ -277,7 +282,9 @@ export class ProductionService {
                         type: 'OUT',
                         quantity: areaToDeduct,
                         reason: `Gabung Cetak ${batchNumber} (${data.totalAreaM2.toFixed(2)}m²)`,
-                    },
+                        balanceAfter: newStock,
+                        referenceId: batchNumber,
+                    } as any,
                 });
             }
 

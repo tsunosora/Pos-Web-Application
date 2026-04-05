@@ -29,6 +29,14 @@ export class TransactionsService {
         private notificationsService: NotificationsService,
     ) { }
 
+    // Helper: buat StockMovement dengan balanceAfter otomatis dari stok variant saat ini (post-update)
+    private async logMovement(tx: any, variantId: number, type: string, quantity: number, reason: string, referenceId?: string) {
+        const v = await tx.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } });
+        await tx.stockMovement.create({
+            data: { productVariantId: variantId, type, quantity, reason, balanceAfter: v ? Number(v.stock) : null, ...(referenceId ? { referenceId } : {}) } as any,
+        });
+    }
+
     async create(data: {
         items: {
             productVariantId: number;
@@ -150,14 +158,7 @@ export class TransactionsService {
                             where: { id: variant.id },
                             data: { stock: Math.floor((currentStock - areaM2) * 100) / 100 }
                         });
-                        await tx.stockMovement.create({
-                            data: {
-                                productVariantId: variant.id,
-                                type: 'OUT',
-                                quantity: Math.ceil(areaM2 * 100),
-                                reason: `Penjualan Cetak ${widthCm}×${heightCm}cm (${areaM2.toFixed(2)}m²)`
-                            }
-                        });
+                        await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaM2 * 100), `Penjualan Cetak ${widthCm}×${heightCm}cm (${areaM2.toFixed(2)}m²)`);
 
                         // Deduct product-level BOM (AREA_BASED)
                         const ingredients = (variant.product as any).ingredients || [];
@@ -170,14 +171,7 @@ export class TransactionsService {
                                         where: { id: rawVariant.id },
                                         data: { stock: Math.floor((Number(rawVariant.stock) - neededStock) * 100) / 100 }
                                     });
-                                    await tx.stockMovement.create({
-                                        data: {
-                                            productVariantId: rawVariant.id,
-                                            type: 'OUT',
-                                            quantity: Math.ceil(neededStock * 100),
-                                            reason: `Terpotong oleh Penjualan ${variant.product.name}`
-                                        }
-                                    });
+                                    await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(neededStock * 100), `Terpotong oleh Penjualan ${variant.product.name}`);
                                 }
                             }
                         }
@@ -192,14 +186,7 @@ export class TransactionsService {
                                         where: { id: rawVariant.id },
                                         data: { stock: Math.floor((Number(rawVariant.stock) - neededStock) * 100) / 100 }
                                     });
-                                    await tx.stockMovement.create({
-                                        data: {
-                                            productVariantId: rawVariant.id,
-                                            type: 'OUT',
-                                            quantity: Math.ceil(neededStock * 100),
-                                            reason: `Terpotong (varian) oleh Penjualan ${variant.product.name}`
-                                        }
-                                    });
+                                    await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(neededStock * 100), `Terpotong (varian) oleh Penjualan ${variant.product.name}`);
                                 }
                             }
                         }
@@ -227,14 +214,7 @@ export class TransactionsService {
                             where: { id: variant.id },
                             data: { stock: variant.stock - item.quantity }
                         });
-                        await tx.stockMovement.create({
-                            data: {
-                                productVariantId: variant.id,
-                                type: 'OUT',
-                                quantity: item.quantity,
-                                reason: `Penjualan (Checkout)`
-                            }
-                        });
+                        await this.logMovement(tx, variant.id, 'OUT', item.quantity, `Penjualan (Checkout)`);
                     }
 
                     lineTotal = resolvedPrice * item.quantity;
@@ -258,14 +238,7 @@ export class TransactionsService {
                                     where: { id: rawVariant.id },
                                     data: { stock: Math.floor((Number(rawVariant.stock) - neededStock) * 100) / 100 }
                                 });
-                                await tx.stockMovement.create({
-                                    data: {
-                                        productVariantId: rawVariant.id,
-                                        type: 'OUT',
-                                        quantity: Math.ceil(neededStock * 100),
-                                        reason: `Terpotong oleh Penjualan ${variant.product.name}`
-                                    }
-                                });
+                                await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(neededStock * 100), `Terpotong oleh Penjualan ${variant.product.name}`);
                             }
                         }
                     }
@@ -280,14 +253,7 @@ export class TransactionsService {
                                     where: { id: rawVariant.id },
                                     data: { stock: Math.floor((Number(rawVariant.stock) - neededStock) * 100) / 100 }
                                 });
-                                await tx.stockMovement.create({
-                                    data: {
-                                        productVariantId: rawVariant.id,
-                                        type: 'OUT',
-                                        quantity: Math.ceil(neededStock * 100),
-                                        reason: `Terpotong (varian) oleh Penjualan ${variant.product.name}`
-                                    }
-                                });
+                                await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(neededStock * 100), `Terpotong (varian) oleh Penjualan ${variant.product.name}`);
                             }
                         }
                     }
@@ -873,19 +839,19 @@ export class TransactionsService {
                     const areaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
                     if (areaM2 > 0) {
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: Math.floor(areaM2 * 100) / 100 } } });
-                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'IN', quantity: Math.ceil(areaM2 * 100), reason: `Hapus Item Edit Transaksi ${transaction.invoiceNumber}` } });
+                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(areaM2 * 100), `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                             }
                         }
                     }
@@ -893,19 +859,19 @@ export class TransactionsService {
                     const qty = txItem.quantity;
                     if (qty > 0) {
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: qty } } });
-                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'IN', quantity: qty, reason: `Hapus Item Edit Transaksi ${transaction.invoiceNumber}` } });
+                        await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * qty;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * qty;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                             }
                         }
                     }
@@ -954,19 +920,19 @@ export class TransactionsService {
                     const current = await tx.productVariant.findUnique({ where: { id: variant.id } });
                     if (Number(current.stock) < areaM2) throw new BadRequestException(`Stok ${product.name} tidak cukup. Sisa: ${Number(current.stock).toFixed(2)} m²`);
                     await tx.productVariant.update({ where: { id: variant.id }, data: { stock: Math.floor((Number(current.stock) - areaM2) * 100) / 100 } });
-                    await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'OUT', quantity: Math.ceil(areaM2 * 100), reason: `Tambah Item Edit Transaksi ${transaction.invoiceNumber}` } });
+                    await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaM2 * 100), `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`);
                     for (const ing of productIngredients) {
                         if (ing.rawMaterialVariantId) {
                             const needed = Number(ing.quantity) * areaM2;
                             await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { decrement: Math.floor(needed * 100) / 100 } } });
-                            await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'OUT', quantity: Math.ceil(needed * 100), reason: `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                         }
                     }
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const needed = Number(ing.quantity) * areaM2;
                             await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { decrement: Math.floor(needed * 100) / 100 } } });
-                            await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'OUT', quantity: Math.ceil(needed * 100), reason: `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                         }
                     }
                 }
@@ -985,19 +951,19 @@ export class TransactionsService {
                     const current = await tx.productVariant.findUnique({ where: { id: variant.id } });
                     if (Number(current.stock) < qty) throw new BadRequestException(`Stok tidak cukup untuk ${product.name}. Sisa: ${current.stock}`);
                     await tx.productVariant.update({ where: { id: variant.id }, data: { stock: Number(current.stock) - qty } });
-                    await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'OUT', quantity: qty, reason: `Tambah Item Edit Transaksi ${transaction.invoiceNumber}` } });
+                    await this.logMovement(tx, variant.id, 'OUT', qty, `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`);
                     for (const ing of productIngredients) {
                         if (ing.rawMaterialVariantId) {
                             const needed = Number(ing.quantity) * qty;
                             await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { decrement: Math.floor(needed * 100) / 100 } } });
-                            await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'OUT', quantity: Math.ceil(needed * 100), reason: `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                         }
                     }
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const needed = Number(ing.quantity) * qty;
                             await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { decrement: Math.floor(needed * 100) / 100 } } });
-                            await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'OUT', quantity: Math.ceil(needed * 100), reason: `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}` } });
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`);
                         }
                     }
                 }
@@ -1072,28 +1038,14 @@ export class TransactionsService {
                             where: { id: variant.id },
                             data: { stock: Math.floor((Number(currentVariant.stock) - areaDelta) * 100) / 100 }
                         });
-                        await tx.stockMovement.create({
-                            data: {
-                                productVariantId: variant.id,
-                                type: 'OUT',
-                                quantity: Math.ceil(areaDelta * 100),
-                                reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`,
-                            }
-                        });
+                        await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`);
                     } else {
                         const returnM2 = Math.abs(areaDelta);
                         await tx.productVariant.update({
                             where: { id: variant.id },
                             data: { stock: Math.floor((Number(currentVariant.stock) + returnM2) * 100) / 100 }
                         });
-                        await tx.stockMovement.create({
-                            data: {
-                                productVariantId: variant.id,
-                                type: 'IN',
-                                quantity: Math.ceil(returnM2 * 100),
-                                reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`,
-                            }
-                        });
+                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(returnM2 * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`);
                     }
 
                     // Adjust product-level BOM (AREA_BASED)
@@ -1104,11 +1056,11 @@ export class TransactionsService {
                                 const ingDelta = Number(ing.quantity) * areaDelta;
                                 if (ingDelta > 0) {
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(ingDelta * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(ingDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`);
                                 } else if (ingDelta < 0) {
                                     const ret = Math.abs(ingDelta);
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`);
                                 }
                             }
                         }
@@ -1122,11 +1074,11 @@ export class TransactionsService {
                                 const ingDelta = Number(ing.quantity) * areaDelta;
                                 if (ingDelta > 0) {
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(ingDelta * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(ingDelta * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`);
                                 } else if (ingDelta < 0) {
                                     const ret = Math.abs(ingDelta);
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`);
                                 }
                             }
                         }
@@ -1155,11 +1107,11 @@ export class TransactionsService {
                             throw new BadRequestException(`Stok tidak cukup untuk ${product.name}. Tersisa: ${currentVariant.stock}`);
                         }
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: Number(currentVariant.stock) - delta } });
-                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'OUT', quantity: delta, reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty bertambah)` } });
+                        await this.logMovement(tx, variant.id, 'OUT', delta, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty bertambah)`);
                     } else {
                         const returnQty = Math.abs(delta);
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: Number(currentVariant.stock) + returnQty } });
-                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'IN', quantity: returnQty, reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty berkurang)` } });
+                        await this.logMovement(tx, variant.id, 'IN', returnQty, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty berkurang)`);
                     }
 
                     // Adjust product-level BOM (UNIT)
@@ -1170,11 +1122,11 @@ export class TransactionsService {
                                 const ingDelta = Number(ing.quantity) * delta;
                                 if (ingDelta > 0) {
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(Math.abs(ingDelta) * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`);
                                 } else if (ingDelta < 0) {
                                     const ret = Math.abs(ingDelta);
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`);
                                 }
                             }
                         }
@@ -1188,11 +1140,11 @@ export class TransactionsService {
                                 const ingDelta = Number(ing.quantity) * delta;
                                 if (ingDelta > 0) {
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) - ingDelta) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'OUT', quantity: Math.ceil(Math.abs(ingDelta) * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`);
                                 } else if (ingDelta < 0) {
                                     const ret = Math.abs(ingDelta);
                                     await tx.productVariant.update({ where: { id: rawVariant.id }, data: { stock: Math.floor((Number(rawVariant.stock) + ret) * 100) / 100 } });
-                                    await tx.stockMovement.create({ data: { productVariantId: rawVariant.id, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}` } });
+                                    await this.logMovement(tx, rawVariant.id, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`);
                                 }
                             }
                         }
@@ -1380,19 +1332,19 @@ export class TransactionsService {
                     const areaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
                     if (areaM2 > 0) {
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: Math.floor(areaM2 * 100) / 100 } } });
-                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'IN', quantity: Math.ceil(areaM2 * 100), reason: `Hapus Transaksi ${transaction.invoiceNumber}` } });
+                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(areaM2 * 100), `Hapus Transaksi ${transaction.invoiceNumber}`);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Transaksi (BOM) ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                     }
@@ -1400,19 +1352,19 @@ export class TransactionsService {
                     const qty = txItem.quantity;
                     if (qty > 0) {
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: qty } } });
-                        await tx.stockMovement.create({ data: { productVariantId: variant.id, type: 'IN', quantity: qty, reason: `Hapus Transaksi ${transaction.invoiceNumber}` } });
+                        await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Transaksi ${transaction.invoiceNumber}`);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * qty;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Transaksi (BOM) ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * qty;
                                 await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await tx.stockMovement.create({ data: { productVariantId: ing.rawMaterialVariantId, type: 'IN', quantity: Math.ceil(ret * 100), reason: `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}` } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                     }

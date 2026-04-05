@@ -33,7 +33,7 @@ export class StockMovementsService {
 
             // Log movement
             return tx.stockMovement.create({
-                data
+                data: { ...data, balanceAfter: newStock } as any
             });
         });
     }

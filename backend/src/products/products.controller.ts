@@ -1,7 +1,7 @@
 import {
     Controller, Get, Post, Body, Patch, Param, Delete,
     ParseIntPipe, UseGuards, UseInterceptors, UploadedFile,
-    UploadedFiles, BadRequestException, Put
+    UploadedFiles, BadRequestException, Put, Query
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -198,5 +198,20 @@ export class ProductsController {
     @Delete('variants/:variantId/variant-ingredients/:ingId')
     removeVariantIngredient(@Param('ingId', ParseIntPipe) ingId: number) {
         return this.productsService.removeVariantIngredient(ingId);
+    }
+
+    // ── Stock History ───────────────────────────────────────────────────────
+
+    @Get('variants/:variantId/stock-history')
+    getVariantStockHistory(
+        @Param('variantId', ParseIntPipe) variantId: number,
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        return this.productsService.getVariantStockHistory(
+            variantId,
+            page ? parseInt(page) : 1,
+            limit ? parseInt(limit) : 50,
+        );
     }
 }
