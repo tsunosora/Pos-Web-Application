@@ -69,11 +69,18 @@ export default function InventoryPage() {
         return next;
     });
 
+    const closeDropdown = () => setOpenDropdownId(null);
+
     useEffect(() => {
         if (!openDropdownId) return;
-        const close = () => setOpenDropdownId(null);
-        document.addEventListener('click', close);
-        return () => document.removeEventListener('click', close);
+        const close = (e: MouseEvent) => {
+            if (!(e.target as HTMLElement).closest('[data-kebab-dropdown]')) {
+                closeDropdown();
+            }
+        };
+        document.addEventListener('mousedown', close);
+        return () => document.removeEventListener('mousedown', close);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [openDropdownId]);
 
     const [shareToastId, setShareToastId] = useState<number | null>(null);
@@ -603,7 +610,7 @@ export default function InventoryPage() {
                                                         </button>
                                                         {/* Per-product: kebab dropdown */}
                                                         {isFirst && (
-                                                            <div className="relative ml-auto" onClick={e => e.stopPropagation()}>
+                                                            <div className="relative ml-auto" data-kebab-dropdown>
                                                                 <button
                                                                     onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)}
                                                                     className="p-1.5 rounded-lg border border-border bg-muted/50 text-muted-foreground hover:bg-muted transition-colors"
@@ -612,31 +619,23 @@ export default function InventoryPage() {
                                                                 </button>
                                                                 {openDropdownId === product.id && (
                                                                     <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-xl shadow-xl z-30 py-1.5 overflow-hidden">
-                                                                        <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
+                                                                        <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Catat Susut
                                                                         </button>
                                                                         <div className="h-px bg-border/60 my-1" />
-                                                                        <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
+                                                                        <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
                                                                             <Pencil className="h-3.5 w-3.5 shrink-0" /> Edit Produk
                                                                         </button>
-                                                                        <button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                                                                        <button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
                                                                             <Calculator className="h-3.5 w-3.5 shrink-0" /> Kalkulator HPP
                                                                         </button>
-                                                                        <button onClick={() => { handleShare(product.id); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
+                                                                        <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                             <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Link Disalin!' : 'Salin Link'}
                                                                         </button>
                                                                         <div className="h-px bg-border/60 my-1" />
-                                                                        {deletingProductId === product.id ? (
-                                                                            <div className="px-3.5 py-2 flex items-center gap-2">
-                                                                                <span className="text-xs text-destructive flex-1 font-medium">Hapus permanen?</span>
-                                                                                <button onClick={() => { deleteMutation.mutate(product.id); setOpenDropdownId(null); }} disabled={deleteMutation.isPending} className="text-xs px-2.5 py-1 bg-destructive text-white rounded-md hover:bg-destructive/90 disabled:opacity-60 transition-colors">Ya</button>
-                                                                                <button onClick={() => setDeletingProductId(null)} className="text-xs px-2.5 py-1 border border-border rounded-md hover:bg-muted transition-colors">Tidak</button>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <button onClick={() => setDeletingProductId(product.id)} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
-                                                                                <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
-                                                                            </button>
-                                                                        )}
+                                                                        <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
+                                                                            <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
+                                                                        </button>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -798,7 +797,7 @@ export default function InventoryPage() {
                                                         </button>
                                                         {/* Per-product: kebab dropdown */}
                                                         {isFirst && (
-                                                            <div className="relative" onClick={e => e.stopPropagation()}>
+                                                            <div className="relative" data-kebab-dropdown>
                                                                 <button
                                                                     onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)}
                                                                     className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
@@ -808,31 +807,23 @@ export default function InventoryPage() {
                                                                 </button>
                                                                 {openDropdownId === product.id && (
                                                                     <div className="absolute right-0 top-full mt-1 w-52 bg-card border border-border rounded-xl shadow-xl z-30 py-1.5 overflow-hidden">
-                                                                        <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
+                                                                        <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Catat Susut
                                                                         </button>
                                                                         <div className="h-px bg-border/60 my-1" />
-                                                                        <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
+                                                                        <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
                                                                             <Pencil className="h-3.5 w-3.5 shrink-0" /> Edit Produk
                                                                         </button>
-                                                                        <button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                                                                        <button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
                                                                             <Calculator className="h-3.5 w-3.5 shrink-0" /> Kalkulator HPP
                                                                         </button>
-                                                                        <button onClick={() => { handleShare(product.id); setOpenDropdownId(null); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
+                                                                        <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                             <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Link Disalin!' : 'Salin Link Produk'}
                                                                         </button>
                                                                         <div className="h-px bg-border/60 my-1" />
-                                                                        {deletingProductId === product.id ? (
-                                                                            <div className="px-3.5 py-2 flex items-center gap-2">
-                                                                                <span className="text-xs text-destructive flex-1 font-medium">Hapus permanen?</span>
-                                                                                <button onClick={() => { deleteMutation.mutate(product.id); setOpenDropdownId(null); }} disabled={deleteMutation.isPending} className="text-xs px-2.5 py-1 bg-destructive text-white rounded-md hover:bg-destructive/90 transition-colors disabled:opacity-60">Ya</button>
-                                                                                <button onClick={() => setDeletingProductId(null)} className="text-xs px-2.5 py-1 border border-border rounded-md hover:bg-muted transition-colors">Tidak</button>
-                                                                            </div>
-                                                                        ) : (
-                                                                            <button onClick={() => setDeletingProductId(product.id)} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
-                                                                                <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
-                                                                            </button>
-                                                                        )}
+                                                                        <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
+                                                                            <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
+                                                                        </button>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -890,6 +881,43 @@ export default function InventoryPage() {
                                 className="px-4 py-2 text-sm bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors disabled:opacity-60 font-medium"
                             >
                                 {bulkDeleteMutation.isPending ? 'Menghapus...' : `Hapus ${selectedIds.size} Produk`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Single Product Confirmation Modal */}
+            {deletingProductId && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div className="bg-background rounded-xl border border-border p-6 max-w-sm w-full shadow-xl">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                                <Trash2 className="w-5 h-5 text-destructive" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-semibold">Hapus Produk?</h3>
+                                <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                                    {(products as any[])?.find((p: any) => p.id === deletingProductId)?.name ?? ''}
+                                </p>
+                            </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-6">
+                            Semua varian, foto, dan data stok produk ini akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+                        </p>
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setDeletingProductId(null)}
+                                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                onClick={() => deleteMutation.mutate(deletingProductId)}
+                                disabled={deleteMutation.isPending}
+                                className="px-4 py-2 text-sm bg-destructive text-white rounded-lg hover:bg-destructive/90 transition-colors disabled:opacity-60 font-medium"
+                            >
+                                {deleteMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
                             </button>
                         </div>
                     </div>

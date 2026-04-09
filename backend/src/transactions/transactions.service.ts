@@ -1346,52 +1346,56 @@ export class TransactionsService {
 
                 if (!trackStock) continue;
 
+                const requiresProduction = product.requiresProduction === true;
+
                 if (pricingMode === 'AREA_BASED') {
+                    // Stok area-based hanya dipotong saat checkout jika TIDAK butuh produksi
+                    if (requiresProduction) continue;
                     const areaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
                     if (areaM2 > 0) {
-                        await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: Math.floor(areaM2 * 100) / 100 } } });
-                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(areaM2 * 100), `Hapus Transaksi ${transaction.invoiceNumber}`);
+                        await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: areaM2 } } });
+                        await this.logMovement(tx, variant.id, 'IN', areaM2, `Hapus Transaksi ${transaction.invoiceNumber}`);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * areaM2;
-                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`);
+                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: ret } } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * areaM2;
-                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`);
+                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: ret } } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                     }
                 } else {
-                    const qty = txItem.quantity;
+                    const qty = Number(txItem.quantity);
                     if (qty > 0) {
                         await tx.productVariant.update({ where: { id: variant.id }, data: { stock: { increment: qty } } });
                         await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Transaksi ${transaction.invoiceNumber}`);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * qty;
-                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`);
+                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: ret } } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * qty;
-                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: Math.floor(ret * 100) / 100 } } });
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`);
+                                await tx.productVariant.update({ where: { id: ing.rawMaterialVariantId }, data: { stock: { increment: ret } } });
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`);
                             }
                         }
                     }
                 }
             }
 
-            // Hapus cashflow terkait
+            // Hapus cashflow terkait (INCOME penjualan + EXPENSE diskon)
             await tx.cashflow.deleteMany({
-                where: { note: { contains: transaction.invoiceNumber }, type: CashflowType.INCOME }
+                where: { note: { contains: transaction.invoiceNumber } }
             });
 
             // Hapus ProductionJob untuk semua item (FK: productionJob → transactionItem, tidak ada onDelete Cascade)
