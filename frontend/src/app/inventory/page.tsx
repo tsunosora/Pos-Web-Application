@@ -102,7 +102,8 @@ export default function InventoryPage() {
 
     const [shareToastId, setShareToastId] = useState<number | null>(null);
     const handleShare = (productId: number) => {
-        const url = `${window.location.origin}/p/${productId}`;
+        const shareDomain = process.env.NEXT_PUBLIC_SHARE_DOMAIN || window.location.origin;
+        const url = `${shareDomain}/p/${productId}`;
         navigator.clipboard.writeText(url).then(() => {
             setShareToastId(productId);
             setTimeout(() => setShareToastId(null), 2000);
