@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseInterceptors, UploadedFiles, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseInterceptors, UploadedFiles, Query, Param, ParseIntPipe } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ReportsService } from './reports.service';
 import { diskStorage } from 'multer';
@@ -114,5 +114,18 @@ export class ReportsController {
         }
 
         return this.reportsService.closeShift(dto, uploadedPaths);
+    }
+
+    @Get('shift-history')
+    async getShiftHistory(
+        @Query('page') page?: string,
+        @Query('limit') limit?: string,
+    ) {
+        return this.reportsService.getShiftHistory(Number(page || 1), Number(limit || 20));
+    }
+
+    @Post('shift/:id/resend')
+    async resendShiftReport(@Param('id', ParseIntPipe) id: number) {
+        return this.reportsService.resendShiftReport(id);
     }
 }

@@ -63,6 +63,7 @@ export class TransactionsService {
         productionNotes?: string;
         transactionDate?: string; // ISO date backdate: "2026-03-29" — sets transaction createdAt
         cashflowDate?: string;    // ISO date for cashflow: jika diisi, cashflow.date = ini (hari ini = masuk shift hari ini)
+        saveOnly?: boolean;       // true = simpan invoice tanpa pembayaran (PENDING)
     }) {
         for (let attempt = 0; attempt < 5; attempt++) {
             try {
@@ -104,6 +105,7 @@ export class TransactionsService {
         productionNotes?: string;
         transactionDate?: string;
         cashflowDate?: string;
+        saveOnly?: boolean;
     }) {
         return this.prisma.$transaction(async (tx) => {
             const settings = await tx.storeSettings.findFirst();
@@ -314,8 +316,11 @@ export class TransactionsService {
 
             const shippingCost = data.shippingCost || 0;
             const grandTotal = amountAfterDiscount + taxAmount + shippingCost;
-            const downPayment = data.downPayment !== undefined ? data.downPayment : grandTotal;
-            const status = downPayment < grandTotal ? TransactionStatus.PARTIAL : TransactionStatus.PAID;
+            const isPayLater = data.saveOnly === true;
+            const downPayment = isPayLater ? 0 : (data.downPayment !== undefined ? data.downPayment : grandTotal);
+            const status = isPayLater ? TransactionStatus.PENDING
+                : downPayment < grandTotal ? TransactionStatus.PARTIAL
+                : TransactionStatus.PAID;
 
             // ── Backdate support ──────────────────────────────────────────────
             // effectiveDate = tanggal nota (backdate atau hari ini)
@@ -393,9 +398,9 @@ export class TransactionsService {
                 }
             }
 
-            // Log initial payment into Cashflow
+            // Log initial payment into Cashflow (skip for pay-later / PENDING transactions)
             const customerInfo = data.customerName ? ` untuk Bpk/Ibu ${data.customerName}` : '';
-            if (downPayment > 0) {
+            if (!isPayLater && downPayment > 0) {
                 await tx.cashflow.create({
                     data: {
                         type: CashflowType.INCOME,
@@ -605,22 +610,23 @@ export class TransactionsService {
         return this.prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
-            if (transaction.status === TransactionStatus.PAID) throw new BadRequestException('Transaction is already paid off');
-            if (transaction.status !== TransactionStatus.PARTIAL) throw new BadRequestException('Transaction is not in PARTIAL state');
+            if (transaction.status === TransactionStatus.PAID) throw new BadRequestException('Transaksi sudah lunas');
+            if (transaction.status !== TransactionStatus.PARTIAL && transaction.status !== TransactionStatus.PENDING)
+                throw new BadRequestException('Transaksi tidak dapat dilunasi');
 
             const remainingBalance = Number(transaction.grandTotal) - Number(transaction.downPayment);
 
             if (remainingBalance > 0) {
-                // Determine the name to log in cashflow
                 const customerInfo = transaction.customerName ? ` untuk Bpk/Ibu ${transaction.customerName}` : '';
+                const isFromPending = transaction.status === TransactionStatus.PENDING;
                 await tx.cashflow.create({
                     data: {
                         type: CashflowType.INCOME,
-                        category: 'Pelunasan DP',
+                        category: isFromPending ? 'Penjualan Lunas' : 'Pelunasan DP',
                         amount: remainingBalance,
                         paymentMethod: data.paymentMethod,
                         bankAccountId: data.bankAccountId || null,
-                        note: `Pelunasan Invoice ${transaction.invoiceNumber}${customerInfo} via ${data.paymentMethod}`,
+                        note: `${isFromPending ? 'Pembayaran' : 'Pelunasan'} Invoice ${transaction.invoiceNumber}${customerInfo} via ${data.paymentMethod}`,
                     }
                 });
             }

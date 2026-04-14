@@ -34,6 +34,7 @@ const navigation = [
     { name: "Kasir POS", href: "/pos", icon: ShoppingCart },
     { name: "Rekap Penjualan", href: "/reports/sales", icon: BarChart3 },
     { name: "Laporan Laba Kotor", href: "/reports/profit", icon: BarChart3 },
+    { name: "Riwayat Tutup Shift", href: "/reports/shift-history", icon: ClipboardList },
     { name: "Daftar DP / Piutang", href: "/transactions/dp", icon: Wallet },
     { name: "Manajemen Stok", href: "/inventory", icon: Package },
     { name: "Laporan Stok", href: "/reports/stock", icon: TrendingDown },

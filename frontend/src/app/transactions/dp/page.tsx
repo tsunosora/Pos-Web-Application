@@ -19,12 +19,17 @@ export default function DPTransactionsPage() {
     const [payoffBankId, setPayoffBankId] = useState<string>('');
     const [nominalBayar, setNominalBayar] = useState<string>('');
 
-    const [activeTab, setActiveTab] = useState<'Semua' | 'DP' | 'Kredit'>('Semua');
+    const [activeTab, setActiveTab] = useState<'Semua' | 'DP' | 'Kredit' | 'Bayar Nanti'>('Semua');
 
-    const dpTransactions = transactions?.filter((t: any) => t.status === 'PARTIAL') || [];
+    const allUnpaid = transactions?.filter((t: any) => t.status === 'PARTIAL' || t.status === 'PENDING') || [];
+    const bayarNantiList = allUnpaid.filter((t: any) => t.status === 'PENDING');
+    const dpTransactions = allUnpaid.filter((t: any) => t.status === 'PARTIAL');
     const kreditList = dpTransactions.filter((t: any) => Number(t.downPayment) === 0);
     const dpList = dpTransactions.filter((t: any) => Number(t.downPayment) > 0);
-    const visibleTransactions = activeTab === 'DP' ? dpList : activeTab === 'Kredit' ? kreditList : dpTransactions;
+    const visibleTransactions = activeTab === 'DP' ? dpList
+        : activeTab === 'Kredit' ? kreditList
+        : activeTab === 'Bayar Nanti' ? bayarNantiList
+        : allUnpaid;
 
     const payOffMutation = useMutation({
         mutationFn: (id: number) => payOffTransaction(id, { paymentMethod, bankAccountId: payoffBankId ? Number(payoffBankId) : undefined }),
@@ -59,17 +64,22 @@ export default function DPTransactionsPage() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex gap-2">
-                {(['Semua', 'DP', 'Kredit'] as const).map(tab => (
+            <div className="flex gap-2 flex-wrap">
+                {(['Semua', 'DP', 'Kredit', 'Bayar Nanti'] as const).map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab)}
                         className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
                             activeTab === tab
-                                ? tab === 'Kredit' ? 'bg-violet-600 text-white border-violet-600' : 'bg-primary text-primary-foreground border-primary'
+                                ? tab === 'Kredit' ? 'bg-violet-600 text-white border-violet-600'
+                                : tab === 'Bayar Nanti' ? 'bg-sky-600 text-white border-sky-600'
+                                : 'bg-primary text-primary-foreground border-primary'
                                 : 'bg-background border-border text-muted-foreground hover:border-primary/40'
                         }`}>
                         {tab}
                         <span className="ml-1.5 text-[11px] font-bold opacity-70">
-                            {tab === 'Semua' ? dpTransactions.length : tab === 'DP' ? dpList.length : kreditList.length}
+                            {tab === 'Semua' ? allUnpaid.length
+                                : tab === 'DP' ? dpList.length
+                                : tab === 'Kredit' ? kreditList.length
+                                : bayarNantiList.length}
                         </span>
                     </button>
                 ))}
@@ -80,7 +90,7 @@ export default function DPTransactionsPage() {
                 <div className="glass p-6 rounded-xl border border-orange-500/20 bg-orange-500/5 flex flex-col justify-center">
                     <p className="text-sm font-medium text-orange-700 mb-1">Total Tagihan Belum Lunas</p>
                     <h2 className="text-3xl font-bold text-orange-600">
-                        Rp {visibleTransactions.reduce((acc: number, t: any) => acc + (Number(t.grandTotal) - Number(t.downPayment)), 0).toLocaleString('id-ID')}
+                        Rp {visibleTransactions.reduce((acc: number, t: any) => acc + (t.status === 'PENDING' ? Number(t.grandTotal) : Number(t.grandTotal) - Number(t.downPayment)), 0).toLocaleString('id-ID')}
                     </h2>
                 </div>
                 <div className="glass p-6 rounded-xl border border-border flex flex-col justify-center">
@@ -108,8 +118,9 @@ export default function DPTransactionsPage() {
                             {visibleTransactions.map((trx: any) => {
                                 const grandTotal = Number(trx.grandTotal);
                                 const dp = Number(trx.downPayment);
-                                const balance = grandTotal - dp;
-                                const isKredit = dp === 0;
+                                const isPending = trx.status === 'PENDING';
+                                const balance = isPending ? grandTotal : grandTotal - dp;
+                                const isKredit = !isPending && dp === 0;
                                 const isOverdue = trx.dueDate && dayjs(trx.dueDate).isBefore(dayjs(), 'day');
                                 return (
                                     <tr key={trx.id} className="hover:bg-muted/30 transition-colors">
@@ -118,7 +129,9 @@ export default function DPTransactionsPage() {
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="text-sm text-primary font-mono">{trx.invoiceNumber}</span>
                                                 <span className="text-xs text-muted-foreground">• {dayjs(trx.createdAt).format('DD MMM YYYY')}</span>
-                                                {isKredit
+                                                {isPending
+                                                    ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 border border-sky-500/20">BAYAR NANTI</span>
+                                                    : isKredit
                                                     ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/20">KREDIT</span>
                                                     : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">DP</span>
                                                 }
@@ -133,8 +146,11 @@ export default function DPTransactionsPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground text-right border-l border-border/50">
                                             Rp {grandTotal.toLocaleString('id-ID')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-emerald-600 text-right">
-                                            Rp {dp.toLocaleString('id-ID')}
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
+                                            {isPending
+                                                ? <span className="text-sky-500 font-semibold text-xs">Belum Bayar</span>
+                                                : <span className="text-emerald-600">Rp {dp.toLocaleString('id-ID')}</span>
+                                            }
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-orange-600 text-right bg-orange-500/5">
                                             Rp {balance.toLocaleString('id-ID')}
@@ -172,7 +188,10 @@ export default function DPTransactionsPage() {
                                         <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3 opacity-20" />
                                         <p className="text-base font-medium text-foreground">Tidak ada piutang aktif</p>
                                         <p className="text-sm text-muted-foreground mt-1">
-                                            {activeTab === 'Kredit' ? 'Belum ada nota kredit.' : activeTab === 'DP' ? 'Belum ada DP aktif.' : 'Semua transaksi sudah lunas.'}
+                                            {activeTab === 'Kredit' ? 'Belum ada nota kredit.'
+                                                : activeTab === 'DP' ? 'Belum ada DP aktif.'
+                                                : activeTab === 'Bayar Nanti' ? 'Belum ada invoice bayar nanti.'
+                                                : 'Semua transaksi sudah lunas.'}
                                         </p>
                                     </td>
                                 </tr>
@@ -187,7 +206,9 @@ export default function DPTransactionsPage() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col">
                         <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/30">
-                            <h3 className="font-semibold text-foreground">Pelunasan Tagihan</h3>
+                            <h3 className="font-semibold text-foreground">
+                                {selectedTrx?.status === 'PENDING' ? 'Pembayaran Invoice' : 'Pelunasan Tagihan'}
+                            </h3>
                             <button onClick={() => setSelectedTrx(null)} className="p-1.5 text-muted-foreground hover:bg-muted rounded-lg transition-colors">
                                 <X className="w-5 h-5" />
                             </button>
@@ -195,9 +216,11 @@ export default function DPTransactionsPage() {
 
                         <form onSubmit={handlePayOff} className="p-6 space-y-6">
                             <div className="text-center space-y-1">
-                                <p className="text-sm text-muted-foreground">Sisa tagihan untuk {selectedTrx.customerName || selectedTrx.invoiceNumber}</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {selectedTrx.status === 'PENDING' ? 'Total tagihan untuk' : 'Sisa tagihan untuk'} {selectedTrx.customerName || selectedTrx.invoiceNumber}
+                                </p>
                                 <p className="text-4xl font-bold text-foreground">
-                                    Rp {(Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment)).toLocaleString('id-ID')}
+                                    Rp {(selectedTrx.status === 'PENDING' ? Number(selectedTrx.grandTotal) : Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment)).toLocaleString('id-ID')}
                                 </p>
                             </div>
 
@@ -209,20 +232,26 @@ export default function DPTransactionsPage() {
                                         type="number"
                                         value={nominalBayar}
                                         onChange={(e) => setNominalBayar(e.target.value)}
-                                        placeholder={(Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment)).toString()}
+                                        placeholder={(selectedTrx.status === 'PENDING' ? Number(selectedTrx.grandTotal) : Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment)).toString()}
                                         className="w-full pl-12 pr-4 py-3 bg-background border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none font-bold text-lg"
                                         required
                                     />
                                 </div>
-                                {Number(nominalBayar) - (Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment)) > 0 && (
-                                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex justify-between items-center text-emerald-700">
-                                        <span className="text-sm">Uang Kembalian:</span>
-                                        <span className="font-bold text-lg">Rp {(Number(nominalBayar) - (Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment))).toLocaleString('id-ID')}</span>
-                                    </div>
-                                )}
-                                {nominalBayar && Number(nominalBayar) < (Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment)) && (
-                                    <p className="text-sm text-red-500 font-medium">Nominal bayar kurang dari sisa tagihan!</p>
-                                )}
+                                {(() => {
+                                    const sisaTagihan = selectedTrx.status === 'PENDING' ? Number(selectedTrx.grandTotal) : Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment);
+                                    const kembalian = Number(nominalBayar) - sisaTagihan;
+                                    return (<>
+                                        {kembalian > 0 && (
+                                            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex justify-between items-center text-emerald-700">
+                                                <span className="text-sm">Uang Kembalian:</span>
+                                                <span className="font-bold text-lg">Rp {kembalian.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        )}
+                                        {nominalBayar && Number(nominalBayar) < sisaTagihan && (
+                                            <p className="text-sm text-red-500 font-medium">Nominal bayar kurang dari sisa tagihan!</p>
+                                        )}
+                                    </>);
+                                })()}
                             </div>
 
                             <div className="space-y-3">
@@ -310,10 +339,10 @@ export default function DPTransactionsPage() {
 
                             <button
                                 type="submit"
-                                disabled={payOffMutation.isPending || !nominalBayar || Number(nominalBayar) < (Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment))}
+                                disabled={payOffMutation.isPending || !nominalBayar || Number(nominalBayar) < (selectedTrx.status === 'PENDING' ? Number(selectedTrx.grandTotal) : Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment))}
                                 className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold hover:bg-primary/90 transition-colors shadow-md shadow-primary/20 disabled:opacity-50 flex justify-center items-center"
                             >
-                                {payOffMutation.isPending ? 'Memproses...' : 'Proses Pelunasan'}
+                                {payOffMutation.isPending ? 'Memproses...' : selectedTrx.status === 'PENDING' ? 'Proses Pembayaran' : 'Proses Pelunasan'}
                             </button>
                         </form>
                     </div>

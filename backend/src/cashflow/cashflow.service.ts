@@ -6,8 +6,14 @@ import { CashflowType, Prisma } from '@prisma/client';
 export class CashflowService {
     constructor(private prisma: PrismaService) { }
 
-    async create(data: Prisma.CashflowCreateInput) {
-        return this.prisma.cashflow.create({ data });
+    async create(data: Prisma.CashflowCreateInput & { bankAccountId?: number | null }) {
+        const { bankAccountId, ...rest } = data as any;
+        return this.prisma.cashflow.create({
+            data: {
+                ...rest,
+                ...(bankAccountId ? { bankAccount: { connect: { id: bankAccountId } } } : {}),
+            },
+        });
     }
 
     async findAll(startDate?: string, endDate?: string) {

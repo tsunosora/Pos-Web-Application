@@ -24,3 +24,9 @@ export const getStaffList = async () => (await api.get('/reports/staff-list')).d
 export const closeShift = async (formData: FormData) => (await api.post('/reports/close-shift', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
 })).data;
+
+// Shift History & Resend
+export const getShiftHistory = async (page = 1, limit = 20) =>
+    (await api.get(`/reports/shift-history?page=${page}&limit=${limit}`)).data;
+export const resendShiftReport = async (id: number) =>
+    (await api.post(`/reports/shift/${id}/resend`)).data;

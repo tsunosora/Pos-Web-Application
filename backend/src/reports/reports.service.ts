@@ -71,11 +71,10 @@ export class ReportsService {
                 let displayQty = qty;
 
                 if (isArea) {
-                    // Area based: HPP is per m2
+                    // Area based: priceAtTime & HPP are both per-m², multiply by area
                     const areaM2 = Number(item.areaCm2) / 10000;
                     itemHpp = hpp * areaM2;
-                    // priceAtTime acts as the lineTotal for area based
-                    itemRevenue = Number(item.priceAtTime) * qty;
+                    itemRevenue = Number(item.priceAtTime) * areaM2;
                 } else {
                     // Unit based
                     itemHpp = hpp * qty;
@@ -135,6 +134,7 @@ export class ReportsService {
             orderBy: { closedAt: 'desc' },
         });
 
+        // Gunakan openedAt hanya untuk display, bukan untuk filter cashflow
         let openedAt = lastShift?.closedAt;
         if (!openedAt) {
             const today = new Date();
@@ -142,9 +142,11 @@ export class ReportsService {
             openedAt = today;
         }
 
-        const cashflows: any[] = await this.prisma.cashflow.findMany({
-            where: { createdAt: { gte: openedAt } },
-            include: { bankAccount: true } as any,
+        // Filter berdasarkan shiftReportId = null (belum di-tag ke shift manapun)
+        // bukan berdasarkan waktu — lebih akurat meskipun kasir lama input laporan
+        const cashflows: any[] = await (this.prisma as any).cashflow.findMany({
+            where: { shiftReportId: null },
+            include: { bankAccount: true },
         });
 
         // Gross Incomes
@@ -283,16 +285,20 @@ export class ReportsService {
                 tarikTunai: dto.tarikTunai || [],
                 tukarTransferKeCash: dto.tukarTransferKeCash || 0,
                 additionalIncomes: dto.additionalIncomes || [],
+                paymentExchanges: dto.paymentExchanges || [],
             },
         });
 
+        const shiftId: number = shift.id;
+
         // Buat Cashflow INCOME untuk pemasukan tambahan eksternal
+        // → di-tag shiftReportId agar tidak masuk shift berikutnya
         if (dto.additionalIncomes && dto.additionalIncomes.length > 0) {
             for (const income of dto.additionalIncomes) {
                 if (!income.bankName || !income.amount || income.amount <= 0) continue;
                 const bank = activeBanks.find((b: any) => b.bankName === income.bankName);
                 if (!bank) continue;
-                await this.prisma.cashflow.create({
+                await (this.prisma as any).cashflow.create({
                     data: {
                         type: 'INCOME',
                         category: 'Pemasukan Tambahan',
@@ -301,21 +307,23 @@ export class ReportsService {
                         paymentMethod: 'BANK_TRANSFER',
                         bankAccountId: bank.id,
                         date: new Date(dto.closedAt),
-                    } as any,
+                        shiftReportId: shiftId,
+                    },
                 });
             }
         }
 
         // Buat Cashflow EXPENSE dari pengeluaran shift (structuredExpenses)
+        // → di-tag shiftReportId agar tidak masuk shift berikutnya
         if (dto.structuredExpenses) {
             for (const [method, items] of Object.entries(dto.structuredExpenses)) {
-                if (!items || items.length === 0) continue;
+                if (!items || (items as any[]).length === 0) continue;
                 const isCash = method === 'CASH';
                 const isQris = method === 'QRIS';
                 const bank = (isCash || isQris) ? null : activeBanks.find((b: any) => b.bankName === method);
-                for (const item of items) {
+                for (const item of items as any[]) {
                     if (!item.name || !item.amount || Number(item.amount) <= 0) continue;
-                    await this.prisma.cashflow.create({
+                    await (this.prisma as any).cashflow.create({
                         data: {
                             type: 'EXPENSE',
                             category: item.name,
@@ -324,18 +332,20 @@ export class ReportsService {
                             paymentMethod: isCash ? 'CASH' : isQris ? 'QRIS' : 'BANK_TRANSFER',
                             bankAccountId: bank?.id || null,
                             date: new Date(dto.closedAt),
-                        } as any,
+                            shiftReportId: shiftId,
+                        },
                     });
                 }
             }
         }
 
         // Buat Cashflow EXPENSE untuk kasbon dari Kas Toko
+        // → di-tag shiftReportId agar tidak masuk shift berikutnya
         if (dto.kasbon && dto.kasbon.length > 0) {
             for (const k of dto.kasbon) {
                 if (!k.name || !k.amount || Number(k.amount) <= 0) continue;
                 if (k.source && k.source !== 'Kas Toko') continue;
-                await this.prisma.cashflow.create({
+                await (this.prisma as any).cashflow.create({
                     data: {
                         type: 'EXPENSE',
                         category: 'Kasbon Karyawan',
@@ -344,7 +354,8 @@ export class ReportsService {
                         paymentMethod: 'CASH',
                         bankAccountId: null,
                         date: new Date(dto.closedAt),
-                    } as any,
+                        shiftReportId: shiftId,
+                    },
                 });
             }
         }
@@ -383,6 +394,12 @@ export class ReportsService {
             dto.paymentExchanges || [],
         );
 
+        // Simpan pesan WA sebagai backup log agar bisa di-resend jika gagal
+        await (this.prisma as any).shiftReport.update({
+            where: { id: shiftId },
+            data: { whatsappMessage: reportMsg },
+        });
+
         this.whatsappService.sendReport(reportMsg, proofImages).catch((err) => {
             this.logger.error('Background WhatsApp send failed', err);
         });
@@ -406,6 +423,55 @@ export class ReportsService {
         }
 
         return { success: true, message: 'Shift closed successfully.', data: shift };
+    }
+
+    async getShiftHistory(page = 1, limit = 20) {
+        const skip = (page - 1) * limit;
+        const [list, total] = await Promise.all([
+            (this.prisma as any).shiftReport.findMany({
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit,
+                select: {
+                    id: true,
+                    adminName: true,
+                    shiftName: true,
+                    openedAt: true,
+                    closedAt: true,
+                    expectedCash: true,
+                    actualCash: true,
+                    cashDifference: true,
+                    expectedQris: true,
+                    actualQris: true,
+                    qrisDifference: true,
+                    expectedTransfer: true,
+                    actualTransfer: true,
+                    transferDifference: true,
+                    expensesTotal: true,
+                    notes: true,
+                    proofImages: true,
+                    whatsappMessage: true,
+                    structuredExpenses: true,
+                    kasbon: true,
+                    additionalIncomes: true,
+                    createdAt: true,
+                },
+            }),
+            (this.prisma as any).shiftReport.count(),
+        ]);
+        return { list, total, page, limit };
+    }
+
+    async resendShiftReport(id: number, proofImages?: string[]) {
+        const shift: any = await (this.prisma as any).shiftReport.findUnique({ where: { id } });
+        if (!shift) throw new Error(`Shift report #${id} tidak ditemukan`);
+
+        const msg = shift.whatsappMessage;
+        if (!msg) throw new Error(`Backup pesan WA untuk shift #${id} belum tersedia`);
+
+        const images: string[] = proofImages ?? (Array.isArray(shift.proofImages) ? shift.proofImages : []);
+        await this.whatsappService.sendReport(msg, images);
+        return { success: true, message: 'Laporan shift berhasil dikirim ulang ke WhatsApp.' };
     }
 
     private formatWhatsappMessage(

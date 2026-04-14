@@ -36,6 +36,7 @@ export const createTransaction = async (data: {
     productionNotes?: string;
     transactionDate?: string;  // backdate: "YYYY-MM-DD" — createdAt transaksi
     cashflowDate?: string;     // "YYYY-MM-DD" — tanggal cashflow (kosong = sama dgn transactionDate)
+    saveOnly?: boolean;        // true = simpan invoice tanpa pembayaran (PENDING)
 }) => (await api.post('/transactions', data)).data;
 export const payOffTransaction = async (id: number, data: { paymentMethod: string, bankAccountId?: number }) =>
     (await api.post(`/transactions/${id}/pay-off`, data)).data;

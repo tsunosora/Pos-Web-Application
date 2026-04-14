@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers, createTransaction } from '@/lib/api';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock, CalendarRange } from "lucide-react";
+import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock, CalendarRange, Clock } from "lucide-react";
 import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { useCartStore, CartItem } from '@/store/cart-store';
@@ -59,7 +59,7 @@ export default function POSPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isCheckoutModalOpen, setCheckoutModalOpen] = useState(false);
     const [showPayConfirm, setShowPayConfirm] = useState(false);  // confirmation step
-    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER' | 'KREDIT'>('CASH');
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER' | 'KREDIT' | 'BAYAR_NANTI'>('CASH');
     const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [areaModal, setAreaModal] = useState<AreaModalState>(emptyAreaModal());
     const [customerName, setCustomerName] = useState('');
@@ -257,6 +257,8 @@ export default function POSPage() {
             return;
         }
 
+        const isPayLater = paymentMethod === 'BAYAR_NANTI';
+
         // Snapshot cart BEFORE clearing (needed for receipt display)
         const snap: ReceiptSnapshot = {
             items: [...cart],
@@ -291,7 +293,8 @@ export default function POSPage() {
                 note: item.note,
                 customPrice: item.customPrice != null ? item.customPrice : undefined,
             })),
-            paymentMethod: paymentMethod === 'KREDIT' ? 'CASH' : paymentMethod,
+            paymentMethod: (paymentMethod === 'KREDIT' || paymentMethod === 'BAYAR_NANTI') ? 'CASH' : paymentMethod,
+            saveOnly: isPayLater ? true : undefined,
             discount: discountNum > 0 ? discountNum : 0,
             shippingCost: shippingCostNum > 0 ? shippingCostNum : undefined,
             customerName: customerName.trim() || undefined,
@@ -340,12 +343,13 @@ export default function POSPage() {
                     const namaCustomer = snap.customerName || 'Pelanggan';
                     const jumlahItem = snap.items.length;
                     const totalFmt = `Rp ${snap.grandTotal.toLocaleString('id-ID')}`;
-                    const metodeFmt = snap.paymentMethod === 'CASH' ? 'Tunai'
+                    const metodeFmt = isPayLater ? 'Bayar Nanti'
+                        : snap.paymentMethod === 'CASH' ? 'Tunai'
                         : snap.paymentMethod === 'QRIS' ? 'QRIS'
                         : 'Transfer';
                     addNotification({
                         type: 'transaction',
-                        title: '✅ Order Berhasil Masuk',
+                        title: isPayLater ? '📋 Invoice Disimpan' : '✅ Order Berhasil Masuk',
                         message: `${namaCustomer} • ${jumlahItem} item • ${totalFmt} • ${metodeFmt}`,
                     });
                 }
@@ -1171,6 +1175,10 @@ export default function POSPage() {
                                         <CalendarRange className="w-3 h-3 shrink-0" /> KREDIT
                                     </button>
                                 </div>
+                                <button onClick={() => { setPaymentMethod('BAYAR_NANTI'); setDownPayment(''); }}
+                                    className={`w-full py-2 rounded-xl text-xs font-bold transition-all border-2 flex items-center justify-center gap-1.5 ${paymentMethod === 'BAYAR_NANTI' ? 'border-sky-500 bg-sky-500/10 text-sky-600' : 'border-border bg-muted/50 text-muted-foreground hover:border-sky-400/50'}`}>
+                                    <Clock className="w-3 h-3 shrink-0" /> BAYAR NANTI (Simpan Invoice)
+                                </button>
 
                                 {paymentMethod === 'QRIS' && (
                                     <div className="bg-muted/30 border border-border rounded-xl p-3 text-center">
@@ -1295,10 +1303,15 @@ export default function POSPage() {
                                 </button>
                                 <button onClick={() => setShowPayConfirm(true)}
                                     disabled={transactionMutation.isPending || (paymentMethod === 'KREDIT' && !dueDate)}
-                                    className={`col-span-2 py-3 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 disabled:opacity-50 text-sm transition-colors ${paymentMethod === 'KREDIT' ? 'bg-violet-600 hover:bg-violet-700 text-white' : 'bg-primary hover:bg-primary/90 text-primary-foreground'}`}>
-                                    <CheckCircle2 className="w-4 h-4" />
+                                    className={`col-span-2 py-3 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 disabled:opacity-50 text-sm transition-colors ${
+                                        paymentMethod === 'KREDIT' ? 'bg-violet-600 hover:bg-violet-700 text-white'
+                                        : paymentMethod === 'BAYAR_NANTI' ? 'bg-sky-600 hover:bg-sky-700 text-white'
+                                        : 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                                    }`}>
+                                    {paymentMethod === 'BAYAR_NANTI' ? <Clock className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                                     {paymentMethod === 'KREDIT'
                                         ? (dueDate ? 'Simpan Nota Kredit' : 'Pilih Jatuh Tempo')
+                                        : paymentMethod === 'BAYAR_NANTI' ? 'Simpan Invoice (Bayar Nanti)'
                                         : downPayment !== '' && Number(downPayment) < grandTotal ? 'Konfirmasi Pembayaran DP' : 'Konfirmasi Lunas'}
                                 </button>
                             </div>
@@ -1312,12 +1325,12 @@ export default function POSPage() {
                 <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
                     <div className="glass bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
                         {/* Success header */}
-                        <div className={`p-6 border-b text-center space-y-2 ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'bg-amber-500' : 'bg-emerald-500'}`}>
-                                <CheckCircle2 className="w-8 h-8 text-white" />
+                        <div className={`p-6 border-b text-center space-y-2 ${receipt.paymentMethod === 'BAYAR_NANTI' ? 'bg-sky-500/10 border-sky-500/20' : receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'bg-amber-500/10 border-amber-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto ${receipt.paymentMethod === 'BAYAR_NANTI' ? 'bg-sky-500' : receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                                {receipt.paymentMethod === 'BAYAR_NANTI' ? <Clock className="w-8 h-8 text-white" /> : <CheckCircle2 className="w-8 h-8 text-white" />}
                             </div>
-                            <h2 className={`text-xl font-bold ${receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'text-amber-600' : 'text-emerald-600'}`}>
-                                {receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'Pembayaran DP Berhasil!' : 'Pembayaran Berhasil!'}
+                            <h2 className={`text-xl font-bold ${receipt.paymentMethod === 'BAYAR_NANTI' ? 'text-sky-600' : receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                {receipt.paymentMethod === 'BAYAR_NANTI' ? 'Invoice Disimpan!' : receipt.downPayment !== undefined && receipt.downPayment < receipt.grandTotal ? 'Pembayaran DP Berhasil!' : 'Pembayaran Berhasil!'}
                             </h2>
                             <p className="text-sm text-muted-foreground">
                                 {receipt.timestamp.toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' })}

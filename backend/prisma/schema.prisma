@@ -295,11 +295,13 @@ model Cashflow {
   paymentMethod  PaymentMethod? @map("payment_method")
   platformSource String?        @map("platform_source") @db.VarChar(100)
   date           DateTime       @default(now())
+  shiftReportId  Int?           @map("shift_report_id") // tag pengeluaran ke shift tertentu
   createdAt     DateTime?      @default(now()) @map("created_at")
   updatedAt     DateTime?      @default(now()) @updatedAt @map("updated_at")
 
   user           User?        @relation(fields: [userId], references: [id])
   bankAccount    BankAccount? @relation(fields: [bankAccountId], references: [id])
+  shiftReport    ShiftReport? @relation(fields: [shiftReportId], references: [id], onDelete: SetNull)
   changeRequests CashflowChangeRequest[]
 
   @@map("cashflows")
@@ -744,10 +746,14 @@ model ShiftReport {
   tukarTransferKeCash  Decimal @default(0) @map("tukar_transfer_ke_cash") @db.Decimal(15, 2) // Konversi transfer masuk menjadi kas fisik
   additionalIncomes    Json? @map("additional_incomes")   // [{bankName: string, amount: number, description: string}]
 
-  expensesTotal Decimal   @map("expenses_total") @db.Decimal(15, 2)
-  notes         String?   @db.Text
-  proofImages   Json?     @map("proof_images") // Store array of uploaded image paths
-  createdAt     DateTime? @default(now()) @map("created_at")
+  expensesTotal    Decimal   @map("expenses_total") @db.Decimal(15, 2)
+  notes            String?   @db.Text
+  proofImages      Json?     @map("proof_images")    // array of uploaded image paths
+  whatsappMessage  String?   @map("whatsapp_message") @db.Text // backup pesan WA untuk resend
+  paymentExchanges Json?     @map("payment_exchanges") // [{from, to, amount}]
+  createdAt        DateTime? @default(now()) @map("created_at")
+
+  cashflows Cashflow[]
 
   @@map("shift_reports")
 }
