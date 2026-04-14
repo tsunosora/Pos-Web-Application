@@ -31,7 +31,8 @@ function generateSku(productName: string, index: number): string {
         prefix = words.map(w => w[0].toUpperCase()).join('').substring(0, 4);
     }
     const num = String(index + 1).padStart(3, '0');
-    return `${prefix}-${num}`;
+    const rand = Math.random().toString(36).substring(2, 5).toUpperCase();
+    return `${prefix}-${num}-${rand}`;
 }
 
 interface PriceTierForm {

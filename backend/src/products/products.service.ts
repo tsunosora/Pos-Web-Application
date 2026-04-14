@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const variantInclude = {
@@ -119,63 +119,71 @@ export class ProductsService {
         await this.findOne(id);
         const { variants, ingredients, deletedVariantIds, ...productData } = data;
 
-        await this.prisma.product.update({ where: { id }, data: productData });
+        try {
+            await this.prisma.product.update({ where: { id }, data: productData });
 
-        // Hapus varian yang dihapus dari frontend
-        if (deletedVariantIds?.length) {
-            await this.prisma.productVariant.deleteMany({
-                where: { id: { in: deletedVariantIds }, productId: id },
-            });
-        }
-
-        if (variants) {
-            for (const v of variants) {
-                const { priceTiers, variantIngredients, id: variantId, ...variantData } = v;
-                let savedVariantId: number;
-
-                if (variantId) {
-                    await this.prisma.productVariant.update({ where: { id: variantId }, data: variantData });
-                    savedVariantId = variantId;
-                } else {
-                    const created = await this.prisma.productVariant.create({ data: { ...variantData, productId: id } });
-                    savedVariantId = created.id;
-                }
-
-                // Replace price tiers if provided
-                if (priceTiers !== undefined) {
-                    await this.prisma.variantPriceTier.deleteMany({ where: { variantId: savedVariantId } });
-                    if (priceTiers.length > 0) {
-                        await this.prisma.variantPriceTier.createMany({
-                            data: priceTiers.map((t: any) => {
-                                const { id: _id, variantId: _vid, ...tierData } = t;
-                                return { ...tierData, variantId: savedVariantId };
-                            })
-                        });
-                    }
-                }
-
-                // Replace variant ingredients if provided
-                if (variantIngredients !== undefined) {
-                    await this.prisma.variantIngredient.deleteMany({ where: { variantId: savedVariantId } });
-                    if (variantIngredients.length > 0) {
-                        await this.prisma.variantIngredient.createMany({
-                            data: variantIngredients.map((ing: any) => {
-                                const { id: _id, variantId: _vid, rawMaterialVariant: _rm, ...ingData } = ing;
-                                return { ...ingData, variantId: savedVariantId };
-                            })
-                        });
-                    }
-                }
-            }
-        }
-
-        if (ingredients !== undefined) {
-            await this.prisma.ingredient.deleteMany({ where: { productId: id } });
-            if (ingredients.length > 0) {
-                await this.prisma.ingredient.createMany({
-                    data: ingredients.map((ing: any) => ({ ...ing, productId: id }))
+            // Hapus varian yang dihapus dari frontend
+            if (deletedVariantIds?.length) {
+                await this.prisma.productVariant.deleteMany({
+                    where: { id: { in: deletedVariantIds }, productId: id },
                 });
             }
+
+            if (variants) {
+                for (const v of variants) {
+                    const { priceTiers, variantIngredients, id: variantId, ...variantData } = v;
+                    let savedVariantId: number;
+
+                    if (variantId) {
+                        await this.prisma.productVariant.update({ where: { id: variantId }, data: variantData });
+                        savedVariantId = variantId;
+                    } else {
+                        const created = await this.prisma.productVariant.create({ data: { ...variantData, productId: id } });
+                        savedVariantId = created.id;
+                    }
+
+                    // Replace price tiers if provided
+                    if (priceTiers !== undefined) {
+                        await this.prisma.variantPriceTier.deleteMany({ where: { variantId: savedVariantId } });
+                        if (priceTiers.length > 0) {
+                            await this.prisma.variantPriceTier.createMany({
+                                data: priceTiers.map((t: any) => {
+                                    const { id: _id, variantId: _vid, ...tierData } = t;
+                                    return { ...tierData, variantId: savedVariantId };
+                                })
+                            });
+                        }
+                    }
+
+                    // Replace variant ingredients if provided
+                    if (variantIngredients !== undefined) {
+                        await this.prisma.variantIngredient.deleteMany({ where: { variantId: savedVariantId } });
+                        if (variantIngredients.length > 0) {
+                            await this.prisma.variantIngredient.createMany({
+                                data: variantIngredients.map((ing: any) => {
+                                    const { id: _id, variantId: _vid, rawMaterialVariant: _rm, ...ingData } = ing;
+                                    return { ...ingData, variantId: savedVariantId };
+                                })
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (ingredients !== undefined) {
+                await this.prisma.ingredient.deleteMany({ where: { productId: id } });
+                if (ingredients.length > 0) {
+                    await this.prisma.ingredient.createMany({
+                        data: ingredients.map((ing: any) => ({ ...ing, productId: id }))
+                    });
+                }
+            }
+        } catch (e: any) {
+            if (e.code === 'P2002') {
+                const field = e.meta?.target?.join(', ') ?? 'field';
+                throw new ConflictException(`Duplikat nilai pada ${field} — pastikan SKU setiap varian unik`);
+            }
+            throw e;
         }
 
         return this.findOne(id);
