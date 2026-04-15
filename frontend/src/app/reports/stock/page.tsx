@@ -47,6 +47,16 @@ function fmtQty(val: number | string): string {
     return n.toFixed(4).replace(/\.?0+$/, '').replace('.', ',');
 }
 
+/** Apakah produk ini AREA_BASED (qty & saldo dalam m²) */
+function isAreaBased(m: any): boolean {
+    return m.productVariant?.product?.pricingMode === 'AREA_BASED';
+}
+
+/** Tampilkan qty + satuan yang sesuai */
+function fmtQtyUnit(val: number | string, areaBased: boolean): string {
+    return `${fmtQty(val)} ${areaBased ? 'm²' : 'unit'}`;
+}
+
 const PRESETS = [
     { key: 'today',      label: 'Hari Ini' },
     { key: 'week',       label: 'Minggu Ini' },
@@ -79,15 +89,17 @@ export default function StockReportPage() {
 
     // ── Export CSV ──────────────────────────────────────────────────────────
     const handleExport = () => {
-        const header = 'Waktu,Produk,Varian,SKU,Tipe,Qty,Saldo Akhir,Keterangan\n';
+        const header = 'Waktu,Produk,Varian,SKU,Tipe,Qty,Satuan,Saldo Stok,Keterangan\n';
         const rows = movements.map((m: any) => {
             const prodName = m.productVariant?.product?.name ?? '';
             const varName  = m.productVariant?.variantName ?? '';
             const sku      = m.productVariant?.sku ?? '';
             const date     = new Date(m.createdAt).toLocaleString('id-ID');
+            const areaBased = isAreaBased(m);
+            const unit     = areaBased ? 'm²' : 'unit';
             const qty      = m.type === 'IN' ? `+${fmtQty(m.quantity)}` : m.type === 'OUT' ? `-${fmtQty(m.quantity)}` : `~${fmtQty(m.quantity)}`;
             const note     = (m.reason ?? '').replace(/,/g, ';');
-            return `"${date}","${prodName}","${varName}","${sku}","${m.type}","${qty}","${m.balanceAfter ?? ''}","${note}"`;
+            return `"${date}","${prodName}","${varName}","${sku}","${m.type}","${qty}","${unit}","${m.balanceAfter != null ? fmtQty(m.balanceAfter) : ''}","${note}"`;
         }).join('\n');
         const blob = new Blob(['\uFEFF' + header + rows], { type: 'text/csv;charset=utf-8;' });
         const url  = URL.createObjectURL(blob);
@@ -183,19 +195,19 @@ export default function StockReportPage() {
                     <div className="glass rounded-xl border border-emerald-200 bg-emerald-50/40 dark:bg-emerald-950/20 p-4 text-center">
                         <p className="text-xs text-emerald-600 mb-1">Total Masuk</p>
                         <p className="text-2xl font-black text-emerald-600">+{summary.totalIn.toLocaleString('id-ID')}</p>
-                        <p className="text-[10px] text-muted-foreground">unit</p>
+                        <p className="text-[10px] text-muted-foreground">unit / m²</p>
                     </div>
                     <div className="glass rounded-xl border border-red-200 bg-red-50/40 dark:bg-red-950/20 p-4 text-center">
                         <p className="text-xs text-red-600 mb-1">Total Keluar</p>
                         <p className="text-2xl font-black text-red-600">-{summary.totalOut.toLocaleString('id-ID')}</p>
-                        <p className="text-[10px] text-muted-foreground">unit</p>
+                        <p className="text-[10px] text-muted-foreground">unit / m²</p>
                     </div>
                     <div className="glass rounded-xl border border-blue-200 bg-blue-50/40 dark:bg-blue-950/20 p-4 text-center">
                         <p className="text-xs text-blue-600 mb-1">Net Pergerakan</p>
                         <p className={`text-2xl font-black ${summary.totalIn - summary.totalOut >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {summary.totalIn - summary.totalOut >= 0 ? '+' : ''}{(summary.totalIn - summary.totalOut).toLocaleString('id-ID')}
                         </p>
-                        <p className="text-[10px] text-muted-foreground">unit</p>
+                        <p className="text-[10px] text-muted-foreground">unit / m²</p>
                     </div>
                 </div>
             )}
@@ -211,8 +223,8 @@ export default function StockReportPage() {
                                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Produk</th>
                                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">SKU</th>
                                 <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground">Tipe</th>
-                                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Qty</th>
-                                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Saldo</th>
+                                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground">Qty / m²</th>
+                                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground" title="Saldo stok tersisa setelah pergerakan ini terjadi">Saldo Stok ↓</th>
                                 <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground">Keterangan</th>
                             </tr>
                         </thead>
@@ -226,6 +238,8 @@ export default function StockReportPage() {
                                 const Icon = cfg?.icon ?? RefreshCw;
                                 const prodName = m.productVariant?.product?.name ?? '–';
                                 const varName  = m.productVariant?.variantName ? ` · ${m.productVariant.variantName}` : '';
+                                const areaBased = isAreaBased(m);
+                                const unit = areaBased ? 'm²' : 'unit';
                                 return (
                                     <tr key={m.id} className="hover:bg-muted/20 transition-colors">
                                         <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">
@@ -234,7 +248,14 @@ export default function StockReportPage() {
                                             <span className="text-[10px]">{new Date(m.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
                                         </td>
                                         <td className="px-4 py-2.5">
-                                            <p className="font-medium text-foreground text-sm">{prodName}</p>
+                                            <div className="flex items-center gap-1.5">
+                                                <p className="font-medium text-foreground text-sm">{prodName}</p>
+                                                {areaBased && (
+                                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 border border-violet-200 dark:border-violet-800">
+                                                        m²
+                                                    </span>
+                                                )}
+                                            </div>
                                             {varName && <p className="text-xs text-muted-foreground">{varName.slice(3)}</p>}
                                         </td>
                                         <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">{m.productVariant?.sku ?? '–'}</td>
@@ -245,9 +266,15 @@ export default function StockReportPage() {
                                         </td>
                                         <td className={`px-4 py-2.5 text-right font-bold text-sm ${m.type === 'IN' ? 'text-emerald-600' : m.type === 'OUT' ? 'text-red-600' : 'text-blue-600'}`}>
                                             {m.type === 'IN' ? '+' : m.type === 'OUT' ? '-' : '~'}{fmtQty(m.quantity)}
+                                            <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{unit}</span>
                                         </td>
-                                        <td className="px-4 py-2.5 text-right text-xs text-muted-foreground font-mono">
-                                            {m.balanceAfter != null ? fmtQty(m.balanceAfter) : '–'}
+                                        <td className="px-4 py-2.5 text-right text-xs font-mono">
+                                            {m.balanceAfter != null ? (
+                                                <span className="text-foreground font-semibold">
+                                                    {fmtQty(m.balanceAfter)}
+                                                    <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{unit}</span>
+                                                </span>
+                                            ) : '–'}
                                         </td>
                                         <td className="px-4 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate" title={m.reason ?? ''}>
                                             {m.reason ?? '–'}
@@ -269,6 +296,8 @@ export default function StockReportPage() {
                         const cfg = TYPE_CONFIG[m.type as keyof typeof TYPE_CONFIG];
                         const Icon = cfg?.icon ?? RefreshCw;
                         const prodName = m.productVariant?.product?.name ?? '–';
+                        const areaBased = isAreaBased(m);
+                        const unit = areaBased ? 'm²' : 'unit';
                         return (
                             <div key={m.id} className="p-4 flex gap-3 items-start">
                                 <span className={`mt-0.5 p-1.5 rounded-lg border ${cfg?.className}`}>
@@ -276,12 +305,19 @@ export default function StockReportPage() {
                                 </span>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-start justify-between gap-2">
-                                        <p className="font-semibold text-sm truncate">{prodName}</p>
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <p className="font-semibold text-sm truncate">{prodName}</p>
+                                            {areaBased && (
+                                                <span className="shrink-0 px-1 py-0.5 rounded text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/30 text-violet-600 border border-violet-200 dark:border-violet-800">m²</span>
+                                            )}
+                                        </div>
                                         <p className={`font-bold text-sm shrink-0 ${m.type === 'IN' ? 'text-emerald-600' : m.type === 'OUT' ? 'text-red-600' : 'text-blue-600'}`}>
-                                            {m.type === 'IN' ? '+' : m.type === 'OUT' ? '-' : '~'}{fmtQty(m.quantity)}
+                                            {m.type === 'IN' ? '+' : m.type === 'OUT' ? '-' : '~'}{fmtQty(m.quantity)} {unit}
                                         </p>
                                     </div>
-                                    <p className="text-xs text-muted-foreground">{m.productVariant?.sku} · Saldo: {m.balanceAfter ?? '–'}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {m.productVariant?.sku} · Sisa stok: {m.balanceAfter != null ? `${fmtQty(m.balanceAfter)} ${unit}` : '–'}
+                                    </p>
                                     <p className="text-xs text-muted-foreground mt-0.5 truncate">{m.reason ?? '–'}</p>
                                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">{new Date(m.createdAt).toLocaleString('id-ID')}</p>
                                 </div>

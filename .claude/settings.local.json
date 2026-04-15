@@ -65,7 +65,9 @@
       "mcp__lean-ctx__ctx_edit",
       "mcp__lean-ctx__ctx_search",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "Bash(cmd /c dir \"C:\\\\Users\\\\awokawok\\\\.claude\")",
+      "Bash(cmd /c \"dir C:\\\\Users\\\\awokawok\\\\.claude && echo done\")"
     ]
   }
 }

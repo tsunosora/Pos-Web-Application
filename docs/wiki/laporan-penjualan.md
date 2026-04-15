@@ -74,6 +74,8 @@ Breakdown total pendapatan berdasarkan cara bayar pelanggan:
 - **Cash / Tunai**
 - **QRIS**
 - **Transfer Bank** — dipecah per nama rekening (BCA, Mandiri, dll.)
+- **KREDIT** — nota kredit tanpa pembayaran di muka
+- **BAYAR NANTI** — invoice disimpan tanpa pembayaran
 
 ---
 

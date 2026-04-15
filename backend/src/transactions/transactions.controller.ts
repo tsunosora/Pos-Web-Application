@@ -46,6 +46,14 @@ export class TransactionsController {
         return this.transactionsService.getDashboardMetrics();
     }
 
+    @Get('dashboard/cashier-stats')
+    getCashierStats(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.transactionsService.getCashierStats(startDate, endDate);
+    }
+
     @Get('dashboard/chart')
     getChartData(@Query('period') period: string = 'daily') {
         return this.transactionsService.getChartData(period);

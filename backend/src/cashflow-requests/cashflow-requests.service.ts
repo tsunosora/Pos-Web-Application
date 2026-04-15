@@ -14,7 +14,8 @@ export class CashflowRequestsService {
         const role = await (this.prisma as any).role.findUnique({ where: { id: roleId } });
         if (!role) return false;
         const name = role.name.toLowerCase();
-        return name === 'admin' || name.includes('manajer');
+        return name === 'admin' || name === 'owner' || name === 'pemilik'
+            || name.includes('manajer') || name.includes('manager');
     }
 
     async createRequest(

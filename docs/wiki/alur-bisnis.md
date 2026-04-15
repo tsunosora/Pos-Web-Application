@@ -97,13 +97,26 @@ Pilih metode pembayaran (Tunai / Transfer / QRIS)
 │ → Jika ada produk cetak → job masuk antrian /produksi            │
 └──────────────────────────────────────────────────────────────────┘
        atau
-┌─── Bayar DP ─────────────────────────────────────────────────────┐
+┌─── Bayar DP ─────────────────────────────────────────────┐
 │ → Transaksi tersimpan status PARTIAL                              │
 │ → Cashflow INCOME dibuat sebesar nilai DP saja                    │
-│ → Masuk daftar piutang di /transactions/dp                        │
+│ → Masuk daftar piutang di /transactions/dp (tab DP)               │
 │ → Saat pelanggan kembali melunasi → buka /transactions/dp        │
 │   → klik Lunasi → Cashflow INCOME terbuat untuk sisa tagihan     │
-└──────────────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────────┘
+       atau
+┌─── KREDIT (tanpa DP) ────────────────────────────────────┐
+│ → Transaksi tersimpan status PENDING (belum ada pembayaran)       │
+│ → Tidak ada Cashflow INCOME (belum ada uang masuk)               │
+│ → Masuk daftar piutang di /transactions/dp (tab Kredit)           │
+│ → Jatuh tempo tercatat → badge merah jika lewat                  │
+└──────────────────────────────────────────────────────────────┘
+       atau
+┌─── BAYAR NANTI ──────────────────────────────────────────┐
+│ → Invoice disimpan tanpa pembayaran sama sekali                   │
+│ → Masuk daftar piutang di /transactions/dp (tab Bayar Nanti)      │
+│ → Pelanggan bisa bayar kapan saja melalui menu Piutang           │
+└──────────────────────────────────────────────────────────────┘────┘
 ```
 
 ### Alur Produk Cetak (Percetakan Digital)
@@ -196,12 +209,13 @@ Klik "Kirim Laporan Shift ke WA"
 ### Mingguan / Bulanan
 - **Cashflow** (`/cashflow`) — chart tren pemasukan vs pengeluaran 6 bulan, breakdown per kategori
 - **Laporan Laba Kotor** (`/reports/profit`) — margin profit per produk, filter periode + export Excel
-- **Piutang** (`/transactions/dp`) — cek siapa yang masih punya tagihan belum lunas
+- **Piutang** (`/transactions/dp`) — cek siapa yang masih punya tagihan belum lunas, filter per tab (DP/Kredit/Bayar Nanti)
 
 ### Berkala
+- **Riwayat Shift** (`/reports/shift-history`) — lihat log semua shift, salin pesan WA, kirim ulang
 - **Stok Opname** (`/inventory/opname`) — hitung fisik stok, bagi link ke karyawan, konfirmasi selisih
 - **Data Pelanggan** (`/customers`) — analitik per pelanggan: total belanja, frekuensi, produk favorit
-- **Backup** (`/settings/backup`) — export database ke ZIP, simpan di tempat aman
+- **Backup** (`/settings/backup`) — export database ke ZIP, auto-backup via Rclone, simpan di cloud
 
 ---
 
@@ -264,6 +278,8 @@ Kotak Pencarian di Peta:
 |---|---|---|
 | Transaksi kasir LUNAS | Cashflow INCOME | ❌ Tidak perlu |
 | Transaksi DP | Cashflow INCOME (sebesar DP) | ❌ |
+| Transaksi KREDIT | Cashflow belum tercatat (nol) | ❌ |
+| Transaksi BAYAR NANTI | Cashflow belum tercatat (nol) | ❌ |
 | Pelunasan piutang | Cashflow INCOME (sebesar sisa) | ❌ |
 | Produk cetak terjual | Job produksi masuk antrian | ❌ |
 | Operator mulai cetak | Stok bahan roll terpotong | ❌ |
@@ -285,8 +301,9 @@ Kotak Pencarian di Peta:
 | [Cashflow Bisnis](cashflow.md) | Cara baca laporan arus kas |
 | [Kalkulator HPP](hpp-calculator.md) | Cara hitung HPP dan simpan ke produk |
 | [Stok Opname](stock-opname.md) | Panduan hitung fisik stok berkala |
-| [Backup & Restore](backup.md) | Cara backup dan pulihkan data |
+| [Backup & Restore](backup.md) | Cara backup, auto-backup Rclone, dan pulihkan data |
+| [Riwayat Tutup Shift](riwayat-shift.md) | Log historis shift, backup pesan WA, kirim ulang |
 
 ---
 
-*Dokumentasi PosPro — Terakhir diperbarui: 26 Maret 2026*
+*Dokumentasi PosPro — Terakhir diperbarui: 16 April 2026*

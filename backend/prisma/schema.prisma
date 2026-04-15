@@ -300,8 +300,9 @@ model Cashflow {
   paymentMethod  PaymentMethod? @map("payment_method")
   platformSource String?        @map("platform_source") @db.VarChar(100)
   date           DateTime       @default(now())
-  shiftReportId  Int?           @map("shift_report_id") // tag pengeluaran ke shift tertentu
-  createdAt     DateTime?      @default(now()) @map("created_at")
+  shiftReportId    Int?     @map("shift_report_id") // tag pengeluaran ke shift tertentu
+  excludeFromShift Boolean  @default(false) @map("exclude_from_shift") // true = tidak masuk laporan shift manapun (retroaktif/lupa)
+  createdAt        DateTime? @default(now()) @map("created_at")
   updatedAt     DateTime?      @default(now()) @updatedAt @map("updated_at")
 
   user           User?        @relation(fields: [userId], references: [id])
@@ -760,6 +761,8 @@ model ShiftReport {
 
   expensesTotal    Decimal   @map("expenses_total") @db.Decimal(15, 2)
   notes            String?   @db.Text
+  amendedAt        DateTime? @map("amended_at")       // diisi saat laporan dikoreksi
+  amendNote        String?   @map("amend_note") @db.Text // catatan alasan koreksi
   proofImages      Json?     @map("proof_images")    // array of uploaded image paths
   whatsappMessage  String?   @map("whatsapp_message") @db.Text // backup pesan WA untuk resend
   paymentExchanges Json?     @map("payment_exchanges") // [{from, to, amount}]

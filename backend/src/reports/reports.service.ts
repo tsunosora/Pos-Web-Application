@@ -149,9 +149,9 @@ export class ReportsService {
         }
 
         // Filter berdasarkan shiftReportId = null (belum di-tag ke shift manapun)
-        // bukan berdasarkan waktu — lebih akurat meskipun kasir lama input laporan
+        // dan excludeFromShift = false (cashflow retroaktif/lupa tidak ikut dihitung)
         const cashflows: any[] = await (this.prisma as any).cashflow.findMany({
-            where: { shiftReportId: null },
+            where: { shiftReportId: null, excludeFromShift: false },
             include: { bankAccount: true },
         });
 
@@ -299,8 +299,9 @@ export class ReportsService {
 
         // Tag semua cashflow yang belum di-assign ke shift manapun (shiftReportId = null)
         // ke shift ini — mencegah data shift ini bocor ke shift berikutnya
+        // excludeFromShift = true → biarkan, tidak di-tag ke shift manapun
         await this.prisma.cashflow.updateMany({
-            where: { shiftReportId: null },
+            where: { shiftReportId: null, excludeFromShift: false },
             data: { shiftReportId: shiftId },
         });
 
@@ -467,6 +468,14 @@ export class ReportsService {
                     structuredExpenses: true,
                     kasbon: true,
                     additionalIncomes: true,
+                    setorKas: true,
+                    tarikTunai: true,
+                    tukarTransferKeCash: true,
+                    paymentExchanges: true,
+                    actualBankBalances: true,
+                    realBankBalances: true,
+                    amendedAt: true,
+                    amendNote: true,
                     createdAt: true,
                 },
             }),
@@ -485,6 +494,138 @@ export class ReportsService {
         const images: string[] = proofImages ?? (Array.isArray(shift.proofImages) ? shift.proofImages : []);
         await this.whatsappService.sendReport(msg, images);
         return { success: true, message: 'Laporan shift berhasil dikirim ulang ke WhatsApp.' };
+    }
+
+    async amendShiftReport(id: number, dto: {
+        actualCash?: number;
+        actualQris?: number;
+        actualTransfer?: number;
+        structuredExpenses?: any;
+        kasbon?: any;
+        setorKas?: any;
+        tarikTunai?: any;
+        additionalIncomes?: any;
+        tukarTransferKeCash?: number;
+        paymentExchanges?: any;
+        actualBankBalances?: any;
+        realBankBalances?: any;
+        notes?: string;
+        amendNote: string; // wajib — catatan alasan koreksi
+    }) {
+        const shift: any = await (this.prisma as any).shiftReport.findUnique({ where: { id } });
+        if (!shift) throw new Error(`Shift report #${id} tidak ditemukan`);
+
+        const actualCash = dto.actualCash !== undefined ? dto.actualCash : Number(shift.actualCash);
+        const actualQris = dto.actualQris !== undefined ? dto.actualQris : Number(shift.actualQris);
+        const actualTransfer = dto.actualTransfer !== undefined ? dto.actualTransfer : Number(shift.actualTransfer);
+
+        const cashDifference = actualCash - Number(shift.expectedCash);
+        const qrisDifference = actualQris - Number(shift.expectedQris);
+        const transferDifference = actualTransfer - Number(shift.expectedTransfer);
+
+        // Rekalkulasi expensesTotal dari structuredExpenses jika diberikan
+        let expensesTotal: number | undefined;
+        if (dto.structuredExpenses !== undefined) {
+            const expenses = dto.structuredExpenses as Record<string, { name: string; amount: number }[]>;
+            expensesTotal = Object.values(expenses).flat().reduce((s, e) => s + Number(e.amount || 0), 0);
+        }
+
+        // Resolve nilai final: dto menang atas data tersimpan
+        const finalStructuredExpenses = dto.structuredExpenses !== undefined ? dto.structuredExpenses : shift.structuredExpenses;
+        const finalKasbon = dto.kasbon !== undefined ? dto.kasbon : (shift.kasbon || []);
+        const finalSetorKas = dto.setorKas !== undefined ? dto.setorKas : (shift.setorKas || []);
+        const finalTarikTunai = dto.tarikTunai !== undefined ? dto.tarikTunai : (shift.tarikTunai || []);
+        const finalAdditionalIncomes = dto.additionalIncomes !== undefined ? dto.additionalIncomes : (shift.additionalIncomes || []);
+        const finalPaymentExchanges = dto.paymentExchanges !== undefined ? dto.paymentExchanges : (shift.paymentExchanges || []);
+        const finalTukarTransfer = dto.tukarTransferKeCash !== undefined ? dto.tukarTransferKeCash : Number(shift.tukarTransferKeCash || 0);
+        const finalActualBankBalances = dto.actualBankBalances !== undefined ? dto.actualBankBalances : (shift.actualBankBalances || {});
+        const finalRealBankBalances = dto.realBankBalances !== undefined ? dto.realBankBalances : (shift.realBankBalances || {});
+
+        // Rekonstruksi grossCash dari data ASLI yang tersimpan sebelum amendment.
+        // expectedCash yang tersimpan adalah adjustedExpectedCash:
+        //   adjustedExpected = grossCash - structuredCashExp - setorKas + tarikTunai + tukarTransfer - kasbonToko + exchangeCashEffect
+        // Sehingga: grossCash = expectedCash + cashExp + setorKas - tarikTunai - tukarTransfer + kasbonToko - exchangeCashEffect
+        const origCashExp = ((shift.structuredExpenses as any)?.['CASH'] || []).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+        const origSetorKasTotal = (shift.setorKas || []).reduce((s: number, k: any) => s + Number(k.amount || 0), 0);
+        const origTarikTunaiTotal = (shift.tarikTunai || []).reduce((s: number, k: any) => s + Number(k.amount || 0), 0);
+        const origTukarTransfer = Number(shift.tukarTransferKeCash || 0);
+        const origKasbonToko = (shift.kasbon || [])
+            .filter((k: any) => !k.source || k.source === 'Kas Toko')
+            .reduce((s: number, k: any) => s + Number(k.amount || 0), 0);
+        const origExchangeCashEffect = (shift.paymentExchanges || []).reduce((sum: number, ex: any) => {
+            if (ex.to === 'CASH') return sum + Number(ex.amount || 0);
+            if (ex.from === 'CASH') return sum - Number(ex.amount || 0);
+            return sum;
+        }, 0);
+        const reconstructedGrossCash = Number(shift.expectedCash)
+            + origCashExp + origSetorKasTotal - origTarikTunaiTotal
+            - origTukarTransfer + origKasbonToko - origExchangeCashEffect;
+
+        // Bangun objek exp yang dibutuhkan formatWhatsappMessage dari data tersimpan
+        const reconstructedExp = {
+            grossCash: Math.max(0, reconstructedGrossCash),
+            grossQris: Number(shift.expectedQris || 0),
+            grossBankIncomes: shift.expectedBankBalances || {},
+            systemBankBalances: shift.expectedBankBalances || {},
+            shiftExpenses: Array.isArray(shift.shiftExpenses) ? shift.shiftExpenses : [],
+        };
+
+        // Shift object dengan actual terbaru untuk dipakai formatWhatsappMessage
+        const shiftForMsg = { ...shift, actualCash, actualQris, actualTransfer };
+
+        // Generate ulang pesan WhatsApp dengan semua data yang sudah dikoreksi
+        const settings = await this.prisma.storeSettings.findFirst();
+        let newWhatsappMessage = this.formatWhatsappMessage(
+            shiftForMsg,
+            reconstructedExp,
+            finalActualBankBalances,
+            finalRealBankBalances,
+            actualQris,
+            finalStructuredExpenses,
+            settings,
+            finalKasbon,
+            finalSetorKas,
+            finalTarikTunai,
+            undefined, // reportDate — gunakan closedAt dari shift
+            finalTukarTransfer,
+            finalAdditionalIncomes,
+            finalPaymentExchanges,
+        );
+
+        // Tambahkan tanda bahwa laporan sudah dikoreksi di akhir pesan
+        const amendedAtStr = new Date().toLocaleString('id-ID', {
+            day: 'numeric', month: 'long', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+        });
+        newWhatsappMessage += `\n\n⚠️ *LAPORAN DIKOREKSI*\nDikoreksi pada: ${amendedAtStr}\nAlasan: ${dto.amendNote}`;
+
+        const updated = await (this.prisma as any).shiftReport.update({
+            where: { id },
+            data: {
+                actualCash,
+                actualQris,
+                actualTransfer,
+                cashDifference,
+                qrisDifference,
+                transferDifference,
+                whatsappMessage: newWhatsappMessage,
+                ...(expensesTotal !== undefined && { expensesTotal }),
+                ...(dto.structuredExpenses !== undefined && { structuredExpenses: dto.structuredExpenses }),
+                ...(dto.kasbon !== undefined && { kasbon: dto.kasbon }),
+                ...(dto.setorKas !== undefined && { setorKas: dto.setorKas }),
+                ...(dto.tarikTunai !== undefined && { tarikTunai: dto.tarikTunai }),
+                ...(dto.additionalIncomes !== undefined && { additionalIncomes: dto.additionalIncomes }),
+                ...(dto.tukarTransferKeCash !== undefined && { tukarTransferKeCash: dto.tukarTransferKeCash }),
+                ...(dto.paymentExchanges !== undefined && { paymentExchanges: dto.paymentExchanges }),
+                ...(dto.actualBankBalances !== undefined && { actualBankBalances: dto.actualBankBalances }),
+                ...(dto.realBankBalances !== undefined && { realBankBalances: dto.realBankBalances }),
+                ...(dto.notes !== undefined && { notes: dto.notes }),
+                amendedAt: new Date(),
+                amendNote: dto.amendNote,
+            },
+        });
+
+        return { success: true, message: 'Laporan shift berhasil dikoreksi.', data: updated };
     }
 
     private formatWhatsappMessage(

@@ -2,7 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { getDashboardMetrics, getSalesChart } from '@/lib/api';
+import { getDashboardMetrics, getSalesChart, getCashierStats } from '@/lib/api';
 import {
   Wallet,
   ArrowUpRight,
@@ -14,11 +14,13 @@ import {
   Map,
   Loader2,
   CalendarDays,
-  BarChart
+  BarChart,
+  Users,
+  Calendar
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, BarChart as RechartsBarChart, Bar, Cell, LabelList } from 'recharts';
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -32,8 +34,32 @@ const PERIOD_OPTIONS: { key: ChartPeriod; label: string }[] = [
   { key: 'yearly', label: 'Tahunan' },
 ];
 
+type CashierPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+
+const CASHIER_PERIOD_OPTIONS: { key: CashierPeriod; label: string }[] = [
+  { key: 'daily', label: 'Harian' },
+  { key: 'weekly', label: 'Mingguan' },
+  { key: 'monthly', label: 'Bulanan' },
+  { key: 'yearly', label: 'Tahunan' },
+  { key: 'custom', label: 'Custom' },
+];
+
+function getCashierDateRange(period: CashierPeriod, customStart: string, customEnd: string) {
+  const now = dayjs();
+  switch (period) {
+    case 'daily':   return { start: now.format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'weekly':  return { start: now.startOf('week').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'monthly': return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'yearly':  return { start: now.startOf('year').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'custom':  return { start: customStart, end: customEnd };
+  }
+}
+
 export default function Home() {
   const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('daily');
+  const [cashierPeriod, setCashierPeriod] = useState<CashierPeriod>('daily');
+  const [cashierCustomStart, setCashierCustomStart] = useState(dayjs().format('YYYY-MM-DD'));
+  const [cashierCustomEnd, setCashierCustomEnd] = useState(dayjs().format('YYYY-MM-DD'));
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ['dashboard-metrics'],
@@ -43,6 +69,14 @@ export default function Home() {
   const { data: chartRaw, isLoading: chartLoading } = useQuery({
     queryKey: ['sales-chart', chartPeriod],
     queryFn: () => getSalesChart(chartPeriod),
+  });
+
+  const cashierRange = getCashierDateRange(cashierPeriod, cashierCustomStart, cashierCustomEnd);
+  const { data: cashierStats, isLoading: cashierLoading } = useQuery({
+    queryKey: ['cashier-stats', cashierRange.start, cashierRange.end],
+    queryFn: () => getCashierStats(cashierRange.start, cashierRange.end),
+    refetchInterval: cashierPeriod === 'daily' ? 60_000 : false,
+    enabled: cashierPeriod !== 'custom' || (!!cashierCustomStart && !!cashierCustomEnd),
   });
 
   if (isLoading) {
@@ -240,7 +274,146 @@ export default function Home() {
               Kelola Stok Barang
             </Link>
           </div>
+
         </div>
+      </div>
+
+      {/* Performa Kasir — Full Width */}
+      <div className="glass rounded-xl p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+              <Users className="h-5 w-5 text-primary" />
+              Performa Kasir
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">Total invoice lunas per kasir</p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
+              <Calendar className="w-4 h-4 text-muted-foreground ml-1.5 mr-0.5" />
+              {CASHIER_PERIOD_OPTIONS.map(opt => (
+                <button
+                  key={opt.key}
+                  onClick={() => setCashierPeriod(opt.key)}
+                  className={cn(
+                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
+                    cashierPeriod === opt.key
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {cashierPeriod === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={cashierCustomStart}
+                  onChange={e => setCashierCustomStart(e.target.value)}
+                  className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                />
+                <span className="text-xs text-muted-foreground">s/d</span>
+                <input
+                  type="date"
+                  value={cashierCustomEnd}
+                  onChange={e => setCashierCustomEnd(e.target.value)}
+                  className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {cashierLoading ? (
+          <div className="h-[280px] flex items-center justify-center">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : !cashierStats || (cashierStats as any[]).length === 0 ? (
+          <div className="h-[280px] flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-muted/20">
+            <Users className="w-8 h-8 text-muted-foreground/30 mb-2" />
+            <p className="text-sm text-muted-foreground">Belum ada transaksi untuk periode ini.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Bar Chart */}
+            <div>
+              <ResponsiveContainer width="100%" height={260}>
+                <RechartsBarChart
+                  data={(cashierStats as any[]).map(k => ({ name: k.name, Revenue: k.revenue, Count: k.count }))}
+                  margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                  layout="vertical"
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" opacity={0.5} />
+                  <XAxis
+                    type="number"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}jt` : `${(v / 1000).toFixed(0)}k`}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12, fill: '#374151' }}
+                    width={100}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: any, name: string) => name === 'Revenue'
+                      ? [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Pendapatan']
+                      : [value, 'Invoice']}
+                    labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '4px' }}
+                  />
+                  <Bar dataKey="Revenue" radius={[0, 6, 6, 0]} maxBarSize={36}>
+                    {(cashierStats as any[]).map((_: any, i: number) => {
+                      const barColors = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+                      return <Cell key={i} fill={barColors[i % barColors.length]} />;
+                    })}
+                    <LabelList
+                      dataKey="Count"
+                      position="right"
+                      formatter={(v: any) => `${v} inv`}
+                      style={{ fontSize: 11, fill: '#6b7280' }}
+                    />
+                  </Bar>
+                </RechartsBarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* List / Table */}
+            <div className="space-y-3">
+              {(cashierStats as any[]).map((kasir, i) => {
+                const maxRevenue = (cashierStats as any[])[0]?.revenue || 1;
+                const pct = Math.round((kasir.revenue / maxRevenue) * 100);
+                const colors = ['bg-primary', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500'];
+                const bar = colors[i % colors.length];
+                return (
+                  <div key={kasir.name} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${bar}`} />
+                        <span className="text-sm font-medium text-foreground truncate">{kasir.name}</span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-semibold text-foreground">
+                          Rp {kasir.revenue.toLocaleString('id-ID')}
+                        </span>
+                        <span className="text-xs text-muted-foreground ml-1.5">· {kasir.count} inv</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div className={`h-full rounded-full transition-all duration-500 ${bar}`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

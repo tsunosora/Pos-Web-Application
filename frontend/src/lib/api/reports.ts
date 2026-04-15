@@ -3,6 +3,12 @@ import api from './client';
 // Dashboard & Sales
 export const getDashboardMetrics = async () => (await api.get('/transactions/dashboard/metrics')).data;
 export const getSalesChart = async (period: string) => (await api.get(`/transactions/dashboard/chart?period=${period}`)).data;
+export const getCashierStats = async (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return (await api.get(`/transactions/dashboard/cashier-stats?${params.toString()}`)).data;
+};
 export const getSalesSummary = async (startDate?: string, endDate?: string, sortBy: 'qty' | 'revenue' = 'qty', limit: number = 20) => {
     const params = new URLSearchParams();
     if (startDate) params.append('startDate', startDate);
@@ -30,3 +36,19 @@ export const getShiftHistory = async (page = 1, limit = 20) =>
     (await api.get(`/reports/shift-history?page=${page}&limit=${limit}`)).data;
 export const resendShiftReport = async (id: number) =>
     (await api.post(`/reports/shift/${id}/resend`)).data;
+export const amendShiftReport = async (id: number, data: {
+    actualCash?: number;
+    actualQris?: number;
+    actualTransfer?: number;
+    structuredExpenses?: any;
+    kasbon?: any;
+    setorKas?: any;
+    tarikTunai?: any;
+    additionalIncomes?: any;
+    tukarTransferKeCash?: number;
+    paymentExchanges?: any;
+    actualBankBalances?: any;
+    realBankBalances?: any;
+    notes?: string;
+    amendNote: string;
+}) => (await api.patch(`/reports/shift/${id}/amend`, data)).data;

@@ -66,8 +66,14 @@ DATABASE_URL="mysql://pospro_user:<PASSWORD_ANDA>@localhost:3306/pospro_db"
 PORT=3001
 JWT_SECRET="ganti_dengan_secret_key_yang_sangat_rumit_dan_panjang_sekali"
 
-# Pengaturan WhatsApp Bot (Opsional direkap nanti)
+# CORS — daftar domain yang diizinkan (pisahkan dengan koma)
+ALLOWED_ORIGINS="https://domainanda.com,https://share.domainanda.com"
+
+# Pengaturan WhatsApp Bot
 WHATSAPP_REPORT_GROUP_ID=""
+
+# Google Service Account untuk Rclone/GDrive (opsional)
+GOOGLE_APPLICATION_CREDENTIALS="./google-service-account.json"
 ```
 
 Setelah `.env` sesuai, jalankan migrasi database agar tabel-tabel terbuat:
@@ -113,6 +119,10 @@ Edit file `.env.local` (misal: `nano .env.local`). Arahkan `NEXT_PUBLIC_API_URL`
 ```env
 # URL Publik Backend yang akan dibuat di Cloudflare
 NEXT_PUBLIC_API_URL="https://api.domainanda.com"
+
+# (Opsional) Domain khusus untuk halaman share produk publik
+# Jika diisi, halaman /p/* hanya bisa diakses dari domain ini
+NEXT_PUBLIC_SHARE_DOMAIN="https://share.domainanda.com"
 ```
 
 Lakukan _build_ pada Next.js (proses ini mengkompilasi file React menjadi statik & server optimal):

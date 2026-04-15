@@ -16,13 +16,13 @@ hero:
 features:
   - icon: 🏪
     title: Kasir (POS) Real-Time
-    details: Transaksi cepat dengan barcode scanner, harga bertingkat per qty, DP/piutang, dan berbagai metode pembayaran (Tunai, QRIS, Transfer).
+    details: Transaksi cepat dengan barcode scanner, harga bertingkat per qty, DP/piutang, dan berbagai metode pembayaran (Tunai, QRIS, Transfer, Kredit, Bayar Nanti).
   - icon: 📦
     title: Manajemen Stok & Produk
     details: Inventori lengkap dengan varian, BOM (bahan baku otomatis terpotong), stok opname berkala, dan manajemen supplier.
   - icon: 💰
     title: Laporan & Keuangan
-    details: Cashflow, laporan laba kotor per produk, tutup shift kasir otomatis, dan kalkulator HPP untuk penetapan harga yang akurat.
+    details: Cashflow, laporan laba kotor per produk, tutup shift kasir otomatis, riwayat shift historis, dan kalkulator HPP untuk penetapan harga yang akurat.
   - icon: 🖨️
     title: Antrian Produksi
     details: Job queue untuk percetakan digital dengan PIN operator, batch cetak, produk rakitan multi-tahap, dan tracking status real-time.
@@ -40,5 +40,5 @@ features:
     details: Bell icon dengan riwayat notifikasi, popup pengingat shift, integrasi Discord webhook, dan notifikasi commit GitHub langsung di aplikasi.
   - icon: 💾
     title: Backup & Deployment Mandiri
-    details: Export backup database ke ZIP, restore kapan saja. Pasang di home server atau VPS dengan panduan deployment lengkap.
+    details: Export backup database ke ZIP, auto-backup terjadwal via Rclone ke cloud, restore kapan saja. Pasang di home server atau VPS dengan panduan deployment lengkap.
 ---

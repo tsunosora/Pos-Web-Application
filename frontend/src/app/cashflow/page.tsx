@@ -407,6 +407,7 @@ export default function CashflowPage() {
     const [customPlatform, setCustomPlatform] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER'>('CASH');
     const [bankAccountId, setBankAccountId] = useState<number | ''>('');
+    const [excludeFromShift, setExcludeFromShift] = useState(false);
 
     // Edit + delete
     const [editEntry, setEditEntry] = useState<CashflowEntry | null>(null);
@@ -490,6 +491,7 @@ export default function CashflowPage() {
             setCustomPlatform('');
             setPaymentMethod('CASH');
             setBankAccountId('');
+            setExcludeFromShift(false);
         },
     });
 
@@ -521,6 +523,7 @@ export default function CashflowPage() {
             platformSource: finalPlatform,
             paymentMethod,
             bankAccountId: paymentMethod === 'BANK_TRANSFER' && bankAccountId ? bankAccountId : null,
+            excludeFromShift,
         });
     };
 
@@ -979,7 +982,22 @@ export default function CashflowPage() {
                                 <label className="text-sm font-medium text-foreground">Catatan / Keterangan</label>
                                 <textarea rows={3} value={note} onChange={e => setNote(e.target.value)} placeholder="Opsional" className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" />
                             </div>
-                            <div className="pt-4 flex justify-end gap-3">
+                            {/* Toggle: tidak masuk laporan shift */}
+                            <button
+                                type="button"
+                                onClick={() => setExcludeFromShift(p => !p)}
+                                className={`w-full flex items-start gap-3 px-3 py-3 rounded-xl border text-left transition-all ${excludeFromShift ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : 'border-border bg-muted/30 hover:border-primary/30'}`}
+                            >
+                                <div className={`w-4 h-4 rounded mt-0.5 shrink-0 flex items-center justify-center border-2 transition-colors ${excludeFromShift ? 'border-amber-500 bg-amber-500' : 'border-muted-foreground'}`}>
+                                    {excludeFromShift && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                </div>
+                                <div>
+                                    <p className={`text-sm font-medium ${excludeFromShift ? 'text-amber-700 dark:text-amber-400' : 'text-foreground'}`}>Tidak masuk laporan shift</p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">Centang jika ini pengeluaran/pemasukan dari shift yang sudah lewat atau tidak relevan dengan shift aktif saat ini. Data tetap tercatat di cashflow.</p>
+                                </div>
+                            </button>
+
+                            <div className="pt-2 flex justify-end gap-3">
                                 <button type="button" onClick={() => setIsDialogOpen(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground border border-input hover:bg-muted/50 transition-colors">Batal</button>
                                 <button type="submit" disabled={createMutation.isPending} className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50">
                                     {createMutation.isPending ? 'Menyimpan...' : 'Simpan Entry'}

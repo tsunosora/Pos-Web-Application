@@ -720,9 +720,11 @@ export class TransactionsService {
     }
 
     async getSummaryReport(startDate?: string, endDate?: string, sortBy: 'qty' | 'revenue' = 'qty', limit: number = 20) {
+        // Gunakan updatedAt sebagai acuan tanggal, bukan createdAt.
+        // Nota PENDING yang dibuat hari X tapi dibayar hari Y akan masuk ke laporan hari Y (updatedAt berubah saat status → PAID).
         const whereClause: any = { status: TransactionStatus.PAID };
         if (startDate && endDate) {
-            whereClause.createdAt = {
+            whereClause.updatedAt = {
                 gte: new Date(startDate),
                 lte: new Date(endDate + 'T23:59:59.999Z')
             };
@@ -746,7 +748,7 @@ export class TransactionsService {
             const prevTransactions = await this.prisma.transaction.findMany({
                 where: {
                     status: TransactionStatus.PAID,
-                    createdAt: { gte: prevStart, lte: prevEnd }
+                    updatedAt: { gte: prevStart, lte: prevEnd }
                 },
                 include: {
                     items: { include: { productVariant: true } }
@@ -927,28 +929,104 @@ export class TransactionsService {
         return data;
     }
 
+    async getCashierStats(startDate?: string, endDate?: string) {
+        let start: Date;
+        let end: Date;
+
+        if (startDate && endDate) {
+            start = new Date(startDate);
+            start.setHours(0, 0, 0, 0);
+            end = new Date(endDate);
+            end.setHours(23, 59, 59, 999);
+        } else {
+            // Default: hari ini
+            start = new Date();
+            start.setHours(0, 0, 0, 0);
+            end = new Date();
+            end.setHours(23, 59, 59, 999);
+        }
+
+        // Ambil semua transaksi PAID dalam rentang tanggal (berdasarkan waktu lunas)
+        const transactions = await this.prisma.transaction.findMany({
+            where: { updatedAt: { gte: start, lte: end }, status: TransactionStatus.PAID },
+            select: { cashierName: true, checkoutCashierName: true, grandTotal: true },
+        });
+
+        const stats: Record<string, { name: string; count: number; revenue: number }> = {};
+
+        for (const tx of transactions) {
+            // Prioritaskan checkoutCashierName (yang melunasi), fallback ke cashierName (yang buat invoice)
+            const name = tx.checkoutCashierName || tx.cashierName || 'Tidak Diketahui';
+            if (!stats[name]) stats[name] = { name, count: 0, revenue: 0 };
+            stats[name].count++;
+            stats[name].revenue += Number(tx.grandTotal);
+        }
+
+        return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
+    }
+
     async getDashboardMetrics() {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const yesterdayStart = new Date(todayStart);
         yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
-        const [todayTransactions, yesterdayTransactions, todayCashflow, yesterdayCashflow, lowStockItems] =
-            await Promise.all([
-                this.prisma.transaction.aggregate({ where: { createdAt: { gte: todayStart }, status: TransactionStatus.PAID }, _sum: { grandTotal: true }, _count: { id: true } }),
-                this.prisma.transaction.aggregate({ where: { createdAt: { gte: yesterdayStart, lt: todayStart }, status: TransactionStatus.PAID }, _sum: { grandTotal: true }, _count: { id: true } }),
-                this.prisma.cashflow.aggregate({ where: { createdAt: { gte: todayStart }, type: CashflowType.INCOME }, _sum: { amount: true } }),
-                this.prisma.cashflow.aggregate({ where: { createdAt: { gte: yesterdayStart, lt: todayStart }, type: CashflowType.INCOME }, _sum: { amount: true } }),
-                this.prisma.productVariant.findMany({ where: { stock: { lte: 10 }, product: { trackStock: true } }, include: { product: true }, orderBy: { stock: 'asc' }, take: 5 })
-            ]);
+        // Cashflow auto-entries (userId: null) = dibuat oleh sistem saat transaksi PAID.
+        // Menggunakan createdAt cashflow sebagai acuan waktu pembayaran, bukan createdAt transaksi.
+        // Ini memastikan nota PENDING yang dibayar hari ini tetap terhitung di dashboard hari ini.
+        const [
+            todaySalesAgg,     // Revenue hari ini (berdasarkan waktu bayar)
+            yesterdaySalesAgg, // Revenue kemarin
+            todayTxCount,      // Jumlah transaksi lunas hari ini (berdasarkan updatedAt)
+            yesterdayTxCount,  // Jumlah transaksi lunas kemarin
+            todayCashflow,     // Total cashflow masuk hari ini (semua, untuk card cashflow)
+            yesterdayCashflow, // Total cashflow masuk kemarin
+            lowStockItems,
+        ] = await Promise.all([
+            // Sales card: sum cashflow auto-income hari ini (userId null = auto dari transaksi)
+            this.prisma.cashflow.aggregate({
+                where: { createdAt: { gte: todayStart }, type: CashflowType.INCOME, userId: null },
+                _sum: { amount: true },
+            }),
+            this.prisma.cashflow.aggregate({
+                where: { createdAt: { gte: yesterdayStart, lt: todayStart }, type: CashflowType.INCOME, userId: null },
+                _sum: { amount: true },
+            }),
+            // Tx count: hitung transaksi yang statusnya PAID dan updatedAt hari ini
+            this.prisma.transaction.count({
+                where: { updatedAt: { gte: todayStart }, status: TransactionStatus.PAID },
+            }),
+            this.prisma.transaction.count({
+                where: { updatedAt: { gte: yesterdayStart, lt: todayStart }, status: TransactionStatus.PAID },
+            }),
+            // Cashflow card: semua income hari ini (termasuk manual)
+            this.prisma.cashflow.aggregate({
+                where: { createdAt: { gte: todayStart }, type: CashflowType.INCOME },
+                _sum: { amount: true },
+            }),
+            this.prisma.cashflow.aggregate({
+                where: { createdAt: { gte: yesterdayStart, lt: todayStart }, type: CashflowType.INCOME },
+                _sum: { amount: true },
+            }),
+            this.prisma.productVariant.findMany({
+                where: { stock: { lte: 10 }, product: { trackStock: true } },
+                include: { product: true },
+                orderBy: { stock: 'asc' },
+                take: 5,
+            }),
+        ]);
 
-        // Get last 7 days sales for chart
+        // Get last 7 days sales for chart (berdasarkan cashflow payment date)
         const sevenDaysAgo = new Date(todayStart);
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
 
-        const recentTx = await this.prisma.transaction.findMany({
-            where: { createdAt: { gte: sevenDaysAgo }, status: TransactionStatus.PAID },
-            select: { createdAt: true, grandTotal: true }
+        const recentCashflow = await this.prisma.cashflow.findMany({
+            where: {
+                createdAt: { gte: sevenDaysAgo },
+                type: CashflowType.INCOME,
+                userId: null, // auto-created dari transaksi
+            },
+            select: { createdAt: true, amount: true },
         });
 
         // Group by Date for Chart
@@ -960,25 +1038,23 @@ export class TransactionsService {
             salesChartData[dateStr] = 0;
         }
 
-        recentTx.forEach(tx => {
-            if (tx.createdAt) {
-                const dateStr = `${tx.createdAt.getFullYear()}-${String(tx.createdAt.getMonth() + 1).padStart(2, '0')}-${String(tx.createdAt.getDate()).padStart(2, '0')}`;
+        recentCashflow.forEach(cf => {
+            if (cf.createdAt) {
+                const dateStr = `${cf.createdAt.getFullYear()}-${String(cf.createdAt.getMonth() + 1).padStart(2, '0')}-${String(cf.createdAt.getDate()).padStart(2, '0')}`;
                 if (salesChartData[dateStr] !== undefined) {
-                    salesChartData[dateStr] += Number(tx.grandTotal);
+                    salesChartData[dateStr] += Number(cf.amount);
                 }
             }
         });
 
         const salesChart = Object.keys(salesChartData).map(date => ({
             date,
-            total: salesChartData[date]
+            total: salesChartData[date],
         }));
 
-        const todaySales = Number(todayTransactions._sum.grandTotal || 0);
-        const yesterdaySales = Number(yesterdayTransactions._sum.grandTotal || 0);
+        const todaySales = Number(todaySalesAgg._sum.amount || 0);
+        const yesterdaySales = Number(yesterdaySalesAgg._sum.amount || 0);
         const salesTrend = yesterdaySales === 0 ? 100 : ((todaySales - yesterdaySales) / yesterdaySales) * 100;
-        const todayTxCount = todayTransactions._count.id;
-        const yesterdayTxCount = yesterdayTransactions._count.id;
         const txTrend = yesterdayTxCount === 0 ? 100 : ((todayTxCount - yesterdayTxCount) / yesterdayTxCount) * 100;
         const todayCashIn = Number(todayCashflow?._sum?.amount || 0);
         const yesterdayCashIn = Number(yesterdayCashflow?._sum?.amount || 0);
@@ -990,7 +1066,7 @@ export class TransactionsService {
             transactions: { value: todayTxCount, trend: `${txTrend > 0 ? '+' : ''}${txTrend.toFixed(1)}%`, trendUp: txTrend >= 0 },
             cashflow: { value: todayCashIn, trend: `${cashTrend > 0 ? '+' : ''}${cashTrend.toFixed(1)}%`, trendUp: cashTrend >= 0 },
             alerts: { count: lowStockCount, items: lowStockItems.map(item => ({ name: `${item.product.name} ${item.size ? `(${item.size})` : ''}`.trim(), stock: item.stock, limit: 10 })) },
-            salesChart
+            salesChart,
         };
     }
 

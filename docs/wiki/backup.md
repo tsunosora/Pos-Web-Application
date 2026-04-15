@@ -94,14 +94,74 @@ Sebelum melakukan restore, Anda bisa **preview** isi file backup:
 | `POST` | `/backup/export` | Export data ke ZIP (returns binary stream) |
 | `POST` | `/backup/preview` | Preview isi file backup tanpa merestore |
 | `POST` | `/backup/restore` | Restore data dari file ZIP |
+| `GET` | `/backup/rclone/status` | Status rclone (installed, enabled, last backup, local files) |
+| `POST` | `/backup/rclone/settings` | Simpan pengaturan rclone (remote, jadwal, keep count) |
+| `POST` | `/backup/rclone/trigger` | Jalankan backup rclone manual |
 
 > **Catatan**: `POST /backup/export` mengembalikan **binary stream** (bukan JSON). Jika memanggil endpoint ini dari kode, pastikan response type diset ke `blob` atau `arraybuffer`, bukan JSON.
+
+---
+
+## ☁️ Backup Otomatis via Rclone ⭐
+
+Selain backup manual, PosPro mendukung **backup otomatis terjadwal** menggunakan [rclone](https://rclone.org) — tools open-source untuk sync file ke cloud storage.
+
+### Prasyarat
+
+1. **Rclone terinstal** di server backend — install dengan:
+   ```bash
+   curl https://rclone.org/install.sh | sudo bash
+   ```
+2. **Remote dikonfigurasi** — jalankan `rclone config` di server untuk setup koneksi ke Google Drive, S3, Dropbox, dll.
+
+### Cara Mengaktifkan
+
+Buka **Pengaturan → Backup & Restore** → scroll ke bagian **Backup Otomatis via Rclone**.
+
+**Step 1 — Remote Destination**
+- Isi path tujuan rclone, contoh: `gdrive:Backups/PosPro` atau `s3:mybucket/pospro`
+- Format: `nama-remote:path/tujuan`
+- Kosongkan jika hanya ingin backup lokal tanpa upload ke cloud
+
+**Step 2 — Jadwal Otomatis**
+- Pilih dari preset yang tersedia:
+
+| Preset | Cron |
+|---|---|
+| Setiap hari jam 02:00 | `0 2 * * *` |
+| Setiap hari jam 23:00 | `0 23 * * *` |
+| Setiap 12 jam | `0 */12 * * *` |
+| Setiap Senin jam 02:00 | `0 2 * * 1` |
+| Setiap minggu (Minggu jam 01:00) | `0 1 * * 0` |
+
+**Step 3 — Jumlah File Lokal**
+- Tentukan berapa file backup disimpan di server (3, 5, 7, 14, atau 30)
+- File lama dihapus otomatis saat melebihi batas
+- Disimpan di `backend/backups/`
+
+**Step 4 — Aktifkan & Simpan**
+- Toggle switch **Auto-backup aktif/nonaktif**
+- Klik **Simpan Pengaturan**
+
+### Backup Manual (Trigger)
+
+Klik tombol **Backup Sekarang** untuk menjalankan backup secara manual. Status backup terakhir (berhasil/gagal) dan daftar file lokal ditampilkan di bagian bawah panel.
+
+### Informasi Status
+
+| Field | Keterangan |
+|---|---|
+| Versi rclone | Versi yang terinstal di server |
+| Status terakhir | Berhasil / Gagal dengan keterangan |
+| Tanggal backup terakhir | Timestamp backup terakhir |
+| File backup lokal | Daftar file backup di server beserta ukurannya |
 
 ---
 
 ## Catatan Penting
 
 - **Backup rutin dianjurkan** — minimal seminggu sekali, atau sebelum setiap update sistem
+- **Aktifkan Rclone** untuk backup otomatis ke cloud — lebih aman dari kerusakan hardware
 - **Simpan file backup di lokasi terpisah** dari server (hard drive eksternal, cloud storage)
 - **Ukuran file** tergantung jumlah data dan apakah gambar disertakan:
   - Tanpa gambar: biasanya beberapa MB
@@ -110,4 +170,4 @@ Sebelum melakukan restore, Anda bisa **preview** isi file backup:
 
 ---
 
-*Wiki PosPro — Backup & Restore | Maret 2026*
+*Wiki PosPro — Backup & Restore | April 2026*

@@ -22,9 +22,10 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 1 | [Login & Dashboard](#-1-login-ke-aplikasi) | Cara masuk dan membaca ringkasan bisnis harian |
 | 2 | [Kasir / POS](#-3-kasir--point-of-sale-pos) | Cara melayani pelanggan dan mencatat transaksi |
 | 3 | [Manajemen Produk & Stok](#-4-manajemen-produk--stok) | Cara kelola produk, varian, foto, stok, pembelian bahan baku, riwayat stok |
-| 4 | [DP / Piutang](#-5-daftar-dp--piutang) | Melacak pelanggan yang belum lunas |
+| 4 | [DP / Piutang](#-5-daftar-dp--piutang) | Melacak pelanggan yang belum lunas — tab DP, Kredit, Bayar Nanti |
 | 5 | [📊 Laporan Penjualan](laporan-penjualan.md) | Ringkasan metrik, Trend Produk, Histori Log transaksi |
 | 6 | [Laporan Tutup Shift](#-7-laporan-tutup-shift-) | Rekonsiliasi kas dan rekening bank akhir shift |
+| 6b | [📜 Riwayat Tutup Shift](riwayat-shift.md) | Log historis semua shift, backup pesan WA, kirim ulang |
 | 7 | [Laporan Laba Kotor](#-laporan-laba-kotor) | Profit & margin per produk berdasarkan HPP |
 | 8 | [Data Pelanggan](#-8-data-pelanggan) | Database & riwayat belanja pelanggan |
 | 9 | [WhatsApp Bot](#-9-pengaturan-whatsapp-bot) | Setup bot laporan otomatis ke grup WA owner |
@@ -36,7 +37,7 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 15 | [🖨️ Antrian Produksi](produksi.md) | Antrian cetak, job satuan & batch, produk rakitan multi-tahap, search, detail invoice |
 | 16 | [📋 Stok Opname](stock-opname.md) | Hitung fisik stok via link operator untuk karyawan |
 | 17 | [🏭 Data Supplier](suppliers.md) | Kelola data supplier dan harga beli per varian produk |
-| 18 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, preview, dan restore dari file |
+| 18 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, auto-backup via Rclone, dan restore |
 | 19 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | 20 | [🚀 Panduan Deployment](deployment.md) | Setup di home server / VPS dengan Cloudflare Tunnel |
 
@@ -110,11 +111,18 @@ Formula grand total: **Subtotal − Diskon + Pajak + Ongkos Kirim**
 > Diskon yang diinput otomatis dicatat sebagai pengeluaran **"Diskon"** di Cashflow — sehingga laporan keuangan tetap akurat.
 
 **Langkah 4 — Pilih Metode Pembayaran**
-- **Tunai (Cash)**: masukkan nominal yang diterima, sistem otomatis hitung kembalian
-- **Transfer Bank**: pilih rekening tujuan transfer yang diinginkan pelanggan
-- **QRIS**: tampilkan QR code ke pelanggan untuk dipindai
 
-**Langkah 5 — Isi Data Pelanggan (Opsional)**
+| Metode | Keterangan |
+|---|---|
+| **Tunai (Cash)** | Pembayaran tunai — masukkan nominal yang diterima |
+| **Transfer Bank** | Pilih rekening tujuan transfer dari daftar rekening toko |
+| **QRIS** | Tampilkan QR code ke pelanggan untuk dipindai |
+| **KREDIT** ⭐ | Nota kredit tanpa uang muka — pelanggan bayar di kemudian hari dengan jatuh tempo. Pilih jatuh tempo dari preset (Akhir Minggu/Bulan/2 Bulan/6 Bulan/1 Tahun) atau input manual |
+| **BAYAR NANTI** ⭐ | Simpan invoice tanpa pembayaran sama sekali — status PENDING, pelanggan bayar nanti melalui menu Piutang |
+
+> **KREDIT vs DP:** DP artinya pelanggan sudah membayar sebagian. KREDIT artinya belum ada pembayaran sama sekali, hanya nota yang tersimpan dengan jatuh tempo.
+
+**Langkah 5 — Isi Data Pelanggan (Wajib)**
 
 Di bagian bawah modal checkout, tersedia kolom **Nama Pelanggan** dan **No. HP**:
 - Saat mengetik nama atau HP, sistem menampilkan **dropdown saran** dari database pelanggan
@@ -123,13 +131,16 @@ Di bagian bawah modal checkout, tersedia kolom **Nama Pelanggan** dan **No. HP**
 - Pelanggan baru dengan nama + HP akan **otomatis tersimpan** ke database saat transaksi selesai — tidak perlu input manual terpisah
 
 **Langkah 6 — Selesaikan Transaksi**
-- Klik **Bayar Lunas** untuk pembayaran penuh
-- Klik **Bayar DP** jika pelanggan hanya membayar sebagian (uang muka) — transaksi akan masuk ke daftar Piutang
+- Klik **Konfirmasi Lunas** untuk pembayaran penuh
+- Klik **Konfirmasi Pembayaran DP** jika pelanggan hanya membayar sebagian (uang muka) — transaksi akan masuk ke daftar Piutang
+- Klik **Simpan Nota Kredit** untuk menyimpan transaksi kredit tanpa pembayaran
+- Klik **Simpan Invoice (Bayar Nanti)** untuk menyimpan invoice tanpa pembayaran sama sekali
 
 **Langkah 7 — Struk**
 - Setelah transaksi selesai, struk muncul otomatis
 - Klik **Cetak** untuk mencetak ke printer thermal — baris **Diskon** dan **Ongkos Kirim** muncul di struk jika nilainya > 0
 - Klik **Kirim WA** untuk mengirim ringkasan tagihan ke WhatsApp pelanggan
+- Status transaksi ditampilkan: **✓ LUNAS** (hijau), **✓ DP / BELUM LUNAS** (kuning), atau **⏳ BELUM DIBAYAR** (biru)
 
 > **Tips**: Produk mode **Area Based** akan otomatis memunculkan modal input Lebar × Tinggi saat ditambahkan ke keranjang. Pilih satuan yang sesuai produk (m, cm, atau menit) — harga dan stok dihitung secara independen berdasarkan satuan tersebut.
 
@@ -289,7 +300,18 @@ Badge **"Menipis"** (merah) hanya muncul untuk produk yang mengaktifkan **Lacak 
 
 Daftar semua transaksi yang **belum sepenuhnya dilunasi** oleh pelanggan.
 
-Ini muncul ketika kasir memilih **Bayar DP** saat bertransaksi — artinya pelanggan baru membayar sebagian dan masih punya sisa tagihan.
+Transaksi masuk ke daftar piutang saat kasir memilih **Bayar DP**, **KREDIT**, atau **BAYAR NANTI** saat bertransaksi.
+
+### Tab Filter ⭐
+
+Halaman piutang memiliki **4 tab filter** untuk mempermudah pengelolaan:
+
+| Tab | Keterangan | Badge |
+|---|---|---|
+| **Semua** | Semua transaksi yang belum lunas | Total piutang |
+| **DP** | Pelanggan sudah bayar sebagian (uang muka) | 🟡 Kuning |
+| **Kredit** | Nota kredit — belum ada pembayaran, ada jatuh tempo | 🟣 Ungu |
+| **Bayar Nanti** | Invoice disimpan tanpa pembayaran sama sekali | 🔵 Biru |
 
 ### Informasi yang Ditampilkan
 
@@ -297,19 +319,36 @@ Ini muncul ketika kasir memilih **Bayar DP** saat bertransaksi — artinya pelan
 |---|---|
 | Nama Pelanggan | Siapa yang punya piutang |
 | Total Tagihan | Harga total transaksi |
-| Sudah Dibayar | Jumlah DP yang sudah masuk |
+| Sudah Dibayar | Jumlah DP yang sudah masuk (0 untuk kredit/bayar nanti) |
 | Sisa Tagihan | Yang masih harus dilunasi |
-| Jatuh Tempo | Deadline pelunasan |
+| Jatuh Tempo | Deadline pelunasan — **merah** jika sudah lewat |
+| Status | Badge: **DP** (kuning), **KREDIT** (ungu), **BAYAR NANTI** (biru) |
 
-### Cara Mencatat Pelunasan
+### Tombol Aksi per Nota
+
+| Tombol | Fungsi |
+|---|---|
+| **Cetak Struk** | Cetak ulang struk transaksi |
+| **Kirim WA** | Kirim tagihan ke WhatsApp pelanggan |
+| **Edit** | Ajukan perubahan transaksi (butuh approval admin) |
+| **Lunasi** | Buka modal pelunasan |
+
+### Cara Mencatat Pelunasan ⭐
 
 Saat pelanggan datang untuk melunasi:
-1. Cari nama pelanggan di daftar piutang
+1. Cari nama pelanggan di daftar piutang (gunakan tab filter atau search)
 2. Klik tombol **Lunasi**
-3. Pilih metode pembayaran pelunasan
-4. Klik **Konfirmasi** — sistem otomatis mencatat pembayaran dan mengupdate sisa tagihan
+3. Di modal pelunasan:
+   - **Nominal Pelunasan**: isi jumlah yang dibayar (default = sisa tagihan penuh)
+   - **Metode Pembayaran**: pilih Cash, QRIS, atau Transfer (pilih rekening)
+   - **Kasir Checkout**: pilih kasir yang menerima pembayaran
+   - **Waktu Checkout**: atur tanggal & jam pelunasan (default = sekarang, bisa di-backdate)
+4. Klik **Konfirmasi Pelunasan** — sistem otomatis:
+   - Mengupdate sisa tagihan
+   - Mencatat pembayaran di **Cashflow** sebagai pemasukan
+   - Memberi nomor checkout pada transaksi
 
-> Setiap pelunasan otomatis tercatat di **Cashflow** sebagai pemasukan.
+> Setiap pelunasan otomatis tercatat di **Cashflow** sebagai pemasukan. Nomor checkout (CKO-XXXX) tercatat terpisah dari nomor nota asli.
 
 ---
 
@@ -402,6 +441,18 @@ Buka mBanking masing-masing rekening, lalu isi:
 **Step 6 — Lampirkan Foto & Kirim**
 - Upload foto bukti (foto laci uang, layar EDC QRIS, layar mBanking) — maksimal 20 foto
 - Klik **Kirim Laporan Shift ke WA** → laporan terkirim otomatis ke grup WhatsApp pemilik
+
+### Riwayat Tutup Shift ⭐
+
+Semua laporan tutup shift tersimpan secara historis dan bisa diakses kapan saja di halaman **Riwayat Tutup Shift** (`/reports/shift-history`).
+
+Fitur yang tersedia:
+- **Lihat log** semua shift yang pernah ditutup (dengan pagination)
+- **Salin pesan WA** — salin backup pesan WhatsApp yang dikirim saat tutup shift
+- **Kirim ulang** — kirim ulang laporan ke grup WhatsApp jika pengiriman pertama gagal
+- **Expand detail** — lihat rincian Tunai, QRIS, Transfer per rekening, dan pengeluaran per shift
+
+> Panduan lengkap tersedia di halaman standalone: **[📜 Riwayat Tutup Shift](riwayat-shift.md)**
 
 ---
 
@@ -535,6 +586,7 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | Wiki | Isi |
 |---|---|
 | [🔄 Alur Bisnis](alur-bisnis.md) | **Mulai dari sini** — setup awal, alur harian, alur produksi, review keuangan |
+| [📜 Riwayat Tutup Shift](riwayat-shift.md) | Log historis shift, backup pesan WA, kirim ulang laporan |
 | [💰 Cashflow Bisnis](cashflow.md) | Arus kas, chart tren, kategorisasi, export Excel |
 | [📊 Laporan Stok](laporan-stok.md) | Pergerakan stok per periode, filter IN/OUT/ADJUST, export CSV |
 | [📄 Invoice & Penawaran Harga](invoice-sph.md) | Invoice B2B, SPH, catalog picker, area-based pricing |
@@ -542,10 +594,10 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [🖨️ Antrian Produksi](produksi.md) | Antrian cetak, batch, produk rakitan multi-tahap, search pelanggan, detail invoice |
 | [📋 Stok Opname](stock-opname.md) | Link operator blind count, review admin, update stok otomatis |
 | [🏭 Data Supplier](suppliers.md) | Kelola supplier dan harga beli per varian produk |
-| [💾 Backup & Restore](backup.md) | Backup database ke ZIP, restore dengan mode skip/overwrite |
+| [💾 Backup & Restore](backup.md) | Backup database ke ZIP, auto-backup via Rclone, restore |
 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | [🚀 Panduan Deployment Cloudflare](deployment.md) | Setup produksi di Home Server (MySQL, PM2, Cloudflare Tunnel) |
 
 ---
 
-*Dokumentasi PosPro — Terakhir diperbarui: 8 April 2026 | v3.0 — Auto-logout, Tab Kategori Inventori, Bahan Baku disembunyikan dari Kasir, Ongkos Kirim, Diskon di Cashflow, Modal Checkout diperbarui, Laporan Stok baru*
+*Dokumentasi PosPro — Terakhir diperbarui: 16 April 2026 | v4.0 — Metode KREDIT & Bayar Nanti, Tab DP/Kredit/Bayar Nanti, Pelunasan fleksibel (kasir + waktu), Riwayat Tutup Shift, Rclone Auto-Backup, Pengeluaran Terstruktur per Shift*
