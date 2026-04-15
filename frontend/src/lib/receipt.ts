@@ -304,11 +304,17 @@ export const mapTransactionToReceipt = (trx: any, settings: any): ReceiptSnapsho
       else if (u === 'cm') areaM2 = (w * h) / 10000;
       else if (u === 'menit') areaM2 = w;
 
+      // AREA_BASED: priceAtTime = harga per m², lineTotal = pricePerM2 × area
+      // UNIT: priceAtTime = harga per unit, lineTotal = price × qty
+      const lineTotal = pricingMode === 'AREA_BASED'
+          ? Number(item.priceAtTime) * areaM2
+          : Number(item.priceAtTime) * item.quantity;
+
       return {
         name: item.productVariant?.product?.name + (item.productVariant?.variantName ? ` — ${item.productVariant.variantName}` : ''),
         sku: item.productVariant?.sku || '',
         qty: item.quantity,
-        price: Number(item.priceAtTime) * item.quantity, // line total
+        price: lineTotal,
         pricePerUnit: Number(item.priceAtTime),
         pricingMode,
         unitType: item.unitType,
