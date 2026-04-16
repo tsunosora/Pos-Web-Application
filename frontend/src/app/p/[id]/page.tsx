@@ -312,7 +312,8 @@ export default function PublicProductPage() {
 
             {/* Footer */}
             <footer className="text-center py-4 text-xs text-gray-400">
-                {settings?.storeName ?? 'Toko'}
+                <p>{settings?.storeName ?? 'Toko'}</p>
+                <p className="mt-1">© 2026 Muhammad Faisal</p>
             </footer>
         </div>
     );

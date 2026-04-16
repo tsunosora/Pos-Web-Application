@@ -193,3 +193,7 @@ Semua komunikasi via domain Cloudflare tersebut sudah **Otomatis HTTPS (SSL/TLS 
 - **Restart frontend**: `pm2 restart pospro-frontend`
 
 Aplikasi kini aman, _online_ secara publik, dan berjalan _live_ 24/7 dari Home Server Anda!
+
+---
+
+**© 2026 Muhammad Faisal. All rights reserved.**

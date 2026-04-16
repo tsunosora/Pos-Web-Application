@@ -311,3 +311,7 @@ Kertas A4 - Rim: sisa 3 unit
 ### GitHub webhook gagal verifikasi
 - Pastikan `githubWebhookSecret` di Settings sama persis dengan Secret di GitHub Webhooks
 - Kosongkan secret jika tidak ingin verifikasi (kurang aman)
+
+---
+
+**© 2026 Muhammad Faisal. All rights reserved.**

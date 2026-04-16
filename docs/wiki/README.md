@@ -601,3 +601,5 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 ---
 
 *Dokumentasi PosPro — Terakhir diperbarui: 16 April 2026 | v4.0 — Metode KREDIT & Bayar Nanti, Tab DP/Kredit/Bayar Nanti, Pelunasan fleksibel (kasir + waktu), Riwayat Tutup Shift, Rclone Auto-Backup, Pengeluaran Terstruktur per Shift*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

@@ -220,4 +220,6 @@ File berisi kolom: Tanggal, Tipe, Kategori, Keterangan, Nominal. Siap dibuka di 
 
 ---
 
-*Dokumentasi PosPro — Cashflow Bisnis | Terakhir diperbarui: Maret 2026*
+*Dokumentasi PosPro — Cashflow Bisnis | Terakhir diperbarui: April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

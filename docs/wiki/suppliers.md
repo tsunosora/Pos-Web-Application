@@ -119,4 +119,6 @@ SupplierItem
 
 ---
 
-*Wiki PosPro — Supplier Management | Maret 2026*
+*Wiki PosPro — Supplier Management | April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

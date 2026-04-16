@@ -307,3 +307,5 @@ Kotak Pencarian di Peta:
 ---
 
 *Dokumentasi PosPro — Terakhir diperbarui: 16 April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

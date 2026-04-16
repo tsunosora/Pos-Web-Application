@@ -164,4 +164,6 @@ Setelah selesai menghitung semua produk:
 
 ---
 
-*Wiki PosPro — Terakhir diperbarui: 8 Maret 2026*
+*Wiki PosPro — Terakhir diperbarui: April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

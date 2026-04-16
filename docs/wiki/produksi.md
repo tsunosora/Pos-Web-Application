@@ -255,4 +255,6 @@ Setiap pemotongan tercatat di **Riwayat Stok** (`StockMovement`) dengan keterang
 
 ---
 
-*Wiki PosPro — Terakhir diperbarui: 9 Maret 2026*
+*Wiki PosPro — Terakhir diperbarui: April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

@@ -318,4 +318,6 @@ Pilih aksi simpan:
 
 ---
 
-*Dokumentasi Kalkulator HPP — PosPro v2.8 | 26 Maret 2026*
+*Dokumentasi Kalkulator HPP — PosPro v4.0 | April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

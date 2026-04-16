@@ -262,4 +262,6 @@ Di **Top Bar** bagian kanan, ada 3 tombol yang berfungsi sebagai filter tampilan
 
 ---
 
-*Dokumentasi PosPro — Peta Cuan Lokasi | Terakhir diperbarui: Maret 2026*
+*Dokumentasi PosPro — Peta Cuan Lokasi | Terakhir diperbarui: April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

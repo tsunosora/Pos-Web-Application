@@ -171,3 +171,5 @@ Klik tombol **Backup Sekarang** untuk menjalankan backup secara manual. Status b
 ---
 
 *Wiki PosPro — Backup & Restore | April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

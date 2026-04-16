@@ -126,3 +126,5 @@ File otomatis diberi nama `laporan-stok-YYYY-MM-DD.csv` berdasarkan tanggal hari
 ---
 
 *Halaman ini ditambahkan di versi v3.0 — April 2026*
+
+**© 2026 Muhammad Faisal. All rights reserved.**

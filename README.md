@@ -727,6 +727,8 @@ Pull request sangat disambut! Untuk perubahan besar, harap buka issue terlebih d
 
 Proyek ini dikembangkan untuk kebutuhan bisnis internal.
 
+**© 2026 Muhammad Faisal. All rights reserved.**
+
 ---
 
-Dibuat dengan ❤️ menggunakan **NestJS** + **Next.js**
+Dibuat dengan ❤️ oleh **Muhammad Faisal** menggunakan **NestJS** + **Next.js**
