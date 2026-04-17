@@ -274,6 +274,8 @@ model TransactionItem {
   widthCm          Decimal?  @map("width_cm") @db.Decimal(10, 2)
   heightCm         Decimal?  @map("height_cm") @db.Decimal(10, 2)
   areaCm2          Decimal?  @map("area_cm2") @db.Decimal(15, 4)
+  pcs              Int?      @default(1)                         // jumlah kopi/PCS untuk AREA_BASED
+  unitType         String?   @map("unit_type") @db.VarChar(10)  // 'm', 'cm', 'menit'
   note             String?   @db.Text
   createdAt        DateTime? @default(now()) @map("created_at")
 

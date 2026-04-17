@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTransactions, payOffTransaction, getSettings, getBankAccounts, getUsers } from '@/lib/api';
 import { mapTransactionToReceipt, handlePrintSnap, handleShareWA } from '@/lib/receipt';
-import { CreditCard, Banknote, Landmark, Wallet, CheckCircle2, X, Printer, MessageCircle, PenSquare } from "lucide-react";
+import { CreditCard, Banknote, Landmark, Wallet, CheckCircle2, X, Printer, MessageCircle, PenSquare, Search } from "lucide-react";
 import dayjs from "dayjs";
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -27,16 +27,24 @@ export default function DPTransactionsPage() {
     const [editTrx, setEditTrx] = useState<any | null>(null);
 
     const [activeTab, setActiveTab] = useState<'Semua' | 'DP' | 'Kredit' | 'Bayar Nanti'>('Semua');
+    const [search, setSearch] = useState('');
 
     const allUnpaid = transactions?.filter((t: any) => t.status === 'PARTIAL' || t.status === 'PENDING') || [];
     const bayarNantiList = allUnpaid.filter((t: any) => t.status === 'PENDING');
     const dpTransactions = allUnpaid.filter((t: any) => t.status === 'PARTIAL');
     const kreditList = dpTransactions.filter((t: any) => Number(t.downPayment) === 0);
     const dpList = dpTransactions.filter((t: any) => Number(t.downPayment) > 0);
-    const visibleTransactions = activeTab === 'DP' ? dpList
+    const byTab = activeTab === 'DP' ? dpList
         : activeTab === 'Kredit' ? kreditList
         : activeTab === 'Bayar Nanti' ? bayarNantiList
         : allUnpaid;
+    const q = search.trim().toLowerCase();
+    const visibleTransactions = q
+        ? byTab.filter((t: any) =>
+            (t.customerName || '').toLowerCase().includes(q) ||
+            (t.invoiceNumber || '').toLowerCase().includes(q)
+          )
+        : byTab;
 
     const payOffMutation = useMutation({
         mutationFn: (id: number) => payOffTransaction(id, {
@@ -97,6 +105,23 @@ export default function DPTransactionsPage() {
                         </span>
                     </button>
                 ))}
+            </div>
+
+            {/* Search */}
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder="Cari nama pelanggan atau nomor invoice..."
+                    className="w-full pl-10 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm focus:ring-2 focus:ring-primary outline-none"
+                />
+                {search && (
+                    <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        <X className="w-4 h-4" />
+                    </button>
+                )}
             </div>
 
             {/* Stats */}
@@ -209,7 +234,8 @@ export default function DPTransactionsPage() {
                                         <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3 opacity-20" />
                                         <p className="text-base font-medium text-foreground">Tidak ada piutang aktif</p>
                                         <p className="text-sm text-muted-foreground mt-1">
-                                            {activeTab === 'Kredit' ? 'Belum ada nota kredit.'
+                                            {q ? `Tidak ada hasil untuk "${search}".`
+                                                : activeTab === 'Kredit' ? 'Belum ada nota kredit.'
                                                 : activeTab === 'DP' ? 'Belum ada DP aktif.'
                                                 : activeTab === 'Bayar Nanti' ? 'Belum ada invoice bayar nanti.'
                                                 : 'Semua transaksi sudah lunas.'}

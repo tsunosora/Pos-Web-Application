@@ -298,6 +298,7 @@ export default function POSPage() {
                 widthCm: item.widthCm ? Number(item.widthCm) : undefined,
                 heightCm: item.heightCm ? Number(item.heightCm) : undefined,
                 unitType: item.unitType,
+                pcs: item.pcs ?? 1,
                 note: item.note,
                 customPrice: item.customPrice != null ? item.customPrice : undefined,
             })),
@@ -770,7 +771,7 @@ export default function POSPage() {
                                 <label className="text-sm font-medium">Satuan Perhitungan *</label>
                                 <select
                                     value={areaModal.unitType}
-                                    onChange={e => setAreaModal({ ...areaModal, unitType: e.target.value as 'm' | 'cm' | 'menit' })}
+                                    onChange={e => setAreaModal(prev => ({ ...prev, unitType: e.target.value as 'm' | 'cm' | 'menit' }))}
                                     className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
                                 >
                                     <option value="m">Meter (m) - Hitung Luas pxl</option>
@@ -784,7 +785,7 @@ export default function POSPage() {
                                 <div className="space-y-1.5">
                                     <label className="text-sm font-medium">{areaModal.unitType === 'menit' ? 'Jumlah / Durasi *' : 'Lebar *'}</label>
                                     <input type="number" min="0" step="any" value={areaModal.widthCm}
-                                        onChange={e => setAreaModal({ ...areaModal, widthCm: e.target.value })}
+                                        onChange={e => setAreaModal(prev => ({ ...prev, widthCm: e.target.value }))}
                                         placeholder={areaModal.unitType === 'cm' ? '120' : (areaModal.unitType === 'm' ? '1.2' : '45')} autoFocus
                                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center" />
                                 </div>
@@ -792,7 +793,7 @@ export default function POSPage() {
                                     <div className="space-y-1.5">
                                         <label className="text-sm font-medium">Tinggi *</label>
                                         <input type="number" min="0" step="any" value={areaModal.heightCm}
-                                            onChange={e => setAreaModal({ ...areaModal, heightCm: e.target.value })}
+                                            onChange={e => setAreaModal(prev => ({ ...prev, heightCm: e.target.value }))}
                                             placeholder={areaModal.unitType === 'cm' ? '200' : '2.0'}
                                             className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center" />
                                     </div>
@@ -841,7 +842,7 @@ export default function POSPage() {
                                 <textarea
                                     rows={2}
                                     value={areaModal.note}
-                                    onChange={e => setAreaModal({ ...areaModal, note: e.target.value })}
+                                    onChange={e => setAreaModal(prev => ({ ...prev, note: e.target.value }))}
                                     placeholder="Contoh: Logo ACME, Laminasi Doff, Salin dari file WA, dll."
                                     className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm resize-none"
                                 />
@@ -857,7 +858,7 @@ export default function POSPage() {
                                 <input
                                     type="number" min="1" step="1"
                                     value={areaModal.pcs}
-                                    onChange={e => setAreaModal({ ...areaModal, pcs: e.target.value })}
+                                    onChange={e => setAreaModal(prev => ({ ...prev, pcs: e.target.value }))}
                                     placeholder="1"
                                     className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center"
                                 />

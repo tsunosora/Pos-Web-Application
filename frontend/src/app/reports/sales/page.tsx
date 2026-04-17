@@ -757,19 +757,45 @@ export default function SalesReportPage() {
                             <div>
                                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 border-b border-border pb-1">Pesanan</h4>
                                 <div className="space-y-3">
-                                    {selectedTransaction.items?.map((item: any) => (
-                                        <div key={item.id} className="flex justify-between text-sm">
-                                            <div>
-                                                <p className="font-medium text-foreground">{item.productVariant?.product?.name} {item.productVariant?.variantName && ` - ${item.productVariant.variantName}`}</p>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {item.quantity} x Rp {Number(item.priceAtTime).toLocaleString('id-ID')}
+                                    {selectedTransaction.items?.map((item: any) => {
+                                        const isAreaBased = item.widthCm !== null && item.widthCm !== undefined;
+                                        const pcs = Math.max(1, Number(item.pcs) || 1);
+                                        const unitType = item.unitType || 'm';
+                                        let dimLabel = '';
+                                        let lineTotal = 0;
+
+                                        if (isAreaBased) {
+                                            const areaM2 = item.areaCm2 != null ? Number(item.areaCm2) / 10000 : (Number(item.areaM2) || 0);
+                                            if (unitType === 'menit') {
+                                                dimLabel = `${item.widthCm} menit`;
+                                                lineTotal = Number(item.priceAtTime) * Number(item.widthCm) * pcs;
+                                            } else {
+                                                const unitLabel = unitType === 'cm' ? 'cm' : 'm';
+                                                dimLabel = `${item.widthCm}×${item.heightCm} ${unitLabel} = ${areaM2.toFixed(4)} m²`;
+                                                if (pcs > 1) dimLabel += ` × ${pcs} pcs`;
+                                                lineTotal = Number(item.priceAtTime) * areaM2 * pcs;
+                                            }
+                                        } else {
+                                            lineTotal = item.quantity * Number(item.priceAtTime);
+                                        }
+
+                                        return (
+                                            <div key={item.id} className="flex justify-between text-sm">
+                                                <div>
+                                                    <p className="font-medium text-foreground">{item.productVariant?.product?.name}{item.productVariant?.variantName ? ` - ${item.productVariant.variantName}` : ''}</p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        {isAreaBased
+                                                            ? dimLabel
+                                                            : `${item.quantity} x Rp ${Number(item.priceAtTime).toLocaleString('id-ID')}`
+                                                        }
+                                                    </p>
+                                                </div>
+                                                <p className="font-medium text-foreground text-right w-28">
+                                                    Rp {Math.round(lineTotal).toLocaleString('id-ID')}
                                                 </p>
                                             </div>
-                                            <p className="font-medium text-foreground text-right w-24">
-                                                Rp {(item.quantity * Number(item.priceAtTime)).toLocaleString('id-ID')}
-                                            </p>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
 

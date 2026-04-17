@@ -10,7 +10,7 @@ export class TransactionsController {
 
     @Post()
     create(@Body() createTransactionDto: {
-        items: { productVariantId: number; quantity: number; widthCm?: number; heightCm?: number; note?: string; customPrice?: number }[];
+        items: { productVariantId: number; quantity: number; widthCm?: number; heightCm?: number; unitType?: string; pcs?: number; note?: string; customPrice?: number }[];
         paymentMethod: PaymentMethod;
         discount?: number;
         shippingCost?: number;

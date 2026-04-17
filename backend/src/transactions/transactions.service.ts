@@ -86,6 +86,7 @@ export class TransactionsService {
             widthCm?: number;
             heightCm?: number;
             unitType?: string;
+            pcs?: number;
             note?: string;
             customPrice?: number;
         }[];
@@ -187,22 +188,26 @@ export class TransactionsService {
 
                     areaCm2 = areaM2 * 10000;
 
-                    lineTotal = priceMultiplier * resolvedPrice;
+                    // PCS/kopi — berapa kali dimensi ini dicetak
+                    const pcs = Math.max(1, Math.round(Number(item.pcs) || 1));
+                    const totalAreaM2 = areaM2 * pcs; // total area untuk stock & BOM
+
+                    lineTotal = priceMultiplier * resolvedPrice * pcs;
                     // Admin custom price override for AREA_BASED mode (overrides full line total)
                     if (item.customPrice != null) lineTotal = item.customPrice;
 
                     if (!requiresProduction && trackStock) {
                         const currentStock = Number(variant.stock);
-                        if (currentStock < areaM2) {
+                        if (currentStock < totalAreaM2) {
                             throw new BadRequestException(
-                                `Stok bahan ${variant.product.name} tidak cukup. Tersisa: ${currentStock.toFixed(2)} m², dibutuhkan: ${areaM2.toFixed(2)} m²`
+                                `Stok bahan ${variant.product.name} tidak cukup. Tersisa: ${currentStock.toFixed(2)} m², dibutuhkan: ${totalAreaM2.toFixed(2)} m² (${pcs} pcs × ${areaM2.toFixed(2)} m²)`
                             );
                         }
                         await tx.productVariant.update({
                             where: { id: variant.id },
-                            data: { stock: Math.floor((currentStock - areaM2) * 100) / 100 }
+                            data: { stock: Math.floor((currentStock - totalAreaM2) * 100) / 100 }
                         });
-                        await this.logMovement(tx, variant.id, 'OUT', areaM2, `Penjualan Cetak ${widthCm}×${heightCm}cm (${areaM2.toFixed(2)}m²)`);
+                        await this.logMovement(tx, variant.id, 'OUT', totalAreaM2, `Penjualan Cetak ${widthCm}×${heightCm}${item.unitType || 'm'} ×${pcs}pcs (${totalAreaM2.toFixed(2)}m²)`);
 
                         // Deduct product-level BOM (AREA_BASED)
                         const ingredients = (variant.product as any).ingredients || [];
@@ -210,7 +215,7 @@ export class TransactionsService {
                             if (ing.rawMaterialVariantId) {
                                 const rawVariant = await tx.productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
                                 if (rawVariant) {
-                                    const neededStock = Number(ing.quantity) * areaM2;
+                                    const neededStock = Number(ing.quantity) * totalAreaM2;
                                     await tx.productVariant.update({
                                         where: { id: rawVariant.id },
                                         data: { stock: Math.floor((Number(rawVariant.stock) - neededStock) * 100) / 100 }
@@ -225,7 +230,7 @@ export class TransactionsService {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const rawVariant = await tx.productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
                                 if (rawVariant) {
-                                    const neededStock = Number(ing.quantity) * areaM2;
+                                    const neededStock = Number(ing.quantity) * totalAreaM2;
                                     await tx.productVariant.update({
                                         where: { id: rawVariant.id },
                                         data: { stock: Math.floor((Number(rawVariant.stock) - neededStock) * 100) / 100 }
@@ -239,11 +244,13 @@ export class TransactionsService {
                     transactionItemsData.push({
                         productVariantId: variant.id,
                         quantity: 1,
-                        priceAtTime: resolvedPrice,  // per-m² price (total derived from priceAtTime × area)
+                        priceAtTime: resolvedPrice,  // per-m² price (total derived from priceAtTime × area × pcs)
                         hppAtTime: resolvedHpp,
                         widthCm,
                         heightCm,
                         areaCm2,
+                        pcs,
+                        unitType: item.unitType || 'm',
                         note: item.note || null,
                         _requiresProduction: requiresProduction,
                     });
