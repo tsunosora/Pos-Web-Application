@@ -55,4 +55,10 @@ export class WhatsappController {
         await this.whatsappService.setAnnouncementChannel(body.channelId);
         return { success: true };
     }
+
+    @Post('config/design-group')
+    async setDesignGroup(@Body() body: { groupId: string | null }) {
+        await this.whatsappService.setDesignGroup(body.groupId);
+        return { success: true };
+    }
 }

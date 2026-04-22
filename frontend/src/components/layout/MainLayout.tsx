@@ -33,8 +33,9 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isProduksiPage = pathname.startsWith("/produksi");
     const isCetakPage = pathname.startsWith("/cetak");
     const isPublicProductPage = pathname.startsWith("/p/");
+    const isDesignerPortal = pathname.startsWith("/so-designer");
 
-    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage) {
+    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal) {
         return <>{children}</>;
     }
 

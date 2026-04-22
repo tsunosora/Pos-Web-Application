@@ -14,3 +14,5 @@ export const updateWhatsappBroadcastGroups = async (data: { add?: string; remove
     (await api.post('/whatsapp/config/broadcast-groups', data)).data;
 export const setWhatsappAnnouncement = async (channelId: string | null) =>
     (await api.post('/whatsapp/config/announcement', { channelId })).data;
+export const setWhatsappDesignGroup = async (groupId: string | null) =>
+    (await api.post('/whatsapp/config/design-group', { groupId })).data;

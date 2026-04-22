@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     getWhatsappStatus, getWhatsappGroups, getWhatsappConfig,
     logoutWhatsapp, sendWhatsappToGroup, broadcastWhatsapp,
-    sendWhatsappAnnouncement, updateWhatsappBroadcastGroups, setWhatsappAnnouncement
+    sendWhatsappAnnouncement, updateWhatsappBroadcastGroups, setWhatsappAnnouncement,
+    setWhatsappDesignGroup
 } from '@/lib/api';
 import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
@@ -98,6 +99,11 @@ export default function WhatsappSettingsPage() {
     const setAnnouncementMutation = useMutation({
         mutationFn: (channelId: string | null) => setWhatsappAnnouncement(channelId),
         onSuccess: () => { refetchGroups(); refetchConfig(); setAnnouncementInput(''); }
+    });
+
+    const setDesignGroupMutation = useMutation({
+        mutationFn: (groupId: string | null) => setWhatsappDesignGroup(groupId),
+        onSuccess: () => { refetchConfig(); }
     });
 
     const handleManualRefresh = async () => {
@@ -430,6 +436,66 @@ export default function WhatsappSettingsPage() {
                                     Kirim Pengumuman
                                 </Button>
                             </CardFooter>
+                        </Card>
+
+                        {/* Group Internal Sales Order (Desain → Kasir/Operator) */}
+                        <Card className="md:col-span-6 border-slate-200 shadow-sm">
+                            <CardHeader className="bg-indigo-50 border-b pb-4">
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <FileText className="text-indigo-600 w-5 h-5" />
+                                    Group Internal Sales Order
+                                </CardTitle>
+                                <CardDescription>
+                                    Group WA tim internal (desain/kasir/operator) — tujuan broadcast saat desainer klik "Kirim ke WA Group" di halaman Sales Order. Bukan group customer.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-5 space-y-3">
+                                {config?.designGroupId ? (
+                                    <div className="flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-md p-3">
+                                        <div className="text-sm min-w-0">
+                                            <div className="text-xs text-indigo-600">Group terdaftar:</div>
+                                            <div className="font-semibold text-indigo-900 truncate">
+                                                {groups.find(g => g.id === config.designGroupId)?.name || 'Group tidak diikuti bot'}
+                                            </div>
+                                            <div className="font-mono text-[10px] text-indigo-700/70 truncate">{config.designGroupId}</div>
+                                        </div>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="border-red-300 text-red-600 hover:bg-red-50 shrink-0"
+                                            onClick={() => setDesignGroupMutation.mutate(null)}
+                                            disabled={setDesignGroupMutation.isPending}
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Hapus
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-slate-600 block">
+                                            Pilih dari grup yang diikuti bot:
+                                        </label>
+                                        <select
+                                            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                            defaultValue=""
+                                            onChange={e => {
+                                                if (e.target.value) {
+                                                    setDesignGroupMutation.mutate(e.target.value);
+                                                    e.target.value = '';
+                                                }
+                                            }}
+                                            disabled={setDesignGroupMutation.isPending || groups.length === 0}
+                                        >
+                                            <option value="">-- Pilih grup --</option>
+                                            {groups.map(g => (
+                                                <option key={g.id} value={g.id}>{g.name}</option>
+                                            ))}
+                                        </select>
+                                        {groups.length === 0 && (
+                                            <p className="text-xs text-amber-600">Bot belum terhubung ke grup manapun. Hubungkan bot & tunggu daftar grup termuat.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
                         </Card>
 
                         {/* Kirim ke Grup Tertentu */}

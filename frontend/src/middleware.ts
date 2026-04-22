@@ -14,7 +14,7 @@ export function middleware(request: NextRequest) {
 
     const token = request.cookies.get('token')?.value;
     const isLoginPage = pathname.startsWith('/login');
-    const isPublicPage = pathname.startsWith('/opname/') || pathname.startsWith('/produksi') || pathname.startsWith('/cetak') || pathname.startsWith('/p/');
+    const isPublicPage = pathname.startsWith('/opname/') || pathname.startsWith('/produksi') || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer');
 
     // If there is no token and the user is NOT on the login page (or public paths), redirect to login
     if (!token && !isLoginPage && !isPublicPage) {

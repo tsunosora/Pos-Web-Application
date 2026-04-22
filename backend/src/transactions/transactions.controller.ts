@@ -28,6 +28,7 @@ export class TransactionsController {
         transactionDate?: string;  // backdate: "YYYY-MM-DD"
         cashflowDate?: string;     // cashflow date override (untuk masuk shift hari ini)
         saveOnly?: boolean;        // true = simpan invoice tanpa pembayaran (PENDING)
+        salesOrderId?: number;     // jika transaksi dibuat dari SO
     }) {
         return this.transactionsService.create(createTransactionDto);
     }

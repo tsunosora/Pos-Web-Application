@@ -6,7 +6,9 @@ import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, Refr
 import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { useCartStore, CartItem } from '@/store/cart-store';
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { getSalesOrder } from '@/lib/api/sales-orders';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
 import { useNotificationStore } from '@/store/notification-store';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -52,6 +54,19 @@ export default function POSPage() {
     const createCustomerMutation = useMutation({
         mutationFn: createCustomer,
         onSuccess: () => { refetchCustomers(); }
+    });
+
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const fromSOParam = searchParams?.get('fromSO');
+    const fromSOId = fromSOParam ? Number(fromSOParam) : null;
+    const [salesOrderId, setSalesOrderId] = useState<number | null>(null);
+    const [soPrefilled, setSoPrefilled] = useState(false);
+
+    const { data: soData } = useQuery({
+        queryKey: ['sales-order', fromSOId],
+        queryFn: () => getSalesOrder(fromSOId!),
+        enabled: !!fromSOId,
     });
 
     const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -129,6 +144,74 @@ export default function POSPage() {
             // Receipt is shown from snapshot captured before cart was cleared
         }
     });
+
+    // ---- Pre-fill cart from Sales Order (?fromSO=<id>) ----
+    useEffect(() => {
+        if (!fromSOId || !soData || !products || soPrefilled) return;
+        // Guard: SO must be in SENT state (DRAFT shouldn't invoice yet, INVOICED/CANCELLED blocked)
+        if (soData.status !== 'SENT') {
+            addNotification({ type: 'system', title: 'SO tidak valid', message: `SO ${soData.soNumber} tidak bisa dibuatkan nota (status: ${soData.status})` });
+            setSoPrefilled(true);
+            return;
+        }
+        clearCart();
+        setCustomerName(soData.customerName || '');
+        setCustomerPhone(soData.customerPhone || '');
+        setCustomerAddress(soData.customerAddress || '');
+        setSalesOrderId(soData.id);
+
+        // Add each SO item to cart
+        for (const it of soData.items) {
+            const product = (products as any[]).find((p: any) =>
+                p.variants?.some((v: any) => v.id === it.productVariantId)
+            );
+            if (!product) continue;
+            const variant = product.variants.find((v: any) => v.id === it.productVariantId);
+            if (!variant) continue;
+
+            if (product.pricingMode === 'AREA_BASED' && it.widthCm && it.heightCm) {
+                addItem(product, variant, {
+                    widthCm: Number(it.widthCm),
+                    heightCm: Number(it.heightCm),
+                    unitType: (it.unitType as 'm' | 'cm' | 'menit') || 'cm',
+                    note: it.note || undefined,
+                    pcs: it.pcs ? Number(it.pcs) : 1,
+                });
+            } else {
+                addItem(product, variant);
+                // Apply qty > 1 and note for UNIT items
+                const items = useCartStore.getState().items;
+                const last = items[items.length - 1];
+                if (last) {
+                    if (it.quantity && it.quantity > 1) {
+                        useCartStore.getState().setQuantityDirect(last.lineId, Number(it.quantity));
+                    }
+                    if (it.note) {
+                        useCartStore.getState().updateNote(last.lineId, it.note);
+                    }
+                }
+            }
+
+            // Apply custom price if provided
+            if (it.customPrice != null) {
+                const items = useCartStore.getState().items;
+                const last = items[items.length - 1];
+                if (last) {
+                    useCartStore.getState().updateCustomPrice(last.lineId, Number(it.customPrice));
+                }
+            }
+        }
+        setSoPrefilled(true);
+        addNotification({ type: 'system', title: 'SO dibuka', message: `Cart ter-prefill dari SO ${soData.soNumber}` });
+    }, [fromSOId, soData, products, soPrefilled, addItem, clearCart, addNotification]);
+
+    const cancelSOMode = useCallback(() => {
+        setSalesOrderId(null);
+        setSoPrefilled(false);
+        clearCart();
+        setCustomerName(''); setCustomerPhone(''); setCustomerAddress('');
+        router.replace('/pos');
+    }, [clearCart, router]);
 
     // ---- Pre-payment invoice helpers (from current cart, before transaction) ----
     const buildCurrentSnap = (): ReceiptSnapshot => ({
@@ -339,6 +422,8 @@ export default function POSPage() {
             // Backdate fields (only sent if manager filled them)
             transactionDate: transactionDate || undefined,
             cashflowDate: (transactionDate && cashflowToday) ? todayStr : undefined,
+            // Link to Sales Order (if transaction started from SO)
+            salesOrderId: salesOrderId ?? undefined,
         };
 
         if (!navigator.onLine) {
@@ -366,6 +451,12 @@ export default function POSPage() {
                     setDueDate(''); setDownPayment('');
                     setDpBayarNanti(''); setDpMethodBayarNanti('CASH'); setDpBankBayarNanti('');
                     setTransactionDate(''); setCashflowToday(false);
+                    // Clear SO link after successful transaction
+                    if (salesOrderId) {
+                        setSalesOrderId(null);
+                        setSoPrefilled(false);
+                        router.replace('/pos');
+                    }
                     setReceipt(snap);
 
                     // Notif transaksi berhasil
@@ -570,6 +661,23 @@ export default function POSPage() {
                     </button>
                     </div>
                 </div>
+
+                {salesOrderId && soData && (
+                    <div className="shrink-0 bg-emerald-50 border-b border-emerald-200 px-3 py-2 flex items-center justify-between gap-2">
+                        <div className="text-xs">
+                            <div className="font-semibold text-emerald-800">
+                                Membuat nota dari <span className="font-mono">{soData.soNumber}</span>
+                            </div>
+                            <div className="text-emerald-700 truncate">Customer: {soData.customerName}</div>
+                        </div>
+                        <button
+                            onClick={cancelSOMode}
+                            className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-800 hover:bg-emerald-100 shrink-0"
+                        >
+                            Batal SO
+                        </button>
+                    </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {cart.length === 0 ? (

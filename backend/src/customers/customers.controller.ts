@@ -2,6 +2,19 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@n
 import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+/** Endpoint publik — nama + HP saja (untuk portal desainer tanpa JWT) */
+@Controller('customers')
+export class CustomersPublicController {
+    constructor(private readonly customersService: CustomersService) {}
+
+    @Get('public')
+    listPublic() {
+        return this.customersService.findAll().then((list: any[]) =>
+            list.map(c => ({ id: c.id, name: c.name, phone: c.phone ?? null, address: c.address ?? null }))
+        );
+    }
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('customers')
 export class CustomersController {

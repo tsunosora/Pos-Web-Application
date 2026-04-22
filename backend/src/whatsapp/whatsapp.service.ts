@@ -14,6 +14,7 @@ interface BotConfig {
     feedbackGroupId: string | null;
     announcementChannelId: string | null;
     broadcastGroupIds: string[];
+    designGroupId: string | null;        // Group internal untuk Surat Order (desain -> kasir/operator)
 }
 
 @Injectable()
@@ -31,6 +32,7 @@ export class WhatsappService implements OnModuleInit {
         feedbackGroupId: null,
         announcementChannelId: null,
         broadcastGroupIds: [],
+        designGroupId: null,
     };
 
     onModuleInit() {
@@ -288,17 +290,22 @@ export class WhatsappService implements OnModuleInit {
     async getJoinedGroups(): Promise<{ id: string; name: string; isBroadcast: boolean; isAnnouncement: boolean }[]> {
         if (!this.isReady) return [];
         try {
-            const chats = await this.client.getChats();
+            // Beri batas waktu 15 detik — jika WA Web belum selesai load, kembalikan array kosong
+            const timeout = new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('getChats timed out after 15s')), 15_000)
+            );
+            const chats = await Promise.race([this.client.getChats(), timeout]);
             return chats
-                .filter(c => c.isGroup)
-                .map(c => ({
+                .filter((c: any) => c.isGroup)
+                .map((c: any) => ({
                     id: c.id._serialized,
                     name: c.name,
                     isBroadcast: this.botConfig.broadcastGroupIds.includes(c.id._serialized),
                     isAnnouncement: this.botConfig.announcementChannelId === c.id._serialized,
                 }));
-        } catch (error) {
-            this.logger.error('Failed to get joined groups', error);
+        } catch (error: any) {
+            // Timeout / WA belum siap — bukan error kritis, bot tetap bisa kirim pesan
+            this.logger.warn(`getJoinedGroups: ${error?.message ?? error} — daftar grup belum tersedia, coba refresh.`);
             return [];
         }
     }
@@ -357,7 +364,26 @@ export class WhatsappService implements OnModuleInit {
         return {
             broadcastGroupIds: this.botConfig.broadcastGroupIds,
             announcementChannelId: this.botConfig.announcementChannelId,
+            designGroupId: this.botConfig.designGroupId,
         };
+    }
+
+    async setDesignGroup(groupId: string | null): Promise<void> {
+        this.botConfig.designGroupId = groupId;
+        this.saveConfig();
+    }
+
+    getDesignGroupId(): string | null {
+        return this.botConfig.designGroupId;
+    }
+
+    async sendToDesignGroup(message: string, images: string[] = []): Promise<boolean> {
+        const target = this.botConfig.designGroupId;
+        if (!target) {
+            this.logger.warn('Cannot send to design group: designGroupId is not configured.');
+            return false;
+        }
+        return this.sendToGroup(target, message, images);
     }
 
     async updateBroadcastGroups(add?: string, remove?: string): Promise<void> {

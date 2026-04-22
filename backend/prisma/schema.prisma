@@ -157,6 +157,7 @@ model ProductVariant {
   variantIngredientsAsRaw VariantIngredient[] @relation("VariantRawMaterial")
   hppWorksheets           HppWorksheet[]
   purchaseItems           StockPurchaseItem[]
+  salesOrderItems         SalesOrderItem[]
 
   @@map("product_variants")
 }
@@ -271,6 +272,7 @@ model Transaction {
   productionJobs ProductionJob[]
   printJobs      PrintJob[]
   editRequests   TransactionEditRequest[]
+  salesOrder     SalesOrder?
 
   @@map("transactions")
 }
@@ -547,6 +549,8 @@ model Customer {
   address   String?   @db.Text
   createdAt DateTime? @default(now()) @map("created_at")
   updatedAt DateTime? @default(now()) @updatedAt @map("updated_at")
+
+  salesOrders SalesOrder[]
 
   @@map("customers")
 }
@@ -926,4 +930,86 @@ model MeterReading {
   updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at")
 
   @@map("meter_readings")
+}
+
+// ----- Sales Order (Surat Order) ----- //
+
+enum SalesOrderStatus {
+  DRAFT
+  SENT
+  INVOICED
+  CANCELLED
+}
+
+model SalesOrder {
+  id              Int              @id @default(autoincrement())
+  soNumber        String           @unique @map("so_number") @db.VarChar(50)
+  status          SalesOrderStatus @default(DRAFT)
+  customerId      Int?             @map("customer_id")
+  customerName    String           @map("customer_name") @db.VarChar(200)
+  customerPhone   String?          @map("customer_phone") @db.VarChar(50)
+  customerAddress String?          @map("customer_address") @db.Text
+  designerName    String           @map("designer_name") @db.VarChar(100)
+  notes           String?          @db.Text
+  deadline        DateTime?
+  sentToWaAt      DateTime?        @map("sent_to_wa_at")
+  invoicedAt      DateTime?        @map("invoiced_at")
+  cancelledAt     DateTime?        @map("cancelled_at")
+  cancelReason    String?          @map("cancel_reason") @db.Text
+  transactionId   Int?             @unique @map("transaction_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  customer    Customer?         @relation(fields: [customerId],    references: [id], onDelete: SetNull)
+  transaction Transaction?      @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  items       SalesOrderItem[]
+  proofs      SalesOrderProof[]
+
+  @@index([status])
+  @@index([customerId])
+  @@map("sales_orders")
+}
+
+model SalesOrderItem {
+  id               Int     @id @default(autoincrement())
+  salesOrderId     Int     @map("sales_order_id")
+  productVariantId Int     @map("product_variant_id")
+  quantity         Int
+  widthCm          Float?  @map("width_cm")
+  heightCm         Float?  @map("height_cm")
+  unitType         String? @map("unit_type") @db.VarChar(10)
+  pcs              Int?
+  customPrice      Float?  @map("custom_price")
+  note             String? @db.Text
+
+  salesOrder     SalesOrder     @relation(fields: [salesOrderId],     references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([salesOrderId])
+  @@map("sales_order_items")
+}
+
+model SalesOrderProof {
+  id           Int      @id @default(autoincrement())
+  salesOrderId Int      @map("sales_order_id")
+  filename     String   @db.VarChar(500)
+  caption      String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+
+  @@index([salesOrderId])
+  @@map("sales_order_proofs")
+}
+
+// ----- Designer (login PIN tanpa akun) ----- //
+
+model Designer {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  pin       String   @db.VarChar(10)
+  isActive  Boolean  @default(true)  @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("designers")
 }

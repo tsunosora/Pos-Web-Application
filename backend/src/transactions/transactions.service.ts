@@ -65,6 +65,7 @@ export class TransactionsService {
         transactionDate?: string; // ISO date backdate: "2026-03-29" — sets transaction createdAt
         cashflowDate?: string;    // ISO date for cashflow: jika diisi, cashflow.date = ini (hari ini = masuk shift hari ini)
         saveOnly?: boolean;       // true = simpan invoice tanpa pembayaran (PENDING)
+        salesOrderId?: number;    // jika transaksi dibuat dari SO, tandai SO sebagai INVOICED setelah sukses
     }) {
         for (let attempt = 0; attempt < 5; attempt++) {
             try {
@@ -108,6 +109,7 @@ export class TransactionsService {
         transactionDate?: string;
         cashflowDate?: string;
         saveOnly?: boolean;
+        salesOrderId?: number;
     }) {
         return this.prisma.$transaction(async (tx) => {
             const settings = await tx.storeSettings.findFirst();
@@ -528,6 +530,26 @@ export class TransactionsService {
                 });
             }
 
+            // Hook: tandai SalesOrder sebagai INVOICED jika transaksi dibuat dari SO
+            if (data.salesOrderId) {
+                try {
+                    const so = await (tx as any).salesOrder.findUnique({ where: { id: data.salesOrderId } });
+                    if (so && so.status !== 'INVOICED' && so.status !== 'CANCELLED') {
+                        await (tx as any).salesOrder.update({
+                            where: { id: data.salesOrderId },
+                            data: {
+                                status: 'INVOICED',
+                                invoicedAt: new Date(),
+                                transactionId: transaction.id,
+                            },
+                        });
+                    }
+                } catch (e) {
+                    // Fail silently — transaksi sudah sukses, SO link bisa diperbaiki manual
+                    console.error('Failed to mark SO as INVOICED', e);
+                }
+            }
+
             return transaction;
         }).then(async (result) => {
             // Cek stok menipis setelah transaksi selesai (di luar prisma.$transaction)
@@ -701,6 +723,7 @@ export class TransactionsService {
                     include: { productVariant: { include: { product: true } } }
                 },
                 printJobs: true,
+                salesOrder: { select: { id: true, soNumber: true, status: true } },
             } as any,
         });
         if (!transaction) throw new NotFoundException('Transaction not found');
