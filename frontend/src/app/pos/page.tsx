@@ -42,8 +42,9 @@ const emptyAreaModal = (): AreaModalState => ({
 });
 
 import { ReceiptSnapshot, handlePrintSnap, handleShareWA } from '@/lib/receipt';
+import { Suspense } from 'react';
 
-export default function POSPage() {
+function POSPageContent() {
     const { data: products, isLoading } = useQuery({ queryKey: ['products'], queryFn: getProducts });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
@@ -1707,5 +1708,13 @@ export default function POSPage() {
                 </div>
             )}
         </div>
+    );
+}
+
+export default function POSPage() {
+    return (
+        <Suspense fallback={null}>
+            <POSPageContent />
+        </Suspense>
     );
 }

@@ -76,7 +76,7 @@ export default function DesignerNewSOPage() {
     // Lazy-load produk saat pertama kali user klik search
     async function ensureProducts() {
         if (productsLoaded) return;
-        const res = await axios.get(`${API_BASE}/products`);
+        const res = await axios.get(`${API_BASE}/products/public`);
         setProducts(res.data ?? []);
         setProductsLoaded(true);
     }
@@ -285,11 +285,13 @@ export default function DesignerNewSOPage() {
                                         </button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 mt-2">
-                                        <Field label="Qty">
-                                            <input type="number" min={1} value={it.quantity}
-                                                onChange={e => updateItem(it.key, { quantity: Number(e.target.value) })}
-                                                className="w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white" />
-                                        </Field>
+                                        {it.pricingMode !== "AREA_BASED" && (
+                                            <Field label="Qty">
+                                                <input type="number" min={1} value={it.quantity}
+                                                    onChange={e => updateItem(it.key, { quantity: Number(e.target.value) })}
+                                                    className="w-full px-2 py-1 text-sm border border-slate-300 rounded bg-white" />
+                                            </Field>
+                                        )}
                                         {it.pricingMode === "AREA_BASED" && (
                                             <>
                                                 <Field label="Lebar (cm)">
