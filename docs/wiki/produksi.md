@@ -255,6 +255,38 @@ Setiap pemotongan tercatat di **Riwayat Stok** (`StockMovement`) dengan keterang
 
 ---
 
-*Wiki PosPro — Terakhir diperbarui: April 2026*
+## 🔁 Multi-Cabang & Titip Cetak
+
+Halaman `/produksi` di mode multi-cabang scoped per cabang aktif:
+- **Operator cabang Pusat** lihat job Pusat **+ titipan dari cabang lain** (mis. dari Bantul)
+- **Operator cabang Bantul** lihat job Bantul saja (titipan keluar tidak muncul karena dikerjakan di tempat lain)
+
+### Badge Indikator di Job Card
+
+| Badge | Arti |
+|---|---|
+| 🏢 **PST** (sky biru) | Job dari nota cabang Pusat sendiri |
+| ⚑ **Titipan BTL** (amber) | Job dari nota cabang Bantul yang dititipkan ke Pusat untuk dikerjakan |
+
+### Filter Job Titipan Pending
+
+Job titipan **DISEMBUNYIKAN** dari `/produksi` selama operator belum klik **"Terima & Kerjakan"** di halaman `/titipan-masuk`. Kriteria:
+
+```
+HIDE if (transaction.productionBranchId != transaction.branchId)
+   AND (handover_status IS NULL OR handover_status = 'BARU')
+```
+
+Tujuan: operator harus tahu ada titipan baru dulu (via popup notif kuning + halaman `/titipan-masuk`), baru job-nya muncul di antrian biasa. Setelah klik "Terima", status berubah ke `DIPROSES` → job muncul di `/produksi`.
+
+### Stok Bahan Titipan
+
+Saat operator klik **"Mulai Cetak"** untuk job titipan: stok roll dipotong dari `BranchStock(productionBranchId)` — yaitu cabang pelaksana (Pusat), **bukan** cabang pemesan (Bantul). Konsisten dengan logic POS.
+
+Detail flow lengkap → [🔁 Titip Cetak](titip-cetak.md) | Aspek keuangan → [📒 Buku Titipan](buku-titipan.md)
+
+---
+
+*Wiki PosPro — Terakhir diperbarui: 26 April 2026 | + Multi-cabang badge titipan + filter pending titipan*
 
 **© 2026 Muhammad Faisal. All rights reserved.**

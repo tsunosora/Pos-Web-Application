@@ -60,6 +60,14 @@ export const BACKUP_GROUPS = {
         label: 'Work Order Antar Cabang',
         tables: ['branchWorkOrder', 'branchWorkOrderItem'],
     },
+    stockTransfers: {
+        label: 'Transfer Stok Antar Cabang',
+        tables: ['stockTransfer', 'stockTransferItem'],
+    },
+    interBranchLedger: {
+        label: 'Buku Titipan Antar Cabang (Ledger)',
+        tables: ['interBranchLedger', 'ledgerSettlement'],
+    },
     clickCounting: {
         label: 'Click Counting (Mesin Cetak)',
         tables: ['clickRate', 'clickLog', 'machineReject', 'meterReading'],
@@ -90,6 +98,7 @@ const RESTORE_ORDER = [
     'ingredient', 'variantIngredient', 'variantPriceTier',
     'batch', 'stockMovement', 'supplierItem',
     'stockPurchase', 'stockPurchaseItem',       // pembelian stok → setelah supplier & variant
+    'stockTransfer', 'stockTransferItem',       // transfer antar cabang → setelah companyBranch & productVariant
     'hppWorksheet', 'hppVariableCost', 'hppFixedCost',
     'transaction', 'transactionItem',
     'shiftReport',                              // sebelum cashflow karena cashflow punya FK ke shiftReport
@@ -99,6 +108,8 @@ const RESTORE_ORDER = [
     'salesOrder', 'salesOrderItem', 'salesOrderProof',
     'productionBatch', 'productionJob', 'printJob',
     'branchWorkOrder', 'branchWorkOrderItem',
+    'interBranchLedger',                        // FK → transaction + companyBranch (from/to). Setelah transaction & companyBranch.
+    'ledgerSettlement',                         // FK → interBranchLedger + cashflow + stockMovement. Setelah ledger & cashflow & movements.
     'clickRate', 'clickLog', 'machineReject', 'meterReading',
     'stockOpnameSession', 'stockOpnameItem',
 ];
@@ -151,7 +162,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.0', // Mode Cabang Multi-Tenant (companyBranch, branchSettings, branchStock, click counting, sales order, branch work order)
+                version: '3.1', // + Stock Transfer + Inter-Branch Ledger (Buku Titipan) & Settlements
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

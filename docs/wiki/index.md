@@ -44,4 +44,13 @@ features:
   - icon: 🏢
     title: Mode Cabang Multi-Tenant
     details: Kelola banyak toko cabang dalam satu sistem — stok per cabang, kas terpisah, transfer stok antar cabang, role Owner switcher, WA group dan identitas nota per cabang.
+  - icon: 🔁
+    title: Titip Cetak Antar Cabang
+    details: Kasir cabang A bisa terima order yang dicetak di cabang B. Toggle prominent di POS, routing job otomatis, stok bahan dari cabang pelaksana, badge titipan konsisten, notif popup real-time saat titipan masuk & cetakan siap.
+  - icon: 📒
+    title: Buku Titipan (Inter-Branch Ledger)
+    details: Auto-catat hutang-piutang antar cabang saat titip cetak diserahkan. Hitungan = HPP bahan + fee layanan (configurable). Settle tunai (2 cashflow pair) atau kirim stok. Fee per cabang.
+  - icon: 🎨
+    title: Sales Order & Designer Portal
+    details: Portal khusus desainer freelance dengan login PIN. Buat SO, upload screenshot proof (Ctrl+V dari clipboard), broadcast ke grup WA internal cabang. Convert SO ke invoice di POS dengan satu klik.
 ---

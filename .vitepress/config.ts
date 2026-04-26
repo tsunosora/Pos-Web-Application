@@ -16,7 +16,7 @@ export default defineConfig({
     nav: [
       { text: 'Mulai di Sini', link: '/alur-bisnis' },
       { text: 'Wiki Lengkap', link: '/' },
-      { text: 'v3.0', items: [{ text: 'Lihat Daftar Isi', link: '/#daftar-isi-wiki' }] },
+      { text: 'v5.1', items: [{ text: 'Lihat Daftar Isi', link: '/#daftar-isi-wiki' }] },
     ],
 
     sidebar: [
@@ -34,8 +34,17 @@ export default defineConfig({
           { text: '🖨️ Antrian Produksi', link: '/produksi' },
           { text: '🖨️ Antrian Cetak Paper', link: '/mesin-cetak' },
           { text: '📄 Invoice & SPH (B2B)', link: '/invoice-sph' },
+          { text: '🎨 Sales Order & Designer', link: '/sales-orders' },
           { text: '🏭 Data Supplier', link: '/suppliers' },
           { text: '📋 Stok Opname', link: '/stock-opname' },
+        ]
+      },
+      {
+        text: '🏢 Multi-Cabang',
+        items: [
+          { text: '🏢 Mode Cabang', link: '/mode-cabang' },
+          { text: '🔁 Titip Cetak Antar Cabang', link: '/titip-cetak' },
+          { text: '📒 Buku Titipan (Ledger)', link: '/buku-titipan' },
         ]
       },
       {
@@ -43,6 +52,7 @@ export default defineConfig({
         items: [
           { text: '💸 Cashflow Bisnis', link: '/cashflow' },
           { text: '📊 Laporan Stok', link: '/laporan-stok' },
+          { text: '📜 Riwayat Tutup Shift', link: '/riwayat-shift' },
           { text: '🧮 Kalkulator HPP', link: '/hpp-calculator' },
           { text: '🗺️ Peta Cuan Lokasi', link: '/peta-cuan' },
         ]

@@ -16,6 +16,7 @@ const ICON_MAP: Record<string, string> = {
     master: "🏷️", branches: "🏢", users: "👤", products: "📦", suppliers: "🚚",
     customers: "👥", hpp: "🧮", transactions: "💰", invoices: "📄",
     salesOrders: "🎨", production: "🏭", branchWorkOrders: "🔁",
+    stockTransfers: "🔄", interBranchLedger: "📒",
     clickCounting: "🖨️", opname: "📋", reports: "📊",
 };
 

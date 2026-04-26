@@ -18,11 +18,12 @@ Mode Cabang adalah kemampuan PosPro untuk menjalankan **beberapa toko/cabang** d
 | **Cashflow** | Arus kas (masuk/keluar) per cabang, saldo kas sendiri |
 | **Tutup Shift** | Shift close per cabang — laporan WA ke grup berbeda |
 | **Rekening Bank** | Tiap cabang punya rekening sendiri (atau share, fleksibel) |
-| **Antrian Produksi & Print** | Job cetak/produksi muncul hanya di cabang yang order |
+| **Antrian Produksi & Print** | Job cetak/produksi muncul hanya di cabang yang order (atau cabang pelaksana titipan) |
 | **Click Counting** | Meter mesin cetak per cabang (meter reading harian terpisah) |
-| **Konfigurasi WA** | Grup laporan shift & broadcast per cabang |
+| **Konfigurasi WA** | Grup laporan shift, broadcast, & SO design — per cabang |
 | **PIN Operator Produksi** | PIN berbeda per cabang untuk akses halaman `/produksi` |
 | **Identitas Nota** | Nama toko, alamat, telepon, logo, header/footer nota — per cabang |
+| **Fee Titipan** | Persentase fee layanan saat menerima titipan cetak dari cabang lain (default 20%) |
 
 ### Yang Tetap Bersama (Global / Shared)
 
@@ -243,6 +244,22 @@ Mulai shift berikutnya, laporan Sewon akan kirim ke grup ini.
 3. Rekening ini otomatis ter-tag `branchId=Sewon` — hanya tampil saat Sewon aktif
 4. Transaksi transfer di POS Sewon hanya bisa pilih rekening Sewon
 
+### Skenario 6: Titip Cetak ke Cabang Lain
+**Situasi**: Cabang Bantul terima order banner besar tapi tidak punya mesin large format. Pusat punya. Mau titip cetak ke Pusat.
+
+**Langkah**:
+1. Kasir Bantul → POS → tambah produk → klik toggle **"Titip Cetak"** di header cart → pilih Pusat
+2. Customer bayar Rp 200rb di Bantul (revenue masuk cashflow Bantul)
+3. Stok bahan otomatis dipotong dari **BranchStock Pusat** (cabang pelaksana)
+4. Job otomatis muncul di **Titipan Masuk** Pusat (popup notif kuning)
+5. Operator Pusat klik "Terima & Kerjakan" → job masuk antrian `/produksi` Pusat
+6. Operator selesai → klik "Tandai Siap Diambil" → notif hijau muncul di Bantul
+7. Customer ambil di Bantul → kasir klik "Konfirmasi Sudah Diambil"
+8. Sistem auto-catat hutang Bantul → Pusat di **Buku Titipan**: HPP bahan + fee 20% (configurable)
+9. Bantul settle: bayar tunai (transfer rekening) atau kirim balik bahan setara nilai
+
+Detail lengkap: **[🔁 Titip Cetak](titip-cetak.md)** dan **[📒 Buku Titipan](buku-titipan.md)**.
+
 ---
 
 ## ⚠️ Troubleshooting
@@ -300,4 +317,14 @@ Untuk developer yang ingin mengembangkan fitur baru dengan scoping cabang:
 
 ---
 
-*Terakhir diperbarui: 23 April 2026 | Mode Cabang v1.0*
+## 🔗 Fitur Lanjutan Multi-Cabang
+
+| Fitur | Wiki |
+|---|---|
+| **🔁 Titip Cetak** — kasir A bikin nota, dicetak di cabang B | [titip-cetak.md](titip-cetak.md) |
+| **📒 Buku Titipan** — auto-catat hutang/piutang antar cabang dari titip cetak | [buku-titipan.md](buku-titipan.md) |
+| **🎨 Sales Order & Designer Portal** — workflow desainer freelance bikin SO, broadcast WA per cabang | [sales-orders.md](sales-orders.md) |
+
+---
+
+*Terakhir diperbarui: 26 April 2026 | Mode Cabang v1.2 — Titip Cetak + Buku Titipan + Designer Portal multi-cabang*

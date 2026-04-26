@@ -38,7 +38,7 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
 
 ### Grup Data yang Tersedia
 
-Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.0** (Mode Cabang Multi-Tenant) dengan grup berikut:
+Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.1** (Mode Cabang Multi-Tenant + Inter-Branch Ledger) dengan grup berikut:
 
 | Grup | Isi |
 |---|---|
@@ -53,12 +53,17 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 | 📄 Invoice & Penawaran | Invoice + SPH (Quotation) |
 | 🎨 Sales Order & Designer | SO B2B + designer portal data |
 | 🏭 Produksi & Antrian Cetak | Production batch/job + print queue |
-| 🔁 Work Order Antar Cabang | `branchWorkOrder` (cabang minta order ke pusat) |
+| 🔁 Work Order Antar Cabang | `branchWorkOrder` (cabang minta order ke pusat — model lama) |
+| 🔄 Transfer Stok Antar Cabang | `stockTransfer`, `stockTransferItem` (transfer bahan dari cabang A ke B) |
+| 📒 Buku Titipan Antar Cabang (Ledger) | `interBranchLedger`, `ledgerSettlement` — hutang-piutang dari titip cetak + history pelunasan tunai/stok |
 | 🖨️ Click Counting | Tarif klik + log mesin + meter reading + reject |
 | 📋 Stok Opname | Sesi opname + item opname |
 | 📊 Laporan Shift | Shift report + competitor (peta cuan) |
 
-> **Catatan:** Backup file v3.0 tetap bisa dibaca oleh sistem yang sama; **file backup v2.x lama tetap bisa di-restore** karena tabel multi-cabang yang baru akan kosong dan akan otomatis ter-tag ke cabang Pusat saat aplikasi melakukan migrasi data.
+> **Catatan kompatibilitas:**
+> - **File backup v2.x** (single-tenant lama) tetap bisa di-restore — tabel multi-cabang baru akan kosong, data lama auto-tag ke cabang Pusat
+> - **File backup v3.0** (Mode Cabang awal) tetap bisa di-restore — tabel `interBranchLedger`/`ledgerSettlement`/`stockTransfer` akan kosong (tidak crash karena urutan FK sudah dijaga di RESTORE_ORDER)
+> - **File backup v3.1** punya 4 tabel tambahan; kalau di-restore di sistem schema lama yang belum punya tabel itu, akan di-skip silent (tidak fatal)
 
 ---
 

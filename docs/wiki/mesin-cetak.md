@@ -40,3 +40,46 @@ Di menu **Klik Mesin Cetak**, manajer dapat:
 
 > [!TIP]
 > Lakukan rekonsiliasi meteran setidaknya sekali setiap hari atau setiap pergantian shift untuk memastikan tidak ada cetakan ilegal atau order yang tidak tercatat di kasir.
+
+---
+
+## 4. Multi-Cabang & Titip Cetak
+
+Halaman `/print-queue` (Antrian Cetak Paper) di mode multi-cabang scoped per cabang aktif:
+
+| User | Yang Tampil |
+|---|---|
+| **Operator cabang Pusat** | PrintJob dari nota Pusat **+ titipan paper print dari cabang lain** |
+| **Operator cabang Bantul** | Hanya PrintJob Bantul. Titipan keluar tidak muncul (dikerjakan di Pusat) |
+
+### Badge Indikator di Job Card
+
+| Badge | Arti |
+|---|---|
+| 🏢 **PST** (sky biru) | Job dari nota cabang Pusat sendiri |
+| ⚑ **Titipan BTL** (amber) | Job dari nota cabang Bantul, dititipkan ke Pusat |
+
+### PIN Operator Per Cabang
+
+PIN operator paper print sekarang **per cabang** — di-set di `BranchSettings.operatorPin` lewat `/settings/branch-config`. Operator Pusat & Bantul punya PIN berbeda. Halaman `/cetak?branch=<code>` akan validate PIN sesuai cabang yang dipilih.
+
+### Filter Titipan Pending
+
+Sama dengan `/produksi`, job titipan paper print **disembunyikan** dari `/print-queue` selama `handover_status` masih `BARU` (belum di-acknowledge operator di `/titipan-masuk`).
+
+### Click Counting Per Cabang
+
+`ClickLog` & `MeterReading` juga scoped per cabang. Tiap cabang catat klik mesin sendiri, ada laporan terpisah. Owner mode "Semua Cabang" tampilkan agregat untuk overview.
+
+### Stok Bahan Paper Titipan
+
+Saat customer order paper print di Bantul tapi titip cetak ke Pusat:
+- Stok bahan kertas dipotong dari `BranchStock(Pusat)` (cabang pelaksana)
+- ClickLog tercatat di Pusat (mesin fisiknya di sana)
+- Hutang Bantul → Pusat terbentuk di Buku Titipan
+
+Detail flow lengkap → [🔁 Titip Cetak](titip-cetak.md) | Aspek keuangan → [📒 Buku Titipan](buku-titipan.md)
+
+---
+
+*Wiki PosPro — Terakhir diperbarui: 26 April 2026 | + Multi-cabang badge titipan + PIN per cabang*

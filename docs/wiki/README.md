@@ -41,6 +41,9 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 19 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | 20 | [🚀 Panduan Deployment](deployment.md) | Setup di home server / VPS dengan Cloudflare Tunnel |
 | 21 | [🏢 Mode Cabang (Multi-Tenant)](mode-cabang.md) | **Multi-cabang** — kelola banyak toko dalam satu sistem, stok/kas/shift terpisah, owner switcher |
+| 22 | [🔁 Titip Cetak Antar Cabang](titip-cetak.md) | **Titip cetak** — kasir cabang A bikin nota, dicetak di cabang B (toggle prominent di POS) |
+| 23 | [📒 Buku Titipan Antar Cabang](buku-titipan.md) | **Buku Titipan** — auto-catat hutang/piutang antar cabang dari titip cetak, settle tunai/stok |
+| 24 | [🎨 Sales Order & Designer Portal](sales-orders.md) | **Designer portal** — workflow desainer freelance, broadcast SO ke grup WA per cabang |
 
 ---
 
@@ -599,9 +602,12 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | [🚀 Panduan Deployment Cloudflare](deployment.md) | Setup produksi di Home Server (MySQL, PM2, Cloudflare Tunnel) |
 | [🏢 Mode Cabang Multi-Tenant](mode-cabang.md) | Setup cabang baru, role Owner vs Staff, BranchStock, transfer stok antar cabang, WA per cabang |
+| [🔁 Titip Cetak Antar Cabang](titip-cetak.md) | Toggle prominent di POS, routing job ke cabang pelaksana, badge titipan, notif popup |
+| [📒 Buku Titipan Antar Cabang](buku-titipan.md) | Auto-ledger hutang-piutang inter-branch, settle dengan tunai (2 cashflow) atau kirim stok |
+| [🎨 Sales Order & Designer Portal](sales-orders.md) | Portal desainer dengan PIN, paste screenshot proof, broadcast WA per-cabang |
 
 ---
 
-*Dokumentasi PosPro — Terakhir diperbarui: 23 April 2026 | v5.0 — **Mode Cabang Multi-Tenant** (User scoped per branch, BranchStock per cabang, Transfer stok antar cabang, WA group per cabang, Owner switcher), Pengaturan Per Cabang, Identitas nota per cabang*
+*Dokumentasi PosPro — Terakhir diperbarui: 26 April 2026 | v5.1 — **Titip Cetak + Buku Titipan + Designer Portal Multi-Cabang*** (Toggle titip cetak prominent di POS, auto-routing job + stok ke cabang pelaksana, popup notif titipan masuk/keluar, badge titipan konsisten di semua halaman, auto-ledger hutang-piutang antar cabang dengan settle tunai/stok, fee titipan configurable per cabang, designer portal dengan PIN + paste screenshot + WA broadcast per cabang, link nota & badge titipan di laporan stok)*
 
 **© 2026 Muhammad Faisal. All rights reserved.**

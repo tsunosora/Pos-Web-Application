@@ -64,20 +64,41 @@ Tabel menampilkan hingga **1.000 baris terbaru** sesuai filter. Kolom yang terse
 | **Tipe** | Badge berwarna: MASUK (hijau) / KELUAR (merah) / KOREKSI (biru) |
 | **Jumlah** | Kuantitas yang bergerak — dalam satuan nyata produk (bukan ×100) |
 | **Saldo Setelah** | Stok tersisa setelah pergerakan ini |
-| **Keterangan** | Alasan pergerakan (lihat tabel di bawah) |
+| **Keterangan** | Alasan pergerakan + link ke nota + nama customer + badge cabang/titipan (kalau dari transaksi) |
+
+### Kolom Keterangan dengan Link Nota ⭐
+
+Setiap movement yang berasal dari transaksi otomatis menampilkan:
+1. **Reason text** dengan suffix invoice (mis. *"Terpotong oleh Penjualan Banner — SO-20260426-0007"*)
+2. **Link nota biru** dengan icon ↗ — klik buka detail transaksi `/transactions/[id]`
+3. **Nama customer** (font medium, dipisah `·`)
+4. **Badge cabang/titipan**:
+   - 🏢 **PST** (sky badge) — nota cabang biasa
+   - ⚑ **Titipan BTL → PST** (amber badge) — nota titip cetak antar cabang
+5. **Badge "Nota Dihapus"** (merah) — kalau transaksi sudah dihapus, info masih tersnapshot di reason text
+
+Resolver bisa menangani 2 format `referenceId`:
+- `tx-<invoiceNumber>` — dari checkout/edit/hapus transaksi
+- `JOB-<date>-<seq>` — dari operator klik "Mulai Job" di `/produksi` (lookup via ProductionJob → transaction)
 
 ### Keterangan Pergerakan Stok
 
 | Keterangan | Artinya |
 |---|---|
-| `Penjualan #INV-...` | Stok terpotong karena transaksi di kasir |
-| `Terpotong BOM: ...` | Bahan baku otomatis terpotong via BOM/Ingredient |
+| `Penjualan ... — SO-20260426-XXXX` | Stok terpotong karena transaksi di kasir (UNIT product) |
+| `Penjualan Cetak WxH ×Npcs (Ym²) — SO-...` | Stok terpotong AREA_BASED tanpa production job |
+| `Terpotong oleh Penjualan ... — SO-...` | BOM ingredient terpotong otomatis |
+| `Terpotong (varian) oleh Penjualan ... — SO-...` | Variant-level BOM terpotong |
 | `Pembelian #purchase-N` | Stok bertambah dari pembelian bahan baku |
-| `Stok Opname` | Stok dikoreksi dari hasil opname fisik |
+| `Stok Opname #...` | Stok dikoreksi dari hasil opname fisik |
 | `Penyesuaian Manual` | Koreksi stok oleh admin secara manual |
-| `Hapus Transaksi #INV-...` | Stok dikembalikan akibat transaksi dihapus |
+| `Hapus Transaksi SO-... \| Customer \| Titipan BTL → PST` | Restore stok dari hapus nota — info customer & titipan ter-snapshot di reason supaya tetap kebaca walau transaksi sudah dihapus |
 | `Susut: ...` | Penyusutan bahan (catatan susut) |
-| `Produksi Job #JOB-...` | Stok terpotong saat job produksi dimulai |
+| `Produksi Job #JOB-...` | Stok terpotong saat operator klik "Mulai Job" di `/produksi` |
+| `Pemasangan Job #JOB-... — <ingredient>` | BOM rakitan terpotong saat operator klik "Mulai Pasang" |
+| `Gabung Cetak BATCH-...` | Stok terpotong saat batch print mode |
+| `Bayar titipan cetak (ledger #X) ke cabang #Y` | Stok dikirim ke cabang lain sebagai pelunasan Buku Titipan |
+| `Terima bahan dari cabang #X (ledger #Y)` | Stok masuk dari cabang lain sebagai pelunasan Buku Titipan |
 
 ### Tampilan Quantity
 
@@ -125,6 +146,28 @@ File otomatis diberi nama `laporan-stok-YYYY-MM-DD.csv` berdasarkan tanggal hari
 
 ---
 
-*Halaman ini ditambahkan di versi v3.0 — April 2026*
+## Riwayat Stok per Varian
+
+Selain laporan stok global di `/reports/stock`, ada juga **modal Riwayat Stok per varian** yang bisa dibuka dari halaman `/inventory`:
+
+1. Klik ikon **jam/history** di kolom Aksi pada baris varian
+2. Modal muncul dengan list movement varian itu (50 terakhir, paginated)
+3. Setiap entry tampilkan: tipe (MASUK/KELUAR/KOREKSI), reason, qty, sisa stok, link nota & customer & badge titipan (kalau dari transaksi)
+
+Sama enrichment seperti `/reports/stock` — tinggal klik link nota untuk pindah ke detail transaksi.
+
+---
+
+## Multi-Cabang
+
+- Staff cabang Bantul lihat `/reports/stock` → hanya movement Bantul
+- Owner mode "Semua Cabang" → semua movement dari semua cabang
+- Owner switch ke cabang spesifik → filter ke cabang itu
+
+Untuk movement **titip cetak**: stok terpotong tercatat di cabang **pelaksana** (cabang yang mencetak), bukan cabang pemesan. Jadi lihat dari `/reports/stock` cabang Pusat → akan ada movement OUT dengan badge `⚑ Titipan BTL → PST` (artinya nota dari Bantul, tapi stok terpotong di Pusat).
+
+---
+
+*Halaman ini ditambahkan di versi v3.0 — April 2026 | Updated v3.1: link nota + badge titipan di kolom Keterangan*
 
 **© 2026 Muhammad Faisal. All rights reserved.**

@@ -8,7 +8,9 @@
 
 **Solusi kasir modern untuk toko kelontong, percetakan digital, café, dan usaha kecil menengah lainnya.**
 
-> 🆕 **Update Maret 2026 (v2.7)** — Ditambahkan: **Harga Bertingkat** (tiered pricing per varian, harga otomatis berubah sesuai qty di kasir), **Impor Produk Massal** (template Excel + preview sebelum simpan), **Kalkulator HPP Multi-Varian** (biaya tambah per baris, simpan sebagai produk multi-varian), **Laporan Laba Kotor**, **Supplier Management**, **Backup & Restore**. Produk **Tanpa Lacak Stok** kini tidak pernah masuk daftar peringatan Stok Menipis.
+> 🆕 **Update April 2026 (v5.1)** — **Mode Cabang Multi-Tenant Penuh**: kelola banyak toko cabang dalam 1 sistem (stok per cabang, kas terpisah, owner switcher), **🔁 Titip Cetak Antar Cabang** (toggle prominent di POS, routing job otomatis, badge titipan konsisten, popup notif real-time titipan masuk/cetakan siap), **📒 Buku Titipan / Inter-Branch Ledger** (auto-catat hutang-piutang antar cabang, settle dengan tunai 2 cashflow pair atau kirim stok bahan, fee configurable per cabang), **🎨 Sales Order & Designer Portal** (PIN login, paste screenshot Ctrl+V, broadcast WA per cabang dengan resolver token-based), **link nota & badge titipan di laporan stok**, **transfer stok antar cabang**. Backup v3.1 dengan 4 grup baru.
+>
+> 🆕 **Update Maret 2026 (v2.7)** — **Harga Bertingkat** (tiered pricing per varian, harga otomatis berubah sesuai qty di kasir), **Impor Produk Massal** (template Excel + preview sebelum simpan), **Kalkulator HPP Multi-Varian**, **Laporan Laba Kotor**, **Supplier Management**, **Backup & Restore**. Produk **Tanpa Lacak Stok** kini tidak pernah masuk daftar peringatan Stok Menipis.
 
 ---
 
@@ -152,6 +154,48 @@ Hitung fisik stok gudang dengan sistem link operator yang aman dan terstruktur.
 - Statistik per pelanggan: total belanja, frekuensi, rata-rata transaksi
 - Export data pelanggan
 
+### 🏢 16. Mode Cabang Multi-Tenant
+- Kelola **beberapa toko/cabang** dalam satu sistem dengan data operasional terpisah
+- **Stok per cabang** (`BranchStock`) — produk shared, stok independen per cabang
+- **Cashflow, Tutup Shift, Rekening Bank, Antrian Produksi/Cetak, Click Counting** — semua scoped per cabang
+- **Konfigurasi WA, Identitas Nota, Operator PIN, Fee Titipan** — per cabang
+- **Owner switcher** — Owner/SuperAdmin bisa switch cabang aktif via dropdown topbar atau pilih "Semua Cabang" untuk laporan agregat
+- **Transfer stok antar cabang** — pindahkan bahan dari cabang A ke B dengan audit trail StockMovement OUT+IN
+- **User locked per cabang** — kasir tidak bisa lihat data cabang lain (security via JWT + `@CurrentBranch()` decorator)
+- 📖 [Wiki: Mode Cabang](docs/wiki/mode-cabang.md)
+
+### 🔁 17. Titip Cetak Antar Cabang
+- Kasir cabang A bisa terima order yang dicetak di cabang B (yang punya mesin/bahan)
+- **Toggle prominent di header cart POS** — satu klik untuk aktifkan titip cetak, dropdown pilih cabang tujuan
+- **Auto-routing**: ProductionJob/PrintJob terbuat dengan `branchId = cabang pelaksana`
+- **Stok bahan dipotong dari cabang pelaksana** (bukan pemesan)
+- **Popup notif real-time**: cabang pelaksana dapat notif kuning saat titipan masuk; cabang pemesan dapat notif hijau saat cetakan siap diambil
+- **Halaman `/titipan-masuk`** & **`/titipan-keluar`** — kelola siklus dengan status: BARU → DIPROSES → SIAP_AMBIL → DISERAHKAN
+- **Badge titipan konsisten** di `/produksi`, `/print-queue`, `/cetak`, detail nota, dan laporan stok (⚑ amber)
+- 📖 [Wiki: Titip Cetak](docs/wiki/titip-cetak.md)
+
+### 📒 18. Buku Titipan Antar Cabang (Inter-Branch Ledger)
+- **Auto-catat hutang-piutang antar cabang** saat titip cetak diserahkan
+- Formula: `costAmount = HPP × qty`, `serviceFee = costAmount × titipanFeePercent`, `totalAmount = costAmount + fee`
+- **Fee configurable per cabang** (default 20%, set di `/settings/branch-config`)
+- **Halaman `/branch-ledger`**: summary (Hutang Keluar / Piutang Masuk / Netto), list dengan filter role+status, expand detail dengan breakdown HPP & item
+- **Settlement Tunai**: bayar dengan 2 cashflow pair (EXPENSE di pemesan + INCOME di pelaksana, kategori `INTER_BRANCH_SETTLEMENT`)
+- **Settlement Kirim Bahan**: bayar dengan transfer stok bahan, nilai = HPP × qty, atomic (decrement A + increment B + 2 StockMovement)
+- **Laporan konsolidasi otomatis exclude** kategori settlement supaya tidak double-count
+- **Badge sidebar** dot indicator kalau ada outstanding
+- 📖 [Wiki: Buku Titipan](docs/wiki/buku-titipan.md)
+
+### 🎨 19. Sales Order & Designer Portal
+- **Portal khusus desainer freelance** dengan login PIN (tanpa akun staff penuh) — `/so-designer`
+- Buat SO baru, upload screenshot proof, broadcast ke grup WA internal
+- **Paste screenshot via Ctrl+V** — paste langsung dari clipboard tanpa save file dulu
+- **Drag & drop** file ke dropzone, atau klik "Pilih Gambar" tradisional
+- **Auto-tag branch** dari profil designer atau cabang aktif kasir
+- **Broadcast WA per cabang** — sistem resolve `BranchSettings.waDesignGroupId` dari branchName SO (4 strategi: exact, code, substring, token-based)
+- Status SO: DRAFT → SENT → INVOICED → CANCELLED
+- **Convert SO ke Invoice** di POS dengan satu klik — auto-load items ke cart
+- 📖 [Wiki: Sales Order & Designer](docs/wiki/sales-orders.md)
+
 ---
 
 ## 🖥️ Peta Halaman Aplikasi
@@ -159,28 +203,48 @@ Hitung fisik stok gudang dengan sistem link operator yang aman dan terstruktur.
 ```
 📱 Halaman-Halaman PosPro
 ├── /                       → Dashboard ringkasan bisnis
-├── /pos                    → Kasir (tambah item, checkout, cetak struk)
+├── /pos                    → Kasir (toggle Titip Cetak prominent di header cart 🆕)
 ├── /pos/close-shift        → Form tutup shift kasir
 ├── /transactions/dp        → Daftar piutang & pelunasan DP
-├── /inventory              → Manajemen produk & stok
-├── /inventory/opname       → Stok Opname — kelola sesi hitung fisik (admin) 🆕
-├── /produksi               → Antrian Produksi — antrean cetak operator (publik + PIN) 🆕
-├── /opname/[token]         → Form hitung fisik stok untuk karyawan (tanpa login) 🆕
+├── /transactions/[id]      → Detail nota (badge titipan di header 🆕)
+├── /inventory              → Manajemen produk & stok (modal Riwayat Stok dengan link nota 🆕)
+├── /inventory/opname       → Stok Opname — kelola sesi hitung fisik (admin)
+├── /inventory/transfer     → Transfer stok antar cabang 🆕
+├── /inventory/suppliers    → Data Supplier & harga beli per varian
+├── /produksi               → Antrian Produksi (badge titipan + filter pending titipan 🆕)
+├── /print-queue            → Antrian Cetak Paper (admin view + badge titipan 🆕)
+├── /cetak                  → Operator paper print (publik + PIN per cabang 🆕)
+├── /opname/[token]         → Form hitung fisik stok untuk karyawan (tanpa login)
+├── /click-counting         → Click counting mesin cetak per cabang
+├── /titipan-masuk          → Inbox titipan masuk dari cabang lain 🆕
+├── /titipan-keluar         → Outbox titipan keluar ke cabang lain 🆕
+├── /branch-ledger          → 📒 Buku Titipan — hutang/piutang antar cabang + settlement 🆕
+├── /branch-orders          → Branch Work Order (cabang minta order ke pusat — model lama)
+├── /sales-orders           → Sales Order list (admin)
+├── /sales-orders/new       → Buat SO baru (cashier — paste screenshot Ctrl+V 🆕)
+├── /sales-orders/[id]      → Detail SO + tombol kirim WA broadcast 🆕
+├── /so-designer            → Portal Desainer (PIN login) 🆕
+├── /so-designer/new        → Designer buat SO baru (paste screenshot Ctrl+V 🆕)
 ├── /customers              → Data pelanggan & CRM
 ├── /invoices               → Invoice Generator & Penawaran Harga (SPH)
-├── /cashflow               → Arus kas bisnis dengan chart & filter
+├── /cashflow               → Arus kas bisnis (filter exclude INTER_BRANCH_SETTLEMENT di mode Semua Cabang 🆕)
 ├── /maps                   → Peta Cuan Lokasi (cabang + kompetitor)
-├── /inventory/suppliers    → Data Supplier & harga beli per varian 🆕
 ├── /reports/sales          → Laporan riwayat transaksi
 ├── /reports/profit         → Laporan Laba Kotor & margin per produk
+├── /reports/stock          → Laporan Stok (link nota + badge titipan + Nota Dihapus 🆕)
+├── /reports/shift-history  → Riwayat tutup shift
 ├── /reports/hpp            → Kalkulator HPP & Kalkulasi Multi-Varian
 └── /settings               → Pengaturan toko, bot WhatsApp, rekening bank
-    ├── /settings/general       → Profil toko (nama, logo, pajak, PIN operator)
+    ├── /settings/general       → Profil toko global
+    ├── /settings/branches      → Manajemen cabang (Owner) 🆕
+    ├── /settings/branch-config → Konfigurasi per cabang: PIN, WA group, Fee Titipan 🆕
     ├── /settings/payments      → Metode pembayaran & QRIS
-    ├── /settings/users         → Manajemen staf / akun kasir
-    ├── /settings/whatsapp      → Bot WhatsApp QR & konfigurasi grup
-    ├── /settings/bank-accounts → Rekening bank & reset saldo
-    ├── /settings/backup        → Backup & Restore database ke ZIP 🆕
+    ├── /settings/users         → Manajemen staf (assign cabang)
+    ├── /settings/designers     → Daftar desainer + PIN portal 🆕
+    ├── /settings/whatsapp      → Bot WhatsApp QR & global default groups
+    ├── /settings/bank-accounts → Rekening bank per cabang
+    ├── /settings/notifications → Discord webhook & GitHub notifications
+    ├── /settings/backup        → Backup & Restore database ke ZIP (v3.1 🆕)
     └── /settings/login         → Kustomisasi tampilan halaman login
 ```
 
@@ -712,6 +776,15 @@ Pos-Web-Application/
 - [x] Upload gambar produk mendukung format JFIF dan nama file kapital (JPG, JPEG)
 - [x] HPP: sync kategori produk dari database inventori (bukan hardcoded)
 - [x] Notifikasi stok menipis — dashboard card + badge di inventori (hanya produk Lacak Stok aktif)
+- [x] **Mode Cabang Multi-Tenant** — kelola banyak toko/cabang dalam 1 sistem dengan data operasional terpisah
+- [x] **Transfer Stok Antar Cabang** — pindahkan bahan dari cabang A ke B dengan audit trail
+- [x] **Titip Cetak Antar Cabang** — kasir A bikin nota dicetak di B, toggle prominent POS, badge konsisten
+- [x] **Buku Titipan (Inter-Branch Ledger)** — auto-catat hutang/piutang antar cabang, settle tunai/kirim stok
+- [x] **Sales Order & Designer Portal** — workflow desainer freelance dengan PIN, paste screenshot, broadcast WA per cabang
+- [x] **Konfigurasi WA per Cabang** — Design Group ID, Report Group ID, Broadcast Groups per cabang dengan fallback global
+- [x] **Backup v3.1** — 4 grup baru: stockTransfer, interBranchLedger + ledgerSettlement
+- [x] **Laporan Stok dengan Link Nota** — klik movement → buka detail transaksi, badge titipan, badge "Nota Dihapus"
+- [x] **Invoice Number Anti-Reuse** — nomor invoice yang dihapus tidak akan dipakai ulang (cek dari StockMovement.referenceId)
 - [ ] Mode offline (PWA)
 - [ ] Fitur loyalty point pelanggan
 
