@@ -73,7 +73,27 @@
       "Bash(dir \"D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\backend\\\\src\\\\click-counting\" /b)",
       "Bash(dir \"D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\\\\src\\\\app\\\\click-counting\" /b)",
       "Bash(dangerouslyDisableSandbox)",
-      "Bash(node_modules/.bin/tsc --noEmit)"
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(npx ts-node *)",
+      "Bash(npm outdated *)",
+      "Bash(npm update *)",
+      "Bash(npx tsc *)",
+      "Bash(echo \"BE exit=$?\")",
+      "Read(//tmp/**)",
+      "Bash(echo \"FE exit=$?\")",
+      "PowerShell(cd D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\backend; \\(Get-Content node_modules\\\\@nestjs\\\\common\\\\package.json | ConvertFrom-Json\\).version; \\(Get-Content node_modules\\\\@prisma\\\\client\\\\package.json | ConvertFrom-Json\\).version)",
+      "PowerShell(cd D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend; \\(Get-Content package.json | ConvertFrom-Json\\).dependencies.next; \\(Get-Content package.json | ConvertFrom-Json\\).dependencies.\"eslint-config-next\"; \\(Get-Content package.json | ConvertFrom-Json\\).dependencies.react)",
+      "PowerShell(Select-String -Path D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\backend\\\\prisma\\\\schema.prisma -Pattern \"^model \" | ForEach-Object { \\($_.Line -replace 'model ','' -replace ' \\\\{',''\\) })",
+      "PowerShell(cmd /c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\\\\src\\\\app /b /ad\")",
+      "PowerShell(cmd /c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\\\\src\\\\components\\\\layout /b\")",
+      "PowerShell(cmd /c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\\\\src\\\\components\\\\ui /b\")",
+      "Bash(echo \"exit=$?\")",
+      "PowerShell(cmd /c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\\\\src\\\\app\\\\pos /b /s\")",
+      "Bash(echo \"EXIT=$?\")",
+      "PowerShell(npx tsc --noEmit -p frontend\\\\tsconfig.json 2>&1)",
+      "PowerShell(Set-Location \"D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\"; $out = npx tsc --noEmit 2>&1 | Out-String; if \\($out.Trim\\(\\)\\) { $out } else { \"OK: no TypeScript errors\" })",
+      "PowerShell(\"---\")",
+      "Bash(taskkill /F /IM node.exe)"
     ]
   }
 }

@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useState, useRef, useEffect } from "react";
 import { useNotificationStore, AppNotification } from "@/store/notification-store";
+import { BranchSwitcher } from "./BranchSwitcher";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function relativeTime(timestamp: number): string {
@@ -115,6 +116,9 @@ export function Header() {
                 <div className="flex-1" />
 
                 <div className="flex items-center gap-x-3 lg:gap-x-5">
+
+                    {/* Branch Switcher (Owner) / Badge (Staff) */}
+                    <BranchSwitcher />
 
                     {/* Laporan Shift Button */}
                     <button

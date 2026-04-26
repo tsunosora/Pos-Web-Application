@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Palette } from "lucide-react";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
 
 export default function DesignersSettingsPage() {
@@ -11,6 +11,7 @@ export default function DesignersSettingsPage() {
     const [editId, setEditId] = useState<number | null>(null);
     const [name, setName] = useState("");
     const [pin, setPin] = useState("");
+    const [branchName, setBranchName] = useState("");
     const [showPin, setShowPin] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -23,7 +24,7 @@ export default function DesignersSettingsPage() {
     const invalidate = () => qc.invalidateQueries({ queryKey: ["designers"] });
 
     const createMut = useMutation({
-        mutationFn: createDesigner,
+        mutationFn: (d: Parameters<typeof createDesigner>[0]) => createDesigner(d),
         onSuccess: () => { invalidate(); resetForm(); },
         onError: (e: any) => setError(e?.response?.data?.message || "Gagal menyimpan"),
     });
@@ -45,11 +46,11 @@ export default function DesignersSettingsPage() {
     });
 
     function resetForm() {
-        setShowForm(false); setEditId(null); setName(""); setPin(""); setError(null);
+        setShowForm(false); setEditId(null); setName(""); setPin(""); setBranchName(""); setError(null);
     }
 
     function startEdit(d: Designer) {
-        setEditId(d.id); setName(d.name); setPin(""); setShowForm(true); setError(null);
+        setEditId(d.id); setName(d.name); setPin(""); setBranchName((d as any).branchName || ""); setShowForm(true); setError(null);
     }
 
     function handleSave() {
@@ -57,29 +58,34 @@ export default function DesignersSettingsPage() {
         if (!name.trim()) { setError("Nama wajib diisi"); return; }
         if (!editId && !pin.trim()) { setError("PIN wajib diisi saat tambah desainer baru"); return; }
         if (editId) {
-            const upd: any = { name: name.trim() };
+            const upd: any = { name: name.trim(), branchName: branchName.trim() || null };
             if (pin.trim()) upd.pin = pin.trim();
             updateMut.mutate({ id: editId, data: upd });
         } else {
             if (pin.length < 4) { setError("PIN minimal 4 karakter"); return; }
-            createMut.mutate({ name: name.trim(), pin: pin.trim() });
+            createMut.mutate({ name: name.trim(), pin: pin.trim(), branchName: branchName.trim() || undefined });
         }
     }
 
     const isSaving = createMut.isPending || updateMut.isPending;
 
     return (
-        <div className="space-y-4 max-w-2xl">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-xl font-bold">Kelola Desainer</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Daftar desainer yang bisa akses portal SO via PIN tanpa login akun.
-                    </p>
+        <div className="p-6 space-y-5 max-w-3xl">
+            <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
+                <div className="flex items-start gap-3 min-w-0">
+                    <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                        <Palette className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight">Kelola Desainer</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            Daftar desainer yang bisa akses portal SO via PIN tanpa login akun.
+                        </p>
+                    </div>
                 </div>
                 <button
                     onClick={() => { resetForm(); setShowForm(true); }}
-                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-md text-sm font-medium hover:opacity-90"
+                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
                 >
                     <Plus className="h-4 w-4" /> Tambah Desainer
                 </button>
@@ -116,6 +122,14 @@ export default function DesignersSettingsPage() {
                                 </button>
                             </div>
                         </div>
+                        <div className="col-span-2">
+                            <label className="text-xs font-medium text-muted-foreground block mb-1">
+                                Nama Cabang <span className="font-normal">(opsional — kosongkan jika desainer di Pusat)</span>
+                            </label>
+                            <input value={branchName} onChange={e => setBranchName(e.target.value)}
+                                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
+                                placeholder="Contoh: Cabang Ngasem, Cabang Bantul..." />
+                        </div>
                     </div>
                     <div className="flex justify-end gap-2">
                         <button onClick={resetForm} className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">Batal</button>
@@ -143,6 +157,7 @@ export default function DesignersSettingsPage() {
                         <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="px-4 py-2 text-left font-medium">Nama</th>
+                                <th className="px-4 py-2 text-left font-medium">Cabang</th>
                                 <th className="px-4 py-2 text-left font-medium">PIN</th>
                                 <th className="px-4 py-2 text-center font-medium">Status</th>
                                 <th className="px-4 py-2 text-right font-medium">Aksi</th>
@@ -152,6 +167,13 @@ export default function DesignersSettingsPage() {
                             {designers.map(d => (
                                 <tr key={d.id} className={`hover:bg-muted/20 ${!d.isActive ? "opacity-50" : ""}`}>
                                     <td className="px-4 py-2 font-medium">{d.name}</td>
+                                    <td className="px-4 py-2 text-sm text-muted-foreground">
+                                        {(d as any).branchName ? (
+                                            <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">{(d as any).branchName}</span>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground/50">Pusat</span>
+                                        )}
+                                    </td>
                                     <td className="px-4 py-2 font-mono text-xs tracking-widest text-muted-foreground">
                                         {"•".repeat(d.pin.length)}
                                     </td>

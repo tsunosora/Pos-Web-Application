@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getMe } from '@/lib/api';
 
+const OWNER_ROLE_NAMES = ['owner', 'superadmin', 'super_admin', 'super admin'];
+
 export function useCurrentUser() {
     const { data } = useQuery({
         queryKey: ['current-user'],
@@ -24,5 +26,15 @@ export function useCurrentUser() {
         );
     }, [data]);
 
-    return { currentUser: data, isManager };
+    const isOwner = useMemo(() => {
+        if (!data?.role) return false;
+        const n = data.role.name.toLowerCase();
+        return OWNER_ROLE_NAMES.includes(n);
+    }, [data]);
+
+    const branchId = data?.branchId ?? null;
+    const branchName = data?.branch?.name ?? null;
+    const branchCode = data?.branch?.code ?? null;
+
+    return { currentUser: data, isManager, isOwner, branchId, branchName, branchCode };
 }

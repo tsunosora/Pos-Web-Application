@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getActiveBranchId } from '@/store/branch-store';
 
 const api = axios.create({
     baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
@@ -15,6 +16,22 @@ api.interceptors.request.use((config) => {
     }
     if (token) {
         config.headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    // Multi-cabang: Owner/SuperAdmin kirim X-Branch-Id dari store (bisa null = Semua Cabang).
+    // Staff: backend pakai branchId dari JWT, header ini diabaikan — tetap kirim untuk konsistensi.
+    if (typeof window !== 'undefined') {
+        try {
+            const activeBranchId = getActiveBranchId();
+            if (activeBranchId != null) {
+                config.headers.set('X-Branch-Id', String(activeBranchId));
+            } else {
+                // Jangan kirim header → backend treat as "Semua Cabang" untuk Owner.
+                config.headers.delete('X-Branch-Id');
+            }
+        } catch {
+            // ignore — store might not be hydrated
+        }
     }
     return config;
 }, (error) => {

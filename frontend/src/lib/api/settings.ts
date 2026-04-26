@@ -31,13 +31,19 @@ export const uploadLogoImage = async (file: File) => {
 // Users & Roles
 export const getUsers = async () => (await api.get('/users')).data;
 export const createUser = async (data: any) => (await api.post('/users', data)).data;
-export const updateUser = async (id: number, data: { name?: string, roleId?: number, phone?: string, password?: string }) =>
+export const updateUser = async (id: number, data: { name?: string, roleId?: number, phone?: string, password?: string, branchId?: number | null }) =>
     (await api.patch(`/users/${id}`, data)).data;
 export const deleteUser = async (id: number) => (await api.delete(`/users/${id}`)).data;
 export const getRoles = async () => (await api.get('/users/roles')).data;
 export const createRole = async (data: { name: string }) => (await api.post('/users/roles', data)).data;
 export const updateRole = async (id: number, data: { name: string }) => (await api.patch(`/users/roles/${id}`, data)).data;
 export const deleteRole = async (id: number) => (await api.delete(`/users/roles/${id}`)).data;
+
+// Branch Settings (per cabang)
+export const getBranchSettings = async (branchId: number) =>
+    (await api.get(`/branch-settings/${branchId}`)).data;
+export const updateBranchSettings = async (branchId: number, data: any) =>
+    (await api.put(`/branch-settings/${branchId}`, data)).data;
 
 // Branches
 export const getBranches = async () => (await api.get('/branches')).data;

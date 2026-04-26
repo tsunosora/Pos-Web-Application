@@ -7,8 +7,12 @@ export class ProductionController {
     constructor(private readonly productionService: ProductionService) {}
 
     @Get('jobs')
-    getJobs(@Query('status') status?: string, @Query('priority') priority?: string) {
-        return this.productionService.getJobs(status, priority);
+    getJobs(
+        @Query('status') status?: string,
+        @Query('priority') priority?: string,
+        @Query('branchId') branchId?: string,
+    ) {
+        return this.productionService.getJobs(status, priority, branchId ? parseInt(branchId) : undefined);
     }
 
     @Get('rolls')
@@ -17,13 +21,13 @@ export class ProductionController {
     }
 
     @Get('stats')
-    getStats() {
-        return this.productionService.getStats();
+    getStats(@Query('branchId') branchId?: string) {
+        return this.productionService.getStats(branchId ? parseInt(branchId) : undefined);
     }
 
     @Post('pin/verify')
-    verifyPin(@Body('pin') pin: string) {
-        return this.productionService.verifyPin(pin);
+    verifyPin(@Body('pin') pin: string, @Body('branchId') branchId?: number) {
+        return this.productionService.verifyPin(pin, branchId);
     }
 
     @Post('jobs/:id/start')

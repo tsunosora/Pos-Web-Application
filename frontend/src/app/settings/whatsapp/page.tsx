@@ -11,7 +11,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { RefreshCcw, LogOut, CheckCircle2, AlertTriangle, Smartphone, Loader2, FileText, Send, Megaphone, Radio, Users, Plus, Trash2, Settings } from 'lucide-react';
+import { RefreshCcw, LogOut, CheckCircle2, AlertTriangle, Smartphone, Loader2, FileText, Send, Megaphone, Radio, Users, Plus, Trash2, Settings, MessageCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type Group = { id: string; name: string; isBroadcast: boolean; isAnnouncement: boolean };
@@ -158,9 +158,14 @@ export default function WhatsappSettingsPage() {
 
     return (
         <div className="p-6 space-y-6 max-w-5xl">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Pengaturan WhatsApp Bot</h1>
-                <p className="text-muted-foreground">Kelola koneksi dan kirim pesan/pengumuman ke grup WhatsApp.</p>
+            <div className="flex items-start gap-3 pb-4 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <MessageCircle className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight">Pengaturan WhatsApp Bot</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Kelola koneksi dan kirim pesan/pengumuman ke grup WhatsApp.</p>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">

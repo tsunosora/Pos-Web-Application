@@ -61,7 +61,8 @@ export class SalesOrdersPublicController {
         const designer = await verifyDesigner(this.designersService, Number(designerId), pin);
         return this.soService.create({
             ...soData,
-            designerName: designer.name!, // gunakan nama yang terdaftar
+            designerName: designer.name!,       // gunakan nama yang terdaftar
+            branchName: designer.branchName ?? undefined, // auto-tag cabang dari profil desainer
         });
     }
 

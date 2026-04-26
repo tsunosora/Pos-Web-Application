@@ -8,8 +8,10 @@ import {
 } from '@/lib/api';
 import {
     ClipboardList, Plus, X, CheckCircle2, Clock, Ban, ChevronRight,
-    Copy, Check, AlertTriangle, RefreshCw,
+    Copy, Check, AlertTriangle, RefreshCw, Loader2, ArrowLeft,
 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { ResponsiveTable, EmptyState } from '@/components/ui/responsive-table';
 
 type OpnameStatus = 'ONGOING' | 'COMPLETED' | 'CANCELLED';
 
@@ -234,24 +236,31 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
     });
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-                <button onClick={onBack} className="p-2 hover:bg-muted rounded-lg transition-colors">
-                    <ChevronRight className="h-5 w-5 rotate-180" />
+        <div>
+            {/* Header — back button + status */}
+            <div className="mb-5 flex items-start gap-3">
+                <button
+                    onClick={onBack}
+                    className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    aria-label="Kembali"
+                >
+                    <ArrowLeft className="h-4 w-4" />
                 </button>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                        <h1 className="text-xl font-bold">{session.notes || 'Stok Opname'}</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                            {session.notes || 'Stok Opname'}
+                        </h1>
                         <StatusBadge status={session.status} />
                     </div>
-                    <p className="text-sm text-muted-foreground mt-0.5">
+                    <p className="mt-1 text-sm text-muted-foreground">
                         {session.category?.name ? `Kategori: ${session.category.name}` : 'Semua Produk'} ·
                         Mulai: {new Date(session.startDate).toLocaleString('id-ID')} ·
                         Kedaluwarsa: {new Date(session.expiresAt).toLocaleString('id-ID')}
                     </p>
                 </div>
             </div>
+            <div className="space-y-5">
 
             {/* Link + Operator Info */}
             {session.status === 'ONGOING' && (
@@ -282,11 +291,15 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
 
             {/* Tabel Review */}
             {variantMap.size === 0 ? (
-                <div className="p-12 text-center text-muted-foreground text-sm border-2 border-dashed border-border rounded-xl">
-                    Belum ada input dari operator. Bagikan link ke karyawan.
+                <div className="rounded-xl border border-dashed border-border bg-card">
+                    <EmptyState
+                        icon={ClipboardList}
+                        title="Belum ada input"
+                        description="Bagikan link operator ke karyawan supaya mereka bisa mulai mencatat stok."
+                    />
                 </div>
             ) : (
-                <div className="overflow-x-auto rounded-xl border border-border">
+                <ResponsiveTable>
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border bg-muted/40">
@@ -370,12 +383,12 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                             })}
                         </tbody>
                     </table>
-                </div>
+                </ResponsiveTable>
             )}
 
             {/* Actions */}
             {session.status === 'ONGOING' && (
-                <div className="flex gap-3 pt-2 border-t border-border">
+                <div className="flex flex-wrap gap-3 pt-2 border-t border-border">
                     <button
                         onClick={() => cancelMutation.mutate()}
                         disabled={cancelMutation.isPending}
@@ -396,6 +409,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                     )}
                 </div>
             )}
+            </div>
         </div>
     );
 }
@@ -417,34 +431,45 @@ export default function OpnamePage() {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <ClipboardList className="h-6 w-6 text-primary" />
-                        Stok Opname
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        Hitung fisik stok gudang dengan link operator untuk karyawan.
-                    </p>
-                </div>
-                <button
-                    onClick={() => setShowStart(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors"
-                >
-                    <Plus className="h-4 w-4" /> Mulai Opname
-                </button>
-            </div>
+        <div>
+            <PageHeader
+                title="Stok Opname"
+                description="Hitung fisik stok gudang dengan link operator untuk karyawan."
+                icon={ClipboardList}
+                breadcrumbs={[
+                    { label: 'Inventori', href: '/inventory' },
+                    { label: 'Stok Opname' },
+                ]}
+                actions={
+                    <button
+                        onClick={() => setShowStart(true)}
+                        className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+                    >
+                        <Plus className="h-4 w-4" /> Mulai Opname
+                    </button>
+                }
+            />
 
             {/* List Sesi */}
             {isLoading ? (
-                <div className="p-12 text-center text-muted-foreground">Memuat...</div>
+                <div className="flex justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
             ) : sessions.length === 0 ? (
-                <div className="p-16 text-center border-2 border-dashed border-border rounded-2xl text-muted-foreground">
-                    <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">Belum ada sesi opname</p>
-                    <p className="text-sm mt-1">Klik "Mulai Opname" untuk membuat link operator pertama.</p>
+                <div className="rounded-xl border border-dashed border-border bg-card">
+                    <EmptyState
+                        icon={ClipboardList}
+                        title="Belum ada sesi opname"
+                        description='Klik "Mulai Opname" untuk membuat link operator pertama.'
+                        action={
+                            <button
+                                onClick={() => setShowStart(true)}
+                                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                            >
+                                <Plus className="h-4 w-4" /> Mulai Opname
+                            </button>
+                        }
+                    />
                 </div>
             ) : (
                 <div className="space-y-3">

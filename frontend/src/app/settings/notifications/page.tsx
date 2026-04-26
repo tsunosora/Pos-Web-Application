@@ -150,12 +150,17 @@ export default function NotificationsSettingsPage() {
     return (
         <div className="p-6 max-w-3xl space-y-6">
             {/* Page Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Pengaturan Notifikasi</h1>
-                    <p className="text-muted-foreground text-sm mt-1">
-                        Atur jenis notifikasi yang ingin kamu terima di aplikasi, Discord, atau dari GitHub.
-                    </p>
+            <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
+                <div className="flex items-start gap-3 min-w-0">
+                    <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                        <Bell className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight">Pengaturan Notifikasi</h1>
+                        <p className="text-sm text-muted-foreground mt-0.5">
+                            Atur jenis notifikasi di aplikasi, Discord, atau dari GitHub.
+                        </p>
+                    </div>
                 </div>
                 <button
                     onClick={handleSave}

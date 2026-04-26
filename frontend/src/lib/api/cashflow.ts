@@ -28,7 +28,9 @@ export const getMe = async () => (await api.get('/auth/me')).data as {
     id: number;
     name: string | null;
     email: string;
+    branchId: number | null;
     role: { id: number; name: string } | null;
+    branch: { id: number; name: string; code: string | null } | null;
 };
 
 // Cashflow Change Requests

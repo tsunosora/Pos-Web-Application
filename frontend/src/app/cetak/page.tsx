@@ -222,6 +222,28 @@ export default function CetakPage() {
                                         <div>
                                             <p className="font-mono text-xs text-indigo-700 font-bold">{job.jobNumber}</p>
                                             <p className="text-[11px] text-gray-500">{formatDate(job.createdAt)}</p>
+                                            {(() => {
+                                                const tx: any = job.transaction;
+                                                const isTitipan = tx.productionBranchId != null && tx.productionBranchId !== tx.branchId;
+                                                const ownerLabel = tx.branch?.code || tx.branch?.name;
+                                                if (isTitipan) {
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded-full"
+                                                            title={`Titipan cetak dari ${tx.branch?.name || '-'}`}>
+                                                            ⚑ Titipan {ownerLabel || '?'}
+                                                        </span>
+                                                    );
+                                                }
+                                                if (ownerLabel) {
+                                                    return (
+                                                        <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold px-1.5 py-0.5 bg-sky-100 text-sky-700 border border-sky-300 rounded-full"
+                                                            title={`Nota milik ${tx.branch?.name || '-'}`}>
+                                                            🏢 {ownerLabel}
+                                                        </span>
+                                                    );
+                                                }
+                                                return null;
+                                            })()}
                                         </div>
                                         <StatusBadge s={job.transaction.status} />
                                     </div>

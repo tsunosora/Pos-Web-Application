@@ -41,6 +41,12 @@ export interface ReceiptSnapshot {
   storePhone?: string;
   taxRate: number;
   timestamp: Date;
+  // Per-branch overrides (kalau transaksi punya branchId & BranchSettings set)
+  notaHeader?: string;
+  notaFooter?: string;
+  branchLabel?: string; // contoh: "[PST] Cabang Pusat" untuk ditampilkan di nota
+  // Titip cetak ke cabang lain — tampilkan info pickup di nota.
+  productionBranchLabel?: string; // "[PST] Cabang Pusat" — lokasi cetak & pickup
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -78,10 +84,13 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
 
   return [
     `*${(snap.storeName || 'Toko').toUpperCase()}*`,
+    snap.branchLabel ? `_${snap.branchLabel}_` : '',
     `*${title}*`,
     `Tanggal: ${dateStr}`,
     snap.customerName ? `Pelanggan: ${snap.customerName}${snap.customerPhone ? ` (${snap.customerPhone})` : ''}` : '',
     snap.customerAddress ? `Alamat: ${snap.customerAddress}` : '',
+    snap.notaHeader ? `\n${snap.notaHeader}` : '',
+    snap.productionBranchLabel ? `*Dicetak & diambil di: ${snap.productionBranchLabel}*` : '',
     ``,
     itemLines,
     ``,
@@ -96,7 +105,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     `Status     : *${status}*`,
     paymentDets,
     ``,
-    `Terima kasih!`,
+    snap.notaFooter || `Terima kasih!`,
   ].filter(Boolean).join('\n');
 };
 
@@ -161,6 +170,13 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
 
   const bankRows = (bankAccounts || []).map((b: any) => `${b.bankName} ${b.accountNumber} ${b.accountOwner}`).join(', ');
 
+  // Footer: prioritas notaFooter (jika di-set per cabang / global). Kalau tidak, pakai default warning.
+  const footerMessage = snap.notaFooter || 'Harap cek terlebih dahulu! Tidak menerima complain untuk barang yang sudah dibawa.';
+  // Info pembayaran ditampilkan terpisah supaya notaFooter tidak dipaksa jadi "Pembayaran secara TUNAI".
+  const paymentInfo = bankRows
+    ? bankRows
+    : (snap.paymentMethod === 'QRIS' ? 'Pembayaran via QRIS' : 'Pembayaran secara TUNAI');
+
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Faktur Order - ${snap.storeName}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -203,6 +219,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
       : `<div style="width:50px; height:50px; background:#eee; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:10px; font-weight:bold; font-family:sans-serif; color:#555;">LOGO</div>`}
       <div>
         <div class="store-title">${snap.storeName}</div>
+        ${snap.branchLabel ? `<div style="font-size:11px; font-weight:bold; color:#444; margin-bottom:2px;">${snap.branchLabel}</div>` : ''}
         <div class="store-address">${snap.storeAddress || 'Jl. Default Address, Kota'}<br>Tlp/Email : ${snap.storePhone || '-'}</div>
       </div>
     </div>
@@ -211,6 +228,8 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
       <p>Tgl. Cetak : ${new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
     </div>
   </div>
+  ${snap.notaHeader ? `<div style="text-align:center; font-size:11px; font-style:italic; padding:6px 0; border-bottom:1px dashed #000; margin-bottom:10px; white-space:pre-wrap;">${snap.notaHeader.replace(/</g, '&lt;')}</div>` : ''}
+  ${snap.productionBranchLabel ? `<div style="text-align:center; font-size:12px; font-weight:bold; color:#8a5a00; background:#fff7e6; border:1px dashed #d4a000; padding:5px 8px; border-radius:6px; margin-bottom:10px;">⚑ Dicetak &amp; diambil di: ${snap.productionBranchLabel}</div>` : ''}
 
   <div class="info-section">
     <div class="info-left">
@@ -272,8 +291,8 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
   </div>
 
   <div class="footer">
-    Harap cek terlebih dahulu! Tidak menerima complain untuk barang yang sudah dibawa.<br>
-    ${bankRows ? bankRows : (snap.paymentMethod === 'QRIS' ? 'Pembayaran via QRIS' : 'Pembayaran secara TUNAI')}
+    <div style="white-space:pre-wrap;">${footerMessage.replace(/</g, '&lt;')}</div>
+    <div style="margin-top:4px; font-size:10px; color:#555;">${paymentInfo}</div>
   </div>
 </div>
 </body></html>`;
@@ -291,7 +310,24 @@ export const handleShareWA = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUNAS'
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 };
 
-export const mapTransactionToReceipt = (trx: any, settings: any): ReceiptSnapshot => {
+export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?: any): ReceiptSnapshot => {
+  // Branch settings override global settings kalau ada value-nya.
+  // branchSettings bisa datang dari 2 sumber:
+  //   1) trx.branch.branchSettings (kalau backend include)
+  //   2) parameter eksplisit (mis. dari query /branch-settings/:id)
+  // CompanyBranch relation name = `settings` (bukan `branchSettings`). Dukung keduanya untuk kompat.
+  const bs = branchSettings ?? trx?.branch?.settings ?? trx?.branch?.branchSettings ?? null;
+  const branchInfo = trx?.branch
+    ? (trx.branch.code ? `[${trx.branch.code}] ${trx.branch.name}` : trx.branch.name)
+    : undefined;
+  // Titip cetak: kalau transaksi punya productionBranch berbeda, tampilkan di nota untuk info pickup.
+  const prodBranch = trx?.productionBranch;
+  const prodBranchInfo = prodBranch && prodBranch.id !== trx?.branch?.id
+    ? (prodBranch.code ? `[${prodBranch.code}] ${prodBranch.name}` : prodBranch.name)
+    : undefined;
+
+  const pick = <T,>(branchVal: T | null | undefined, globalVal: T | undefined): T | undefined =>
+    (branchVal !== null && branchVal !== undefined && branchVal !== '') ? branchVal : globalVal;
   return {
     transactionId: trx.id,
     items: trx.items?.map((item: any) => {
@@ -343,11 +379,15 @@ export const mapTransactionToReceipt = (trx: any, settings: any): ReceiptSnapsho
     checkoutCashierName: trx.checkoutCashierName || undefined,
     paidAt: trx.paidAt ? new Date(trx.paidAt) : undefined,
     cashierName: trx.cashierName || undefined,
-    logoUrl: settings?.logoImageUrl || undefined,
-    storeName: settings?.storeName || 'Toko',
-    storeAddress: settings?.storeAddress || undefined,
-    storePhone: settings?.storePhone || undefined,
+    logoUrl: pick(bs?.logoUrl, settings?.logoImageUrl) || undefined,
+    storeName: pick(bs?.storeName, settings?.storeName) || 'Toko',
+    storeAddress: pick(bs?.storeAddress, settings?.storeAddress) || undefined,
+    storePhone: pick(bs?.storePhone, settings?.storePhone) || undefined,
     taxRate: settings?.enableTax ? Number(settings.taxRate ?? 10) : 0,
-    timestamp: new Date(trx.createdAt)
+    timestamp: new Date(trx.createdAt),
+    notaHeader: bs?.notaHeader || undefined,
+    notaFooter: bs?.notaFooter || undefined,
+    branchLabel: branchInfo,
+    productionBranchLabel: prodBranchInfo,
   };
 };

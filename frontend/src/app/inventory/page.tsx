@@ -4,7 +4,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, logStockMovement, deleteProduct, bulkDeleteProducts, bulkImportProducts } from '@/lib/api';
 import { downloadBulkTemplate, parseBulkExcel, BulkProductInput } from '@/lib/bulk-import';
-import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator, Share2, History, MoreVertical, ShoppingCart } from 'lucide-react';
+import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator, Share2, History, MoreVertical, ShoppingCart, Loader2, Table2, LayoutGrid, Rows3, GalleryHorizontal } from 'lucide-react';
+import { EmptyState } from '@/components/ui/responsive-table';
+import { useUIStore, type InventoryViewMode } from '@/store/ui-store';
+import { cn } from '@/lib/utils';
 import StockHistoryModal from './StockHistoryModal';
 import PurchaseModal from './PurchaseModal';
 import Link from 'next/link';
@@ -23,9 +26,19 @@ function getEffectivePrice(variant: any): number {
 }
 
 
+// View mode options shown in the toggle
+const VIEW_MODES: { key: InventoryViewMode; label: string; icon: any; hint: string }[] = [
+    { key: 'table',   label: 'Tabel',    icon: Table2,             hint: 'Tampilan tabel padat dengan semua kolom' },
+    { key: 'compact', label: 'Kompak',   icon: Rows3,              hint: 'Daftar ringkas dengan thumbnail kecil' },
+    { key: 'grid',    label: 'Grid',     icon: LayoutGrid,         hint: 'Kartu produk dengan gambar' },
+    { key: 'gallery', label: 'Galeri',   icon: GalleryHorizontal,  hint: 'Galeri besar fokus visual' },
+];
+
 export default function InventoryPage() {
     const router = useRouter();
     const queryClient = useQueryClient();
+    const viewMode = useUIStore(s => s.inventoryViewMode);
+    const setViewMode = useUIStore(s => s.setInventoryViewMode);
 
     // Remove main's padding so sticky header is truly flush with navbar
     useEffect(() => {
@@ -356,9 +369,12 @@ export default function InventoryPage() {
             <div className="sticky top-0 z-20 bg-background border-b border-border px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-3">
             {/* Title + Action buttons */}
             <div className="flex items-center gap-3">
+                <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <Package className="h-5 w-5" />
+                </div>
                 <div className="flex-1 min-w-0">
-                    <h1 className="text-xl sm:text-2xl font-bold text-foreground truncate">Manajemen Stok & Produk</h1>
-                    <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground hidden sm:block">Kelola inventori, tambah produk, dan multi-varian.</p>
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">Manajemen Stok & Produk</h1>
+                    <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground hidden sm:block">Kelola inventori, varian, harga, dan stok per cabang.</p>
                 </div>
                 {/* Mobile: compact Tambah + ⋮ more menu */}
                 <div className="flex items-center gap-1.5 sm:hidden shrink-0">
@@ -585,9 +601,34 @@ export default function InventoryPage() {
                     </div>
                 )}
 
-                {/* Product count summary */}
-                <div className="flex justify-end">
+                {/* Product count + view mode toggle (desktop only) */}
+                <div className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">{groupedProducts.length} produk · {totalRows} varian</span>
+                    <div className="hidden md:inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted p-0.5" role="group" aria-label="Pilih tampilan produk">
+                        {VIEW_MODES.map(m => {
+                            const Icon = m.icon;
+                            const active = viewMode === m.key;
+                            return (
+                                <button
+                                    key={m.key}
+                                    type="button"
+                                    onClick={() => setViewMode(m.key)}
+                                    title={m.hint}
+                                    aria-pressed={active}
+                                    aria-label={m.label}
+                                    className={cn(
+                                        'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                                        active
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                    <span className="hidden lg:inline">{m.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
             </div>{/* end sticky wrapper */}
@@ -598,14 +639,17 @@ export default function InventoryPage() {
                 {/* ── Mobile card list ── */}
                 <div className="md:hidden divide-y divide-border/50">
                     {isLoading ? (
-                        <div className="py-10 text-center text-muted-foreground">Memuat data produk...</div>
-                    ) : error ? (
-                        <div className="py-10 text-center text-destructive">Gagal memuat produk.</div>
-                    ) : groupedProducts.length === 0 ? (
-                        <div className="py-10 text-center text-muted-foreground">
-                            <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                            {searchText || hasActiveFilters ? 'Tidak ada produk yang cocok.' : 'Belum ada produk.'}
+                        <div className="flex items-center justify-center py-12 text-muted-foreground">
+                            <Loader2 className="h-5 w-5 animate-spin" />
                         </div>
+                    ) : error ? (
+                        <div className="py-10 text-center text-destructive text-sm">Gagal memuat produk.</div>
+                    ) : groupedProducts.length === 0 ? (
+                        <EmptyState
+                            icon={Package}
+                            title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
+                            description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
+                        />
                     ) : groupedProducts.map(({ product, matchedVariants }) => {
                         const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                         const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
@@ -735,8 +779,8 @@ export default function InventoryPage() {
                     })}
                 </div>
 
-                {/* ── Desktop table ── */}
-                <div className="hidden md:block overflow-x-auto">
+                {/* ── Desktop: Tabel ── */}
+                <div className={cn('hidden overflow-x-auto', viewMode === 'table' ? 'md:block' : 'md:hidden')}>
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/50">
                             <tr>
@@ -761,14 +805,36 @@ export default function InventoryPage() {
                         </thead>
                         <tbody className="bg-card divide-y divide-border/50">
                             {isLoading ? (
-                                <tr><td colSpan={9} className="px-5 py-8 text-center text-muted-foreground">Memuat data produk...</td></tr>
+                                <tr><td colSpan={9} className="px-5 py-12 text-center text-muted-foreground">
+                                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                                </td></tr>
                             ) : error ? (
                                 <tr><td colSpan={9} className="px-5 py-8 text-center text-destructive">Gagal memuat produk.</td></tr>
                             ) : groupedProducts.length === 0 ? (
                                 <tr>
-                                    <td colSpan={9} className="px-5 py-10 text-center text-muted-foreground">
-                                        <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                                        {searchText || hasActiveFilters ? 'Tidak ada produk yang cocok dengan filter.' : 'Belum ada produk. Silakan tambah produk baru.'}
+                                    <td colSpan={9}>
+                                        <EmptyState
+                                            icon={Package}
+                                            title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
+                                            description={searchText || hasActiveFilters ? 'Coba ubah kata kunci pencarian atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk di atas.'}
+                                            action={
+                                                searchText || hasActiveFilters ? (
+                                                    <button
+                                                        onClick={clearFilters}
+                                                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted"
+                                                    >
+                                                        <X className="h-3.5 w-3.5" /> Reset filter
+                                                    </button>
+                                                ) : (
+                                                    <Link
+                                                        href="/inventory/products/new"
+                                                        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                                                    >
+                                                        <Plus className="h-4 w-4" /> Tambah Produk
+                                                    </Link>
+                                                )
+                                            }
+                                        />
                                     </td>
                                 </tr>
                             ) : groupedProducts.map(({ product, matchedVariants }) => {
@@ -926,6 +992,365 @@ export default function InventoryPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* ── Desktop: Kompak (dense list) ── */}
+                {viewMode === 'compact' && (
+                    <div className="hidden md:block divide-y divide-border/50">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-12 text-muted-foreground">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        ) : groupedProducts.length === 0 ? (
+                            <EmptyState
+                                icon={Package}
+                                title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
+                                description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
+                            />
+                        ) : groupedProducts.map(({ product, matchedVariants }) => {
+                            const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
+                            const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
+                            const expanded = isFilterActive || expandedProducts.has(product.id);
+                            const hasMultiple = matchedVariants.length > 1;
+                            const visibleVariants = expanded ? matchedVariants : [matchedVariants[0]];
+                            const hiddenCount = matchedVariants.length - 1;
+                            return (
+                                <div key={product.id}>
+                                    {visibleVariants.map((variant: any, idx: number) => {
+                                        const isFirst = idx === 0;
+                                        const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;
+                                        return (
+                                            <div key={variant.id} className={cn('flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors group', !isFirst && 'pl-12 bg-muted/10')}>
+                                                {isFirst ? (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedIds.has(product.id)}
+                                                        onChange={() => toggleSelect(product.id)}
+                                                        className="w-4 h-4 rounded accent-primary shrink-0"
+                                                    />
+                                                ) : (
+                                                    <div className="w-4 shrink-0" />
+                                                )}
+                                                <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center overflow-hidden border border-border shrink-0">
+                                                    {avatarSrc
+                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt="" className="w-full h-full object-cover" />
+                                                        : <ImageIcon className="w-4 h-4 text-muted-foreground/40" />}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className="text-sm font-semibold text-foreground truncate">{isFirst ? product.name : (variant.variantName || variant.sku)}</span>
+                                                        {isFirst && typeCfg && <span className={cn('text-[10px] px-1.5 py-0.5 rounded border font-semibold', typeCfg.className)}>{typeCfg.label}</span>}
+                                                        {isFirst && hasMultiple && !isFilterActive && (
+                                                            <button
+                                                                onClick={() => toggleExpand(product.id)}
+                                                                className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-primary"
+                                                            >
+                                                                <ChevronDown className={cn('h-3 w-3 transition-transform', expanded && 'rotate-180')} />
+                                                                {expanded ? `${matchedVariants.length} varian` : `+${hiddenCount}`}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 truncate">
+                                                        <span className="font-mono">{variant.sku}</span>
+                                                        {!isFirst && variant.variantName && <span>· {variant.variantName}</span>}
+                                                        {isFirst && product.category?.name && <span>· {getCategoryLabel(product.category)}</span>}
+                                                    </div>
+                                                </div>
+                                                <div className="hidden sm:block text-right shrink-0 w-28">
+                                                    <p className="text-sm font-bold text-primary">Rp {getEffectivePrice(variant).toLocaleString('id-ID')}</p>
+                                                    {Number(variant.hpp) > 0 && <p className="text-[10px] text-muted-foreground">HPP: {Number(variant.hpp).toLocaleString('id-ID')}</p>}
+                                                </div>
+                                                <div className="text-right shrink-0 w-16">
+                                                    {product.trackStock === false ? (
+                                                        <span className="text-base font-bold text-blue-500">∞</span>
+                                                    ) : (
+                                                        <span className={cn('text-sm font-semibold', variant.stock < 10 ? 'text-destructive' : 'text-foreground')}>{variant.stock}</span>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-0.5 shrink-0">
+                                                    <button onClick={() => openMovementModal(variant)} className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors" title="Sesuaikan Stok">
+                                                        <RefreshCw className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <button onClick={() => setHistoryVariant({ variant, product })} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors" title="Riwayat">
+                                                        <History className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    {isFirst && (
+                                                        <div className="relative" data-kebab-dropdown>
+                                                            <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted">
+                                                                <MoreVertical className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            {openDropdownId === product.id && (
+                                                                <div className="absolute right-0 top-full mt-1 w-52 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-xl z-30 py-1.5 overflow-hidden">
+                                                                    <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
+                                                                        <Trash2 className="h-3.5 w-3.5 shrink-0" /> Catat Susut
+                                                                    </button>
+                                                                    <div className="h-px bg-border/60 my-1" />
+                                                                    <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
+                                                                        <Pencil className="h-3.5 w-3.5 shrink-0" /> Edit Produk
+                                                                    </button>
+                                                                    <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
+                                                                        <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Tersalin!' : 'Salin Link'}
+                                                                    </button>
+                                                                    <div className="h-px bg-border/60 my-1" />
+                                                                    <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
+                                                                        <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* ── Desktop: Grid (kartu produk) ── */}
+                {viewMode === 'grid' && (
+                    <div className="hidden md:block p-3 sm:p-4">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-12 text-muted-foreground">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        ) : groupedProducts.length === 0 ? (
+                            <EmptyState
+                                icon={Package}
+                                title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
+                                description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
+                            />
+                        ) : (
+                            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
+                                {groupedProducts.map(({ product, matchedVariants }) => {
+                                    const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
+                                    const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
+                                    const firstVariant = matchedVariants[0];
+                                    const avatarSrc = firstVariant.variantImageUrl || productImages[0] || product.imageUrl;
+                                    const minPrice = Math.min(...matchedVariants.map((v: any) => getEffectivePrice(v)));
+                                    const maxPrice = Math.max(...matchedVariants.map((v: any) => getEffectivePrice(v)));
+                                    const totalStock = matchedVariants.reduce((s: number, v: any) => s + Number(v.stock || 0), 0);
+                                    const lowStock = product.trackStock !== false && totalStock < 10;
+                                    return (
+                                        <div key={product.id} className={cn('group relative flex flex-col rounded-xl border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/40 transition-all overflow-hidden', selectedIds.has(product.id) && 'ring-2 ring-destructive/40')}>
+                                            {/* Checkbox overlay */}
+                                            <div className="absolute top-2 left-2 z-10">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(product.id)}
+                                                    onChange={() => toggleSelect(product.id)}
+                                                    className="w-4 h-4 rounded accent-primary bg-card/80 backdrop-blur"
+                                                />
+                                            </div>
+                                            {/* Type badge */}
+                                            {typeCfg && (
+                                                <span className={cn('absolute top-2 right-2 z-10 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border', typeCfg.className)}>
+                                                    {typeCfg.label}
+                                                </span>
+                                            )}
+                                            {/* Image */}
+                                            <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                                                {avatarSrc
+                                                    ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                                    : <ImageIcon className="w-10 h-10 text-muted-foreground/30" />}
+                                            </div>
+                                            {/* Body */}
+                                            <div className="flex-1 flex flex-col p-3">
+                                                <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">{product.name}</p>
+                                                {product.category?.name && (
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{getCategoryLabel(product.category)}</p>
+                                                )}
+                                                <div className="mt-2 flex items-baseline gap-1">
+                                                    <span className="text-base font-bold text-primary">
+                                                        Rp {minPrice === maxPrice ? minPrice.toLocaleString('id-ID') : `${(minPrice / 1000).toFixed(0)}–${(maxPrice / 1000).toFixed(0)}rb`}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-2 flex items-center justify-between text-xs">
+                                                    {product.trackStock === false ? (
+                                                        <span className="inline-flex items-center gap-1 text-blue-500 font-medium">
+                                                            <span className="text-base leading-none">∞</span> Tak terbatas
+                                                        </span>
+                                                    ) : (
+                                                        <span className={cn('inline-flex items-center gap-1 font-medium', lowStock ? 'text-destructive' : 'text-muted-foreground')}>
+                                                            <Package className="h-3 w-3" />
+                                                            {totalStock} stok {lowStock && '· menipis'}
+                                                        </span>
+                                                    )}
+                                                    {matchedVariants.length > 1 && (
+                                                        <span className="text-muted-foreground">{matchedVariants.length} varian</span>
+                                                    )}
+                                                </div>
+                                                {/* Actions */}
+                                                <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1">
+                                                    <button onClick={() => openMovementModal(firstVariant)} className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
+                                                        <RefreshCw className="h-3 w-3" /> Stok
+                                                    </button>
+                                                    <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="p-1.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Edit">
+                                                        <Pencil className="h-3 w-3" />
+                                                    </button>
+                                                    <div className="relative" data-kebab-dropdown>
+                                                        <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="p-1.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                                            <MoreVertical className="h-3 w-3" />
+                                                        </button>
+                                                        {openDropdownId === product.id && (
+                                                            <div className="absolute right-0 bottom-full mb-1 w-48 bg-card border border-border rounded-xl shadow-xl z-30 py-1.5 overflow-hidden">
+                                                                <button onClick={() => { setHistoryVariant({ variant: firstVariant, product }); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted">
+                                                                    <History className="h-3.5 w-3.5" /> Riwayat Stok
+                                                                </button>
+                                                                <button onClick={() => { setWasteVariant(firstVariant); setShowWasteModal(true); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                                                                    <Trash2 className="h-3.5 w-3.5" /> Catat Susut
+                                                                </button>
+                                                                <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30">
+                                                                    <Share2 className="h-3.5 w-3.5" /> {shareToastId === product.id ? 'Tersalin!' : 'Salin Link'}
+                                                                </button>
+                                                                <div className="h-px bg-border/60 my-1" />
+                                                                <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10">
+                                                                    <Trash2 className="h-3.5 w-3.5" /> Hapus
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ── Desktop: Galeri (besar fokus visual) ── */}
+                {viewMode === 'gallery' && (
+                    <div className="hidden md:block p-4 sm:p-5">
+                        {isLoading ? (
+                            <div className="flex items-center justify-center py-12 text-muted-foreground">
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                            </div>
+                        ) : groupedProducts.length === 0 ? (
+                            <EmptyState
+                                icon={Package}
+                                title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
+                                description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
+                            />
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-5">
+                                {groupedProducts.map(({ product, matchedVariants }) => {
+                                    const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
+                                    const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
+                                    const firstVariant = matchedVariants[0];
+                                    const avatarSrc = firstVariant.variantImageUrl || productImages[0] || product.imageUrl;
+                                    const allImages = [avatarSrc, ...productImages.slice(0, 3)].filter(Boolean) as string[];
+                                    const totalStock = matchedVariants.reduce((s: number, v: any) => s + Number(v.stock || 0), 0);
+                                    const lowStock = product.trackStock !== false && totalStock < 10;
+                                    return (
+                                        <div key={product.id} className={cn('group flex flex-col sm:flex-row gap-4 rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/40 transition-all', selectedIds.has(product.id) && 'ring-2 ring-destructive/40')}>
+                                            {/* Hero image + thumbnails */}
+                                            <div className="sm:w-56 shrink-0">
+                                                <div className="aspect-square rounded-lg bg-muted overflow-hidden border border-border relative">
+                                                    {avatarSrc
+                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} className="w-full h-full object-cover" />
+                                                        : <ImageIcon className="absolute inset-0 m-auto w-12 h-12 text-muted-foreground/30" />}
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedIds.has(product.id)}
+                                                        onChange={() => toggleSelect(product.id)}
+                                                        className="absolute top-2 left-2 w-4 h-4 rounded accent-primary"
+                                                    />
+                                                </div>
+                                                {allImages.length > 1 && (
+                                                    <div className="mt-2 grid grid-cols-4 gap-1">
+                                                        {allImages.slice(1, 5).map((img, i) => (
+                                                            <div key={i} className="aspect-square rounded-md bg-muted overflow-hidden border border-border">
+                                                                <img src={`${API_BASE}${img}`} alt="" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            {/* Body */}
+                                            <div className="flex-1 min-w-0 flex flex-col">
+                                                <div className="flex items-start gap-2 flex-wrap">
+                                                    <h3 className="text-base sm:text-lg font-bold text-foreground flex-1">{product.name}</h3>
+                                                    {typeCfg && (
+                                                        <span className={cn('inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border', typeCfg.className)}>
+                                                            {typeCfg.label}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {product.category?.name && (
+                                                    <p className="text-xs text-muted-foreground mt-1">{getCategoryLabel(product.category)}</p>
+                                                )}
+                                                {/* Variant chips */}
+                                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                                    {matchedVariants.slice(0, 6).map((v: any) => (
+                                                        <span key={v.id} className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/50 px-2 py-0.5 text-[11px] text-foreground">
+                                                            <span className="font-mono text-muted-foreground">{v.sku}</span>
+                                                            {v.variantName && <span>· {v.variantName}</span>}
+                                                            <span className={cn('font-semibold', v.stock < 10 && product.trackStock !== false && 'text-destructive')}>
+                                                                {product.trackStock === false ? '∞' : v.stock}
+                                                            </span>
+                                                        </span>
+                                                    ))}
+                                                    {matchedVariants.length > 6 && (
+                                                        <span className="text-[11px] text-muted-foreground self-center">+{matchedVariants.length - 6}</span>
+                                                    )}
+                                                </div>
+                                                {/* Pricing summary */}
+                                                <div className="mt-auto pt-3 flex items-end justify-between gap-3 flex-wrap">
+                                                    <div>
+                                                        <p className="text-[11px] text-muted-foreground">Mulai dari</p>
+                                                        <p className="text-xl font-bold text-primary">
+                                                            Rp {Math.min(...matchedVariants.map((v: any) => getEffectivePrice(v))).toLocaleString('id-ID')}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[11px] text-muted-foreground">Total stok</p>
+                                                        <p className={cn('text-lg font-bold', lowStock ? 'text-destructive' : 'text-foreground')}>
+                                                            {product.trackStock === false ? '∞' : totalStock}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {/* Actions */}
+                                                <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1.5">
+                                                    <button onClick={() => openMovementModal(firstVariant)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+                                                        <RefreshCw className="h-3.5 w-3.5" /> Sesuaikan Stok
+                                                    </button>
+                                                    <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                                                        <Pencil className="h-3.5 w-3.5" /> Edit
+                                                    </button>
+                                                    <button onClick={() => setHistoryVariant({ variant: firstVariant, product })} className="p-1.5 rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted" title="Riwayat">
+                                                        <History className="h-3.5 w-3.5" />
+                                                    </button>
+                                                    <div className="relative ml-auto" data-kebab-dropdown>
+                                                        <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="p-1.5 rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted">
+                                                            <MoreVertical className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        {openDropdownId === product.id && (
+                                                            <div className="absolute right-0 bottom-full mb-1 w-48 bg-card border border-border rounded-xl shadow-xl z-30 py-1.5 overflow-hidden">
+                                                                <button onClick={() => { setWasteVariant(firstVariant); setShowWasteModal(true); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30">
+                                                                    <Trash2 className="h-3.5 w-3.5" /> Catat Susut
+                                                                </button>
+                                                                <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30">
+                                                                    <Share2 className="h-3.5 w-3.5" /> {shareToastId === product.id ? 'Tersalin!' : 'Salin Link'}
+                                                                </button>
+                                                                <div className="h-px bg-border/60 my-1" />
+                                                                <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10">
+                                                                    <Trash2 className="h-3.5 w-3.5" /> Hapus
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             </div>{/* end content wrapper */}
 

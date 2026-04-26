@@ -1,8 +1,9 @@
 "use client";
 
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { getDashboardMetrics, getSalesChart, getCashierStats } from '@/lib/api';
+import { getBranches } from '@/lib/api/settings';
 import {
   Wallet,
   ArrowUpRight,
@@ -11,16 +12,35 @@ import {
   AlertTriangle,
   Package,
   Receipt,
-  Map,
   Loader2,
   CalendarDays,
-  BarChart,
+  BarChart as BarChartIcon,
   Users,
-  Calendar
+  Calendar,
+  ShoppingCart,
+  LayoutDashboard,
+  Building2,
+  ArrowRight,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { AreaChart, Area, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, BarChart as RechartsBarChart, Bar, Cell, LabelList } from 'recharts';
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/responsive-table";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useBranchStore } from "@/store/branch-store";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  BarChart as RechartsBarChart,
+  Bar,
+  Cell,
+  LabelList,
+} from 'recharts';
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -47,11 +67,11 @@ const CASHIER_PERIOD_OPTIONS: { key: CashierPeriod; label: string }[] = [
 function getCashierDateRange(period: CashierPeriod, customStart: string, customEnd: string) {
   const now = dayjs();
   switch (period) {
-    case 'daily':   return { start: now.format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
-    case 'weekly':  return { start: now.startOf('week').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'daily': return { start: now.format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'weekly': return { start: now.startOf('week').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
     case 'monthly': return { start: now.startOf('month').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
-    case 'yearly':  return { start: now.startOf('year').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
-    case 'custom':  return { start: customStart, end: customEnd };
+    case 'yearly': return { start: now.startOf('year').format('YYYY-MM-DD'), end: now.format('YYYY-MM-DD') };
+    case 'custom': return { start: customStart, end: customEnd };
   }
 }
 
@@ -61,33 +81,48 @@ export default function Home() {
   const [cashierCustomStart, setCashierCustomStart] = useState(dayjs().format('YYYY-MM-DD'));
   const [cashierCustomEnd, setCashierCustomEnd] = useState(dayjs().format('YYYY-MM-DD'));
 
+  // ── Branch context ─────────────────────────────────────────────────────────
+  const { isOwner, branchName: staffBranchName } = useCurrentUser();
+  const activeBranchId = useBranchStore(s => s.activeBranchId);
+
+  const { data: branches } = useQuery({
+    queryKey: ['branches'],
+    queryFn: getBranches,
+    enabled: isOwner,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const activeBranchLabel = useMemo(() => {
+    if (!isOwner) return staffBranchName || 'Cabang Anda';
+    if (activeBranchId == null) return 'Semua Cabang';
+    const found = (branches as any[] | undefined)?.find(b => b.id === activeBranchId);
+    return found?.name || `Cabang #${activeBranchId}`;
+  }, [isOwner, staffBranchName, activeBranchId, branches]);
+
+  // ── Data queries ───────────────────────────────────────────────────────────
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ['dashboard-metrics'],
-    queryFn: getDashboardMetrics
+    queryKey: ['dashboard-metrics', activeBranchId],
+    queryFn: getDashboardMetrics,
   });
 
   const { data: chartRaw, isLoading: chartLoading } = useQuery({
-    queryKey: ['sales-chart', chartPeriod],
+    queryKey: ['sales-chart', chartPeriod, activeBranchId],
     queryFn: () => getSalesChart(chartPeriod),
   });
 
   const cashierRange = getCashierDateRange(cashierPeriod, cashierCustomStart, cashierCustomEnd);
   const { data: cashierStats, isLoading: cashierLoading } = useQuery({
-    queryKey: ['cashier-stats', cashierRange.start, cashierRange.end],
+    queryKey: ['cashier-stats', cashierRange.start, cashierRange.end, activeBranchId],
     queryFn: () => getCashierStats(cashierRange.start, cashierRange.end),
     refetchInterval: cashierPeriod === 'daily' ? 60_000 : false,
     enabled: cashierPeriod !== 'custom' || (!!cashierCustomStart && !!cashierCustomEnd),
   });
 
-  if (isLoading) {
-    return <div className="flex h-[calc(100vh-8rem)] items-center justify-center text-muted-foreground"><Loader2 className="animate-spin w-8 h-8" /></div>;
-  }
-
   const defaultMetrics = metrics || {
     sales: { value: 0, trend: '0%', trendUp: true },
     transactions: { value: 0, trend: '0%', trendUp: true },
     cashflow: { value: 0, trend: '0%', trendUp: true },
-    alerts: { count: 0, items: [] },
+    alerts: { count: 0, items: [] as any[] },
   };
 
   const chartData = (chartRaw as any[])?.map((item: any) => ({
@@ -96,17 +131,22 @@ export default function Home() {
   })) || [];
 
   return (
-    <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Ringkasan aktivitas hari ini di Cabang Utama.
-        </p>
-      </div>
+    <div className="space-y-5 sm:space-y-6">
+      {/* Page header */}
+      <PageHeader
+        title="Dashboard"
+        description={`Ringkasan aktivitas hari ini · ${activeBranchLabel}`}
+        icon={LayoutDashboard}
+        actions={
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
+            <Building2 className="h-3.5 w-3.5 text-primary" />
+            <span className="text-foreground">{activeBranchLabel}</span>
+          </span>
+        }
+      />
 
-      {/* Top Value Metric Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <MetricCard
           title="Penjualan Hari Ini"
           value={`Rp ${defaultMetrics.sales.value.toLocaleString('id-ID')}`}
@@ -114,6 +154,7 @@ export default function Home() {
           trendUp={defaultMetrics.sales.trendUp}
           icon={Receipt}
           color="blue"
+          loading={isLoading}
         />
         <MetricCard
           title="Total Transaksi"
@@ -122,14 +163,16 @@ export default function Home() {
           trendUp={defaultMetrics.transactions.trendUp}
           icon={TrendingUp}
           color="indigo"
+          loading={isLoading}
         />
         <MetricCard
-          title="Kasir Masuk (Cashflow)"
+          title="Kasir Masuk"
           value={`Rp ${defaultMetrics.cashflow.value.toLocaleString('id-ID')}`}
           trend={defaultMetrics.cashflow.trend}
           trendUp={defaultMetrics.cashflow.trendUp}
           icon={Wallet}
           color="emerald"
+          loading={isLoading}
         />
         <MetricCard
           title="Peringatan Stok"
@@ -138,44 +181,31 @@ export default function Home() {
           trendUp={defaultMetrics.alerts.count === 0}
           icon={AlertTriangle}
           color="rose"
+          loading={isLoading}
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Charts and Activity */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="glass rounded-xl p-6 min-h-[400px] flex flex-col">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-primary" />
-                  Tren Penjualan
-                </h2>
-                <p className="text-sm text-muted-foreground mt-1">Total pendapatan kotor berdasarkan transaksi lunas.</p>
-              </div>
-              <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border shrink-0">
-                <CalendarDays className="w-4 h-4 text-muted-foreground ml-1.5 mr-0.5" />
-                {PERIOD_OPTIONS.map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setChartPeriod(opt.key)}
-                    className={cn(
-                      'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                      chartPeriod === opt.key
-                        ? 'bg-background text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="w-full mt-4">
+      {/* Main grid: chart + side */}
+      <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-3">
+        {/* Left: trend chart + quick actions */}
+        <div className="space-y-5 sm:space-y-6 lg:col-span-2">
+          <Section
+            title="Tren Penjualan"
+            subtitle="Total pendapatan kotor dari transaksi lunas"
+            icon={TrendingUp}
+            actions={
+              <SegmentedControl
+                value={chartPeriod}
+                onChange={setChartPeriod}
+                options={PERIOD_OPTIONS}
+                leftIcon={CalendarDays}
+              />
+            }
+          >
+            <div className="w-full">
               {chartLoading ? (
-                <div className="w-full h-[300px] flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                <div className="flex h-[280px] sm:h-[300px] items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300}>
@@ -218,25 +248,27 @@ export default function Home() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-muted/20">
-                  <BarChart className="w-8 h-8 text-muted-foreground/30 mb-2" />
-                  <p className="text-sm text-muted-foreground">Belum ada data penjualan untuk periode ini.</p>
-                </div>
+                <EmptyState
+                  icon={BarChartIcon}
+                  title="Belum ada data"
+                  description="Belum ada penjualan untuk periode ini. Coba pilih periode lain atau mulai transaksi baru."
+                />
               )}
             </div>
-          </div>
+          </Section>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Quick actions */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
             <QuickActionCard
               title="Buka Kasir"
               desc="Mulai memproses transaksi pelanggan."
               href="/pos"
-              icon={ShoppingCartIcon}
+              icon={ShoppingCart}
               color="indigo"
             />
             <QuickActionCard
-              title="Tambah Produk"
-              desc="Masukkan item baru ke dalam inventori."
+              title="Kelola Inventori"
+              desc="Tambah produk baru atau cek stok."
               href="/inventory"
               icon={Package}
               color="emerald"
@@ -244,101 +276,93 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Right Column: Alerts and Recent Activity */}
-        <div className="space-y-6">
-          <div className="glass rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center">
-              <AlertTriangle className="mr-2 h-5 w-5 text-chart-5" />
-              Stok Menipis
-            </h2>
-            <div className="space-y-4">
-              {defaultMetrics.alerts.items.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Status stok aman.</p>
-              ) : (
-                defaultMetrics.alerts.items.map((item: any, i: number) => (
-                  <div key={i} className="flex items-center justify-between border-b border-border/50 last:border-0 pb-3 last:pb-0">
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">Batas minimum: {item.limit}</p>
+        {/* Right: stock alerts */}
+        <div className="space-y-5 sm:space-y-6">
+          <Section
+            title="Stok Menipis"
+            subtitle={`${defaultMetrics.alerts.count} item perlu perhatian`}
+            icon={AlertTriangle}
+            iconTone="warning"
+          >
+            {defaultMetrics.alerts.items.length === 0 ? (
+              <EmptyState
+                icon={Package}
+                title="Stok aman"
+                description="Tidak ada item yang mendekati batas minimum saat ini."
+              />
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {defaultMetrics.alerts.items.map((item: any, i: number) => (
+                  <li key={i} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">{item.name}</p>
+                      <p className="text-xs text-muted-foreground">Min: {item.limit}</p>
                     </div>
-                    <div className="text-right">
-                      <span className="inline-flex items-center rounded-md bg-destructive/10 px-2 py-1 text-xs font-medium text-destructive ring-1 ring-inset ring-destructive/20">
-                        Sisa {item.stock}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <Link href="/inventory" className="block text-center mt-5 text-sm font-medium text-primary hover:text-primary/80">
+                    <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-1 text-xs font-semibold text-destructive ring-1 ring-inset ring-destructive/20">
+                      Sisa {item.stock}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Link
+              href="/inventory"
+              className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
+            >
               Kelola Stok Barang
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
-          </div>
-
+          </Section>
         </div>
       </div>
 
-      {/* Performa Kasir — Full Width */}
-      <div className="glass rounded-xl p-6">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              Performa Kasir
-            </h2>
-            <p className="text-xs text-muted-foreground mt-1">Total invoice lunas per kasir</p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-            <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
-              <Calendar className="w-4 h-4 text-muted-foreground ml-1.5 mr-0.5" />
-              {CASHIER_PERIOD_OPTIONS.map(opt => (
-                <button
-                  key={opt.key}
-                  onClick={() => setCashierPeriod(opt.key)}
-                  className={cn(
-                    'px-3 py-1 rounded-md text-xs font-medium transition-colors',
-                    cashierPeriod === opt.key
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+      {/* Performa Kasir — Full width */}
+      <Section
+        title="Performa Kasir"
+        subtitle="Total invoice lunas per kasir"
+        icon={Users}
+        actions={
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <SegmentedControl
+              value={cashierPeriod}
+              onChange={setCashierPeriod}
+              options={CASHIER_PERIOD_OPTIONS}
+              leftIcon={Calendar}
+            />
             {cashierPeriod === 'custom' && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <input
                   type="date"
                   value={cashierCustomStart}
                   onChange={e => setCashierCustomStart(e.target.value)}
-                  className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                  className="rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
                 />
                 <span className="text-xs text-muted-foreground">s/d</span>
                 <input
                   type="date"
                   value={cashierCustomEnd}
                   onChange={e => setCashierCustomEnd(e.target.value)}
-                  className="text-xs border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                  className="rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
                 />
               </div>
             )}
           </div>
-        </div>
-
+        }
+      >
         {cashierLoading ? (
-          <div className="h-[280px] flex items-center justify-center">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          <div className="flex h-[280px] items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : !cashierStats || (cashierStats as any[]).length === 0 ? (
-          <div className="h-[280px] flex flex-col items-center justify-center border border-dashed border-border rounded-lg bg-muted/20">
-            <Users className="w-8 h-8 text-muted-foreground/30 mb-2" />
-            <p className="text-sm text-muted-foreground">Belum ada transaksi untuk periode ini.</p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="Belum ada transaksi"
+            description="Tidak ada invoice lunas untuk periode ini."
+          />
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Bar Chart */}
-            <div>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {/* Bar chart — disembunyikan di mobile (list view sudah cukup) */}
+            <div className="hidden lg:block">
               <ResponsiveContainer width="100%" height={260}>
                 <RechartsBarChart
                   data={(cashierStats as any[]).map(k => ({ name: k.name, Revenue: k.revenue, Count: k.count }))}
@@ -363,7 +387,7 @@ export default function Home() {
                   />
                   <RechartsTooltip
                     contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: any, name: string | undefined) => name === 'Revenue'
+                    formatter={(value: any, name: any) => name === 'Revenue'
                       ? [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Pendapatan']
                       : [value, 'Invoice']}
                     labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '4px' }}
@@ -384,29 +408,32 @@ export default function Home() {
               </ResponsiveContainer>
             </div>
 
-            {/* List / Table */}
-            <div className="space-y-3">
+            {/* List */}
+            <div className="space-y-3.5">
               {(cashierStats as any[]).map((kasir, i) => {
                 const maxRevenue = (cashierStats as any[])[0]?.revenue || 1;
                 const pct = Math.round((kasir.revenue / maxRevenue) * 100);
                 const colors = ['bg-primary', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500'];
                 const bar = colors[i % colors.length];
                 return (
-                  <div key={kasir.name} className="space-y-1">
+                  <div key={kasir.name} className="space-y-1.5">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${bar}`} />
-                        <span className="text-sm font-medium text-foreground truncate">{kasir.name}</span>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className={cn("h-2 w-2 shrink-0 rounded-full", bar)} />
+                        <span className="truncate text-sm font-medium text-foreground">{kasir.name}</span>
                       </div>
-                      <div className="text-right shrink-0">
+                      <div className="shrink-0 text-right">
                         <span className="text-xs font-semibold text-foreground">
                           Rp {kasir.revenue.toLocaleString('id-ID')}
                         </span>
-                        <span className="text-xs text-muted-foreground ml-1.5">· {kasir.count} inv</span>
+                        <span className="ml-1.5 text-xs text-muted-foreground">· {kasir.count} inv</span>
                       </div>
                     </div>
-                    <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full transition-all duration-500 ${bar}`} style={{ width: `${pct}%` }} />
+                    <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full transition-all duration-500", bar)}
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                 );
@@ -414,93 +441,174 @@ export default function Home() {
             </div>
           </div>
         )}
-      </div>
+      </Section>
     </div>
   );
 }
 
-// Subcomponents
+// ── Subcomponents ──────────────────────────────────────────────────────────
 
-function MetricCard({ title, value, trend, trendUp, icon: Icon, color }: any) {
+function Section({
+  title,
+  subtitle,
+  icon: Icon,
+  iconTone = 'primary',
+  actions,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: any;
+  iconTone?: 'primary' | 'warning';
+  actions?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const toneClass = iconTone === 'warning'
+    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/20'
+    : 'bg-primary/10 text-primary ring-primary/20';
+  return (
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3 min-w-0">
+          {Icon && (
+            <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ring-1", toneClass)}>
+              <Icon className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-foreground sm:text-lg">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{subtitle}</p>}
+          </div>
+        </div>
+        {actions && <div className="shrink-0">{actions}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SegmentedControl<T extends string>({
+  value,
+  onChange,
+  options,
+  leftIcon: LeftIcon,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { key: T; label: string }[];
+  leftIcon?: any;
+}) {
+  return (
+    <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted p-1">
+      {LeftIcon && <LeftIcon className="ml-1.5 mr-0.5 h-4 w-4 text-muted-foreground" />}
+      {options.map(opt => (
+        <button
+          key={opt.key}
+          onClick={() => onChange(opt.key)}
+          className={cn(
+            'rounded-md px-2.5 py-1 text-xs font-medium transition-colors sm:px-3',
+            value === opt.key
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function MetricCard({
+  title,
+  value,
+  trend,
+  trendUp,
+  icon: Icon,
+  color,
+  loading,
+}: {
+  title: string;
+  value: string;
+  trend: string;
+  trendUp: boolean;
+  icon: any;
+  color: 'blue' | 'indigo' | 'emerald' | 'rose';
+  loading?: boolean;
+}) {
   const colorStyles: Record<string, string> = {
-    blue: "bg-chart-2/10 text-chart-2 border-chart-2/20",
-    indigo: "bg-primary/20 text-primary border-primary/30",
-    emerald: "bg-chart-3/10 text-chart-3 border-chart-3/20",
-    rose: "bg-destructive/10 text-destructive border-destructive/20",
+    blue: "bg-chart-2/10 text-chart-2 ring-chart-2/20",
+    indigo: "bg-primary/10 text-primary ring-primary/20",
+    emerald: "bg-chart-3/10 text-chart-3 ring-chart-3/20",
+    rose: "bg-destructive/10 text-destructive ring-destructive/20",
   };
 
   return (
-    <div className="glass rounded-xl p-4 sm:p-6 transition-all duration-200 hover:shadow-md">
-      <div className="flex items-center justify-between">
-        <div className={cn("p-2 rounded-lg border", colorStyles[color])}>
-          <Icon className="h-5 w-5" />
+    <div className="group rounded-xl border border-border bg-card p-3 sm:p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className={cn("flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg ring-1", colorStyles[color])}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
         </div>
         <div
           className={cn(
-            "flex items-center text-xs sm:text-sm font-medium px-2 py-1 rounded-full",
-            trendUp
-              ? "bg-chart-3/10 text-chart-3"
-              : "bg-destructive/10 text-destructive"
+            "inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] sm:text-xs font-semibold",
+            trendUp ? "bg-chart-3/10 text-chart-3" : "bg-destructive/10 text-destructive",
           )}
         >
-          {trendUp ? (
-            <ArrowUpRight className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
-          ) : (
-            <ArrowDownRight className="mr-1 h-3 w-3 sm:h-4 sm:w-4" />
-          )}
+          {trendUp ? <ArrowUpRight className="mr-0.5 h-3 w-3" /> : <ArrowDownRight className="mr-0.5 h-3 w-3" />}
           {trend}
         </div>
       </div>
-      <div className="mt-4">
-        <h3 className="text-xs sm:text-sm font-medium text-muted-foreground">{title}</h3>
-        <p className="mt-1 text-xl sm:text-2xl font-bold text-foreground tracking-tight break-words">
-          {value}
-        </p>
+      <div className="mt-3 sm:mt-4">
+        <h3 className="text-[11px] sm:text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {title}
+        </h3>
+        {loading ? (
+          <div className="mt-1.5 h-7 w-3/4 animate-pulse rounded bg-muted" />
+        ) : (
+          <p className="mt-1 text-lg sm:text-2xl font-bold tracking-tight text-foreground break-words">
+            {value}
+          </p>
+        )}
       </div>
     </div>
   );
 }
 
-function QuickActionCard({ title, desc, href, icon: Icon, color }: any) {
-  const colorMap: Record<string, string> = {
-    indigo: "hover:border-primary/50 hover:shadow-primary/10 text-primary bg-primary/10",
-    emerald: "hover:border-chart-3/50 hover:shadow-chart-3/10 text-chart-3 bg-chart-3/10",
+function QuickActionCard({
+  title,
+  desc,
+  href,
+  icon: Icon,
+  color,
+}: {
+  title: string;
+  desc: string;
+  href: string;
+  icon: any;
+  color: 'indigo' | 'emerald';
+}) {
+  const colorMap: Record<string, { ring: string; bg: string; text: string; hover: string }> = {
+    indigo: { ring: 'ring-primary/20', bg: 'bg-primary/10', text: 'text-primary', hover: 'hover:border-primary/40' },
+    emerald: { ring: 'ring-chart-3/20', bg: 'bg-chart-3/10', text: 'text-chart-3', hover: 'hover:border-chart-3/40' },
   };
-
+  const c = colorMap[color];
   return (
     <Link
       href={href}
       className={cn(
-        "group block glass rounded-xl p-5 border border-border transition-all duration-200 hover:-translate-y-1 hover:shadow-lg",
-        colorMap[color].split(' ')[0], colorMap[color].split(' ')[1]
+        "group flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        c.hover,
       )}
     >
-      <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center mb-4 transition-colors", colorMap[color].split(' ')[2], colorMap[color].split(' ')[3])}>
+      <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ring-1", c.bg, c.text, c.ring)}>
         <Icon className="h-5 w-5" />
       </div>
-      <h3 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">{title}</h3>
-      <p className="mt-1 text-sm text-muted-foreground">{desc}</p>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-sm font-semibold text-foreground sm:text-base">{title}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{desc}</p>
+      </div>
+      <ArrowRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-all group-hover:translate-x-0.5", c.text)} />
     </Link>
-  )
-}
-
-function ShoppingCartIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <circle cx="8" cy="21" r="1" />
-      <circle cx="19" cy="21" r="1" />
-      <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
-    </svg>
   );
 }

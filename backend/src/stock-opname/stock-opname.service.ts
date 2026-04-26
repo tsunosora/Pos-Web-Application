@@ -1,12 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { BranchContext } from '../common/branch-context.decorator';
+import { branchWhere, requireBranch, assertBranchAccess } from '../common/branch-where.helper';
 
 @Injectable()
 export class StockOpnameService {
     constructor(private readonly prisma: PrismaService) {}
 
     // ─── Admin: buat sesi baru ─────────────────────────────────────────────────
-    async startSession(dto: { notes?: string; categoryId?: number; expiresHours?: number }) {
+    async startSession(
+        dto: { notes?: string; categoryId?: number; expiresHours?: number },
+        branchCtx: BranchContext,
+    ) {
+        const branchId = requireBranch(branchCtx);
         const hours = dto.expiresHours ?? 24;
         const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
 
@@ -15,14 +21,16 @@ export class StockOpnameService {
                 notes: dto.notes,
                 categoryId: dto.categoryId ?? null,
                 expiresAt,
-            },
+                branchId,
+            } as any,
             include: { category: { select: { id: true, name: true } } },
         });
     }
 
     // ─── Admin: list semua sesi ────────────────────────────────────────────────
-    async getSessions() {
+    async getSessions(branchCtx: BranchContext) {
         return this.prisma.stockOpnameSession.findMany({
+            where: { ...branchWhere(branchCtx) },
             orderBy: { startDate: 'desc' },
             include: {
                 category: { select: { id: true, name: true } },
@@ -32,7 +40,7 @@ export class StockOpnameService {
     }
 
     // ─── Admin: detail sesi + items dikelompokkan per varian ──────────────────
-    async getSessionDetail(id: string) {
+    async getSessionDetail(id: string, branchCtx: BranchContext) {
         const session = await this.prisma.stockOpnameSession.findUnique({
             where: { id },
             include: {
@@ -51,13 +59,15 @@ export class StockOpnameService {
         });
 
         if (!session) throw new NotFoundException('Sesi tidak ditemukan');
+        assertBranchAccess(branchCtx, (session as any).branchId ?? null);
         return session;
     }
 
     // ─── Admin: batalkan sesi ─────────────────────────────────────────────────
-    async cancelSession(id: string) {
+    async cancelSession(id: string, branchCtx: BranchContext) {
         const session = await this.prisma.stockOpnameSession.findUnique({ where: { id } });
         if (!session) throw new NotFoundException('Sesi tidak ditemukan');
+        assertBranchAccess(branchCtx, (session as any).branchId ?? null);
         if (session.status !== 'ONGOING') {
             throw new BadRequestException('Sesi sudah ditutup atau dibatalkan');
         }
@@ -72,29 +82,53 @@ export class StockOpnameService {
     async finishSession(
         id: string,
         confirmedItems: { productVariantId: number; confirmedStock: number }[],
+        branchCtx: BranchContext,
     ) {
         const session = await this.prisma.stockOpnameSession.findUnique({ where: { id } });
         if (!session) throw new NotFoundException('Sesi tidak ditemukan');
+        assertBranchAccess(branchCtx, (session as any).branchId ?? null);
         if (session.status !== 'ONGOING') {
             throw new BadRequestException('Sesi sudah ditutup atau dibatalkan');
         }
 
-        // Ambil stok saat ini untuk hitung variance di StockMovement
+        const sessionBranchId: number | null = (session as any).branchId ?? null;
+
+        // Ambil stok saat ini dari BranchStock (per cabang) jika tersedia
         const variantIds = confirmedItems.map(i => i.productVariantId);
+        const branchStocks = sessionBranchId
+            ? await (this.prisma as any).branchStock.findMany({
+                where: { branchId: sessionBranchId, productVariantId: { in: variantIds } },
+                select: { productVariantId: true, stock: true },
+            })
+            : [];
+        const bsMap = new Map<number, number>(branchStocks.map((b: any) => [b.productVariantId, Number(b.stock)]));
+
         const variants = await this.prisma.productVariant.findMany({
             where: { id: { in: variantIds } },
             select: { id: true, stock: true },
         });
-        const stockMap = new Map(variants.map(v => [v.id, v.stock]));
+        const globalMap = new Map(variants.map(v => [v.id, Number(v.stock)]));
 
         for (const item of confirmedItems) {
-            const currentStock = stockMap.get(item.productVariantId) ?? 0;
-            const diff = item.confirmedStock - currentStock;
+            const currentBranchStock = sessionBranchId ? (bsMap.get(item.productVariantId) ?? 0) : (globalMap.get(item.productVariantId) ?? 0);
+            const diff = item.confirmedStock - currentBranchStock;
+            const currentGlobal = globalMap.get(item.productVariantId) ?? 0;
+            const newGlobal = currentGlobal + diff;
 
+            // Update agregat global (cache)
             await this.prisma.productVariant.update({
                 where: { id: item.productVariantId },
-                data: { stock: item.confirmedStock },
+                data: { stock: newGlobal },
             });
+
+            // Upsert BranchStock
+            if (sessionBranchId != null) {
+                await (this.prisma as any).branchStock.upsert({
+                    where: { branchId_productVariantId: { branchId: sessionBranchId, productVariantId: item.productVariantId } },
+                    update: { stock: item.confirmedStock },
+                    create: { branchId: sessionBranchId, productVariantId: item.productVariantId, stock: item.confirmedStock },
+                });
+            }
 
             if (diff !== 0) {
                 await this.prisma.stockMovement.create({
@@ -105,6 +139,7 @@ export class StockOpnameService {
                         reason: `Stok Opname #${id.slice(0, 8)} — ${diff > 0 ? '+' : ''}${diff}`,
                         balanceAfter: item.confirmedStock,
                         referenceId: `opname-${id.slice(0, 8)}`,
+                        branchId: sessionBranchId,
                     } as any,
                 });
             }
@@ -196,13 +231,25 @@ export class StockOpnameService {
             throw new BadRequestException('Nama operator wajib diisi');
         }
 
-        // Ambil stok sistem saat ini
+        // Ambil stok sistem saat ini (per cabang sesi kalau ada)
+        const sessionRow = await this.prisma.stockOpnameSession.findUnique({ where: { id: token } });
+        const sessionBranchId: number | null = (sessionRow as any)?.branchId ?? null;
+
         const variantIds = dto.items.map(i => i.productVariantId);
-        const variants = await this.prisma.productVariant.findMany({
-            where: { id: { in: variantIds } },
-            select: { id: true, stock: true },
-        });
-        const stockMap = new Map(variants.map(v => [v.id, v.stock]));
+        let stockMap: Map<number, number>;
+        if (sessionBranchId != null) {
+            const bs = await (this.prisma as any).branchStock.findMany({
+                where: { branchId: sessionBranchId, productVariantId: { in: variantIds } },
+                select: { productVariantId: true, stock: true },
+            });
+            stockMap = new Map<number, number>(bs.map((b: any) => [b.productVariantId, Number(b.stock)]));
+        } else {
+            const variants = await this.prisma.productVariant.findMany({
+                where: { id: { in: variantIds } },
+                select: { id: true, stock: true },
+            });
+            stockMap = new Map<number, number>(variants.map(v => [v.id, Number(v.stock)]));
+        }
 
         // Hapus input sebelumnya dari operator yang sama di sesi ini (re-submit)
         await this.prisma.stockOpnameItem.deleteMany({

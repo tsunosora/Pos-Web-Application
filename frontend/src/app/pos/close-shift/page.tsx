@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getShiftExpectations, closeShift, getStaffList } from '@/lib/api';
+import { useBranchStore } from '@/store/branch-store';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -61,10 +63,16 @@ export default function CloseShiftPage() {
     const [files, setFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // ─── Branch context ─────────────────────────────────────────────────
+    const { isOwner } = useCurrentUser();
+    const activeBranchId = useBranchStore(s => s.activeBranchId);
+    const needsBranchPick = isOwner && activeBranchId == null;
+
     // ─── Data dari API ───────────────────────────────────────────────────
     const { data: shiftData, isLoading, isError } = useQuery({
-        queryKey: ['shift-expectations'],
+        queryKey: ['shift-expectations', activeBranchId],
         queryFn: getShiftExpectations,
+        enabled: !needsBranchPick,
     });
 
     const { data: staffList = [] } = useQuery({
@@ -286,6 +294,22 @@ export default function CloseShiftPage() {
         files.forEach(file => formData.append('proofImages', file));
         closeShiftMutation.mutate(formData);
     };
+
+    // ─── Guard: Owner harus pilih cabang dulu ────────────────────────────
+    if (needsBranchPick) return (
+        <div className="p-8 max-w-xl mx-auto">
+            <Card className="border-amber-200 bg-amber-50">
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-amber-800">
+                        <AlertTriangle className="w-5 h-5" /> Pilih Cabang Dulu
+                    </CardTitle>
+                    <CardDescription className="text-amber-700">
+                        Anda sedang dalam mode &quot;Semua Cabang&quot;. Tutup shift harus dilakukan per cabang. Pilih cabang aktif lewat dropdown di atas (header).
+                    </CardDescription>
+                </CardHeader>
+            </Card>
+        </div>
+    );
 
     // ─── Loading / Error States ──────────────────────────────────────────
     if (isLoading) return (

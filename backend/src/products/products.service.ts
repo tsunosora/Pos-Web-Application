@@ -1,5 +1,30 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { BranchContext } from '../common/branch-context.decorator';
+
+/**
+ * Override variant.stock dengan stok cabang aktif (BranchStock).
+ * Kalau branchCtx.branchId null (Owner "Semua Cabang"), biarkan stock aggregate.
+ * Mutasi in-place untuk hindari deep-clone.
+ */
+async function attachBranchStocks(prisma: PrismaService, products: any[], branchCtx: BranchContext) {
+    if (!branchCtx?.branchId) return products;
+    const variantIds = products.flatMap((p) => (p.variants ?? []).map((v: any) => v.id));
+    if (variantIds.length === 0) return products;
+    const branchStocks: { productVariantId: number; stock: number }[] = await (prisma as any).branchStock.findMany({
+        where: { branchId: branchCtx.branchId, productVariantId: { in: variantIds } },
+        select: { productVariantId: true, stock: true },
+    });
+    const stockMap = new Map<number, number>();
+    branchStocks.forEach((bs) => stockMap.set(bs.productVariantId, bs.stock));
+    for (const p of products) {
+        for (const v of p.variants ?? []) {
+            v.aggregateStock = v.stock; // simpan global aggregate kalau frontend butuh
+            v.stock = stockMap.get(v.id) ?? 0;
+        }
+    }
+    return products;
+}
 
 const variantInclude = {
     priceTiers: { orderBy: { minQty: 'asc' as const } },
@@ -56,8 +81,8 @@ export class ProductsService {
         return this.findOne(product.id);
     }
 
-    async findAll() {
-        return (this.prisma as any).product.findMany({
+    async findAll(branchCtx: BranchContext = { branchId: null, isOwner: true, roleName: null } as any) {
+        const products = await (this.prisma as any).product.findMany({
             include: {
                 category: { include: { parent: { select: { id: true, name: true } } } } as any,
                 unit: true,
@@ -81,9 +106,10 @@ export class ProductsService {
                 ingredients: true
             }
         });
+        return attachBranchStocks(this.prisma, products, branchCtx);
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, branchCtx: BranchContext = { branchId: null, isOwner: true, roleName: null } as any) {
         const product = await (this.prisma as any).product.findUnique({
             where: { id },
             include: {
@@ -95,6 +121,7 @@ export class ProductsService {
             }
         });
         if (!product) throw new NotFoundException(`Product #${id} not found`);
+        await attachBranchStocks(this.prisma, [product], branchCtx);
         return product;
     }
 

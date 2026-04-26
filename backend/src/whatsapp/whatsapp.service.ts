@@ -3,6 +3,7 @@ import { Client, LocalAuth, MessageMedia } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import * as path from 'path';
 import * as fs from 'fs';
+import { PrismaService } from '../prisma/prisma.service';
 
 export type ConnectionStatus = 'INITIALIZING' | 'WAITING_QR' | 'AUTHENTICATED' | 'CONNECTED' | 'DISCONNECTED';
 
@@ -25,6 +26,8 @@ export class WhatsappService implements OnModuleInit {
     private qrCodeUrl: string | null = null;
     private connectionStatus: ConnectionStatus = 'INITIALIZING';
     private isReady = false;
+
+    constructor(private readonly prisma: PrismaService) { }
 
     private botConfig: BotConfig = {
         allowedGroups: [],
@@ -401,13 +404,32 @@ export class WhatsappService implements OnModuleInit {
         this.saveConfig();
     }
 
-    async sendReport(reportMsg: string, proofImages: string[] = []): Promise<boolean> {
+    /**
+     * Resolve target report group ID per cabang.
+     * Kalau branchId disediakan & BranchSettings punya waReportGroupId → pakai itu.
+     * Kalau tidak → fallback ke global botConfig.reportGroupId.
+     */
+    private async resolveReportGroupId(branchId?: number | null): Promise<string | null> {
+        if (branchId != null) {
+            try {
+                const settings = await (this.prisma as any).branchSettings.findUnique({
+                    where: { branchId },
+                });
+                if (settings?.waReportGroupId) return settings.waReportGroupId;
+            } catch (e: any) {
+                this.logger.warn(`Failed to load BranchSettings for branch ${branchId}: ${e.message}`);
+            }
+        }
+        return this.botConfig.reportGroupId;
+    }
+
+    async sendReport(reportMsg: string, proofImages: string[] = [], branchId?: number | null): Promise<boolean> {
         if (!this.isReady) {
             this.logger.warn('Cannot send report: WhatsApp bot is not ready yet.');
             return false;
         }
 
-        const target = this.botConfig.reportGroupId;
+        const target = await this.resolveReportGroupId(branchId);
         if (!target) {
             this.logger.warn('Cannot send report: WHATSAPP_REPORT_GROUP_ID is not configured and !botadmin setreportgroup has not been run.');
             return false;

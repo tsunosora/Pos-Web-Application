@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getSuppliers, getProducts, createSupplier, updateSupplier, deleteSupplier } from "@/lib/api";
-import { Plus, Pencil, Trash2, ChevronDown, Phone, Mail, MapPin, Package, Search, User } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, Phone, Mail, MapPin, Package, Search, User, Truck, X, Loader2 } from "lucide-react";
 import { Supplier, SupplierItem, Product } from "./types";
 import { SupplierFormModal } from "./SupplierFormModal";
 import { DetailModal } from "./DetailModal";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/responsive-table";
 
 export default function SuppliersPage() {
   const qc = useQueryClient();
@@ -75,52 +77,75 @@ export default function SuppliersPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Data Supplier</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Kelola daftar supplier dan harga beli per produk</p>
-        </div>
-        <button
-          onClick={() => setFormModal({ open: true, supplier: null })}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Tambah Supplier
-        </button>
-      </div>
+    <div>
+      <PageHeader
+        title="Data Supplier"
+        description={`${suppliers.length} supplier terdaftar · kelola kontak dan harga beli`}
+        icon={Truck}
+        breadcrumbs={[
+          { label: 'Inventori', href: '/inventory' },
+          { label: 'Supplier' },
+        ]}
+        actions={
+          <button
+            onClick={() => setFormModal({ open: true, supplier: null })}
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Tambah Supplier
+          </button>
+        }
+      />
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+      <div className="mb-5 relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
         <input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Cari nama supplier, kontak, atau nama bahan..."
-          className="w-full rounded-lg border border-border bg-background pl-9 pr-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full rounded-lg border border-border bg-background pl-9 pr-9 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute right-2 top-1.5 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Bersihkan pencarian"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {isLoading && (
         <div className="flex items-center justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
         </div>
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-20 text-center">
-          <Package className="h-12 w-12 text-muted-foreground/40 mb-4" />
-          <p className="text-base font-medium text-muted-foreground">
-            {search ? `Tidak ada supplier yang menyediakan "${search}"` : "Belum ada supplier"}
-          </p>
-          {!search && (
-            <p className="text-sm text-muted-foreground/70 mt-1">Klik "Tambah Supplier" untuk memulai</p>
-          )}
+        <div className="rounded-xl border border-dashed border-border bg-card">
+          <EmptyState
+            icon={Package}
+            title={search ? 'Tidak ditemukan' : 'Belum ada supplier'}
+            description={search ? `Tidak ada supplier yang cocok dengan "${search}"` : 'Mulai dengan klik tombol "Tambah Supplier" di atas.'}
+            action={
+              !search ? (
+                <button
+                  onClick={() => setFormModal({ open: true, supplier: null })}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4" /> Tambah Supplier
+                </button>
+              ) : undefined
+            }
+          />
         </div>
       )}
 
       {!isLoading && filtered.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((supplier) => (
             <div key={supplier.id} className="rounded-xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow">
               <div className="p-5">

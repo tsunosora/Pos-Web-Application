@@ -1,45 +1,69 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MovementType } from '@prisma/client';
+import { BranchContext } from '../common/branch-context.decorator';
+import { branchWhere, requireBranch } from '../common/branch-where.helper';
 
 @Injectable()
 export class StockMovementsService {
     constructor(private prisma: PrismaService) { }
 
-    async create(data: { productVariantId: number; type: MovementType; quantity: number; reason?: string }) {
+    async create(
+        data: { productVariantId: number; type: MovementType; quantity: number; reason?: string },
+        branchCtx: BranchContext,
+    ) {
+        const branchId = requireBranch(branchCtx);
         return this.prisma.$transaction(async (tx) => {
             const variant = await tx.productVariant.findUnique({ where: { id: data.productVariantId } });
             if (!variant) throw new NotFoundException('Product variant not found');
 
-            let newStock = variant.stock;
+            // Ambil stok cabang (sumber kebenaran baru)
+            const bs = await (tx as any).branchStock.findUnique({
+                where: { branchId_productVariantId: { branchId, productVariantId: data.productVariantId } },
+                select: { stock: true },
+            });
+            const currentBranchStock = Number(bs?.stock ?? 0);
+            let newBranchStock = currentBranchStock;
+            let globalDelta = 0; // untuk sync ProductVariant.stock cache
 
             if (data.type === 'IN') {
-                newStock += data.quantity;
+                newBranchStock = currentBranchStock + data.quantity;
+                globalDelta = data.quantity;
             } else if (data.type === 'OUT') {
-                if (variant.stock < data.quantity) {
-                    throw new BadRequestException('Insufficient stock for OUT movement');
+                if (currentBranchStock < data.quantity) {
+                    throw new BadRequestException('Stok cabang ini tidak cukup untuk gerakan OUT.');
                 }
-                newStock -= data.quantity;
+                newBranchStock = currentBranchStock - data.quantity;
+                globalDelta = -data.quantity;
             } else if (data.type === 'ADJUST') {
-                // Assume quantity is the absolute new stock value for ADJUST
-                newStock = data.quantity;
+                newBranchStock = data.quantity;
+                globalDelta = data.quantity - currentBranchStock;
             }
 
-            // Update variant stock
-            await tx.productVariant.update({
-                where: { id: data.productVariantId },
-                data: { stock: newStock }
+            // Upsert BranchStock
+            await (tx as any).branchStock.upsert({
+                where: { branchId_productVariantId: { branchId, productVariantId: data.productVariantId } },
+                update: { stock: newBranchStock },
+                create: { branchId, productVariantId: data.productVariantId, stock: newBranchStock },
             });
 
-            // Log movement
+            // Sync ProductVariant.stock cache (agregat)
+            await tx.productVariant.update({
+                where: { id: data.productVariantId },
+                data: { stock: { increment: globalDelta } },
+            });
+
             return tx.stockMovement.create({
-                data: { ...data, balanceAfter: newStock } as any
+                data: { ...data, branchId, balanceAfter: newBranchStock } as any,
             });
         });
     }
 
-    async findAll(params?: { startDate?: string; endDate?: string; type?: MovementType; search?: string }) {
-        const where: any = {};
+    async findAll(
+        params: { startDate?: string; endDate?: string; type?: MovementType; search?: string },
+        branchCtx: BranchContext,
+    ) {
+        const where: any = { ...branchWhere(branchCtx) };
 
         if (params?.startDate || params?.endDate) {
             where.createdAt = {};

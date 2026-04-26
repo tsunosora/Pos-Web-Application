@@ -6,6 +6,8 @@ import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { ShiftReminderBanner } from "./ShiftReminderBanner";
+import { BranchInboxPopup } from "./BranchInboxPopup";
+import { BranchOutboxReadyPopup } from "./BranchOutboxReadyPopup";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useShiftReminder } from "@/hooks/useShiftReminder";
 import { useNotificationStore } from "@/store/notification-store";
@@ -43,6 +45,8 @@ export function MainLayout({ children }: MainLayoutProps) {
         <div className="flex h-screen overflow-hidden bg-background print:block print:h-auto print:overflow-visible">
             <AppInitializer />
             <div className="print:hidden"><ShiftReminderBanner /></div>
+            <div className="print:hidden"><BranchInboxPopup /></div>
+            <div className="print:hidden"><BranchOutboxReadyPopup /></div>
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>

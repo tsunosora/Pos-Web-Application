@@ -5,6 +5,34 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ProductionService {
     constructor(private prisma: PrismaService) {}
 
+    // Multi-cabang: ubah stok di BranchStock + mirror ke ProductVariant.stock (cache agregat).
+    // Selaras dengan TransactionsService._adjustStock supaya flow mulai-job ↔ hapus-transaksi konsisten.
+    private async _adjustStock(
+        tx: any,
+        branchId: number | null | undefined,
+        variantId: number,
+        delta: number,
+    ) {
+        const rounded = Math.floor(delta * 100) / 100;
+        const cur = await tx.productVariant.findUnique({
+            where: { id: variantId },
+            select: { stock: true },
+        });
+        const newGlobal = Math.floor((Number(cur?.stock ?? 0) + rounded) * 100) / 100;
+        await tx.productVariant.update({
+            where: { id: variantId },
+            data: { stock: newGlobal },
+        });
+        if (branchId != null) {
+            await (tx as any).branchStock.upsert({
+                where: { branchId_productVariantId: { branchId, productVariantId: variantId } },
+                update: { stock: { increment: rounded } },
+                create: { branchId, productVariantId: variantId, stock: rounded },
+            });
+        }
+        return newGlobal;
+    }
+
     private jobInclude() {
         return {
             transaction: {
@@ -17,6 +45,10 @@ export class ProductionService {
                     productionDeadline: true,
                     productionNotes: true,
                     createdAt: true,
+                    branchId: true,
+                    productionBranchId: true,
+                    branch: { select: { id: true, name: true, code: true } },
+                    productionBranch: { select: { id: true, name: true, code: true } },
                 },
             },
             transactionItem: {
@@ -29,10 +61,11 @@ export class ProductionService {
         };
     }
 
-    async getJobs(status?: string, priority?: string) {
+    async getJobs(status?: string, priority?: string, branchId?: number) {
         const where: any = {};
         if (status) where.status = status;
         if (priority) where.priority = priority;
+        if (branchId) where.branchId = branchId;
 
         const jobs = await (this.prisma as any).productionJob.findMany({
             where,
@@ -44,8 +77,10 @@ export class ProductionService {
             ],
         });
 
+        const visibleJobs = await this.filterPendingTitipan(jobs);
+
         // Put nulls at end for deadline ordering
-        return jobs.sort((a: any, b: any) => {
+        return visibleJobs.sort((a: any, b: any) => {
             // Priority: EXPRESS before NORMAL
             if (a.priority !== b.priority) {
                 return a.priority === 'EXPRESS' ? -1 : 1;
@@ -56,6 +91,28 @@ export class ProductionService {
             if (!b.deadline) return -1;
             return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
         });
+    }
+
+    /**
+     * Sembunyikan job titipan yang belum di-"Terima & Kerjakan" oleh cabang tujuan.
+     * Kriteria: transaction.branchId != transaction.productionBranchId (titipan)
+     *           AND handoverStatus IN (NULL, 'BARU')
+     */
+    private async filterPendingTitipan(jobs: any[]): Promise<any[]> {
+        if (!jobs?.length) return jobs;
+        const txIds = Array.from(new Set(jobs.map(j => j.transaction?.id).filter(Boolean)));
+        if (!txIds.length) return jobs;
+        const rows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT id, branch_id, production_branch_id, handover_status
+             FROM transactions WHERE id IN (${txIds.join(',')})`,
+        );
+        const hidden = new Set<number>();
+        for (const r of rows) {
+            const isTitipan = r.production_branch_id != null && Number(r.production_branch_id) !== Number(r.branch_id);
+            const notAck = !r.handover_status || r.handover_status === 'BARU';
+            if (isTitipan && notAck) hidden.add(Number(r.id));
+        }
+        return jobs.filter(j => !hidden.has(Number(j.transaction?.id)));
     }
 
     async getRolls() {
@@ -77,22 +134,32 @@ export class ProductionService {
             if (job.status !== 'ANTRIAN') throw new BadRequestException('Job tidak dalam status ANTRIAN');
 
             if (!data.usedWaste && data.rollVariantId && data.rollAreaM2) {
-                const roll = await (tx as any).productVariant.findUnique({ where: { id: data.rollVariantId } });
-                if (!roll) throw new NotFoundException('Bahan tidak ditemukan');
-
-                const currentStock = Number(roll.stock); // stock in m²
+                const jobBranchId: number | null = (job as any).branchId ?? null;
                 const areaToDeduct = Math.ceil(data.rollAreaM2);
-                const newStock = currentStock - areaToDeduct;
-                if (newStock < 0) {
-                    throw new BadRequestException(
-                        `Stok bahan tidak cukup. Tersisa: ${currentStock}m², dibutuhkan: ${areaToDeduct}m²`
-                    );
+
+                // Cek stok per cabang (kalau job punya branchId). Fallback ke global kalau job lama tanpa branchId.
+                if (jobBranchId != null) {
+                    const bs = await (tx as any).branchStock.findUnique({
+                        where: { branchId_productVariantId: { branchId: jobBranchId, productVariantId: data.rollVariantId } },
+                        select: { stock: true },
+                    });
+                    const have = Number(bs?.stock ?? 0);
+                    if (have < areaToDeduct) {
+                        throw new BadRequestException(
+                            `Stok bahan di cabang ini tidak cukup. Tersisa: ${have}m², dibutuhkan: ${areaToDeduct}m²`
+                        );
+                    }
+                } else {
+                    const roll = await (tx as any).productVariant.findUnique({ where: { id: data.rollVariantId } });
+                    if (!roll) throw new NotFoundException('Bahan tidak ditemukan');
+                    if (Number(roll.stock) < areaToDeduct) {
+                        throw new BadRequestException(
+                            `Stok bahan tidak cukup. Tersisa: ${Number(roll.stock)}m², dibutuhkan: ${areaToDeduct}m²`
+                        );
+                    }
                 }
 
-                await (tx as any).productVariant.update({
-                    where: { id: data.rollVariantId },
-                    data: { stock: newStock },
-                });
+                const newGlobal = await this._adjustStock(tx, jobBranchId, data.rollVariantId, -areaToDeduct);
 
                 await tx.stockMovement.create({
                     data: {
@@ -100,8 +167,9 @@ export class ProductionService {
                         type: 'OUT',
                         quantity: areaToDeduct,
                         reason: `Produksi Job #${job.jobNumber} (${data.rollAreaM2.toFixed(2)}m²)`,
-                        balanceAfter: newStock,
+                        balanceAfter: newGlobal,
                         referenceId: job.jobNumber,
+                        ...(jobBranchId != null ? { branchId: jobBranchId } : {}),
                     } as any,
                 });
             }
@@ -174,29 +242,24 @@ export class ProductionService {
             if (!job) throw new NotFoundException('Job tidak ditemukan');
             if (job.status !== 'MENUNGGU_PASANG') throw new BadRequestException('Job belum dalam status MENUNGGU_PASANG');
 
-            // Deduct BOM ingredients (assembly materials like rangka)
+            // Deduct BOM ingredients (assembly materials like rangka) — multi-cabang via BranchStock.
+            const jobBranchId: number | null = (job as any).branchId ?? null;
             const ingredients = job.transactionItem?.productVariant?.product?.ingredients || [];
             for (const ing of ingredients) {
                 if (ing.rawMaterialVariantId) {
-                    const rawVariant = await (tx as any).productVariant.findUnique({ where: { id: ing.rawMaterialVariantId } });
-                    if (rawVariant) {
-                        const newStock = Number(rawVariant.stock) - Number(ing.quantity);
-                        await (tx as any).productVariant.update({
-                            where: { id: rawVariant.id },
-                            data: { stock: newStock < 0 ? 0 : newStock }
-                        });
-                        const newRawStock = Number(rawVariant.stock) - Number(ing.quantity) < 0 ? 0 : Number(rawVariant.stock) - Number(ing.quantity);
-                        await tx.stockMovement.create({
-                            data: {
-                                productVariantId: rawVariant.id,
-                                type: 'OUT',
-                                quantity: Math.ceil(Number(ing.quantity)),
-                                reason: `Pemasangan Job #${job.jobNumber} — ${ing.name}`,
-                                balanceAfter: newRawStock,
-                                referenceId: job.jobNumber,
-                            } as any,
-                        });
-                    }
+                    const needed = Number(ing.quantity);
+                    const newGlobal = await this._adjustStock(tx, jobBranchId, ing.rawMaterialVariantId, -needed);
+                    await tx.stockMovement.create({
+                        data: {
+                            productVariantId: ing.rawMaterialVariantId,
+                            type: 'OUT',
+                            quantity: Math.ceil(needed),
+                            reason: `Pemasangan Job #${job.jobNumber} — ${ing.name}`,
+                            balanceAfter: newGlobal,
+                            referenceId: job.jobNumber,
+                            ...(jobBranchId != null ? { branchId: jobBranchId } : {}),
+                        } as any,
+                    });
                 }
             }
 
@@ -258,23 +321,36 @@ export class ProductionService {
             const count = await (tx as any).productionBatch.count();
             const batchNumber = `BATCH-${String(count + 1).padStart(4, '0')}`;
 
-            if (!data.usedWaste && data.rollVariantId && data.totalAreaM2) {
-                const roll = await (tx as any).productVariant.findUnique({ where: { id: data.rollVariantId } });
-                if (!roll) throw new NotFoundException('Bahan tidak ditemukan');
+            // Batch multi-cabang: asumsikan semua job dalam batch dari cabang yang sama.
+            // Kalau beda-beda, fallback ke null (hanya update global cache) — tapi ini skenario langka.
+            const batchBranchIds = Array.from(new Set(jobs.map((j: any) => j.branchId ?? null)));
+            const batchBranchId: number | null = batchBranchIds.length === 1 ? batchBranchIds[0] as any : null;
 
-                const currentStock = Number(roll.stock); // stock in m²
+            if (!data.usedWaste && data.rollVariantId && data.totalAreaM2) {
                 const areaToDeduct = Math.ceil(data.totalAreaM2);
-                const newStock = currentStock - areaToDeduct;
-                if (newStock < 0) {
-                    throw new BadRequestException(
-                        `Stok bahan tidak cukup. Tersisa: ${currentStock}m², dibutuhkan: ${areaToDeduct}m²`
-                    );
+
+                if (batchBranchId != null) {
+                    const bs = await (tx as any).branchStock.findUnique({
+                        where: { branchId_productVariantId: { branchId: batchBranchId, productVariantId: data.rollVariantId } },
+                        select: { stock: true },
+                    });
+                    const have = Number(bs?.stock ?? 0);
+                    if (have < areaToDeduct) {
+                        throw new BadRequestException(
+                            `Stok bahan di cabang ini tidak cukup. Tersisa: ${have}m², dibutuhkan: ${areaToDeduct}m²`
+                        );
+                    }
+                } else {
+                    const roll = await (tx as any).productVariant.findUnique({ where: { id: data.rollVariantId } });
+                    if (!roll) throw new NotFoundException('Bahan tidak ditemukan');
+                    if (Number(roll.stock) < areaToDeduct) {
+                        throw new BadRequestException(
+                            `Stok bahan tidak cukup. Tersisa: ${Number(roll.stock)}m², dibutuhkan: ${areaToDeduct}m²`
+                        );
+                    }
                 }
 
-                await (tx as any).productVariant.update({
-                    where: { id: data.rollVariantId },
-                    data: { stock: newStock },
-                });
+                const newGlobal = await this._adjustStock(tx, batchBranchId, data.rollVariantId, -areaToDeduct);
 
                 await tx.stockMovement.create({
                     data: {
@@ -282,8 +358,9 @@ export class ProductionService {
                         type: 'OUT',
                         quantity: areaToDeduct,
                         reason: `Gabung Cetak ${batchNumber} (${data.totalAreaM2.toFixed(2)}m²)`,
-                        balanceAfter: newStock,
+                        balanceAfter: newGlobal,
                         referenceId: batchNumber,
+                        ...(batchBranchId != null ? { branchId: batchBranchId } : {}),
                     } as any,
                 });
             }
@@ -332,22 +409,31 @@ export class ProductionService {
         });
     }
 
-    async verifyPin(pin: string) {
-        const settings = await this.prisma.storeSettings.findFirst();
-        const pin_ = (settings as any)?.operatorPin;
+    async verifyPin(pin: string, branchId?: number) {
+        // Prioritas: BranchSettings.operatorPin cabang terpilih → fallback StoreSettings.operatorPin
+        let pin_: string | null | undefined = null;
+        if (branchId) {
+            const bs = await (this.prisma as any).branchSettings.findUnique({ where: { branchId } });
+            pin_ = bs?.operatorPin ?? null;
+        }
+        if (!pin_) {
+            const settings = await this.prisma.storeSettings.findFirst();
+            pin_ = (settings as any)?.operatorPin;
+        }
         if (!pin_) {
             return { valid: false, message: 'PIN operator belum dikonfigurasi. Hubungi admin.' };
         }
         return { valid: pin_ === pin };
     }
 
-    async getStats() {
+    async getStats(branchId?: number) {
+        const branchWhere = branchId ? { branchId } : {};
         const [antrian, proses, menungguPasang, pasang, selesai] = await Promise.all([
-            (this.prisma as any).productionJob.count({ where: { status: 'ANTRIAN' } }),
-            (this.prisma as any).productionJob.count({ where: { status: 'PROSES' } }),
-            (this.prisma as any).productionJob.count({ where: { status: 'MENUNGGU_PASANG' } }),
-            (this.prisma as any).productionJob.count({ where: { status: 'PASANG' } }),
-            (this.prisma as any).productionJob.count({ where: { status: 'SELESAI' } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'ANTRIAN', ...branchWhere } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'PROSES', ...branchWhere } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'MENUNGGU_PASANG', ...branchWhere } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'PASANG', ...branchWhere } }),
+            (this.prisma as any).productionJob.count({ where: { status: 'SELESAI', ...branchWhere } }),
         ]);
         return { antrian, proses, menungguPasang, pasang, selesai };
     }

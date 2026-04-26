@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Pencil, Trash2, RotateCcw, Check, X, Building2, AlertTriangle } from 'lucide-react';
+import { useBranchStore } from '@/store/branch-store';
 
 type BankAccount = {
     id: number;
@@ -23,6 +24,7 @@ type BankAccount = {
 
 export default function BankAccountsPage() {
     const queryClient = useQueryClient();
+    const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
     // State untuk form tambah baru
     const [showAddForm, setShowAddForm] = useState(false);
@@ -37,7 +39,7 @@ export default function BankAccountsPage() {
     const [newBalance, setNewBalance] = useState<number>(0);
 
     const { data: banks = [], isLoading } = useQuery({
-        queryKey: ['bank-accounts'],
+        queryKey: ['bank-accounts', activeBranchId],
         queryFn: getBankAccounts,
     });
 
@@ -84,15 +86,20 @@ export default function BankAccountsPage() {
 
     return (
         <div className="p-6 space-y-6 max-w-4xl">
-            <div>
-                <h1 className="text-2xl font-bold tracking-tight">Pengaturan Rekening Bank</h1>
-                <p className="text-muted-foreground text-sm mt-1">
-                    Kelola rekening bank yang digunakan untuk transaksi. Atur saldo awal sebelum memulai operasional.
-                </p>
+            <div className="flex items-start gap-3 pb-4 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <Building2 className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight">Pengaturan Rekening Bank</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        Kelola rekening bank yang dipakai transaksi. Atur saldo awal sebelum memulai operasional.
+                    </p>
+                </div>
             </div>
 
             {/* Info box */}
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex gap-3 text-sm text-amber-800">
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex gap-3 text-sm text-amber-700 dark:text-amber-300">
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
                 <div>
                     <p className="font-semibold">Tentang Saldo Rekening</p>

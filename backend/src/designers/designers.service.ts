@@ -20,8 +20,8 @@ export class DesignersService {
         return rows;
     }
 
-    /** Verifikasi PIN desainer — return { valid, id, name } */
-    async verifyPin(id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string }> {
+    /** Verifikasi PIN desainer — return { valid, id, name, branchName } */
+    async verifyPin(id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> {
         const designer = await (this.prisma as any).designer.findUnique({ where: { id } });
         if (!designer || !designer.isActive) {
             return { valid: false };
@@ -29,26 +29,31 @@ export class DesignersService {
         if (designer.pin !== pin) {
             return { valid: false };
         }
-        return { valid: true, id: designer.id, name: designer.name };
+        return { valid: true, id: designer.id, name: designer.name, branchName: designer.branchName ?? null };
     }
 
     /** Buat desainer baru (admin) */
-    async create(data: { name: string; pin: string }) {
+    async create(data: { name: string; pin: string; branchName?: string }) {
         if (!data.name?.trim()) throw new BadRequestException('Nama desainer wajib diisi');
         if (!data.pin?.trim()) throw new BadRequestException('PIN wajib diisi');
         return (this.prisma as any).designer.create({
-            data: { name: data.name.trim(), pin: data.pin.trim() },
+            data: {
+                name: data.name.trim(),
+                pin: data.pin.trim(),
+                branchName: data.branchName?.trim() || null,
+            },
         });
     }
 
     /** Update desainer (admin) */
-    async update(id: number, data: { name?: string; pin?: string; isActive?: boolean }) {
+    async update(id: number, data: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null }) {
         const existing = await (this.prisma as any).designer.findUnique({ where: { id } });
         if (!existing) throw new NotFoundException('Desainer tidak ditemukan');
         const upd: any = {};
         if (data.name !== undefined) upd.name = data.name.trim();
         if (data.pin !== undefined) upd.pin = data.pin.trim();
         if (data.isActive !== undefined) upd.isActive = data.isActive;
+        if ('branchName' in data) upd.branchName = data.branchName?.trim() || null;
         return (this.prisma as any).designer.update({ where: { id }, data: upd });
     }
 

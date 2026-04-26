@@ -3,7 +3,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/api';
-import { Plus, Pencil, Trash2, Check, X, ChevronRight, FolderOpen, Folder, FolderPlus } from 'lucide-react';
+import { Plus, Pencil, Trash2, Check, X, ChevronRight, FolderOpen, Folder, FolderPlus, FolderTree, Loader2 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/responsive-table';
 
 interface Category {
     id: number;
@@ -111,16 +113,19 @@ export default function CategoriesPage() {
     const subCount = categories.filter((c: Category) => !!c.parentId).length;
 
     return (
-        <div className="max-w-3xl mx-auto space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Manajemen Kategori</h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                    {totalCount} kategori ({parentCount} utama, {subCount} sub-kategori)
-                </p>
-            </div>
+        <div className="max-w-3xl mx-auto">
+            <PageHeader
+                title="Manajemen Kategori"
+                description={`${totalCount} kategori · ${parentCount} utama, ${subCount} sub-kategori`}
+                icon={FolderTree}
+                breadcrumbs={[
+                    { label: 'Inventori', href: '/inventory' },
+                    { label: 'Kategori' },
+                ]}
+            />
 
             {/* Form Tambah Kategori */}
-            <form onSubmit={handleCreate} className="glass rounded-xl border border-border p-4 space-y-3">
+            <form onSubmit={handleCreate} className="mb-5 rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
                 <p className="text-sm font-semibold text-foreground">Tambah Kategori</p>
                 <div className="flex gap-3">
                     <div className="flex-1 space-y-2">
@@ -156,11 +161,17 @@ export default function CategoriesPage() {
             </form>
 
             {/* Daftar Kategori — Tree View */}
-            <div className="glass rounded-xl border border-border overflow-hidden">
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
                 {isLoading ? (
-                    <div className="px-5 py-8 text-center text-muted-foreground text-sm">Memuat...</div>
+                    <div className="px-5 py-10 text-center text-muted-foreground">
+                        <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                    </div>
                 ) : parents.length === 0 ? (
-                    <div className="px-5 py-8 text-center text-muted-foreground text-sm">Belum ada kategori.</div>
+                    <EmptyState
+                        icon={FolderTree}
+                        title="Belum ada kategori"
+                        description="Buat kategori utama dulu lewat form di atas, lalu tambah sub-kategori dengan tombol folder+."
+                    />
                 ) : (
                     <div className="divide-y divide-border/50">
                         {parents.map((cat: Category) => {

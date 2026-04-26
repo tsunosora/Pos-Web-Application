@@ -3,6 +3,8 @@ import {
 } from '@nestjs/common';
 import { StockOpnameService } from './stock-opname.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 
 // ─── Admin endpoints (butuh login JWT) ────────────────────────────────────────
 @UseGuards(JwtAuthGuard)
@@ -11,31 +13,35 @@ export class StockOpnameAdminController {
     constructor(private readonly svc: StockOpnameService) {}
 
     @Post()
-    start(@Body() dto: { notes?: string; categoryId?: number; expiresHours?: number }) {
-        return this.svc.startSession(dto);
+    start(
+        @Body() dto: { notes?: string; categoryId?: number; expiresHours?: number },
+        @CurrentBranch() branchCtx: BranchContext,
+    ) {
+        return this.svc.startSession(dto, branchCtx);
     }
 
     @Get()
-    list() {
-        return this.svc.getSessions();
+    list(@CurrentBranch() branchCtx: BranchContext) {
+        return this.svc.getSessions(branchCtx);
     }
 
     @Get(':id')
-    detail(@Param('id') id: string) {
-        return this.svc.getSessionDetail(id);
+    detail(@Param('id') id: string, @CurrentBranch() branchCtx: BranchContext) {
+        return this.svc.getSessionDetail(id, branchCtx);
     }
 
     @Patch(':id/cancel')
-    cancel(@Param('id') id: string) {
-        return this.svc.cancelSession(id);
+    cancel(@Param('id') id: string, @CurrentBranch() branchCtx: BranchContext) {
+        return this.svc.cancelSession(id, branchCtx);
     }
 
     @Post(':id/finish')
     finish(
         @Param('id') id: string,
         @Body() dto: { confirmedItems: { productVariantId: number; confirmedStock: number }[] },
+        @CurrentBranch() branchCtx: BranchContext,
     ) {
-        return this.svc.finishSession(id, dto.confirmedItems);
+        return this.svc.finishSession(id, dto.confirmedItems, branchCtx);
     }
 }
 

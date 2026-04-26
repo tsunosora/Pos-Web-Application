@@ -2,6 +2,9 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGua
 import { TransactionsService } from './transactions.service';
 import { PaymentMethod } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
+import { requireBranch } from '../common/branch-where.helper';
 
 @UseGuards(JwtAuthGuard)
 @Controller('transactions')
@@ -29,45 +32,57 @@ export class TransactionsController {
         cashflowDate?: string;     // cashflow date override (untuk masuk shift hari ini)
         saveOnly?: boolean;        // true = simpan invoice tanpa pembayaran (PENDING)
         salesOrderId?: number;     // jika transaksi dibuat dari SO
-    }) {
-        return this.transactionsService.create(createTransactionDto);
+        branchName?: string;       // cabang sumber order (auto-inherit dari SO jika ada)
+        productionBranchId?: number | null; // Titip cetak ke cabang lain (null = cetak di cabang transaksi)
+    }, @CurrentBranch() branchCtx: BranchContext) {
+        // Owner harus pilih cabang eksplisit sebelum membuat transaksi
+        const branchId = requireBranch(branchCtx);
+        // Validasi: kalau ada productionBranchId & berbeda, pastikan cabang tujuan valid & aktif.
+        // Cek detail di service supaya bisa akses Prisma.
+        return this.transactionsService.create({ ...createTransactionDto, branchId });
     }
 
     @Get()
     findAll(
+        @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
         @Query('search') search?: string,
     ) {
-        return this.transactionsService.findAll(startDate, endDate, search);
+        return this.transactionsService.findAll(branchCtx, startDate, endDate, search);
     }
 
     @Get('dashboard/metrics')
-    getDashboardMetrics() {
-        return this.transactionsService.getDashboardMetrics();
+    getDashboardMetrics(@CurrentBranch() branchCtx: BranchContext) {
+        return this.transactionsService.getDashboardMetrics(branchCtx);
     }
 
     @Get('dashboard/cashier-stats')
     getCashierStats(
+        @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
     ) {
-        return this.transactionsService.getCashierStats(startDate, endDate);
+        return this.transactionsService.getCashierStats(branchCtx, startDate, endDate);
     }
 
     @Get('dashboard/chart')
-    getChartData(@Query('period') period: string = 'daily') {
-        return this.transactionsService.getChartData(period);
+    getChartData(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('period') period: string = 'daily',
+    ) {
+        return this.transactionsService.getChartData(period, branchCtx);
     }
 
     @Get('reports/summary')
     getSummaryReport(
+        @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
         @Query('sortBy') sortBy: 'qty' | 'revenue' = 'qty',
         @Query('limit') limit?: string,
     ) {
-        return this.transactionsService.getSummaryReport(startDate, endDate, sortBy, limit ? parseInt(limit) : 20);
+        return this.transactionsService.getSummaryReport(branchCtx, startDate, endDate, sortBy, limit ? parseInt(limit) : 20);
     }
 
     // Static routes MUST come before :id to avoid NestJS swallowing them

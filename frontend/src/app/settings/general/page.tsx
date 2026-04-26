@@ -74,15 +74,20 @@ export default function GeneralSettings() {
     if (isLoading) return <div className="p-8 flex justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
 
     return (
-        <div className="p-6 max-w-2xl space-y-8">
-            <div>
-                <h1 className="text-2xl font-bold">Profil Toko Umum</h1>
-                <p className="text-sm text-muted-foreground mt-1">Konfigurasi dasar toko dan mode pemrosesan pesanan.</p>
+        <div className="p-6 max-w-3xl space-y-6">
+            <div className="flex items-start gap-3 pb-4 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <Store className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight">Profil Toko Umum</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Konfigurasi dasar toko dan mode pemrosesan pesanan.</p>
+                </div>
             </div>
 
             <form onSubmit={handleSave} className="space-y-6">
                 {/* Logo Upload */}
-                <div className="glass p-5 rounded-xl border border-border flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+                <div className="p-5 rounded-xl border border-border bg-background/50 flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                     <div className="flex flex-col items-center justify-center w-32 h-32 border-2 border-dashed border-border rounded-xl bg-muted/20 hover:bg-muted/50 transition-colors relative group overflow-hidden shrink-0">
                         {logoUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -108,7 +113,7 @@ export default function GeneralSettings() {
                     </div>
                 </div>
 
-                <div className="glass p-5 rounded-xl border border-border space-y-5">
+                <div className="p-5 rounded-xl border border-border bg-background/50 space-y-5">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Informasi Toko</h2>
 
                     <div className="space-y-2">
@@ -152,7 +157,7 @@ export default function GeneralSettings() {
                 </div>
 
                 {/* Advanced Pricing Toggle */}
-                <div className="glass p-5 rounded-xl border border-border">
+                <div className="p-5 rounded-xl border border-border bg-background/50">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-4">Mode Pricing Lanjutan</h2>
 
                     <div
@@ -181,7 +186,7 @@ export default function GeneralSettings() {
                 </div>
 
                 {/* Tax Configuration */}
-                <div className="glass p-5 rounded-xl border border-border space-y-5">
+                <div className="p-5 rounded-xl border border-border bg-background/50 space-y-5">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Konfigurasi Pajak (PPN)</h2>
 
                     <div
@@ -216,7 +221,7 @@ export default function GeneralSettings() {
                 </div>
 
                 {/* Operator PIN */}
-                <div className="glass p-5 rounded-xl border border-border space-y-4">
+                <div className="p-5 rounded-xl border border-border bg-background/50 space-y-4">
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">PIN Operator Produksi</h2>
                     <p className="text-sm text-muted-foreground">PIN 4-6 digit yang digunakan operator mesin untuk mengakses halaman antrian produksi tanpa harus login.</p>
                     <div className="space-y-2">

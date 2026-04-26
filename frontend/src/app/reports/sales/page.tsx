@@ -9,10 +9,13 @@ import { exportToExcel, exportToPDF } from '@/lib/export';
 import {
     Download, BarChart2, CreditCard, Banknote, Landmark, X, Receipt, Printer, MessageCircle,
     FileSpreadsheet, Pencil, Check, CalendarDays, PenSquare, TrendingUp, TrendingDown,
-    Search, ChevronDown, ChevronRight, BarChart, Minus
+    Search, ChevronDown, ChevronRight, BarChart, Minus, Loader2
 } from "lucide-react";
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/responsive-table';
 import dayjs from "dayjs";
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useBranchStore } from '@/store/branch-store';
 import EditTransactionModal from './EditTransactionModal';
 
 type SalesPeriodKey = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom';
@@ -58,6 +61,7 @@ function TrendBadge({ percent, isRevenue = false }: { percent: number | null; is
 
 export default function SalesReportPage() {
     const queryClient = useQueryClient();
+    const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
     const [period, setPeriod] = useState<SalesPeriodKey>('this_month');
     const [customStart, setCustomStart] = useState('');
@@ -70,6 +74,7 @@ export default function SalesReportPage() {
     const [filterKasir, setFilterKasir] = useState('');
     const [filterMetode, setFilterMetode] = useState('');
     const [filterWaktu, setFilterWaktu] = useState<'semua' | 'pagi' | 'siang' | 'malam'>('semua');
+    const [filterCabang, setFilterCabang] = useState('');
 
     useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(searchQuery), 300);
@@ -79,15 +84,15 @@ export default function SalesReportPage() {
     const { startDate, endDate } = getSalesPeriodDates(period, customStart, customEnd);
 
     const { data: summary, isLoading: isLoadingSummary } = useQuery({
-        queryKey: ['salesSummary', startDate, endDate, trendSortBy],
+        queryKey: ['salesSummary', activeBranchId, startDate, endDate, trendSortBy],
         queryFn: () => getSalesSummary(startDate, endDate, trendSortBy, 20),
     });
     const { data: transactions, isLoading: isLoadingTxs } = useQuery({
-        queryKey: ['transactions', startDate, endDate, debouncedSearch],
+        queryKey: ['transactions', activeBranchId, startDate, endDate, debouncedSearch],
         queryFn: () => getTransactions(startDate, endDate, debouncedSearch || undefined),
     });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
-    const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
+    const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts', activeBranchId], queryFn: getBankAccounts });
 
     const { isManager } = useCurrentUser();
     const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
@@ -107,13 +112,18 @@ export default function SalesReportPage() {
 
     const allTransactions = transactions || [];
 
-    // Derive unique cashier names from loaded transactions
+    // Derive unique cashier names & branch names from loaded transactions
     const kasirOptions = Array.from(
         new Set(allTransactions.map((t: any) => t.cashierName).filter(Boolean))
     ).sort() as string[];
 
+    const cabangOptions = Array.from(
+        new Set(allTransactions.map((t: any) => t.branchName).filter(Boolean))
+    ).sort() as string[];
+
     const recentTransactions = allTransactions.filter((t: any) => {
         if (filterKasir && t.cashierName !== filterKasir) return false;
+        if (filterCabang && t.branchName !== filterCabang) return false;
         if (filterMetode) {
             const method = t.dpPaymentMethod || t.paymentMethod;
             if (filterMetode === 'BANK_TRANSFER') {
@@ -183,29 +193,30 @@ export default function SalesReportPage() {
     const RANK_BG = ['bg-yellow-500/10 border-yellow-500/30', 'bg-slate-400/10 border-slate-400/30', 'bg-amber-500/10 border-amber-500/30'];
 
     return (
-        <div className="space-y-6">
-            <div className="sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Laporan Penjualan</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Ringkasan transaksi riil — <span className="font-medium text-primary">{periodLabel}</span>
-                        {period === 'custom' && startDate && endDate ? ` (${dayjs(startDate).format('D MMM')} – ${dayjs(endDate).format('D MMM YYYY')})` : ''}
-                    </p>
-                </div>
-                <div className="mt-4 sm:mt-0 flex flex-wrap gap-3">
-                    <button onClick={handleExportExcel} className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 text-green-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-500/20 transition-colors shadow-sm">
-                        <FileSpreadsheet className="h-4 w-4" />
-                        Export Excel
-                    </button>
-                    <button onClick={handleExportPDF} className="flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors shadow-sm">
-                        <Download className="h-4 w-4" />
-                        Export PDF
-                    </button>
-                </div>
-            </div>
+        <div>
+            <PageHeader
+                title="Laporan Penjualan"
+                description={`Ringkasan transaksi riil — ${periodLabel}${period === 'custom' && startDate && endDate ? ` (${dayjs(startDate).format('D MMM')} – ${dayjs(endDate).format('D MMM YYYY')})` : ''}`}
+                icon={BarChart2}
+                breadcrumbs={[{ label: 'Laporan' }, { label: 'Penjualan' }]}
+                actions={
+                    <>
+                        <button onClick={handleExportExcel} className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-colors">
+                            <FileSpreadsheet className="h-4 w-4" />
+                            Excel
+                        </button>
+                        <button onClick={handleExportPDF} className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
+                            <Download className="h-4 w-4" />
+                            PDF
+                        </button>
+                    </>
+                }
+            />
+
+            <div className="space-y-6">
 
             {/* Period filter */}
-            <div className="glass rounded-xl border border-border p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                     <CalendarDays className="h-4 w-4" />
                     Filter Periode
@@ -277,22 +288,22 @@ export default function SalesReportPage() {
                 <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {/* Pendapatan Kas — cash basis, identik dengan dashboard */}
-                        <div className="glass p-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 flex flex-col justify-center">
+                        <div className="p-6 rounded-xl border border-emerald-500/30 bg-emerald-500/5 shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400 mb-1">Pendapatan Kas</p>
                             <h2 className="text-3xl font-bold text-foreground">Rp {Number(summary?.pendapatanKas || 0).toLocaleString('id-ID')}</h2>
                             <p className="text-xs text-muted-foreground mt-1">Uang masuk aktual (cash basis)</p>
                         </div>
                         {/* Invoice Lunas — accrual, total grandTotal invoice PAID */}
-                        <div className="glass p-6 rounded-xl border border-border flex flex-col justify-center">
+                        <div className="p-6 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Invoice Lunas</p>
                             <h2 className="text-3xl font-bold text-foreground">Rp {Number(summary?.totalRevenue || 0).toLocaleString('id-ID')}</h2>
                             <p className="text-xs text-muted-foreground mt-1">Total invoice PAID (accrual)</p>
                         </div>
-                        <div className="glass p-6 rounded-xl border border-border flex flex-col justify-center">
+                        <div className="p-6 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Volume Transaksi</p>
                             <h2 className="text-3xl font-bold text-foreground">{summary?.totalTransactions || 0}<span className="text-lg text-muted-foreground font-normal ml-1">struk</span></h2>
                         </div>
-                        <div className="glass p-6 rounded-xl border border-border flex flex-col justify-center">
+                        <div className="p-6 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Rata-rata Order (Basket Size)</p>
                             <h2 className="text-3xl font-bold text-foreground">Rp {Math.round(summary?.averageTransactionValue || 0).toLocaleString('id-ID')}<span className="text-lg text-muted-foreground font-normal ml-1">/trx</span></h2>
                         </div>
@@ -300,7 +311,7 @@ export default function SalesReportPage() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Produk Terlaris - compact top 5 */}
-                        <div className="glass rounded-xl border border-border p-6 flex flex-col">
+                        <div className="rounded-xl border border-border bg-card shadow-sm p-6 flex flex-col">
                             <div className="flex items-center gap-3 mb-4">
                                 <BarChart2 className="h-5 w-5 text-primary" />
                                 <h3 className="text-lg font-semibold text-foreground">Top 5 Produk Terlaris</h3>
@@ -327,7 +338,7 @@ export default function SalesReportPage() {
                         </div>
 
                         {/* Metode Pembayaran */}
-                        <div className="glass rounded-xl border border-border p-6 flex flex-col">
+                        <div className="rounded-xl border border-border bg-card shadow-sm p-6 flex flex-col">
                             <h3 className="text-lg font-semibold text-foreground mb-4">Metode Pembayaran (Distribusi)</h3>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border/50">
@@ -380,7 +391,7 @@ export default function SalesReportPage() {
 
             {/* Tab: Trend Produk */}
             {activeTab === 'trend' && (
-                <div className="glass rounded-xl border border-border overflow-hidden">
+                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-border bg-card/50 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <TrendingUp className="h-5 w-5 text-primary" />
@@ -476,7 +487,7 @@ export default function SalesReportPage() {
 
             {/* Tab: Histori Log */}
             {activeTab === 'histori' && (
-                <div className="glass rounded-xl border border-border overflow-hidden pb-10">
+                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden pb-10">
                     <div className="px-6 py-4 border-b border-border bg-card/50 space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="text-base font-semibold text-foreground">
@@ -484,9 +495,9 @@ export default function SalesReportPage() {
                             </h3>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm text-muted-foreground">{recentTransactions.length} transaksi</span>
-                                {(filterKasir || filterMetode || filterWaktu !== 'semua') && (
+                                {(filterKasir || filterMetode || filterWaktu !== 'semua' || filterCabang) && (
                                     <button
-                                        onClick={() => { setFilterKasir(''); setFilterMetode(''); setFilterWaktu('semua'); }}
+                                        onClick={() => { setFilterKasir(''); setFilterMetode(''); setFilterWaktu('semua'); setFilterCabang(''); }}
                                         className="text-xs text-red-500 hover:text-red-600 font-medium px-2 py-0.5 rounded-md bg-red-500/10 hover:bg-red-500/20 transition-colors"
                                     >
                                         Reset filter
@@ -520,6 +531,20 @@ export default function SalesReportPage() {
                                     </button>
                                 ))}
                             </div>
+                            {/* Filter Cabang — hanya muncul jika ada transaksi dari cabang */}
+                            {cabangOptions.length > 0 && (
+                                <select
+                                    value={filterCabang}
+                                    onChange={e => setFilterCabang(e.target.value)}
+                                    className="py-2 px-3 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 font-medium"
+                                >
+                                    <option value="">Semua Cabang</option>
+                                    <option value="__pusat__" disabled>— Pusat (tanpa cabang) —</option>
+                                    {cabangOptions.map(b => (
+                                        <option key={b} value={b}>{b}</option>
+                                    ))}
+                                </select>
+                            )}
                             {/* Filter Kasir */}
                             <select
                                 value={filterKasir}
@@ -691,6 +716,14 @@ export default function SalesReportPage() {
                                     <p className="text-muted-foreground text-xs mb-1">Kasir Checkout</p>
                                     <p className="font-medium text-foreground">{selectedTransaction.checkoutCashierName || <span className="text-muted-foreground">—</span>}</p>
                                 </div>
+                                {selectedTransaction.branchName && (
+                                    <div className="col-span-2">
+                                        <p className="text-muted-foreground text-xs mb-1">Cabang Asal Order</p>
+                                        <span className="inline-block bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-blue-200">
+                                            {selectedTransaction.branchName}
+                                        </span>
+                                    </div>
+                                )}
                                 <div>
                                     <p className="text-muted-foreground text-xs mb-1">Pelanggan</p>
                                     <p className="font-medium text-foreground">{selectedTransaction.customerName || '-'}</p>
@@ -929,6 +962,7 @@ export default function SalesReportPage() {
                     }}
                 />
             )}
+            </div>
         </div>
     );
 }

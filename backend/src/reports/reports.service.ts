@@ -3,6 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
+import { BranchContext } from '../common/branch-context.decorator';
+import { branchWhere, requireBranch } from '../common/branch-where.helper';
 
 @Injectable()
 export class ReportsService {
@@ -22,8 +24,8 @@ export class ReportsService {
         return users.filter(u => u.name); // hanya yang punya nama
     }
 
-    async getProfitReport(startDate?: string, endDate?: string) {
-        const whereClause: any = { status: 'PAID' }; // TransactionStatus.PAID
+    async getProfitReport(branchCtx: BranchContext, startDate?: string, endDate?: string) {
+        const whereClause: any = { status: 'PAID', ...branchWhere(branchCtx) }; // TransactionStatus.PAID
         if (startDate && endDate) {
             whereClause.createdAt = {
                 gte: new Date(startDate),
@@ -135,8 +137,10 @@ export class ReportsService {
         };
     }
 
-    async calculateCurrentShiftExpectations() {
+    async calculateCurrentShiftExpectations(branchCtx?: BranchContext) {
+        const bw = branchCtx ? branchWhere(branchCtx) : {};
         const lastShift = await (this.prisma as any).shiftReport.findFirst({
+            where: { ...bw },
             orderBy: { closedAt: 'desc' },
         });
 
@@ -151,7 +155,7 @@ export class ReportsService {
         // Filter berdasarkan shiftReportId = null (belum di-tag ke shift manapun)
         // dan excludeFromShift = false (cashflow retroaktif/lupa tidak ikut dihitung)
         const cashflows: any[] = await (this.prisma as any).cashflow.findMany({
-            where: { shiftReportId: null, excludeFromShift: false },
+            where: { shiftReportId: null, excludeFromShift: false, ...bw },
             include: { bankAccount: true },
         });
 
@@ -201,7 +205,7 @@ export class ReportsService {
         }
 
         const activeBanks: any[] = await this.prisma.bankAccount.findMany({
-            where: { isActive: true }
+            where: { isActive: true, ...bw } as any,
         });
 
         const systemBankBalances: Record<string, number> = {};
@@ -233,13 +237,15 @@ export class ReportsService {
         };
     }
 
-    async closeShift(dto: CloseShiftDto, proofImages: string[]) {
+    async closeShift(dto: CloseShiftDto, proofImages: string[], branchCtx: BranchContext) {
+        const branchId = requireBranch(branchCtx);
+        const bw = { branchId };
         const cashDifference = dto.actualCash - dto.expectedCash;
         const qrisDifference = dto.actualQris - dto.expectedQris;
         const transferDifference = dto.actualTransfer - dto.expectedTransfer;
 
         const activeBanks: any[] = await this.prisma.bankAccount.findMany({
-            where: { isActive: true }
+            where: { isActive: true, ...bw } as any,
         });
 
         // Hitung total pengeluaran dari structuredExpenses jika ada
@@ -256,10 +262,11 @@ export class ReportsService {
 
         // Hitung data shift SEBELUM menyimpan, agar lastShift.closedAt belum berubah
         const settings = await this.prisma.storeSettings.findFirst();
-        const expectedData = await this.calculateCurrentShiftExpectations();
+        const expectedData = await this.calculateCurrentShiftExpectations(branchCtx);
 
         const shift: any = await (this.prisma as any).shiftReport.create({
             data: {
+                branchId,
                 adminName: dto.adminName || 'Kasir',
                 shiftName: dto.shiftName || 'Shift Siang',
                 openedAt: dto.openedAt,
@@ -301,7 +308,7 @@ export class ReportsService {
         // ke shift ini — mencegah data shift ini bocor ke shift berikutnya
         // excludeFromShift = true → biarkan, tidak di-tag ke shift manapun
         await this.prisma.cashflow.updateMany({
-            where: { shiftReportId: null, excludeFromShift: false },
+            where: { shiftReportId: null, excludeFromShift: false, ...bw } as any,
             data: { shiftReportId: shiftId },
         });
 
@@ -322,6 +329,7 @@ export class ReportsService {
                         bankAccountId: bank.id,
                         date: new Date(dto.closedAt),
                         shiftReportId: shiftId,
+                        branchId,
                     },
                 });
             }
@@ -347,6 +355,7 @@ export class ReportsService {
                             bankAccountId: bank?.id || null,
                             date: new Date(dto.closedAt),
                             shiftReportId: shiftId,
+                            branchId,
                         },
                     });
                 }
@@ -369,6 +378,7 @@ export class ReportsService {
                         bankAccountId: null,
                         date: new Date(dto.closedAt),
                         shiftReportId: shiftId,
+                        branchId,
                     },
                 });
             }
@@ -414,7 +424,7 @@ export class ReportsService {
             data: { whatsappMessage: reportMsg },
         });
 
-        this.whatsappService.sendReport(reportMsg, proofImages).catch((err) => {
+        this.whatsappService.sendReport(reportMsg, proofImages, branchId).catch((err) => {
             this.logger.error('Background WhatsApp send failed', err);
         });
 
@@ -439,10 +449,12 @@ export class ReportsService {
         return { success: true, message: 'Shift closed successfully.', data: shift };
     }
 
-    async getShiftHistory(page = 1, limit = 20) {
+    async getShiftHistory(branchCtx: BranchContext, page = 1, limit = 20) {
+        const bw = branchWhere(branchCtx);
         const skip = (page - 1) * limit;
         const [list, total] = await Promise.all([
             (this.prisma as any).shiftReport.findMany({
+                where: { ...bw } as any,
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limit,
@@ -479,7 +491,7 @@ export class ReportsService {
                     createdAt: true,
                 },
             }),
-            (this.prisma as any).shiftReport.count(),
+            (this.prisma as any).shiftReport.count({ where: { ...bw } as any }),
         ]);
         return { list, total, page, limit };
     }
@@ -492,7 +504,7 @@ export class ReportsService {
         if (!msg) throw new Error(`Backup pesan WA untuk shift #${id} belum tersedia`);
 
         const images: string[] = proofImages ?? (Array.isArray(shift.proofImages) ? shift.proofImages : []);
-        await this.whatsappService.sendReport(msg, images);
+        await this.whatsappService.sendReport(msg, images, (shift as any).branchId ?? null);
         return { success: true, message: 'Laporan shift berhasil dikirim ulang ke WhatsApp.' };
     }
 

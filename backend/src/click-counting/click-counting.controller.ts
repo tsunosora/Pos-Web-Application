@@ -8,6 +8,8 @@ import { ClickCountingService } from './click-counting.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { compressImage } from '../common/utils/compress-image.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 
 const execAsync = promisify(exec);
 const randomHex = () => Array(32).fill(null).map(() => Math.round(Math.random() * 16).toString(16)).join('');
@@ -91,15 +93,20 @@ export class ClickCountingController {
   // ─── Click Logs ─────────────────────────────────────────────────────────────
 
   @Get('logs')
-  getLogs(@Query('month') month?: string, @Query('year') year?: string) {
-    return this.service.getLogs(month ? +month : undefined, year ? +year : undefined);
+  getLogs(
+    @CurrentBranch() branchCtx: BranchContext,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.service.getLogs(branchCtx, month ? +month : undefined, year ? +year : undefined);
   }
 
   @Post('logs')
   createLog(
     @Body() body: { clickRateId: number; quantity: number; date?: string; transactionItemId?: number },
+    @CurrentBranch() branchCtx: BranchContext,
   ) {
-    return this.service.createLog(body);
+    return this.service.createLog(body, branchCtx);
   }
 
   @Delete('logs/:id')
@@ -110,8 +117,12 @@ export class ClickCountingController {
   // ─── Machine Rejects ────────────────────────────────────────────────────────
 
   @Get('rejects')
-  getRejects(@Query('month') month?: string, @Query('year') year?: string) {
-    return this.service.getRejects(month ? +month : undefined, year ? +year : undefined);
+  getRejects(
+    @CurrentBranch() branchCtx: BranchContext,
+    @Query('month') month?: string,
+    @Query('year') year?: string,
+  ) {
+    return this.service.getRejects(branchCtx, month ? +month : undefined, year ? +year : undefined);
   }
 
   @Post('rejects')
@@ -127,8 +138,9 @@ export class ClickCountingController {
       photoUrl?: string;
       date?: string;
     },
+    @CurrentBranch() branchCtx: BranchContext,
   ) {
-    return this.service.createReject(body);
+    return this.service.createReject(body, branchCtx);
   }
 
   @Delete('rejects/:id')
@@ -139,13 +151,17 @@ export class ClickCountingController {
   // ─── Meter Readings (harian) ────────────────────────────────────────────────
 
   @Get('meter')
-  getMeterReadings(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
-    return this.service.getMeterReadings(startDate, endDate);
+  getMeterReadings(
+    @CurrentBranch() branchCtx: BranchContext,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.service.getMeterReadings(branchCtx, startDate, endDate);
   }
 
   @Get('meter/by-date')
-  getMeterByDate(@Query('date') date: string) {
-    return this.service.getMeterReadingByDate(date);
+  getMeterByDate(@Query('date') date: string, @CurrentBranch() branchCtx: BranchContext) {
+    return this.service.getMeterReadingByDate(date, branchCtx);
   }
 
   @Post('meter')
@@ -160,8 +176,9 @@ export class ClickCountingController {
       photoUrl?: string;
       notes?: string;
     },
+    @CurrentBranch() branchCtx: BranchContext,
   ) {
-    return this.service.upsertMeterReading(body);
+    return this.service.upsertMeterReading(body, branchCtx);
   }
 
   @Delete('meter/:id')
@@ -172,19 +189,31 @@ export class ClickCountingController {
   // ─── Vendor Bill (rekonsiliasi per range) ───────────────────────────────────
 
   @Get('vendor-bill')
-  getVendorBill(@Query('startDate') startDate: string, @Query('endDate') endDate: string) {
-    return this.service.getVendorBill(startDate, endDate);
+  getVendorBill(
+    @Query('startDate') startDate: string,
+    @Query('endDate') endDate: string,
+    @CurrentBranch() branchCtx: BranchContext,
+  ) {
+    return this.service.getVendorBill(startDate, endDate, branchCtx);
   }
 
   // ─── Reconciliation (legacy — per bulan) & Dashboard ───────────────────────
 
   @Get('reconciliation')
-  getReconciliation(@Query('month', ParseIntPipe) month: number, @Query('year', ParseIntPipe) year: number) {
-    return this.service.getReconciliation(month, year);
+  getReconciliation(
+    @Query('month', ParseIntPipe) month: number,
+    @Query('year', ParseIntPipe) year: number,
+    @CurrentBranch() branchCtx: BranchContext,
+  ) {
+    return this.service.getReconciliation(month, year, branchCtx);
   }
 
   @Get('dashboard')
-  getDashboard(@Query('month', ParseIntPipe) month: number, @Query('year', ParseIntPipe) year: number) {
-    return this.service.getDashboard(month, year);
+  getDashboard(
+    @Query('month', ParseIntPipe) month: number,
+    @Query('year', ParseIntPipe) year: number,
+    @CurrentBranch() branchCtx: BranchContext,
+  ) {
+    return this.service.getDashboard(month, year, branchCtx);
   }
 }

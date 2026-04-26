@@ -1,23 +1,47 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CashflowType, Prisma } from '@prisma/client';
+import { BranchContext } from '../common/branch-context.decorator';
+import { branchWhere, requireBranch, assertBranchAccess } from '../common/branch-where.helper';
+
+/**
+ * Kategori internal untuk pembayaran antar cabang (Buku Titipan).
+ * Di-exclude dari laporan konsolidasi "Semua Cabang" supaya tidak double-count
+ * (INCOME & EXPENSE dicatat di dua cabang terpisah — kalau dijumlah bersama jadi noise).
+ * Tetap dihitung kalau laporan difilter per-cabang, karena dari sudut pandang cabang
+ * itu memang cashflow riil.
+ */
+const INTER_BRANCH_SETTLEMENT = 'INTER_BRANCH_SETTLEMENT';
+
+/** Helper: kalau mode "Semua Cabang" (branchId null), tambahkan filter exclude kategori settlement. */
+function consolidatedExclusion(ctx: BranchContext): Prisma.CashflowWhereInput {
+    if (ctx.branchId == null) {
+        return { NOT: { category: INTER_BRANCH_SETTLEMENT } } as any;
+    }
+    return {};
+}
 
 @Injectable()
 export class CashflowService {
     constructor(private prisma: PrismaService) { }
 
-    async create(data: Prisma.CashflowCreateInput & { bankAccountId?: number | null }) {
+    async create(
+        data: Prisma.CashflowCreateInput & { bankAccountId?: number | null },
+        branchCtx: BranchContext,
+    ) {
+        const branchId = requireBranch(branchCtx);
         const { bankAccountId, ...rest } = data as any;
         return this.prisma.cashflow.create({
             data: {
                 ...rest,
+                branchId,
                 ...(bankAccountId ? { bankAccount: { connect: { id: bankAccountId } } } : {}),
-            },
+            } as any,
         });
     }
 
-    async findAll(startDate?: string, endDate?: string) {
-        const where: Prisma.CashflowWhereInput = {};
+    async findAll(branchCtx: BranchContext, startDate?: string, endDate?: string) {
+        const where: Prisma.CashflowWhereInput = { ...branchWhere(branchCtx), ...consolidatedExclusion(branchCtx) } as any;
         if (startDate || endDate) {
             where.date = {};
             if (startDate) (where.date as any).gte = new Date(startDate);
@@ -35,7 +59,8 @@ export class CashflowService {
                 include: {
                     user: { select: { email: true, name: true } },
                     bankAccount: { select: { bankName: true, accountNumber: true } },
-                },
+                    branch: { select: { id: true, name: true, code: true } } as any,
+                } as any,
             }),
             this.prisma.cashflow.findMany({ where }),
         ]);
@@ -54,12 +79,12 @@ export class CashflowService {
         };
     }
 
-    async getMonthlyTrend() {
+    async getMonthlyTrend(branchCtx: BranchContext) {
         const now = new Date();
         const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
         const cashflows = await this.prisma.cashflow.findMany({
-            where: { date: { gte: sixMonthsAgo } },
+            where: { date: { gte: sixMonthsAgo }, ...branchWhere(branchCtx), ...consolidatedExclusion(branchCtx) } as any,
             select: { type: true, amount: true, date: true },
         });
 
@@ -77,8 +102,8 @@ export class CashflowService {
         });
     }
 
-    async getCategoryBreakdown(startDate?: string, endDate?: string) {
-        const where: Prisma.CashflowWhereInput = {};
+    async getCategoryBreakdown(branchCtx: BranchContext, startDate?: string, endDate?: string) {
+        const where: Prisma.CashflowWhereInput = { ...branchWhere(branchCtx), ...consolidatedExclusion(branchCtx) } as any;
         if (startDate || endDate) {
             where.date = {};
             if (startDate) (where.date as any).gte = new Date(startDate);
@@ -119,14 +144,15 @@ export class CashflowService {
         platformSource?: string | null;
         paymentMethod?: string | null;
         bankAccountId?: number | null;
-    }) {
+    }, branchCtx: BranchContext) {
         const entry = await this.prisma.cashflow.findUnique({ where: { id } });
         if (!entry) throw new NotFoundException('Cashflow entry not found');
+        assertBranchAccess(branchCtx, (entry as any).branchId ?? null);
         return this.prisma.cashflow.update({ where: { id }, data: data as any });
     }
 
-    async getPlatformBreakdown(startDate?: string, endDate?: string) {
-        const where: Prisma.CashflowWhereInput = { type: CashflowType.INCOME };
+    async getPlatformBreakdown(branchCtx: BranchContext, startDate?: string, endDate?: string) {
+        const where: Prisma.CashflowWhereInput = { type: CashflowType.INCOME, ...branchWhere(branchCtx), ...consolidatedExclusion(branchCtx) } as any;
         if (startDate || endDate) {
             where.date = {};
             if (startDate) (where.date as any).gte = new Date(startDate);
@@ -153,9 +179,10 @@ export class CashflowService {
             .sort((a, b) => b.total - a.total);
     }
 
-    async remove(id: number) {
+    async remove(id: number, branchCtx: BranchContext) {
         const entry = await this.prisma.cashflow.findUnique({ where: { id } });
         if (!entry) throw new NotFoundException('Cashflow entry not found');
+        assertBranchAccess(branchCtx, (entry as any).branchId ?? null);
         return this.prisma.cashflow.delete({ where: { id } });
     }
 }

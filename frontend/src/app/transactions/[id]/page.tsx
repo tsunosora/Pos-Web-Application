@@ -52,6 +52,10 @@ interface Transaction {
     createdAt: string;
     items: TransactionItem[];
     printJobs?: PrintJobMini[];
+    branchId?: number | null;
+    productionBranchId?: number | null;
+    branch?: { id: number; name: string; code: string | null } | null;
+    productionBranch?: { id: number; name: string; code: string | null } | null;
 }
 
 interface PrintJobMini {
@@ -319,6 +323,12 @@ export default function TransactionDetailPage() {
                             <h1 className="text-2xl font-bold text-gray-900 font-mono">{trx.invoiceNumber}</h1>
                             {trx.checkoutNumber && (
                                 <p className="text-sm font-mono text-indigo-600 font-semibold mt-0.5">{trx.checkoutNumber}</p>
+                            )}
+                            {trx.productionBranchId != null && trx.productionBranchId !== trx.branchId && (
+                                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full text-xs font-bold"
+                                    title={`Titipan cetak: dari ${trx.branch?.name || '-'} → dikerjakan di ${trx.productionBranch?.name || '-'}`}>
+                                    ⚑ Titipan Cetak — {trx.branch?.name || '?'} → {trx.productionBranch?.name || '?'}
+                                </div>
                             )}
                             <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5" />

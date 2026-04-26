@@ -3,8 +3,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getShiftHistory, resendShiftReport, amendShiftReport } from '@/lib/api';
-import { Clock, Send, Copy, Check, ChevronLeft, ChevronRight, FileText, Pencil, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { Clock, Send, Copy, Check, ChevronLeft, ChevronRight, FileText, Pencil, X, AlertCircle, Plus, Trash2, Loader2, History } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/responsive-table';
 import dayjs from 'dayjs';
+import { useBranchStore } from '@/store/branch-store';
 
 type AmendState = {
     actualCash: string;
@@ -42,6 +45,7 @@ const emptyAmendState = (): AmendState => ({
 
 export default function ShiftHistoryPage() {
     const queryClient = useQueryClient();
+    const activeBranchId = useBranchStore((s) => s.activeBranchId);
     const [page, setPage] = useState(1);
     const [expandedId, setExpandedId] = useState<number | null>(null);
     const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -52,7 +56,7 @@ export default function ShiftHistoryPage() {
     const [amendState, setAmendState] = useState<AmendState>(emptyAmendState());
 
     const { data, isLoading, refetch } = useQuery({
-        queryKey: ['shift-history', page],
+        queryKey: ['shift-history', activeBranchId, page],
         queryFn: () => getShiftHistory(page, 20),
     });
 
@@ -183,23 +187,30 @@ export default function ShiftHistoryPage() {
     const totalPages = Math.ceil(total / 20);
 
     if (isLoading) {
-        return <div className="flex h-64 items-center justify-center text-muted-foreground">Memuat riwayat shift...</div>;
+        return (
+            <div className="flex h-64 items-center justify-center">
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            </div>
+        );
     }
 
     return (
-        <div className="space-y-6 max-w-5xl mx-auto">
-            <div>
-                <h1 className="text-2xl font-bold text-foreground">Riwayat Tutup Shift</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                    Log semua tutup shift beserta backup pesan WhatsApp — bisa disalin atau dikirim ulang jika gagal.
-                </p>
-            </div>
+        <div className="max-w-5xl mx-auto">
+            <PageHeader
+                title="Riwayat Tutup Shift"
+                description="Log semua tutup shift beserta backup pesan WhatsApp — bisa disalin atau dikirim ulang jika gagal"
+                icon={History}
+                breadcrumbs={[{ label: 'Laporan' }, { label: 'Riwayat Shift' }]}
+            />
 
+            <div className="space-y-6">
             {list.length === 0 ? (
-                <div className="glass rounded-xl border border-border p-16 text-center">
-                    <FileText className="w-12 h-12 mx-auto mb-3 text-muted-foreground opacity-30" />
-                    <p className="font-medium text-foreground">Belum ada riwayat shift</p>
-                    <p className="text-sm text-muted-foreground mt-1">Riwayat akan muncul setelah tutup shift pertama.</p>
+                <div className="rounded-xl border border-dashed border-border bg-card">
+                    <EmptyState
+                        icon={FileText}
+                        title="Belum ada riwayat shift"
+                        description="Riwayat akan muncul setelah tutup shift pertama."
+                    />
                 </div>
             ) : (
                 <div className="space-y-3">
@@ -209,7 +220,7 @@ export default function ShiftHistoryPage() {
                         const totalPenerimaan = Number(shift.actualCash) + Number(shift.actualQris) + Number(shift.actualTransfer);
 
                         return (
-                            <div key={shift.id} className="glass rounded-xl border border-border overflow-hidden">
+                            <div key={shift.id} className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
                                 {/* Header baris */}
                                 <div
                                     className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -733,6 +744,7 @@ export default function ShiftHistoryPage() {
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 }

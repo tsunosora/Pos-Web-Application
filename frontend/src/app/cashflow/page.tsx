@@ -5,8 +5,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Plus, ArrowDownRight, ArrowUpRight, ArrowRightLeft, Loader2,
     Pencil, Trash2, TrendingUp, BarChart3, Download, Filter, X, Store,
-    Clock, CheckCircle2, XCircle, AlertTriangle,
+    Clock, CheckCircle2, XCircle, AlertTriangle, Wallet,
 } from "lucide-react";
+import { PageHeader } from '@/components/ui/page-header';
 import {
     getCashflows, createCashflow, updateCashflow, deleteCashflow,
     getCashflowMonthlyTrend, getCashflowCategoryBreakdown, getCashflowPlatformBreakdown,
@@ -15,6 +16,7 @@ import {
     type CashflowChangeRequest,
 } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useBranchStore } from "@/store/branch-store";
 import dayjs from "dayjs";
 import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -384,6 +386,7 @@ function ReviewModal({ request, note, setNote, onClose, onApprove, onReject, isA
 export default function CashflowPage() {
     const queryClient = useQueryClient();
     const { isManager } = useCurrentUser();
+    const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
     // Period filter
     const [period, setPeriod] = useState<PeriodKey>('this_month');
@@ -392,7 +395,7 @@ export default function CashflowPage() {
     const { startDate, endDate } = getPeriodDates(period, customStart, customEnd);
 
     const { data: bankAccounts = [] } = useQuery({
-        queryKey: ['bank-accounts'],
+        queryKey: ['bank-accounts', activeBranchId],
         queryFn: getBankAccounts,
     });
 
@@ -424,22 +427,22 @@ export default function CashflowPage() {
     const [filterType, setFilterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
 
     const { data, isLoading } = useQuery({
-        queryKey: ['cashflows', startDate, endDate],
+        queryKey: ['cashflows', activeBranchId, startDate, endDate],
         queryFn: () => getCashflows(startDate, endDate),
     });
 
     const { data: trendData } = useQuery({
-        queryKey: ['cashflow-trend'],
+        queryKey: ['cashflow-trend', activeBranchId],
         queryFn: getCashflowMonthlyTrend,
     });
 
     const { data: categoryData } = useQuery({
-        queryKey: ['cashflow-categories', startDate, endDate],
+        queryKey: ['cashflow-categories', activeBranchId, startDate, endDate],
         queryFn: () => getCashflowCategoryBreakdown(startDate, endDate),
     });
 
     const { data: platformData } = useQuery({
-        queryKey: ['cashflow-platforms', startDate, endDate],
+        queryKey: ['cashflow-platforms', activeBranchId, startDate, endDate],
         queryFn: () => getCashflowPlatformBreakdown(startDate, endDate),
     });
 
@@ -561,24 +564,27 @@ export default function CashflowPage() {
     const incomeCategories = categoryData?.income ?? [];
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Cashflow Bisnis</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Pantau arus kas masuk dan keluar bisnis Anda.</p>
-                </div>
-                <div className="mt-4 sm:mt-0 flex gap-3">
-                    <button onClick={handleExport} className="flex items-center gap-2 border border-input bg-card text-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors shadow-sm">
-                        <Download className="h-4 w-4" />
-                        Export Excel
-                    </button>
-                    <button onClick={() => setIsDialogOpen(true)} className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
-                        <Plus className="h-4 w-4" />
-                        Tambah Entry
-                    </button>
-                </div>
-            </div>
+        <div>
+            <PageHeader
+                title="Cashflow Bisnis"
+                description="Pantau arus kas masuk dan keluar bisnis Anda"
+                icon={Wallet}
+                breadcrumbs={[{ label: 'Keuangan' }, { label: 'Cashflow' }]}
+                actions={
+                    <>
+                        <button onClick={handleExport} className="inline-flex items-center gap-2 border border-input bg-card text-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-muted/50 transition-colors">
+                            <Download className="h-4 w-4" />
+                            Export
+                        </button>
+                        <button onClick={() => setIsDialogOpen(true)} className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm">
+                            <Plus className="h-4 w-4" />
+                            Tambah Entry
+                        </button>
+                    </>
+                }
+            />
+
+            <div className="space-y-6">
 
             {/* Period filter */}
             <div className="space-y-2">
@@ -619,7 +625,7 @@ export default function CashflowPage() {
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="glass p-5 rounded-xl border border-border">
+                <div className="p-5 rounded-xl border border-border bg-card shadow-sm">
                     <div className="flex items-center gap-3 text-emerald-500 mb-2">
                         <div className="p-2 bg-emerald-500/10 rounded-lg"><ArrowUpRight className="h-5 w-5" /></div>
                         <span className="font-medium text-sm">Total Pemasukan</span>
@@ -627,7 +633,7 @@ export default function CashflowPage() {
                     <h2 className="text-2xl font-bold text-foreground">{fmt(summary.totalIncome)}</h2>
                     <p className="text-xs text-muted-foreground mt-1">{PERIODS.find(p2 => p2.key === period)?.label}</p>
                 </div>
-                <div className="glass p-5 rounded-xl border border-border">
+                <div className="p-5 rounded-xl border border-border bg-card shadow-sm">
                     <div className="flex items-center gap-3 text-destructive mb-2">
                         <div className="p-2 bg-destructive/10 rounded-lg"><ArrowDownRight className="h-5 w-5" /></div>
                         <span className="font-medium text-sm">Total Pengeluaran</span>
@@ -1065,6 +1071,7 @@ export default function CashflowPage() {
                     isRejecting={rejectMutation.isPending}
                 />
             )}
+            </div>
         </div>
     );
 }

@@ -1,19 +1,26 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { BranchContext } from '../common/branch-context.decorator';
+import { branchWhere, requireBranch } from '../common/branch-where.helper';
 
 @Injectable()
 export class StockPurchasesService {
     constructor(private prisma: PrismaService) { }
 
-    async create(data: {
-        invoiceNumber?: string;
-        supplierId?: number;
-        notes?: string;
-        items: { productVariantId: number; quantity: number; unitPrice?: number }[];
-    }) {
+    async create(
+        data: {
+            invoiceNumber?: string;
+            supplierId?: number;
+            notes?: string;
+            items: { productVariantId: number; quantity: number; unitPrice?: number }[];
+        },
+        branchCtx: BranchContext,
+    ) {
         if (!data.items || data.items.length === 0) {
             throw new BadRequestException('Minimal satu item pembelian diperlukan');
         }
+
+        const branchId = requireBranch(branchCtx);
 
         return this.prisma.$transaction(async (tx) => {
             // Buat header pembelian
@@ -22,6 +29,7 @@ export class StockPurchasesService {
                     invoiceNumber: data.invoiceNumber || null,
                     supplierId: data.supplierId || null,
                     notes: data.notes || null,
+                    branchId,
                 },
             });
 
@@ -43,11 +51,19 @@ export class StockPurchasesService {
                 });
                 if (!variant) throw new NotFoundException(`Varian ID ${item.productVariantId} tidak ditemukan`);
 
-                const newStock = Number(variant.stock) + item.quantity;
+                const newGlobalStock = Number(variant.stock) + item.quantity;
 
+                // Update agregat global (cache)
                 await tx.productVariant.update({
                     where: { id: item.productVariantId },
-                    data: { stock: newStock },
+                    data: { stock: newGlobalStock },
+                });
+
+                // Upsert BranchStock (sumber kebenaran per cabang)
+                const bs = await (tx as any).branchStock.upsert({
+                    where: { branchId_productVariantId: { branchId, productVariantId: item.productVariantId } },
+                    update: { stock: { increment: item.quantity } },
+                    create: { branchId, productVariantId: item.productVariantId, stock: item.quantity },
                 });
 
                 await (tx as any).stockPurchaseItem.create({
@@ -65,8 +81,9 @@ export class StockPurchasesService {
                         type: 'IN',
                         quantity: item.quantity,
                         reason: reasonBase,
-                        balanceAfter: newStock,
+                        balanceAfter: Number(bs.stock),
                         referenceId: `purchase-${purchase.id}`,
+                        branchId,
                     } as any,
                 });
             }
@@ -85,8 +102,9 @@ export class StockPurchasesService {
         });
     }
 
-    async findAll() {
+    async findAll(branchCtx: BranchContext) {
         return (this.prisma as any).stockPurchase.findMany({
+            where: { ...branchWhere(branchCtx) },
             include: {
                 supplier: { select: { id: true, name: true } },
                 items: {

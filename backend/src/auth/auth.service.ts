@@ -20,7 +20,17 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { email: user.email, sub: user.id, role: user.roleId };
+    // Multi-cabang: ikutkan branchId & roleName di JWT supaya scoping bisa dilakukan tanpa lookup DB.
+    // roleName dipakai untuk deteksi Owner/SuperAdmin (bypass branch lock).
+    const roleName = user.role?.name ?? null;
+    const branchId = (user as any).branchId ?? null;
+    const payload = {
+      email: user.email,
+      sub: user.id,
+      role: user.roleId,
+      roleName,
+      branchId,
+    };
     return {
       access_token: this.jwtService.sign(payload),
     };

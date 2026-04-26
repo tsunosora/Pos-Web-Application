@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Patch, Body, UseInterceptors, UploadedFiles, Query, Param, ParseIntPipe, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseInterceptors, UploadedFiles, Query, Param, ParseIntPipe, BadRequestException, UseGuards } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ReportsService } from './reports.service';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { compressImage } from '../common/utils/compress-image.util';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 
 export type StructuredExpenseItem = { name: string; amount: number };
 export type StructuredExpenses = Record<string, StructuredExpenseItem[]>;
@@ -44,18 +47,23 @@ export class CloseShiftDto {
     paymentExchanges?: PaymentExchangeItem[]; // Pertukaran antar metode (QRIS↔Tunai, titip transfer, dll)
 }
 
+@UseGuards(JwtAuthGuard)
 @Controller('reports')
 export class ReportsController {
     constructor(private readonly reportsService: ReportsService) { }
 
     @Get('current-shift')
-    async getCurrentShift() {
-        return this.reportsService.calculateCurrentShiftExpectations();
+    async getCurrentShift(@CurrentBranch() branchCtx: BranchContext) {
+        return this.reportsService.calculateCurrentShiftExpectations(branchCtx);
     }
 
     @Get('profit')
-    async getProfitReport(@Query('startDate') startDate?: string, @Query('endDate') endDate?: string) {
-        return this.reportsService.getProfitReport(startDate, endDate);
+    async getProfitReport(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.reportsService.getProfitReport(branchCtx, startDate, endDate);
     }
 
     // Endpoint untuk dropdown daftar staff/kasir
@@ -79,6 +87,7 @@ export class ReportsController {
     async closeShift(
         @Body() body: any,
         @UploadedFiles() files: Express.Multer.File[],
+        @CurrentBranch() branchCtx: BranchContext,
     ) {
         const dto: CloseShiftDto = {
             adminName: body.adminName,
@@ -113,15 +122,16 @@ export class ReportsController {
             await Promise.all(files.map(f => compressImage(f.path)));
         }
 
-        return this.reportsService.closeShift(dto, uploadedPaths);
+        return this.reportsService.closeShift(dto, uploadedPaths, branchCtx);
     }
 
     @Get('shift-history')
     async getShiftHistory(
+        @CurrentBranch() branchCtx: BranchContext,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
     ) {
-        return this.reportsService.getShiftHistory(Number(page || 1), Number(limit || 20));
+        return this.reportsService.getShiftHistory(branchCtx, Number(page || 1), Number(limit || 20));
     }
 
     @Post('shift/:id/resend')

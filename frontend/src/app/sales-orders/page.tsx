@@ -37,6 +37,7 @@ export default function SalesOrdersPage() {
     const { isManager } = useCurrentUser();
     const [activeTab, setActiveTab] = useState<'ALL' | SalesOrderStatus>('ALL');
     const [search, setSearch] = useState('');
+    const [branchFilter, setBranchFilter] = useState('');
 
     const { data, isLoading } = useQuery({
         queryKey: ['sales-orders', activeTab, search],
@@ -47,14 +48,26 @@ export default function SalesOrdersPage() {
         refetchInterval: 30_000,
     });
 
-    const sos: SalesOrder[] = data ?? [];
+    const rawSos: SalesOrder[] = data ?? [];
+
+    // Filter cabang di client (SO already filtered by status+search at server)
+    const sos = useMemo(() => {
+        if (!branchFilter) return rawSos;
+        return rawSos.filter(s => (s as any).branchName === branchFilter);
+    }, [rawSos, branchFilter]);
+
+    // Collect unique branch names for filter dropdown
+    const branchOptions = useMemo(() => {
+        const branches = rawSos.map(s => (s as any).branchName).filter(Boolean) as string[];
+        return Array.from(new Set(branches)).sort();
+    }, [rawSos]);
 
     const summary = useMemo(() => ({
-        total: sos.length,
-        draft: sos.filter(s => s.status === 'DRAFT').length,
-        sent: sos.filter(s => s.status === 'SENT').length,
-        invoiced: sos.filter(s => s.status === 'INVOICED').length,
-    }), [sos]);
+        total: rawSos.length,
+        draft: rawSos.filter(s => s.status === 'DRAFT').length,
+        sent: rawSos.filter(s => s.status === 'SENT').length,
+        invoiced: rawSos.filter(s => s.status === 'INVOICED').length,
+    }), [rawSos]);
 
     return (
         <div className="space-y-4">
@@ -117,15 +130,28 @@ export default function SalesOrdersPage() {
                             </button>
                         ))}
                     </div>
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <input
-                            type="text"
-                            placeholder="Cari SO# / customer..."
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary w-64"
-                        />
+                    <div className="flex items-center gap-2">
+                        {branchOptions.length > 0 && (
+                            <select
+                                value={branchFilter}
+                                onChange={e => setBranchFilter(e.target.value)}
+                                className="py-1.5 px-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                            >
+                                <option value="">Semua Cabang</option>
+                                <option value="">— Pusat —</option>
+                                {branchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                        )}
+                        <div className="relative">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <input
+                                type="text"
+                                placeholder="Cari SO# / customer..."
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                className="pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary w-56"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -145,7 +171,7 @@ export default function SalesOrdersPage() {
                                     <th className="px-3 py-2 text-left font-medium">SO#</th>
                                     <th className="px-3 py-2 text-left font-medium">Tanggal</th>
                                     <th className="px-3 py-2 text-left font-medium">Customer</th>
-                                    <th className="px-3 py-2 text-left font-medium">Desainer</th>
+                                    <th className="px-3 py-2 text-left font-medium">Desainer / Cabang</th>
                                     <th className="px-3 py-2 text-center font-medium">Item</th>
                                     <th className="px-3 py-2 text-left font-medium">Deadline</th>
                                     <th className="px-3 py-2 text-center font-medium">Status</th>
@@ -163,7 +189,14 @@ export default function SalesOrdersPage() {
                                             <div className="font-medium truncate max-w-[200px]">{so.customerName}</div>
                                             {so.customerPhone && <div className="text-xs text-muted-foreground">{so.customerPhone}</div>}
                                         </td>
-                                        <td className="px-3 py-2 text-xs">{so.designerName}</td>
+                                        <td className="px-3 py-2 text-xs">
+                                            <div>{so.designerName}</div>
+                                            {(so as any).branchName && (
+                                                <span className="inline-block mt-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                                                    {(so as any).branchName}
+                                                </span>
+                                            )}
+                                        </td>
                                         <td className="px-3 py-2 text-center">{so.items.length}</td>
                                         <td className="px-3 py-2 text-xs">
                                             {so.deadline ? dayjs(so.deadline).format('DD MMM YYYY') : '—'}

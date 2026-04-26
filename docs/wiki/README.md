@@ -40,6 +40,7 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 18 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, auto-backup via Rclone, dan restore |
 | 19 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | 20 | [🚀 Panduan Deployment](deployment.md) | Setup di home server / VPS dengan Cloudflare Tunnel |
+| 21 | [🏢 Mode Cabang (Multi-Tenant)](mode-cabang.md) | **Multi-cabang** — kelola banyak toko dalam satu sistem, stok/kas/shift terpisah, owner switcher |
 
 ---
 
@@ -597,9 +598,10 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, auto-backup via Rclone, restore |
 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | [🚀 Panduan Deployment Cloudflare](deployment.md) | Setup produksi di Home Server (MySQL, PM2, Cloudflare Tunnel) |
+| [🏢 Mode Cabang Multi-Tenant](mode-cabang.md) | Setup cabang baru, role Owner vs Staff, BranchStock, transfer stok antar cabang, WA per cabang |
 
 ---
 
-*Dokumentasi PosPro — Terakhir diperbarui: 16 April 2026 | v4.0 — Metode KREDIT & Bayar Nanti, Tab DP/Kredit/Bayar Nanti, Pelunasan fleksibel (kasir + waktu), Riwayat Tutup Shift, Rclone Auto-Backup, Pengeluaran Terstruktur per Shift*
+*Dokumentasi PosPro — Terakhir diperbarui: 23 April 2026 | v5.0 — **Mode Cabang Multi-Tenant** (User scoped per branch, BranchStock per cabang, Transfer stok antar cabang, WA group per cabang, Owner switcher), Pengaturan Per Cabang, Identitas nota per cabang*
 
 **© 2026 Muhammad Faisal. All rights reserved.**

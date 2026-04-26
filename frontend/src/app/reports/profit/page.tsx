@@ -4,18 +4,26 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getProfitReport } from '@/lib/api';
 import { exportToExcel, exportToPDF } from '@/lib/export';
-import { Calendar, Download, TrendingUp, BarChart, DollarSign, ArrowUpRight, ArrowDownRight, Package, FileSpreadsheet } from "lucide-react";
+import { Calendar, Download, TrendingUp, BarChart, DollarSign, ArrowUpRight, ArrowDownRight, Package, FileSpreadsheet, Loader2 } from "lucide-react";
+import { PageHeader } from '@/components/ui/page-header';
+import { ResponsiveTable, EmptyState } from '@/components/ui/responsive-table';
+import { useBranchStore } from '@/store/branch-store';
 
 export default function ProfitReportPage() {
     const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
+    const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
     const { data: profitData, isLoading } = useQuery({
-        queryKey: ['profitReport', dateRange],
+        queryKey: ['profitReport', activeBranchId, dateRange],
         queryFn: () => getProfitReport(dateRange.startDate, dateRange.endDate),
     });
 
     if (isLoading) {
-        return <div className="flex h-[80vh] items-center justify-center text-muted-foreground">Memuat Laporan Laba/Rugi...</div>;
+        return (
+            <div className="flex h-[60vh] items-center justify-center">
+                <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+            </div>
+        );
     }
 
     const marginColor = (profitData?.profitMargin || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500';
@@ -66,39 +74,43 @@ export default function ProfitReportPage() {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-300">
-            <div className="sm:flex sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Laporan Laba Kotor</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">Analisis Pendapatan dikurangi Harga Pokok Penjualan (HPP).</p>
-                </div>
-                <div className="mt-4 sm:mt-0 flex flex-wrap gap-3">
-                    <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <input
-                            type="date"
-                            value={dateRange.startDate}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
-                            className="bg-transparent text-sm outline-none text-foreground"
-                        />
-                        <span className="text-muted-foreground">-</span>
-                        <input
-                            type="date"
-                            value={dateRange.endDate}
-                            onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
-                            className="bg-transparent text-sm outline-none text-foreground"
-                        />
-                    </div>
-                    <button onClick={handleExportExcel} className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 text-green-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-500/20 transition-colors shadow-sm">
-                        <FileSpreadsheet className="h-4 w-4" />
-                        Export Excel
-                    </button>
-                    <button onClick={handleExportPDF} className="flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors shadow-sm">
-                        <Download className="h-4 w-4" />
-                        Export PDF
-                    </button>
-                </div>
-            </div>
+        <div className="animate-in fade-in duration-300">
+            <PageHeader
+                title="Laporan Laba Kotor"
+                description="Analisis Pendapatan dikurangi Harga Pokok Penjualan (HPP)"
+                icon={TrendingUp}
+                breadcrumbs={[{ label: 'Laporan' }, { label: 'Laba Kotor' }]}
+                actions={
+                    <>
+                        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <input
+                                type="date"
+                                value={dateRange.startDate}
+                                onChange={(e) => setDateRange(prev => ({ ...prev, startDate: e.target.value }))}
+                                className="bg-transparent text-sm outline-none text-foreground"
+                            />
+                            <span className="text-muted-foreground">-</span>
+                            <input
+                                type="date"
+                                value={dateRange.endDate}
+                                onChange={(e) => setDateRange(prev => ({ ...prev, endDate: e.target.value }))}
+                                className="bg-transparent text-sm outline-none text-foreground"
+                            />
+                        </div>
+                        <button onClick={handleExportExcel} className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-500/20 transition-colors">
+                            <FileSpreadsheet className="h-4 w-4" />
+                            Excel
+                        </button>
+                        <button onClick={handleExportPDF} className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors">
+                            <Download className="h-4 w-4" />
+                            PDF
+                        </button>
+                    </>
+                }
+            />
+
+            <div className="space-y-6">
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-center">
@@ -201,15 +213,19 @@ export default function ProfitReportPage() {
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-muted-foreground">
-                                        <BarChart className="h-8 w-8 mx-auto mb-3 opacity-20" />
-                                        Belum ada data penjualan pada periode ini.
+                                    <td colSpan={6} className="px-6 py-2">
+                                        <EmptyState
+                                            icon={BarChart}
+                                            title="Belum ada data"
+                                            description="Belum ada penjualan pada periode ini. Coba pilih rentang tanggal yang lain."
+                                        />
                                     </td>
                                 </tr>
                             )}
                         </tbody>
                     </table>
                 </div>
+            </div>
             </div>
         </div>
     );

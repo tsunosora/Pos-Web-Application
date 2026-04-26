@@ -18,6 +18,10 @@ export class PrintQueueService {
                     customerPhone: true,
                     status: true,
                     createdAt: true,
+                    branchId: true,
+                    productionBranchId: true,
+                    branch: { select: { id: true, name: true, code: true } },
+                    productionBranch: { select: { id: true, name: true, code: true } },
                 },
             },
             transactionItem: {
@@ -59,9 +63,10 @@ export class PrintQueueService {
         return `${prefix}${String(nextSeq).padStart(4, '0')}`;
     }
 
-    async listJobs(status?: PrintJobStatus, search?: string) {
+    async listJobs(status?: PrintJobStatus, search?: string, branchId?: number) {
         const where: any = {};
         if (status) where.status = status;
+        if (branchId) where.branchId = branchId;
         if (search && search.trim()) {
             const q = search.trim();
             where.OR = [
@@ -71,19 +76,43 @@ export class PrintQueueService {
                 { transaction: { customerName: { contains: q } } },
             ];
         }
-        return (this.prisma as any).printJob.findMany({
+        const jobs = await (this.prisma as any).printJob.findMany({
             where,
             include: this.jobInclude(),
             orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
         });
+        return this.filterPendingTitipan(jobs);
     }
 
-    async stats() {
+    /**
+     * Sembunyikan job titipan yang belum di-"Terima & Kerjakan" oleh cabang tujuan.
+     * Kriteria: transaction.branchId != transaction.productionBranchId (titipan)
+     *           AND handoverStatus IN (NULL, 'BARU')
+     */
+    private async filterPendingTitipan(jobs: any[]): Promise<any[]> {
+        if (!jobs?.length) return jobs;
+        const txIds = Array.from(new Set(jobs.map(j => j.transaction?.id).filter(Boolean)));
+        if (!txIds.length) return jobs;
+        const rows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT id, branch_id, production_branch_id, handover_status
+             FROM transactions WHERE id IN (${txIds.join(',')})`,
+        );
+        const hidden = new Set<number>();
+        for (const r of rows) {
+            const isTitipan = r.production_branch_id != null && Number(r.production_branch_id) !== Number(r.branch_id);
+            const notAck = !r.handover_status || r.handover_status === 'BARU';
+            if (isTitipan && notAck) hidden.add(Number(r.id));
+        }
+        return jobs.filter(j => !hidden.has(Number(j.transaction?.id)));
+    }
+
+    async stats(branchId?: number) {
+        const bw = branchId ? { branchId } : {};
         const [antrian, proses, selesai, diambil] = await Promise.all([
-            (this.prisma as any).printJob.count({ where: { status: 'ANTRIAN' } }),
-            (this.prisma as any).printJob.count({ where: { status: 'PROSES' } }),
-            (this.prisma as any).printJob.count({ where: { status: 'SELESAI' } }),
-            (this.prisma as any).printJob.count({ where: { status: 'DIAMBIL' } }),
+            (this.prisma as any).printJob.count({ where: { status: 'ANTRIAN', ...bw } }),
+            (this.prisma as any).printJob.count({ where: { status: 'PROSES', ...bw } }),
+            (this.prisma as any).printJob.count({ where: { status: 'SELESAI', ...bw } }),
+            (this.prisma as any).printJob.count({ where: { status: 'DIAMBIL', ...bw } }),
         ]);
         return { antrian, proses, selesai, diambil };
     }
@@ -133,9 +162,16 @@ export class PrintQueueService {
         });
     }
 
-    async verifyPin(pin: string) {
-        const settings = await this.prisma.storeSettings.findFirst();
-        const pin_ = (settings as any)?.operatorPin;
+    async verifyPin(pin: string, branchId?: number) {
+        let pin_: string | null | undefined = null;
+        if (branchId) {
+            const bs = await (this.prisma as any).branchSettings.findUnique({ where: { branchId } });
+            pin_ = bs?.operatorPin ?? null;
+        }
+        if (!pin_) {
+            const settings = await this.prisma.storeSettings.findFirst();
+            pin_ = (settings as any)?.operatorPin;
+        }
         if (!pin_) {
             return { valid: false, message: 'PIN operator belum dikonfigurasi. Hubungi admin.' };
         }

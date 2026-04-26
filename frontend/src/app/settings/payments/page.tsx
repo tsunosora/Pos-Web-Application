@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getSettings, uploadQrisImage, getBankAccounts, createBankAccount, updateBankAccount, deleteBankAccount } from "@/lib/api";
-import { Loader2, UploadCloud, Plus, Settings2, Trash2 } from "lucide-react";
+import { Loader2, UploadCloud, Plus, Settings2, Trash2, CreditCard } from "lucide-react";
 import Image from "next/image";
 
 export default function PaymentSettings() {
@@ -82,12 +82,20 @@ export default function PaymentSettings() {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Metode Pembayaran</h1>
+            <div className="flex items-start gap-3 pb-4 mb-6 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <CreditCard className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight">Metode Pembayaran</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">QRIS toko & daftar rekening bank yang ditampilkan di kasir.</p>
+                </div>
+            </div>
 
-            <div className="grid lg:grid-cols-2 gap-8 items-start">
+            <div className="grid lg:grid-cols-2 gap-6 items-start">
 
                 {/* QRIS SECTION */}
-                <div className="glass bg-card/50 rounded-xl p-6 border border-border">
+                <div className="rounded-xl p-6 border border-border bg-background/50">
                     <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                         <UploadCloud className="h-5 w-5 text-primary" />
                         Kode QRIS Toko
@@ -118,7 +126,7 @@ export default function PaymentSettings() {
                 </div>
 
                 {/* BANK TRANSFER SECTION */}
-                <div className="glass bg-card/50 rounded-xl p-6 border border-border flex flex-col">
+                <div className="rounded-xl p-6 border border-border bg-background/50 flex flex-col">
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-lg font-bold flex items-center gap-2">
                             <Settings2 className="h-5 w-5 text-primary" />
@@ -176,7 +184,7 @@ export default function PaymentSettings() {
             {/* Bank Form Modal */}
             {showBankForm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-sm rounded-xl border border-border shadow-lg overflow-hidden">
+                    <div className="bg-card w-full max-w-sm rounded-xl border border-border shadow-lg overflow-hidden">
                         <div className="p-4 border-b border-border">
                             <h3 className="font-bold">{bankForm.id ? "Edit Rekening" : "Tambah Rekening Baru"}</h3>
                         </div>

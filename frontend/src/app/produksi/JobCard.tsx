@@ -31,6 +31,18 @@ export function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onC
     const h = job.transactionItem?.heightCm ? Number(job.transactionItem.heightCm) : null;
     const sambung = getSambungInfo(w, h, maxRollEffectiveWidth);
     const isUnit = job.transactionItem?.productVariant?.product?.pricingMode === 'UNIT';
+    // Titip cetak: job dikerjakan di cabang ini, tapi transaksinya dari cabang lain.
+    const isInterBranch = job.transaction?.branch && job.branchId
+        && job.transaction.branch.id !== job.branchId;
+    const sourceBranchLabel = isInterBranch
+        ? (job.transaction.branch.code
+            ? `${job.transaction.branch.code}`
+            : job.transaction.branch.name)
+        : null;
+    // Label nota pemilik — cabang asal transaksi (yang jualan & dapat revenue)
+    const ownerBranchName: string | null = job.transaction?.branch?.name || null;
+    const ownerBranchCode: string | null = job.transaction?.branch?.code || null;
+    const ownerLabel = ownerBranchCode || ownerBranchName;
 
     return (
         <div
@@ -50,6 +62,15 @@ export function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onC
                         {isExpress && (
                             <span className="text-[10px] font-bold px-2 py-0.5 bg-red-500 text-white rounded-full">EXPRESS</span>
                         )}
+                        {isInterBranch ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-500/15 text-amber-600 border border-amber-500/30 rounded-full" title={`Titipan cetak dari cabang ${job.transaction.branch.name}`}>
+                                ⚑ Titipan {sourceBranchLabel}
+                            </span>
+                        ) : ownerLabel ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-sky-500/15 text-sky-700 border border-sky-500/30 rounded-full" title={`Nota milik ${ownerBranchName}`}>
+                                🏢 {ownerLabel}
+                            </span>
+                        ) : null}
                         {sambung.needsSambung && (
                             <span className="text-[10px] font-bold px-2 py-0.5 bg-orange-500/15 text-orange-600 border border-orange-500/30 rounded-full">SAMBUNG ×{sambung.strips}</span>
                         )}

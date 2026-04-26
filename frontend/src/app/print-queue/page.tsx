@@ -137,7 +137,30 @@ export default function PrintQueueAdminPage() {
                                 <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-500">Tidak ada job.</td></tr>
                             ) : jobs.map(j => (
                                 <tr key={j.id} className="border-t hover:bg-gray-50">
-                                    <td className="px-3 py-2 font-mono text-xs text-indigo-700 font-bold">{j.jobNumber}</td>
+                                    <td className="px-3 py-2 font-mono text-xs text-indigo-700 font-bold">
+                                        {j.jobNumber}
+                                        {(() => {
+                                            const isTitipan = j.transaction.productionBranchId != null && j.transaction.productionBranchId !== j.transaction.branchId;
+                                            const ownerLabel = j.transaction.branch?.code || j.transaction.branch?.name;
+                                            if (isTitipan) {
+                                                return (
+                                                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full"
+                                                        title={`Titipan cetak dari ${j.transaction.branch?.name || '-'}`}>
+                                                        ⚑ Titipan {ownerLabel || '?'}
+                                                    </div>
+                                                );
+                                            }
+                                            if (ownerLabel) {
+                                                return (
+                                                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 bg-sky-500/15 text-sky-700 border border-sky-500/30 rounded-full"
+                                                        title={`Nota milik ${j.transaction.branch?.name || '-'}`}>
+                                                        🏢 {ownerLabel}
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        })()}
+                                    </td>
                                     <td className="px-3 py-2">
                                         <Link href={`/transactions/${j.transaction.id}`} className="font-mono text-xs text-indigo-700 hover:underline">{j.transaction.invoiceNumber}</Link>
                                         {j.transaction.checkoutNumber && (

@@ -16,6 +16,10 @@ export const BACKUP_GROUPS = {
         label: 'Master Data',
         tables: ['role', 'category', 'unit', 'storeSettings', 'bankAccount', 'branch'],
     },
+    branches: {
+        label: 'Cabang & Pengaturan Cabang',
+        tables: ['companyBranch', 'branchSettings', 'branchStock'],
+    },
     users: {
         label: 'Pengguna',
         tables: ['user'],
@@ -44,9 +48,21 @@ export const BACKUP_GROUPS = {
         label: 'Invoice & Penawaran',
         tables: ['invoice', 'invoiceItem'],
     },
+    salesOrders: {
+        label: 'Sales Order & Designer',
+        tables: ['designer', 'salesOrder', 'salesOrderItem', 'salesOrderProof'],
+    },
     production: {
-        label: 'Produksi',
-        tables: ['productionBatch', 'productionJob'],
+        label: 'Produksi & Antrian Cetak',
+        tables: ['productionBatch', 'productionJob', 'printJob'],
+    },
+    branchWorkOrders: {
+        label: 'Work Order Antar Cabang',
+        tables: ['branchWorkOrder', 'branchWorkOrderItem'],
+    },
+    clickCounting: {
+        label: 'Click Counting (Mesin Cetak)',
+        tables: ['clickRate', 'clickLog', 'machineReject', 'meterReading'],
     },
     opname: {
         label: 'Stok Opname',
@@ -62,9 +78,15 @@ export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
 
 // Urutan restore — penting untuk FK integrity
 const RESTORE_ORDER = [
-    'role', 'storeSettings', 'bankAccount', 'category', 'unit', 'branch', 'competitor',
-    'user', 'customer', 'supplier',
+    'role', 'storeSettings', 'category', 'unit', 'branch', 'competitor',
+    'companyBranch',                            // tenant root — sebelum semua model operasional ber-branchId
+    'bankAccount',                              // FK → companyBranch
+    'branchSettings',                           // FK → companyBranch
+    'designer',                                 // sebelum salesOrder
+    'user',                                     // FK → role + companyBranch (nullable untuk Owner)
+    'customer', 'supplier',
     'product', 'productVariant',
+    'branchStock',                              // FK → companyBranch + productVariant
     'ingredient', 'variantIngredient', 'variantPriceTier',
     'batch', 'stockMovement', 'supplierItem',
     'stockPurchase', 'stockPurchaseItem',       // pembelian stok → setelah supplier & variant
@@ -74,7 +96,10 @@ const RESTORE_ORDER = [
     'cashflow', 'cashflowChangeRequest',        // cashflowChangeRequest → setelah cashflow & user
     'transactionEditRequest',                   // → setelah transaction & user
     'invoice', 'invoiceItem',
-    'productionBatch', 'productionJob',
+    'salesOrder', 'salesOrderItem', 'salesOrderProof',
+    'productionBatch', 'productionJob', 'printJob',
+    'branchWorkOrder', 'branchWorkOrderItem',
+    'clickRate', 'clickLog', 'machineReject', 'meterReading',
     'stockOpnameSession', 'stockOpnameItem',
 ];
 
@@ -126,7 +151,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '2.1',
+                version: '3.0', // Mode Cabang Multi-Tenant (companyBranch, branchSettings, branchStock, click counting, sales order, branch work order)
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

@@ -9,6 +9,7 @@ export interface DesignerSession {
     id: number;
     name: string;
     pin: string;
+    branchName?: string | null;
 }
 
 export function useDesignerSession(redirectIfNone = true): DesignerSession | null {

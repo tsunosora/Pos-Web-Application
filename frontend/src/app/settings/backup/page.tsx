@@ -13,9 +13,10 @@ import { getBackupGroups, exportBackup, previewBackupFile, restoreBackup,
     getRcloneStatus, saveRcloneSettings, triggerRcloneBackup } from "@/lib/api";
 
 const ICON_MAP: Record<string, string> = {
-    master: "🏷️", users: "👤", products: "📦", suppliers: "🚚",
+    master: "🏷️", branches: "🏢", users: "👤", products: "📦", suppliers: "🚚",
     customers: "👥", hpp: "🧮", transactions: "💰", invoices: "📄",
-    production: "🏭", opname: "📋", reports: "📊",
+    salesOrders: "🎨", production: "🏭", branchWorkOrders: "🔁",
+    clickCounting: "🖨️", opname: "📋", reports: "📊",
 };
 
 export default function BackupPage() {
@@ -231,22 +232,20 @@ export default function BackupPage() {
     ];
 
     return (
-        <div className="max-w-5xl mx-auto space-y-8 pb-20">
+        <div className="max-w-5xl mx-auto space-y-6 pb-20 p-6">
             {/* Header */}
-            <div className="flex items-center gap-4">
-                <Link href="/settings" className="p-2 bg-muted/50 rounded-lg hover:bg-muted transition-colors">
-                    <ArrowLeft className="w-5 h-5" />
-                </Link>
+            <div className="flex items-start gap-3 pb-4 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <Database className="h-5 w-5" />
+                </div>
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <Database className="w-6 h-6 text-primary" /> Backup & Recovery
-                    </h1>
+                    <h1 className="text-xl font-bold tracking-tight">Backup & Recovery</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">Ekspor semua data & foto ke file ZIP, atau restore dari file backup ke sistem baru.</p>
                 </div>
             </div>
 
             {/* ── QUICK ACTION: Backup Lengkap ─────────────────────────────── */}
-            <div className="glass p-5 rounded-xl border border-primary/30 bg-primary/5 shadow-sm">
+            <div className="p-5 rounded-xl border border-primary/30 bg-primary/5 shadow-sm">
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="flex items-center gap-3 flex-1">
                         <div className="p-2.5 bg-primary/10 rounded-xl">
@@ -279,7 +278,7 @@ export default function BackupPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
 
                 {/* ── SECTION BACKUP / EXPORT ─────────────────────────────── */}
-                <div className="glass p-6 rounded-xl border border-border shadow-sm space-y-5">
+                <div className="p-6 rounded-xl border border-border bg-background/50 shadow-sm space-y-5">
                     <div className="flex items-center gap-3 border-b border-border pb-4">
                         <div className="p-2 bg-blue-100 dark:bg-blue-950/40 rounded-lg">
                             <Download className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -372,7 +371,7 @@ export default function BackupPage() {
                 </div>
 
                 {/* ── SECTION RESTORE / IMPORT ────────────────────────────── */}
-                <div className="glass p-6 rounded-xl border border-border shadow-sm space-y-5">
+                <div className="p-6 rounded-xl border border-border bg-background/50 shadow-sm space-y-5">
                     <div className="flex items-center gap-3 border-b border-border pb-4">
                         <div className="p-2 bg-green-100 dark:bg-green-950/40 rounded-lg">
                             <Upload className="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -564,7 +563,7 @@ export default function BackupPage() {
             </div>
 
             {/* ── Panduan ─────────────────────────────────────────────────── */}
-            <div className="glass p-6 rounded-xl border border-border shadow-sm">
+            <div className="p-6 rounded-xl border border-border bg-background/50 shadow-sm">
                 <h3 className="font-semibold text-sm mb-4 flex items-center gap-2">
                     <Shield className="w-4 h-4 text-primary" /> Panduan Backup & Recovery
                 </h3>
@@ -600,7 +599,7 @@ export default function BackupPage() {
             {/* ═══════════════════════════════════════════════════════════════
                 RCLONE AUTO-BACKUP
             ═══════════════════════════════════════════════════════════════ */}
-            <div className="glass rounded-2xl border border-border overflow-hidden">
+            <div className="rounded-2xl border border-border bg-background/50 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-border bg-muted/20 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-emerald-500/10 rounded-lg"><Server className="w-5 h-5 text-emerald-600" /></div>

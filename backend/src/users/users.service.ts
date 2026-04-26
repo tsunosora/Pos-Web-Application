@@ -11,13 +11,30 @@ export class UsersService {
     const salt = await bcrypt.genSalt();
     const passwordHash = await bcrypt.hash(createUserDto.password, salt);
 
+    // Multi-cabang: validasi branchId — kalau role bukan Owner/SuperAdmin, branchId wajib.
+    const roleId = createUserDto.roleId ? parseInt(createUserDto.roleId.toString()) : null;
+    let branchId: number | null = createUserDto.branchId
+      ? parseInt(createUserDto.branchId.toString())
+      : null;
+
+    if (roleId) {
+      const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+      const roleName = role?.name?.toUpperCase() ?? '';
+      const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
+      if (!isOwner && branchId == null) {
+        throw new Error('Cabang wajib dipilih untuk role non-Owner.');
+      }
+      if (isOwner) branchId = null; // Owner selalu null
+    }
+
     return this.prisma.user.create({
       data: {
         name: createUserDto.name,
         email: createUserDto.email,
         phone: createUserDto.phone,
         passwordHash,
-        roleId: createUserDto.roleId ? parseInt(createUserDto.roleId.toString()) : null,
+        roleId,
+        branchId,
       },
     });
   }
@@ -32,7 +49,14 @@ export class UsersService {
   async findById(id: number) {
     return this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, email: true, role: { select: { id: true, name: true } } },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        branchId: true,
+        role: { select: { id: true, name: true } },
+        branch: { select: { id: true, name: true, code: true } },
+      },
     });
   }
 
@@ -45,6 +69,8 @@ export class UsersService {
         phone: true,
         roleId: true,
         role: true,
+        branchId: true,
+        branch: { select: { id: true, name: true, code: true } },
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' }
@@ -57,12 +83,30 @@ export class UsersService {
     });
   }
 
-  async updateUser(id: number, data: { name?: string, roleId?: number, phone?: string, password?: string }) {
+  async updateUser(id: number, data: { name?: string, roleId?: number, phone?: string, password?: string, branchId?: number | null }) {
     let updateData: any = {
       name: data.name,
       phone: data.phone,
       roleId: data.roleId || null,
     };
+
+    // Multi-cabang: validasi & set branchId hanya kalau branchId dikirim secara eksplisit.
+    // Kalau hanya roleId yang berubah (inline role-change), jangan sentuh branchId sama sekali.
+    if (data.branchId !== undefined) {
+      const roleId = data.roleId != null ? parseInt(data.roleId.toString()) : null;
+      let branchId: number | null = data.branchId != null ? parseInt(data.branchId.toString()) : null;
+
+      if (roleId) {
+        const role = await this.prisma.role.findUnique({ where: { id: roleId } });
+        const roleName = role?.name?.toUpperCase() ?? '';
+        const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
+        if (!isOwner && branchId == null) {
+          throw new Error('Cabang wajib dipilih untuk role non-Owner.');
+        }
+        if (isOwner) branchId = null;
+      }
+      updateData.branchId = branchId;
+    }
 
     if (data.password) {
       const salt = await bcrypt.genSalt();
@@ -72,7 +116,10 @@ export class UsersService {
     return this.prisma.user.update({
       where: { id },
       data: updateData,
-      select: { id: true, name: true, email: true, phone: true, role: true }
+      select: {
+        id: true, name: true, email: true, phone: true, role: true,
+        branchId: true, branch: { select: { id: true, name: true, code: true } }
+      }
     });
   }
 

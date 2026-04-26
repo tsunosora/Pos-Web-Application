@@ -153,6 +153,12 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
         onSuccess: (updated) => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
             queryClient.invalidateQueries({ queryKey: ['salesSummary'] });
+            // Stok & pergerakan stok bisa berubah karena edit (remove/add/ubah qty item).
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
+            queryClient.invalidateQueries({ queryKey: ['branch-stocks'] });
+            queryClient.invalidateQueries({ queryKey: ['production-jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['print-queue'] });
             onSuccess(updated);
         },
     });
@@ -170,6 +176,13 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
             queryClient.invalidateQueries({ queryKey: ['salesSummary'] });
+            // Stok bahan dikembalikan di backend — refresh daftar produk, history stok, cashflow, dan antrian.
+            queryClient.invalidateQueries({ queryKey: ['products'] });
+            queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
+            queryClient.invalidateQueries({ queryKey: ['branch-stocks'] });
+            queryClient.invalidateQueries({ queryKey: ['cashflow'] });
+            queryClient.invalidateQueries({ queryKey: ['production-jobs'] });
+            queryClient.invalidateQueries({ queryKey: ['print-queue'] });
             onDeleted?.();
             onClose();
         },
@@ -513,21 +526,29 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
                                 <Trash2 className="w-3.5 h-3.5" /> Hapus Transaksi
                             </button>
                         ) : (
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-red-600 font-medium">Yakin hapus?</span>
-                                <button
-                                    onClick={() => deleteMutation.mutate()}
-                                    disabled={deleteMutation.isPending}
-                                    className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
-                                >
-                                    {deleteMutation.isPending ? 'Menghapus...' : 'Ya, Hapus'}
-                                </button>
-                                <button
-                                    onClick={() => setDeleteConfirm('idle')}
-                                    className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors"
-                                >
-                                    Batal
-                                </button>
+                            <div className="flex flex-col gap-1.5 max-w-md">
+                                <div className="text-xs text-red-600 font-semibold leading-snug">
+                                    Yakin hapus transaksi <span className="font-mono">{transaction?.invoiceNumber}</span>?
+                                </div>
+                                <div className="text-[11px] text-muted-foreground leading-snug">
+                                    Stok bahan yang dipotong dari transaksi ini akan <strong>otomatis dikembalikan</strong> ke gudang cabang.
+                                    Cashflow (pendapatan / diskon) terkait juga akan dihapus. Tindakan ini tidak bisa dibatalkan.
+                                </div>
+                                <div className="flex items-center gap-2 pt-0.5">
+                                    <button
+                                        onClick={() => deleteMutation.mutate()}
+                                        disabled={deleteMutation.isPending}
+                                        className="px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 transition-colors disabled:opacity-50"
+                                    >
+                                        {deleteMutation.isPending ? 'Menghapus & Mengembalikan Stok...' : 'Ya, Hapus & Kembalikan Stok'}
+                                    </button>
+                                    <button
+                                        onClick={() => setDeleteConfirm('idle')}
+                                        className="px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-muted transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                </div>
                             </div>
                         )
                     )}

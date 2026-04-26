@@ -34,13 +34,20 @@ import { ClickCountingModule } from './click-counting/click-counting.module';
 import { PrintQueueModule } from './print-queue/print-queue.module';
 import { SalesOrdersModule } from './sales-orders/sales-orders.module';
 import { DesignersModule } from './designers/designers.module';
+import { CompanyBranchesModule } from './company-branches/company-branches.module';
+import { BranchWorkOrdersModule } from './branch-work-orders/branch-work-orders.module';
+import { StockTransferModule } from './stock-transfer/stock-transfer.module';
+import { BranchStockModule } from './branch-stock/branch-stock.module';
+import { BranchSettingsModule } from './branch-settings/branch-settings.module';
+import { BranchInboxModule } from './branch-inbox/branch-inbox.module';
+import { BranchLedgerModule } from './branch-ledger/branch-ledger.module';
 
 @Module({
   imports: [
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'public'), // Serve local uploads
     }),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule],
+    PrismaModule, UsersModule, AuthModule, CategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule],
   controllers: [AppController],
   providers: [AppService],
 })

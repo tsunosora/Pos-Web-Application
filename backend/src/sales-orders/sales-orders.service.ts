@@ -12,6 +12,7 @@ export interface CreateSalesOrderDto {
     customerPhone?: string | null;
     customerAddress?: string | null;
     designerName: string;
+    branchName?: string | null; // cabang asal SO (auto dari designer.branchName atau manual)
     notes?: string | null;
     deadline?: string | null; // ISO
     items: {
@@ -137,6 +138,7 @@ export class SalesOrdersService {
                 customerPhone: data.customerPhone ?? null,
                 customerAddress: data.customerAddress ?? null,
                 designerName: data.designerName,
+                branchName: data.branchName ?? null,
                 notes: data.notes ?? null,
                 deadline: data.deadline ? new Date(data.deadline) : null,
                 items: {

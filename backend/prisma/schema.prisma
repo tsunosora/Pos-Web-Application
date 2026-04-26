@@ -55,16 +55,20 @@ model User {
   phone        String?   @db.VarChar(50)
   passwordHash String    @map("password_hash") @db.VarChar(200)
   roleId       Int?      @map("role_id")
+  branchId     Int?      @map("branch_id") // Cabang tempat user ditugaskan; null = Owner/SuperAdmin (akses semua cabang)
   createdAt    DateTime? @default(now()) @map("created_at")
   updatedAt    DateTime? @default(now()) @map("updated_at")
 
-  role      Role?      @relation(fields: [roleId], references: [id])
+  role      Role?          @relation(fields: [roleId], references: [id])
+  branch    CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
   cashflows Cashflow[]
   cashflowRequests    CashflowChangeRequest[]    @relation("CashflowRequests")
   cashflowReviews     CashflowChangeRequest[]    @relation("CashflowReviews")
   editRequests        TransactionEditRequest[]   @relation("EditRequests")
   editReviews         TransactionEditRequest[]   @relation("EditReviews")
+  stockTransfers      StockTransfer[]
 
+  @@index([branchId])
   @@map("users")
 }
 
@@ -158,8 +162,30 @@ model ProductVariant {
   hppWorksheets           HppWorksheet[]
   purchaseItems           StockPurchaseItem[]
   salesOrderItems         SalesOrderItem[]
+  branchWorkOrderItems    BranchWorkOrderItem[]
+  branchStocks            BranchStock[]
+  transferItems           StockTransferItem[]
 
   @@map("product_variants")
+}
+
+// Stok per cabang. Sumber kebenaran stok di multi-cabang.
+// `ProductVariant.stock` tetap dipertahankan sebagai cache agregat (sum semua cabang)
+// supaya kode lama (laporan HPP, dll.) tidak pecah.
+model BranchStock {
+  id               Int      @id @default(autoincrement())
+  branchId         Int      @map("branch_id")
+  productVariantId Int      @map("product_variant_id")
+  stock            Int      @default(0)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at")
+
+  branch         CompanyBranch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, productVariantId])
+  @@index([branchId])
+  @@index([productVariantId])
+  @@map("branch_stocks")
 }
 
 model Ingredient {
@@ -184,11 +210,14 @@ model Batch {
   batchNumber      String    @unique @map("batch_number") @db.VarChar(100)
   expirationDate   DateTime? @map("expiration_date") @db.Date
   stock            Int       @default(0)
+  branchId         Int?      @map("branch_id")
   createdAt        DateTime? @default(now()) @map("created_at")
   updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at")
 
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  branch         CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@map("batches")
 }
 
@@ -217,11 +246,14 @@ model StockMovement {
   reason           String?      @db.VarChar(255)
   balanceAfter     Float?       @map("balance_after")
   referenceId      String?      @db.VarChar(100) @map("reference_id")
+  branchId         Int?         @map("branch_id")
   date             DateTime?    @default(now())
   createdAt        DateTime?    @default(now()) @map("created_at")
 
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  branch         CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@map("stock_movements")
 }
 
@@ -264,6 +296,20 @@ model Transaction {
   checkoutNumber      String?           @unique @map("checkout_number") @db.VarChar(100)
   paidAt              DateTime?         @map("paid_at")
   checkoutCashierName String?           @map("checkout_cashier_name") @db.VarChar(100)
+  branchName          String?           @map("branch_name") @db.VarChar(100) // Tag display asal SO dari desainer eksternal (free-text, diturunkan dari SalesOrder.branchName). BUKAN sumber scoping tenant — pakai branchId untuk itu.
+  branchId            Int?              @map("branch_id") // FK ke CompanyBranch — authoritative untuk scoping multi-cabang
+  // Titip cetak ke cabang lain: kalau diisi & berbeda dari branchId, maka ProductionJob/PrintJob/ClickLog
+  // dibuat di cabang produksi (bukan di cabang transaksi). Pendapatan tetap di branchId (cabang kasir).
+  productionBranchId  Int?              @map("production_branch_id")
+  // Status fulfillment titipan cetak dari sisi cabang penerima (independen dari status produksi per-item).
+  // BARU = baru masuk inbox, belum di-acknowledge operator cabang tujuan.
+  // DIPROSES = operator cabang tujuan sudah buka & acknowledge, sedang dikerjakan.
+  // SIAP_AMBIL = semua item selesai dikerjakan, menunggu diambil/dikirim.
+  // DISERAHKAN = sudah diserahkan ke kurir/pengambil (flow titipan selesai).
+  handoverStatus      String?           @default("BARU") @map("handover_status") @db.VarChar(20)
+  handoverAckAt       DateTime?         @map("handover_ack_at")
+  handoverReadyAt     DateTime?         @map("handover_ready_at")
+  handoverDoneAt      DateTime?         @map("handover_done_at")
   createdAt          DateTime?         @default(now()) @map("created_at")
   updatedAt          DateTime?         @default(now()) @updatedAt @map("updated_at")
 
@@ -273,7 +319,12 @@ model Transaction {
   printJobs      PrintJob[]
   editRequests   TransactionEditRequest[]
   salesOrder     SalesOrder?
+  branch         CompanyBranch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  productionBranch CompanyBranch?       @relation("TransactionProductionBranch", fields: [productionBranchId], references: [id], onDelete: SetNull)
+  interBranchLedger InterBranchLedger?
 
+  @@index([branchId])
+  @@index([productionBranchId])
   @@map("transactions")
 }
 
@@ -317,6 +368,8 @@ model Cashflow {
   bankAccountId Int?           @map("bank_account_id")
   paymentMethod  PaymentMethod? @map("payment_method")
   platformSource String?        @map("platform_source") @db.VarChar(100)
+  branchName     String?        @map("branch_name") @db.VarChar(100) // Tag display (mirror dari Transaction.branchName untuk konteks WA). BUKAN sumber scoping — pakai branchId.
+  branchId       Int?           @map("branch_id") // FK cabang — authoritative untuk scoping
   date           DateTime       @default(now())
   shiftReportId    Int?     @map("shift_report_id") // tag pengeluaran ke shift tertentu
   excludeFromShift Boolean  @default(false) @map("exclude_from_shift") // true = tidak masuk laporan shift manapun (retroaktif/lupa)
@@ -326,8 +379,10 @@ model Cashflow {
   user           User?        @relation(fields: [userId], references: [id])
   bankAccount    BankAccount? @relation(fields: [bankAccountId], references: [id])
   shiftReport    ShiftReport? @relation(fields: [shiftReportId], references: [id], onDelete: SetNull)
+  branch         CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
   changeRequests CashflowChangeRequest[]
 
+  @@index([branchId])
   @@map("cashflows")
 }
 
@@ -533,12 +588,15 @@ model BankAccount {
   accountOwner   String    @map("account_owner") @db.VarChar(100)
   currentBalance Decimal   @default(0) @map("current_balance") @db.Decimal(15, 2)
   isActive       Boolean   @default(true) @map("is_active")
+  branchId       Int?      @map("branch_id")
   createdAt      DateTime? @default(now()) @map("created_at")
   updatedAt      DateTime? @default(now()) @updatedAt @map("updated_at")
 
   transactions Transaction[]
   cashflows    Cashflow[]
+  branch       CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@map("bank_accounts")
 }
 
@@ -567,6 +625,7 @@ model StockOpnameSession {
   id         String       @id @default(uuid())
   notes      String?      @db.Text
   categoryId Int?         @map("category_id")
+  branchId   Int?         @map("branch_id")
   status     OpnameStatus @default(ONGOING)
   expiresAt  DateTime     @map("expires_at")
   startDate  DateTime     @default(now()) @map("start_date")
@@ -575,8 +634,10 @@ model StockOpnameSession {
   updatedAt  DateTime?    @default(now()) @updatedAt @map("updated_at")
 
   category Category?         @relation(fields: [categoryId], references: [id])
+  branch   CompanyBranch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    StockOpnameItem[]
 
+  @@index([branchId])
   @@map("stock_opname_sessions")
 }
 
@@ -605,6 +666,7 @@ model ProductionJob {
   jobNumber           String    @unique @map("job_number") @db.VarChar(50)
   transactionId       Int       @map("transaction_id")
   transactionItemId   Int       @unique @map("transaction_item_id")
+  branchId            Int?      @map("branch_id")
   status              String    @default("ANTRIAN") @db.VarChar(20)
   priority            String    @default("NORMAL") @db.VarChar(20)
   deadline            DateTime?
@@ -627,7 +689,9 @@ model ProductionJob {
   transactionItem TransactionItem  @relation(fields: [transactionItemId], references: [id])
   rollVariant     ProductVariant?  @relation("RollUsedInJob", fields: [rollVariantId], references: [id])
   batch           ProductionBatch? @relation(fields: [batchId], references: [id])
+  branch          CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@map("production_jobs")
 }
 
@@ -686,12 +750,15 @@ model StockPurchase {
   id            Int      @id @default(autoincrement())
   invoiceNumber String?  @db.VarChar(100) @map("invoice_number")
   supplierId    Int?     @map("supplier_id")
+  branchId      Int?     @map("branch_id")
   notes         String?  @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
 
   supplier Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  branch   CompanyBranch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
   items    StockPurchaseItem[]
 
+  @@index([branchId])
   @@map("stock_purchases")
 }
 
@@ -786,10 +853,13 @@ model ShiftReport {
   proofImages      Json?     @map("proof_images")    // array of uploaded image paths
   whatsappMessage  String?   @map("whatsapp_message") @db.Text // backup pesan WA untuk resend
   paymentExchanges Json?     @map("payment_exchanges") // [{from, to, amount}]
+  branchId         Int?      @map("branch_id")
   createdAt        DateTime? @default(now()) @map("created_at")
 
   cashflows Cashflow[]
+  branch    CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@map("shift_reports")
 }
 
@@ -807,6 +877,7 @@ model PrintJob {
   jobNumber         String         @unique @map("job_number") @db.VarChar(50)
   transactionId     Int            @map("transaction_id")
   transactionItemId Int            @unique @map("transaction_item_id")
+  branchId          Int?           @map("branch_id")
   status            PrintJobStatus @default(ANTRIAN)
   quantity          Int
   notes             String?        @db.Text
@@ -819,9 +890,11 @@ model PrintJob {
 
   transaction     Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   transactionItem TransactionItem @relation(fields: [transactionItemId], references: [id], onDelete: Cascade)
+  branch          CompanyBranch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([transactionId])
+  @@index([branchId])
   @@map("print_jobs")
 }
 
@@ -895,7 +968,11 @@ model ClickLog {
 
   clickRate       ClickRate        @relation(fields: [clickRateId], references: [id])
   transactionItem TransactionItem? @relation(fields: [transactionItemId], references: [id])
+  branch          CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  branchId Int? @map("branch_id")
+
+  @@index([branchId])
   @@map("click_logs")
 }
 
@@ -911,24 +988,33 @@ model MachineReject {
   photoUrl      String?      @map("photo_url") @db.Text
   notes         String?      @db.Text
   date          DateTime     @default(now())
+  branchId      Int?         @map("branch_id")
   createdAt     DateTime?    @default(now()) @map("created_at")
 
+  branch CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([branchId])
   @@map("machine_rejects")
 }
 
 // Pembacaan counter mesin harian — tiap hari ada 1 record
 model MeterReading {
   id               Int       @id @default(autoincrement())
-  readingDate      DateTime  @unique @map("reading_date") @db.Date
+  readingDate      DateTime  @map("reading_date") @db.Date
   totalCount       Int       @map("total_count")
   fullColorCount   Int       @map("full_color_count")
   blackCount       Int       @map("black_count")
   singleColorCount Int       @default(0) @map("single_color_count")
   photoUrl         String?   @map("photo_url") @db.Text
   notes            String?   @db.Text
+  branchId         Int?      @map("branch_id")
   createdAt        DateTime? @default(now()) @map("created_at")
   updatedAt        DateTime? @default(now()) @updatedAt @map("updated_at")
 
+  branch CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@unique([branchId, readingDate])
+  @@index([branchId])
   @@map("meter_readings")
 }
 
@@ -950,6 +1036,7 @@ model SalesOrder {
   customerPhone   String?          @map("customer_phone") @db.VarChar(50)
   customerAddress String?          @map("customer_address") @db.Text
   designerName    String           @map("designer_name") @db.VarChar(100)
+  branchName      String?          @map("branch_name") @db.VarChar(100) // cabang asal SO (untuk atribusi pendapatan)
   notes           String?          @db.Text
   deadline        DateTime?
   sentToWaAt      DateTime?        @map("sent_to_wa_at")
@@ -1005,11 +1092,220 @@ model SalesOrderProof {
 // ----- Designer (login PIN tanpa akun) ----- //
 
 model Designer {
-  id        Int      @id @default(autoincrement())
-  name      String   @db.VarChar(100)
-  pin       String   @db.VarChar(10)
-  isActive  Boolean  @default(true)  @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at")
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(100)
+  pin        String   @db.VarChar(10)
+  branchName String?  @map("branch_name") @db.VarChar(100) // nama cabang desainer ini (untuk auto-tag SO)
+  isActive   Boolean  @default(true)  @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   @@map("designers")
+}
+
+// ===========================
+// BRANCH WORK ORDER SYSTEM
+// Order kerja yang dikirim cabang ke pusat untuk dicetak/diproduksi
+// Tidak ada transaksi keuangan — cabang sudah catat revenue di sistem mereka sendiri
+// ===========================
+
+model CompanyBranch {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  code        String?  @unique @db.VarChar(20) // Kode singkat: PST, BTL, dll. Untuk prefix WO/INV.
+  address     String?  @db.Text
+  phone       String?  @db.VarChar(50)
+  notaHeader  String?  @map("nota_header") @db.Text // Override header nota cabang ini
+  notaFooter  String?  @map("nota_footer") @db.Text // Override footer nota cabang ini
+  logoUrl     String?  @map("logo_url") @db.Text   // Logo khusus cabang (override storeLogo)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at")
+
+  users          User[]
+  settings       BranchSettings?
+  workOrders     BranchWorkOrder[]
+  branchStocks   BranchStock[]
+  transactions              Transaction[]
+  productionTransactions    Transaction[] @relation("TransactionProductionBranch") // Titipan cetak masuk
+  stockMovements StockMovement[]
+  batches        Batch[]
+  stockPurchases StockPurchase[]
+  opnameSessions StockOpnameSession[]
+  productionJobs ProductionJob[]
+  printJobs      PrintJob[]
+  cashflows      Cashflow[]
+  bankAccounts   BankAccount[]
+  shiftReports   ShiftReport[]
+  clickLogs      ClickLog[]
+  machineRejects MachineReject[]
+  meterReadings  MeterReading[]
+  transfersOut   StockTransfer[] @relation("TransferFromBranch")
+  transfersIn    StockTransfer[] @relation("TransferToBranch")
+  ledgersFrom    InterBranchLedger[] @relation("LedgerFromBranch")
+  ledgersTo      InterBranchLedger[] @relation("LedgerToBranch")
+
+  @@map("company_branches")
+}
+
+// Konfigurasi per-cabang (1-1 dengan CompanyBranch).
+// Di-split dari StoreSettings supaya tiap cabang punya WA group, PIN operator, identitas nota sendiri.
+model BranchSettings {
+  id                  Int      @id @default(autoincrement())
+  branchId            Int      @unique @map("branch_id")
+  operatorPin         String?  @map("operator_pin") @db.VarChar(10)
+  waReportGroupId     String?  @map("wa_report_group_id") @db.VarChar(200)
+  waBroadcastGroups   Json?    @map("wa_broadcast_groups") // Array of group IDs
+  waDesignGroupId     String?  @map("wa_design_group_id") @db.VarChar(200)
+  storeName           String?  @map("store_name") @db.VarChar(200)
+  storeAddress        String?  @map("store_address") @db.Text
+  storePhone          String?  @map("store_phone") @db.VarChar(50)
+  notaHeader          String?  @map("nota_header") @db.Text
+  notaFooter          String?  @map("nota_footer") @db.Text
+  logoUrl             String?  @map("logo_url") @db.Text
+  // Persentase fee layanan cetak titipan masuk (default 20% dari HPP bahan).
+  // Dipakai waktu auto-create InterBranchLedger: serviceFee = costAmount * (titipanFeePercent/100).
+  titipanFeePercent   Decimal? @default(20) @map("titipan_fee_percent") @db.Decimal(5, 2)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+
+  branch CompanyBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("branch_settings")
+}
+
+// Transfer stok antar cabang (1 baris = 1 transfer header).
+// Setiap transfer otomatis bikin 2 StockMovement (OUT cabang asal, IN cabang tujuan)
+// supaya histori per cabang tetap konsisten.
+model StockTransfer {
+  id             Int                 @id @default(autoincrement())
+  transferNumber String              @unique @map("transfer_number") @db.VarChar(50) // TRF-YYYYMMDD-XXXX
+  fromBranchId   Int                 @map("from_branch_id")
+  toBranchId     Int                 @map("to_branch_id")
+  notes          String?             @db.Text
+  createdById    Int?                @map("created_by_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  fromBranch CompanyBranch       @relation("TransferFromBranch", fields: [fromBranchId], references: [id])
+  toBranch   CompanyBranch       @relation("TransferToBranch", fields: [toBranchId], references: [id])
+  createdBy  User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items      StockTransferItem[]
+
+  @@index([fromBranchId])
+  @@index([toBranchId])
+  @@index([createdAt])
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id               Int     @id @default(autoincrement())
+  transferId       Int     @map("transfer_id")
+  productVariantId Int     @map("product_variant_id")
+  quantity         Decimal @db.Decimal(15, 4)
+  note             String? @db.VarChar(255)
+
+  transfer       StockTransfer  @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([transferId])
+  @@index([productVariantId])
+  @@map("stock_transfer_items")
+}
+
+enum BranchWorkOrderStatus {
+  ANTRIAN   // baru masuk, menunggu dikerjakan
+  PROSES    // sedang dikerjakan di pusat
+  SELESAI   // sudah selesai dicetak/diproduksi
+  DIBATALKAN
+}
+
+model BranchWorkOrder {
+  id              Int                   @id @default(autoincrement())
+  woNumber        String                @unique @map("wo_number") @db.VarChar(50)  // WO-YYYYMMDD-XXXX
+  branchId        Int                   @map("branch_id")
+  referenceNumber String?               @map("reference_number") @db.VarChar(100)  // nomor nota cabang
+  notes           String?               @db.Text
+  proofFilename   String?               @map("proof_filename") @db.VarChar(500)    // foto nota cabang
+  status          BranchWorkOrderStatus @default(ANTRIAN)
+  receivedBy      String?               @map("received_by") @db.VarChar(100)       // kasir pusat yang input
+  cancelReason    String?               @map("cancel_reason") @db.Text
+  completedAt     DateTime?             @map("completed_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  branch CompanyBranch        @relation(fields: [branchId], references: [id])
+  items  BranchWorkOrderItem[]
+
+  @@index([branchId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("branch_work_orders")
+}
+
+model BranchWorkOrderItem {
+  id               Int     @id @default(autoincrement())
+  workOrderId      Int     @map("work_order_id")
+  productVariantId Int     @map("product_variant_id")
+  quantity         Int
+  widthCm          Float?  @map("width_cm")
+  heightCm         Float?  @map("height_cm")
+  unitType         String? @map("unit_type")
+  pcs              Int?
+  note             String? @db.Text
+  isDone           Boolean @default(false) @map("is_done")  // item ini sudah selesai dikerjakan
+
+  workOrder      BranchWorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant  @relation(fields: [productVariantId], references: [id])
+
+  @@index([workOrderId])
+  @@map("branch_work_order_items")
+}
+
+// ===========================
+// INTER-BRANCH LEDGER (Buku Titipan Antar Cabang)
+// Saat transaksi titip cetak diserahkan (handoverStatus=DISERAHKAN), sistem otomatis
+// catat hutang cabang pemesan (fromBranch) ke cabang pelaksana (toBranch) sebesar
+// HPP bahan + fee layanan (BranchSettings.titipanFeePercent).
+// Settlement lewat cash (2 Cashflow pair) atau kirim stok bahan.
+// ===========================
+model InterBranchLedger {
+  id            Int      @id @default(autoincrement())
+  transactionId Int      @unique @map("transaction_id")
+  fromBranchId  Int      @map("from_branch_id") // cabang pemesan (yang berhutang, tempat kasir/revenue)
+  toBranchId    Int      @map("to_branch_id")   // cabang pelaksana (yang punya piutang, tempat produksi)
+  costAmount    Decimal  @default(0) @map("cost_amount") @db.Decimal(14, 2)   // total HPP bahan × qty
+  serviceFee    Decimal  @default(0) @map("service_fee") @db.Decimal(14, 2)   // fee layanan = costAmount × titipanFeePercent
+  totalAmount   Decimal  @default(0) @map("total_amount") @db.Decimal(14, 2)  // costAmount + serviceFee
+  settledAmount Decimal  @default(0) @map("settled_amount") @db.Decimal(14, 2)
+  status        String   @default("PENDING") @db.VarChar(20) // PENDING | PARTIAL | SETTLED | CANCELLED
+  notes         String?  @db.Text
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  transaction Transaction        @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  fromBranch  CompanyBranch      @relation("LedgerFromBranch", fields: [fromBranchId], references: [id])
+  toBranch    CompanyBranch      @relation("LedgerToBranch", fields: [toBranchId], references: [id])
+  settlements LedgerSettlement[]
+
+  @@index([fromBranchId, status])
+  @@index([toBranchId, status])
+  @@map("inter_branch_ledger")
+}
+
+model LedgerSettlement {
+  id                 Int      @id @default(autoincrement())
+  ledgerId           Int      @map("ledger_id")
+  settlementType     String   @map("settlement_type") @db.VarChar(20) // CASH | STOCK
+  amount             Decimal  @db.Decimal(14, 2)
+  cashflowPayerId    Int?     @map("cashflow_payer_id")      // Cashflow EXPENSE di cabang pemesan (fromBranch)
+  cashflowPayeeId    Int?     @map("cashflow_payee_id")      // Cashflow INCOME di cabang pelaksana (toBranch)
+  stockMovementOutId Int?     @map("stock_movement_out_id")  // OUT dari fromBranch
+  stockMovementInId  Int?     @map("stock_movement_in_id")   // IN ke toBranch
+  notes              String?  @db.Text
+  createdById        Int?     @map("created_by_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  ledger InterBranchLedger @relation(fields: [ledgerId], references: [id], onDelete: Cascade)
+
+  @@index([ledgerId])
+  @@map("ledger_settlements")
 }

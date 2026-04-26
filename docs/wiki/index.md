@@ -41,4 +41,7 @@ features:
   - icon: 💾
     title: Backup & Deployment Mandiri
     details: Export backup database ke ZIP, auto-backup terjadwal via Rclone ke cloud, restore kapan saja. Pasang di home server atau VPS dengan panduan deployment lengkap.
+  - icon: 🏢
+    title: Mode Cabang Multi-Tenant
+    details: Kelola banyak toko cabang dalam satu sistem — stok per cabang, kas terpisah, transfer stok antar cabang, role Owner switcher, WA group dan identitas nota per cabang.
 ---

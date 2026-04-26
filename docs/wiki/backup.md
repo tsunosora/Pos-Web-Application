@@ -38,17 +38,27 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
 
 ### Grup Data yang Tersedia
 
-Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Biasanya mencakup:
+Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.0** (Mode Cabang Multi-Tenant) dengan grup berikut:
 
 | Grup | Isi |
 |---|---|
-| Produk & Inventori | Produk, varian, bahan baku, stok |
-| Transaksi | Riwayat transaksi dan item terjual |
-| Pelanggan | Database pelanggan |
-| Cashflow | Catatan arus kas |
-| Shift Reports | Laporan tutup shift |
-| Pengaturan | Konfigurasi toko, rekening bank |
-| Supplier | Data supplier dan harga beli |
+| 🏷️ Master Data | Role, kategori, unit, store settings, bank, branch (peta) |
+| 🏢 Cabang & Pengaturan Cabang | `companyBranch`, `branchSettings`, `branchStock` (stok per cabang) |
+| 👤 Pengguna | User + branch assignment + role |
+| 📦 Produk & Inventori | Produk, varian, BOM, harga tier, batch, stock movement, pembelian stok |
+| 🚚 Supplier | Supplier dan harga beli |
+| 👥 Pelanggan | Database pelanggan (share antar cabang) |
+| 🧮 HPP & Costing | Worksheet HPP + variable cost + fixed cost |
+| 💰 Transaksi & Penjualan | Transaksi, item, cashflow, edit/change request |
+| 📄 Invoice & Penawaran | Invoice + SPH (Quotation) |
+| 🎨 Sales Order & Designer | SO B2B + designer portal data |
+| 🏭 Produksi & Antrian Cetak | Production batch/job + print queue |
+| 🔁 Work Order Antar Cabang | `branchWorkOrder` (cabang minta order ke pusat) |
+| 🖨️ Click Counting | Tarif klik + log mesin + meter reading + reject |
+| 📋 Stok Opname | Sesi opname + item opname |
+| 📊 Laporan Shift | Shift report + competitor (peta cuan) |
+
+> **Catatan:** Backup file v3.0 tetap bisa dibaca oleh sistem yang sama; **file backup v2.x lama tetap bisa di-restore** karena tabel multi-cabang yang baru akan kosong dan akan otomatis ter-tag ke cabang Pusat saat aplikasi melakukan migrasi data.
 
 ---
 

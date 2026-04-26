@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, uploadLoginBgImage } from '@/lib/api';
-import { Upload, X, Plus, GripVertical, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Upload, X, Plus, GripVertical, Image as ImageIcon, Trash2, Paintbrush, Loader2 } from 'lucide-react';
 
 export default function LoginAppearancePage() {
     const qc = useQueryClient();
@@ -66,17 +66,21 @@ export default function LoginAppearancePage() {
     const removeTagline = (idx: number) => setTaglines(prev => prev.filter((_, i) => i !== idx));
 
     if (isLoading) {
-        return <div className="p-6 text-muted-foreground text-sm">Memuat pengaturan...</div>;
+        return <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>;
     }
 
     return (
-        <div className="p-6 space-y-8 max-w-2xl">
-            <div>
-                <h2 className="text-xl font-bold mb-1">Tampilan Halaman Login</h2>
-                <p className="text-sm text-muted-foreground">
-                    Atur gambar latar dan tagline yang muncul di panel kiri halaman login.
-                    Logo mengikuti pengaturan logo toko di Profil Toko.
-                </p>
+        <div className="p-6 space-y-6 max-w-3xl">
+            <div className="flex items-start gap-3 pb-4 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <Paintbrush className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight">Tampilan Halaman Login</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">
+                        Atur gambar latar dan tagline panel kiri halaman login. Logo mengikuti pengaturan Profil Toko.
+                    </p>
+                </div>
             </div>
 
             {/* Background Images */}

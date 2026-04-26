@@ -3,7 +3,9 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getStockMovements } from '@/lib/api';
-import { Search, ArrowUpCircle, ArrowDownCircle, RefreshCw, Download, Filter, X } from 'lucide-react';
+import { Search, ArrowUpCircle, ArrowDownCircle, RefreshCw, Download, Filter, X, Package, Loader2, History } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
+import { EmptyState } from '@/components/ui/responsive-table';
 
 // ── Preset rentang tanggal ─────────────────────────────────────────────────
 function getPresetRange(key: string): { start: string; end: string } {
@@ -117,21 +119,23 @@ export default function StockReportPage() {
     };
 
     return (
-        <div className="space-y-4">
-            {/* Title */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold text-foreground">Laporan Stok</h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">Riwayat seluruh pergerakan stok dengan filter tanggal</p>
-                </div>
-                <button onClick={handleExport} disabled={movements.length === 0}
-                    className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-40">
-                    <Download className="w-4 h-4" /> Export CSV
-                </button>
-            </div>
+        <div>
+            <PageHeader
+                title="Laporan Stok"
+                description="Riwayat seluruh pergerakan stok dengan filter tanggal"
+                icon={History}
+                breadcrumbs={[{ label: 'Laporan' }, { label: 'Stok' }]}
+                actions={
+                    <button onClick={handleExport} disabled={movements.length === 0}
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                        <Download className="w-4 h-4" /> Export CSV
+                    </button>
+                }
+            />
 
+            <div className="space-y-4">
             {/* Filter bar */}
-            <div className="glass rounded-xl border border-border p-4 space-y-3">
+            <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
                 {/* Preset tabs */}
                 <div className="flex gap-1.5 flex-wrap">
                     {PRESETS.map(p => (
@@ -188,21 +192,21 @@ export default function StockReportPage() {
             {/* Summary cards */}
             {summary && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="glass rounded-xl border border-border p-4 text-center">
+                    <div className="rounded-xl border border-border bg-card shadow-sm p-4 text-center">
                         <p className="text-xs text-muted-foreground mb-1">Total Catatan</p>
                         <p className="text-2xl font-black text-foreground">{summary.count.toLocaleString('id-ID')}</p>
                     </div>
-                    <div className="glass rounded-xl border border-emerald-200 bg-emerald-50/40 dark:bg-emerald-950/20 p-4 text-center">
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 shadow-sm p-4 text-center">
                         <p className="text-xs text-emerald-600 mb-1">Total Masuk</p>
                         <p className="text-2xl font-black text-emerald-600">+{summary.totalIn.toLocaleString('id-ID')}</p>
                         <p className="text-[10px] text-muted-foreground">unit / m²</p>
                     </div>
-                    <div className="glass rounded-xl border border-red-200 bg-red-50/40 dark:bg-red-950/20 p-4 text-center">
+                    <div className="rounded-xl border border-red-500/30 bg-red-500/5 dark:bg-red-950/20 shadow-sm p-4 text-center">
                         <p className="text-xs text-red-600 mb-1">Total Keluar</p>
                         <p className="text-2xl font-black text-red-600">-{summary.totalOut.toLocaleString('id-ID')}</p>
                         <p className="text-[10px] text-muted-foreground">unit / m²</p>
                     </div>
-                    <div className="glass rounded-xl border border-blue-200 bg-blue-50/40 dark:bg-blue-950/20 p-4 text-center">
+                    <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 dark:bg-blue-950/20 shadow-sm p-4 text-center">
                         <p className="text-xs text-blue-600 mb-1">Net Pergerakan</p>
                         <p className={`text-2xl font-black ${summary.totalIn - summary.totalOut >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
                             {summary.totalIn - summary.totalOut >= 0 ? '+' : ''}{(summary.totalIn - summary.totalOut).toLocaleString('id-ID')}
@@ -213,7 +217,7 @@ export default function StockReportPage() {
             )}
 
             {/* Table */}
-            <div className="glass rounded-xl border border-border overflow-hidden">
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
                 {/* Desktop table */}
                 <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm">
@@ -230,9 +234,9 @@ export default function StockReportPage() {
                         </thead>
                         <tbody className="divide-y divide-border/50">
                             {isLoading ? (
-                                <tr><td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">Memuat data…</td></tr>
+                                <tr><td colSpan={7} className="py-2"><div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div></td></tr>
                             ) : movements.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">Tidak ada data pada periode ini.</td></tr>
+                                <tr><td colSpan={7} className="py-2"><EmptyState icon={Package} title="Belum ada data" description="Tidak ada pergerakan stok pada periode ini." /></td></tr>
                             ) : movements.map((m: any) => {
                                 const cfg = TYPE_CONFIG[m.type as keyof typeof TYPE_CONFIG];
                                 const Icon = cfg?.icon ?? RefreshCw;
@@ -289,9 +293,9 @@ export default function StockReportPage() {
                 {/* Mobile card list */}
                 <div className="md:hidden divide-y divide-border/50">
                     {isLoading ? (
-                        <div className="py-10 text-center text-muted-foreground text-sm">Memuat data…</div>
+                        <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                     ) : movements.length === 0 ? (
-                        <div className="py-10 text-center text-muted-foreground text-sm">Tidak ada data pada periode ini.</div>
+                        <EmptyState icon={Package} title="Belum ada data" description="Tidak ada pergerakan stok pada periode ini." />
                     ) : movements.map((m: any) => {
                         const cfg = TYPE_CONFIG[m.type as keyof typeof TYPE_CONFIG];
                         const Icon = cfg?.icon ?? RefreshCw;
@@ -325,6 +329,7 @@ export default function StockReportPage() {
                         );
                     })}
                 </div>
+            </div>
             </div>
         </div>
     );

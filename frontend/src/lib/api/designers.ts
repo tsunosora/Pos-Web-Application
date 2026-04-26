@@ -8,6 +8,7 @@ export interface Designer {
     name: string;
     pin: string;
     isActive: boolean;
+    branchName?: string | null;
     createdAt: string;
 }
 
@@ -20,10 +21,10 @@ export interface DesignerPublic {
 export const getDesigners = async (): Promise<Designer[]> =>
     (await api.get('/designers')).data;
 
-export const createDesigner = async (data: { name: string; pin: string }): Promise<Designer> =>
+export const createDesigner = async (data: { name: string; pin: string; branchName?: string | null }): Promise<Designer> =>
     (await api.post('/designers', data)).data;
 
-export const updateDesigner = async (id: number, data: { name?: string; pin?: string; isActive?: boolean }): Promise<Designer> =>
+export const updateDesigner = async (id: number, data: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null }): Promise<Designer> =>
     (await api.patch(`/designers/${id}`, data)).data;
 
 export const deleteDesigner = async (id: number): Promise<{ success: boolean }> =>
@@ -35,7 +36,7 @@ export const getPublicDesigners = async (): Promise<DesignerPublic[]> =>
     (await axios.get(`${BASE}/designers/public`)).data;
 
 /** Verifikasi PIN — return { valid, id, name } */
-export const verifyDesignerPin = async (id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string }> =>
+export const verifyDesignerPin = async (id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> =>
     (await axios.post(`${BASE}/designers/public/verify`, { id, pin })).data;
 
 // ---- Public SO endpoints untuk desainer ----

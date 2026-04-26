@@ -8,18 +8,22 @@ export class PrintQueueController {
     constructor(private readonly svc: PrintQueueService) {}
 
     @Get('jobs')
-    list(@Query('status') status?: PrintJobStatus, @Query('search') search?: string) {
-        return this.svc.listJobs(status, search);
+    list(
+        @Query('status') status?: PrintJobStatus,
+        @Query('search') search?: string,
+        @Query('branchId') branchId?: string,
+    ) {
+        return this.svc.listJobs(status, search, branchId ? parseInt(branchId) : undefined);
     }
 
     @Get('stats')
-    stats() {
-        return this.svc.stats();
+    stats(@Query('branchId') branchId?: string) {
+        return this.svc.stats(branchId ? parseInt(branchId) : undefined);
     }
 
     @Post('pin/verify')
-    verifyPin(@Body('pin') pin: string) {
-        return this.svc.verifyPin(pin);
+    verifyPin(@Body('pin') pin: string, @Body('branchId') branchId?: number) {
+        return this.svc.verifyPin(pin, branchId);
     }
 
     @Post('jobs/:id/start')

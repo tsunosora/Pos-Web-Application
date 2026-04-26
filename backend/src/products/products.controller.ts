@@ -9,6 +9,8 @@ import { extname } from 'path';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { compressImage } from '../common/utils/compress-image.util';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 
 const imageStorage = diskStorage({
     destination: './public/uploads',
@@ -47,13 +49,13 @@ export class ProductsController {
     }
 
     @Get()
-    findAll() {
-        return this.productsService.findAll();
+    findAll(@CurrentBranch() branchCtx: BranchContext) {
+        return this.productsService.findAll(branchCtx);
     }
 
     @Get(':id')
-    findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.productsService.findOne(id);
+    findOne(@Param('id', ParseIntPipe) id: number, @CurrentBranch() branchCtx: BranchContext) {
+        return this.productsService.findOne(id, branchCtx);
     }
 
     @Patch(':id')

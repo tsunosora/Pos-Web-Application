@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClickPaperSize, ClickColorMode, ClickSideMode, RejectType } from '@prisma/client';
+import type { BranchContext } from '../common/branch-context.decorator';
+import { branchWhere, requireBranch } from '../common/branch-where.helper';
 
 // Default click rates sesuai spreadsheet
 const DEFAULT_CLICK_RATES = [
@@ -25,9 +27,9 @@ function counterTypeToColorMode(counterType: string): ClickColorMode | null {
 
 @Injectable()
 export class ClickCountingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
-  // ─── Click Rates ────────────────────────────────────────────────────────────
+  // ─── Click Rates (GLOBAL — tarif sama untuk semua cabang) ──────────────────
 
   async getRates() {
     return (this.prisma as any).clickRate.findMany({ orderBy: [{ paperSize: 'asc' }, { sideMode: 'asc' }, { colorMode: 'asc' }] });
@@ -66,8 +68,8 @@ export class ClickCountingService {
 
   // ─── Click Logs ─────────────────────────────────────────────────────────────
 
-  async getLogs(month?: number, year?: number) {
-    const where: any = {};
+  async getLogs(branchCtx: BranchContext, month?: number, year?: number) {
+    const where: any = { ...branchWhere(branchCtx) };
     if (month && year) {
       const start = new Date(year, month - 1, 1);
       const end = new Date(year, month, 0, 23, 59, 59, 999);
@@ -90,7 +92,8 @@ export class ClickCountingService {
     });
   }
 
-  async createLog(data: { clickRateId: number; quantity: number; date?: string; transactionItemId?: number }) {
+  async createLog(data: { clickRateId: number; quantity: number; date?: string; transactionItemId?: number }, branchCtx: BranchContext) {
+    const branchId = requireBranch(branchCtx);
     const rate = await (this.prisma as any).clickRate.findUniqueOrThrow({ where: { id: data.clickRateId } });
     const pricePerClick = Number(rate.pricePerClick);
     const totalCost = pricePerClick * data.quantity;
@@ -102,6 +105,7 @@ export class ClickCountingService {
         totalCost,
         date: data.date ? new Date(data.date) : new Date(),
         transactionItemId: data.transactionItemId ?? null,
+        branchId,
       },
       include: { clickRate: true },
     });
@@ -114,8 +118,8 @@ export class ClickCountingService {
 
   // ─── Machine Rejects ────────────────────────────────────────────────────────
 
-  async getRejects(month?: number, year?: number) {
-    const where: any = {};
+  async getRejects(branchCtx: BranchContext, month?: number, year?: number) {
+    const where: any = { ...branchWhere(branchCtx) };
     if (month && year) {
       const start = new Date(year, month - 1, 1);
       const end = new Date(year, month, 0, 23, 59, 59, 999);
@@ -136,11 +140,11 @@ export class ClickCountingService {
     notes?: string;
     photoUrl?: string;
     date?: string;
-  }) {
+  }, branchCtx: BranchContext) {
+    const branchId = requireBranch(branchCtx);
     const cause = data.cause ?? 'MACHINE';
     const counterType = data.counterType ?? 'FULL_COLOR';
 
-    // Auto-compute pricePerClick dari ClickRate(A3_PLUS, colorMode) kalau tidak disediakan
     let pricePerClick = data.pricePerClick;
     if (pricePerClick === undefined || pricePerClick === null) {
       const colorMode = counterTypeToColorMode(counterType);
@@ -166,6 +170,7 @@ export class ClickCountingService {
         photoUrl: data.photoUrl ?? null,
         notes: data.notes ?? null,
         date: data.date ? new Date(data.date) : new Date(),
+        branchId,
       },
     });
   }
@@ -175,10 +180,10 @@ export class ClickCountingService {
     return (this.prisma as any).machineReject.delete({ where: { id } });
   }
 
-  // ─── Meter Readings (harian, per readingDate) ───────────────────────────────
+  // ─── Meter Readings (harian, per readingDate × branch) ──────────────────────
 
-  async getMeterReadings(startDate?: string, endDate?: string) {
-    const where: any = {};
+  async getMeterReadings(branchCtx: BranchContext, startDate?: string, endDate?: string) {
+    const where: any = { ...branchWhere(branchCtx) };
     if (startDate || endDate) {
       where.readingDate = {};
       if (startDate) where.readingDate.gte = new Date(startDate);
@@ -190,9 +195,10 @@ export class ClickCountingService {
     });
   }
 
-  async getMeterReadingByDate(date: string) {
+  async getMeterReadingByDate(date: string, branchCtx: BranchContext) {
+    const branchId = requireBranch(branchCtx);
     return (this.prisma as any).meterReading.findUnique({
-      where: { readingDate: new Date(date) },
+      where: { branchId_readingDate: { branchId, readingDate: new Date(date) } },
     });
   }
 
@@ -204,7 +210,8 @@ export class ClickCountingService {
     singleColorCount?: number;
     photoUrl?: string;
     notes?: string;
-  }) {
+  }, branchCtx: BranchContext) {
+    const branchId = requireBranch(branchCtx);
     const readingDate = new Date(data.readingDate);
     const payload = {
       readingDate,
@@ -214,14 +221,11 @@ export class ClickCountingService {
       singleColorCount: data.singleColorCount ?? 0,
       photoUrl: data.photoUrl ?? null,
       notes: data.notes ?? null,
+      branchId,
     };
 
-    // Soft warn (tidak block) — sanity check di response
-    const expectedTotal = payload.fullColorCount + payload.blackCount + payload.singleColorCount;
-    // Biarkan user simpan meskipun mismatch — tampilkan warning di frontend
-
     return (this.prisma as any).meterReading.upsert({
-      where: { readingDate },
+      where: { branchId_readingDate: { branchId, readingDate } },
       create: payload,
       update: payload,
     });
@@ -234,21 +238,21 @@ export class ClickCountingService {
 
   // ─── Vendor Bill (rekonsiliasi per range tanggal) ───────────────────────────
 
-  async getVendorBill(startDate: string, endDate: string) {
+  async getVendorBill(startDate: string, endDate: string, branchCtx: BranchContext) {
     const start = new Date(startDate);
     const end = new Date(endDate);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       throw new BadRequestException('Tanggal tidak valid');
     }
 
-    // Ambil pembacaan meter terdekat ≤ startDate (sebagai meterStart)
+    const bw = branchWhere(branchCtx);
+
     const meterStart = await (this.prisma as any).meterReading.findFirst({
-      where: { readingDate: { lte: start } },
+      where: { readingDate: { lte: start }, ...bw },
       orderBy: { readingDate: 'desc' },
     });
-    // Ambil pembacaan meter terdekat ≤ endDate (sebagai meterEnd)
     const meterEnd = await (this.prisma as any).meterReading.findFirst({
-      where: { readingDate: { lte: end } },
+      where: { readingDate: { lte: end }, ...bw },
       orderBy: { readingDate: 'desc' },
     });
 
@@ -259,13 +263,13 @@ export class ClickCountingService {
       throw new BadRequestException('Perlu minimal 2 pembacaan meter berbeda dalam range periode. Saat ini hanya 1 pembacaan ditemukan.');
     }
 
-    // Reject dalam range periode (meterStart.readingDate → meterEnd.readingDate)
     const rejects = await (this.prisma as any).machineReject.findMany({
       where: {
         date: {
           gte: new Date(meterStart.readingDate),
           lte: new Date(meterEnd.readingDate),
         },
+        ...bw,
       },
     });
 
@@ -274,7 +278,6 @@ export class ClickCountingService {
         .filter((r: any) => r.cause === cause && r.counterType === type)
         .reduce((s: number, r: any) => s + r.quantity, 0);
 
-    // Ambil tarif A3_PLUS (vendor A3 mesin)
     const rates = await (this.prisma as any).clickRate.findMany({
       where: { paperSize: 'A3_PLUS', sideMode: 'SIMPLEX', isActive: true },
     });
@@ -310,35 +313,12 @@ export class ClickCountingService {
       },
       meterStart,
       meterEnd,
-      deltas: {
-        total: deltaTotal,
-        fullColor: deltaFC,
-        black: deltaB,
-        singleColor: deltaSC,
-      },
-      machineRejects: {
-        fullColor: rejectMachineFC,
-        black: rejectMachineB,
-        singleColor: rejectMachineSC,
-      },
-      humanRejects: {
-        fullColor: rejectHumanFC,
-        black: rejectHumanB,
-        singleColor: rejectHumanSC,
-      },
-      billableClicks: {
-        fullColor: billableFC,
-        black: billableB,
-      },
-      rates: {
-        fullColor: priceFC,
-        black: priceBW,
-      },
-      costs: {
-        fullColor: costFC,
-        black: costB,
-        grandTotal: costFC + costB,
-      },
+      deltas: { total: deltaTotal, fullColor: deltaFC, black: deltaB, singleColor: deltaSC },
+      machineRejects: { fullColor: rejectMachineFC, black: rejectMachineB, singleColor: rejectMachineSC },
+      humanRejects: { fullColor: rejectHumanFC, black: rejectHumanB, singleColor: rejectHumanSC },
+      billableClicks: { fullColor: billableFC, black: billableB },
+      rates: { fullColor: priceFC, black: priceBW },
+      costs: { fullColor: costFC, black: costB, grandTotal: costFC + costB },
       sanityCheck: {
         expected: deltaFC + deltaB + deltaSC,
         actual: deltaTotal,
@@ -348,30 +328,29 @@ export class ClickCountingService {
     };
   }
 
-  // ─── Reconciliation (LEGACY — per bulan, pakai Δ total saja) ────────────────
+  // ─── Reconciliation (LEGACY) ────────────────────────────────────────────────
 
-  async getReconciliation(month: number, year: number) {
+  async getReconciliation(month: number, year: number, branchCtx: BranchContext) {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
+    const bw = branchWhere(branchCtx);
 
-    // Ambil pembacaan meter terdekat ≤ start (meter awal bulan)
     const meterStart = await (this.prisma as any).meterReading.findFirst({
-      where: { readingDate: { lte: start } },
+      where: { readingDate: { lte: start }, ...bw },
       orderBy: { readingDate: 'desc' },
     });
-    // Ambil pembacaan meter terdekat ≤ end (meter akhir bulan)
     const meterEnd = await (this.prisma as any).meterReading.findFirst({
-      where: { readingDate: { lte: end } },
+      where: { readingDate: { lte: end }, ...bw },
       orderBy: { readingDate: 'desc' },
     });
 
     const [clickLogs, machineRejects] = await Promise.all([
       (this.prisma as any).clickLog.findMany({
-        where: { date: { gte: start, lte: end } },
+        where: { date: { gte: start, lte: end }, ...bw },
         include: { clickRate: true },
       }),
       (this.prisma as any).machineReject.findMany({
-        where: { date: { gte: start, lte: end } },
+        where: { date: { gte: start, lte: end }, ...bw },
       }),
     ]);
 
@@ -413,24 +392,25 @@ export class ClickCountingService {
     };
   }
 
-  // ─── Dashboard Summary ───────────────────────────────────────────────────────
+  // ─── Dashboard ──────────────────────────────────────────────────────────────
 
-  async getDashboard(month: number, year: number) {
+  async getDashboard(month: number, year: number, branchCtx: BranchContext) {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
+    const bw = branchWhere(branchCtx);
 
     const meterLatest = await (this.prisma as any).meterReading.findFirst({
-      where: { readingDate: { lte: end } },
+      where: { readingDate: { lte: end }, ...bw },
       orderBy: { readingDate: 'desc' },
     });
 
     const [logs, rejects] = await Promise.all([
       (this.prisma as any).clickLog.findMany({
-        where: { date: { gte: start, lte: end } },
+        where: { date: { gte: start, lte: end }, ...bw },
         include: { clickRate: true },
       }),
       (this.prisma as any).machineReject.findMany({
-        where: { date: { gte: start, lte: end } },
+        where: { date: { gte: start, lte: end }, ...bw },
       }),
     ]);
 

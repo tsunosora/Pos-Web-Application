@@ -2,31 +2,49 @@
 
 import { useState, useEffect } from "react";
 import { getUsers, getRoles, updateUser, deleteUser, createRole, updateRole, deleteRole, createUser } from "@/lib/api";
-import { Loader2, ShieldAlert, UserCog, Plus, Trash2, Edit, X, Shield, Key } from "lucide-react";
+import { Loader2, ShieldAlert, UserCog, Plus, Trash2, Edit, X, Shield, Key, Building2 } from "lucide-react";
+import axios from "@/lib/api/client";
+
+const OWNER_ROLE_NAMES = ["owner", "superadmin", "super_admin", "super admin"];
+const isOwnerRoleName = (name?: string | null) =>
+    !!name && OWNER_ROLE_NAMES.includes(name.toLowerCase());
 
 export default function UserManagementSettings() {
     const [users, setUsers] = useState<any[]>([]);
     const [roles, setRoles] = useState<any[]>([]);
+    const [branches, setBranches] = useState<{ id: number; name: string; code: string | null }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Modals state
     const [roleModal, setRoleModal] = useState<{ isOpen: boolean, mode: 'add' | 'edit', id?: number, name: string }>({ isOpen: false, mode: 'add', name: '' });
-    const [userModal, setUserModal] = useState<{ isOpen: boolean, mode: 'add' | 'edit', id?: number, name: string, email: string, phone: string, roleId: string, password: string }>({
-        isOpen: false, mode: 'add', name: '', email: '', phone: '', roleId: '', password: ''
+    const [userModal, setUserModal] = useState<{ isOpen: boolean, mode: 'add' | 'edit', id?: number, name: string, email: string, phone: string, roleId: string, branchId: string, password: string }>({
+        isOpen: false, mode: 'add', name: '', email: '', phone: '', roleId: '', branchId: '', password: ''
     });
 
     const loadData = async () => {
         setIsLoading(true);
         try {
-            const [usersData, rolesData] = await Promise.all([getUsers(), getRoles()]);
+            const [usersData, rolesData, branchesData] = await Promise.all([
+                getUsers(),
+                getRoles(),
+                axios.get('/company-branches/active').then(r => r.data).catch(() => []),
+            ]);
             setUsers(usersData);
             setRoles(rolesData);
+            setBranches(branchesData);
         } catch (error) {
             console.error("Gagal memuat pengguna", error);
         } finally {
             setIsLoading(false);
         }
     };
+
+    const currentRoleName = (() => {
+        const id = userModal.roleId ? parseInt(userModal.roleId) : null;
+        if (!id) return null;
+        return roles.find(r => r.id === id)?.name ?? null;
+    })();
+    const userModalIsOwner = isOwnerRoleName(currentRoleName);
 
     useEffect(() => {
         loadData();
@@ -87,9 +105,17 @@ export default function UserManagementSettings() {
                 email: userModal.email,
                 phone: userModal.phone,
                 roleId: userModal.roleId ? parseInt(userModal.roleId) : undefined,
+                branchId: userModalIsOwner
+                    ? null
+                    : (userModal.branchId ? parseInt(userModal.branchId) : null),
             };
             if (userModal.password) {
                 payload.password = userModal.password;
+            }
+
+            // Validasi: non-owner wajib pilih cabang
+            if (!userModalIsOwner && !userModal.branchId) {
+                return alert("Cabang wajib dipilih untuk role non-Owner.");
             }
 
             if (userModal.mode === 'add') {
@@ -119,13 +145,15 @@ export default function UserManagementSettings() {
     if (isLoading) return <div className="p-8 flex justify-center text-muted-foreground"><Loader2 className="animate-spin" /></div>;
 
     return (
-        <div className="p-6 max-w-7xl mx-auto space-y-8">
-            <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <UserCog className="h-6 w-6 text-primary" />
-                    Manajemen Akses & Karyawan
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">Kelola data seluruh rekan kerja, kasir, dan tentukan hak akses (Role) masing-masing.</p>
+        <div className="p-6 max-w-7xl mx-auto space-y-6">
+            <div className="flex items-start gap-3 pb-4 border-b border-border">
+                <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
+                    <UserCog className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-xl font-bold tracking-tight">Manajemen Akses & Karyawan</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Kelola data rekan kerja, kasir, dan hak akses (Role) masing-masing.</p>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -140,7 +168,7 @@ export default function UserManagementSettings() {
                         </button>
                     </div>
 
-                    <div className="glass bg-card/50 rounded-xl border border-border overflow-hidden">
+                    <div className="rounded-xl border border-border bg-background/50 overflow-hidden">
                         <table className="min-w-full divide-y divide-border">
                             <thead className="bg-muted/50">
                                 <tr>
@@ -183,19 +211,20 @@ export default function UserManagementSettings() {
                 <div className="lg:col-span-2 space-y-4">
                     <div className="flex items-center justify-between">
                         <h2 className="text-lg font-bold flex items-center gap-2"><UserCog className="w-5 h-5 text-primary" /> Daftar Akun Karyawan</h2>
-                        <button onClick={() => setUserModal({ isOpen: true, mode: 'add', name: '', email: '', phone: '', roleId: '', password: '' })}
+                        <button onClick={() => setUserModal({ isOpen: true, mode: 'add', name: '', email: '', phone: '', roleId: '', branchId: '', password: '' })}
                             className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 transition-colors shadow-sm">
                             <Plus className="w-4 h-4" /> Karyawan Baru
                         </button>
                     </div>
 
-                    <div className="overflow-x-auto glass bg-card/50 rounded-xl border border-border">
+                    <div className="overflow-x-auto rounded-xl border border-border bg-background/50">
                         <table className="min-w-full divide-y divide-border">
                             <thead className="bg-muted/50">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Info Akun</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Kontak/No HP (Auto-Save)</th>
                                     <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Hak Akses</th>
+                                    <th className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Cabang</th>
                                     <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase">Aksi</th>
                                 </tr>
                             </thead>
@@ -225,8 +254,22 @@ export default function UserManagementSettings() {
                                                 {roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
                                             </select>
                                         </td>
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            {user.branch ? (
+                                                <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                                    <Building2 className="w-3 h-3" />
+                                                    {user.branch.code || user.branch.name}
+                                                </span>
+                                            ) : isOwnerRoleName(user.role?.name) ? (
+                                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                                                    Semua Cabang
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground italic">belum di-assign</span>
+                                            )}
+                                        </td>
                                         <td className="px-4 py-3 whitespace-nowrap text-right space-x-2">
-                                            <button onClick={() => setUserModal({ isOpen: true, mode: 'edit', id: user.id, name: user.name || '', email: user.email || '', phone: user.phone || '', roleId: user.roleId || '', password: '' })}
+                                            <button onClick={() => setUserModal({ isOpen: true, mode: 'edit', id: user.id, name: user.name || '', email: user.email || '', phone: user.phone || '', roleId: user.roleId || '', branchId: user.branchId ? String(user.branchId) : '', password: '' })}
                                                 className="text-muted-foreground hover:text-primary transition-colors p-1"><Edit className="w-4 h-4" /></button>
                                             <button onClick={() => handleDeleteUser(user.id)}
                                                 className="text-muted-foreground hover:text-destructive transition-colors p-1"><Trash2 className="w-4 h-4" /></button>
@@ -242,7 +285,7 @@ export default function UserManagementSettings() {
             {/* --- MODAL ROLE --- */}
             {roleModal.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden glass">
+                    <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b border-border">
                             <h3 className="font-bold">{roleModal.mode === 'add' ? 'Tambah Role Baru' : 'Edit Role'}</h3>
                             <button onClick={() => setRoleModal({ ...roleModal, isOpen: false })} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -265,7 +308,7 @@ export default function UserManagementSettings() {
             {/* --- MODAL USER --- */}
             {userModal.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden glass">
+                    <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b border-border">
                             <h3 className="font-bold flex items-center gap-2">
                                 {userModal.mode === 'add' ? <Plus className="w-5 h-5 text-primary" /> : <Edit className="w-5 h-5 text-primary" />}
@@ -300,6 +343,31 @@ export default function UserManagementSettings() {
                                     <option value="">Tanpa Role</option>
                                     {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                                 </select>
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                                    <Building2 className="w-4 h-4" />
+                                    Cabang {userModalIsOwner ? '(Owner: otomatis akses semua)' : <span className="text-red-500">*</span>}
+                                </label>
+                                <select
+                                    value={userModalIsOwner ? '' : userModal.branchId}
+                                    onChange={e => setUserModal({ ...userModal, branchId: e.target.value })}
+                                    disabled={userModalIsOwner}
+                                    className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary disabled:bg-muted/50 disabled:text-muted-foreground"
+                                >
+                                    <option value="">— Pilih Cabang —</option>
+                                    {branches.map(b => (
+                                        <option key={b.id} value={b.id}>
+                                            {b.code ? `${b.code} · ` : ''}{b.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {!userModalIsOwner && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                        User ini hanya bisa login & akses data cabang yang dipilih.
+                                    </p>
+                                )}
                             </div>
 
                             <div className="space-y-1.5 border-t border-dashed border-border pt-4 mt-2">

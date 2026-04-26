@@ -9,6 +9,7 @@ import {
     Calculator, ArrowRight, Loader2, Save, X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PageHeader } from '@/components/ui/page-header';
 import { getHppWorksheets, createHppWorksheet, updateHppWorksheet, deleteHppWorksheet, getHppWorksheetByProduct, getProducts, createProduct, updateProduct, getCategories, getUnits, uploadProductImage, uploadProductImages, addProductVariant, updateProductVariant, applyHppToVariant, applyHppToVariants, applyHppVariantsCustom, uploadVariantImage, replaceVariantPriceTiers, getClickRates } from "@/lib/api";
 import { VariableCost, FixedCost } from "./types";
 import { CustomNameInput, VariantCombobox } from "./HppInputs";
@@ -1045,10 +1046,12 @@ function HppCalculatorContent() {
 
     return (
         <div className="min-h-[calc(100vh-80px)] bg-background font-sans pb-24 rounded-tl-2xl overflow-hidden -m-4 sm:-m-6 lg:-m-8 p-4 sm:p-6 lg:p-8">
-            <div className="pt-4 pb-8 text-center max-w-3xl mx-auto">
-                <h1 className="text-[24px] md:text-[28px] font-bold text-foreground tracking-tight">Kalkulator HPP & Resep</h1>
-                <p className="mt-2 text-[14px] text-muted-foreground font-medium">Buat template resep produk (Worksheet). Bahan baku terkoneksi langsung dengan Stok Sistem.</p>
-            </div>
+            <PageHeader
+                title="Kalkulator HPP & Resep"
+                description="Buat template resep produk (Worksheet). Bahan baku terkoneksi langsung dengan Stok Sistem."
+                icon={Calculator}
+                breadcrumbs={[{ label: 'Laporan' }, { label: 'Kalkulator HPP' }]}
+            />
 
             <div className="max-w-6xl mx-auto space-y-6">
 

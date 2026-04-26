@@ -22,6 +22,10 @@ export interface PrintJob {
         customerPhone: string | null;
         status: 'PENDING' | 'PARTIAL' | 'PAID' | 'FAILED';
         createdAt: string;
+        branchId?: number | null;
+        productionBranchId?: number | null;
+        branch?: { id: number; name: string; code: string | null } | null;
+        productionBranch?: { id: number; name: string; code: string | null } | null;
     };
     transactionItem: {
         id: number;
