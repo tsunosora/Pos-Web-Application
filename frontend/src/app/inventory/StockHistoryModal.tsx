@@ -1,7 +1,8 @@
 "use client";
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { X, TrendingUp, TrendingDown, RefreshCw, ArrowUpCircle, ArrowDownCircle, MinusCircle } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, RefreshCw, ArrowUpCircle, ArrowDownCircle, MinusCircle, ExternalLink } from 'lucide-react';
 import { getVariantStockHistory } from '@/lib/api';
 
 interface Props {
@@ -82,11 +83,44 @@ export default function StockHistoryModal({ variant, productName, onClose }: Pro
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 flex-wrap">
                                         <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
-                                        {m.referenceId && m.referenceId !== 'manual-adjust' && (
+                                        {m.referenceId && m.referenceId !== 'manual-adjust' && !m.transaction && !m.deletedTxInvoice && (
                                             <span className="text-[10px] text-muted-foreground font-mono">{m.referenceId}</span>
                                         )}
                                     </div>
                                     <p className="text-xs text-foreground/80 mt-0.5 leading-snug">{reasonLabel(m.reason)}</p>
+                                    {m.transaction && (
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <Link
+                                                href={`/transactions/${m.transaction.id}`}
+                                                className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                                                title="Buka nota"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                {m.transaction.checkoutNumber || m.transaction.invoiceNumber}
+                                            </Link>
+                                            {m.transaction.customerName && (
+                                                <span className="text-[11px] text-foreground font-medium">· {m.transaction.customerName}</span>
+                                            )}
+                                            {m.transaction.isTitipan ? (
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full"
+                                                    title={`Titipan dari ${m.transaction.branch?.name || '-'} → ${m.transaction.productionBranch?.name || '-'}`}>
+                                                    ⚑ Titipan {m.transaction.branch?.code || '?'} → {m.transaction.productionBranch?.code || '?'}
+                                                </span>
+                                            ) : m.transaction.branch ? (
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-sky-500/15 text-sky-700 border border-sky-500/30 rounded-full">
+                                                    🏢 {m.transaction.branch.code || m.transaction.branch.name}
+                                                </span>
+                                            ) : null}
+                                        </div>
+                                    )}
+                                    {m.deletedTxInvoice && !m.transaction && (
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-rose-600">
+                                                <X className="w-3 h-3" /> {m.deletedTxInvoice}
+                                            </span>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-500/15 text-rose-700 border border-rose-500/30 rounded-full">Nota Dihapus</span>
+                                        </div>
+                                    )}
                                     <p className="text-[10px] text-muted-foreground mt-1">{m.createdAt ? formatDate(m.createdAt) : '—'}</p>
                                 </div>
                                 {/* Qty */}

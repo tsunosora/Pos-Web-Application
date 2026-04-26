@@ -213,6 +213,39 @@ export class TransactionsService {
             const enableTax = settings?.enableTax ?? true;
             const taxRate = settings?.taxRate ? Number(settings.taxRate) : 10;
 
+            // Pre-generate invoice number SEBELUM items loop supaya bisa di-tag ke setiap StockMovement
+            // sebagai referenceId. Tujuannya: laporan stok bisa render link ke nota terkait.
+            const _effectiveDateForInvoice = data.transactionDate ? new Date(data.transactionDate + 'T00:00:00') : new Date();
+            const _y = _effectiveDateForInvoice.getFullYear();
+            const _m = String(_effectiveDateForInvoice.getMonth() + 1).padStart(2, '0');
+            const _d = String(_effectiveDateForInvoice.getDate()).padStart(2, '0');
+            const _dateStr = `${_y}${_m}${_d}`;
+            const _prefix = `SO-${_dateStr}-`;
+            // Cek nomor terakhir dari TRANSACTION yang masih ada
+            const _lastToday = await tx.transaction.findFirst({
+                where: { invoiceNumber: { startsWith: _prefix } },
+                orderBy: { invoiceNumber: 'desc' },
+                select: { invoiceNumber: true },
+            });
+            // Cek juga nomor yang PERNAH dipakai dari StockMovement.referenceId (persist setelah delete).
+            // Tujuan: hindari reuse nomor invoice yang sudah dihapus (kalau direuse, audit trail rusak
+            // karena referenceId stock movement lama jadi salah resolve ke transaksi baru).
+            const _refPrefix = `tx-${_prefix}`;
+            const _lastFromMovement = await tx.stockMovement.findFirst({
+                where: { referenceId: { startsWith: _refPrefix } },
+                orderBy: { referenceId: 'desc' },
+                select: { referenceId: true },
+            });
+            const _seqFromTx = _lastToday
+                ? parseInt(_lastToday.invoiceNumber.slice(_prefix.length), 10)
+                : 0;
+            const _seqFromMv = _lastFromMovement?.referenceId
+                ? parseInt(_lastFromMovement.referenceId.slice(_refPrefix.length), 10)
+                : 0;
+            const _nextSeq = Math.max(_seqFromTx, _seqFromMv) + 1;
+            const preInvoiceNumber = `${_prefix}${_nextSeq.toString().padStart(4, '0')}`;
+            const movementRef = `tx-${preInvoiceNumber}`;
+
             let subtotal = 0;
             const transactionItemsData: any[] = [];
 
@@ -303,7 +336,7 @@ export class TransactionsService {
                         const stockBranchId = productionBranchId ?? branchId;
                         await this._assertBranchStock(tx, stockBranchId, variant.id, totalAreaM2, variant.product.name);
                         await this._adjustStock(tx, stockBranchId, variant.id, -totalAreaM2);
-                        await this.logMovement(tx, variant.id, 'OUT', totalAreaM2, `Penjualan Cetak ${widthCm}×${heightCm}${item.unitType || 'm'} ×${pcs}pcs (${totalAreaM2.toFixed(2)}m²)`, undefined, stockBranchId);
+                        await this.logMovement(tx, variant.id, 'OUT', totalAreaM2, `Penjualan Cetak ${widthCm}×${heightCm}${item.unitType || 'm'} ×${pcs}pcs (${totalAreaM2.toFixed(2)}m²) — ${preInvoiceNumber}`, movementRef, stockBranchId);
 
                         // Deduct product-level BOM (AREA_BASED)
                         const ingredients = (variant.product as any).ingredients || [];
@@ -311,7 +344,7 @@ export class TransactionsService {
                             if (ing.rawMaterialVariantId) {
                                 const neededStock = Number(ing.quantity) * totalAreaM2;
                                 await this._adjustStock(tx, stockBranchId, ing.rawMaterialVariantId, -neededStock);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong oleh Penjualan ${variant.product.name}`, undefined, stockBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong oleh Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
                             }
                         }
 
@@ -320,7 +353,7 @@ export class TransactionsService {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const neededStock = Number(ing.quantity) * totalAreaM2;
                                 await this._adjustStock(tx, stockBranchId, ing.rawMaterialVariantId, -neededStock);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong (varian) oleh Penjualan ${variant.product.name}`, undefined, stockBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong (varian) oleh Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
                             }
                         }
                     }
@@ -347,12 +380,13 @@ export class TransactionsService {
 
                 } else {
                     // Standard UNIT mode
+                    // Multi-cabang: stok dari cabang PELAKSANA (kalau titip cetak, dari cabang tujuan).
+                    // Hoist ke luar `if (trackStock)` supaya bisa dipakai juga oleh BOM/ingredient deduction di bawah.
+                    const stockBranchId = productionBranchId ?? branchId;
                     if (trackStock) {
-                        // Multi-cabang: stok dari cabang PELAKSANA (kalau titip cetak, dari cabang tujuan).
-                        const stockBranchId = productionBranchId ?? branchId;
                         await this._assertBranchStock(tx, stockBranchId, variant.id, item.quantity, variant.product.name);
                         await this._adjustStock(tx, stockBranchId, variant.id, -item.quantity);
-                        await this.logMovement(tx, variant.id, 'OUT', item.quantity, `Penjualan (Checkout)`, undefined, stockBranchId);
+                        await this.logMovement(tx, variant.id, 'OUT', item.quantity, `Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
                     }
 
                     lineTotal = resolvedPrice * item.quantity;
@@ -371,22 +405,22 @@ export class TransactionsService {
                         _clickPricePerClick: _unitClickRate ? Number(_unitClickRate.pricePerClick) : 0,
                     });
 
-                    // Deduct product-level BOM (UNIT)
+                    // Deduct product-level BOM (UNIT) — di cabang PELAKSANA (sama dengan stok variant utama)
                     const ingredients = (variant.product as any).ingredients || [];
                     for (const ing of ingredients) {
                         if (ing.rawMaterialVariantId) {
                             const neededStock = Number(ing.quantity) * item.quantity;
-                            await this._adjustStock(tx, branchId, ing.rawMaterialVariantId, -neededStock);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong oleh Penjualan ${variant.product.name}`, undefined, branchId);
+                            await this._adjustStock(tx, stockBranchId, ing.rawMaterialVariantId, -neededStock);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong oleh Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
                         }
                     }
 
-                    // Deduct variant-level ingredients (UNIT, non-service-cost only)
+                    // Deduct variant-level ingredients (UNIT, non-service-cost only) — di cabang PELAKSANA
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const neededStock = Number(ing.quantity) * item.quantity;
-                            await this._adjustStock(tx, branchId, ing.rawMaterialVariantId, -neededStock);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong (varian) oleh Penjualan ${variant.product.name}`, undefined, branchId);
+                            await this._adjustStock(tx, stockBranchId, ing.rawMaterialVariantId, -neededStock);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong (varian) oleh Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
                         }
                     }
                 }
@@ -421,23 +455,10 @@ export class TransactionsService {
             // effectiveCashflowDate = tanggal cashflow (bisa hari ini jika user minta masuk shift hari ini)
             const effectiveCashflowDate = data.cashflowDate ? new Date(data.cashflowDate + 'T00:00:00') : effectiveDate;
 
-            // Format tanggal untuk prefix invoice — pakai local time bukan UTC
-            const y = effectiveDate.getFullYear();
-            const m = String(effectiveDate.getMonth() + 1).padStart(2, '0');
-            const d = String(effectiveDate.getDate()).padStart(2, '0');
-            const dateStr = `${y}${m}${d}`;
-            const prefix = `SO-${dateStr}-`;
-
-            // Cari invoice terakhir hari ini berdasarkan prefix (lebih reliable dari count)
-            const lastToday = await tx.transaction.findFirst({
-                where: { invoiceNumber: { startsWith: prefix } },
-                orderBy: { invoiceNumber: 'desc' },
-                select: { invoiceNumber: true }
-            });
-            const nextSeq = lastToday
-                ? parseInt(lastToday.invoiceNumber.slice(prefix.length), 10) + 1
-                : 1;
-            const invoiceNumber = `${prefix}${nextSeq.toString().padStart(4, '0')}`;
+            // Invoice number sudah di-pre-generate di atas (preInvoiceNumber) supaya bisa di-tag
+            // ke StockMovement.referenceId. Pakai variable yang sama di sini.
+            const dateStr = _dateStr;
+            const invoiceNumber = preInvoiceNumber;
 
             // Generate SC number jika transaksi langsung PAID (bayar lunas di kasir)
             let checkoutNumber: string | null = null;
@@ -661,8 +682,77 @@ export class TransactionsService {
             // Kirim notif transaksi baru ke Discord
             this.notifyNewTransactionDiscord(result, data).catch(() => { });
 
+            // Auto-create entri di Buku Titipan kalau ini titip cetak ke cabang lain.
+            // Idempotent: kalau sudah ada untuk txId tsb, skip. Status awal PENDING — di-update
+            // saat handover/pickup nanti (markHandover/confirmPickup juga panggil helper ini).
+            this._createTitipanLedger(result.id).catch(err => {
+                console.error('[createTitipanLedger] failed for tx', result.id, err);
+            });
+
             return result;
         });
+    }
+
+    /**
+     * Auto-create InterBranchLedger entry untuk transaksi titip cetak.
+     * Dipanggil di:
+     *   - Akhir _createTransaction (visibility langsung di Buku Titipan dari checkout)
+     *   - branch-inbox.service.markHandover & confirmPickup (idempotent — duplicate aman)
+     *
+     * Formula:
+     *   costAmount = Σ (hppAtTime OR variant.hpp) × qty
+     *   serviceFee = costAmount × (BranchSettings(toBranch).titipanFeePercent / 100, default 20)
+     *   totalAmount = costAmount + serviceFee
+     */
+    private async _createTitipanLedger(txId: number): Promise<void> {
+        // Cek existing (idempotent)
+        const existing: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT id FROM inter_branch_ledger WHERE transaction_id = ${txId} LIMIT 1`,
+        );
+        if (existing.length) return;
+
+        const txRows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT id, branch_id, production_branch_id
+             FROM transactions WHERE id = ${txId} LIMIT 1`,
+        );
+        if (!txRows.length) return;
+        const tx = txRows[0];
+        const fromBranchId = tx.branch_id != null ? Number(tx.branch_id) : null;
+        const toBranchId = tx.production_branch_id != null ? Number(tx.production_branch_id) : null;
+        // Hanya catat kalau benar-benar titip cetak (production_branch_id != branch_id)
+        if (!fromBranchId || !toBranchId || fromBranchId === toBranchId) return;
+
+        const items: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT ti.quantity, ti.hpp_at_time, pv.hpp AS variant_hpp
+             FROM transaction_items ti
+             JOIN product_variants pv ON pv.id = ti.product_variant_id
+             WHERE ti.transaction_id = ${txId}`,
+        );
+        let costAmount = 0;
+        for (const it of items) {
+            const qty = Number(it.quantity) || 0;
+            const hppAt = Number(it.hpp_at_time) || 0;
+            const variantHpp = Number(it.variant_hpp) || 0;
+            const hpp = hppAt > 0 ? hppAt : variantHpp;
+            costAmount += hpp * qty;
+        }
+        costAmount = Math.round(costAmount * 100) / 100;
+
+        const settingsRows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT titipan_fee_percent FROM branch_settings WHERE branch_id = ${toBranchId} LIMIT 1`,
+        );
+        const feePercent = settingsRows.length && settingsRows[0].titipan_fee_percent != null
+            ? Number(settingsRows[0].titipan_fee_percent)
+            : 20;
+        const serviceFee = Math.round((costAmount * feePercent) / 100 * 100) / 100;
+        const totalAmount = Math.round((costAmount + serviceFee) * 100) / 100;
+
+        await this.prisma.$executeRawUnsafe(
+            `INSERT INTO inter_branch_ledger
+              (transaction_id, from_branch_id, to_branch_id, cost_amount, service_fee, total_amount, settled_amount, status, created_at, updated_at)
+             VALUES
+              (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${serviceFee}, ${totalAmount}, 0, 'PENDING', NOW(), NOW())`,
+        );
     }
 
     private async notifyNewTransactionDiscord(transaction: any, data: any) {
@@ -1443,8 +1533,12 @@ export class TransactionsService {
         const enableTax = settings?.enableTax ?? true;
         const taxRate = settings?.taxRate ? Number(settings.taxRate) : 10;
 
-        // Multi-cabang: restore/decrement stok ke BranchStock cabang transaksi.
-        const editTxBranchId: number | null = (transaction as any).branchId ?? null;
+        // Multi-cabang: stok dipotong/restore di cabang PELAKSANA (productionBranchId) kalau titip cetak,
+        // atau di cabang transaksi sendiri (branchId) kalau bukan titipan. WAJIB konsisten dengan
+        // logic di _createTransaction (pakai stockBranchId = productionBranchId ?? branchId), kalau tidak
+        // stok jadi inflasi di pemesan dan minus di pelaksana.
+        const editTxBranchId: number | null =
+            (transaction as any).productionBranchId ?? (transaction as any).branchId ?? null;
 
         let newSubtotal = 0;
 
@@ -1465,19 +1559,19 @@ export class TransactionsService {
                     const areaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
                     if (areaM2 > 0) {
                         await this._adjustStock(tx, editTxBranchId, variant.id, areaM2);
-                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(areaM2 * 100), `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(areaM2 * 100), `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -1485,19 +1579,19 @@ export class TransactionsService {
                     const qty = txItem.quantity;
                     if (qty > 0) {
                         await this._adjustStock(tx, editTxBranchId, variant.id, qty);
-                        await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * qty;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * qty;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -1547,19 +1641,19 @@ export class TransactionsService {
                 if (trackStock) {
                     await this._assertBranchStock(tx, editTxBranchId, variant.id, areaM2, product.name);
                     await this._adjustStock(tx, editTxBranchId, variant.id, -areaM2);
-                    await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaM2 * 100), `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                    await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaM2 * 100), `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     for (const ing of productIngredients) {
                         if (ing.rawMaterialVariantId) {
                             const needed = Number(ing.quantity) * areaM2;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const needed = Number(ing.quantity) * areaM2;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                 }
@@ -1578,19 +1672,19 @@ export class TransactionsService {
                 if (trackStock) {
                     await this._assertBranchStock(tx, editTxBranchId, variant.id, qty, product.name);
                     await this._adjustStock(tx, editTxBranchId, variant.id, -qty);
-                    await this.logMovement(tx, variant.id, 'OUT', qty, `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                    await this.logMovement(tx, variant.id, 'OUT', qty, `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     for (const ing of productIngredients) {
                         if (ing.rawMaterialVariantId) {
                             const needed = Number(ing.quantity) * qty;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const needed = Number(ing.quantity) * qty;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                 }
@@ -1671,11 +1765,11 @@ export class TransactionsService {
                     if (areaDelta > 0) {
                         await this._assertBranchStock(tx, editTxBranchId, variant.id, areaDelta, product.name);
                         await this._adjustStock(tx, editTxBranchId, variant.id, -areaDelta);
-                        await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`, undefined, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     } else {
                         const returnM2 = Math.abs(areaDelta);
                         await this._adjustStock(tx, editTxBranchId, variant.id, returnM2);
-                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(returnM2 * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`, undefined, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(returnM2 * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     }
 
                     // Adjust product-level BOM (AREA_BASED)
@@ -1684,11 +1778,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * areaDelta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(ingDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(ingDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -1699,11 +1793,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * areaDelta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(ingDelta * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(ingDelta * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -1747,11 +1841,11 @@ export class TransactionsService {
                     if (delta > 0) {
                         await this._assertBranchStock(tx, editTxBranchId, variant.id, delta, product.name);
                         await this._adjustStock(tx, editTxBranchId, variant.id, -delta);
-                        await this.logMovement(tx, variant.id, 'OUT', delta, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty bertambah)`, undefined, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'OUT', delta, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty bertambah)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     } else {
                         const returnQty = Math.abs(delta);
                         await this._adjustStock(tx, editTxBranchId, variant.id, returnQty);
-                        await this.logMovement(tx, variant.id, 'IN', returnQty, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty berkurang)`, undefined, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', returnQty, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty berkurang)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     }
 
                     // Adjust product-level BOM (UNIT)
@@ -1760,11 +1854,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * delta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -1775,11 +1869,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * delta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, undefined, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -1969,16 +2063,40 @@ export class TransactionsService {
                             },
                             productionJob: true, // perlu untuk restore stok roll jika sudah dimulai
                         }
-                    }
-                }
+                    },
+                    branch: { select: { id: true, name: true, code: true } } as any,
+                    productionBranch: { select: { id: true, name: true, code: true } } as any,
+                } as any
             });
             if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan');
 
-            // Restore stok semua item (multi-cabang: kembalikan ke BranchStock cabang transaksi)
-            const txBranchId: number | null = (transaction as any).branchId ?? null;
+            // Snapshot context untuk reason text — dipakai biar movement tetap informatif setelah transaksi dihapus.
+            // Format: "Hapus Transaksi SO-XXX | Asita | Titipan BTL → PST"
+            const _ctxParts: string[] = [];
+            const _customerName = (transaction as any).customerName;
+            if (_customerName) _ctxParts.push(_customerName);
+            const _ownerBranch = (transaction as any).branch;
+            const _prodBranch = (transaction as any).productionBranch;
+            const _isTitipan = (transaction as any).productionBranchId != null
+                && (transaction as any).productionBranchId !== (transaction as any).branchId;
+            if (_isTitipan) {
+                const fromCode = _ownerBranch?.code || _ownerBranch?.name || '?';
+                const toCode = _prodBranch?.code || _prodBranch?.name || '?';
+                _ctxParts.push(`Titipan ${fromCode} → ${toCode}`);
+            } else if (_ownerBranch) {
+                _ctxParts.push(`Cabang ${_ownerBranch.code || _ownerBranch.name}`);
+            }
+            const _delCtx = _ctxParts.length ? ` | ${_ctxParts.join(' | ')}` : '';
+
+            // Restore stok ke cabang yang dulu DIPOTONG: pelaksana (productionBranchId) kalau titip cetak,
+            // atau cabang transaksi sendiri kalau bukan. Konsisten dengan stockBranchId di _createTransaction.
+            // Kalau dipakai branchId saja, untuk titip cetak akan inflasi pemesan & minus pelaksana.
+            const txBranchId: number | null =
+                (transaction as any).productionBranchId ?? (transaction as any).branchId ?? null;
             // eslint-disable-next-line no-console
-            console.log(`[DELETE-TX] ${transaction.invoiceNumber} branchId=${txBranchId} items=${transaction.items.length}`);
-            for (const txItem of transaction.items) {
+            const _items: any[] = (transaction as any).items ?? [];
+            console.log(`[DELETE-TX] ${transaction.invoiceNumber} branchId=${txBranchId} items=${_items.length}`);
+            for (const txItem of _items) {
                 const variant = txItem.productVariant;
                 const product = (variant as any).product;
                 const pricingMode = product.pricingMode || 'UNIT';
@@ -2002,7 +2120,7 @@ export class TransactionsService {
                                 // Fallback ke branchId transaksi jika job belum punya (data lama).
                                 const restoreBranchId: number | null = (job as any).branchId ?? txBranchId;
                                 await this._adjustStock(tx, restoreBranchId, job.rollVariantId, rollArea);
-                                await this.logMovement(tx, job.rollVariantId, 'IN', rollArea, `Hapus Transaksi (roll) ${transaction.invoiceNumber}`, undefined, restoreBranchId);
+                                await this.logMovement(tx, job.rollVariantId, 'IN', rollArea, `Hapus Transaksi (roll) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, restoreBranchId);
                             }
                         }
                         // Kalau assembly sudah dilakukan (job.status pernah PASANG/SELESAI-assembly), BOM rangka juga
@@ -2013,7 +2131,7 @@ export class TransactionsService {
                                 if (ing.rawMaterialVariantId) {
                                     const ret = Number(ing.quantity);
                                     await this._adjustStock(tx, restoreBranchId, ing.rawMaterialVariantId, ret);
-                                    await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (pasang BOM) ${transaction.invoiceNumber}`, undefined, restoreBranchId);
+                                    await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (pasang BOM) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, restoreBranchId);
                                 }
                             }
                         }
@@ -2030,19 +2148,19 @@ export class TransactionsService {
                         // eslint-disable-next-line no-console
                         console.log(`    → restore AREA_BASED variant=${variant.id} +${areaM2}m² to branch=${txBranchId}`);
                         await this._adjustStock(tx, txBranchId, variant.id, areaM2);
-                        await this.logMovement(tx, variant.id, 'IN', areaM2, `Hapus Transaksi ${transaction.invoiceNumber}`, undefined, txBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', areaM2, `Hapus Transaksi ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await this._adjustStock(tx, txBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`, undefined, txBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (BOM) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await this._adjustStock(tx, txBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`, undefined, txBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                             }
                         }
                     }
@@ -2059,7 +2177,7 @@ export class TransactionsService {
                         // Kembalikan stok produk induk HANYA kalau trackStock=true
                         if (trackStock) {
                             await this._adjustStock(tx, txBranchId, variant.id, qty);
-                            await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Transaksi ${transaction.invoiceNumber}`, undefined, txBranchId);
+                            await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Transaksi ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                         }
 
                         // BOM selalu dikembalikan (terlepas dari trackStock induk)
@@ -2069,7 +2187,7 @@ export class TransactionsService {
                                 // eslint-disable-next-line no-console
                                 console.log(`      ↳ BOM restore raw=${ing.rawMaterialVariantId} +${ret}`);
                                 await this._adjustStock(tx, txBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (BOM) ${transaction.invoiceNumber}`, undefined, txBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (BOM) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                             }
                         }
                         for (const ing of variantIngredients) {
@@ -2078,7 +2196,7 @@ export class TransactionsService {
                                 // eslint-disable-next-line no-console
                                 console.log(`      ↳ varian-BOM restore raw=${ing.rawMaterialVariantId} +${ret}`);
                                 await this._adjustStock(tx, txBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}`, undefined, txBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (varian BOM) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                             }
                         }
                     }
@@ -2091,7 +2209,7 @@ export class TransactionsService {
             });
 
             // Hapus ProductionJob untuk semua item (FK tanpa onDelete Cascade)
-            const itemIds = transaction.items.map((i: any) => i.id);
+            const itemIds = _items.map((i: any) => i.id);
             if (itemIds.length > 0) {
                 await (tx as any).productionJob.deleteMany({ where: { transactionItemId: { in: itemIds } } });
             }

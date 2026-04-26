@@ -90,6 +90,74 @@ export class StockMovementsService {
             take: 1000,
         });
 
+        // Enrich movements dengan transaction info supaya kolom Keterangan di /reports/stock
+        // bisa render link ke nota + nama customer + badge titipan.
+        // Sumber referenceId yang kita resolve:
+        //   "tx-<invoiceNumber>"     → checkout / edit / hapus dari transactions.service
+        //   "JOB-<date>-<seq>"       → Mulai Job di production.service (lookup via ProductionJob → transactionItem → transaction)
+        //   "BATCH-<seq>"            → Gabung Cetak (batch) — lookup pertama job di batch
+        const refs = Array.from(new Set(
+            movements
+                .map(m => (m as any).referenceId)
+                .filter((r: any) => typeof r === 'string' && r.length > 0),
+        ));
+        const txInvoices = refs.filter(r => r.startsWith('tx-')).map(r => r.slice(3));
+        const jobNumbers = refs.filter(r => r.startsWith('JOB-'));
+        // Lookup transaction by invoiceNumber
+        const txByInvoice = new Map<string, any>();
+        if (txInvoices.length) {
+            const txs = await (this.prisma as any).transaction.findMany({
+                where: { invoiceNumber: { in: txInvoices } },
+                select: {
+                    id: true, invoiceNumber: true, checkoutNumber: true, customerName: true,
+                    branchId: true, productionBranchId: true,
+                    branch: { select: { id: true, name: true, code: true } },
+                    productionBranch: { select: { id: true, name: true, code: true } },
+                },
+            });
+            for (const t of txs) txByInvoice.set(t.invoiceNumber, t);
+        }
+        // Lookup transaction by job number
+        const txByJob = new Map<string, any>();
+        if (jobNumbers.length) {
+            const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+                where: { jobNumber: { in: jobNumbers } },
+                select: {
+                    jobNumber: true,
+                    transaction: {
+                        select: {
+                            id: true, invoiceNumber: true, checkoutNumber: true, customerName: true,
+                            branchId: true, productionBranchId: true,
+                            branch: { select: { id: true, name: true, code: true } },
+                            productionBranch: { select: { id: true, name: true, code: true } },
+                        },
+                    },
+                },
+            });
+            for (const j of jobs) {
+                if (j.transaction) txByJob.set(j.jobNumber, j.transaction);
+            }
+        }
+        const enriched = movements.map((m: any) => {
+            const ref: string | null = m.referenceId ?? null;
+            let tx: any = null;
+            let deletedTxInvoice: string | null = null;
+            if (ref) {
+                if (ref.startsWith('tx-')) {
+                    const inv = ref.slice(3);
+                    tx = txByInvoice.get(inv) ?? null;
+                    if (!tx) deletedTxInvoice = inv; // transaksi sudah dihapus — info ada di reason text
+                } else if (ref.startsWith('JOB-')) {
+                    tx = txByJob.get(ref) ?? null;
+                }
+            }
+            if (tx) {
+                const isTitipan = tx.productionBranchId != null && tx.productionBranchId !== tx.branchId;
+                tx = { ...tx, isTitipan };
+            }
+            return { ...m, transaction: tx, deletedTxInvoice };
+        });
+
         const summary = {
             totalIn:     movements.filter(m => m.type === 'IN').reduce((s, m) => s + Number(m.quantity), 0),
             totalOut:    movements.filter(m => m.type === 'OUT').reduce((s, m) => s + Number(m.quantity), 0),
@@ -97,7 +165,7 @@ export class StockMovementsService {
             count:       movements.length,
         };
 
-        return { movements, summary };
+        return { movements: enriched, summary };
     }
 
     async findOne(id: number) {

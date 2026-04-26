@@ -3,7 +3,8 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getStockMovements } from '@/lib/api';
-import { Search, ArrowUpCircle, ArrowDownCircle, RefreshCw, Download, Filter, X, Package, Loader2, History } from 'lucide-react';
+import Link from 'next/link';
+import { Search, ArrowUpCircle, ArrowDownCircle, RefreshCw, Download, Filter, X, Package, Loader2, History, ExternalLink } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/responsive-table';
 
@@ -280,8 +281,51 @@ export default function StockReportPage() {
                                                 </span>
                                             ) : '–'}
                                         </td>
-                                        <td className="px-4 py-2.5 text-xs text-muted-foreground max-w-[200px] truncate" title={m.reason ?? ''}>
-                                            {m.reason ?? '–'}
+                                        <td className="px-4 py-2.5 text-xs text-muted-foreground max-w-[320px]">
+                                            <div className="space-y-1">
+                                                <p className="truncate" title={m.reason ?? ''}>{m.reason ?? '–'}</p>
+                                                {m.deletedTxInvoice && !m.transaction && (
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-rose-600">
+                                                            <X className="w-3 h-3" />
+                                                            {m.deletedTxInvoice}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-500/15 text-rose-700 border border-rose-500/30 rounded-full">
+                                                            Nota Dihapus
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                {m.transaction && (
+                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                        <Link
+                                                            href={`/transactions/${m.transaction.id}`}
+                                                            className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-indigo-600 hover:text-indigo-800 hover:underline"
+                                                            title="Buka nota"
+                                                        >
+                                                            <ExternalLink className="w-3 h-3" />
+                                                            {m.transaction.checkoutNumber || m.transaction.invoiceNumber}
+                                                        </Link>
+                                                        {m.transaction.customerName && (
+                                                            <span className="text-[11px] text-foreground font-medium">
+                                                                · {m.transaction.customerName}
+                                                            </span>
+                                                        )}
+                                                        {m.transaction.isTitipan ? (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full"
+                                                                title={`Titipan cetak dari ${m.transaction.branch?.name || '-'} → ${m.transaction.productionBranch?.name || '-'}`}>
+                                                                ⚑ Titipan {m.transaction.branch?.code || m.transaction.branch?.name || '?'}
+                                                                {' → '}
+                                                                {m.transaction.productionBranch?.code || m.transaction.productionBranch?.name || '?'}
+                                                            </span>
+                                                        ) : m.transaction.branch ? (
+                                                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-sky-500/15 text-sky-700 border border-sky-500/30 rounded-full"
+                                                                title={`Nota cabang ${m.transaction.branch.name}`}>
+                                                                🏢 {m.transaction.branch.code || m.transaction.branch.name}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 );
@@ -323,6 +367,33 @@ export default function StockReportPage() {
                                         {m.productVariant?.sku} · Sisa stok: {m.balanceAfter != null ? `${fmtQty(m.balanceAfter)} ${unit}` : '–'}
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-0.5 truncate">{m.reason ?? '–'}</p>
+                                    {m.deletedTxInvoice && !m.transaction && (
+                                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-rose-600">
+                                                <X className="w-3 h-3" /> {m.deletedTxInvoice}
+                                            </span>
+                                            <span className="text-[10px] font-bold px-1.5 py-0.5 bg-rose-500/15 text-rose-700 border border-rose-500/30 rounded-full">Nota Dihapus</span>
+                                        </div>
+                                    )}
+                                    {m.transaction && (
+                                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                                            <Link
+                                                href={`/transactions/${m.transaction.id}`}
+                                                className="inline-flex items-center gap-1 text-[11px] font-mono font-semibold text-indigo-600 hover:underline"
+                                            >
+                                                <ExternalLink className="w-3 h-3" />
+                                                {m.transaction.checkoutNumber || m.transaction.invoiceNumber}
+                                            </Link>
+                                            {m.transaction.customerName && (
+                                                <span className="text-[11px] text-foreground font-medium">· {m.transaction.customerName}</span>
+                                            )}
+                                            {m.transaction.isTitipan && (
+                                                <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full">
+                                                    ⚑ Titipan {m.transaction.branch?.code || '?'} → {m.transaction.productionBranch?.code || '?'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">{new Date(m.createdAt).toLocaleString('id-ID')}</p>
                                 </div>
                             </div>

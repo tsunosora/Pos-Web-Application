@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers, createTransaction } from '@/lib/api';
 import { getBranchSettings } from '@/lib/api/settings';
-import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock, CalendarRange, Clock } from "lucide-react";
+import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock, CalendarRange, Clock, Send, Building2 } from "lucide-react";
 import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { useCartStore, CartItem } from '@/store/cart-store';
@@ -842,6 +842,57 @@ function POSPageContent() {
                     </div>
                 )}
 
+                {/* Quick toggle TITIP CETAK — sticky di atas cart supaya kasir tidak perlu scroll */}
+                {otherBranches.length > 0 && (
+                    <div className={`shrink-0 border-b transition-colors ${productionBranchId != null
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'bg-muted/30 border-border'}`}>
+                        <div className="px-3 py-2 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                {productionBranchId != null ? (
+                                    <Send className="w-4 h-4 text-amber-600 shrink-0" />
+                                ) : (
+                                    <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <p className={`text-[11px] font-bold uppercase tracking-wider ${productionBranchId != null ? 'text-amber-700' : 'text-muted-foreground'}`}>
+                                        {productionBranchId != null ? 'TITIP CETAK ke Cabang Lain' : 'Cetak di Cabang Ini'}
+                                    </p>
+                                    {productionBranchId != null ? (
+                                        <select
+                                            value={productionBranchId}
+                                            onChange={e => setProductionBranchId(Number(e.target.value))}
+                                            className="w-full mt-0.5 px-2 py-1 bg-white border border-amber-400 rounded-md text-xs font-semibold text-amber-800 outline-none focus:ring-2 focus:ring-amber-300"
+                                        >
+                                            {otherBranches.map(b => (
+                                                <option key={b.id} value={b.id}>
+                                                    {b.code ? `[${b.code}] ${b.name}` : b.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <p className="text-[11px] text-muted-foreground leading-tight">Antrian produksi & stok di cabang aktif</p>
+                                    )}
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setProductionBranchId(productionBranchId != null ? null : otherBranches[0].id)}
+                                className={`shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all border-2 ${productionBranchId != null
+                                    ? 'bg-white border-amber-500 text-amber-700 hover:bg-amber-50'
+                                    : 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600'}`}
+                            >
+                                {productionBranchId != null ? 'Batal Titip' : 'Titip Cetak'}
+                            </button>
+                        </div>
+                        {productionBranchId != null && (
+                            <p className="px-3 pb-2 text-[10px] text-amber-700 leading-tight">
+                                💡 Pendapatan tetap masuk cabang ini. Stok bahan & antrian produksi tercatat di cabang tujuan. Auto-tercatat di Buku Titipan saat cetakan diserahkan.
+                            </p>
+                        )}
+                    </div>
+                )}
+
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
                     {cart.length === 0 ? (
                         <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground space-y-2 py-10">
@@ -1490,41 +1541,7 @@ function POSPageContent() {
                                     </div>
                                 )}
 
-                                {/* Titip cetak ke cabang lain — tampil untuk semua jenis produk */}
-                                {otherBranches.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-dashed border-border space-y-1.5">
-                                        <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cabang Pengerjaan</p>
-                                        <div className="flex gap-1.5">
-                                            <button type="button" onClick={() => setProductionBranchId(null)}
-                                                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border-2 transition-all ${productionBranchId == null
-                                                    ? 'border-primary bg-primary/10 text-primary'
-                                                    : 'border-border bg-muted/50 text-muted-foreground'}`}>
-                                                Kerjakan di Cabang Ini
-                                            </button>
-                                            <button type="button" onClick={() => setProductionBranchId(otherBranches[0].id)}
-                                                className={`flex-1 py-1.5 rounded-lg text-[11px] font-bold border-2 transition-all ${productionBranchId != null
-                                                    ? 'border-amber-500 bg-amber-500/10 text-amber-600'
-                                                    : 'border-border bg-muted/50 text-muted-foreground'}`}>
-                                                Titip ke Cabang Lain
-                                            </button>
-                                        </div>
-                                        {productionBranchId != null && (
-                                            <>
-                                                <select value={productionBranchId ?? ''} onChange={e => setProductionBranchId(Number(e.target.value))}
-                                                    className="w-full px-2 py-1.5 bg-background border border-amber-500/40 rounded-lg outline-none text-xs focus:border-amber-500 transition-colors">
-                                                    {otherBranches.map(b => (
-                                                        <option key={b.id} value={b.id}>
-                                                            {b.code ? `[${b.code}] ${b.name}` : b.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                <p className="text-[11px] text-amber-700 font-medium bg-amber-500/10 border border-amber-500/20 rounded-lg px-2.5 py-1.5">
-                                                    Pendapatan tetap masuk cabang ini. Antrian produksi, stok bahan, &amp; hitungan klik mesin dicatat di cabang tujuan.
-                                                </p>
-                                            </>
-                                        )}
-                                    </div>
-                                )}
+                                {/* Quick toggle Titip Cetak sudah di header cart — section ini di-remove untuk hindari duplikasi */}
                             </div>
 
                             {/* ── Metode Pembayaran ── */}

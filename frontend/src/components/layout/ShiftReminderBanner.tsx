@@ -32,7 +32,13 @@ export function ShiftReminderBanner() {
         if (!banner?.visible) return;
         const interval = setInterval(() => {
             setCountdown(c => {
-                if (c <= 1) { dismiss(); return 0; }
+                if (c <= 1) {
+                    // Defer store mutation supaya tidak trigger setState lintas komponen
+                    // di tengah React render cycle (penyebab warning "Cannot update a component
+                    // while rendering a different component").
+                    queueMicrotask(dismiss);
+                    return 0;
+                }
                 return c - 1;
             });
         }, 1000);

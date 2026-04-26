@@ -481,6 +481,74 @@ export class ProductsService {
             }),
             (this.prisma as any).stockMovement.count({ where: { productVariantId: variantId } }),
         ]);
-        return { movements, total, page, limit };
+
+        // Enrich dengan transaction info supaya UI bisa tampilkan link nota + customer + badge titipan.
+        // Resolve referenceId:
+        //   "tx-<invoiceNumber>" → lookup transaction by invoiceNumber
+        //   "JOB-<...>"          → lookup ProductionJob → transaction
+        //   tx not found         → mark sebagai deleted (info ada di reason snapshot)
+        const refs = Array.from(new Set(
+            movements
+                .map((m: any) => m.referenceId)
+                .filter((r: any) => typeof r === 'string' && r.length > 0),
+        )) as string[];
+        const txInvoices = refs.filter(r => r.startsWith('tx-')).map(r => r.slice(3));
+        const jobNumbers = refs.filter(r => r.startsWith('JOB-'));
+
+        const txByInvoice = new Map<string, any>();
+        if (txInvoices.length) {
+            const txs = await (this.prisma as any).transaction.findMany({
+                where: { invoiceNumber: { in: txInvoices } },
+                select: {
+                    id: true, invoiceNumber: true, checkoutNumber: true, customerName: true,
+                    branchId: true, productionBranchId: true,
+                    branch: { select: { id: true, name: true, code: true } },
+                    productionBranch: { select: { id: true, name: true, code: true } },
+                },
+            });
+            for (const t of txs) txByInvoice.set(t.invoiceNumber, t);
+        }
+        const txByJob = new Map<string, any>();
+        if (jobNumbers.length) {
+            const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+                where: { jobNumber: { in: jobNumbers } },
+                select: {
+                    jobNumber: true,
+                    transaction: {
+                        select: {
+                            id: true, invoiceNumber: true, checkoutNumber: true, customerName: true,
+                            branchId: true, productionBranchId: true,
+                            branch: { select: { id: true, name: true, code: true } },
+                            productionBranch: { select: { id: true, name: true, code: true } },
+                        },
+                    },
+                },
+            });
+            for (const j of jobs) {
+                if (j.transaction) txByJob.set(j.jobNumber, j.transaction);
+            }
+        }
+
+        const enriched = movements.map((m: any) => {
+            const ref: string | null = m.referenceId ?? null;
+            let tx: any = null;
+            let deletedTxInvoice: string | null = null;
+            if (ref) {
+                if (ref.startsWith('tx-')) {
+                    const inv = ref.slice(3);
+                    tx = txByInvoice.get(inv) ?? null;
+                    if (!tx) deletedTxInvoice = inv;
+                } else if (ref.startsWith('JOB-')) {
+                    tx = txByJob.get(ref) ?? null;
+                }
+            }
+            if (tx) {
+                const isTitipan = tx.productionBranchId != null && tx.productionBranchId !== tx.branchId;
+                tx = { ...tx, isTitipan };
+            }
+            return { ...m, transaction: tx, deletedTxInvoice };
+        });
+
+        return { movements: enriched, total, page, limit };
     }
 }
