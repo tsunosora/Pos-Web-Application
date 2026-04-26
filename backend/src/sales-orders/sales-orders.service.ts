@@ -84,17 +84,62 @@ export class SalesOrdersService {
         return `${prefix}${String(nextSeq).padStart(4, '0')}`;
     }
 
-    async list(status?: SalesOrderStatus, search?: string, designerName?: string) {
-        const where: any = {};
+    /**
+     * Resolve nama-nama cabang yang relevan untuk filter SO berdasarkan branchId.
+     * SO simpan `branchName` (string), tidak punya FK branchId. Untuk match akurat:
+     * - Ambil CompanyBranch.name + code
+     * - Return array nama yang mungkin tersimpan di SO.branchName
+     *   (cover variasi: nama persis, code, atau nama mengandung code)
+     */
+    private async resolveBranchNamesForFilter(branchId: number): Promise<string[] | null> {
+        try {
+            const branch = await (this.prisma as any).companyBranch.findUnique({
+                where: { id: branchId },
+                select: { name: true, code: true },
+            });
+            if (!branch) return null;
+            const names: string[] = [branch.name];
+            if (branch.code) names.push(branch.code);
+            return names;
+        } catch {
+            return null;
+        }
+    }
+
+    /** Build WHERE clause untuk filter SO per cabang. Owner mode null = no filter. */
+    private async branchFilter(branchId: number | null): Promise<any> {
+        if (branchId == null) return {}; // Owner "Semua Cabang"
+        const names = await this.resolveBranchNamesForFilter(branchId);
+        if (!names || !names.length) return { branchName: '__no_branch_match__' }; // pasti kosong
+        return {
+            OR: [
+                { branchName: { in: names } },
+                // Fallback: cocok kalau branchName mengandung salah satu name/code (mis. "Cab Sewon" match "Voliko Cabang Sewon")
+                ...names.map(n => ({ branchName: { contains: n } })),
+            ],
+        };
+    }
+
+    async list(status?: SalesOrderStatus, search?: string, designerName?: string, branchId?: number | null) {
+        const where: any = await this.branchFilter(branchId ?? null);
         if (status) where.status = status;
         if (designerName) where.designerName = designerName;
         if (search && search.trim()) {
             const q = search.trim();
-            where.OR = [
+            // Gabungkan dengan branch filter pakai AND supaya search & branch dua-duanya mandatory
+            const searchOR = [
                 { soNumber: { contains: q } },
                 { customerName: { contains: q } },
                 { customerPhone: { contains: q } },
             ];
+            if (where.OR) {
+                // Sudah ada OR dari branch filter — pindahkan ke AND
+                const branchOR = where.OR;
+                delete where.OR;
+                where.AND = [{ OR: branchOR }, { OR: searchOR }];
+            } else {
+                where.OR = searchOR;
+            }
         }
         return (this.prisma as any).salesOrder.findMany({
             where,
@@ -103,17 +148,30 @@ export class SalesOrdersService {
         });
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, branchId?: number | null) {
         const so = await (this.prisma as any).salesOrder.findUnique({
             where: { id },
             include: this.soInclude(),
         });
         if (!so) throw new NotFoundException('Surat Order tidak ditemukan');
+        // Cek scoping: kalau branchId di-pass (staff), pastikan SO ini miliknya
+        if (branchId != null) {
+            const names = await this.resolveBranchNamesForFilter(branchId);
+            if (names && names.length) {
+                const soBranch: string = (so as any).branchName ?? '';
+                const match = names.some(n => soBranch === n || soBranch.toLowerCase().includes(n.toLowerCase()));
+                if (!match) {
+                    throw new NotFoundException('Surat Order tidak ditemukan di cabang Anda');
+                }
+            }
+        }
         return so;
     }
 
-    async pendingInvoiceCount() {
-        const count = await (this.prisma as any).salesOrder.count({ where: { status: 'SENT' } });
+    async pendingInvoiceCount(branchId?: number | null) {
+        const where: any = await this.branchFilter(branchId ?? null);
+        where.status = 'SENT';
+        const count = await (this.prisma as any).salesOrder.count({ where });
         return { count };
     }
 

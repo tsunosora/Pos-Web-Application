@@ -94,7 +94,8 @@
       "PowerShell(Set-Location \"D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\frontend\"; $out = npx tsc --noEmit 2>&1 | Out-String; if \\($out.Trim\\(\\)\\) { $out } else { \"OK: no TypeScript errors\" })",
       "PowerShell(\"---\")",
       "Bash(taskkill /F /IM node.exe)",
-      "Bash(cmd //c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\*.md /b 2>nul\")"
+      "Bash(cmd //c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\*.md /b 2>nul\")",
+      "Bash(rm tscheck.log)"
     ]
   }
 }

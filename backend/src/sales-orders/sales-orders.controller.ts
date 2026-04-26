@@ -58,18 +58,22 @@ export class SalesOrdersController {
     constructor(private readonly service: SalesOrdersService) {}
 
     @Get()
-    list(@Query('status') status?: SalesOrderStatus, @Query('search') search?: string) {
-        return this.service.list(status, search);
+    list(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('status') status?: SalesOrderStatus,
+        @Query('search') search?: string,
+    ) {
+        return this.service.list(status, search, undefined, ctx.branchId);
     }
 
     @Get('pending-invoice-count')
-    pendingInvoiceCount() {
-        return this.service.pendingInvoiceCount();
+    pendingInvoiceCount(@CurrentBranch() ctx: BranchContext) {
+        return this.service.pendingInvoiceCount(ctx.branchId);
     }
 
     @Get(':id')
-    findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.service.findOne(id);
+    findOne(@Param('id', ParseIntPipe) id: number, @CurrentBranch() ctx: BranchContext) {
+        return this.service.findOne(id, ctx.branchId);
     }
 
     @Post()

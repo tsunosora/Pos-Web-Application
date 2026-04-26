@@ -115,11 +115,30 @@ export class ProductionService {
         return jobs.filter(j => !hidden.has(Number(j.transaction?.id)));
     }
 
-    async getRolls() {
-        return (this.prisma as any).productVariant.findMany({
+    async getRolls(branchId?: number) {
+        const variants: any[] = await (this.prisma as any).productVariant.findMany({
             include: { product: true },
             orderBy: [{ product: { name: 'asc' } }],
         });
+
+        // Multi-cabang: override variant.stock dengan BranchStock cabang aktif kalau branchId di-pass.
+        // Operator perlu lihat stok roll cabang dia, bukan agregat global.
+        if (branchId) {
+            const variantIds = variants.map(v => v.id);
+            const branchStocks: any[] = await (this.prisma as any).branchStock.findMany({
+                where: { branchId, productVariantId: { in: variantIds } },
+                select: { productVariantId: true, stock: true },
+            });
+            const stockMap = new Map<number, number>();
+            for (const bs of branchStocks) {
+                stockMap.set(Number(bs.productVariantId), Number(bs.stock));
+            }
+            for (const v of variants) {
+                v.aggregateStock = v.stock; // simpan agregat global untuk reference
+                v.stock = stockMap.get(v.id) ?? 0;
+            }
+        }
+        return variants;
     }
 
     async startJob(id: number, data: {

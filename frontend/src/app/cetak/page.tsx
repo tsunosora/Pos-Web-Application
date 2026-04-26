@@ -6,17 +6,27 @@ import {
     startPrintJob, finishPrintJob, pickupPrintJob,
     PrintJob, PrintJobStatus,
 } from '@/lib/api/print-queue';
+import { getPublicBranches, PublicBranch } from '@/lib/api/production';
 
 const PIN_KEY = 'cetak_pin_session';
 const PIN_TTL = 24 * 60 * 60 * 1000;
 const OP_KEY = 'cetak_operator_name';
 
-function hasSession(): boolean {
+interface CetakSession {
+    expires: number;
+    branchId: number | null;
+    branchName: string | null;
+    branchCode: string | null;
+}
+
+function readSession(): CetakSession | null {
     try {
         const raw = localStorage.getItem(PIN_KEY);
-        if (!raw) return false;
-        return Date.now() < JSON.parse(raw).expires;
-    } catch { return false; }
+        if (!raw) return null;
+        const s = JSON.parse(raw) as CetakSession;
+        if (Date.now() >= s.expires) return null;
+        return s;
+    } catch { return null; }
 }
 
 type Tab = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL';
@@ -57,19 +67,36 @@ export default function CetakPage() {
     const [busyId, setBusyId] = useState<number | null>(null);
     const refreshRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Multi-cabang
+    const [branches, setBranches] = useState<PublicBranch[]>([]);
+    const [activeBranchId, setActiveBranchId] = useState<number | null>(null);
+    const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
+    const [activeBranchCode, setActiveBranchCode] = useState<string | null>(null);
+
     useEffect(() => {
-        if (hasSession()) setAuthed(true);
+        getPublicBranches().then(setBranches).catch(() => setBranches([]));
+        const session = readSession();
+        if (session) {
+            setActiveBranchId(session.branchId);
+            setActiveBranchName(session.branchName);
+            setActiveBranchCode(session.branchCode);
+            setAuthed(true);
+        }
         const storedOp = localStorage.getItem(OP_KEY);
         if (storedOp) setOperatorName(storedOp);
     }, []);
 
     const loadData = useCallback(async () => {
         try {
-            const [j, s] = await Promise.all([listPrintJobs(), getPrintQueueStats()]);
+            const bid = activeBranchId ?? undefined;
+            const [j, s] = await Promise.all([
+                listPrintJobs(undefined, undefined, bid),
+                getPrintQueueStats(bid),
+            ]);
             setJobs(j);
             setStats(s);
         } catch (e) { console.error(e); }
-    }, []);
+    }, [activeBranchId]);
 
     useEffect(() => {
         if (!authed) return;
@@ -81,11 +108,28 @@ export default function CetakPage() {
     const handlePin = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pinInput) return;
+        if (branches.length > 1 && activeBranchId == null) {
+            setPinError('Pilih cabang terlebih dahulu');
+            return;
+        }
         setPinLoading(true); setPinError('');
         try {
-            const res = await verifyPrintPin(pinInput);
+            const bid = activeBranchId ?? (branches.length === 1 ? branches[0].id : null);
+            const branch = branches.find(b => b.id === bid) || null;
+            const res = await verifyPrintPin(pinInput, bid ?? undefined);
             if (res.valid) {
-                localStorage.setItem(PIN_KEY, JSON.stringify({ expires: Date.now() + PIN_TTL }));
+                const session: CetakSession = {
+                    expires: Date.now() + PIN_TTL,
+                    branchId: bid,
+                    branchName: branch?.name ?? null,
+                    branchCode: branch?.code ?? null,
+                };
+                localStorage.setItem(PIN_KEY, JSON.stringify(session));
+                if (bid && branch) {
+                    setActiveBranchId(bid);
+                    setActiveBranchName(branch.name);
+                    setActiveBranchCode(branch.code);
+                }
                 setAuthed(true);
             } else {
                 setPinError(res.message || 'PIN salah.');
@@ -93,6 +137,15 @@ export default function CetakPage() {
             }
         } catch { setPinError('Gagal menghubungi server.'); }
         finally { setPinLoading(false); }
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem(PIN_KEY);
+        setAuthed(false);
+        setActiveBranchId(null);
+        setActiveBranchName(null);
+        setActiveBranchCode(null);
+        setPinInput('');
     };
 
     const ensureOperator = (): string | null => {
@@ -141,11 +194,43 @@ export default function CetakPage() {
     });
 
     if (!authed) {
+        const showBranchPicker = branches.length > 1;
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 to-sky-50 p-4">
                 <form onSubmit={handlePin} className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
                     <h1 className="text-2xl font-bold mb-1">Antrian Cetak Paper</h1>
-                    <p className="text-sm text-gray-500 mb-5">Masukkan PIN operator</p>
+                    <p className="text-sm text-gray-500 mb-5">
+                        {showBranchPicker ? 'Pilih cabang & masukkan PIN operator' : 'Masukkan PIN operator'}
+                    </p>
+
+                    {showBranchPicker && (
+                        <div className="mb-4">
+                            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">Cabang</label>
+                            <div className="grid grid-cols-1 gap-2">
+                                {branches.map(b => (
+                                    <button
+                                        key={b.id}
+                                        type="button"
+                                        onClick={() => setActiveBranchId(b.id)}
+                                        className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition-all ${
+                                            activeBranchId === b.id
+                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                                : 'border-gray-200 bg-white hover:border-indigo-300'
+                                        }`}
+                                    >
+                                        <span className="font-semibold text-sm">{b.name}</span>
+                                        {b.code && (
+                                            <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                                                activeBranchId === b.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'
+                                            }`}>{b.code}</span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">PIN Operator</label>
                     <input
                         type="password"
                         inputMode="numeric"
@@ -153,7 +238,7 @@ export default function CetakPage() {
                         onChange={e => setPinInput(e.target.value)}
                         className="w-full border rounded-lg px-4 py-3 text-lg tracking-widest text-center focus:ring-2 focus:ring-indigo-400 outline-none"
                         placeholder="••••"
-                        autoFocus
+                        autoFocus={!showBranchPicker}
                     />
                     {pinError && <p className="text-red-600 text-sm mt-2">{pinError}</p>}
                     <button
@@ -161,6 +246,10 @@ export default function CetakPage() {
                         disabled={pinLoading}
                         className="w-full mt-4 bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                     >{pinLoading ? 'Memeriksa...' : 'Masuk'}</button>
+
+                    <p className="text-center text-xs text-gray-400 mt-4">
+                        PIN per cabang. Berlaku 24 jam di perangkat ini.
+                    </p>
                 </form>
                 <div className="mt-6 text-center">
                     <p className="text-sm font-semibold text-gray-400 tracking-wide">Voliko Print</p>
@@ -175,8 +264,17 @@ export default function CetakPage() {
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
-                        <h1 className="text-2xl font-bold">Antrian Cetak Paper</h1>
+                        <h1 className="text-2xl font-bold flex items-center gap-2">
+                            Antrian Cetak Paper
+                            {activeBranchCode && (
+                                <span className="text-xs font-mono font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-full">
+                                    {activeBranchCode}
+                                </span>
+                            )}
+                        </h1>
                         <p className="text-sm text-gray-600">
+                            {activeBranchName && <span className="font-semibold">{activeBranchName}</span>}
+                            {activeBranchName && ' · '}
                             Operator: <span className="font-semibold">{operatorName || '—'}</span>
                             {operatorName && (
                                 <button
@@ -186,13 +284,19 @@ export default function CetakPage() {
                             )}
                         </p>
                     </div>
-                    <input
-                        type="search"
-                        placeholder="Cari no. job / invoice / pelanggan..."
-                        value={search}
-                        onChange={e => setSearch(e.target.value)}
-                        className="border rounded-lg px-3 py-2 text-sm w-72 bg-white"
-                    />
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="search"
+                            placeholder="Cari no. job / invoice / pelanggan..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="border rounded-lg px-3 py-2 text-sm w-72 bg-white"
+                        />
+                        <button
+                            onClick={handleLogout}
+                            className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100"
+                        >Keluar</button>
+                    </div>
                 </div>
 
                 <div className="flex gap-2 overflow-x-auto mb-4 pb-1">

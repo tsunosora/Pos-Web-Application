@@ -5,19 +5,33 @@ export type Tab = 'ANTRIAN' | 'PROSES' | 'MENUNGGU_PASANG' | 'PASANG' | 'SELESAI
 export const PIN_KEY = 'produksi_pin_session';
 export const PIN_TTL = 24 * 60 * 60 * 1000; // 24 jam
 
-export function getStoredSession(): boolean {
+export interface ProduksiSession {
+    expires: number;
+    branchId: number | null;
+    branchName: string | null;
+    branchCode: string | null;
+}
+
+export function getStoredSession(): ProduksiSession | null {
     try {
         const raw = localStorage.getItem(PIN_KEY);
-        if (!raw) return false;
-        const { expires } = JSON.parse(raw);
-        return Date.now() < expires;
+        if (!raw) return null;
+        const s = JSON.parse(raw) as ProduksiSession;
+        if (Date.now() >= s.expires) return null;
+        return s;
     } catch {
-        return false;
+        return null;
     }
 }
 
-export function saveSession() {
-    localStorage.setItem(PIN_KEY, JSON.stringify({ expires: Date.now() + PIN_TTL }));
+export function saveSession(branchId: number | null = null, branchName: string | null = null, branchCode: string | null = null) {
+    const session: ProduksiSession = {
+        expires: Date.now() + PIN_TTL,
+        branchId,
+        branchName,
+        branchCode,
+    };
+    localStorage.setItem(PIN_KEY, JSON.stringify(session));
 }
 
 export function clearSession() {

@@ -51,19 +51,22 @@ export interface PrintQueueStats {
     diambil: number;
 }
 
-export const listPrintJobs = async (status?: PrintJobStatus, search?: string): Promise<PrintJob[]> => {
+export const listPrintJobs = async (status?: PrintJobStatus, search?: string, branchId?: number): Promise<PrintJob[]> => {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
     if (search) params.append('search', search);
+    if (branchId) params.append('branchId', String(branchId));
     const qs = params.toString();
     return (await api.get(`/print-queue/jobs${qs ? `?${qs}` : ''}`)).data;
 };
 
-export const getPrintQueueStats = async (): Promise<PrintQueueStats> =>
-    (await api.get('/print-queue/stats')).data;
+export const getPrintQueueStats = async (branchId?: number): Promise<PrintQueueStats> => {
+    const qs = branchId ? `?branchId=${branchId}` : '';
+    return (await api.get(`/print-queue/stats${qs}`)).data;
+};
 
-export const verifyPrintPin = async (pin: string): Promise<{ valid: boolean; message?: string }> =>
-    (await api.post('/print-queue/pin/verify', { pin })).data;
+export const verifyPrintPin = async (pin: string, branchId?: number): Promise<{ valid: boolean; message?: string }> =>
+    (await api.post('/print-queue/pin/verify', { pin, branchId })).data;
 
 export const startPrintJob = async (id: number, operatorName?: string): Promise<PrintJob> =>
     (await api.post(`/print-queue/jobs/${id}/start`, { operatorName })).data;

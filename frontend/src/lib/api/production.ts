@@ -1,30 +1,45 @@
 // Production Queue — all endpoints use raw fetch (no JWT, public access)
 const API_BASE = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-export const verifyOperatorPin = async (pin: string): Promise<{ valid: boolean; message?: string }> => {
+export interface PublicBranch { id: number; name: string; code: string | null; phone: string | null }
+
+export const getPublicBranches = async (): Promise<PublicBranch[]> => {
+    const res = await fetch(`${API_BASE()}/company-branches/public-active`);
+    return res.json();
+};
+
+/** Helper: build query string dengan optional branchId */
+function qs(params: Record<string, string | number | undefined>): string {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+        if (v != null && v !== '') sp.append(k, String(v));
+    }
+    const s = sp.toString();
+    return s ? `?${s}` : '';
+}
+
+export const verifyOperatorPin = async (pin: string, branchId?: number): Promise<{ valid: boolean; message?: string }> => {
     const res = await fetch(`${API_BASE()}/production/pin/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin }),
+        body: JSON.stringify({ pin, branchId }),
     });
     return res.json();
 };
 
-export const getProductionJobs = async (status?: string): Promise<any[]> => {
-    const url = status
-        ? `${API_BASE()}/production/jobs?status=${status}`
-        : `${API_BASE()}/production/jobs`;
+export const getProductionJobs = async (status?: string, branchId?: number): Promise<any[]> => {
+    const url = `${API_BASE()}/production/jobs${qs({ status, branchId })}`;
     const res = await fetch(url);
     return res.json();
 };
 
-export const getProductionRolls = async (): Promise<any[]> => {
-    const res = await fetch(`${API_BASE()}/production/rolls`);
+export const getProductionRolls = async (branchId?: number): Promise<any[]> => {
+    const res = await fetch(`${API_BASE()}/production/rolls${qs({ branchId })}`);
     return res.json();
 };
 
-export const getProductionStats = async (): Promise<{ antrian: number; proses: number; menungguPasang: number; pasang: number; selesai: number }> => {
-    const res = await fetch(`${API_BASE()}/production/stats`);
+export const getProductionStats = async (branchId?: number): Promise<{ antrian: number; proses: number; menungguPasang: number; pasang: number; selesai: number }> => {
+    const res = await fetch(`${API_BASE()}/production/stats${qs({ branchId })}`);
     return res.json();
 };
 

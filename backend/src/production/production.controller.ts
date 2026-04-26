@@ -16,8 +16,8 @@ export class ProductionController {
     }
 
     @Get('rolls')
-    getRolls() {
-        return this.productionService.getRolls();
+    getRolls(@Query('branchId') branchId?: string) {
+        return this.productionService.getRolls(branchId ? parseInt(branchId) : undefined);
     }
 
     @Get('stats')

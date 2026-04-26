@@ -7,6 +7,7 @@ import {
     pickupProductionJob, createProductionBatch, completeProductionBatch,
     startAssemblyJob, completeAssemblyJob,
 } from '@/lib/api';
+import { getPublicBranches, PublicBranch } from '@/lib/api/production';
 import {
     Tab, PIN_KEY, PIN_TTL,
     getStoredSession, saveSession, clearSession,
@@ -21,6 +22,12 @@ export default function ProduksiPage() {
     const [pinInput, setPinInput] = useState('');
     const [pinError, setPinError] = useState('');
     const [pinLoading, setPinLoading] = useState(false);
+
+    // Multi-cabang: branchId dipilih sebelum PIN. PIN di-verify per cabang.
+    const [branches, setBranches] = useState<PublicBranch[]>([]);
+    const [activeBranchId, setActiveBranchId] = useState<number | null>(null);
+    const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
+    const [activeBranchCode, setActiveBranchCode] = useState<string | null>(null);
 
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<any[]>([]);
@@ -56,18 +63,26 @@ export default function ProduksiPage() {
 
     const refreshInterval = useRef<NodeJS.Timeout | null>(null);
 
-    // Check stored PIN session on mount
+    // Load branches + check stored PIN session on mount
     useEffect(() => {
-        if (getStoredSession()) setAuthed(true);
+        getPublicBranches().then(setBranches).catch(() => setBranches([]));
+        const session = getStoredSession();
+        if (session) {
+            setActiveBranchId(session.branchId);
+            setActiveBranchName(session.branchName);
+            setActiveBranchCode(session.branchCode);
+            setAuthed(true);
+        }
     }, []);
 
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
+            const bid = activeBranchId ?? undefined;
             const [j, r, s] = await Promise.all([
-                getProductionJobs(),
-                getProductionRolls(),
-                getProductionStats(),
+                getProductionJobs(undefined, bid),
+                getProductionRolls(bid),
+                getProductionStats(bid),
             ]);
             setJobs(j);
             setRolls(r);
@@ -77,7 +92,7 @@ export default function ProduksiPage() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [activeBranchId]);
 
     useEffect(() => {
         if (!authed) return;
@@ -90,12 +105,24 @@ export default function ProduksiPage() {
     const handlePinSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pinInput) return;
+        if (branches.length > 1 && activeBranchId == null) {
+            setPinError('Pilih cabang terlebih dahulu');
+            return;
+        }
         setPinLoading(true);
         setPinError('');
         try {
-            const res = await verifyOperatorPin(pinInput);
+            // Kalau cuma 1 cabang aktif, auto-pilih supaya UX simpel
+            const bid = activeBranchId ?? (branches.length === 1 ? branches[0].id : null);
+            const branch = branches.find(b => b.id === bid) || null;
+            const res = await verifyOperatorPin(pinInput, bid ?? undefined);
             if (res.valid) {
-                saveSession();
+                saveSession(bid, branch?.name ?? null, branch?.code ?? null);
+                if (bid && branch) {
+                    setActiveBranchId(bid);
+                    setActiveBranchName(branch.name);
+                    setActiveBranchCode(branch.code);
+                }
                 setAuthed(true);
             } else {
                 setPinError(res.message || 'PIN salah. Coba lagi.');
@@ -106,6 +133,16 @@ export default function ProduksiPage() {
         } finally {
             setPinLoading(false);
         }
+    };
+
+    // Logout — clear session + reset state, kembali ke pin/branch picker
+    const handleLogout = () => {
+        clearSession();
+        setAuthed(false);
+        setActiveBranchId(null);
+        setActiveBranchName(null);
+        setActiveBranchCode(null);
+        setPinInput('');
     };
 
     // ── filter jobs by tab + search ────────────────────────────────────────────
@@ -284,6 +321,7 @@ export default function ProduksiPage() {
 
     // ── PIN SCREEN ─────────────────────────────────────────────────────────────
     if (!authed) {
+        const showBranchPicker = branches.length > 1;
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
                 <div className="w-full max-w-sm">
@@ -294,19 +332,56 @@ export default function ProduksiPage() {
                             </svg>
                         </div>
                         <h1 className="text-2xl font-bold text-foreground">Antrian Produksi</h1>
-                        <p className="text-muted-foreground text-sm mt-1">Masukkan PIN operator untuk mengakses</p>
+                        <p className="text-muted-foreground text-sm mt-1">
+                            {showBranchPicker ? 'Pilih cabang & masukkan PIN operator' : 'Masukkan PIN operator untuk mengakses'}
+                        </p>
                     </div>
 
                     <form onSubmit={handlePinSubmit} className="space-y-4">
-                        <input
-                            type="password" inputMode="numeric" pattern="[0-9]*"
-                            value={pinInput}
-                            onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))}
-                            maxLength={6}
-                            placeholder="PIN Operator"
-                            autoFocus
-                            className="w-full text-center text-3xl tracking-[1rem] font-mono px-4 py-4 border-2 border-border bg-background rounded-2xl focus:border-primary outline-none transition-colors"
-                        />
+                        {showBranchPicker && (
+                            <div>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                                    Cabang
+                                </label>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {branches.map(b => (
+                                        <button
+                                            key={b.id}
+                                            type="button"
+                                            onClick={() => setActiveBranchId(b.id)}
+                                            className={`flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all ${
+                                                activeBranchId === b.id
+                                                    ? 'border-primary bg-primary/10 text-primary'
+                                                    : 'border-border bg-background hover:border-primary/40'
+                                            }`}
+                                        >
+                                            <span className="font-semibold text-sm">{b.name}</span>
+                                            {b.code && (
+                                                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
+                                                    activeBranchId === b.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                                                }`}>{b.code}</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                                PIN Operator
+                            </label>
+                            <input
+                                type="password" inputMode="numeric" pattern="[0-9]*"
+                                value={pinInput}
+                                onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))}
+                                maxLength={6}
+                                placeholder="••••"
+                                autoFocus={!showBranchPicker}
+                                className="w-full text-center text-3xl tracking-[1rem] font-mono px-4 py-4 border-2 border-border bg-background rounded-2xl focus:border-primary outline-none transition-colors"
+                            />
+                        </div>
+
                         {pinError && (
                             <div className="text-center text-sm text-red-500 font-medium">{pinError}</div>
                         )}
@@ -317,7 +392,7 @@ export default function ProduksiPage() {
                     </form>
 
                     <p className="text-center text-xs text-muted-foreground mt-6">
-                        PIN berlaku 24 jam di perangkat ini
+                        PIN per cabang. Berlaku 24 jam di perangkat ini.
                     </p>
 
                     <div className="mt-4 text-center">
@@ -342,8 +417,17 @@ export default function ProduksiPage() {
                         </svg>
                     </div>
                     <div>
-                        <h1 className="font-bold text-sm text-foreground">Antrian Produksi</h1>
-                        <p className="text-xs text-muted-foreground">Auto refresh 30 detik</p>
+                        <h1 className="font-bold text-sm text-foreground flex items-center gap-2">
+                            Antrian Produksi
+                            {activeBranchCode && (
+                                <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-primary/15 text-primary border border-primary/30 rounded-full">
+                                    {activeBranchCode}
+                                </span>
+                            )}
+                        </h1>
+                        <p className="text-xs text-muted-foreground">
+                            {activeBranchName ? `${activeBranchName} · Auto refresh 30 detik` : 'Auto refresh 30 detik'}
+                        </p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -353,7 +437,7 @@ export default function ProduksiPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                     </button>
-                    <button onClick={() => { clearSession(); setAuthed(false); }}
+                    <button onClick={handleLogout}
                         className="text-xs text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
                         Keluar
                     </button>
