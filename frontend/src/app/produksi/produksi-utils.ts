@@ -39,25 +39,66 @@ export function formatDeadline(dt: string | null | undefined): { label: string; 
     };
 }
 
+// ─── Unit normalization ────────────────────────────────────────────────────
+// Field `widthCm` / `heightCm` di DB menyimpan RAW INPUT VALUE — bukan selalu cm.
+// Tergantung `unitType`:
+//   unitType='m'    → value dalam meter (mis. 2 = 2 m)
+//   unitType='cm'   → value dalam cm    (mis. 200 = 200 cm = 2 m)
+//   unitType='menit'→ value dalam menit (untuk produk berbasis durasi, tidak punya area)
+// Helper ini normalisasi ke cm supaya semua perhitungan sambung & roll-fit konsisten.
+
+/** Konversi nilai mentah ke cm berdasarkan unitType. */
+function toCm(rawValue: number, unitType: string | null | undefined): number {
+    const u = (unitType || 'm').toLowerCase();
+    if (u === 'cm') return rawValue;
+    if (u === 'm') return rawValue * 100;
+    // 'menit' tidak punya dimensi area
+    return rawValue;
+}
+
+/**
+ * Ambil dimensi item dalam cm (selalu) — untuk perbandingan dengan roll width
+ * yang juga dalam cm. Return null kalau item bukan AREA_BASED atau dimensi tidak ada.
+ */
+export function getDimsInCm(item: any): { widthCm: number; heightCm: number; unitType: string } | null {
+    const ti = item?.transactionItem;
+    if (!ti) return null;
+    const u = ti.unitType || 'm';
+    if (u === 'menit') return null; // produk durasi
+    const w = ti.widthCm != null ? Number(ti.widthCm) : null;
+    const h = ti.heightCm != null ? Number(ti.heightCm) : null;
+    if (w == null || h == null) return null;
+    return { widthCm: toCm(w, u), heightCm: toCm(h, u), unitType: u };
+}
+
+/** Label dimensi dengan suffix unit yang BENAR berdasarkan unitType. */
 export function getDimLabel(item: any): string {
-    const ti = item.transactionItem;
+    const ti = item?.transactionItem;
     if (!ti) return '';
-    const w = ti.widthCm ? Number(ti.widthCm) : null;
-    const h = ti.heightCm ? Number(ti.heightCm) : null;
-    if (w && h) return `${w} × ${h} m`;
-    return '';
+    const w = ti.widthCm != null ? Number(ti.widthCm) : null;
+    const h = ti.heightCm != null ? Number(ti.heightCm) : null;
+    if (w == null || h == null) return '';
+    const u = (ti.unitType || 'm').toLowerCase();
+    if (u === 'menit') return `${w} menit`;
+    return `${w} × ${h} ${u}`;
 }
 
 export function getAreaM2(item: any): number {
-    const ti = item.transactionItem;
+    const ti = item?.transactionItem;
     if (!ti) return 0;
     if (ti.areaCm2) return Number(ti.areaCm2) / 10000;
-    const w = ti.widthCm ? Number(ti.widthCm) : 0;
-    const h = ti.heightCm ? Number(ti.heightCm) : 0;
-    return w * h;
+    // Fallback: hitung dari raw width × height berdasarkan unitType
+    const dims = getDimsInCm(item);
+    if (!dims) return 0;
+    return (dims.widthCm * dims.heightCm) / 10000;
 }
 
-// Suggest rolls that can fit the shorter dimension
+/**
+ * Suggest rolls yang muat dimensi pendek.
+ * NOTE: parameter `widthCm` & `heightCm` di sini WAJIB sudah dalam cm
+ * (caller harus normalisasi via `getDimsInCm` dulu untuk item yang unitType='m').
+ * `rollEffectivePrintWidth` & `rollPhysicalWidth` selalu dalam cm.
+ */
 export function suggestRolls(rolls: any[], widthCm: number | null, heightCm: number | null): { roll: any; suggested: boolean }[] {
     if (!widthCm || !heightCm) return rolls.map(r => ({ roll: r, suggested: false }));
     const shorter = Math.min(widthCm, heightCm);
@@ -67,12 +108,19 @@ export function suggestRolls(rolls: any[], widthCm: number | null, heightCm: num
     }));
 }
 
+/**
+ * Get dimensi terpanjang (cm). Caller wajib pass nilai sudah dalam cm.
+ */
 export function getLongerDim(widthCm: number | null, heightCm: number | null): number {
     if (!widthCm && !heightCm) return 0;
     return Math.max(widthCm ?? 0, heightCm ?? 0);
 }
 
-// Sambung detection: when shorter dim > roll effective width, needs multiple print passes
+/**
+ * Sambung detection: kalau dimensi pendek > roll effective width, butuh beberapa strip.
+ * Parameter widthCm/heightCm WAJIB dalam cm (caller normalisasi via getDimsInCm).
+ * rollEffectiveWidth juga dalam cm.
+ */
 export function getSambungInfo(widthCm: number | null, heightCm: number | null, rollEffectiveWidth: number): {
     needsSambung: boolean; strips: number; stripWidth: number;
 } {

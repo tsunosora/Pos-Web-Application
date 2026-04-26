@@ -341,16 +341,27 @@ export default function DesignerNewSOPage() {
                                         )}
                                         {it.pricingMode === "AREA_BASED" && (
                                             <>
-                                                <Field label="Lebar (cm)">
-                                                    <input type="number" min={0} value={it.widthCm ?? ""}
+                                                <Field label="Satuan">
+                                                    <select value={it.unitType ?? "cm"}
+                                                        onChange={e => updateItem(it.key, { unitType: e.target.value })}
+                                                        className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                                        <option value="cm">cm</option>
+                                                        <option value="m">meter</option>
+                                                        <option value="menit">menit</option>
+                                                    </select>
+                                                </Field>
+                                                <Field label={`Lebar (${it.unitType ?? "cm"})`}>
+                                                    <input type="number" min={0} step="any" value={it.widthCm ?? ""}
                                                         onChange={e => updateItem(it.key, { widthCm: Number(e.target.value) })}
                                                         className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                                                 </Field>
-                                                <Field label="Tinggi (cm)">
-                                                    <input type="number" min={0} value={it.heightCm ?? ""}
-                                                        onChange={e => updateItem(it.key, { heightCm: Number(e.target.value) })}
-                                                        className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
-                                                </Field>
+                                                {it.unitType !== "menit" && (
+                                                    <Field label={`Tinggi (${it.unitType ?? "cm"})`}>
+                                                        <input type="number" min={0} step="any" value={it.heightCm ?? ""}
+                                                            onChange={e => updateItem(it.key, { heightCm: Number(e.target.value) })}
+                                                            className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
+                                                    </Field>
+                                                )}
                                                 <Field label="Pcs">
                                                     <input type="number" min={1} value={it.pcs ?? 1}
                                                         onChange={e => updateItem(it.key, { pcs: Number(e.target.value) })}

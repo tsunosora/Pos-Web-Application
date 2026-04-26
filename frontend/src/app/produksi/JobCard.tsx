@@ -1,6 +1,6 @@
 "use client";
 
-import { Tab, formatDeadline, getDimLabel, getSambungInfo } from './produksi-utils';
+import { Tab, formatDeadline, getDimLabel, getSambungInfo, getDimsInCm } from './produksi-utils';
 
 interface JobCardProps {
     job: any;
@@ -27,9 +27,9 @@ export function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onC
     const rollLabel = job.rollVariant
         ? `${job.rollVariant.product?.name} — ${job.rollLengthUsed}m`
         : job.usedWaste ? 'Sisa/Waste' : '—';
-    const w = job.transactionItem?.widthCm ? Number(job.transactionItem.widthCm) : null;
-    const h = job.transactionItem?.heightCm ? Number(job.transactionItem.heightCm) : null;
-    const sambung = getSambungInfo(w, h, maxRollEffectiveWidth);
+    // Normalisasi dimensi ke cm berdasarkan unitType (item bisa input m/cm — keduanya disimpan di widthCm/heightCm)
+    const dimsCm = getDimsInCm(job);
+    const sambung = getSambungInfo(dimsCm?.widthCm ?? null, dimsCm?.heightCm ?? null, maxRollEffectiveWidth);
     const isUnit = job.transactionItem?.productVariant?.product?.pricingMode === 'UNIT';
     // Titip cetak: job dikerjakan di cabang ini, tapi transaksinya dari cabang lain.
     const isInterBranch = job.transaction?.branch && job.branchId

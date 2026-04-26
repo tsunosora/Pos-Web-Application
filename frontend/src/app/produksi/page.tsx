@@ -10,7 +10,7 @@ import {
 import {
     Tab, PIN_KEY, PIN_TTL,
     getStoredSession, saveSession, clearSession,
-    formatDeadline, getDimLabel, getAreaM2, suggestRolls, getLongerDim, getSambungInfo,
+    formatDeadline, getDimLabel, getAreaM2, suggestRolls, getLongerDim, getSambungInfo, getDimsInCm,
 } from './produksi-utils';
 import { JobCard } from './JobCard';
 import { Footer } from '@/components/layout/Footer';
@@ -128,12 +128,12 @@ export default function ProduksiPage() {
     const toggleSelect = (id: number) => {
         const job = filteredJobs.find(j => j.id === id);
         if (job && maxRollEffectiveWidth > 0) {
-            const w = job.transactionItem?.widthCm ? Number(job.transactionItem.widthCm) : null;
-            const h = job.transactionItem?.heightCm ? Number(job.transactionItem.heightCm) : null;
+            // Normalisasi ke cm dulu (item bisa input m atau cm — keduanya disimpan di widthCm/heightCm)
+            const dimsCm = getDimsInCm(job);
             // Hanya blok jika job ini SENDIRI perlu cetak sambung (lebih lebar dari roll)
             // Saat gabung cetak, job dicetak berurutan sepanjang roll — panjang roll bisa 70m+
             // sehingga tidak ada batasan total lebar dari semua job yang digabung
-            if (getSambungInfo(w, h, maxRollEffectiveWidth).needsSambung) {
+            if (getSambungInfo(dimsCm?.widthCm ?? null, dimsCm?.heightCm ?? null, maxRollEffectiveWidth).needsSambung) {
                 alert('Job ini perlu cetak SAMBUNG (melebihi lebar roll). Tidak bisa digabung — proses secara individual.');
                 return;
             }
@@ -608,9 +608,11 @@ export default function ProduksiPage() {
                                         const areaM2 = getAreaM2(processModal.job);
                                         const roll = rolls.find((r: any) => r.id === selectedRollId);
                                         const eff = roll ? Number(roll.rollEffectivePrintWidth ?? roll.rollPhysicalWidth ?? 0) : 0;
-                                        const w = processModal.job.transactionItem?.widthCm ? Number(processModal.job.transactionItem.widthCm) : null;
-                                        const h = processModal.job.transactionItem?.heightCm ? Number(processModal.job.transactionItem.heightCm) : null;
-                                        const sambung = eff > 0 ? getSambungInfo(w, h, eff) : { needsSambung: false, strips: 1, stripWidth: 0 };
+                                        // Normalisasi dimensi ke cm berdasarkan unitType (m vs cm)
+                                        const dimsCm = getDimsInCm(processModal.job);
+                                        const sambung = eff > 0
+                                            ? getSambungInfo(dimsCm?.widthCm ?? null, dimsCm?.heightCm ?? null, eff)
+                                            : { needsSambung: false, strips: 1, stripWidth: 0 };
                                         return (
                                             <div className={`p-3 rounded-xl border text-sm space-y-1 ${sambung.needsSambung ? 'bg-orange-500/10 border-orange-500/20' : 'bg-muted/40 border-border'}`}>
                                                 <div className="flex items-center justify-between">
@@ -627,7 +629,7 @@ export default function ProduksiPage() {
                                                 )}
                                                 {sambung.needsSambung && (
                                                     <p className="text-xs text-orange-600 pt-1 border-t border-orange-500/20">
-                                                        ⚠ Perlu cetak sambung {sambung.strips}× (lebar {sambung.stripWidth}m per pass)
+                                                        ⚠ Perlu cetak sambung {sambung.strips}× (lebar {sambung.stripWidth} cm per pass)
                                                     </p>
                                                 )}
                                             </div>

@@ -389,22 +389,35 @@ export default function NewSalesOrderPage() {
                                     </Field>
                                     {it.pricingMode === 'AREA_BASED' && (
                                         <>
-                                            <Field label="Lebar (cm)">
+                                            <Field label="Satuan">
+                                                <select
+                                                    value={it.unitType ?? 'cm'}
+                                                    onChange={e => updateItem(it.key, { unitType: e.target.value })}
+                                                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
+                                                >
+                                                    <option value="cm">cm</option>
+                                                    <option value="m">meter</option>
+                                                    <option value="menit">menit</option>
+                                                </select>
+                                            </Field>
+                                            <Field label={`Lebar (${it.unitType ?? 'cm'})`}>
                                                 <input
-                                                    type="number" min={0}
+                                                    type="number" min={0} step="any"
                                                     value={it.widthCm ?? ''}
                                                     onChange={e => updateItem(it.key, { widthCm: Number(e.target.value) })}
                                                     className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
                                                 />
                                             </Field>
-                                            <Field label="Tinggi (cm)">
-                                                <input
-                                                    type="number" min={0}
-                                                    value={it.heightCm ?? ''}
-                                                    onChange={e => updateItem(it.key, { heightCm: Number(e.target.value) })}
-                                                    className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
-                                                />
-                                            </Field>
+                                            {it.unitType !== 'menit' && (
+                                                <Field label={`Tinggi (${it.unitType ?? 'cm'})`}>
+                                                    <input
+                                                        type="number" min={0} step="any"
+                                                        value={it.heightCm ?? ''}
+                                                        onChange={e => updateItem(it.key, { heightCm: Number(e.target.value) })}
+                                                        className="w-full px-2 py-1 text-sm border border-border rounded bg-background"
+                                                    />
+                                                </Field>
+                                            )}
                                             <Field label="Pcs/Kopi">
                                                 <input
                                                     type="number" min={1}
