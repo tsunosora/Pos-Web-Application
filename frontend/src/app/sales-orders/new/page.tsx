@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -118,17 +118,63 @@ export default function NewSalesOrderPage() {
         setCustomerSearch('');
     }
 
+    function addImageFiles(files: File[] | FileList | null) {
+        if (!files) return;
+        const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+        if (arr.length === 0) return;
+        // Normalize nama untuk file dari clipboard (biasanya namanya cuma "image.png" tanpa ekstensi atau anonim)
+        const normalized = arr.map((f, i) => {
+            if (f.name && f.name !== 'image.png' && /\.[a-z0-9]+$/i.test(f.name)) return f;
+            const extMap: Record<string, string> = {
+                'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif',
+                'image/webp': '.webp', 'image/bmp': '.bmp',
+            };
+            const ext = extMap[f.type] || '.png';
+            return new File([f], `pasted-${Date.now()}-${i}${ext}`, { type: f.type });
+        });
+        setProofFiles(prev => [...prev, ...normalized].slice(0, 10));
+    }
+
     function handleProofInput(e: React.ChangeEvent<HTMLInputElement>) {
-        const list = e.target.files;
-        if (!list) return;
-        const arr = Array.from(list).filter(f => f.type.startsWith('image/'));
-        setProofFiles(prev => [...prev, ...arr].slice(0, 10));
+        addImageFiles(e.target.files);
         e.target.value = '';
     }
 
     function removeProof(idx: number) {
         setProofFiles(prev => prev.filter((_, i) => i !== idx));
     }
+
+    // Paste handler global — Ctrl+V di mana pun pada halaman ini akan menambahkan gambar dari clipboard.
+    useEffect(() => {
+        function onPaste(e: ClipboardEvent) {
+            // Skip kalau user lagi paste di textarea/input (text paste normal)
+            const tgt = e.target as HTMLElement | null;
+            if (tgt) {
+                const tag = tgt.tagName?.toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tgt.isContentEditable) {
+                    // Tapi kalau clipboard cuma berisi gambar (bukan text), tetap intercept
+                    const items = e.clipboardData?.items;
+                    const hasOnlyImage = items && Array.from(items).every(it => it.type.startsWith('image/'));
+                    if (!hasOnlyImage) return;
+                }
+            }
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            const files: File[] = [];
+            for (const it of Array.from(items)) {
+                if (it.kind === 'file' && it.type.startsWith('image/')) {
+                    const f = it.getAsFile();
+                    if (f) files.push(f);
+                }
+            }
+            if (files.length > 0) {
+                e.preventDefault();
+                addImageFiles(files);
+            }
+        }
+        window.addEventListener('paste', onPaste);
+        return () => window.removeEventListener('paste', onPaste);
+    }, []);
 
     const mutation = useMutation({
         mutationFn: async () => {
@@ -400,17 +446,27 @@ export default function NewSalesOrderPage() {
                 <p className="text-xs text-muted-foreground mb-2">
                     Upload screenshot bukti ACC dari customer (WA pribadi). Gambar ini nanti dikirim ke group WA internal sebagai handoff ke kasir/operator.
                 </p>
-                <label className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-border rounded-md cursor-pointer hover:bg-muted text-sm">
-                    <Upload className="h-4 w-4" />
-                    Pilih Gambar
-                    <input
-                        type="file"
-                        multiple
-                        accept="image/*"
-                        onChange={handleProofInput}
-                        className="hidden"
-                    />
-                </label>
+                <div
+                    onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                    onDrop={e => { e.preventDefault(); addImageFiles(e.dataTransfer.files); }}
+                    className="border-2 border-dashed border-border rounded-lg p-4 text-center hover:bg-muted/40 transition-colors"
+                >
+                    <label className="inline-flex items-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-md cursor-pointer hover:opacity-90 text-sm font-medium">
+                        <Upload className="h-4 w-4" />
+                        Pilih Gambar
+                        <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleProofInput}
+                            className="hidden"
+                        />
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-2">
+                        atau <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded font-mono text-[10px]">Ctrl + V</kbd> untuk paste screenshot,
+                        atau drag & drop file ke sini
+                    </p>
+                </div>
                 {proofFiles.length > 0 && (
                     <div className="grid grid-cols-3 md:grid-cols-5 gap-2 mt-3">
                         {proofFiles.map((f, i) => (
@@ -424,6 +480,7 @@ export default function NewSalesOrderPage() {
                                 <button
                                     onClick={() => removeProof(i)}
                                     className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                                    type="button"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>

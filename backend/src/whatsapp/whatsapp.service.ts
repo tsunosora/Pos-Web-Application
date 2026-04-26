@@ -380,13 +380,32 @@ export class WhatsappService implements OnModuleInit {
         return this.botConfig.designGroupId;
     }
 
-    async sendToDesignGroup(message: string, images: string[] = []): Promise<boolean> {
-        const target = this.botConfig.designGroupId;
+    async sendToDesignGroup(message: string, images: string[] = [], branchId?: number | null): Promise<boolean> {
+        const target = await this.resolveDesignGroupId(branchId);
         if (!target) {
-            this.logger.warn('Cannot send to design group: designGroupId is not configured.');
+            this.logger.warn(`Cannot send to design group: not configured (branch=${branchId ?? 'global'}).`);
             return false;
         }
         return this.sendToGroup(target, message, images);
+    }
+
+    /**
+     * Resolve target design group ID per cabang.
+     * 1) BranchSettings(branchId).waDesignGroupId kalau ada
+     * 2) Fallback ke global botConfig.designGroupId
+     */
+    async resolveDesignGroupId(branchId?: number | null): Promise<string | null> {
+        if (branchId != null) {
+            try {
+                const settings = await (this.prisma as any).branchSettings.findUnique({
+                    where: { branchId },
+                });
+                if (settings?.waDesignGroupId) return settings.waDesignGroupId;
+            } catch (e: any) {
+                this.logger.warn(`Failed to load BranchSettings for branch ${branchId}: ${e.message}`);
+            }
+        }
+        return this.botConfig.designGroupId;
     }
 
     async updateBroadcastGroups(add?: string, remove?: string): Promise<void> {

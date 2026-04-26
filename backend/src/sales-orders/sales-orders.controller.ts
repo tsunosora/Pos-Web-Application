@@ -5,24 +5,51 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SalesOrdersService } from './sales-orders.service';
 import type { CreateSalesOrderDto, SalesOrderStatus, UpdateSalesOrderDto } from './sales-orders.service';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
+
+// Pastikan folder upload ada — multer tidak auto-create
+const PROOF_DIR = './public/uploads/so-proofs';
+try { fs.mkdirSync(PROOF_DIR, { recursive: true }); } catch { /* ignore */ }
+
+// Map mimetype → ekstensi (kalau file dari paste/clipboard, name biasanya kosong/tanpa ekstensi)
+function extFromMime(mime: string | null | undefined): string {
+    switch ((mime || '').toLowerCase()) {
+        case 'image/png': return '.png';
+        case 'image/jpeg': case 'image/jpg': return '.jpg';
+        case 'image/gif': return '.gif';
+        case 'image/webp': return '.webp';
+        case 'image/bmp': return '.bmp';
+        case 'image/svg+xml': return '.svg';
+        default: return '';
+    }
+}
 
 const proofStorage = diskStorage({
-    destination: './public/uploads/so-proofs',
+    destination: PROOF_DIR,
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = extname(file.originalname);
+        let ext = extname(file.originalname || '').toLowerCase();
+        if (!ext) ext = extFromMime(file.mimetype); // paste/clipboard fallback
+        if (!ext) ext = '.png';
         cb(null, `so-proof-${uniqueSuffix}${ext}`);
     },
 });
 
 const imageFilter = (req: any, file: any, cb: any) => {
-    if (!file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp)$/)) {
-        return cb(new BadRequestException('Hanya file gambar yang diperbolehkan'), false);
+    // Terima kalau MIME type image/* (paling reliable untuk paste/clipboard)
+    if (typeof file.mimetype === 'string' && file.mimetype.startsWith('image/')) {
+        return cb(null, true);
     }
-    cb(null, true);
+    // Fallback: cek ekstensi nama file
+    if (file.originalname && file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp|bmp|svg)$/)) {
+        return cb(null, true);
+    }
+    return cb(new BadRequestException('Hanya file gambar yang diperbolehkan'), false);
 };
 
 @UseGuards(JwtAuthGuard)
@@ -46,8 +73,9 @@ export class SalesOrdersController {
     }
 
     @Post()
-    create(@Body() body: CreateSalesOrderDto) {
-        return this.service.create(body);
+    create(@Body() body: CreateSalesOrderDto, @CurrentBranch() ctx: BranchContext) {
+        // Auto-tag branchName dari cabang aktif user kalau belum di-set di body.
+        return this.service.create(body, ctx.branchId);
     }
 
     @Patch(':id')
@@ -85,8 +113,12 @@ export class SalesOrdersController {
     }
 
     @Post(':id/send-wa')
-    sendWa(@Param('id', ParseIntPipe) id: number, @Body() body: { message?: string }) {
-        return this.service.sendToWhatsappGroup(id, body?.message);
+    sendWa(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { message?: string },
+        @CurrentBranch() ctx: BranchContext,
+    ) {
+        return this.service.sendToWhatsappGroup(id, body?.message, ctx.branchId);
     }
 
     @Post(':id/cancel')

@@ -448,13 +448,21 @@ export default function WhatsappSettingsPage() {
                             <CardHeader className="bg-indigo-50 border-b pb-4">
                                 <CardTitle className="text-lg flex items-center gap-2">
                                     <FileText className="text-indigo-600 w-5 h-5" />
-                                    Group Internal Sales Order
+                                    Group Internal Sales Order <span className="text-xs font-normal text-slate-500">(Default Global)</span>
                                 </CardTitle>
                                 <CardDescription>
-                                    Group WA tim internal (desain/kasir/operator) — tujuan broadcast saat desainer klik "Kirim ke WA Group" di halaman Sales Order. Bukan group customer.
+                                    Group WA default kalau cabang belum punya Design Group sendiri.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="pt-5 space-y-3">
+                                <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-800">
+                                    <p className="font-semibold mb-1">⚠ Multi-cabang</p>
+                                    <p className="leading-relaxed">
+                                        Tiap cabang biasanya punya group WA internal yang berbeda. Set <strong>Design Group ID per cabang</strong> di{' '}
+                                        <a href="/settings/branch-config" className="underline font-semibold">Settings → Konfigurasi Cabang</a>.
+                                        Field di sini hanya jadi <em>fallback</em> kalau cabang asal SO belum punya Design Group sendiri.
+                                    </p>
+                                </div>
                                 {config?.designGroupId ? (
                                     <div className="flex items-center justify-between gap-2 bg-indigo-50 border border-indigo-200 rounded-md p-3">
                                         <div className="text-sm min-w-0">

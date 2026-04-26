@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X } from "lucide-react";
@@ -116,12 +116,56 @@ export default function DesignerNewSOPage() {
         setItems(prev => prev.map(it => it.key === key ? { ...it, ...patch } : it));
     }
 
+    function addImageFiles(files: File[] | FileList | null) {
+        if (!files) return;
+        const arr = Array.from(files).filter(f => f.type.startsWith("image/"));
+        if (arr.length === 0) return;
+        const normalized = arr.map((f, i) => {
+            if (f.name && f.name !== 'image.png' && /\.[a-z0-9]+$/i.test(f.name)) return f;
+            const extMap: Record<string, string> = {
+                'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif',
+                'image/webp': '.webp', 'image/bmp': '.bmp',
+            };
+            const ext = extMap[f.type] || '.png';
+            return new File([f], `pasted-${Date.now()}-${i}${ext}`, { type: f.type });
+        });
+        setProofFiles(prev => [...prev, ...normalized].slice(0, 10));
+    }
+
     function handleProofInput(e: React.ChangeEvent<HTMLInputElement>) {
-        const list = e.target.files;
-        if (!list) return;
-        setProofFiles(prev => [...prev, ...Array.from(list).filter(f => f.type.startsWith("image/"))].slice(0, 10));
+        addImageFiles(e.target.files);
         e.target.value = "";
     }
+
+    // Paste handler global — Ctrl+V untuk paste screenshot dari clipboard
+    useEffect(() => {
+        function onPaste(e: ClipboardEvent) {
+            const tgt = e.target as HTMLElement | null;
+            if (tgt) {
+                const tag = tgt.tagName?.toLowerCase();
+                if (tag === 'input' || tag === 'textarea' || tgt.isContentEditable) {
+                    const items = e.clipboardData?.items;
+                    const hasOnlyImage = items && Array.from(items).every(it => it.type.startsWith('image/'));
+                    if (!hasOnlyImage) return;
+                }
+            }
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            const files: File[] = [];
+            for (const it of Array.from(items)) {
+                if (it.kind === 'file' && it.type.startsWith('image/')) {
+                    const f = it.getAsFile();
+                    if (f) files.push(f);
+                }
+            }
+            if (files.length > 0) {
+                e.preventDefault();
+                addImageFiles(files);
+            }
+        }
+        window.addEventListener('paste', onPaste);
+        return () => window.removeEventListener('paste', onPaste);
+    }, []);
 
     async function handleSave() {
         if (!session) return;
@@ -329,10 +373,20 @@ export default function DesignerNewSOPage() {
                 {/* Proof */}
                 <Card title={`Screenshot Proof Final (${proofFiles.length}/10)`}>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Upload screenshot ACC dari customer (WA pribadi). Akan dikirim ke group WA internal saat broadcast.</p>
-                    <label className="inline-flex items-center gap-2 px-3 py-2 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg cursor-pointer hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:border-indigo-300 dark:hover:border-indigo-800 text-sm text-slate-600 dark:text-slate-300 transition-colors">
-                        <Upload className="h-4 w-4" /> Pilih Gambar
-                        <input type="file" multiple accept="image/*" onChange={handleProofInput} className="hidden" />
-                    </label>
+                    <div
+                        onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                        onDrop={e => { e.preventDefault(); addImageFiles(e.dataTransfer.files); }}
+                        className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 text-center hover:bg-indigo-50/40 dark:hover:bg-indigo-950/20 transition-colors"
+                    >
+                        <label className="inline-flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer text-sm font-medium transition-colors">
+                            <Upload className="h-4 w-4" /> Pilih Gambar
+                            <input type="file" multiple accept="image/*" onChange={handleProofInput} className="hidden" />
+                        </label>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                            atau <kbd className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded font-mono text-[10px]">Ctrl + V</kbd> untuk paste screenshot,
+                            atau drag & drop file ke sini
+                        </p>
+                    </div>
                     {proofFiles.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 mt-3">
                             {proofFiles.map((f, i) => (

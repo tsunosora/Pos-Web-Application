@@ -9,23 +9,45 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import * as fs from 'fs';
 import { SalesOrdersService } from './sales-orders.service';
 import { DesignersService } from '../designers/designers.service';
 import type { CreateSalesOrderPayload } from './sales-orders-public.types';
 
+const PROOF_DIR = './public/uploads/so-proofs';
+try { fs.mkdirSync(PROOF_DIR, { recursive: true }); } catch { /* ignore */ }
+
+function extFromMime(mime: string | null | undefined): string {
+    switch ((mime || '').toLowerCase()) {
+        case 'image/png': return '.png';
+        case 'image/jpeg': case 'image/jpg': return '.jpg';
+        case 'image/gif': return '.gif';
+        case 'image/webp': return '.webp';
+        case 'image/bmp': return '.bmp';
+        case 'image/svg+xml': return '.svg';
+        default: return '';
+    }
+}
+
 const proofStorage = diskStorage({
-    destination: './public/uploads/so-proofs',
+    destination: PROOF_DIR,
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `so-proof-${uniqueSuffix}${extname(file.originalname)}`);
+        let ext = extname(file.originalname || '').toLowerCase();
+        if (!ext) ext = extFromMime(file.mimetype);
+        if (!ext) ext = '.png';
+        cb(null, `so-proof-${uniqueSuffix}${ext}`);
     },
 });
 
 const imageFilter = (req: any, file: any, cb: any) => {
-    if (!file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp)$/)) {
-        return cb(new BadRequestException('Hanya file gambar'), false);
+    if (typeof file.mimetype === 'string' && file.mimetype.startsWith('image/')) {
+        return cb(null, true);
     }
-    cb(null, true);
+    if (file.originalname && file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp|bmp|svg)$/)) {
+        return cb(null, true);
+    }
+    return cb(new BadRequestException('Hanya file gambar'), false);
 };
 
 async function verifyDesigner(designers: DesignersService, id: number, pin: string) {
