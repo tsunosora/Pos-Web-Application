@@ -65,7 +65,10 @@ export default function ProduksiPage() {
 
     // Load branches + check stored PIN session on mount
     useEffect(() => {
-        getPublicBranches().then(setBranches).catch(() => setBranches([]));
+        getPublicBranches().then(setBranches).catch(err => {
+            console.error('[produksi] gagal memuat daftar cabang:', err);
+            setBranches([]);
+        });
         const session = getStoredSession();
         if (session) {
             setActiveBranchId(session.branchId);
@@ -128,8 +131,17 @@ export default function ProduksiPage() {
                 setPinError(res.message || 'PIN salah. Coba lagi.');
                 setPinInput('');
             }
-        } catch {
-            setPinError('Gagal menghubungi server.');
+        } catch (err: any) {
+            const msg: string = err?.message || '';
+            if (msg === 'Failed to fetch' || /NetworkError/i.test(msg)) {
+                setPinError('Tidak bisa menghubungi server. Cek koneksi internet atau status server.');
+            } else if (/HTTP 404/.test(msg)) {
+                setPinError('Endpoint backend tidak ditemukan (404). Pastikan backend ter-deploy versi terbaru.');
+            } else if (/HTTP 5\d\d/.test(msg)) {
+                setPinError(`Server error: ${msg}`);
+            } else {
+                setPinError(msg || 'Gagal menghubungi server.');
+            }
         } finally {
             setPinLoading(false);
         }

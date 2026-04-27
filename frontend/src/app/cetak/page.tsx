@@ -74,7 +74,10 @@ export default function CetakPage() {
     const [activeBranchCode, setActiveBranchCode] = useState<string | null>(null);
 
     useEffect(() => {
-        getPublicBranches().then(setBranches).catch(() => setBranches([]));
+        getPublicBranches().then(setBranches).catch(err => {
+            console.error('[cetak] gagal memuat daftar cabang:', err);
+            setBranches([]);
+        });
         const session = readSession();
         if (session) {
             setActiveBranchId(session.branchId);
@@ -135,7 +138,20 @@ export default function CetakPage() {
                 setPinError(res.message || 'PIN salah.');
                 setPinInput('');
             }
-        } catch { setPinError('Gagal menghubungi server.'); }
+        } catch (err: any) {
+            // Bedakan network error (Failed to fetch) vs HTTP error vs server error supaya
+            // user/admin tahu titik masalahnya di koneksi atau di endpoint backend.
+            const msg: string = err?.message || '';
+            if (msg === 'Failed to fetch' || /NetworkError/i.test(msg)) {
+                setPinError('Tidak bisa menghubungi server. Cek koneksi internet atau status server.');
+            } else if (/HTTP 404/.test(msg)) {
+                setPinError('Endpoint backend tidak ditemukan (404). Pastikan backend sudah ter-deploy versi terbaru.');
+            } else if (/HTTP 5\d\d/.test(msg)) {
+                setPinError(`Server error: ${msg}`);
+            } else {
+                setPinError(msg || 'Gagal menghubungi server.');
+            }
+        }
         finally { setPinLoading(false); }
     };
 

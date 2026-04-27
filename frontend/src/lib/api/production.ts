@@ -3,9 +3,30 @@ const API_BASE = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001
 
 export interface PublicBranch { id: number; name: string; code: string | null; phone: string | null }
 
+/**
+ * Helper: parse response, throw informative Error kalau status tidak OK.
+ * Jangan biarkan response error di-coerce jadi data — bisa nyebabkan error misleading
+ * di tempat jauh (mis. "PIN salah" padahal endpoint 404).
+ */
+async function parseResponse<T>(res: Response, action: string): Promise<T> {
+    if (!res.ok) {
+        let serverMessage = '';
+        try {
+            const body = await res.json();
+            serverMessage = body?.message || body?.error || '';
+        } catch {
+            // Body bukan JSON (mis. HTML 404 page) — abaikan
+        }
+        throw new Error(
+            `${action} gagal (HTTP ${res.status})${serverMessage ? ': ' + serverMessage : ''}`,
+        );
+    }
+    return res.json();
+}
+
 export const getPublicBranches = async (): Promise<PublicBranch[]> => {
     const res = await fetch(`${API_BASE()}/company-branches/public-active`);
-    return res.json();
+    return parseResponse<PublicBranch[]>(res, 'Memuat daftar cabang');
 };
 
 /** Helper: build query string dengan optional branchId */
@@ -24,23 +45,23 @@ export const verifyOperatorPin = async (pin: string, branchId?: number): Promise
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin, branchId }),
     });
-    return res.json();
+    return parseResponse<{ valid: boolean; message?: string }>(res, 'Verifikasi PIN');
 };
 
 export const getProductionJobs = async (status?: string, branchId?: number): Promise<any[]> => {
     const url = `${API_BASE()}/production/jobs${qs({ status, branchId })}`;
     const res = await fetch(url);
-    return res.json();
+    return parseResponse<any[]>(res, 'Memuat antrian produksi');
 };
 
 export const getProductionRolls = async (branchId?: number): Promise<any[]> => {
     const res = await fetch(`${API_BASE()}/production/rolls${qs({ branchId })}`);
-    return res.json();
+    return parseResponse<any[]>(res, 'Memuat daftar bahan roll');
 };
 
 export const getProductionStats = async (branchId?: number): Promise<{ antrian: number; proses: number; menungguPasang: number; pasang: number; selesai: number }> => {
     const res = await fetch(`${API_BASE()}/production/stats${qs({ branchId })}`);
-    return res.json();
+    return parseResponse(res, 'Memuat statistik produksi');
 };
 
 export const startProductionJob = async (id: number, data: {
