@@ -11,7 +11,7 @@ import { getPublicBranches, PublicBranch } from '@/lib/api/production';
 import {
     Tab, PIN_KEY, PIN_TTL,
     getStoredSession, saveSession, clearSession,
-    formatDeadline, getDimLabel, getAreaM2, suggestRolls, getLongerDim, getSambungInfo, getDimsInCm,
+    formatDeadline, getDimLabel, getAreaM2, suggestRolls, getLongerDim, getSambungInfo, getDimsInCm, getRollEffectiveCm,
 } from './produksi-utils';
 import { JobCard } from './JobCard';
 import { Footer } from '@/components/layout/Footer';
@@ -170,8 +170,9 @@ export default function ProduksiPage() {
     });
 
     // ── roll helpers ───────────────────────────────────────────────────────────
+    // Roll width SELALU dalam cm di sini — getRollEffectiveCm convert dari meter (input UI) ke cm.
     const maxRollEffectiveWidth = rolls.reduce((max: number, r: any) =>
-        Math.max(max, Number(r.rollEffectivePrintWidth ?? r.rollPhysicalWidth ?? 0)), 0);
+        Math.max(max, getRollEffectiveCm(r)), 0);
 
     // ── gang mode helpers ──────────────────────────────────────────────────────
     const toggleSelect = (id: number) => {
@@ -703,7 +704,7 @@ export default function ProduksiPage() {
                                     {(() => {
                                         const areaM2 = getAreaM2(processModal.job);
                                         const roll = rolls.find((r: any) => r.id === selectedRollId);
-                                        const eff = roll ? Number(roll.rollEffectivePrintWidth ?? roll.rollPhysicalWidth ?? 0) : 0;
+                                        const eff = roll ? getRollEffectiveCm(roll) : 0;
                                         // Normalisasi dimensi ke cm berdasarkan unitType (m vs cm)
                                         const dimsCm = getDimsInCm(processModal.job);
                                         const sambung = eff > 0

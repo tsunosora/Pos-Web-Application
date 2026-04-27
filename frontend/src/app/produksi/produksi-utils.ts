@@ -59,29 +59,82 @@ export function formatDeadline(dt: string | null | undefined): { label: string; 
 //   unitType='m'    → value dalam meter (mis. 2 = 2 m)
 //   unitType='cm'   → value dalam cm    (mis. 200 = 200 cm = 2 m)
 //   unitType='menit'→ value dalam menit (untuk produk berbasis durasi, tidak punya area)
-// Helper ini normalisasi ke cm supaya semua perhitungan sambung & roll-fit konsisten.
+//
+// MASALAH: default unitType di UI POS lama = 'm', tapi kasir sering input nilai cm
+// tanpa ganti satuan (mis. ketik "200" maksudnya 200cm tapi tersimpan unitType='m').
+// Akibatnya 200m × 100m = 20000 m² → sambung ×60+ padahal banner kecil.
+//
+// SOLUSI: pakai `areaCm2` (selalu authoritative dari backend) untuk sanity check.
+// Kalau widthCm × heightCm raw cocok dengan areaCm2 → values dalam cm, no convert.
+// Kalau ×10000 cocok → values dalam meter, convert ×100.
 
-/** Konversi nilai mentah ke cm berdasarkan unitType. */
+/** Konversi nilai mentah ke cm berdasarkan unitType (fallback heuristik). */
 function toCm(rawValue: number, unitType: string | null | undefined): number {
-    const u = (unitType || 'm').toLowerCase();
+    const u = (unitType || 'cm').toLowerCase();
     if (u === 'cm') return rawValue;
     if (u === 'm') return rawValue * 100;
-    // 'menit' tidak punya dimensi area
     return rawValue;
 }
 
 /**
  * Ambil dimensi item dalam cm (selalu) — untuk perbandingan dengan roll width
  * yang juga dalam cm. Return null kalau item bukan AREA_BASED atau dimensi tidak ada.
+ *
+ * Strategi penentuan unit:
+ * 1. Kalau ada `areaCm2`: cek konsistensi
+ *    - w*h ≈ areaCm2 → values dalam cm
+ *    - w*h*10000 ≈ areaCm2 → values dalam m, convert ×100
+ *    - Tidak match → fallback heuristik (lihat #3)
+ * 2. Kalau tidak ada areaCm2 → pakai unitType
+ * 3. Heuristik: kalau unitType='m' tapi value > 30 (banner 30m+ sangat tidak realistis,
+ *    biasanya data corrupt karena salah default) → treat sebagai cm.
  */
 export function getDimsInCm(item: any): { widthCm: number; heightCm: number; unitType: string } | null {
     const ti = item?.transactionItem;
     if (!ti) return null;
-    const u = ti.unitType || 'm';
+    const u = (ti.unitType || 'cm').toLowerCase();
     if (u === 'menit') return null; // produk durasi
     const w = ti.widthCm != null ? Number(ti.widthCm) : null;
     const h = ti.heightCm != null ? Number(ti.heightCm) : null;
     if (w == null || h == null) return null;
+    if (w <= 0 || h <= 0) return null;
+
+    const areaCm2 = ti.areaCm2 != null ? Number(ti.areaCm2) : null;
+
+    // SAFETY: areaCm2 lebih dari 10 juta cm² = 1.000 m² = 1 hektar.
+    // Banner sebesar itu mustahil di-cetak — jelas data corrupt (backend lama treat
+    // input cm sebagai meter, jadi areaCm2-nya ikut salah hitung). Raw widthCm/heightCm
+    // sebenarnya nilai cm yang benar — pakai langsung tanpa conversion.
+    const IMPOSSIBLE_AREA_CM2 = 10_000_000; // 1000 m²
+    if (areaCm2 && areaCm2 > IMPOSSIBLE_AREA_CM2) {
+        return { widthCm: w, heightCm: h, unitType: 'cm' };
+    }
+
+    // SAFETY: heuristik untuk data lama tanpa areaCm2 valid.
+    // Kalau unitType='m' tapi value > 30 (banner 30m+ sangat tidak realistis),
+    // ini hampir pasti data corrupt karena kasir input cm value tapi unitType
+    // tersimpan default 'm'. Treat as cm supaya sambung waras.
+    if (u === 'm' && (w > 30 || h > 30)) {
+        return { widthCm: w, heightCm: h, unitType: 'cm' };
+    }
+
+    // Strategi normal: pakai areaCm2 sebagai authoritative kalau ada & nilainya wajar
+    if (areaCm2 && areaCm2 > 0 && areaCm2 <= IMPOSSIBLE_AREA_CM2) {
+        const productRaw = w * h;
+        const pcs = Number(ti.pcs ?? 1) || 1;
+        const tol = 0.01; // toleransi 1% floating point
+        // Cek treat as cm
+        if (Math.abs(productRaw * pcs - areaCm2) / areaCm2 < tol) {
+            return { widthCm: w, heightCm: h, unitType: 'cm' };
+        }
+        // Cek treat as m (×10000 untuk konversi m² ke cm²)
+        if (Math.abs(productRaw * 10000 * pcs - areaCm2) / areaCm2 < tol) {
+            return { widthCm: w * 100, heightCm: h * 100, unitType: 'm' };
+        }
+        // Tidak konsisten — fallback ke unitType
+    }
+
+    // Fallback terakhir: pakai unitType apa adanya
     return { widthCm: toCm(w, u), heightCm: toCm(h, u), unitType: u };
 }
 
@@ -108,17 +161,28 @@ export function getAreaM2(item: any): number {
 }
 
 /**
+ * Get roll effective width DALAM CM. Field `rollEffectivePrintWidth` & `rollPhysicalWidth`
+ * di-input UI dalam METER (label "Lebar Cetak Efektif (m)") tapi semua perhitungan
+ * sambung pakai cm — jadi convert ×100.
+ */
+export function getRollEffectiveCm(roll: any): number {
+    const raw = Number(roll?.rollEffectivePrintWidth ?? roll?.rollPhysicalWidth ?? 0);
+    if (raw <= 0) return 0;
+    // Heuristik: kalau value > 30 (mustahil ada roll lebar 30m), values sudah dalam cm.
+    // Kalau ≤ 30 (typical 1-3m), convert ×100 ke cm.
+    return raw > 30 ? raw : raw * 100;
+}
+
+/**
  * Suggest rolls yang muat dimensi pendek.
- * NOTE: parameter `widthCm` & `heightCm` di sini WAJIB sudah dalam cm
- * (caller harus normalisasi via `getDimsInCm` dulu untuk item yang unitType='m').
- * `rollEffectivePrintWidth` & `rollPhysicalWidth` selalu dalam cm.
+ * Parameter `widthCm` & `heightCm` WAJIB sudah dalam cm (caller via `getDimsInCm`).
  */
 export function suggestRolls(rolls: any[], widthCm: number | null, heightCm: number | null): { roll: any; suggested: boolean }[] {
     if (!widthCm || !heightCm) return rolls.map(r => ({ roll: r, suggested: false }));
     const shorter = Math.min(widthCm, heightCm);
     return rolls.map(r => ({
         roll: r,
-        suggested: Number(r.rollEffectivePrintWidth ?? r.rollPhysicalWidth ?? 0) >= shorter,
+        suggested: getRollEffectiveCm(r) >= shorter,
     }));
 }
 
@@ -132,15 +196,14 @@ export function getLongerDim(widthCm: number | null, heightCm: number | null): n
 
 /**
  * Sambung detection: kalau dimensi pendek > roll effective width, butuh beberapa strip.
- * Parameter widthCm/heightCm WAJIB dalam cm (caller normalisasi via getDimsInCm).
- * rollEffectiveWidth juga dalam cm.
+ * Parameter widthCm/heightCm & rollEffectiveWidthCm WAJIB dalam cm.
  */
-export function getSambungInfo(widthCm: number | null, heightCm: number | null, rollEffectiveWidth: number): {
+export function getSambungInfo(widthCm: number | null, heightCm: number | null, rollEffectiveWidthCm: number): {
     needsSambung: boolean; strips: number; stripWidth: number;
 } {
-    if (!widthCm || !heightCm || rollEffectiveWidth <= 0) return { needsSambung: false, strips: 1, stripWidth: 0 };
+    if (!widthCm || !heightCm || rollEffectiveWidthCm <= 0) return { needsSambung: false, strips: 1, stripWidth: 0 };
     const shorter = Math.min(widthCm, heightCm);
-    if (shorter <= rollEffectiveWidth) return { needsSambung: false, strips: 1, stripWidth: shorter };
-    const strips = Math.ceil(shorter / rollEffectiveWidth);
+    if (shorter <= rollEffectiveWidthCm) return { needsSambung: false, strips: 1, stripWidth: shorter };
+    const strips = Math.ceil(shorter / rollEffectiveWidthCm);
     return { needsSambung: true, strips, stripWidth: Math.round((shorter / strips) * 100) / 100 };
 }

@@ -43,7 +43,10 @@ interface AreaModalState {
 }
 
 const emptyAreaModal = (): AreaModalState => ({
-    open: false, mode: 'add', product: null, variant: null, unitType: 'm', widthCm: '', heightCm: '', note: '', pcs: '1'
+    // Default 'cm' karena kasir biasa input angka cm (mis. banner 200×100). Default 'm' lama
+    // sering bikin data corrupt: kasir input "200" maksudnya 200cm tapi tersimpan sebagai 200m
+    // → sambung detection 60+ strip padahal banner kecil.
+    open: false, mode: 'add', product: null, variant: null, unitType: 'cm', widthCm: '', heightCm: '', note: '', pcs: '1'
 });
 
 import { ReceiptSnapshot, handlePrintSnap, handleShareWA } from '@/lib/receipt';
@@ -328,7 +331,7 @@ function POSPageContent() {
 
     // Open area modal for a fresh new line (clicking card or '+')
     const openAreaModalFresh = (product: any, variant: any) => {
-        setAreaModal({ open: true, mode: 'add', product, variant, unitType: 'm', widthCm: '', heightCm: '', note: '', pcs: '1' });
+        setAreaModal({ open: true, mode: 'add', product, variant, unitType: 'cm', widthCm: '', heightCm: '', note: '', pcs: '1' });
     };
 
     // Open area modal with existing data to edit a cart line
@@ -340,7 +343,7 @@ function POSPageContent() {
             open: true, mode: 'edit', editLineId: lineId,
             product: product || { id: item.id, name: item.name, pricingMode: 'AREA_BASED' },
             variant: variant || { id: item.productVariantId, price: item.pricePerUnit, stock: item.stock },
-            unitType: item.unitType || 'm',
+            unitType: item.unitType || 'cm',
             widthCm: String(item.widthCm || ''),
             heightCm: String(item.heightCm || ''),
             note: item.note || '',
