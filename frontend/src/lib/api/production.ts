@@ -142,7 +142,11 @@ export const uploadOperatorMeterPhoto = async (file: File): Promise<string> => {
     });
     if (!res.ok) throw new Error((await res.json()).message || 'Gagal upload foto');
     const data = await res.json();
-    return data.url as string;
+    // Backend return path relatif (mis. "/uploads/meter_xxx.jpg"). Prefix dengan
+    // base API supaya browser fetch dari domain backend, bukan domain frontend.
+    const url = data.url as string;
+    if (url && url.startsWith('/')) return `${API_BASE()}${url}`;
+    return url;
 };
 
 export const upsertOperatorMeterReading = async (data: {
@@ -164,6 +168,14 @@ export const upsertOperatorMeterReading = async (data: {
     return res.json();
 };
 
+/** Resolve photoUrl relatif → absolute (backend serve uploads di domain API). */
+const resolvePhotoUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    if (url.startsWith('/')) return `${API_BASE()}${url}`;
+    return url;
+};
+
 export const getOperatorMeterReadings = async (branchId: number, startDate?: string, endDate?: string): Promise<OperatorMeterReading[]> => {
     const params = new URLSearchParams();
     params.append('branchId', String(branchId));
@@ -171,7 +183,8 @@ export const getOperatorMeterReadings = async (branchId: number, startDate?: str
     if (endDate) params.append('endDate', endDate);
     const res = await fetch(`${API_BASE()}/production/meter/readings?${params.toString()}`);
     if (!res.ok) return [];
-    return res.json();
+    const list = await res.json();
+    return (list as OperatorMeterReading[]).map(r => ({ ...r, photoUrl: resolvePhotoUrl(r.photoUrl) }));
 };
 
 // ─── Machine Reject (operator reject input) ─────────────────────────────────
@@ -228,7 +241,8 @@ export const getOperatorMachineRejects = async (branchId: number, month?: number
     if (year) params.append('year', String(year));
     const res = await fetch(`${API_BASE()}/production/meter/rejects?${params.toString()}`);
     if (!res.ok) return [];
-    return res.json();
+    const list = await res.json();
+    return (list as OperatorMachineReject[]).map(r => ({ ...r, photoUrl: resolvePhotoUrl(r.photoUrl) }));
 };
 
 export const startAssemblyJob = async (id: number, assemblyNote?: string): Promise<any> => {
