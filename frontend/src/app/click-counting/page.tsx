@@ -695,7 +695,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         // Auto-sync rejectType dengan cause: HUMAN cause → HUMAN_ERROR, else keep
-        const rejectType = form.cause === "HUMAN" ? "HUMAN_ERROR" : form.rejectType;
+        const rejectType = (form.cause === "HUMAN" ? "HUMAN_ERROR" : form.rejectType) as typeof form.rejectType;
         createMut.mutate({
             rejectType,
             cause: form.cause,
