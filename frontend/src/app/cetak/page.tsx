@@ -8,7 +8,7 @@ import {
 } from '@/lib/api/print-queue';
 import {
     getPublicBranches, PublicBranch,
-    upsertMeterReading, uploadMeterPhoto, getMeterReadings, MeterReading,
+    upsertOperatorMeterReading, uploadOperatorMeterPhoto, getOperatorMeterReadings, OperatorMeterReading,
     createOperatorMachineReject, getOperatorMachineRejects, OperatorMachineReject,
     OperatorRejectType, OperatorRejectCause, OperatorCounterType,
 } from '@/lib/api/production';
@@ -18,8 +18,12 @@ type RejectType = OperatorRejectType;
 type RejectCause = OperatorRejectCause;
 type CounterType = OperatorCounterType;
 type MachineReject = OperatorMachineReject;
+type MeterReading = OperatorMeterReading;
 const createMachineReject = createOperatorMachineReject;
 const getMachineRejects = getOperatorMachineRejects;
+const upsertMeterReading = upsertOperatorMeterReading;
+const uploadMeterPhoto = uploadOperatorMeterPhoto;
+const getMeterReadings = getOperatorMeterReadings;
 
 const PIN_KEY = 'cetak_pin_session';
 const PIN_TTL = 24 * 60 * 60 * 1000;

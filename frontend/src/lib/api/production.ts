@@ -114,8 +114,12 @@ export const bulkPickupProductionJobs = async (ids: number[], branchId?: number)
 };
 
 // ─── Meter Reading (Rekonsiliasi Operator) — public endpoints ───────────────
+// NOTE: nama-nama prefix `Operator` supaya tidak bentrok dengan
+// `MeterReading`/`upsertMeterReading`/`getMeterReadings` di `./click-counting`
+// (admin /click-counting page pakai versi click-counting via barrel `@/lib/api`).
+// /cetak page pakai versi operator ini lewat import langsung.
 
-export interface MeterReading {
+export interface OperatorMeterReading {
     id: number;
     branchId: number | null;
     readingDate: string;
@@ -129,7 +133,7 @@ export interface MeterReading {
 }
 
 /** Upload foto counter — return path URL untuk dipakai sebagai photoUrl di reading. */
-export const uploadMeterPhoto = async (file: File): Promise<string> => {
+export const uploadOperatorMeterPhoto = async (file: File): Promise<string> => {
     const fd = new FormData();
     fd.append('image', file);
     const res = await fetch(`${API_BASE()}/production/meter/upload-photo`, {
@@ -141,7 +145,7 @@ export const uploadMeterPhoto = async (file: File): Promise<string> => {
     return data.url as string;
 };
 
-export const upsertMeterReading = async (data: {
+export const upsertOperatorMeterReading = async (data: {
     branchId: number;
     readingDate: string;
     totalCount: number;
@@ -150,7 +154,7 @@ export const upsertMeterReading = async (data: {
     singleColorCount?: number;
     photoUrl?: string;
     notes?: string;
-}): Promise<MeterReading> => {
+}): Promise<OperatorMeterReading> => {
     const res = await fetch(`${API_BASE()}/production/meter/reading`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -160,7 +164,7 @@ export const upsertMeterReading = async (data: {
     return res.json();
 };
 
-export const getMeterReadings = async (branchId: number, startDate?: string, endDate?: string): Promise<MeterReading[]> => {
+export const getOperatorMeterReadings = async (branchId: number, startDate?: string, endDate?: string): Promise<OperatorMeterReading[]> => {
     const params = new URLSearchParams();
     params.append('branchId', String(branchId));
     if (startDate) params.append('startDate', startDate);
