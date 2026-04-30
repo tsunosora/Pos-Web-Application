@@ -38,12 +38,12 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
 
 ### Grup Data yang Tersedia
 
-Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.1** (Mode Cabang Multi-Tenant + Inter-Branch Ledger) dengan grup berikut:
+Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.2** (Mode Cabang Multi-Tenant + Buku Titipan Paper Print Settlement) dengan grup berikut:
 
 | Grup | Isi |
 |---|---|
 | 🏷️ Master Data | Role, kategori, unit, store settings, bank, branch (peta) |
-| 🏢 Cabang & Pengaturan Cabang | `companyBranch`, `branchSettings`, `branchStock` (stok per cabang) |
+| 🏢 Cabang & Pengaturan Cabang | `companyBranch`, `branchSettings` (PIN, WA group, fee titipan), `branchStock` (stok per cabang) |
 | 👤 Pengguna | User + branch assignment + role |
 | 📦 Produk & Inventori | Produk, varian, BOM, harga tier, batch, stock movement, pembelian stok |
 | 🚚 Supplier | Supplier dan harga beli |
@@ -55,15 +55,21 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 | 🏭 Produksi & Antrian Cetak | Production batch/job + print queue |
 | 🔁 Work Order Antar Cabang | `branchWorkOrder` (cabang minta order ke pusat — model lama) |
 | 🔄 Transfer Stok Antar Cabang | `stockTransfer`, `stockTransferItem` (transfer bahan dari cabang A ke B) |
-| 📒 Buku Titipan Antar Cabang (Ledger) | `interBranchLedger`, `ledgerSettlement` — hutang-piutang dari titip cetak + history pelunasan tunai/stok |
+| 📒 Buku Titipan Antar Cabang (Paper Print Settlement) | `interBranchLedger`, `ledgerSettlement` — settlement titipan paper print (cabang ganti bahan + biaya klik). **Banner tidak masuk ledger** — tracking via StockMovement & laporan `/reports/inter-branch-usage` |
 | 🖨️ Click Counting | Tarif klik + log mesin + meter reading + reject |
 | 📋 Stok Opname | Sesi opname + item opname |
 | 📊 Laporan Shift | Shift report + competitor (peta cuan) |
+
+> **Catatan tentang Bahan Titipan**: Laporan `/reports/inter-branch-usage` (audit bahan Pusat dipakai cabang) **tidak butuh tabel sendiri** — diturunkan dari `stock_movements` saat di-render. Backup `stockMovement` di grup "Produk & Inventori" sudah cukup untuk preserve riwayat tracking.
 
 > **Catatan kompatibilitas:**
 > - **File backup v2.x** (single-tenant lama) tetap bisa di-restore — tabel multi-cabang baru akan kosong, data lama auto-tag ke cabang Pusat
 > - **File backup v3.0** (Mode Cabang awal) tetap bisa di-restore — tabel `interBranchLedger`/`ledgerSettlement`/`stockTransfer` akan kosong (tidak crash karena urutan FK sudah dijaga di RESTORE_ORDER)
 > - **File backup v3.1** punya 4 tabel tambahan; kalau di-restore di sistem schema lama yang belum punya tabel itu, akan di-skip silent (tidak fatal)
+> - **File backup v3.2** TIDAK punya tabel baru — hanya bump versi karena perubahan **logika & default**:
+>   - `BranchSettings.titipanFeePercent` default `0` (sebelumnya 20). Sesuai konsep 1 owner / 1 perusahaan: tidak ada margin antar cabang, cabang ganti real cost saja.
+>   - **Banner-only titipan tidak masuk ledger** lagi (tracking via StockMovement). Hanya paper print (yang ada biaya klik mesin) yang dapat entry ledger formal untuk settlement.
+>   - Backup v3.2 100% kompatibel di-restore di sistem v3.1 (tabel sama persis).
 
 ---
 

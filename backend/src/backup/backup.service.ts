@@ -65,7 +65,9 @@ export const BACKUP_GROUPS = {
         tables: ['stockTransfer', 'stockTransferItem'],
     },
     interBranchLedger: {
-        label: 'Buku Titipan Antar Cabang (Ledger)',
+        // Hanya berisi titipan paper print (yang punya biaya klik mesin).
+        // Titipan banner = tracking via StockMovement, tidak masuk ledger formal.
+        label: 'Buku Titipan Antar Cabang (Paper Print Settlement)',
         tables: ['interBranchLedger', 'ledgerSettlement'],
     },
     clickCounting: {
@@ -162,7 +164,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.1', // + Stock Transfer + Inter-Branch Ledger (Buku Titipan) & Settlements
+                version: '3.2', // titipanFeePercent default 0 (1 owner setup), banner skip ledger (tracking via /reports/inter-branch-usage)
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,
