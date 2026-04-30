@@ -15,6 +15,7 @@ export const uploadCounterPhoto = async (file: File): Promise<string> => {
 
 export type RejectCause = 'MACHINE' | 'HUMAN';
 export type CounterType = 'FULL_COLOR' | 'BLACK' | 'SINGLE_COLOR';
+export type RejectType = 'MACHINE_ERROR' | 'TEST_PRINT' | 'CALIBRATION' | 'HUMAN_ERROR';
 
 export interface ClickRate {
   id: number;

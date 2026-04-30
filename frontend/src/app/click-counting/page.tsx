@@ -15,7 +15,7 @@ import {
     getMeterReadings, deleteMeterReading, getVendorBill,
     uploadCounterPhoto,
     type ClickRate, type ClickLog, type MachineReject, type MeterReading, type VendorBill,
-    type RejectCause, type CounterType,
+    type RejectCause, type CounterType, type RejectType,
 } from "@/lib/api";
 import dayjs from "dayjs";
 import {
@@ -695,7 +695,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         // Auto-sync rejectType dengan cause: HUMAN cause → HUMAN_ERROR, else keep
-        const rejectType = (form.cause === "HUMAN" ? "HUMAN_ERROR" : form.rejectType) as typeof form.rejectType;
+        const rejectType = (form.cause === "HUMAN" ? "HUMAN_ERROR" : form.rejectType) as RejectType;
         createMut.mutate({
             rejectType,
             cause: form.cause,
