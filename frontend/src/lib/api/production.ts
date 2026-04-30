@@ -172,16 +172,22 @@ export const getMeterReadings = async (branchId: number, startDate?: string, end
 
 // ─── Machine Reject (operator reject input) ─────────────────────────────────
 
-export type RejectType = 'MACHINE_ERROR' | 'TEST_PRINT' | 'CALIBRATION' | 'HUMAN_ERROR';
-export type RejectCause = 'MACHINE' | 'HUMAN';
-export type CounterType = 'FULL_COLOR' | 'BLACK' | 'SINGLE_COLOR';
+// NOTE: Symbol-symbol di bawah pakai prefix `Operator` supaya tidak bentrok
+// dengan `MachineReject`/`createMachineReject`/`getMachineRejects`/`RejectType`
+// yang sudah di-export dari `./click-counting` (barrel `@/lib/api` akan ambigu
+// kalau nama-nama identik di-export dari dua tempat). /cetak hanya pakai
+// nama-nama operator ini lewat import langsung dari `@/lib/api/production`.
 
-export interface MachineReject {
+export type OperatorRejectType = 'MACHINE_ERROR' | 'TEST_PRINT' | 'CALIBRATION' | 'HUMAN_ERROR';
+export type OperatorRejectCause = 'MACHINE' | 'HUMAN';
+export type OperatorCounterType = 'FULL_COLOR' | 'BLACK' | 'SINGLE_COLOR';
+
+export interface OperatorMachineReject {
     id: number;
     branchId: number | null;
-    rejectType: RejectType;
-    cause: RejectCause;
-    counterType: CounterType;
+    rejectType: OperatorRejectType;
+    cause: OperatorRejectCause;
+    counterType: OperatorCounterType;
     quantity: number;
     pricePerClick: string | number;
     totalCost: string | number;
@@ -191,17 +197,17 @@ export interface MachineReject {
     createdAt: string;
 }
 
-export const createMachineReject = async (data: {
+export const createOperatorMachineReject = async (data: {
     branchId: number;
-    rejectType: RejectType;
-    cause?: RejectCause;
-    counterType?: CounterType;
+    rejectType: OperatorRejectType;
+    cause?: OperatorRejectCause;
+    counterType?: OperatorCounterType;
     quantity: number;
     pricePerClick?: number;
     notes?: string;
     photoUrl?: string;
     date?: string;
-}): Promise<MachineReject> => {
+}): Promise<OperatorMachineReject> => {
     const res = await fetch(`${API_BASE()}/production/meter/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,7 +217,7 @@ export const createMachineReject = async (data: {
     return res.json();
 };
 
-export const getMachineRejects = async (branchId: number, month?: number, year?: number): Promise<MachineReject[]> => {
+export const getOperatorMachineRejects = async (branchId: number, month?: number, year?: number): Promise<OperatorMachineReject[]> => {
     const params = new URLSearchParams();
     params.append('branchId', String(branchId));
     if (month) params.append('month', String(month));

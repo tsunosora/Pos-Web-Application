@@ -9,9 +9,17 @@ import {
 import {
     getPublicBranches, PublicBranch,
     upsertMeterReading, uploadMeterPhoto, getMeterReadings, MeterReading,
-    createMachineReject, getMachineRejects, MachineReject,
-    RejectType, RejectCause, CounterType,
+    createOperatorMachineReject, getOperatorMachineRejects, OperatorMachineReject,
+    OperatorRejectType, OperatorRejectCause, OperatorCounterType,
 } from '@/lib/api/production';
+
+// Alias lokal supaya kode di bawah tetap ringkas.
+type RejectType = OperatorRejectType;
+type RejectCause = OperatorRejectCause;
+type CounterType = OperatorCounterType;
+type MachineReject = OperatorMachineReject;
+const createMachineReject = createOperatorMachineReject;
+const getMachineRejects = getOperatorMachineRejects;
 
 const PIN_KEY = 'cetak_pin_session';
 const PIN_TTL = 24 * 60 * 60 * 1000;
