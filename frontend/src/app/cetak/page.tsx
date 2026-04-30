@@ -6,7 +6,12 @@ import {
     startPrintJob, finishPrintJob, pickupPrintJob,
     PrintJob, PrintJobStatus,
 } from '@/lib/api/print-queue';
-import { getPublicBranches, PublicBranch } from '@/lib/api/production';
+import {
+    getPublicBranches, PublicBranch,
+    upsertMeterReading, uploadMeterPhoto, getMeterReadings, MeterReading,
+    createMachineReject, getMachineRejects, MachineReject,
+    RejectType, RejectCause, CounterType,
+} from '@/lib/api/production';
 
 const PIN_KEY = 'cetak_pin_session';
 const PIN_TTL = 24 * 60 * 60 * 1000;
@@ -29,12 +34,13 @@ function readSession(): CetakSession | null {
     } catch { return null; }
 }
 
-type Tab = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL';
+type Tab = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL' | 'REKONSILIASI';
 const TABS: { key: Tab; label: string }[] = [
     { key: 'ANTRIAN', label: 'Antrian' },
     { key: 'PROSES', label: 'Proses' },
     { key: 'SELESAI', label: 'Siap Diambil' },
     { key: 'DIAMBIL', label: 'Diambil' },
+    { key: 'REKONSILIASI', label: '📊 Rekonsiliasi' },
 ];
 
 function formatDate(s: string | null) {
@@ -317,19 +323,28 @@ export default function CetakPage() {
 
                 <div className="flex gap-2 overflow-x-auto mb-4 pb-1">
                     {TABS.map(t => {
-                        const count = (stats as any)[t.key.toLowerCase()] ?? 0;
+                        const isRekon = t.key === 'REKONSILIASI';
+                        const count = isRekon ? null : (stats as any)[t.key.toLowerCase()] ?? 0;
                         const active = tab === t.key;
                         return (
                             <button
                                 key={t.key}
                                 onClick={() => setTab(t.key)}
                                 className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'}`}
-                            >{t.label} <span className={`ml-1 px-1.5 rounded ${active ? 'bg-indigo-500' : 'bg-gray-100'}`}>{count}</span></button>
+                            >
+                                {t.label}
+                                {count != null && (
+                                    <span className={`ml-1 px-1.5 rounded ${active ? 'bg-indigo-500' : 'bg-gray-100'}`}>{count}</span>
+                                )}
+                            </button>
                         );
                     })}
                 </div>
 
-                {filtered.length === 0 ? (
+                {tab === 'REKONSILIASI' ? (
+                    activeBranchId ? <RekonsiliasiPanel branchId={activeBranchId} branchName={activeBranchName ?? ''} /> :
+                    <div className="bg-white border border-dashed rounded-xl p-10 text-center text-gray-500">Cabang belum dipilih.</div>
+                ) : filtered.length === 0 ? (
                     <div className="bg-white border border-dashed rounded-xl p-10 text-center text-gray-500">Tidak ada job di tab ini.</div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -414,6 +429,548 @@ export default function CetakPage() {
                 <p className="text-sm font-semibold text-gray-400 tracking-wide">Voliko Print</p>
                 <p className="text-xs text-gray-400 mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
             </footer>
+        </div>
+    );
+}
+
+// ─── Rekonsiliasi Panel — input counter + upload foto, untuk operator di /cetak ───
+function todayISO() {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function fmtDate(s: string) {
+    return new Date(s).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+interface RekonsiliasiPanelProps {
+    branchId: number;
+    branchName: string;
+}
+
+function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
+    const [form, setForm] = useState({
+        readingDate: todayISO(),
+        totalCount: 0,
+        fullColorCount: 0,
+        blackCount: 0,
+        singleColorCount: 0,
+        photoUrl: '',
+        notes: '',
+    });
+    const [uploading, setUploading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+    const [history, setHistory] = useState<MeterReading[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
+
+    const loadHistory = useCallback(async () => {
+        setLoadingHistory(true);
+        try {
+            // Last 30 days
+            const end = todayISO();
+            const startD = new Date();
+            startD.setDate(startD.getDate() - 30);
+            const start = `${startD.getFullYear()}-${String(startD.getMonth() + 1).padStart(2, '0')}-${String(startD.getDate()).padStart(2, '0')}`;
+            const data = await getMeterReadings(branchId, start, end);
+            setHistory(data);
+        } catch { setHistory([]); }
+        finally { setLoadingHistory(false); }
+    }, [branchId]);
+
+    useEffect(() => { loadHistory(); }, [loadHistory]);
+
+    const computedSum = form.fullColorCount + form.blackCount + form.singleColorCount;
+    const sumMismatch = form.totalCount > 0 && computedSum !== form.totalCount;
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setToast({ kind: 'err', msg: 'File harus gambar (JPG/PNG)' });
+            return;
+        }
+        setUploading(true);
+        setToast(null);
+        try {
+            const url = await uploadMeterPhoto(file);
+            setForm(f => ({ ...f, photoUrl: url }));
+            setToast({ kind: 'ok', msg: '✓ Foto counter berhasil diupload' });
+        } catch (err: any) {
+            setToast({ kind: 'err', msg: err?.message || 'Gagal upload foto' });
+        } finally {
+            setUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setToast(null);
+        if (form.totalCount <= 0) { setToast({ kind: 'err', msg: 'Total counter wajib > 0' }); return; }
+        if (sumMismatch) { setToast({ kind: 'err', msg: `Total (${form.totalCount}) ≠ FC + BW + SC (${computedSum})` }); return; }
+        setSubmitting(true);
+        try {
+            await upsertMeterReading({
+                branchId,
+                readingDate: form.readingDate,
+                totalCount: form.totalCount,
+                fullColorCount: form.fullColorCount,
+                blackCount: form.blackCount,
+                singleColorCount: form.singleColorCount,
+                photoUrl: form.photoUrl || undefined,
+                notes: form.notes || undefined,
+            });
+            setToast({ kind: 'ok', msg: `✓ Pembacaan ${fmtDate(form.readingDate)} berhasil disimpan` });
+            // Reset (kecuali tanggal — biarkan supaya kalau ada koreksi mudah re-input)
+            setForm(f => ({ ...f, totalCount: 0, fullColorCount: 0, blackCount: 0, singleColorCount: 0, photoUrl: '', notes: '' }));
+            loadHistory();
+        } catch (err: any) {
+            setToast({ kind: 'err', msg: err?.message || 'Gagal simpan pembacaan' });
+        } finally { setSubmitting(false); }
+    };
+
+    return (
+        <div className="space-y-4">
+            {/* Form input */}
+            <div className="bg-white rounded-xl border border-indigo-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <div>
+                        <h2 className="font-bold text-base flex items-center gap-2">📊 Input Pembacaan Counter</h2>
+                        <p className="text-xs text-gray-500">Cabang: <span className="font-semibold">{branchName || `#${branchId}`}</span> · Satu pembacaan per tanggal (akan di-update kalau sudah ada)</p>
+                    </div>
+                </div>
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Tanggal & Total */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal Pembacaan</label>
+                            <input type="date" value={form.readingDate} required
+                                onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Total Counter (Cumulative)</label>
+                            <input type="number" min={0} value={form.totalCount || ''} required
+                                onChange={e => setForm(f => ({ ...f, totalCount: +e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                placeholder="contoh: 124530" />
+                        </div>
+                    </div>
+
+                    {/* Breakdown FC / BW / SC */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-indigo-600 mb-1">Full Color</label>
+                            <input type="number" min={0} value={form.fullColorCount || ''}
+                                onChange={e => setForm(f => ({ ...f, fullColorCount: +e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-700 mb-1">Black & White</label>
+                            <input type="number" min={0} value={form.blackCount || ''}
+                                onChange={e => setForm(f => ({ ...f, blackCount: +e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-500 mb-1">Single Color</label>
+                            <input type="number" min={0} value={form.singleColorCount || ''}
+                                onChange={e => setForm(f => ({ ...f, singleColorCount: +e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                        </div>
+                    </div>
+
+                    {/* Sum validation feedback */}
+                    {form.totalCount > 0 && (
+                        <div className={`text-xs px-3 py-2 rounded-lg ${sumMismatch
+                            ? 'bg-red-50 border border-red-200 text-red-700'
+                            : 'bg-emerald-50 border border-emerald-200 text-emerald-700'}`}>
+                            {sumMismatch
+                                ? `⚠ Total (${form.totalCount.toLocaleString('id-ID')}) ≠ FC+BW+SC (${computedSum.toLocaleString('id-ID')}) — selisih ${Math.abs(form.totalCount - computedSum).toLocaleString('id-ID')}`
+                                : `✓ Total = FC+BW+SC (${computedSum.toLocaleString('id-ID')})`}
+                        </div>
+                    )}
+
+                    {/* Upload foto */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Foto Counter Mesin</label>
+                        {form.photoUrl ? (
+                            <div className="flex items-start gap-2">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={form.photoUrl} alt="Foto counter" className="w-32 h-32 object-cover rounded-lg border border-gray-200" />
+                                <button type="button" onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
+                                    className="text-xs text-red-600 hover:underline">Hapus foto</button>
+                            </div>
+                        ) : (
+                            <label className={`flex items-center gap-2 border-2 border-dashed rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-50 text-sm text-gray-500 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                {uploading ? '⏳ Mengupload…' : '📷 Pilih / ambil foto counter'}
+                                <input type="file" accept="image/*" capture="environment"
+                                    onChange={handleUpload} className="hidden" />
+                            </label>
+                        )}
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (opsional)</label>
+                        <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                            rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="contoh: setelah ganti tinta, kondisi mesin OK" />
+                    </div>
+
+                    {/* Toast */}
+                    {toast && (
+                        <div className={`text-sm px-3 py-2 rounded-lg ${toast.kind === 'ok'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                            {toast.msg}
+                        </div>
+                    )}
+
+                    {/* Submit */}
+                    <button type="submit" disabled={submitting || sumMismatch || form.totalCount <= 0}
+                        className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                        {submitting ? 'Menyimpan…' : '💾 Simpan Pembacaan'}
+                    </button>
+                </form>
+            </div>
+
+            {/* History */}
+            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <h3 className="font-bold text-base">Riwayat 30 Hari Terakhir</h3>
+                    <button onClick={loadHistory} disabled={loadingHistory}
+                        className="text-xs px-3 py-1 bg-white border rounded-lg hover:bg-gray-50">
+                        {loadingHistory ? 'Memuat…' : '↻ Refresh'}
+                    </button>
+                </div>
+                {loadingHistory ? (
+                    <p className="text-sm text-gray-500 text-center py-4">Memuat…</p>
+                ) : history.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-6">Belum ada pembacaan dalam 30 hari terakhir.</p>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b text-xs text-gray-500 uppercase">
+                                    <th className="text-left py-2 px-2">Tanggal</th>
+                                    <th className="text-right py-2 px-2">Total</th>
+                                    <th className="text-right py-2 px-2 text-indigo-600">FC</th>
+                                    <th className="text-right py-2 px-2">BW</th>
+                                    <th className="text-right py-2 px-2 text-gray-500">SC</th>
+                                    <th className="text-center py-2 px-2">Foto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {history.map(r => (
+                                    <tr key={r.id} className="border-t hover:bg-gray-50">
+                                        <td className="py-2 px-2 font-medium">{fmtDate(r.readingDate)}</td>
+                                        <td className="py-2 px-2 text-right font-mono font-bold">{r.totalCount.toLocaleString('id-ID')}</td>
+                                        <td className="py-2 px-2 text-right font-mono text-indigo-700">{r.fullColorCount.toLocaleString('id-ID')}</td>
+                                        <td className="py-2 px-2 text-right font-mono">{r.blackCount.toLocaleString('id-ID')}</td>
+                                        <td className="py-2 px-2 text-right font-mono text-gray-500">{r.singleColorCount.toLocaleString('id-ID')}</td>
+                                        <td className="py-2 px-2 text-center">
+                                            {r.photoUrl ? (
+                                                <a href={r.photoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">📷 Lihat</a>
+                                            ) : <span className="text-gray-300">—</span>}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {/* Reject Mesin */}
+            <RejectPanel branchId={branchId} branchName={branchName} />
+        </div>
+    );
+}
+
+// ─── Reject Mesin Panel ─────────────────────────────────────────────────────
+
+const REJECT_TYPE_OPTIONS: { value: RejectType; label: string }[] = [
+    { value: 'MACHINE_ERROR', label: 'Error Mesin' },
+    { value: 'TEST_PRINT', label: 'Test Print' },
+    { value: 'CALIBRATION', label: 'Kalibrasi' },
+    { value: 'HUMAN_ERROR', label: 'Human Error' },
+];
+
+const COUNTER_TYPE_OPTIONS: { value: CounterType; label: string }[] = [
+    { value: 'FULL_COLOR', label: 'Full Color' },
+    { value: 'BLACK', label: 'Black & White' },
+    { value: 'SINGLE_COLOR', label: 'Single Color' },
+];
+
+function RejectPanel({ branchId, branchName }: { branchId: number; branchName: string }) {
+    const now = new Date();
+    const [form, setForm] = useState({
+        date: todayISO(),
+        rejectType: 'MACHINE_ERROR' as RejectType,
+        cause: 'MACHINE' as RejectCause,
+        counterType: 'FULL_COLOR' as CounterType,
+        quantity: 0,
+        pricePerClick: 0,
+        notes: '',
+        photoUrl: '',
+    });
+    const [uploading, setUploading] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
+    const [rejects, setRejects] = useState<MachineReject[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [showForm, setShowForm] = useState(false);
+
+    const loadRejects = useCallback(async () => {
+        setLoading(true);
+        try {
+            const data = await getMachineRejects(branchId, now.getMonth() + 1, now.getFullYear());
+            setRejects(data);
+        } catch { setRejects([]); }
+        finally { setLoading(false); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [branchId]);
+
+    useEffect(() => { loadRejects(); }, [loadRejects]);
+
+    const totalCost = (form.quantity || 0) * (form.pricePerClick || 0);
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            setToast({ kind: 'err', msg: 'File harus gambar' });
+            return;
+        }
+        setUploading(true);
+        setToast(null);
+        try {
+            const url = await uploadMeterPhoto(file);
+            setForm(f => ({ ...f, photoUrl: url }));
+            setToast({ kind: 'ok', msg: '✓ Foto berhasil diupload' });
+        } catch (err: any) {
+            setToast({ kind: 'err', msg: err?.message || 'Gagal upload foto' });
+        } finally {
+            setUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setToast(null);
+        if (form.quantity <= 0) { setToast({ kind: 'err', msg: 'Jumlah reject wajib > 0' }); return; }
+        setSubmitting(true);
+        try {
+            await createMachineReject({
+                branchId,
+                rejectType: form.rejectType,
+                cause: form.cause,
+                counterType: form.counterType,
+                quantity: form.quantity,
+                pricePerClick: form.pricePerClick > 0 ? form.pricePerClick : undefined,
+                notes: form.notes || undefined,
+                photoUrl: form.photoUrl || undefined,
+                date: form.date,
+            });
+            setToast({ kind: 'ok', msg: `✓ Reject berhasil dicatat` });
+            setForm(f => ({ ...f, quantity: 0, pricePerClick: 0, notes: '', photoUrl: '' }));
+            loadRejects();
+        } catch (err: any) {
+            setToast({ kind: 'err', msg: err?.message || 'Gagal simpan reject' });
+        } finally { setSubmitting(false); }
+    };
+
+    const monthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    const totalQty = rejects.reduce((s, r) => s + (r.quantity || 0), 0);
+    const totalValue = rejects.reduce((s, r) => s + Number(r.totalCost || 0), 0);
+
+    return (
+        <div className="bg-white rounded-xl border border-orange-200 p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                <div>
+                    <h3 className="font-bold text-base flex items-center gap-2">⚠️ Reject Mesin</h3>
+                    <p className="text-xs text-gray-500">Cabang: <span className="font-semibold">{branchName || `#${branchId}`}</span> · Catat klik gagal/test/kalibrasi (bulan {monthLabel})</p>
+                </div>
+                <button onClick={() => setShowForm(s => !s)}
+                    className="text-sm px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">
+                    {showForm ? '✕ Tutup' : '+ Catat Reject'}
+                </button>
+            </div>
+
+            {showForm && (
+                <form onSubmit={handleSubmit} className="space-y-3 border-t pt-3 mb-4">
+                    {/* Tanggal & cause */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal</label>
+                            <input type="date" value={form.date} required
+                                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Penyebab</label>
+                            <div className="flex gap-2">
+                                <label className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${form.cause === 'MACHINE' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold' : 'border-gray-200'}`}>
+                                    <input type="radio" name="cause" className="hidden"
+                                        checked={form.cause === 'MACHINE'}
+                                        onChange={() => setForm(f => ({ ...f, cause: 'MACHINE' }))} />
+                                    🔧 Mesin
+                                </label>
+                                <label className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${form.cause === 'HUMAN' ? 'border-amber-500 bg-amber-50 text-amber-700 font-semibold' : 'border-gray-200'}`}>
+                                    <input type="radio" name="cause" className="hidden"
+                                        checked={form.cause === 'HUMAN'}
+                                        onChange={() => setForm(f => ({ ...f, cause: 'HUMAN' }))} />
+                                    👤 Operator
+                                </label>
+                            </div>
+                            <p className="text-[10px] text-gray-400 mt-1">Mesin = vendor bebaskan · Operator = tetap ditagih</p>
+                        </div>
+                    </div>
+
+                    {/* Tipe & counter type */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Jenis Reject</label>
+                            <select value={form.rejectType}
+                                onChange={e => setForm(f => ({ ...f, rejectType: e.target.value as RejectType }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                {REJECT_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Mode Counter</label>
+                            <select value={form.counterType}
+                                onChange={e => setForm(f => ({ ...f, counterType: e.target.value as CounterType }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                {COUNTER_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {/* Jumlah & harga */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Jumlah Klik</label>
+                            <input type="number" min={0} value={form.quantity || ''} required
+                                onChange={e => setForm(f => ({ ...f, quantity: +e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                placeholder="contoh: 25" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Harga / Klik (Rp) <span className="text-gray-400 font-normal">opsional</span></label>
+                            <input type="number" min={0} value={form.pricePerClick || ''}
+                                onChange={e => setForm(f => ({ ...f, pricePerClick: +e.target.value }))}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                placeholder="kosongkan = pakai default" />
+                        </div>
+                    </div>
+
+                    {/* Total */}
+                    {form.quantity > 0 && form.pricePerClick > 0 && (
+                        <div className="text-sm bg-orange-50 border border-orange-200 px-3 py-2 rounded-lg text-orange-800">
+                            Total nilai: <span className="font-bold">Rp {totalCost.toLocaleString('id-ID')}</span>
+                        </div>
+                    )}
+
+                    {/* Foto */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Foto Bukti (opsional)</label>
+                        {form.photoUrl ? (
+                            <div className="flex items-start gap-2">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={form.photoUrl} alt="Foto reject" className="w-32 h-32 object-cover rounded-lg border" />
+                                <button type="button" onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
+                                    className="text-xs text-red-600 hover:underline">Hapus</button>
+                            </div>
+                        ) : (
+                            <label className={`flex items-center gap-2 border-2 border-dashed rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-50 text-sm text-gray-500 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                {uploading ? '⏳ Mengupload…' : '📷 Pilih / ambil foto'}
+                                <input type="file" accept="image/*" capture="environment"
+                                    onChange={handleUpload} className="hidden" />
+                            </label>
+                        )}
+                    </div>
+
+                    {/* Catatan */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (opsional)</label>
+                        <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                            rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="contoh: head clogged, perlu cleaning" />
+                    </div>
+
+                    {toast && (
+                        <div className={`text-sm px-3 py-2 rounded-lg ${toast.kind === 'ok'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                            {toast.msg}
+                        </div>
+                    )}
+
+                    <button type="submit" disabled={submitting || form.quantity <= 0}
+                        className="w-full sm:w-auto px-6 py-2.5 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 disabled:opacity-50">
+                        {submitting ? 'Menyimpan…' : '💾 Simpan Reject'}
+                    </button>
+                </form>
+            )}
+
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-orange-50 rounded-lg px-3 py-2 border border-orange-100">
+                    <div className="text-[10px] uppercase text-orange-600 font-semibold">Total Klik Reject</div>
+                    <div className="text-lg font-bold text-orange-800 font-mono">{totalQty.toLocaleString('id-ID')}</div>
+                </div>
+                <div className="bg-orange-50 rounded-lg px-3 py-2 border border-orange-100">
+                    <div className="text-[10px] uppercase text-orange-600 font-semibold">Total Nilai</div>
+                    <div className="text-lg font-bold text-orange-800 font-mono">Rp {totalValue.toLocaleString('id-ID')}</div>
+                </div>
+            </div>
+
+            {/* History */}
+            {loading ? (
+                <p className="text-sm text-gray-500 text-center py-4">Memuat…</p>
+            ) : rejects.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">Belum ada reject bulan ini.</p>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b text-xs text-gray-500 uppercase">
+                                <th className="text-left py-2 px-2">Tanggal</th>
+                                <th className="text-left py-2 px-2">Jenis</th>
+                                <th className="text-left py-2 px-2">Penyebab</th>
+                                <th className="text-right py-2 px-2">Qty</th>
+                                <th className="text-right py-2 px-2">Nilai</th>
+                                <th className="text-center py-2 px-2">Foto</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rejects.map(r => (
+                                <tr key={r.id} className="border-t hover:bg-gray-50">
+                                    <td className="py-2 px-2">{fmtDate(r.date)}</td>
+                                    <td className="py-2 px-2">{REJECT_TYPE_OPTIONS.find(o => o.value === r.rejectType)?.label || r.rejectType}</td>
+                                    <td className="py-2 px-2">
+                                        {r.cause === 'MACHINE'
+                                            ? <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700 font-semibold">🔧 Mesin</span>
+                                            : <span className="px-2 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 font-semibold">👤 Operator</span>}
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono font-bold">{r.quantity.toLocaleString('id-ID')}</td>
+                                    <td className="py-2 px-2 text-right font-mono">Rp {Number(r.totalCost || 0).toLocaleString('id-ID')}</td>
+                                    <td className="py-2 px-2 text-center">
+                                        {r.photoUrl ? (
+                                            <a href={r.photoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-600 hover:underline">📷 Lihat</a>
+                                        ) : <span className="text-gray-300">—</span>}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

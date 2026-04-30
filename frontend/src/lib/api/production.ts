@@ -113,6 +113,114 @@ export const bulkPickupProductionJobs = async (ids: number[], branchId?: number)
     return res.json();
 };
 
+// ─── Meter Reading (Rekonsiliasi Operator) — public endpoints ───────────────
+
+export interface MeterReading {
+    id: number;
+    branchId: number | null;
+    readingDate: string;
+    totalCount: number;
+    fullColorCount: number;
+    blackCount: number;
+    singleColorCount: number;
+    photoUrl: string | null;
+    notes: string | null;
+    createdAt: string;
+}
+
+/** Upload foto counter — return path URL untuk dipakai sebagai photoUrl di reading. */
+export const uploadMeterPhoto = async (file: File): Promise<string> => {
+    const fd = new FormData();
+    fd.append('image', file);
+    const res = await fetch(`${API_BASE()}/production/meter/upload-photo`, {
+        method: 'POST',
+        body: fd,
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Gagal upload foto');
+    const data = await res.json();
+    return data.url as string;
+};
+
+export const upsertMeterReading = async (data: {
+    branchId: number;
+    readingDate: string;
+    totalCount: number;
+    fullColorCount: number;
+    blackCount: number;
+    singleColorCount?: number;
+    photoUrl?: string;
+    notes?: string;
+}): Promise<MeterReading> => {
+    const res = await fetch(`${API_BASE()}/production/meter/reading`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Gagal simpan pembacaan');
+    return res.json();
+};
+
+export const getMeterReadings = async (branchId: number, startDate?: string, endDate?: string): Promise<MeterReading[]> => {
+    const params = new URLSearchParams();
+    params.append('branchId', String(branchId));
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    const res = await fetch(`${API_BASE()}/production/meter/readings?${params.toString()}`);
+    if (!res.ok) return [];
+    return res.json();
+};
+
+// ─── Machine Reject (operator reject input) ─────────────────────────────────
+
+export type RejectType = 'MACHINE_ERROR' | 'TEST_PRINT' | 'CALIBRATION' | 'HUMAN_ERROR';
+export type RejectCause = 'MACHINE' | 'HUMAN';
+export type CounterType = 'FULL_COLOR' | 'BLACK' | 'SINGLE_COLOR';
+
+export interface MachineReject {
+    id: number;
+    branchId: number | null;
+    rejectType: RejectType;
+    cause: RejectCause;
+    counterType: CounterType;
+    quantity: number;
+    pricePerClick: string | number;
+    totalCost: string | number;
+    photoUrl: string | null;
+    notes: string | null;
+    date: string;
+    createdAt: string;
+}
+
+export const createMachineReject = async (data: {
+    branchId: number;
+    rejectType: RejectType;
+    cause?: RejectCause;
+    counterType?: CounterType;
+    quantity: number;
+    pricePerClick?: number;
+    notes?: string;
+    photoUrl?: string;
+    date?: string;
+}): Promise<MachineReject> => {
+    const res = await fetch(`${API_BASE()}/production/meter/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Gagal simpan reject');
+    return res.json();
+};
+
+export const getMachineRejects = async (branchId: number, month?: number, year?: number): Promise<MachineReject[]> => {
+    const params = new URLSearchParams();
+    params.append('branchId', String(branchId));
+    if (month) params.append('month', String(month));
+    if (year) params.append('year', String(year));
+    const res = await fetch(`${API_BASE()}/production/meter/rejects?${params.toString()}`);
+    if (!res.ok) return [];
+    return res.json();
+};
+
 export const startAssemblyJob = async (id: number, assemblyNote?: string): Promise<any> => {
     const res = await fetch(`${API_BASE()}/production/jobs/${id}/start-assembly`, {
         method: 'POST',
