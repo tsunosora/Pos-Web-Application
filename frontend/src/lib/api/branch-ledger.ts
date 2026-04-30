@@ -142,14 +142,26 @@ export interface FromBranchStockItem {
     variantName: string | null;
     productName: string;
     pricingMode: string;
-    hpp: number;
+    productType: string | null;
+    hpp: number;                    // HPP variant di master
+    lastPurchasePrice: number;      // Harga beli terakhir di cabang ini
+    effectiveHpp: number;           // Yang DIPAKAI: variant.hpp > 0 ? hpp : lastPurchasePrice
+    hppSource: 'variant' | 'lastPurchase' | 'none';
     stock: number;
 }
 
 export interface FromBranchStockResponse {
     fromBranchId: number;
     toBranchId: number;
+    fromBranchName: string;
+    fromBranchCode: string | null;
     items: FromBranchStockItem[];
+    diagnostics: {
+        totalBranchStockEntries: number;
+        entriesWithStock: number;
+        entriesWithHpp: number;
+        entriesWithFallbackPrice: number;
+    };
 }
 
 export const getFromBranchStock = async (id: number): Promise<FromBranchStockResponse> =>

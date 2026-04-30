@@ -81,10 +81,12 @@ export interface CreateSalesOrderPayload {
 export const listSalesOrders = async (params?: {
     status?: SalesOrderStatus;
     search?: string;
+    branchId?: number;
 }): Promise<SalesOrder[]> => {
     const qs = new URLSearchParams();
     if (params?.status) qs.append('status', params.status);
     if (params?.search) qs.append('search', params.search);
+    if (params?.branchId != null) qs.append('branchId', String(params.branchId));
     const s = qs.toString();
     return (await api.get(`/sales-orders${s ? `?${s}` : ''}`)).data;
 };

@@ -403,16 +403,37 @@ export class BranchLedgerService {
             throw new ForbiddenException('Anda tidak punya akses untuk melunasi ledger ini');
         }
 
-        // Load variant + HPP
+        // Load variant + HPP. Kalau variant.hpp = 0, fallback ke harga beli terakhir
+        // dari StockPurchaseItem di cabang pemesan (auto-fallback supaya bahan baku
+        // yang HPP varian belum di-set tetap bisa dipakai untuk settle).
         const variant = await this.prisma.productVariant.findUnique({
             where: { id: variantId },
             select: { id: true, sku: true, variantName: true, hpp: true, product: { select: { name: true } } },
         });
         if (!variant) throw new NotFoundException('Varian tidak ditemukan');
-        const hpp = Number(variant.hpp) || 0;
+        let hpp = Number(variant.hpp) || 0;
+        let hppSource: 'variant' | 'lastPurchase' = 'variant';
+        if (hpp <= 0) {
+            const purchaseRow: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT spi.unit_price
+                 FROM stock_purchase_items spi
+                 JOIN stock_purchases sp ON sp.id = spi.purchase_id
+                 WHERE sp.branch_id = ${fromBranchId}
+                   AND spi.product_variant_id = ${variantId}
+                   AND spi.unit_price IS NOT NULL
+                   AND spi.unit_price > 0
+                 ORDER BY spi.id DESC
+                 LIMIT 1`,
+            );
+            const lastPrice = Number(purchaseRow?.[0]?.unit_price ?? 0);
+            if (lastPrice > 0) {
+                hpp = lastPrice;
+                hppSource = 'lastPurchase';
+            }
+        }
         if (hpp <= 0) {
             throw new BadRequestException(
-                `HPP varian ${variant.sku} belum di-set. Tidak bisa dipakai untuk settle ledger.`,
+                `Tidak bisa hitung nilai bahan ${variant.sku}: HPP varian belum di-set DAN tidak ada riwayat pembelian dengan harga di cabang pemesan. Set HPP di Inventori atau catat pembelian dulu.`,
             );
         }
         const value = Math.round(hpp * qty * 100) / 100;
@@ -512,37 +533,103 @@ export class BranchLedgerService {
     async listFromBranchStock(ctx: BranchContext, id: number) {
         const safeId = Number(id);
         const rows: any[] = await this.prisma.$queryRawUnsafe(
-            `SELECT from_branch_id, to_branch_id FROM inter_branch_ledger WHERE id = ${safeId} LIMIT 1`,
+            `SELECT l.from_branch_id, l.to_branch_id, fb.name AS from_branch_name, fb.code AS from_branch_code
+             FROM inter_branch_ledger l
+             JOIN company_branches fb ON fb.id = l.from_branch_id
+             WHERE l.id = ${safeId} LIMIT 1`,
         );
         if (!rows.length) throw new NotFoundException('Ledger tidak ditemukan');
         const fromBranchId = Number(rows[0].from_branch_id);
         const toBranchId = Number(rows[0].to_branch_id);
+        const fromBranchName: string = rows[0].from_branch_name || '';
+        const fromBranchCode: string | null = rows[0].from_branch_code ?? null;
         if (!ctx.isOwner && ctx.branchId !== fromBranchId && ctx.branchId !== toBranchId) {
             throw new ForbiddenException('Akses ledger tidak diizinkan');
         }
 
         const stocks: any[] = await this.prisma.$queryRawUnsafe(
             `SELECT bs.id AS branch_stock_id, bs.stock, pv.id AS variant_id, pv.sku, pv.variant_name, pv.hpp,
-                    p.name AS product_name, p.pricing_mode
+                    p.name AS product_name, p.pricing_mode, p.product_type
              FROM branch_stocks bs
              JOIN product_variants pv ON pv.id = bs.product_variant_id
              JOIN products p ON p.id = pv.product_id
-             WHERE bs.branch_id = ${fromBranchId} AND bs.stock > 0 AND pv.hpp > 0
+             WHERE bs.branch_id = ${fromBranchId} AND bs.stock > 0
              ORDER BY p.name, pv.variant_name
              LIMIT 500`,
         );
+
+        // Auto-fallback HPP: untuk varian yang variant.hpp = 0 (umum untuk bahan baku
+        // yang harga belinya fluktuatif), ambil unit_price dari StockPurchase terakhir
+        // di cabang ini. User tidak perlu set HPP dulu di inventori.
+        const variantIds: number[] = stocks
+            .map((s: any) => Number(s.variant_id))
+            .filter((id: number) => Number.isFinite(id));
+        const lastPurchaseMap = new Map<number, number>();
+        if (variantIds.length > 0) {
+            // Per variant: ambil unit_price dari stock_purchase_item terakhir
+            // (max purchase id) di cabang fromBranch yg unit_price-nya tidak null.
+            const purchases: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT spi.product_variant_id AS variant_id, spi.unit_price AS unit_price
+                 FROM stock_purchase_items spi
+                 JOIN stock_purchases sp ON sp.id = spi.purchase_id
+                 INNER JOIN (
+                     SELECT spi2.product_variant_id, MAX(spi2.id) AS max_id
+                     FROM stock_purchase_items spi2
+                     JOIN stock_purchases sp2 ON sp2.id = spi2.purchase_id
+                     WHERE sp2.branch_id = ${fromBranchId}
+                       AND spi2.product_variant_id IN (${variantIds.join(',')})
+                       AND spi2.unit_price IS NOT NULL
+                       AND spi2.unit_price > 0
+                     GROUP BY spi2.product_variant_id
+                 ) latest ON latest.max_id = spi.id`,
+            );
+            for (const p of purchases) {
+                lastPurchaseMap.set(Number(p.variant_id), Number(p.unit_price) || 0);
+            }
+        }
+
+        // Diagnostic counters
+        const totalRow: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT COUNT(*) AS total FROM branch_stocks WHERE branch_id = ${fromBranchId}`,
+        );
+        const totalEntries = Number(totalRow?.[0]?.total ?? 0);
+        const itemsWithStock = stocks.length;
+        const itemsWithHpp = stocks.filter(s => Number(s.hpp) > 0).length;
+        const itemsWithFallback = stocks.filter((s: any) =>
+            Number(s.hpp) <= 0 && (lastPurchaseMap.get(Number(s.variant_id)) ?? 0) > 0,
+        ).length;
+
         return {
             fromBranchId,
             toBranchId,
-            items: stocks.map(s => ({
-                variantId: Number(s.variant_id),
-                sku: s.sku,
-                variantName: s.variant_name,
-                productName: s.product_name,
-                pricingMode: s.pricing_mode,
-                hpp: Number(s.hpp),
-                stock: Number(s.stock),
-            })),
+            fromBranchName,
+            fromBranchCode,
+            items: stocks.map((s: any) => {
+                const variantId = Number(s.variant_id);
+                const hppVarian = Number(s.hpp) || 0;
+                const lastPurchase = lastPurchaseMap.get(variantId) ?? 0;
+                // effectiveHpp: prefer HPP varian, fallback ke harga beli terakhir
+                const effectiveHpp = hppVarian > 0 ? hppVarian : lastPurchase;
+                return {
+                    variantId,
+                    sku: s.sku,
+                    variantName: s.variant_name,
+                    productName: s.product_name,
+                    pricingMode: s.pricing_mode,
+                    productType: s.product_type ?? null,
+                    hpp: hppVarian,
+                    lastPurchasePrice: lastPurchase,
+                    effectiveHpp, // <-- nilai yang dipakai untuk hitung pembayaran (auto-fallback)
+                    hppSource: hppVarian > 0 ? 'variant' : (lastPurchase > 0 ? 'lastPurchase' : 'none'),
+                    stock: Number(s.stock),
+                };
+            }),
+            diagnostics: {
+                totalBranchStockEntries: totalEntries,
+                entriesWithStock: itemsWithStock,
+                entriesWithHpp: itemsWithHpp,
+                entriesWithFallbackPrice: itemsWithFallback,
+            },
         };
     }
 

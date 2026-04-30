@@ -527,15 +527,19 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
 
     const selected = data?.items.find(it => it.variantId === variantId) ?? null;
     const qtyNum = Number(qty) || 0;
-    const value = selected ? Math.round(selected.hpp * qtyNum * 100) / 100 : 0;
+    // Pakai effectiveHpp (auto-fallback HPP varian → harga beli terakhir)
+    const effectiveHpp = selected ? selected.effectiveHpp : 0;
+    const value = selected ? Math.round(effectiveHpp * qtyNum * 100) / 100 : 0;
     const exceedsOutstanding = value > ledger.outstandingAmount + 0.01;
     const exceedsStock = selected ? qtyNum > selected.stock : false;
+    const hppMissing = selected ? effectiveHpp <= 0 : false;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
         if (!selected) { setError('Pilih bahan dulu'); return; }
         if (!qtyNum || qtyNum <= 0) { setError('Jumlah harus > 0'); return; }
+        if (hppMissing) { setError('Tidak bisa hitung nilai bahan: HPP varian belum di-set & tidak ada riwayat pembelian. Set HPP di Inventori atau catat pembelian dulu.'); return; }
         if (exceedsStock) { setError(`Stok hanya ${selected.stock}`); return; }
         if (exceedsOutstanding) { setError('Nilai melebihi sisa hutang. Kurangi quantity.'); return; }
         setSubmitting(true);
@@ -583,30 +587,70 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                         {loading ? (
                             <div className="text-sm text-gray-500 p-4 text-center">Memuat stok cabang...</div>
                         ) : filtered.length === 0 ? (
-                            <div className="text-sm text-gray-500 p-4 text-center border rounded-lg bg-gray-50">
-                                {data?.items.length === 0
-                                    ? 'Cabang pemesan belum punya stok dengan HPP > 0. Gunakan Bayar Tunai.'
-                                    : 'Tidak ada yang cocok dengan pencarian.'}
+                            // Empty state dengan info diagnostik kenapa kosong
+                            <div className="text-sm p-4 border rounded-lg bg-amber-50 border-amber-200 space-y-2">
+                                {data && data.items.length === 0 ? (
+                                    <>
+                                        <p className="font-semibold text-amber-800">
+                                            Cabang <span className="font-mono">{data.fromBranchCode || data.fromBranchName}</span> belum punya stok bahan.
+                                        </p>
+                                        <div className="text-xs text-amber-700 space-y-1">
+                                            <p>📊 Diagnostik:</p>
+                                            <ul className="list-disc list-inside ml-1 space-y-0.5">
+                                                <li>Total entry BranchStock: <strong>{data.diagnostics?.totalBranchStockEntries ?? 0}</strong></li>
+                                                <li>Yang stok &gt; 0: <strong>{data.diagnostics?.entriesWithStock ?? 0}</strong></li>
+                                                <li>Yang HPP terisi: <strong>{data.diagnostics?.entriesWithHpp ?? 0}</strong></li>
+                                            </ul>
+                                            <p className="pt-1 border-t border-amber-200 mt-2">
+                                                <strong>Cara isi stok cabang:</strong>
+                                            </p>
+                                            <ul className="list-disc list-inside ml-1 space-y-0.5">
+                                                <li>Pembelian langsung ke cabang via <em>Inventori → Pembelian</em></li>
+                                                <li>Transfer dari cabang lain via <em>/inventory/transfer</em></li>
+                                                <li>Atau gunakan <strong>Bayar Tunai</strong> jika cabang tidak punya stok</li>
+                                            </ul>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <p className="text-gray-500 text-center">Tidak ada yang cocok dengan pencarian.</p>
+                                )}
                             </div>
                         ) : (
                             <div className="border rounded-lg max-h-48 overflow-y-auto divide-y">
-                                {filtered.map(it => (
-                                    <label key={it.variantId}
-                                        className={`flex items-center gap-2 p-2 cursor-pointer hover:bg-gray-50 ${variantId === it.variantId ? 'bg-indigo-50' : ''}`}>
-                                        <input type="radio" checked={variantId === it.variantId}
-                                            onChange={() => { setVariantId(it.variantId); setQty('1'); }} />
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium truncate">{it.productName}
-                                                {it.variantName && <span className="text-gray-500"> — {it.variantName}</span>}
-                                            </p>
-                                            <p className="text-xs text-gray-500 font-mono">{it.sku}</p>
-                                        </div>
-                                        <div className="text-right text-xs">
-                                            <p>Stok: <span className="font-semibold">{it.stock}</span></p>
-                                            <p className="text-gray-500">HPP: {rupiah(it.hpp)}</p>
-                                        </div>
-                                    </label>
-                                ))}
+                                {filtered.map(it => {
+                                    const noPrice = it.effectiveHpp <= 0;
+                                    const fallback = it.hppSource === 'lastPurchase';
+                                    return (
+                                        <label key={it.variantId}
+                                            className={`flex items-center gap-2 p-2 hover:bg-gray-50 ${
+                                                noPrice
+                                                    ? 'opacity-60 cursor-not-allowed'
+                                                    : `cursor-pointer ${variantId === it.variantId ? 'bg-indigo-50' : ''}`
+                                            }`}>
+                                            <input type="radio" checked={variantId === it.variantId}
+                                                disabled={noPrice}
+                                                onChange={() => { if (!noPrice) { setVariantId(it.variantId); setQty('1'); } }} />
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium truncate">{it.productName}
+                                                    {it.variantName && <span className="text-gray-500"> — {it.variantName}</span>}
+                                                </p>
+                                                <p className="text-xs text-gray-500 font-mono">{it.sku}</p>
+                                                {noPrice && (
+                                                    <p className="text-[10px] text-amber-700 mt-0.5">⚠ Belum ada HPP & belum ada riwayat pembelian</p>
+                                                )}
+                                                {fallback && (
+                                                    <p className="text-[10px] text-blue-600 mt-0.5">💡 Pakai harga beli terakhir (HPP varian belum di-set)</p>
+                                                )}
+                                            </div>
+                                            <div className="text-right text-xs">
+                                                <p>Stok: <span className="font-semibold">{it.stock}</span></p>
+                                                <p className={noPrice ? 'text-amber-700 font-semibold' : fallback ? 'text-blue-600 font-semibold' : 'text-gray-500'}>
+                                                    {noPrice ? '— Tidak ada harga' : `${fallback ? 'Beli' : 'HPP'}: ${rupiah(it.effectiveHpp)}`}
+                                                </p>
+                                            </div>
+                                        </label>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -625,7 +669,12 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
                                 <p className="text-xs text-emerald-700">Nilai Pembayaran</p>
                                 <p className="text-lg font-bold text-emerald-800">{rupiah(value)}</p>
-                                <p className="text-[11px] text-emerald-600 mt-0.5">{selected.hpp.toLocaleString()} × {qtyNum}</p>
+                                <p className="text-[11px] text-emerald-600 mt-0.5">
+                                    {effectiveHpp.toLocaleString('id-ID')} × {qtyNum}
+                                    {selected.hppSource === 'lastPurchase' && (
+                                        <span className="ml-1 text-blue-600">(harga beli terakhir)</span>
+                                    )}
+                                </p>
                             </div>
                         </div>
                     )}

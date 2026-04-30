@@ -39,6 +39,9 @@ import { getTransactionEditRequests } from "@/lib/api/transactions";
 import { getPendingInvoiceCount } from "@/lib/api/sales-orders";
 import { getBranchInboxUnread } from "@/lib/api/branch-inbox";
 import { getBranchLedgerSummary } from "@/lib/api/branch-ledger";
+import { getProductionStats } from "@/lib/api/production";
+import { getPrintQueueStats } from "@/lib/api/print-queue";
+import { useBranchStore } from "@/store/branch-store";
 import type { LucideIcon } from "lucide-react";
 
 // ── Tipe & data navigasi ─────────────────────────────────────────────────────
@@ -46,7 +49,7 @@ interface NavItem {
     name: string;
     href: string;
     icon: LucideIcon;
-    badgeKey?: 'pendingInvoice' | 'pendingEdit' | 'branchInbox' | 'ledgerOutstanding';
+    badgeKey?: 'pendingInvoice' | 'pendingEdit' | 'branchInbox' | 'ledgerOutstanding' | 'productionReady' | 'printReady';
     managerOnly?: boolean;
 }
 interface NavSection {
@@ -76,6 +79,7 @@ const SECTIONS: NavSection[] = [
         items: [
             { name: "Manajemen Stok", href: "/inventory", icon: Package },
             { name: "Laporan Stok", href: "/reports/stock", icon: TrendingDown },
+            { name: "Laporan Bahan Titipan", href: "/reports/inter-branch-usage", icon: ArrowLeftRight },
             { name: "Stok Opname", href: "/inventory/opname", icon: ClipboardList },
             { name: "Transfer Stok Cabang", href: "/inventory/transfer", icon: ArrowLeftRight },
             { name: "Data Supplier", href: "/inventory/suppliers", icon: Truck },
@@ -88,8 +92,8 @@ const SECTIONS: NavSection[] = [
             { name: "Titipan Masuk", href: "/titipan-masuk", icon: Inbox, badgeKey: 'branchInbox' },
             { name: "Titipan Keluar", href: "/titipan-keluar", icon: Inbox },
             { name: "Buku Titipan", href: "/branch-ledger", icon: BookOpen, badgeKey: 'ledgerOutstanding' },
-            { name: "Antrian Produksi", href: "/produksi", icon: Printer },
-            { name: "Antrian Cetak Paper", href: "/print-queue", icon: Printer },
+            { name: "Antrian Produksi", href: "/produksi", icon: Printer, badgeKey: 'productionReady' },
+            { name: "Antrian Cetak Paper", href: "/print-queue", icon: Printer, badgeKey: 'printReady' },
             { name: "Klik Mesin Cetak", href: "/click-counting", icon: MousePointerClick },
         ],
     },
@@ -170,6 +174,33 @@ export function Sidebar() {
             ? (ledgerSummary.outgoing.count + ledgerSummary.incoming.count > 0 ? 1 : 0)
             : 0;
 
+    // Sidebar badge untuk Antrian Produksi & Antrian Cetak Paper —
+    // tampilkan jumlah job SELESAI (siap diambil customer) di cabang aktif.
+    // Resolve cabang: staff pakai user.branchId, owner pakai store.activeBranchId.
+    const { branchId: userBranchId, isOwner } = useCurrentUser();
+    const ownerActiveBranch = useBranchStore(s => s.activeBranchId);
+    const sidebarBranchId = isOwner ? ownerActiveBranch : userBranchId;
+
+    const { data: productionStats } = useQuery({
+        queryKey: ['production-stats-sidebar', sidebarBranchId ?? 'all'],
+        queryFn: () => getProductionStats(sidebarBranchId ?? undefined),
+        staleTime: 30_000,
+        refetchInterval: 30_000,
+        retry: false,
+        enabled: isOwner ? true : userBranchId != null,
+    });
+    const productionReadyCount = productionStats?.selesai ?? 0;
+
+    const { data: printStats } = useQuery({
+        queryKey: ['print-queue-stats-sidebar', sidebarBranchId ?? 'all'],
+        queryFn: () => getPrintQueueStats(sidebarBranchId ?? undefined),
+        staleTime: 30_000,
+        refetchInterval: 30_000,
+        retry: false,
+        enabled: isOwner ? true : userBranchId != null,
+    });
+    const printReadyCount = printStats?.selesai ?? 0;
+
     const storeName = settings?.storeName || 'PosPro';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     const logoUrl = settings?.logoImageUrl ? `${API_URL}${settings.logoImageUrl}` : null;
@@ -183,6 +214,8 @@ export function Sidebar() {
         if (item.badgeKey === 'pendingEdit') return pendingEditCount;
         if (item.badgeKey === 'branchInbox') return branchInboxCount;
         if (item.badgeKey === 'ledgerOutstanding') return ledgerOutstandingCount;
+        if (item.badgeKey === 'productionReady') return productionReadyCount;
+        if (item.badgeKey === 'printReady') return printReadyCount;
         return 0;
     }
 

@@ -39,6 +39,7 @@ export class ProductionService {
                 select: {
                     id: true,
                     invoiceNumber: true,
+                    checkoutNumber: true,
                     customerName: true,
                     customerPhone: true,
                     productionPriority: true,
@@ -319,6 +320,57 @@ export class ProductionService {
             where: { id },
             data: { status: 'DIAMBIL', pickedUpAt: new Date() },
             include: this.jobInclude(),
+        });
+    }
+
+    /**
+     * Bulk pickup: konfirmasi banyak job sekaligus sudah diambil customer.
+     * Validasi: semua id harus status SELESAI. Kalau optional `branchId` di-pass,
+     * validate juga semua job dari cabang itu (security: kasir cabang lain tidak
+     * bisa pickup job cabang lain).
+     * Return: jumlah updated + list skipped (untuk feedback UI).
+     */
+    async bulkPickup(ids: number[], branchId?: number | null): Promise<{ updated: number; skipped: { id: number; reason: string }[] }> {
+        if (!Array.isArray(ids) || ids.length === 0) {
+            throw new BadRequestException('Daftar id wajib diisi');
+        }
+        const safeIds = ids.map(n => Number(n)).filter(n => Number.isFinite(n) && n > 0);
+        if (!safeIds.length) throw new BadRequestException('Tidak ada id valid');
+
+        return this.prisma.$transaction(async (tx) => {
+            const jobs: any[] = await (tx as any).productionJob.findMany({
+                where: { id: { in: safeIds } },
+                select: { id: true, status: true, branchId: true },
+            });
+            const skipped: { id: number; reason: string }[] = [];
+            const validIds: number[] = [];
+            const foundIds = new Set(jobs.map(j => j.id));
+            for (const id of safeIds) {
+                if (!foundIds.has(id)) {
+                    skipped.push({ id, reason: 'Tidak ditemukan' });
+                }
+            }
+            for (const j of jobs) {
+                if (j.status !== 'SELESAI') {
+                    skipped.push({ id: j.id, reason: `Status ${j.status} (bukan SELESAI)` });
+                    continue;
+                }
+                if (branchId != null && j.branchId !== branchId) {
+                    skipped.push({ id: j.id, reason: 'Bukan dari cabang Anda' });
+                    continue;
+                }
+                validIds.push(j.id);
+            }
+
+            let updated = 0;
+            if (validIds.length > 0) {
+                const res = await (tx as any).productionJob.updateMany({
+                    where: { id: { in: validIds }, status: 'SELESAI' },
+                    data: { status: 'DIAMBIL', pickedUpAt: new Date() },
+                });
+                updated = res.count;
+            }
+            return { updated, skipped };
         });
     }
 

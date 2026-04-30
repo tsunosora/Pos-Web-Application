@@ -41,6 +41,11 @@ export class PrintQueueController {
         return this.svc.pickupJob(id);
     }
 
+    @Post('jobs/bulk-pickup')
+    bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }) {
+        return this.svc.bulkPickup(body?.ids ?? [], body?.branchId);
+    }
+
     @Post('jobs/:id/notes')
     notes(@Param('id', ParseIntPipe) id: number, @Body('notes') notes: string) {
         return this.svc.updateNotes(id, notes);

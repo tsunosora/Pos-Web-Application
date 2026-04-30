@@ -1162,9 +1162,11 @@ model BranchSettings {
   notaHeader          String?  @map("nota_header") @db.Text
   notaFooter          String?  @map("nota_footer") @db.Text
   logoUrl             String?  @map("logo_url") @db.Text
-  // Persentase fee layanan cetak titipan masuk (default 20% dari HPP bahan).
+  // Persentase fee layanan cetak titipan masuk. Default 0 — sesuai konsep bisnis
+  // 1 owner / 1 perusahaan: cabang ganti real cost saja (bahan + klik), tanpa
+  // margin antar cabang. Naikkan kalau setup berubah jadi multi-owner/franchise.
   // Dipakai waktu auto-create InterBranchLedger: serviceFee = costAmount * (titipanFeePercent/100).
-  titipanFeePercent   Decimal? @default(20) @map("titipan_fee_percent") @db.Decimal(5, 2)
+  titipanFeePercent   Decimal? @default(0) @map("titipan_fee_percent") @db.Decimal(5, 2)
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
 

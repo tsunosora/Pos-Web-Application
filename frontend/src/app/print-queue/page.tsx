@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Printer, RefreshCw } from 'lucide-react';
+import { ExternalLink, Printer, RefreshCw, Building2 } from 'lucide-react';
 import {
     listPrintJobs, getPrintQueueStats,
     PrintJob, PrintJobStatus,
 } from '@/lib/api/print-queue';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { useBranchStore } from '@/store/branch-store';
 
 const STATUSES: { key: PrintJobStatus | 'ALL'; label: string }[] = [
     { key: 'ALL', label: 'Semua' },
@@ -49,18 +51,25 @@ export default function PrintQueueAdminPage() {
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
 
+    // Multi-cabang: scope query ke cabang aktif user.
+    // - Staff: lock ke user.branchId
+    // - Owner: pakai store.activeBranchId (null = "Semua Cabang" → tidak filter)
+    const { branchId: userBranchId, branchName: userBranchName, branchCode: userBranchCode, isOwner } = useCurrentUser();
+    const ownerActiveBranch = useBranchStore(s => s.activeBranchId);
+    const activeBranchId = isOwner ? ownerActiveBranch : userBranchId;
+
     const load = useCallback(async () => {
         setLoading(true);
         try {
             const [j, s] = await Promise.all([
-                listPrintJobs(filter === 'ALL' ? undefined : filter, search || undefined),
-                getPrintQueueStats(),
+                listPrintJobs(filter === 'ALL' ? undefined : filter, search || undefined, activeBranchId ?? undefined),
+                getPrintQueueStats(activeBranchId ?? undefined),
             ]);
             setJobs(j);
             setStats(s);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
-    }, [filter, search]);
+    }, [filter, search, activeBranchId]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -68,8 +77,26 @@ export default function PrintQueueAdminPage() {
         <div>
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
                 <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2"><Printer className="w-6 h-6" /> Antrian Cetak Paper</h1>
-                    <p className="text-sm text-muted-foreground">Pantau status cetakan paper dari setiap transaksi.</p>
+                    <h1 className="text-2xl font-bold flex items-center gap-2 flex-wrap">
+                        <Printer className="w-6 h-6" /> Antrian Cetak Paper
+                        {/* Badge cabang aktif — supaya admin tahu sedang lihat data cabang yang mana */}
+                        {activeBranchId ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-full">
+                                <Building2 className="w-3 h-3" />
+                                {(isOwner ? '' : userBranchCode) || userBranchName || `Cabang #${activeBranchId}`}
+                            </span>
+                        ) : isOwner ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 bg-amber-100 text-amber-700 border border-amber-300 rounded-full">
+                                Semua Cabang
+                            </span>
+                        ) : null}
+                    </h1>
+                    <p className="text-sm text-muted-foreground">
+                        Pantau status cetakan paper dari setiap transaksi
+                        {activeBranchId
+                            ? ` di cabang ${userBranchName || `#${activeBranchId}`}`
+                            : isOwner ? ' — agregat semua cabang' : ''}.
+                    </p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Link

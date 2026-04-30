@@ -1,13 +1,16 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { Footer } from "./Footer";
 import { ShiftReminderBanner } from "./ShiftReminderBanner";
 import { BranchInboxPopup } from "./BranchInboxPopup";
 import { BranchOutboxReadyPopup } from "./BranchOutboxReadyPopup";
+import { ReadyJobsPopup } from "./ReadyJobsPopup";
+import { ReadyJobsModal } from "./ReadyJobsModal";
+import { ReadyJobsFab } from "./ReadyJobsFab";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useShiftReminder } from "@/hooks/useShiftReminder";
 import { useNotificationStore } from "@/store/notification-store";
@@ -30,6 +33,7 @@ function AppInitializer() {
 
 export function MainLayout({ children }: MainLayoutProps) {
     const pathname = usePathname();
+    const [readyJobsModalOpen, setReadyJobsModalOpen] = useState(false);
     const isLoginPage = pathname === "/login";
     const isOpnamePage = pathname.startsWith("/opname/");
     const isProduksiPage = pathname.startsWith("/produksi");
@@ -47,6 +51,9 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="print:hidden"><ShiftReminderBanner /></div>
             <div className="print:hidden"><BranchInboxPopup /></div>
             <div className="print:hidden"><BranchOutboxReadyPopup /></div>
+            <ReadyJobsPopup onOpenModal={() => setReadyJobsModalOpen(true)} />
+            <ReadyJobsModal open={readyJobsModalOpen} onClose={() => setReadyJobsModalOpen(false)} />
+            <ReadyJobsFab onClick={() => setReadyJobsModalOpen(true)} />
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>

@@ -98,6 +98,21 @@ export const pickupProductionJob = async (id: number): Promise<any> => {
     return res.json();
 };
 
+export interface BulkPickupResult {
+    updated: number;
+    skipped: { id: number; reason: string }[];
+}
+
+export const bulkPickupProductionJobs = async (ids: number[], branchId?: number): Promise<BulkPickupResult> => {
+    const res = await fetch(`${API_BASE()}/production/jobs/bulk-pickup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, branchId }),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Gagal bulk pickup');
+    return res.json();
+};
+
 export const startAssemblyJob = async (id: number, assemblyNote?: string): Promise<any> => {
     const res = await fetch(`${API_BASE()}/production/jobs/${id}/start-assembly`, {
         method: 'POST',

@@ -153,6 +153,52 @@ export class PrintQueueService {
         });
     }
 
+    /**
+     * Bulk pickup: konfirmasi banyak print job sekaligus sudah diambil customer.
+     * Mirror logic dari ProductionService.bulkPickup.
+     */
+    async bulkPickup(ids: number[], branchId?: number | null): Promise<{ updated: number; skipped: { id: number; reason: string }[] }> {
+        if (!Array.isArray(ids) || ids.length === 0) {
+            throw new BadRequestException('Daftar id wajib diisi');
+        }
+        const safeIds = ids.map(n => Number(n)).filter(n => Number.isFinite(n) && n > 0);
+        if (!safeIds.length) throw new BadRequestException('Tidak ada id valid');
+
+        return this.prisma.$transaction(async (tx) => {
+            const jobs: any[] = await (tx as any).printJob.findMany({
+                where: { id: { in: safeIds } },
+                select: { id: true, status: true, branchId: true },
+            });
+            const skipped: { id: number; reason: string }[] = [];
+            const validIds: number[] = [];
+            const foundIds = new Set(jobs.map(j => j.id));
+            for (const id of safeIds) {
+                if (!foundIds.has(id)) skipped.push({ id, reason: 'Tidak ditemukan' });
+            }
+            for (const j of jobs) {
+                if (j.status !== 'SELESAI') {
+                    skipped.push({ id: j.id, reason: `Status ${j.status} (bukan SELESAI)` });
+                    continue;
+                }
+                if (branchId != null && j.branchId !== branchId) {
+                    skipped.push({ id: j.id, reason: 'Bukan dari cabang Anda' });
+                    continue;
+                }
+                validIds.push(j.id);
+            }
+
+            let updated = 0;
+            if (validIds.length > 0) {
+                const res = await (tx as any).printJob.updateMany({
+                    where: { id: { in: validIds }, status: 'SELESAI' },
+                    data: { status: 'DIAMBIL', pickedUpAt: new Date() },
+                });
+                updated = res.count;
+            }
+            return { updated, skipped };
+        });
+    }
+
     async updateNotes(id: number, notes: string) {
         await this.getJob(id);
         return (this.prisma as any).printJob.update({

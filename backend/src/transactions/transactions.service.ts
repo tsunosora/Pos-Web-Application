@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod, TransactionStatus, CashflowType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BranchContext } from '../common/branch-context.decorator';
+import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 import { branchWhere } from '../common/branch-where.helper';
 
 type EditItemData = {
@@ -699,8 +700,10 @@ export class TransactionsService {
      *   - Akhir _createTransaction (visibility langsung di Buku Titipan dari checkout)
      *   - branch-inbox.service.markHandover & confirmPickup (idempotent — duplicate aman)
      *
-     * Formula:
-     *   costAmount = Σ (hppAtTime OR variant.hpp) × qty
+     * Formula (lihat detail di ledger-cost.util.ts → computeLedgerCost):
+     *   bahanCost  = HPP variant utama + Σ BOM × HPP raw material (per item)
+     *   klikCost   = Σ click_logs.total_cost (jasa cetak mesin paper)
+     *   costAmount = bahanCost + klikCost   (disimpan gabung di kolom cost_amount)
      *   serviceFee = costAmount × (BranchSettings(toBranch).titipanFeePercent / 100, default 20)
      *   totalAmount = costAmount + serviceFee
      */
@@ -719,39 +722,35 @@ export class TransactionsService {
         const tx = txRows[0];
         const fromBranchId = tx.branch_id != null ? Number(tx.branch_id) : null;
         const toBranchId = tx.production_branch_id != null ? Number(tx.production_branch_id) : null;
-        // Hanya catat kalau benar-benar titip cetak (production_branch_id != branch_id)
         if (!fromBranchId || !toBranchId || fromBranchId === toBranchId) return;
 
-        const items: any[] = await this.prisma.$queryRawUnsafe(
-            `SELECT ti.quantity, ti.hpp_at_time, pv.hpp AS variant_hpp
-             FROM transaction_items ti
-             JOIN product_variants pv ON pv.id = ti.product_variant_id
-             WHERE ti.transaction_id = ${txId}`,
-        );
-        let costAmount = 0;
-        for (const it of items) {
-            const qty = Number(it.quantity) || 0;
-            const hppAt = Number(it.hpp_at_time) || 0;
-            const variantHpp = Number(it.variant_hpp) || 0;
-            const hpp = hppAt > 0 ? hppAt : variantHpp;
-            costAmount += hpp * qty;
-        }
-        costAmount = Math.round(costAmount * 100) / 100;
-
+        // Resolve titipan fee percent dari cabang pelaksana
         const settingsRows: any[] = await this.prisma.$queryRawUnsafe(
             `SELECT titipan_fee_percent FROM branch_settings WHERE branch_id = ${toBranchId} LIMIT 1`,
         );
         const feePercent = settingsRows.length && settingsRows[0].titipan_fee_percent != null
             ? Number(settingsRows[0].titipan_fee_percent)
             : 20;
-        const serviceFee = Math.round((costAmount * feePercent) / 100 * 100) / 100;
-        const totalAmount = Math.round((costAmount + serviceFee) * 100) / 100;
+
+        // Hitung cost lengkap (bahan + klik + service fee)
+        const cost = await computeLedgerCost(this.prisma, txId, feePercent);
+
+        // Skip ledger untuk titipan banner-only (tidak ada biaya klik mesin).
+        // Konsep bisnis: cabang titip cetak banner ke pusat tidak perlu ganti uang/bahan
+        // (1 owner, 1 kantong). Tracking sudah lewat StockMovement & laporan
+        // /reports/inter-branch-usage. Ledger formal hanya untuk titipan paper print
+        // dimana cabang harus ganti bahan + bayar biaya klik.
+        if (!cost.hasClickCost) {
+            return;
+        }
+
+        const costAmount = Math.round((cost.bahanCost + cost.klikCost) * 100) / 100;
 
         await this.prisma.$executeRawUnsafe(
             `INSERT INTO inter_branch_ledger
               (transaction_id, from_branch_id, to_branch_id, cost_amount, service_fee, total_amount, settled_amount, status, created_at, updated_at)
              VALUES
-              (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${serviceFee}, ${totalAmount}, 0, 'PENDING', NOW(), NOW())`,
+              (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${cost.serviceFee}, ${cost.totalAmount}, 0, 'PENDING', NOW(), NOW())`,
         );
     }
 

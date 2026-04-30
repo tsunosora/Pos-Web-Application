@@ -58,6 +58,11 @@ export class ProductionController {
         return this.productionService.pickupJob(id);
     }
 
+    @Post('jobs/bulk-pickup')
+    bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }) {
+        return this.productionService.bulkPickup(body?.ids ?? [], body?.branchId);
+    }
+
     @Post('batches')
     createBatch(
         @Body() data: { jobIds: number[]; rollVariantId?: number; usedWaste: boolean; totalAreaM2?: number },

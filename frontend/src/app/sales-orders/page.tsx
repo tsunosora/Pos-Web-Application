@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Eye, FileSignature, Loader2, ExternalLink, Users } from "lucide-react";
+import { Plus, Search, Eye, FileSignature, Loader2, ExternalLink, Users, Building2 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useBranchStore } from "@/store/branch-store";
 import { listSalesOrders, type SalesOrder, type SalesOrderStatus } from "@/lib/api/sales-orders";
+import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -34,40 +36,57 @@ const STATUS_LABEL: Record<SalesOrderStatus, string> = {
 };
 
 export default function SalesOrdersPage() {
-    const { isManager } = useCurrentUser();
+    const { isManager, branchId: userBranchId, isOwner } = useCurrentUser();
+    const ownerActiveBranch = useBranchStore(s => s.activeBranchId);
     const [activeTab, setActiveTab] = useState<'ALL' | SalesOrderStatus>('ALL');
     const [search, setSearch] = useState('');
-    const [branchFilter, setBranchFilter] = useState('');
+    // Tab cabang — id cabang yang sedang dipilih untuk dilihat SO-nya.
+    // - Staff: locked ke userBranchId (hanya 1 tab, otomatis dipilih)
+    // - Owner: bisa switch antar cabang via tab; default = ownerActiveBranch atau cabang pertama
+    const [activeBranchTab, setActiveBranchTab] = useState<number | null>(null);
+
+    // Load list cabang aktif untuk render tab (cuma untuk Owner)
+    const { data: branches = [] } = useQuery<PublicBranch[]>({
+        queryKey: ['public-branches'],
+        queryFn: getPublicBranches,
+        staleTime: 5 * 60_000,
+        retry: false,
+        enabled: isOwner, // staff tidak butuh tab list — locked
+    });
+
+    // Sinkronkan default activeBranchTab dengan user/branch context
+    useEffect(() => {
+        if (!isOwner) {
+            // Staff: locked ke cabang dia
+            if (activeBranchTab !== userBranchId) setActiveBranchTab(userBranchId);
+            return;
+        }
+        // Owner: kalau belum di-set, default ke ownerActiveBranch atau cabang pertama
+        if (activeBranchTab == null) {
+            if (ownerActiveBranch != null) setActiveBranchTab(ownerActiveBranch);
+            else if (branches.length > 0) setActiveBranchTab(branches[0].id);
+        }
+    }, [isOwner, userBranchId, ownerActiveBranch, branches, activeBranchTab]);
 
     const { data, isLoading } = useQuery({
-        queryKey: ['sales-orders', activeTab, search],
+        queryKey: ['sales-orders', activeTab, search, activeBranchTab],
         queryFn: () => listSalesOrders({
             status: activeTab === 'ALL' ? undefined : activeTab,
             search: search.trim() || undefined,
+            branchId: activeBranchTab ?? undefined,
         }),
         refetchInterval: 30_000,
+        enabled: activeBranchTab != null, // jangan fetch sebelum cabang dipilih
     });
 
-    const rawSos: SalesOrder[] = data ?? [];
-
-    // Filter cabang di client (SO already filtered by status+search at server)
-    const sos = useMemo(() => {
-        if (!branchFilter) return rawSos;
-        return rawSos.filter(s => (s as any).branchName === branchFilter);
-    }, [rawSos, branchFilter]);
-
-    // Collect unique branch names for filter dropdown
-    const branchOptions = useMemo(() => {
-        const branches = rawSos.map(s => (s as any).branchName).filter(Boolean) as string[];
-        return Array.from(new Set(branches)).sort();
-    }, [rawSos]);
+    const sos: SalesOrder[] = data ?? [];
 
     const summary = useMemo(() => ({
-        total: rawSos.length,
-        draft: rawSos.filter(s => s.status === 'DRAFT').length,
-        sent: rawSos.filter(s => s.status === 'SENT').length,
-        invoiced: rawSos.filter(s => s.status === 'INVOICED').length,
-    }), [rawSos]);
+        total: sos.length,
+        draft: sos.filter(s => s.status === 'DRAFT').length,
+        sent: sos.filter(s => s.status === 'SENT').length,
+        invoiced: sos.filter(s => s.status === 'INVOICED').length,
+    }), [sos]);
 
     return (
         <div className="space-y-4">
@@ -116,7 +135,33 @@ export default function SalesOrdersPage() {
                 <StatCard label="Sudah Invoice" value={summary.invoiced} accent="text-emerald-600" />
             </div>
 
-            {/* Tabs + search */}
+            {/* Tab cabang — wajib pilih 1 cabang, tidak ada mode "Semua Cabang" supaya SO tidak campur */}
+            {isOwner && branches.length > 1 && (
+                <div className="bg-card border border-border rounded-lg p-2">
+                    <div className="flex items-center gap-2 mb-2 px-1">
+                        <Building2 className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pilih Cabang</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {branches.map(b => (
+                            <button
+                                key={b.id}
+                                onClick={() => setActiveBranchTab(b.id)}
+                                className={`px-3 py-1.5 text-sm font-semibold rounded-md transition-colors ${
+                                    activeBranchTab === b.id
+                                        ? 'bg-primary text-primary-foreground shadow-sm'
+                                        : 'bg-muted text-foreground hover:bg-muted/70'
+                                }`}
+                            >
+                                {b.name}
+                                {b.code && <span className="ml-1.5 text-[10px] font-mono opacity-70">{b.code}</span>}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Tabs status + search */}
             <div className="bg-card border border-border rounded-lg">
                 <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-b border-border">
                     <div className="flex flex-wrap gap-1.5">
@@ -131,17 +176,6 @@ export default function SalesOrdersPage() {
                         ))}
                     </div>
                     <div className="flex items-center gap-2">
-                        {branchOptions.length > 0 && (
-                            <select
-                                value={branchFilter}
-                                onChange={e => setBranchFilter(e.target.value)}
-                                className="py-1.5 px-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
-                            >
-                                <option value="">Semua Cabang</option>
-                                <option value="">— Pusat —</option>
-                                {branchOptions.map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                        )}
                         <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
@@ -155,13 +189,17 @@ export default function SalesOrdersPage() {
                     </div>
                 </div>
 
-                {isLoading ? (
+                {activeBranchTab == null ? (
+                    <div className="p-12 text-center text-muted-foreground text-sm">
+                        Pilih cabang di atas untuk melihat Sales Order.
+                    </div>
+                ) : isLoading ? (
                     <div className="p-12 flex items-center justify-center text-muted-foreground">
                         <Loader2 className="h-5 w-5 animate-spin mr-2" /> Memuat...
                     </div>
                 ) : sos.length === 0 ? (
                     <div className="p-12 text-center text-muted-foreground text-sm">
-                        Belum ada Surat Order {activeTab !== 'ALL' && `dengan status ${STATUS_LABEL[activeTab as SalesOrderStatus]}`}.
+                        Belum ada Surat Order {activeTab !== 'ALL' && `dengan status ${STATUS_LABEL[activeTab as SalesOrderStatus]}`} di cabang ini.
                     </div>
                 ) : (
                     <div className="overflow-x-auto">

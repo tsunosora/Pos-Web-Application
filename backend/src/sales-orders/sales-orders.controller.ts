@@ -62,8 +62,16 @@ export class SalesOrdersController {
         @CurrentBranch() ctx: BranchContext,
         @Query('status') status?: SalesOrderStatus,
         @Query('search') search?: string,
+        @Query('branchId') branchIdParam?: string,
     ) {
-        return this.service.list(status, search, undefined, ctx.branchId);
+        // Tab cabang: kalau frontend pass `?branchId=X`, override ctx (untuk Owner switch tab).
+        // Staff tetap di-lock ke ctx.branchId (header), tidak bisa override via query.
+        let resolvedBranchId: number | null = ctx.branchId;
+        if (ctx.isOwner && branchIdParam) {
+            const parsed = Number(branchIdParam);
+            if (!Number.isNaN(parsed) && parsed > 0) resolvedBranchId = parsed;
+        }
+        return this.service.list(status, search, undefined, resolvedBranchId);
     }
 
     @Get('pending-invoice-count')

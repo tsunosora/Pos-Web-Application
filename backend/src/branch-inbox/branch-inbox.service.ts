@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 
 /**
  * Branch Inbox Service
@@ -464,13 +465,11 @@ export class BranchInboxService {
      */
     private async createLedgerEntry(txId: number): Promise<void> {
         try {
-            // Cek existing ledger (idempotent)
             const existing: any[] = await this.prisma.$queryRawUnsafe(
                 `SELECT id FROM inter_branch_ledger WHERE transaction_id = ${txId} LIMIT 1`,
             );
             if (existing.length) return;
 
-            // Load transaction header
             const txRows: any[] = await this.prisma.$queryRawUnsafe(
                 `SELECT id, branch_id, production_branch_id
                  FROM transactions WHERE id = ${txId} LIMIT 1`,
@@ -481,42 +480,31 @@ export class BranchInboxService {
             const toBranchId = tx.production_branch_id != null ? Number(tx.production_branch_id) : null;
             if (!fromBranchId || !toBranchId || fromBranchId === toBranchId) return;
 
-            // Load items + HPP fallback from variant
-            const items: any[] = await this.prisma.$queryRawUnsafe(
-                `SELECT ti.quantity, ti.hpp_at_time, pv.hpp AS variant_hpp
-                 FROM transaction_items ti
-                 JOIN product_variants pv ON pv.id = ti.product_variant_id
-                 WHERE ti.transaction_id = ${txId}`,
-            );
-
-            let costAmount = 0;
-            for (const it of items) {
-                const qty = Number(it.quantity) || 0;
-                const hppAt = Number(it.hpp_at_time) || 0;
-                const variantHpp = Number(it.variant_hpp) || 0;
-                const hpp = hppAt > 0 ? hppAt : variantHpp;
-                costAmount += hpp * qty;
-            }
-            costAmount = Math.round(costAmount * 100) / 100;
-
-            // Ambil titipanFeePercent cabang pelaksana (toBranch)
+            // Resolve titipanFeePercent cabang pelaksana
             const settingsRows: any[] = await this.prisma.$queryRawUnsafe(
                 `SELECT titipan_fee_percent FROM branch_settings WHERE branch_id = ${toBranchId} LIMIT 1`,
             );
             const feePercent = settingsRows.length && settingsRows[0].titipan_fee_percent != null
                 ? Number(settingsRows[0].titipan_fee_percent)
                 : 20;
-            const serviceFee = Math.round((costAmount * feePercent) / 100 * 100) / 100;
-            const totalAmount = Math.round((costAmount + serviceFee) * 100) / 100;
+
+            const cost = await computeLedgerCost(this.prisma, txId, feePercent);
+
+            // Banner-only titipan: skip ledger formal (lihat _createTitipanLedger di
+            // transactions.service untuk rasionalisasi). Tracking lewat StockMovement.
+            if (!cost.hasClickCost) {
+                return;
+            }
+
+            const costAmount = Math.round((cost.bahanCost + cost.klikCost) * 100) / 100;
 
             await this.prisma.$executeRawUnsafe(
                 `INSERT INTO inter_branch_ledger
                   (transaction_id, from_branch_id, to_branch_id, cost_amount, service_fee, total_amount, settled_amount, status, created_at, updated_at)
                  VALUES
-                  (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${serviceFee}, ${totalAmount}, 0, 'PENDING', NOW(), NOW())`,
+                  (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${cost.serviceFee}, ${cost.totalAmount}, 0, 'PENDING', NOW(), NOW())`,
             );
         } catch (err) {
-            // Jangan blokir handover kalau ledger gagal; cukup log.
             // eslint-disable-next-line no-console
             console.error('[createLedgerEntry] failed for tx', txId, err);
         }

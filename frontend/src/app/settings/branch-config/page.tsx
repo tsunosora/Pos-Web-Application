@@ -142,11 +142,13 @@ export default function BranchConfigPage() {
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Titipan Antar Cabang</CardTitle>
+                            <CardTitle>Titipan Antar Cabang (Opsional)</CardTitle>
                             <CardDescription>
-                                Fee layanan cetak titipan masuk — persentase dari HPP bahan. Dipakai saat sistem
-                                auto-catat hutang antar cabang di Buku Titipan (nilai hutang = HPP + fee).
-                                Default 20%. Set 0 kalau tidak mau mengutip fee.
+                                Default <strong>0%</strong> — sesuai konsep 1 owner / 1 perusahaan: cabang ganti real cost saja
+                                (bahan + biaya klik), <em>tanpa margin antar cabang</em>. Hanya berlaku untuk titipan paper print
+                                (yang punya biaya klik mesin) — titipan banner tidak masuk Buku Titipan, cuma tracking di
+                                <a href="/reports/inter-branch-usage" className="text-primary underline ml-1">Laporan Bahan Titipan</a>.
+                                Naikkan hanya kalau setup berubah jadi multi-pemilik / franchise.
                             </CardDescription>
                         </CardHeader>
                         <CardContent>
@@ -157,12 +159,12 @@ export default function BranchConfigPage() {
                                 step="0.01"
                                 min="0"
                                 max="100"
-                                placeholder="20"
+                                placeholder="0"
                                 value={form.titipanFeePercent ?? ''}
                                 onChange={e => upd('titipanFeePercent', e.target.value === '' ? null : Number(e.target.value))}
                             />
                             <p className="text-xs text-muted-foreground mt-1">
-                                Contoh: HPP bahan Rp 80.000 + fee 20% = hutang Rp 96.000 ke cabang ini.
+                                Contoh dengan fee 0%: bahan kertas Rp 5.000 + biaya klik Rp 8.000 = hutang Rp 13.000 (real cost saja).
                             </p>
                         </CardContent>
                     </Card>

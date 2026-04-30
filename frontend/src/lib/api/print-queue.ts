@@ -77,5 +77,13 @@ export const finishPrintJob = async (id: number, operatorName?: string): Promise
 export const pickupPrintJob = async (id: number): Promise<PrintJob> =>
     (await api.post(`/print-queue/jobs/${id}/pickup`)).data;
 
+export interface BulkPickupPrintResult {
+    updated: number;
+    skipped: { id: number; reason: string }[];
+}
+
+export const bulkPickupPrintJobs = async (ids: number[], branchId?: number): Promise<BulkPickupPrintResult> =>
+    (await api.post('/print-queue/jobs/bulk-pickup', { ids, branchId })).data;
+
 export const updatePrintJobNotes = async (id: number, notes: string): Promise<PrintJob> =>
     (await api.post(`/print-queue/jobs/${id}/notes`, { notes })).data;
