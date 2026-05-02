@@ -11,6 +11,7 @@ import {
     upsertOperatorMeterReading, uploadOperatorMeterPhoto, getOperatorMeterReadings, OperatorMeterReading,
     createOperatorMachineReject, getOperatorMachineRejects, OperatorMachineReject,
     OperatorRejectType, OperatorRejectCause, OperatorCounterType,
+    resolvePhotoUrl,
 } from '@/lib/api/production';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
@@ -611,7 +612,7 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
                         {form.photoUrl ? (
                             <div className="flex items-start gap-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={form.photoUrl} alt="Foto counter" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border border-gray-200" />
+                                <img src={resolvePhotoUrl(form.photoUrl) || form.photoUrl} alt="Foto counter" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border border-gray-200" />
                                 <button type="button" onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
                                     className="text-xs text-red-600 hover:underline">Hapus foto</button>
                             </div>
@@ -894,7 +895,7 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
                         {form.photoUrl ? (
                             <div className="flex items-start gap-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={form.photoUrl} alt="Foto reject" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border" />
+                                <img src={resolvePhotoUrl(form.photoUrl) || form.photoUrl} alt="Foto reject" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border" />
                                 <button type="button" onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
                                     className="text-xs text-red-600 hover:underline">Hapus</button>
                             </div>

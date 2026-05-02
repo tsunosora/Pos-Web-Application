@@ -142,11 +142,10 @@ export const uploadOperatorMeterPhoto = async (file: File): Promise<string> => {
     });
     if (!res.ok) throw new Error((await res.json()).message || 'Gagal upload foto');
     const data = await res.json();
-    // Backend return path relatif (mis. "/uploads/meter_xxx.jpg"). Prefix dengan
-    // base API supaya browser fetch dari domain backend, bukan domain frontend.
-    const url = data.url as string;
-    if (url && url.startsWith('/')) return `${API_BASE()}${url}`;
-    return url;
+    // Simpan APA ADANYA dari backend (relative path "/uploads/xxx.jpg") supaya
+    // konsisten dengan data lama. Resolusi ke absolute URL dilakukan di display
+    // time via resolvePhotoUrl() — yang punya fallback same-origin.
+    return data.url as string;
 };
 
 export const upsertOperatorMeterReading = async (data: {
@@ -168,12 +167,53 @@ export const upsertOperatorMeterReading = async (data: {
     return res.json();
 };
 
-/** Resolve photoUrl relatif → absolute (backend serve uploads di domain API). */
-const resolvePhotoUrl = (url: string | null | undefined): string | null => {
+/**
+ * Resolve photoUrl relatif → absolute. Strategi:
+ *   1. Sudah absolute (http/https) → pakai apa adanya.
+ *   2. Path relatif & API_BASE valid (bukan localhost di production browser) → prefix API_BASE.
+ *   3. Path relatif & API_BASE = localhost (build-time env tidak ter-set di prod) →
+ *      fallback ke `window.location.origin`. Asumsi: production deploy pakai reverse
+ *      proxy nginx yang melayani /uploads/ ke backend di domain yang sama
+ *      (mis. https://kasir.volikoprint.com/uploads/...).
+ *
+ * Ini bikin upload foto bekerja di:
+ *   - Dev (NEXT_PUBLIC_API_URL=http://localhost:3001 + same machine) ✓
+ *   - Prod dengan env benar (NEXT_PUBLIC_API_URL=https://api.domain.com) ✓
+ *   - Prod tanpa env, reverse-proxied (fallback ke origin) ✓
+ */
+export const resolvePhotoUrl = (url: string | null | undefined): string | null => {
     if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    if (url.startsWith('/')) return `${API_BASE()}${url}`;
-    return url;
+    if (typeof window === 'undefined') return url; // SSR — biarkan
+
+    const browserHost = window.location.hostname;
+    const browserIsLocalhost = browserHost === 'localhost' || browserHost === '127.0.0.1';
+
+    // Sudah absolute (http/https) — cek apakah host-nya reachable dari browser.
+    // Kalau URL hardcode pakai localhost/127.0.0.1 tapi browser bukan localhost,
+    // rewrite path-nya ke current origin (asumsi reverse proxy /uploads/).
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+        try {
+            const u = new URL(url);
+            const urlIsLocalhost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+            if (urlIsLocalhost && !browserIsLocalhost) {
+                return `${window.location.origin}${u.pathname}${u.search}`;
+            }
+            return url;
+        } catch {
+            return url;
+        }
+    }
+
+    if (!url.startsWith('/')) return url;
+
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+    const apiIsLocalhost = !apiBase || apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
+
+    // Path relatif: kalau API_BASE localhost & browser bukan, fallback ke origin
+    if (apiIsLocalhost && !browserIsLocalhost) {
+        return `${window.location.origin}${url}`;
+    }
+    return `${apiBase || window.location.origin}${url}`;
 };
 
 export const getOperatorMeterReadings = async (branchId: number, startDate?: string, endDate?: string): Promise<OperatorMeterReading[]> => {
