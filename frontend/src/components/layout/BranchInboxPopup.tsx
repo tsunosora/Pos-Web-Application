@@ -31,7 +31,10 @@ export function BranchInboxPopup() {
     const { data } = useQuery({
         queryKey: ['branch-inbox-unread'],
         queryFn: getBranchInboxUnread,
-        refetchInterval: 15_000,
+        // 30s cukup untuk notif titipan masuk — 15s sebelumnya boros (4× per
+        // menit di setiap halaman admin yang dibuka). User tidak ngerasa beda.
+        refetchInterval: 30_000,
+        staleTime: 25_000,
         retry: false,
     });
 

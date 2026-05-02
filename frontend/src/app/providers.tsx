@@ -55,6 +55,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 gcTime: CACHE_MAX_AGE,       // simpan di memory/cache 24 jam
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: true,    // auto-refresh saat internet kembali
+                // STOP polling saat tab tidak aktif (alt-tab / minimize) — hemat
+                // CPU/battery/network besar-besaran. Saat user balik ke tab,
+                // refetch otomatis kalau data sudah stale.
+                refetchIntervalInBackground: false,
             },
         },
     }));

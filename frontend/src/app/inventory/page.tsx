@@ -675,7 +675,7 @@ export default function InventoryPage() {
                                                 )}
                                                 <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center overflow-hidden border border-border shrink-0">
                                                     {avatarSrc
-                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} className="w-full h-full object-cover" />
+                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                         : <ImageIcon className="w-5 h-5 text-muted-foreground/40" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -872,7 +872,7 @@ export default function InventoryPage() {
                                                     {isFirst ? (
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center overflow-hidden border border-border shrink-0">
-                                                                {avatarSrc ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5 text-muted-foreground/50" />}
+                                                                {avatarSrc ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <ImageIcon className="w-5 h-5 text-muted-foreground/50" />}
                                                             </div>
                                                             <div>
                                                                 <div className="flex items-center gap-2 flex-wrap">
@@ -1032,7 +1032,7 @@ export default function InventoryPage() {
                                                 )}
                                                 <div className="w-9 h-9 rounded-md bg-muted flex items-center justify-center overflow-hidden border border-border shrink-0">
                                                     {avatarSrc
-                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt="" className="w-full h-full object-cover" />
+                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                         : <ImageIcon className="w-4 h-4 text-muted-foreground/40" />}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
@@ -1152,7 +1152,7 @@ export default function InventoryPage() {
                                             {/* Image */}
                                             <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
                                                 {avatarSrc
-                                                    ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                                                    ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
                                                     : <ImageIcon className="w-10 h-10 text-muted-foreground/30" />}
                                             </div>
                                             {/* Body */}
@@ -1250,7 +1250,7 @@ export default function InventoryPage() {
                                             <div className="sm:w-56 shrink-0">
                                                 <div className="aspect-square rounded-lg bg-muted overflow-hidden border border-border relative">
                                                     {avatarSrc
-                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} className="w-full h-full object-cover" />
+                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                         : <ImageIcon className="absolute inset-0 m-auto w-12 h-12 text-muted-foreground/30" />}
                                                     <input
                                                         type="checkbox"
@@ -1263,7 +1263,7 @@ export default function InventoryPage() {
                                                     <div className="mt-2 grid grid-cols-4 gap-1">
                                                         {allImages.slice(1, 5).map((img, i) => (
                                                             <div key={i} className="aspect-square rounded-md bg-muted overflow-hidden border border-border">
-                                                                <img src={`${API_BASE}${img}`} alt="" className="w-full h-full object-cover" />
+                                                                <img src={`${API_BASE}${img}`} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                                                             </div>
                                                         ))}
                                                     </div>

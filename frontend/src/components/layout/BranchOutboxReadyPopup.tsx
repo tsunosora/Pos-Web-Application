@@ -29,7 +29,9 @@ export function BranchOutboxReadyPopup() {
     const { data } = useQuery({
         queryKey: ['branch-outbox-ready'],
         queryFn: getBranchOutboxReady,
-        refetchInterval: 15_000,
+        // Notif titipan keluar siap diambil — 30s cukup
+        refetchInterval: 30_000,
+        staleTime: 25_000,
         retry: false,
     });
 

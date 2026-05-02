@@ -704,7 +704,7 @@ function POSPageContent() {
 
                                             <div className="aspect-square bg-muted/50 rounded-lg mb-2 sm:mb-3 flex items-center justify-center overflow-hidden border border-border group-hover:bg-primary/10 transition-colors">
                                                 {imgSrc
-                                                    ? <img src={`${API_BASE}${imgSrc}`} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                                    ? <img src={`${API_BASE}${imgSrc}`} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                                                     : <span className="text-3xl sm:text-4xl text-primary/50 font-bold">{p.name.charAt(0)}</span>
                                                 }
                                             </div>

@@ -45,6 +45,9 @@ export function ReadyJobsPopup({ onOpenModal }: Props) {
     const [submitting, setSubmitting] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const prevKeysRef = useRef<Set<string>>(new Set());
+    // Audio throttle: minimal 30s antara dua beep — supaya kalau polling
+    // rapid-fire atau popup remount, kasir tidak di-spam audio.
+    const lastBeepRef = useRef<number>(0);
 
     const { data: jobs = [] } = useReadyJobs();
 
@@ -57,7 +60,11 @@ export function ReadyJobsPopup({ onOpenModal }: Props) {
         const currentKeys = new Set(jobs.map(jobKey));
         const brandNew = jobs.filter(j => !prevKeysRef.current.has(jobKey(j)) && !dismissed.has(jobKey(j)));
         if (brandNew.length > 0 && prevKeysRef.current.size > 0) {
-            try { audioRef.current?.play().catch(() => { }); } catch { /* noop */ }
+            const now = Date.now();
+            if (now - lastBeepRef.current > 30_000) {
+                try { audioRef.current?.play().catch(() => { }); } catch { /* noop */ }
+                lastBeepRef.current = now;
+            }
         }
         prevKeysRef.current = currentKeys;
     }, [jobs, dismissed]);

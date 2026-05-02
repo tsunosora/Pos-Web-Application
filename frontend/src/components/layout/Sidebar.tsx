@@ -156,8 +156,10 @@ export function Sidebar() {
     const { data: branchInboxData } = useQuery({
         queryKey: ['branch-inbox-unread'],
         queryFn: getBranchInboxUnread,
-        staleTime: 15_000,
-        refetchInterval: 15_000,
+        // Naikkan ke 30s biar selaras dengan BranchInboxPopup. Share queryKey
+        // dengan popup → cuma 1 fetch per interval, tidak duplikat.
+        staleTime: 25_000,
+        refetchInterval: 30_000,
         retry: false,
     });
     const branchInboxCount = branchInboxData?.count ?? 0;

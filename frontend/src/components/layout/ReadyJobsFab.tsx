@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { PackageCheck } from 'lucide-react';
 import { useReadyJobs } from '@/hooks/useReadyJobs';
 
@@ -32,6 +32,10 @@ const ROTATING_MESSAGES = [
 const BUBBLE_VISIBLE_MS = 3500;  // tampil ~3.5 detik
 const BUBBLE_HIDDEN_MS = 4000;   // hilang ~4 detik
 const BURST_MS = 5500;           // burst saat ada job baru — tampil lebih lama
+const ATTENTION_MS = 5000;       // animasi heavy (ping rings + glow + badge pop)
+                                 // jalan max 5 detik setelah ada perubahan job,
+                                 // lalu auto-stop ke static dot. Hemat GPU saat
+                                 // FAB diam jam panjang.
 
 export function ReadyJobsFab({ onClick }: Props) {
     const { data: jobs = [] } = useReadyJobs();
@@ -40,8 +44,26 @@ export function ReadyJobsFab({ onClick }: Props) {
     const [bubbleText, setBubbleText] = useState('');
     const [prevCount, setPrevCount] = useState(-1);
     const [messageIdx, setMessageIdx] = useState(0);
+    // Animasi heavy (ping/glow/badge-pop) hanya jalan saat "attention" aktif —
+    // 5 detik setelah jobs.length berubah naik, atau saat FAB pertama muncul.
+    // Selain itu FAB tetap visible (badge + bubble cycle), tapi tidak ada
+    // animasi continuous yang bikin GPU compositor selalu kerja.
+    const [attention, setAttention] = useState(true);
+    const attentionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const triggerAttention = (ms = ATTENTION_MS) => {
+        setAttention(true);
+        if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current);
+        attentionTimerRef.current = setTimeout(() => setAttention(false), ms);
+    };
 
-    // Trigger burst (wiggle + bubble lama) saat count bertambah (job baru jadi)
+    // Initial: 5s burst saat FAB pertama mount dengan jobs > 0, lalu idle.
+    useEffect(() => {
+        triggerAttention();
+        return () => { if (attentionTimerRef.current) clearTimeout(attentionTimerRef.current); };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Trigger burst (wiggle + bubble lama + attention) saat count bertambah
     useEffect(() => {
         if (prevCount === -1) {
             setPrevCount(jobs.length);
@@ -56,6 +78,7 @@ export function ReadyJobsFab({ onClick }: Props) {
             );
             setBubbleVisible(true);
             setWiggle(true);
+            triggerAttention(BURST_MS);  // animasi heavy ikut burst length
             const t1 = setTimeout(() => setWiggle(false), 2500);
             const t2 = setTimeout(() => setBubbleVisible(false), BURST_MS);
             setPrevCount(jobs.length);
@@ -181,17 +204,22 @@ export function ReadyJobsFab({ onClick }: Props) {
 
                 {/* Container FAB + ping rings */}
                 <div className="relative">
-                {/* Ping rings — 2 sized untuk efek halo radar */}
-                <span
-                    aria-hidden
-                    className="absolute inset-0 rounded-full bg-amber-400/40 animate-ping"
-                    style={{ animationDuration: '2s' }}
-                />
-                <span
-                    aria-hidden
-                    className="absolute -inset-2 rounded-full bg-orange-400/25 animate-ping"
-                    style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}
-                />
+                {/* Ping rings — cuma render saat `attention` ON, supaya GPU
+                    compositor tidak terus kerja kalau FAB sudah lama diam. */}
+                {attention && (
+                    <>
+                        <span
+                            aria-hidden
+                            className="absolute inset-0 rounded-full bg-amber-400/40 animate-ping"
+                            style={{ animationDuration: '2s' }}
+                        />
+                        <span
+                            aria-hidden
+                            className="absolute -inset-2 rounded-full bg-orange-400/25 animate-ping"
+                            style={{ animationDuration: '2.5s', animationDelay: '0.5s' }}
+                        />
+                    </>
+                )}
 
                 <button
                     onClick={onClick}
@@ -200,14 +228,14 @@ export function ReadyJobsFab({ onClick }: Props) {
                         bg-gradient-to-br from-amber-500 to-orange-600
                         flex items-center justify-center
                         hover:scale-110 active:scale-95 transition-transform
-                        fab-glow
+                        ${attention ? 'fab-glow' : 'shadow-lg shadow-amber-500/40'}
                         ${wiggle ? 'fab-wiggle' : ''}`}
                 >
                     <PackageCheck className="w-6 h-6 text-white drop-shadow" />
 
-                    {/* Badge count dengan pulse */}
+                    {/* Badge count: pulse hanya saat attention ON */}
                     <span
-                        className="absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center border-2 border-background shadow-lg badge-pop"
+                        className={`absolute -top-1.5 -right-1.5 min-w-[22px] h-[22px] px-1 rounded-full bg-red-600 text-white text-[11px] font-bold flex items-center justify-center border-2 border-background shadow-lg ${attention ? 'badge-pop' : ''}`}
                     >
                         {jobs.length > 99 ? '99+' : jobs.length}
                     </span>
