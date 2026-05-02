@@ -69,7 +69,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             persistOptions={{
                 persister,
                 maxAge: CACHE_MAX_AGE,
-                buster: '1',
+                // Bump buster ke '2' (2026-05-03) — invalidate semua cache lama
+                // di IndexedDB browser. Sebelumnya foto meter tersimpan dengan
+                // URL rusak `https//api.volikoprint.com/...` (typo env var) di
+                // cache. Setelah backend di-fix, frontend tetap baca dari cache
+                // lama. Bumping buster bikin semua client refetch fresh dari
+                // backend pada next visit.
+                buster: '2',
             }}
         >
             {children}
