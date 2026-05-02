@@ -25,6 +25,33 @@ function counterTypeToColorMode(counterType: string): ClickColorMode | null {
   return null;
 }
 
+/**
+ * Sanitasi photoUrl yang tersimpan di DB. Beberapa data lama rusak karena
+ * frontend pernah prefix dengan env `NEXT_PUBLIC_API_URL=https//api.x.com`
+ * (typo, hilang `:`) — tersimpan jadi `https//api.x.com/uploads/xxx.jpg`
+ * yang browser anggap relative path → URL ter-mash dengan origin.
+ *
+ * Strategi:
+ *  1. Fix typo `https//` / `http//` → `https://` / `http://`
+ *  2. Kalau masih ada double-prefix `https://x.com/...https://y.com/...`,
+ *     ambil URL terakhir.
+ *  3. Kalau absolute URL, return apa adanya.
+ *  4. Kalau relative `/uploads/...`, return apa adanya (frontend resolve).
+ */
+function sanitizePhotoUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  let v = url;
+  if (/^https?\/\//i.test(v)) v = v.replace(/^(https?)\/\//i, '$1://');
+  const dup = v.match(/(https?:\/\/[^/]+\/.*?)(https?:\/\/.+)$/i);
+  if (dup) v = dup[2];
+  return v;
+}
+
+function sanitizeRow<T extends { photoUrl?: string | null }>(row: T): T {
+  if (!row) return row;
+  return { ...row, photoUrl: sanitizePhotoUrl(row.photoUrl) };
+}
+
 @Injectable()
 export class ClickCountingService {
   constructor(private prisma: PrismaService) { }
@@ -125,10 +152,11 @@ export class ClickCountingService {
       const end = new Date(year, month, 0, 23, 59, 59, 999);
       where.date = { gte: start, lte: end };
     }
-    return (this.prisma as any).machineReject.findMany({
+    const rows = await (this.prisma as any).machineReject.findMany({
       where,
       orderBy: { date: 'desc' },
     });
+    return rows.map(sanitizeRow);
   }
 
   async createReject(data: {
@@ -167,7 +195,7 @@ export class ClickCountingService {
         quantity: data.quantity,
         pricePerClick,
         totalCost,
-        photoUrl: data.photoUrl ?? null,
+        photoUrl: sanitizePhotoUrl(data.photoUrl),
         notes: data.notes ?? null,
         date: data.date ? new Date(data.date) : new Date(),
         branchId,
@@ -189,10 +217,11 @@ export class ClickCountingService {
       if (startDate) where.readingDate.gte = new Date(startDate);
       if (endDate) where.readingDate.lte = new Date(endDate);
     }
-    return (this.prisma as any).meterReading.findMany({
+    const rows = await (this.prisma as any).meterReading.findMany({
       where,
       orderBy: { readingDate: 'desc' },
     });
+    return rows.map(sanitizeRow);
   }
 
   async getMeterReadingByDate(date: string, branchCtx: BranchContext) {
@@ -219,7 +248,7 @@ export class ClickCountingService {
       fullColorCount: data.fullColorCount,
       blackCount: data.blackCount,
       singleColorCount: data.singleColorCount ?? 0,
-      photoUrl: data.photoUrl ?? null,
+      photoUrl: sanitizePhotoUrl(data.photoUrl),
       notes: data.notes ?? null,
       branchId,
     };
