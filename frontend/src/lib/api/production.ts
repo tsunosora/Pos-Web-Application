@@ -1,5 +1,10 @@
 // Production Queue — all endpoints use raw fetch (no JWT, public access)
-const API_BASE = () => process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_BASE = () => {
+    let v = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    // Auto-fix typo `https//api.x.com` (hilang titik dua) → `https://api.x.com`
+    if (/^https?\/\//i.test(v)) v = v.replace(/^(https?)\/\//i, '$1://');
+    return v;
+};
 
 export interface PublicBranch { id: number; name: string; code: string | null; phone: string | null }
 
@@ -185,35 +190,50 @@ export const resolvePhotoUrl = (url: string | null | undefined): string | null =
     if (!url) return null;
     if (typeof window === 'undefined') return url; // SSR — biarkan
 
+    // Auto-fix data lama yang rusak karena env typo `NEXT_PUBLIC_API_URL=https//...`
+    // (hilang titik dua). Perbaiki ke `https://` / `http://` sebelum diproses.
+    let fixed = url;
+    if (/^https?\/\//i.test(fixed)) {
+        fixed = fixed.replace(/^(https?)\/\//i, '$1://');
+    }
+    // Auto-fix double-prefix: kalau ada `http(s)://...http(s)://...` ambil yang terakhir.
+    const dupMatch = fixed.match(/(https?:\/\/[^/]+\/.*?)(https?:\/\/.+)$/i);
+    if (dupMatch) fixed = dupMatch[2];
+
     const browserHost = window.location.hostname;
     const browserIsLocalhost = browserHost === 'localhost' || browserHost === '127.0.0.1';
 
     // Sudah absolute (http/https) — cek apakah host-nya reachable dari browser.
     // Kalau URL hardcode pakai localhost/127.0.0.1 tapi browser bukan localhost,
     // rewrite path-nya ke current origin (asumsi reverse proxy /uploads/).
-    if (url.startsWith('http://') || url.startsWith('https://')) {
+    if (fixed.startsWith('http://') || fixed.startsWith('https://')) {
         try {
-            const u = new URL(url);
+            const u = new URL(fixed);
             const urlIsLocalhost = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
             if (urlIsLocalhost && !browserIsLocalhost) {
                 return `${window.location.origin}${u.pathname}${u.search}`;
             }
-            return url;
+            return fixed;
         } catch {
-            return url;
+            return fixed;
         }
     }
 
-    if (!url.startsWith('/')) return url;
+    if (!fixed.startsWith('/')) return fixed;
 
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+    // Path relatif — prefix dengan API_BASE (auto-fix kalau env typo `https//`).
+    let apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+    if (/^https?\/\//i.test(apiBase)) {
+        apiBase = apiBase.replace(/^(https?)\/\//i, '$1://');
+    }
     const apiIsLocalhost = !apiBase || apiBase.includes('localhost') || apiBase.includes('127.0.0.1');
 
-    // Path relatif: kalau API_BASE localhost & browser bukan, fallback ke origin
+    // Kalau API_BASE localhost & browser bukan localhost (kasir di production),
+    // fallback ke origin (asumsi nginx proxy /uploads/ ke backend).
     if (apiIsLocalhost && !browserIsLocalhost) {
-        return `${window.location.origin}${url}`;
+        return `${window.location.origin}${fixed}`;
     }
-    return `${apiBase || window.location.origin}${url}`;
+    return `${apiBase || window.location.origin}${fixed}`;
 };
 
 export const getOperatorMeterReadings = async (branchId: number, startDate?: string, endDate?: string): Promise<OperatorMeterReading[]> => {
