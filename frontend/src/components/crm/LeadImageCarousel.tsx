@@ -10,7 +10,7 @@ interface Props {
     alt?: string;
     heightClass?: string;        // mis. "h-32" untuk kanban, "h-44" untuk list card
     overlay?: React.ReactNode;   // mis. badge level
-    onClick?: () => void;
+    onClick?: (currentSrc?: string) => void; // currentSrc = URL gambar yang sedang aktif
 }
 
 /**
@@ -46,7 +46,7 @@ export function LeadImageCarousel({
     };
 
     return (
-        <div className={`relative w-full ${heightClass} bg-gray-100 group ${onClick ? "cursor-pointer" : ""}`} onClick={onClick}>
+        <div className={`relative w-full ${heightClass} bg-gray-100 group ${onClick ? "cursor-pointer" : ""}`} onClick={onClick ? () => onClick(current.src) : undefined}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={current.src} alt={alt} loading="lazy" decoding="async"
                 className="w-full h-full object-cover" />

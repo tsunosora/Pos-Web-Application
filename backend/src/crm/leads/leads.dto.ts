@@ -22,6 +22,7 @@ export class CreateLeadDto {
     city?: string;
     assignedToId?: number;
     followUpDate?: string; // ISO date
+    deliveryDeadline?: string; // ISO date — tanggal kirim deadline
     status?: LeadStatus;   // optional override (default NEW)
     imageUrl?: string;     // DEPRECATED — pakai imageUrls. Tetap di-accept untuk backward compat.
     imageUrls?: string[];  // multi-image (urutan = posisi di slider)
@@ -39,6 +40,8 @@ export class UpdateLeadDto {
     city?: string;
     assignedToId?: number | null;
     followUpDate?: string | null;
+    deliveryDeadline?: string | null;
+    firstResponseAt?: string | null; // manual override response time
     status?: LeadStatus;
     imageUrl?: string | null;
     imageUrls?: string[];  // kalau di-set, replace semua images existing
@@ -61,6 +64,15 @@ export class ConvertLeadDto {
     createInvoiceDraft?: boolean;    // Invoice: nota tagihan (INV-...)
     invoiceType?: 'INVOICE' | 'QUOTATION'; // default INVOICE; kalau QUOTATION → nomor SPH-...
     notes?: string;                  // catatan ekstra (di-shared antara SO & Invoice)
+    // Default: true. Set false untuk skip auto-create Transaction (PENDING) yang spawn
+    // production jobs. Kalau ada lead items dengan productVariantId & flag ini tidak
+    // false, Transaction PENDING dibuat otomatis → production pipeline langsung jalan.
+    createProductionTransaction?: boolean;
+    // Payment options saat convert. Default: NONE (Transaction PENDING tanpa pembayaran).
+    paymentMode?: 'NONE' | 'DP' | 'LUNAS';
+    paymentMethod?: 'CASH' | 'TRANSFER' | 'QRIS';
+    paymentAmount?: number;   // hanya untuk DP. LUNAS auto = grandTotal.
+    bankAccountId?: number;   // wajib untuk TRANSFER (rekening tujuan)
 }
 
 export class CloseLostDto {

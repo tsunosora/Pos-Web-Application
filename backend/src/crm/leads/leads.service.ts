@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere, requireBranch } from '../../common/branch-where.helper';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { CloseLostDto, ConvertLeadDto, CreateActivityDto, CreateLeadDto, LeadItemDto, UpdateLeadDto } from './leads.dto';
+import { TransactionsService } from '../../transactions/transactions.service';
 
 /** Normalisasi nomor HP untuk dedup: strip non-digit, drop leading 62/0. */
 function normalizePhone(raw: string | null | undefined): string | null {
@@ -16,7 +17,10 @@ function normalizePhone(raw: string | null | undefined): string | null {
 
 @Injectable()
 export class LeadsService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly transactionsService: TransactionsService,
+    ) {}
 
     private async generateSoNumber(): Promise<string> {
         // Pattern existing: SO-YYYYMMDD-XXX (lihat sales-orders.service kalau ada — fallback simple)
@@ -434,6 +438,7 @@ export class LeadsService {
                 city: data.city || null,
                 assignedToId: data.assignedToId ?? null,
                 followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
+                deliveryDeadline: data.deliveryDeadline ? new Date(data.deliveryDeadline) : null,
                 ...({ imageUrl: data.imageUrl ?? null } as any),
                 branchId,
                 createdById: userId ?? null,
@@ -507,6 +512,24 @@ export class LeadsService {
         }
         if (data.followUpDate !== undefined) {
             updateData.followUpDate = data.followUpDate ? new Date(data.followUpDate) : null;
+        }
+        if (data.deliveryDeadline !== undefined) {
+            (updateData as any).deliveryDeadline = data.deliveryDeadline ? new Date(data.deliveryDeadline) : null;
+        }
+        // Manual override response time (set/reset). null = reset, ISO string = set.
+        if (data.firstResponseAt !== undefined) {
+            (updateData as any).firstResponseAt = data.firstResponseAt ? new Date(data.firstResponseAt) : null;
+        }
+        // Auto-set firstResponseAt saat status NEW → non-NEW (kalau belum di-set
+        // & user tidak override manual di payload yang sama).
+        if (
+            data.firstResponseAt === undefined &&
+            data.status &&
+            data.status !== existing.status &&
+            existing.status === 'NEW' &&
+            !(existing as any).firstResponseAt
+        ) {
+            (updateData as any).firstResponseAt = new Date();
         }
         if (data.imageUrl !== undefined) {
             (updateData as any).imageUrl = data.imageUrl || null;
@@ -598,6 +621,15 @@ export class LeadsService {
                 createdById: userId ?? null,
             },
         });
+        // Auto-set firstResponseAt saat activity non-FIRST_CONTACT pertama dicatat,
+        // kalau lead belum punya firstResponseAt. updateMany dipakai supaya idempotent
+        // (filter firstResponseAt: null jadi update hanya kalau memang belum di-set).
+        if (data.kind !== 'FIRST_CONTACT') {
+            await (this.prisma as any).lead.updateMany({
+                where: { id: leadId, firstResponseAt: null },
+                data: { firstResponseAt: act.createdAt },
+            });
+        }
         return act;
     }
 
@@ -661,6 +693,122 @@ export class LeadsService {
                     product: r.p_id != null ? { id: Number(r.p_id), name: r.p_name, pricingMode: r.p_pricingMode } : null,
                 } : null,
             }));
+        }
+
+        // Auto-create Transaction (PENDING/saveOnly) → spawn production jobs otomatis
+        // untuk items yang punya productVariantId. Hanya jalan kalau ada items valid.
+        // Skip kalau user eksplisit set createProductionTransaction=false.
+        let transactionId: number | null = null;
+        let transactionItemsCreated = 0;
+        let transactionItemsSkipped = 0;
+        const wantProductionTx = data.createProductionTransaction !== false;
+        const txItems = wantProductionTx
+            ? leadItems.filter((it: any) => it.productVariantId)
+            : [];
+        if (wantProductionTx && txItems.length > 0) {
+            try {
+                const branchId = (lead as any).branchId ?? ctx.branchId ?? null;
+
+                // Payment options. Default NONE = PENDING (saveOnly true, no DP).
+                const paymentMode = data.paymentMode || 'NONE';
+                const paymentMethod = (data.paymentMethod || 'CASH') as any;
+                const txPayload: any = {
+                    items: txItems.map((it: any) => ({
+                        productVariantId: Number(it.productVariantId),
+                        quantity: Number(it.quantity) || 1,
+                        widthCm: it.widthCm ? Number(it.widthCm) : undefined,
+                        heightCm: it.heightCm ? Number(it.heightCm) : undefined,
+                        unitType: it.unitType || undefined,
+                        note: it.note || undefined,
+                        customPrice: it.unitPrice ? Number(it.unitPrice) : undefined,
+                    })),
+                    paymentMethod,
+                    bankAccountId: data.bankAccountId,
+                    customerName: customer.name,
+                    customerPhone: customer.phone || undefined,
+                    customerAddress: customer.address || undefined,
+                    productionNotes: data.notes || lead.needs || undefined,
+                    productionDeadline: (lead as any).deliveryDeadline
+                        ? new Date((lead as any).deliveryDeadline).toISOString()
+                        : undefined,
+                    branchId,
+                };
+
+                // Map paymentMode → transactions.service flags.
+                // - NONE  : saveOnly=true, downPayment=0       → PENDING (tanpa cashflow)
+                // - DP    : saveOnly=true, downPayment=<nom>   → PARTIAL (DP, cashflow INCOME)
+                // - LUNAS : saveOnly=false (default downPayment = grandTotal) → PAID (cashflow INCOME)
+                if (paymentMode === 'NONE') {
+                    txPayload.saveOnly = true;
+                    txPayload.downPayment = 0;
+                } else if (paymentMode === 'DP') {
+                    txPayload.saveOnly = true;
+                    txPayload.downPayment = Math.max(0, Number(data.paymentAmount) || 0);
+                } else if (paymentMode === 'LUNAS') {
+                    txPayload.saveOnly = false;
+                    // Don't set downPayment — service defaults to grandTotal
+                }
+
+                const tx = await this.transactionsService.create(txPayload);
+                transactionId = (tx as any).id ?? null;
+                transactionItemsCreated = txItems.length;
+                transactionItemsSkipped = leadItems.length - txItems.length;
+
+                // BYPASS requiresProduction: ensure all transaction items have a production job.
+                // transactions.service hanya bikin job untuk product.requiresProduction=true. CRM
+                // convert flow override: semua item dengan productVariantId masuk pipeline produksi.
+                if (transactionId) {
+                    const allTxItems = await (this.prisma as any).transactionItem.findMany({
+                        where: { transactionId },
+                        select: { id: true },
+                    });
+                    const existingJobs = await (this.prisma as any).productionJob.findMany({
+                        where: { transactionItemId: { in: allTxItems.map((i: any) => i.id) } },
+                        select: { transactionItemId: true },
+                    });
+                    const jobbedSet = new Set(existingJobs.map((j: any) => j.transactionItemId));
+                    const needJob = allTxItems.filter((i: any) => !jobbedSet.has(i.id));
+
+                    if (needJob.length > 0) {
+                        const jobDateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                        const jobPrefix = `JOB-${jobDateStr}-`;
+                        const lastJob = await (this.prisma as any).productionJob.findFirst({
+                            where: { jobNumber: { startsWith: jobPrefix } },
+                            orderBy: { jobNumber: 'desc' },
+                            select: { jobNumber: true },
+                        });
+                        let jobSeq = lastJob
+                            ? parseInt(lastJob.jobNumber.slice(jobPrefix.length), 10)
+                            : 0;
+                        const deadline = (lead as any).deliveryDeadline
+                            ? new Date((lead as any).deliveryDeadline)
+                            : null;
+                        for (const item of needJob) {
+                            jobSeq++;
+                            await (this.prisma as any).productionJob.create({
+                                data: {
+                                    jobNumber: `${jobPrefix}${String(jobSeq).padStart(4, '0')}`,
+                                    transactionId,
+                                    transactionItemId: item.id,
+                                    status: 'ANTRIAN',
+                                    priority: 'NORMAL',
+                                    notes: data.notes || lead.needs || null,
+                                    branchId,
+                                    pipelineStage: 'DESIGN',
+                                    deadline,
+                                },
+                            });
+                        }
+                    }
+                }
+            } catch (err: any) {
+                // Tx gagal jangan blok seluruh convert — log & lanjut. UI akan tampilkan warning.
+                // eslint-disable-next-line no-console
+                console.error('[convert] auto-create transaction failed:', err?.message);
+                transactionItemsSkipped = leadItems.length;
+            }
+        } else if (wantProductionTx) {
+            transactionItemsSkipped = leadItems.length;
         }
 
         // Resolve SO draft (opsional) — SPK production-bound
@@ -810,9 +958,10 @@ export class LeadsService {
                     `Lead converted → Customer #${customerId}`,
                     salesOrderId ? ` + SPK (SO) draft #${salesOrderId}` : null,
                     invoiceNumber ? ` + ${invoiceNumber}` : null,
+                    transactionId ? ` + Transaction #${transactionId} (PENDING → produksi)` : null,
                 ].filter(Boolean).join(''),
                 meta: {
-                    customerId, salesOrderId, invoiceId, invoiceNumber,
+                    customerId, salesOrderId, invoiceId, invoiceNumber, transactionId,
                     designerName: data.designerName, invoiceType: data.invoiceType,
                 },
                 createdById: userId ?? null,
@@ -832,6 +981,9 @@ export class LeadsService {
                 invoiceId,
                 invoiceNumber,
                 invoiceItemsCreated: invoiceId ? leadItems.length : 0,
+                transactionId,
+                transactionItemsCreated,
+                transactionItemsSkipped,
             },
         };
     }

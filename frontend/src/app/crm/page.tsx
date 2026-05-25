@@ -30,6 +30,7 @@ const SOURCE_COLOR: Record<string, string> = {
     REFERRAL: "#10B981",
     WEBSITE: "#6366F1",
     WALK_IN: "#F59E0B",
+    REPEAT_ORDER: "#8B5CF6",
     OTHER: "#6B7280",
 };
 

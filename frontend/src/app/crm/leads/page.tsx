@@ -35,10 +35,36 @@ const STATUS_TABS: { value: LeadStatus | "ALL"; label: string; color: string }[]
 ];
 
 const SOURCE_OPTIONS: LeadSource[] = [
-    "WHATSAPP", "INSTAGRAM", "FACEBOOK", "TIKTOK", "MARKETPLACE", "REFERRAL", "WEBSITE", "WALK_IN", "OTHER",
+    "WHATSAPP", "INSTAGRAM", "FACEBOOK", "TIKTOK", "MARKETPLACE", "REFERRAL", "WEBSITE", "WALK_IN", "REPEAT_ORDER", "OTHER",
 ];
 
 const LEVEL_OPTIONS: LeadLevel[] = ["HOT", "WARM", "COLD"];
+
+// Format response time (firstResponseAt - createdAt) jadi string singkat
+// + warna berdasarkan kecepatan. Return null kalau belum direspon.
+function formatResponseTime(createdAt: string, firstResponseAt: string | null): { text: string; tone: "fast" | "ok" | "slow" | "late" } | null {
+    if (!firstResponseAt) return null;
+    const diffMs = new Date(firstResponseAt).getTime() - new Date(createdAt).getTime();
+    if (diffMs < 0) return null;
+    const minutes = Math.floor(diffMs / 60000);
+    let text: string;
+    if (minutes < 60) text = `${minutes}m`;
+    else if (minutes < 60 * 24) text = `${Math.floor(minutes / 60)}j ${minutes % 60}m`;
+    else text = `${Math.floor(minutes / (60 * 24))}h ${Math.floor((minutes % (60 * 24)) / 60)}j`;
+    let tone: "fast" | "ok" | "slow" | "late";
+    if (minutes < 15) tone = "fast";
+    else if (minutes < 60) tone = "ok";
+    else if (minutes < 60 * 4) tone = "slow";
+    else tone = "late";
+    return { text, tone };
+}
+
+const RESP_TONE_STYLE: Record<"fast" | "ok" | "slow" | "late", string> = {
+    fast: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    ok: "text-blue-700 bg-blue-50 border-blue-200",
+    slow: "text-amber-700 bg-amber-50 border-amber-200",
+    late: "text-red-700 bg-red-50 border-red-200",
+};
 
 const levelColor: Record<LeadLevel, string> = {
     HOT: "bg-red-100 text-red-700 border-red-200",
@@ -297,6 +323,20 @@ function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
                         <Calendar className="h-3 w-3" /> FU: {dayjs(lead.followUpDate).format("DD MMM YY")}
                     </div>
                 )}
+                {lead.deliveryDeadline && (
+                    <div className="flex items-center gap-1.5 text-rose-700 font-medium">
+                        <Calendar className="h-3 w-3" /> Kirim: {dayjs(lead.deliveryDeadline).format("DD MMM YY")}
+                    </div>
+                )}
+                {(() => {
+                    const rt = formatResponseTime(lead.createdAt, lead.firstResponseAt);
+                    if (!rt) return null;
+                    return (
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold ${RESP_TONE_STYLE[rt.tone]}`}>
+                            <Clock className="h-3 w-3" /> Resp: {rt.text}
+                        </span>
+                    );
+                })()}
                 {lead.assignedTo && (
                     <div className="flex items-center gap-1.5">
                         <User className="h-3 w-3" /> {lead.assignedTo.name || lead.assignedTo.email}
@@ -335,6 +375,7 @@ function LeadFormModal({
         estimatedValue: initial?.estimatedValue ? Number(initial.estimatedValue) : "",
         city: initial?.city ?? "",
         followUpDate: initial?.followUpDate ? dayjs(initial.followUpDate).format("YYYY-MM-DD") : "",
+        deliveryDeadline: initial?.deliveryDeadline ? dayjs(initial.deliveryDeadline).format("YYYY-MM-DD") : "",
         assignedToId: initial?.assignedToId ? String(initial.assignedToId) : "",
     });
     // Multi-image: ambil dari images[] kalau ada, fallback ke imageUrl single (legacy)
@@ -435,6 +476,7 @@ function LeadFormModal({
             // Kalau ada items, estimasi auto dari sum items. Kalau user manual override, pakai itu.
             estimatedValue: form.estimatedValue === "" ? (itemsTotal > 0 ? itemsTotal : undefined) : Number(form.estimatedValue),
             followUpDate: form.followUpDate || undefined,
+            deliveryDeadline: form.deliveryDeadline || undefined,
             assignedToId: form.assignedToId === "" ? null : Number(form.assignedToId),
             imageUrls: imageUrls, // multi
             imageUrl: imageUrls[0] || null, // backward compat: first image
@@ -667,6 +709,17 @@ function LeadFormModal({
                     </div>
 
                     <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal Kirim Deadline</label>
+                        <input
+                            type="date"
+                            value={form.deliveryDeadline}
+                            onChange={(e) => setForm({ ...form, deliveryDeadline: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                        <p className="text-[10px] text-gray-500 mt-1">Target tanggal barang/jasa harus sudah dikirim ke customer.</p>
+                    </div>
+
+                    <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">
                             CS yang Pegang Lead Ini
                         </label>
@@ -752,6 +805,11 @@ function LeadDetailDrawer({
         onSuccess: invalidate,
     });
 
+    const respMut = useMutation({
+        mutationFn: (firstResponseAt: string | null) => updateLead(leadId, { firstResponseAt }),
+        onSuccess: invalidate,
+    });
+
     const convertMut = useMutation({
         mutationFn: (data: any) => convertLead(leadId, data),
         onSuccess: (result: any) => {
@@ -761,15 +819,20 @@ function LeadDetailDrawer({
             if (r) {
                 const lines: string[] = ["✓ Lead di-convert berhasil!\n"];
                 if (r.customerId) lines.push(`👤 Customer #${r.customerId}`);
-                if (r.salesOrderId) {
-                    let so = `📋 SPK #${r.salesOrderId}`;
-                    if (r.soItemsCreated > 0) so += ` (${r.soItemsCreated} item dari katalog)`;
-                    if (r.soItemsSkipped > 0) so += `\n   ⚠ ${r.soItemsSkipped} item custom di-skip (tidak ada di katalog) — masuk Invoice saja`;
-                    if (r.soProofsCopied > 0) so += `\n   🖼 ${r.soProofsCopied} gambar referensi di-copy ke SPK proof`;
-                    lines.push(so);
-                }
                 if (r.invoiceNumber) {
                     lines.push(`🧾 ${r.invoiceNumber}${r.invoiceItemsCreated > 0 ? ` (${r.invoiceItemsCreated} item)` : ''}`);
+                }
+                if (r.transactionId) {
+                    let tx = `🏭 Antrian Produksi: Transaction #${r.transactionId}`;
+                    if (r.transactionItemsCreated > 0) tx += `\n   ${r.transactionItemsCreated} item → job otomatis di /produksi/pipeline`;
+                    if (r.transactionItemsSkipped > 0) tx += `\n   ⚠ ${r.transactionItemsSkipped} item custom di-skip (tidak punya productVariant)`;
+                    lines.push(tx);
+                } else if (r.transactionItemsSkipped > 0) {
+                    lines.push(`⚠ Tidak ada item dari katalog — produksi tidak dibuat`);
+                }
+                if (r.salesOrderId) {
+                    // Fallback message kalau backend tetap bikin SO (mis. user enable manual via API)
+                    lines.push(`📋 SPK #${r.salesOrderId}${r.soItemsCreated > 0 ? ` (${r.soItemsCreated} item)` : ''}`);
                 }
                 alert(lines.join('\n'));
             }
@@ -811,6 +874,21 @@ function LeadDetailDrawer({
                     </button>
                 </div>
 
+                {/* Image preview — carousel kalau >1, klik buka di tab baru */}
+                {((lead2.images && lead2.images.length > 0) || lead2.imageUrl) && (
+                    <div className="bg-gray-50 border-b">
+                        <LeadImageCarousel
+                            images={lead2.images || []}
+                            fallbackUrl={lead2.imageUrl}
+                            alt={lead2.name}
+                            heightClass="h-64"
+                            onClick={(src) => {
+                                if (src) window.open(src, "_blank", "noopener");
+                            }}
+                        />
+                    </div>
+                )}
+
                 {/* Quick info */}
                 <div className="p-5 space-y-4">
                     <div className="grid grid-cols-2 gap-3 text-sm">
@@ -820,7 +898,47 @@ function LeadDetailDrawer({
                         <Info label="Kota" value={lead2.city || "-"} />
                         <Info label="Estimasi" value={lead2.estimatedValue ? `Rp ${Number(lead2.estimatedValue).toLocaleString("id-ID")}` : "-"} />
                         <Info label="Tanggal FU" value={lead2.followUpDate ? dayjs(lead2.followUpDate).format("DD MMM YYYY") : "-"} />
+                        <Info label="Tgl Kirim Deadline" value={lead2.deliveryDeadline ? dayjs(lead2.deliveryDeadline).format("DD MMM YYYY") : "-"} />
                         <Info label="Assigned" value={lead2.assignedTo?.name || lead2.assignedTo?.email || "Belum di-assign"} />
+                        <div className="col-span-2">
+                            <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Response Time CS</div>
+                            {(() => {
+                                const rt = formatResponseTime(lead2.createdAt, lead2.firstResponseAt);
+                                if (rt) {
+                                    return (
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-semibold ${RESP_TONE_STYLE[rt.tone]}`}>
+                                                <Clock className="h-3 w-3" /> {rt.text}
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                direspon {dayjs(lead2.firstResponseAt!).format("DD MMM YYYY HH:mm")}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => respMut.mutate(null)}
+                                                disabled={respMut.isPending}
+                                                className="text-[11px] text-gray-500 hover:text-red-600 underline disabled:opacity-50"
+                                            >
+                                                Reset
+                                            </button>
+                                        </div>
+                                    );
+                                }
+                                return (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-gray-500 italic">Belum direspon</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => respMut.mutate(new Date().toISOString())}
+                                            disabled={respMut.isPending}
+                                            className="text-[11px] px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                        >
+                                            Tandai Direspon Sekarang
+                                        </button>
+                                    </div>
+                                );
+                            })()}
+                        </div>
                         <Info label="Dibuat" value={dayjs(lead2.createdAt).format("DD MMM YYYY HH:mm")} />
                     </div>
 
@@ -1120,23 +1238,65 @@ function ConvertModal({
     submitting: boolean;
 }) {
     const [createCustomer, setCreateCustomer] = useState(true);
-    const [createSO, setCreateSO] = useState(true);
-    const [designerName, setDesignerName] = useState("");
-    const [createInvoice, setCreateInvoice] = useState(false);
+    // SO/SPK di-hide dari UI (alur baru: convert langsung ke Invoice + Production Transaction).
+    // Backend endpoint masih support `createSalesOrderDraft` — bisa diakses via /sales-orders manual.
+    const createSO = false;
+    const designerName = "";
+    // Invoice wajib (default ON, disabled di UI).
+    const createInvoice = true;
     const [invoiceType, setInvoiceType] = useState<'INVOICE' | 'QUOTATION'>('INVOICE');
     const [notes, setNotes] = useState(lead.needs ?? "");
 
-    const nothingSelected = !createCustomer && !createSO && !createInvoice;
+    // Lead items dengan productVariantId akan auto-spawn production jobs via Transaction PENDING.
+    const itemsWithVariant = (lead.items || []).filter(it => it.productVariantId);
+    const itemsCustom = (lead.items || []).filter(it => !it.productVariantId);
+    const willCreateProductionTx = itemsWithVariant.length > 0;
+
+    // ── Payment state ───────────────────────────────────────────────────────
+    const [paymentMode, setPaymentMode] = useState<'NONE' | 'DP' | 'LUNAS'>('NONE');
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'QRIS'>('CASH');
+    const [paymentAmount, setPaymentAmount] = useState<string>("");
+    const [bankAccountId, setBankAccountId] = useState<string>("");
+
+    // Estimasi total dari lead items (untuk display & default Lunas)
+    const itemsEstimate = useMemo(() => {
+        return (lead.items || []).reduce((sum, it) => {
+            const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
+            const qty = Number(it.quantity) || 1;
+            const price = Number(it.unitPrice) || 0;
+            if (isArea) {
+                const areaM2 = (Number(it.widthCm) * Number(it.heightCm)) / 10000;
+                return sum + Math.round(areaM2 * price * qty);
+            }
+            return sum + Math.round(price * qty);
+        }, 0);
+    }, [lead.items]);
+
+    // Bank accounts hanya di-load kalau TRANSFER dipilih
+    const { data: bankAccounts } = useQuery({
+        queryKey: ['bank-accounts'],
+        queryFn: async () => (await import('@/lib/api/transactions')).getBankAccounts(),
+        enabled: paymentMethod === 'TRANSFER' && paymentMode !== 'NONE',
+        staleTime: 5 * 60_000,
+    });
+
+    const needsBankAccount = paymentMode !== 'NONE' && paymentMethod === 'TRANSFER';
+    const dpInvalid = paymentMode === 'DP' && (!paymentAmount || Number(paymentAmount) <= 0);
+    const bankInvalid = needsBankAccount && !bankAccountId;
+    const paymentInvalid = dpInvalid || bankInvalid;
+
+    const nothingSelected = !createCustomer && !createInvoice;
 
     return (
         <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-2">Convert Lead → Closing</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                    Tutup lead sebagai closing & buat dokumen yang dibutuhkan:
+                    Tutup lead sebagai closing. Sistem otomatis bikin:
                     <strong className="text-gray-800"> Customer</strong>,
-                    <strong className="text-gray-800"> SPK (Sales Order)</strong>, dan/atau
-                    <strong className="text-gray-800"> Invoice/Quotation</strong>.
+                    <strong className="text-gray-800"> Invoice/Quotation</strong>, dan
+                    <strong className="text-gray-800"> antrian produksi</strong> (untuk item dari katalog).
+                    SPK (Sales Order) tidak dibuat — bisa dibuat manual di <code>/sales-orders</code> kalau perlu workflow desain.
                 </p>
 
                 <div className="space-y-3">
@@ -1159,41 +1319,16 @@ function ConvertModal({
                         </div>
                     </label>
 
-                    {/* 2. SPK (Sales Order) */}
-                    <label className="flex items-start gap-2 text-sm cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
-                        <input
-                            type="checkbox"
-                            checked={createSO}
-                            onChange={(e) => setCreateSO(e.target.checked)}
-                            className="mt-1"
-                        />
-                        <div className="flex-1">
-                            <div className="font-semibold">📋 Buat SPK (Sales Order) Draft</div>
-                            <div className="text-xs text-gray-500">SPK production-bound. Lanjutkan di /sales-orders → assign desainer, isi item, kirim ke WA designer group.</div>
-                        </div>
-                    </label>
-                    {createSO && (
-                        <div className="ml-6 -mt-1">
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Designer</label>
-                            <input
-                                value={designerName}
-                                onChange={(e) => setDesignerName(e.target.value)}
-                                placeholder="kosong = TBD (assign nanti)"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            />
-                        </div>
-                    )}
-
-                    {/* 3. Invoice / Quotation */}
-                    <label className="flex items-start gap-2 text-sm cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                    {/* 2. Invoice / Quotation — WAJIB, di-set ON & disabled */}
+                    <label className="flex items-start gap-2 text-sm p-3 border-2 border-emerald-200 bg-emerald-50/50 rounded-lg">
                         <input
                             type="checkbox"
                             checked={createInvoice}
-                            onChange={(e) => setCreateInvoice(e.target.checked)}
+                            disabled
                             className="mt-1"
                         />
                         <div className="flex-1">
-                            <div className="font-semibold">🧾 Buat Invoice / Quotation Draft</div>
+                            <div className="font-semibold">🧾 Buat Invoice / Quotation Draft <span className="text-[10px] text-emerald-700 font-normal">(wajib)</span></div>
                             <div className="text-xs text-gray-500">Nota tagihan atau penawaran. Lanjutkan di /invoices untuk isi item, set due date, kirim ke customer.</div>
                         </div>
                     </label>
@@ -1214,10 +1349,32 @@ function ConvertModal({
                         </div>
                     )}
 
-                    {/* Shared notes — di-pass ke SO & Invoice */}
-                    {(createSO || createInvoice) && (
+                    {/* 3. Production pipeline — info-only (auto, tidak bisa di-toggle) */}
+                    <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border-2 ${willCreateProductionTx ? 'border-purple-200 bg-purple-50/50' : 'border-gray-200 bg-gray-50'}`}>
+                        <span className="text-base leading-none mt-0.5">🏭</span>
+                        <div className="flex-1">
+                            <div className="font-semibold">
+                                Antrian Produksi
+                                {willCreateProductionTx
+                                    ? <span className="text-[10px] text-purple-700 font-normal"> (otomatis)</span>
+                                    : <span className="text-[10px] text-gray-500 font-normal"> (tidak ada item katalog)</span>}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                                {willCreateProductionTx ? (
+                                    <>Transaction <strong>PENDING</strong> dibuat dengan {itemsWithVariant.length} item katalog → otomatis spawn job di <code>/produksi</code>.
+                                    {itemsCustom.length > 0 && <> {itemsCustom.length} item custom (tanpa katalog) hanya masuk Invoice.</>}
+                                    </>
+                                ) : (
+                                    <>Lead tidak punya item dari katalog. Untuk masuk antrian produksi, edit lead & tambah item dari katalog (productVariant).</>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Shared notes — di-pass ke Invoice & production notes */}
+                    {createInvoice && (
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (di-pass ke SO & Invoice)</label>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (di-pass ke Invoice & job produksi)</label>
                             <textarea
                                 rows={3}
                                 value={notes}
@@ -1225,6 +1382,109 @@ function ConvertModal({
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                                 placeholder="Detail kebutuhan, deadline, syarat khusus..."
                             />
+                        </div>
+                    )}
+
+                    {/* 4. Payment options (only relevant if Transaction akan dibuat) */}
+                    {willCreateProductionTx && (
+                        <div className="border-2 border-blue-200 bg-blue-50/50 rounded-lg p-3 space-y-3">
+                            <div>
+                                <div className="font-semibold text-sm mb-0.5">💳 Pembayaran</div>
+                                <div className="text-[11px] text-gray-500">
+                                    Estimasi total dari items: <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-1.5">
+                                {(['NONE', 'DP', 'LUNAS'] as const).map((mode) => {
+                                    const label = mode === 'NONE' ? 'Belum Bayar' : mode === 'DP' ? 'DP' : 'Lunas';
+                                    const active = paymentMode === mode;
+                                    return (
+                                        <button
+                                            key={mode}
+                                            type="button"
+                                            onClick={() => setPaymentMode(mode)}
+                                            className={`px-2 py-1.5 rounded-lg border-2 text-xs font-semibold ${active ? 'border-blue-500 bg-blue-100 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {paymentMode !== 'NONE' && (
+                                <>
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Metode</label>
+                                        <div className="grid grid-cols-3 gap-1.5">
+                                            {(['CASH', 'TRANSFER', 'QRIS'] as const).map((m) => {
+                                                const active = paymentMethod === m;
+                                                return (
+                                                    <button
+                                                        key={m}
+                                                        type="button"
+                                                        onClick={() => setPaymentMethod(m)}
+                                                        className={`px-2 py-1.5 rounded-lg border text-xs font-semibold ${active ? 'border-emerald-500 bg-emerald-100 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                                                    >
+                                                        {m === 'CASH' ? '💵 Cash' : m === 'TRANSFER' ? '🏦 Transfer' : '📱 QRIS'}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {paymentMode === 'DP' && (
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-gray-600 mb-1">Nominal DP (Rp)</label>
+                                            <input
+                                                type="number"
+                                                min={0}
+                                                max={itemsEstimate || undefined}
+                                                value={paymentAmount}
+                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                placeholder="mis. 500000"
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                            />
+                                            {dpInvalid && (
+                                                <p className="text-[10px] text-red-600 mt-0.5">Nominal DP wajib diisi (&gt; 0).</p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {paymentMode === 'LUNAS' && (
+                                        <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded p-1.5">
+                                            Dibayar lunas <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong> (auto dari estimasi). Cashflow INCOME otomatis tercatat.
+                                        </p>
+                                    )}
+
+                                    {needsBankAccount && (
+                                        <div>
+                                            <label className="block text-[11px] font-semibold text-gray-600 mb-1">Rekening Tujuan *</label>
+                                            <select
+                                                value={bankAccountId}
+                                                onChange={(e) => setBankAccountId(e.target.value)}
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                            >
+                                                <option value="">— Pilih rekening —</option>
+                                                {(bankAccounts as any[] | undefined)?.map((acc: any) => (
+                                                    <option key={acc.id} value={acc.id}>
+                                                        {acc.bankName} · {acc.accountNumber} ({acc.accountHolder})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {bankInvalid && (
+                                                <p className="text-[10px] text-red-600 mt-0.5">Pilih rekening tujuan untuk transfer.</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {paymentMode === 'NONE' && (
+                                <p className="text-[11px] text-gray-500 italic">
+                                    Transaction PENDING dibuat tanpa pembayaran. Customer bayar nanti via /invoices atau POS.
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1240,13 +1500,18 @@ function ConvertModal({
                     <button
                         onClick={() => onSubmit({
                             createCustomer,
-                            createSalesOrderDraft: createSO,
-                            designerName: designerName || undefined,
+                            createSalesOrderDraft: false, // alur baru: SO tidak dibuat dari convert
                             createInvoiceDraft: createInvoice,
                             invoiceType: createInvoice ? invoiceType : undefined,
                             notes: notes || undefined,
+                            createProductionTransaction: true,
+                            // Payment
+                            paymentMode,
+                            paymentMethod: paymentMode !== 'NONE' ? paymentMethod : undefined,
+                            paymentAmount: paymentMode === 'DP' ? Number(paymentAmount) || 0 : undefined,
+                            bankAccountId: needsBankAccount && bankAccountId ? Number(bankAccountId) : undefined,
                         })}
-                        disabled={submitting || (nothingSelected && !createCustomer)}
+                        disabled={submitting || paymentInvalid}
                         className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
                         {submitting ? "Memproses..." : "✓ Convert (Closing)"}

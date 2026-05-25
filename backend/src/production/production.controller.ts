@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, Query, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, Patch, Query, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -7,6 +7,8 @@ import { ProductionService } from './production.service';
 import { ClickCountingService } from '../click-counting/click-counting.service';
 import { compressImage } from '../common/utils/compress-image.util';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentBranch } from '../common/branch-context.decorator';
 
 // Folder upload foto counter (sama dengan yang dipakai click-counting admin)
 const METER_DIR = './public/uploads';
@@ -49,6 +51,156 @@ export class ProductionController {
     @Get('stats')
     getStats(@Query('branchId') branchId?: string) {
         return this.productionService.getStats(branchId ? parseInt(branchId) : undefined);
+    }
+
+    // ─── Pipeline Kanban (admin view, JWT) ─────────────────────────────────────
+    @UseGuards(JwtAuthGuard)
+    @Get('pipeline/jobs')
+    getPipelineJobs(@CurrentBranch() ctx: BranchContext) {
+        return this.productionService.getPipelineJobs(ctx.branchId ?? undefined);
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Patch('pipeline/jobs/:id')
+    updatePipelineStage(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: {
+            pipelineStage?: string;
+            penjahitName?: string;
+            jahitInDate?: string;
+            jahitEstimate?: string;
+            qcNote?: string;
+            returnReason?: string;
+            proofImageUrl?: string | null;
+        },
+        @Req() req: any,
+    ) {
+        const actorName = req?.user?.name || req?.user?.email || 'Admin';
+        return this.productionService.updatePipelineStage(id, body, { name: actorName, role: 'ADMIN' });
+    }
+
+    /** Upload proof image (multi-image, append). Return URL relatif `/uploads/...`. */
+    @UseGuards(JwtAuthGuard)
+    @Post('pipeline/jobs/:id/proof-image')
+    @UseInterceptors(FileInterceptor('image', {
+        storage: diskStorage({
+            destination: METER_DIR,
+            filename: (_req, file, cb) => cb(null, `proof_${randomHex()}${extname(file.originalname || '.jpg')}`),
+        }),
+        fileFilter: (_req, file, cb) => {
+            if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+                return cb(new BadRequestException('Hanya file gambar yang diperbolehkan'), false);
+            }
+            cb(null, true);
+        },
+        limits: { fileSize: 10 * 1024 * 1024 },
+    }))
+    async uploadProofImage(
+        @Param('id', ParseIntPipe) id: number,
+        @UploadedFile() file: Express.Multer.File,
+        @Req() req: any,
+    ) {
+        if (!file) throw new BadRequestException('File foto wajib diisi');
+        const url = `/uploads/${file.filename}`;
+        const actorName = req?.user?.name || req?.user?.email || 'Admin';
+        const proof = await this.productionService.addProof(id, url, { name: actorName, role: 'ADMIN' });
+        await this.productionService.updatePipelineStage(id, { proofImageUrl: url });
+        return { url, proofId: proof.id };
+    }
+
+    /** Hapus satu proof image dari job. */
+    @UseGuards(JwtAuthGuard)
+    @Patch('pipeline/proofs/:proofId/delete')
+    async deleteProofImage(@Param('proofId', ParseIntPipe) proofId: number, @Req() req: any) {
+        const actorName = req?.user?.name || req?.user?.email || 'Admin';
+        return this.productionService.deleteProof(proofId, { name: actorName, role: 'ADMIN' });
+    }
+
+    // ─── Public Pipeline (OPERATOR — PIN-protected) ────────────────────────────
+    // Operator/desainer akses via /produksi/board (tanpa JWT). Tiap request kirim
+    // PIN + branchId + operatorName. PIN di-verify di backend, operatorName masuk
+    // audit log + lastUpdatedBy.
+
+    @Get('pipeline/public/jobs')
+    async getPublicPipelineJobs(
+        @Query('pin') pin: string,
+        @Query('branchId') branchId?: string,
+    ) {
+        const bid = branchId ? parseInt(branchId) : undefined;
+        await this.productionService.verifyOperatorPinPublic(pin, bid);
+        return this.productionService.getPipelineJobs(bid);
+    }
+
+    @Patch('pipeline/public/jobs/:id')
+    async updatePublicPipelineStage(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: {
+            pin: string;
+            branchId?: number;
+            operatorName: string;
+            pipelineStage?: string;
+            penjahitName?: string;
+            jahitInDate?: string;
+            jahitEstimate?: string;
+            qcNote?: string;
+            returnReason?: string;
+        },
+    ) {
+        await this.productionService.verifyOperatorPinPublic(body.pin, body.branchId);
+        if (!body.operatorName?.trim()) {
+            throw new BadRequestException('Nama operator wajib diisi');
+        }
+        const { pin: _p, branchId: _b, operatorName, ...data } = body;
+        return this.productionService.updatePipelineStage(id, data, { name: operatorName.trim(), role: 'OPERATOR' });
+    }
+
+    @Post('pipeline/public/jobs/:id/proof-image')
+    @UseInterceptors(FileInterceptor('image', {
+        storage: diskStorage({
+            destination: METER_DIR,
+            filename: (_req, file, cb) => cb(null, `proof_${randomHex()}${extname(file.originalname || '.jpg')}`),
+        }),
+        fileFilter: (_req, file, cb) => {
+            if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+                return cb(new BadRequestException('Hanya file gambar yang diperbolehkan'), false);
+            }
+            cb(null, true);
+        },
+        limits: { fileSize: 10 * 1024 * 1024 },
+    }))
+    async uploadPublicProofImage(
+        @Param('id', ParseIntPipe) id: number,
+        @UploadedFile() file: Express.Multer.File,
+        @Body() body: { pin: string; branchId?: string; operatorName: string },
+    ) {
+        if (!file) throw new BadRequestException('File foto wajib diisi');
+        const bid = body.branchId ? parseInt(body.branchId) : undefined;
+        await this.productionService.verifyOperatorPinPublic(body.pin, bid);
+        if (!body.operatorName?.trim()) {
+            throw new BadRequestException('Nama operator wajib diisi');
+        }
+        const url = `/uploads/${file.filename}`;
+        const proof = await this.productionService.addProof(id, url, { name: body.operatorName.trim(), role: 'OPERATOR' });
+        await this.productionService.updatePipelineStage(id, { proofImageUrl: url });
+        return { url, proofId: proof.id };
+    }
+
+    @Patch('pipeline/public/proofs/:proofId/delete')
+    async deletePublicProofImage(
+        @Param('proofId', ParseIntPipe) proofId: number,
+        @Body() body: { pin: string; branchId?: number; operatorName: string },
+    ) {
+        await this.productionService.verifyOperatorPinPublic(body.pin, body.branchId);
+        if (!body.operatorName?.trim()) {
+            throw new BadRequestException('Nama operator wajib diisi');
+        }
+        return this.productionService.deleteProof(proofId, { name: body.operatorName.trim(), role: 'OPERATOR' });
+    }
+
+    @Get('pipeline/jobs/:id/activities')
+    @UseGuards(JwtAuthGuard)
+    async getJobActivities(@Param('id', ParseIntPipe) id: number) {
+        return this.productionService.getJobActivities(id);
     }
 
     @Post('pin/verify')

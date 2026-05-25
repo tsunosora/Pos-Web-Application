@@ -6,7 +6,8 @@ import api from './client';
 
 export type LeadSource =
     | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK'
-    | 'MARKETPLACE' | 'REFERRAL' | 'WEBSITE' | 'WALK_IN' | 'OTHER';
+    | 'MARKETPLACE' | 'REFERRAL' | 'WEBSITE' | 'WALK_IN'
+    | 'REPEAT_ORDER' | 'OTHER';
 
 export type LeadStatus =
     | 'NEW' | 'FOLLOW_UP' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
@@ -22,6 +23,7 @@ export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
     REFERRAL: 'Referral',
     WEBSITE: 'Website',
     WALK_IN: 'Walk-in',
+    REPEAT_ORDER: 'Repeat Order',
     OTHER: 'Lainnya',
 };
 
@@ -80,6 +82,8 @@ export interface Lead {
     city: string | null;
     assignedToId: number | null;
     followUpDate: string | null;
+    deliveryDeadline: string | null;
+    firstResponseAt: string | null;
     convertedCustomerId: number | null;
     convertedSalesOrderId: number | null;
     closeLostReason: string | null;
@@ -131,6 +135,7 @@ export interface CreateLeadInput {
     city?: string;
     assignedToId?: number;
     followUpDate?: string;
+    deliveryDeadline?: string;
     status?: LeadStatus;
     imageUrl?: string;
     imageUrls?: string[];
@@ -148,6 +153,8 @@ export interface UpdateLeadInput {
     city?: string;
     assignedToId?: number | null;
     followUpDate?: string | null;
+    deliveryDeadline?: string | null;
+    firstResponseAt?: string | null;
     status?: LeadStatus;
     imageUrl?: string | null;
     imageUrls?: string[];
@@ -157,11 +164,17 @@ export interface UpdateLeadInput {
 export interface ConvertLeadInput {
     customerId?: number;
     createCustomer?: boolean;
-    createSalesOrderDraft?: boolean;       // SPK (Sales Order production-bound)
+    createSalesOrderDraft?: boolean;       // SPK (Sales Order production-bound) — UI: di-hide, default false
     designerName?: string;
     createInvoiceDraft?: boolean;          // Nota tagihan
     invoiceType?: 'INVOICE' | 'QUOTATION'; // default INVOICE
     notes?: string;
+    createProductionTransaction?: boolean; // Auto-create Transaction PENDING → spawn production jobs (default true)
+    // Payment options
+    paymentMode?: 'NONE' | 'DP' | 'LUNAS';
+    paymentMethod?: 'CASH' | 'TRANSFER' | 'QRIS';
+    paymentAmount?: number;                // hanya untuk DP
+    bankAccountId?: number;                // wajib untuk TRANSFER
 }
 
 export interface LeadConvertResult extends Lead {

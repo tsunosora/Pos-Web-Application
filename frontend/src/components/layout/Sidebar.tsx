@@ -32,6 +32,7 @@ import {
     BookOpen,
     Sparkles,
     MessageSquare,
+    Workflow,
 } from "lucide-react";
 import { useUIStore, SidebarSectionKey } from "@/store/ui-store";
 import { useQuery } from "@tanstack/react-query";
@@ -96,6 +97,7 @@ const SECTIONS: NavSection[] = [
             { name: "Titipan Keluar", href: "/titipan-keluar", icon: Inbox },
             { name: "Buku Titipan", href: "/branch-ledger", icon: BookOpen, badgeKey: 'ledgerOutstanding' },
             { name: "Antrian Produksi", href: "/produksi", icon: Printer, badgeKey: 'productionReady' },
+            { name: "Pipeline Produksi", href: "/produksi/pipeline", icon: Workflow },
             { name: "Antrian Cetak Paper", href: "/print-queue", icon: Printer, badgeKey: 'printReady' },
             { name: "Klik Mesin Cetak", href: "/click-counting", icon: MousePointerClick },
         ],

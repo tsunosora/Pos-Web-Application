@@ -558,4 +558,216 @@ export class ProductionService {
         ]);
         return { antrian, proses, menungguPasang, pasang, selesai };
     }
+
+    // ─── Pipeline Kanban (admin view) ──────────────────────────────────────────
+    // Stages: DESIGN, PRINT, ANTRIAN_PRESS, JAHIT, QC_PACKING, KIRIM, RETUR, SELESAI
+    // Field `pipelineStage` di-set independen dari `status` (yang dipakai operator).
+
+    private static readonly PIPELINE_STAGES = [
+        'DESIGN', 'PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'RETUR', 'SELESAI',
+    ] as const;
+
+    async getPipelineJobs(branchId?: number) {
+        const where: any = branchId ? { branchId } : {};
+        // Ambil semua job aktif (exclude pickedUpAt yang sudah lama supaya kanban tetap manageable)
+        const jobs = await (this.prisma as any).productionJob.findMany({
+            where,
+            orderBy: [{ priority: 'desc' }, { deadline: 'asc' }, { createdAt: 'asc' }],
+            include: {
+                transaction: {
+                    select: {
+                        id: true, invoiceNumber: true, customerName: true, customerPhone: true,
+                    },
+                },
+                transactionItem: {
+                    select: {
+                        id: true, quantity: true, widthCm: true, heightCm: true, unitType: true,
+                        productVariant: {
+                            select: {
+                                id: true, variantName: true,
+                                product: { select: { id: true, name: true } },
+                            },
+                        },
+                    },
+                },
+                branch: { select: { id: true, name: true, code: true } },
+                proofs: { orderBy: { position: 'asc' }, select: { id: true, filename: true, caption: true } },
+            },
+            take: 500, // hard cap supaya FE tidak overload
+        });
+        return jobs;
+    }
+
+    async addProof(jobId: number, filename: string, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }) {
+        const last = await (this.prisma as any).productionJobProof.findFirst({
+            where: { jobId },
+            orderBy: { position: 'desc' },
+            select: { position: true },
+        });
+        const nextPos = last ? last.position + 1 : 0;
+        const caption = actor?.name ? `by ${actor.name}` : null;
+        const proof = await (this.prisma as any).productionJobProof.create({
+            data: { jobId, filename, position: nextPos, caption },
+        });
+        if (actor?.name) {
+            await (this.prisma as any).productionJob.update({
+                where: { id: jobId },
+                data: { lastUpdatedBy: actor.name, lastUpdatedAt: new Date() },
+            });
+        }
+        await this.logProofActivity(jobId, 'PROOF_UPLOAD', actor, { proofId: proof.id, filename });
+        return proof;
+    }
+
+    async deleteProof(proofId: number, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }) {
+        const proof = await (this.prisma as any).productionJobProof.findUnique({
+            where: { id: proofId }, select: { jobId: true, filename: true },
+        });
+        if (!proof) return { ok: true };
+        await (this.prisma as any).productionJobProof.delete({ where: { id: proofId } });
+        if (actor?.name) {
+            await (this.prisma as any).productionJob.update({
+                where: { id: proof.jobId },
+                data: { lastUpdatedBy: actor.name, lastUpdatedAt: new Date() },
+            });
+        }
+        await this.logProofActivity(proof.jobId, 'PROOF_DELETE', actor, { proofId, filename: proof.filename });
+        return { ok: true };
+    }
+
+    async updatePipelineStage(
+        id: number,
+        data: {
+            pipelineStage?: string;
+            penjahitName?: string;
+            jahitInDate?: string;
+            jahitEstimate?: string;
+            qcNote?: string;
+            returnReason?: string;
+            proofImageUrl?: string | null;
+        },
+        actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' },
+    ) {
+        // Load existing untuk dapat fromStage di audit
+        const existing = await (this.prisma as any).productionJob.findUnique({
+            where: { id }, select: { pipelineStage: true },
+        });
+        const updateData: any = {};
+        if (data.pipelineStage !== undefined) {
+            if (!ProductionService.PIPELINE_STAGES.includes(data.pipelineStage as any)) {
+                throw new BadRequestException(`Pipeline stage tidak valid: ${data.pipelineStage}`);
+            }
+            updateData.pipelineStage = data.pipelineStage;
+        }
+        // Proof image setter (stage-agnostic — biasa di DESIGN tapi bisa di-update di stage lain juga)
+        if (data.proofImageUrl !== undefined) {
+            updateData.proofImageUrl = data.proofImageUrl || null;
+        }
+
+        // Auto-set timestamp berdasarkan transisi
+        if (data.pipelineStage === 'JAHIT') {
+            if (data.penjahitName !== undefined) updateData.penjahitName = data.penjahitName || null;
+            if (data.jahitInDate !== undefined) {
+                updateData.jahitInDate = data.jahitInDate ? new Date(data.jahitInDate) : null;
+            }
+            if (data.jahitEstimate !== undefined) {
+                updateData.jahitEstimate = data.jahitEstimate ? new Date(data.jahitEstimate) : null;
+            }
+        }
+        if (data.pipelineStage === 'QC_PACKING' && data.qcNote !== undefined) {
+            updateData.qcNote = data.qcNote || null;
+        }
+        if (data.pipelineStage === 'KIRIM') {
+            updateData.shippedAt = new Date();
+        }
+        if (data.pipelineStage === 'RETUR') {
+            updateData.returnedAt = new Date();
+            if (data.returnReason !== undefined) updateData.returnReason = data.returnReason || null;
+        }
+
+        // Audit metadata
+        if (actor?.name) {
+            updateData.lastUpdatedBy = actor.name;
+            updateData.lastUpdatedAt = new Date();
+        }
+
+        const updated = await (this.prisma as any).productionJob.update({
+            where: { id },
+            data: updateData,
+        });
+
+        // Log activity entries (one per kind of change, biar history readable)
+        const acts: any[] = [];
+        if (data.pipelineStage !== undefined && existing?.pipelineStage !== data.pipelineStage) {
+            acts.push({
+                jobId: id,
+                action: 'STAGE_CHANGE',
+                fromStage: existing?.pipelineStage ?? null,
+                toStage: data.pipelineStage,
+                actorName: actor?.name ?? null,
+                actorRole: actor?.role ?? null,
+            });
+        }
+        if (data.pipelineStage === 'JAHIT' && (data.penjahitName || data.jahitEstimate)) {
+            acts.push({
+                jobId: id,
+                action: 'JAHIT_INFO',
+                toStage: 'JAHIT',
+                actorName: actor?.name ?? null,
+                actorRole: actor?.role ?? null,
+                meta: {
+                    penjahitName: data.penjahitName,
+                    jahitInDate: data.jahitInDate,
+                    jahitEstimate: data.jahitEstimate,
+                },
+            });
+        }
+        if (data.qcNote) {
+            acts.push({
+                jobId: id, action: 'QC_NOTE',
+                actorName: actor?.name ?? null, actorRole: actor?.role ?? null,
+                meta: { qcNote: data.qcNote },
+            });
+        }
+        if (data.returnReason) {
+            acts.push({
+                jobId: id, action: 'RETURN_REASON',
+                actorName: actor?.name ?? null, actorRole: actor?.role ?? null,
+                meta: { returnReason: data.returnReason },
+            });
+        }
+        if (acts.length > 0) {
+            await (this.prisma as any).productionJobActivity.createMany({ data: acts });
+        }
+
+        return updated;
+    }
+
+    /** Verify PIN operator untuk akses public endpoint. */
+    async verifyOperatorPinPublic(pin: string, branchId?: number): Promise<void> {
+        const result = await this.verifyPin(pin, branchId);
+        if (!result.valid) {
+            throw new BadRequestException(result.message || 'PIN operator salah');
+        }
+    }
+
+    async logProofActivity(jobId: number, action: 'PROOF_UPLOAD' | 'PROOF_DELETE', actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }, meta?: any) {
+        if (!actor?.name && !meta) return;
+        await (this.prisma as any).productionJobActivity.create({
+            data: {
+                jobId, action,
+                actorName: actor?.name ?? null,
+                actorRole: actor?.role ?? null,
+                meta: meta ?? undefined,
+            },
+        });
+    }
+
+    async getJobActivities(jobId: number) {
+        return (this.prisma as any).productionJobActivity.findMany({
+            where: { jobId },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+        });
+    }
 }

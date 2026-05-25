@@ -36,7 +36,8 @@ export function MainLayout({ children }: MainLayoutProps) {
     const [readyJobsModalOpen, setReadyJobsModalOpen] = useState(false);
     const isLoginPage = pathname === "/login";
     const isOpnamePage = pathname.startsWith("/opname/");
-    const isProduksiPage = pathname.startsWith("/produksi");
+    // /produksi (operator PIN, fullscreen) tanpa sidebar. KECUALI /produksi/pipeline (admin kanban) yang pakai sidebar normal.
+    const isProduksiPage = pathname.startsWith("/produksi") && !pathname.startsWith("/produksi/pipeline");
     const isCetakPage = pathname.startsWith("/cetak");
     const isPublicProductPage = pathname.startsWith("/p/");
     const isDesignerPortal = pathname.startsWith("/so-designer");

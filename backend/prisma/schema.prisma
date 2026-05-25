@@ -702,6 +702,25 @@ model ProductionJob {
   assemblyCompletedAt DateTime? @map("assembly_completed_at")
   assemblyNote        String?   @map("assembly_note") @db.Text
   pickedUpAt          DateTime? @map("picked_up_at")
+  // Pipeline kanban (admin view) — alur produksi end-to-end. Independen dari `status`
+  // (yang dipakai operator PIN-mode di /produksi). Default DESIGN.
+  // Stages: DESIGN, PRINT, ANTRIAN_PRESS, JAHIT, QC_PACKING, KIRIM, RETUR, SELESAI
+  pipelineStage       String?   @default("DESIGN") @map("pipeline_stage") @db.VarChar(30)
+  // Proof image yang sudah ACC siap cetak (di-upload di stage DESIGN)
+  proofImageUrl       String?   @map("proof_image_url") @db.Text
+  // Audit terakhir — nama operator/desainer yang terakhir update card ini
+  lastUpdatedBy       String?   @map("last_updated_by") @db.VarChar(120)
+  lastUpdatedAt       DateTime? @map("last_updated_at")
+  // Jahit stage info (di-set saat card di-drag ke kolom JAHIT via modal)
+  penjahitName        String?   @map("penjahit_name") @db.VarChar(120)
+  jahitInDate         DateTime? @map("jahit_in_date")
+  jahitEstimate       DateTime? @map("jahit_estimate")
+  // QC & Packing notes
+  qcNote              String?   @map("qc_note") @db.Text
+  // Kirim / Retur tracking
+  shippedAt           DateTime? @map("shipped_at")
+  returnedAt          DateTime? @map("returned_at")
+  returnReason        String?   @map("return_reason") @db.Text
   createdAt           DateTime? @default(now()) @map("created_at")
   updatedAt           DateTime? @default(now()) @updatedAt @map("updated_at")
 
@@ -710,9 +729,43 @@ model ProductionJob {
   rollVariant     ProductVariant?  @relation("RollUsedInJob", fields: [rollVariantId], references: [id])
   batch           ProductionBatch? @relation(fields: [batchId], references: [id])
   branch          CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  proofs          ProductionJobProof[]
 
   @@index([branchId])
   @@map("production_jobs")
+}
+
+// Multi proof images per production job (di-upload di stage DESIGN sebagai bukti ACC).
+// proofImageUrl di ProductionJob tetap di-keep sebagai legacy single-image fallback.
+model ProductionJobProof {
+  id        Int      @id @default(autoincrement())
+  jobId     Int      @map("job_id")
+  filename  String   @db.Text
+  caption   String?  @db.Text
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job ProductionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, position])
+  @@map("production_job_proofs")
+}
+
+// Audit log per production job — track siapa pindah card kapan dari/ke stage apa,
+// upload/hapus proof, set info jahit, dll. Dipakai sebagai history untuk admin.
+model ProductionJobActivity {
+  id         Int      @id @default(autoincrement())
+  jobId      Int      @map("job_id")
+  action     String   @db.VarChar(40) // STAGE_CHANGE, PROOF_UPLOAD, PROOF_DELETE, JAHIT_INFO, QC_NOTE, RETURN_REASON
+  fromStage  String?  @map("from_stage") @db.VarChar(30)
+  toStage    String?  @map("to_stage") @db.VarChar(30)
+  actorName  String?  @map("actor_name") @db.VarChar(120) // nama operator/desainer (dari board) atau user (admin)
+  actorRole  String?  @map("actor_role") @db.VarChar(20)  // ADMIN | OPERATOR
+  meta       Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([jobId, createdAt])
+  @@map("production_job_activities")
 }
 
 model ProductionBatch {
@@ -1350,6 +1403,7 @@ enum LeadSource {
   REFERRAL
   WEBSITE
   WALK_IN
+  REPEAT_ORDER
   OTHER
 }
 
@@ -1396,6 +1450,8 @@ model Lead {
   city                  String?       @db.VarChar(80)
   assignedToId          Int?          @map("assigned_to_id")
   followUpDate          DateTime?     @map("follow_up_date")
+  deliveryDeadline      DateTime?     @map("delivery_deadline")
+  firstResponseAt       DateTime?     @map("first_response_at")
   convertedCustomerId   Int?          @map("converted_customer_id")
   convertedSalesOrderId Int?          @map("converted_sales_order_id")
   closeLostReason       String?       @map("close_lost_reason") @db.Text

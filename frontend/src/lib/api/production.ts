@@ -348,3 +348,163 @@ export const completeProductionBatch = async (id: number): Promise<any> => {
     if (!res.ok) throw new Error((await res.json()).message || 'Gagal menyelesaikan batch');
     return res.json();
 };
+
+// ─── Pipeline Kanban (JWT, admin view) ─────────────────────────────────────
+// Beda dengan endpoint operator di atas yang pakai raw fetch (public), pipeline
+// endpoints pakai axios `api` instance yang punya JWT interceptor + X-Branch-Id.
+
+import api from './client';
+
+export type PipelineStage =
+    | 'DESIGN' | 'PRINT' | 'ANTRIAN_PRESS' | 'JAHIT' | 'QC_PACKING' | 'KIRIM' | 'RETUR' | 'SELESAI';
+
+export const PIPELINE_STAGES: PipelineStage[] = [
+    'DESIGN', 'PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'RETUR', 'SELESAI',
+];
+
+export const PIPELINE_STAGE_LABEL: Record<PipelineStage, string> = {
+    DESIGN: 'Design',
+    PRINT: 'Print',
+    ANTRIAN_PRESS: 'Antrian Press',
+    JAHIT: 'Jahit',
+    QC_PACKING: 'QC & Packing',
+    KIRIM: 'Kirim',
+    RETUR: 'Retur',
+    SELESAI: 'Selesai',
+};
+
+export interface PipelineJob {
+    id: number;
+    jobNumber: string;
+    status: string;
+    priority: string;
+    pipelineStage: PipelineStage | null;
+    deadline: string | null;
+    notes: string | null;
+    penjahitName: string | null;
+    jahitInDate: string | null;
+    jahitEstimate: string | null;
+    qcNote: string | null;
+    shippedAt: string | null;
+    returnedAt: string | null;
+    returnReason: string | null;
+    proofImageUrl: string | null; // legacy single (backward compat)
+    proofs?: { id: number; filename: string; caption: string | null }[];
+    lastUpdatedBy: string | null;
+    lastUpdatedAt: string | null;
+    createdAt: string | null;
+    transaction?: { id: number; invoiceNumber: string | null; customerName: string | null; customerPhone: string | null };
+    transactionItem?: {
+        id: number; quantity: number; widthCm: number | null; heightCm: number | null; unitType: string | null;
+        productVariant?: { id: number; variantName: string | null; product?: { id: number; name: string } | null } | null;
+    };
+    branch?: { id: number; name: string; code: string | null } | null;
+}
+
+export const getPipelineJobs = async (): Promise<PipelineJob[]> => {
+    const res = await api.get('/production/pipeline/jobs');
+    return res.data;
+};
+
+export const updatePipelineStage = async (id: number, data: {
+    pipelineStage?: PipelineStage;
+    penjahitName?: string;
+    jahitInDate?: string;
+    jahitEstimate?: string;
+    qcNote?: string;
+    returnReason?: string;
+    proofImageUrl?: string | null;
+}): Promise<PipelineJob> => {
+    const res = await api.patch(`/production/pipeline/jobs/${id}`, data);
+    return res.data;
+};
+
+export const uploadPipelineProofImage = async (id: number, file: File): Promise<{ url: string; proofId: number }> => {
+    const form = new FormData();
+    form.append('image', file);
+    const res = await api.post(`/production/pipeline/jobs/${id}/proof-image`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data;
+};
+
+export const deletePipelineProof = async (proofId: number): Promise<{ ok: boolean }> => {
+    const res = await api.patch(`/production/pipeline/proofs/${proofId}/delete`);
+    return res.data;
+};
+
+// ─── Public Pipeline (OPERATOR — PIN-protected, no JWT) ────────────────────
+// Dipakai oleh /produksi/board (operator/desainer). Tiap call kirim PIN + operatorName.
+
+export interface OperatorSession {
+    branchId: number;
+    pin: string;
+    operatorName: string;
+}
+
+export const getPublicPipelineJobs = async (session: OperatorSession): Promise<PipelineJob[]> => {
+    const params = new URLSearchParams({
+        pin: session.pin,
+        branchId: String(session.branchId),
+    });
+    const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs?${params}`);
+    return parseResponse<PipelineJob[]>(res, 'Memuat pipeline produksi');
+};
+
+export const updatePublicPipelineStage = async (
+    id: number,
+    session: OperatorSession,
+    data: {
+        pipelineStage?: PipelineStage;
+        penjahitName?: string;
+        jahitInDate?: string;
+        jahitEstimate?: string;
+        qcNote?: string;
+        returnReason?: string;
+    },
+): Promise<PipelineJob> => {
+    const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            pin: session.pin,
+            branchId: session.branchId,
+            operatorName: session.operatorName,
+            ...data,
+        }),
+    });
+    return parseResponse<PipelineJob>(res, 'Update stage');
+};
+
+export const uploadPublicProofImage = async (
+    id: number,
+    session: OperatorSession,
+    file: File,
+): Promise<{ url: string; proofId: number }> => {
+    const form = new FormData();
+    form.append('image', file);
+    form.append('pin', session.pin);
+    form.append('branchId', String(session.branchId));
+    form.append('operatorName', session.operatorName);
+    const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs/${id}/proof-image`, {
+        method: 'POST',
+        body: form,
+    });
+    return parseResponse<{ url: string; proofId: number }>(res, 'Upload proof');
+};
+
+export const deletePublicProof = async (
+    proofId: number,
+    session: OperatorSession,
+): Promise<{ ok: boolean }> => {
+    const res = await fetch(`${API_BASE()}/production/pipeline/public/proofs/${proofId}/delete`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            pin: session.pin,
+            branchId: session.branchId,
+            operatorName: session.operatorName,
+        }),
+    });
+    return parseResponse<{ ok: boolean }>(res, 'Hapus proof');
+};
