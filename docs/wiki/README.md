@@ -44,6 +44,7 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 22 | [🔁 Titip Cetak Antar Cabang](titip-cetak.md) | **Titip cetak** — kasir cabang A bikin nota, dicetak di cabang B (toggle prominent di POS) |
 | 23 | [📒 Buku Titipan Antar Cabang](buku-titipan.md) | **Buku Titipan** — auto-catat hutang/piutang antar cabang dari titip cetak, settle tunai/stok |
 | 24 | [🎨 Sales Order & Designer Portal](sales-orders.md) | **Designer portal** — workflow desainer freelance, broadcast SO ke grup WA per cabang |
+| 25 | [🎯 CRM — Lead Pipeline & Follow-Up](crm.md) | **CRM** — pipeline lead pra-jual, kanban drag-drop, auto follow-up after-sales/repeat order, template WA, convert ke Customer+SPK+Invoice |
 
 ---
 
@@ -605,6 +606,7 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [🔁 Titip Cetak Antar Cabang](titip-cetak.md) | Toggle prominent di POS, routing job ke cabang pelaksana, badge titipan, notif popup |
 | [📒 Buku Titipan Antar Cabang](buku-titipan.md) | Auto-ledger hutang-piutang inter-branch, settle dengan tunai (2 cashflow) atau kirim stok |
 | [🎨 Sales Order & Designer Portal](sales-orders.md) | Portal desainer dengan PIN, paste screenshot proof, broadcast WA per-cabang |
+| [🎯 CRM — Lead Pipeline & Follow-Up](crm.md) | Pipeline lead pra-jual, kanban, multi-image carousel, auto FU after-sales+repeat, convert ke Customer+SPK+Invoice |
 
 ---
 

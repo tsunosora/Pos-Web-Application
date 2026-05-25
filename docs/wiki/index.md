@@ -53,4 +53,10 @@ features:
   - icon: 🎨
     title: Sales Order & Designer Portal
     details: Portal khusus desainer freelance dengan login PIN. Buat SO, upload screenshot proof (Ctrl+V dari clipboard), broadcast ke grup WA internal cabang. Convert SO ke invoice di POS dengan satu klik.
+  - icon: 🎯
+    title: CRM — Lead Pipeline & Follow-Up
+    details: Pipeline lead dari chat WA sampai closing. Kanban drag-drop status, multi-image dengan slider, phone dedup ke customer existing, product picker katalog. Auto follow-up after-sales 3 hari pasca pickup, repeat order nudge weekly. Convert lead jadi Customer + SPK + Invoice sekaligus.
+  - icon: ✉️
+    title: Template WA & Daily Worklist CS
+    details: Halaman /crm/follow-ups jadi inbox tugas harian — semua reminder "hubungi customer hari ini" terkumpul, prioritas overdue di atas. Template WA siap copy-paste dengan placeholder auto-isi nama/SO/dll. KPI dashboard untuk response time & closing rate.
 ---

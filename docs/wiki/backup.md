@@ -38,7 +38,7 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
 
 ### Grup Data yang Tersedia
 
-Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.2** (Mode Cabang Multi-Tenant + Buku Titipan Paper Print Settlement) dengan grup berikut:
+Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.3** (Mode Cabang Multi-Tenant + Buku Titipan Paper Print Settlement + CRM Module) dengan grup berikut:
 
 | Grup | Isi |
 |---|---|
@@ -59,6 +59,7 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 | 🖨️ Click Counting | Tarif klik + log mesin + meter reading + reject |
 | 📋 Stok Opname | Sesi opname + item opname |
 | 📊 Laporan Shift | Shift report + competitor (peta cuan) |
+| 🎯 CRM — Leads, Follow-ups, Templates | `lead`, `leadItem`, `leadImage`, `leadActivity`, `followUp`, `messageTemplate` — pipeline lead pra-jual + auto follow-up + template WA |
 
 > **Catatan tentang Bahan Titipan**: Laporan `/reports/inter-branch-usage` (audit bahan Pusat dipakai cabang) **tidak butuh tabel sendiri** — diturunkan dari `stock_movements` saat di-render. Backup `stockMovement` di grup "Produk & Inventori" sudah cukup untuk preserve riwayat tracking.
 
@@ -70,6 +71,9 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 >   - `BranchSettings.titipanFeePercent` default `0` (sebelumnya 20). Sesuai konsep 1 owner / 1 perusahaan: tidak ada margin antar cabang, cabang ganti real cost saja.
 >   - **Banner-only titipan tidak masuk ledger** lagi (tracking via StockMovement). Hanya paper print (yang ada biaya klik mesin) yang dapat entry ledger formal untuk settlement.
 >   - Backup v3.2 100% kompatibel di-restore di sistem v3.1 (tabel sama persis).
+> - **File backup v3.3** menambah **6 tabel baru CRM**: `lead`, `lead_items`, `lead_images`, `lead_activities`, `follow_ups`, `message_templates` + 4 kolom baru di tabel `customers` (`lead_source`, `assigned_cs_id`, `referrer_customer_id`, `tags`).
+>   - Backup v3.3 bisa di-restore di sistem v3.2 dengan **skip silent** untuk tabel CRM (data CRM tidak ter-restore — perlu upgrade schema dulu).
+>   - Backup v3.2 ke bawah bisa di-restore di sistem v3.3 — tabel CRM hanya akan kosong sampai diinput manual atau lewat halaman /crm.
 
 ---
 

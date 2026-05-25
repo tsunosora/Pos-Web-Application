@@ -240,6 +240,101 @@ export class LeadsService {
         });
     }
 
+    /**
+     * Sinkronisasi auto FollowUp task dari Lead.followUpDate.
+     * Aturan:
+     * - Kalau followUpDate ada → upsert 1 pending FollowUp type=LEAD_FU.
+     *   - Kalau sudah ada pending LEAD_FU untuk lead ini → update dueDate-nya saja.
+     *   - Kalau belum ada → create baru.
+     * - Kalau followUpDate dihapus (null) → batalkan pending LEAD_FU (set SKIPPED).
+     * Defensive raw SQL fallback kalau Prisma client belum punya model.
+     */
+    private async _syncLeadFollowUp(params: {
+        leadId: number;
+        followUpDate: Date | null;
+        branchId: number;
+        assignedToId: number | null;
+        leadName: string;
+    }) {
+        const hasModel = !!(this.prisma as any).followUp?.findFirst;
+        const findPending = async () => {
+            if (hasModel) {
+                return await (this.prisma as any).followUp.findFirst({
+                    where: { leadId: params.leadId, type: 'LEAD_FU', status: 'PENDING' },
+                });
+            }
+            const rows: any[] = await this.prisma.$queryRawUnsafe(
+                `SELECT id FROM follow_ups WHERE lead_id = ? AND type = 'LEAD_FU' AND status = 'PENDING' LIMIT 1`,
+                params.leadId,
+            );
+            return rows[0] || null;
+        };
+
+        try {
+            const existing = await findPending();
+
+            // Case 1: tanggal dihapus → skip pending FU
+            if (!params.followUpDate) {
+                if (existing) {
+                    if (hasModel) {
+                        await (this.prisma as any).followUp.update({
+                            where: { id: existing.id }, data: { status: 'SKIPPED' },
+                        });
+                    } else {
+                        await this.prisma.$executeRawUnsafe(
+                            `UPDATE follow_ups SET status = 'SKIPPED', updated_at = NOW() WHERE id = ?`,
+                            existing.id,
+                        );
+                    }
+                }
+                return;
+            }
+
+            // Case 2: ada pending → update dueDate
+            if (existing) {
+                if (hasModel) {
+                    await (this.prisma as any).followUp.update({
+                        where: { id: existing.id },
+                        data: { dueDate: params.followUpDate, assignedToId: params.assignedToId ?? null },
+                    });
+                } else {
+                    await this.prisma.$executeRawUnsafe(
+                        `UPDATE follow_ups SET due_date = ?, assigned_to_id = ?, updated_at = NOW() WHERE id = ?`,
+                        params.followUpDate, params.assignedToId, existing.id,
+                    );
+                }
+                return;
+            }
+
+            // Case 3: belum ada → create baru
+            const notes = `Auto-scheduled dari Lead "${params.leadName}" (followUpDate)`;
+            if (hasModel) {
+                await (this.prisma as any).followUp.create({
+                    data: {
+                        type: 'LEAD_FU',
+                        status: 'PENDING',
+                        dueDate: params.followUpDate,
+                        leadId: params.leadId,
+                        assignedToId: params.assignedToId ?? null,
+                        branchId: params.branchId,
+                        notes,
+                        sourceRef: `lead-fudate:${params.leadId}`,
+                    },
+                });
+            } else {
+                await this.prisma.$executeRawUnsafe(
+                    `INSERT INTO follow_ups (type, status, due_date, lead_id, assigned_to_id, branch_id, notes, source_ref, created_at, updated_at)
+                     VALUES ('LEAD_FU', 'PENDING', ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                    params.followUpDate, params.leadId, params.assignedToId,
+                    params.branchId, notes, `lead-fudate:${params.leadId}`,
+                );
+            }
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn('[_syncLeadFollowUp] gagal:', (err as Error).message);
+        }
+    }
+
     /** Load images untuk lead — raw SQL fallback kalau Prisma client model belum ada. */
     private async _loadImages(leadId: number): Promise<{ id: number; filename: string; caption: string | null; position: number }[]> {
         const hasModel = !!(this.prisma as any).leadImage?.findMany;
@@ -358,6 +453,17 @@ export class LeadsService {
             await this._syncImages(lead.id, initialImages);
         }
 
+        // Auto-create FollowUp task kalau followUpDate di-set
+        if (data.followUpDate) {
+            await this._syncLeadFollowUp({
+                leadId: lead.id,
+                followUpDate: new Date(data.followUpDate),
+                branchId,
+                assignedToId: data.assignedToId ?? null,
+                leadName: data.name,
+            });
+        }
+
         // Log activity FIRST_CONTACT
         await this.prisma.leadActivity.create({
             data: {
@@ -434,6 +540,20 @@ export class LeadsService {
             await this._syncImages(id, data.imageUrls);
         } else if (data.imageUrl !== undefined) {
             await this._syncImages(id, data.imageUrl ? [data.imageUrl] : []);
+        }
+
+        // Sync FollowUp kalau followUpDate di-update (termasuk dihapus = null)
+        if (data.followUpDate !== undefined) {
+            const targetAssignee = data.assignedToId !== undefined
+                ? data.assignedToId
+                : existing.assignedToId;
+            await this._syncLeadFollowUp({
+                leadId: id,
+                followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
+                branchId: existing.branchId ?? (existing as any).branch?.id ?? 1,
+                assignedToId: targetAssignee ?? null,
+                leadName: data.name ?? existing.name,
+            });
         }
 
         // Log activity untuk perubahan signifikan
