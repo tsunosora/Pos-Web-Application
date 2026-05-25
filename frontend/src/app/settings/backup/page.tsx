@@ -17,7 +17,7 @@ const ICON_MAP: Record<string, string> = {
     customers: "👥", hpp: "🧮", transactions: "💰", invoices: "📄",
     salesOrders: "🎨", production: "🏭", branchWorkOrders: "🔁",
     stockTransfers: "🔄", interBranchLedger: "📒",
-    clickCounting: "🖨️", opname: "📋", reports: "📊",
+    clickCounting: "🖨️", opname: "📋", reports: "📊", crm: "✨",
 };
 
 export default function BackupPage() {

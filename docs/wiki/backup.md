@@ -38,7 +38,7 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
 
 ### Grup Data yang Tersedia
 
-Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.3** (Mode Cabang Multi-Tenant + Buku Titipan Paper Print Settlement + CRM Module) dengan grup berikut:
+Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.4** (CRM + Pipeline Produksi Kanban + Custom Login Logo & Theme) dengan grup berikut:
 
 | Grup | Isi |
 |---|---|
@@ -52,14 +52,14 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 | 💰 Transaksi & Penjualan | Transaksi, item, cashflow, edit/change request |
 | 📄 Invoice & Penawaran | Invoice + SPH (Quotation) |
 | 🎨 Sales Order & Designer | SO B2B + designer portal data |
-| 🏭 Produksi & Antrian Cetak | Production batch/job + print queue |
+| 🏭 Produksi & Antrian Cetak | Production batch/job + **production_job_proofs** (multi proof image per job) + **production_job_activities** (audit log siapa pindah stage) + print queue |
 | 🔁 Work Order Antar Cabang | `branchWorkOrder` (cabang minta order ke pusat — model lama) |
 | 🔄 Transfer Stok Antar Cabang | `stockTransfer`, `stockTransferItem` (transfer bahan dari cabang A ke B) |
 | 📒 Buku Titipan Antar Cabang (Paper Print Settlement) | `interBranchLedger`, `ledgerSettlement` — settlement titipan paper print (cabang ganti bahan + biaya klik). **Banner tidak masuk ledger** — tracking via StockMovement & laporan `/reports/inter-branch-usage` |
 | 🖨️ Click Counting | Tarif klik + log mesin + meter reading + reject |
 | 📋 Stok Opname | Sesi opname + item opname |
 | 📊 Laporan Shift | Shift report + competitor (peta cuan) |
-| 🎯 CRM — Leads, Follow-ups, Templates | `lead`, `leadItem`, `leadImage`, `leadActivity`, `followUp`, `messageTemplate` — pipeline lead pra-jual + auto follow-up + template WA |
+| ✨ CRM — Leads, Follow-ups, Templates | `lead` (+ `deliveryDeadline`, `firstResponseAt`), `leadItem`, `leadImage`, `leadActivity`, `followUp`, `messageTemplate` — pipeline lead pra-jual + auto follow-up + template WA + REPEAT_ORDER source |
 
 > **Catatan tentang Bahan Titipan**: Laporan `/reports/inter-branch-usage` (audit bahan Pusat dipakai cabang) **tidak butuh tabel sendiri** — diturunkan dari `stock_movements` saat di-render. Backup `stockMovement` di grup "Produk & Inventori" sudah cukup untuk preserve riwayat tracking.
 
@@ -74,6 +74,12 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 > - **File backup v3.3** menambah **6 tabel baru CRM**: `lead`, `lead_items`, `lead_images`, `lead_activities`, `follow_ups`, `message_templates` + 4 kolom baru di tabel `customers` (`lead_source`, `assigned_cs_id`, `referrer_customer_id`, `tags`).
 >   - Backup v3.3 bisa di-restore di sistem v3.2 dengan **skip silent** untuk tabel CRM (data CRM tidak ter-restore — perlu upgrade schema dulu).
 >   - Backup v3.2 ke bawah bisa di-restore di sistem v3.3 — tabel CRM hanya akan kosong sampai diinput manual atau lewat halaman /crm.
+> - **File backup v3.4** menambah **2 tabel baru** Pipeline Produksi: `production_job_proofs` (multi proof image per job, FK cascade ke productionJob), `production_job_activities` (audit log stage change/upload/dll).
+>   - Kolom baru di `production_jobs`: `pipelineStage`, `proofImageUrl`, `penjahitName`, `jahitInDate`, `jahitEstimate`, `qcNote`, `shippedAt`, `returnedAt`, `returnReason`, `lastUpdatedBy`, `lastUpdatedAt`.
+>   - Kolom baru di `leads`: `deliveryDeadline`, `firstResponseAt`. Enum `LeadSource` tambah `REPEAT_ORDER`.
+>   - Kolom baru di `store_settings`: `loginLogoUrl`, `themeMode`, `themePrimaryColor`, `themeSecondaryColor`, `themeGradientDirection` (untuk branding login + tema app).
+>   - Backup v3.4 bisa di-restore di sistem v3.3 dengan **skip silent** untuk 2 tabel baru. Kolom baru akan diabaikan oleh sistem lama.
+>   - Backup v3.3 ke bawah bisa di-restore di sistem v3.4 — kolom baru null/default (`pipelineStage="DESIGN"`, dll).
 
 ---
 

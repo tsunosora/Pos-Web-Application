@@ -54,7 +54,7 @@ export const BACKUP_GROUPS = {
     },
     production: {
         label: 'Produksi & Antrian Cetak',
-        tables: ['productionBatch', 'productionJob', 'printJob'],
+        tables: ['productionBatch', 'productionJob', 'productionJobProof', 'productionJobActivity', 'printJob'],
     },
     branchWorkOrders: {
         label: 'Work Order Antar Cabang',
@@ -113,7 +113,10 @@ const RESTORE_ORDER = [
     'transactionEditRequest',                   // → setelah transaction & user
     'invoice', 'invoiceItem',
     'salesOrder', 'salesOrderItem', 'salesOrderProof',
-    'productionBatch', 'productionJob', 'printJob',
+    'productionBatch', 'productionJob',
+    'productionJobProof',                       // FK → productionJob (cascade delete)
+    'productionJobActivity',                    // FK → productionJob (audit log)
+    'printJob',
     'branchWorkOrder', 'branchWorkOrderItem',
     'interBranchLedger',                        // FK → transaction + companyBranch (from/to). Setelah transaction & companyBranch.
     'ledgerSettlement',                         // FK → interBranchLedger + cashflow + stockMovement. Setelah ledger & cashflow & movements.
@@ -181,7 +184,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.3', // CRM module: lead, leadItem, leadImage, leadActivity, followUp, messageTemplate
+                version: '3.4', // + Pipeline Produksi: productionJobProof, productionJobActivity. Schema additions: Lead.deliveryDeadline/firstResponseAt, ProductionJob.pipelineStage/jahitInfo/proofImageUrl/lastUpdatedBy, StoreSettings.loginLogoUrl/theme*
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,
