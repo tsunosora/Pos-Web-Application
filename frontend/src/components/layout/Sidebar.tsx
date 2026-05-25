@@ -30,6 +30,8 @@ import {
     History,
     Inbox,
     BookOpen,
+    Sparkles,
+    MessageSquare,
 } from "lucide-react";
 import { useUIStore, SidebarSectionKey } from "@/store/ui-store";
 import { useQuery } from "@tanstack/react-query";
@@ -41,6 +43,7 @@ import { getBranchInboxUnread } from "@/lib/api/branch-inbox";
 import { getBranchLedgerSummary } from "@/lib/api/branch-ledger";
 import { getProductionStats } from "@/lib/api/production";
 import { getPrintQueueStats } from "@/lib/api/print-queue";
+import { getLeadStatusSummary, getFollowUpBadgeCount } from "@/lib/api/crm";
 import { useBranchStore } from "@/store/branch-store";
 import type { LucideIcon } from "lucide-react";
 
@@ -49,7 +52,7 @@ interface NavItem {
     name: string;
     href: string;
     icon: LucideIcon;
-    badgeKey?: 'pendingInvoice' | 'pendingEdit' | 'branchInbox' | 'ledgerOutstanding' | 'productionReady' | 'printReady';
+    badgeKey?: 'pendingInvoice' | 'pendingEdit' | 'branchInbox' | 'ledgerOutstanding' | 'productionReady' | 'printReady' | 'crmLeadsNew' | 'crmFuPending';
     managerOnly?: boolean;
 }
 interface NavSection {
@@ -101,7 +104,11 @@ const SECTIONS: NavSection[] = [
         key: 'customers',
         label: 'Pelanggan & Order',
         items: [
+            { name: "CRM Dashboard", href: "/crm", icon: BarChart3 },
             { name: "Data Pelanggan", href: "/customers", icon: Users },
+            { name: "Leads CRM", href: "/crm/leads", icon: Sparkles, badgeKey: 'crmLeadsNew' },
+            { name: "Tugas Follow-up", href: "/crm/follow-ups", icon: ClipboardList, badgeKey: 'crmFuPending' },
+            { name: "Template Pesan", href: "/crm/templates", icon: MessageSquare },
             { name: "Invoice & Penawaran", href: "/invoices", icon: FileText },
             { name: "Sales Order", href: "/sales-orders", icon: FileSignature, badgeKey: 'pendingInvoice' },
             { name: "Order Cabang", href: "/branch-orders", icon: Building2 },
@@ -136,30 +143,42 @@ export function Sidebar() {
         staleTime: 5 * 60 * 1000,
     });
 
+    // Common config untuk badge polling — kurangi noise:
+    //   - refetchOnWindowFocus: false   → tab switch tidak trigger refetch
+    //   - refetchOnReconnect: 'always'  → tetap update saat balik online
+    //   - retry: false                   → kalau fail (mis. 403/500), jangan loop
+    const BADGE_POLL_LONG = 120_000;   // 2 menit — non-urgent (invoice, edit request, CRM)
+    const BADGE_POLL_MED  = 60_000;    // 1 menit — moderately urgent (production/print, inbox)
+    const BADGE_POLL_SLOW = 180_000;   // 3 menit — slowest (ledger summary)
+
     const { data: pendingEditRequests } = useQuery({
         queryKey: ['transaction-edit-requests', 'PENDING'],
         queryFn: () => getTransactionEditRequests('PENDING'),
         enabled: isManager,
-        staleTime: 60_000,
-        refetchInterval: 60_000,
+        staleTime: BADGE_POLL_LONG,
+        refetchInterval: BADGE_POLL_LONG,
+        refetchOnWindowFocus: false,
+        retry: false,
     });
     const pendingEditCount = pendingEditRequests?.length ?? 0;
 
     const { data: pendingInvoiceData } = useQuery({
         queryKey: ['so-pending-invoice-count'],
         queryFn: getPendingInvoiceCount,
-        staleTime: 30_000,
-        refetchInterval: 30_000,
+        staleTime: BADGE_POLL_LONG,
+        refetchInterval: BADGE_POLL_LONG,
+        refetchOnWindowFocus: false,
+        retry: false,
     });
     const pendingInvoiceCount = pendingInvoiceData?.count ?? 0;
 
     const { data: branchInboxData } = useQuery({
         queryKey: ['branch-inbox-unread'],
         queryFn: getBranchInboxUnread,
-        // Naikkan ke 30s biar selaras dengan BranchInboxPopup. Share queryKey
-        // dengan popup → cuma 1 fetch per interval, tidak duplikat.
-        staleTime: 25_000,
-        refetchInterval: 30_000,
+        // Share queryKey dengan BranchInboxPopup → 1 fetch per interval.
+        staleTime: BADGE_POLL_MED - 5_000,
+        refetchInterval: BADGE_POLL_MED,
+        refetchOnWindowFocus: false,
         retry: false,
     });
     const branchInboxCount = branchInboxData?.count ?? 0;
@@ -167,8 +186,9 @@ export function Sidebar() {
     const { data: ledgerSummary } = useQuery({
         queryKey: ['branch-ledger-summary-sidebar'],
         queryFn: getBranchLedgerSummary,
-        staleTime: 60_000,
-        refetchInterval: 60_000,
+        staleTime: BADGE_POLL_SLOW,
+        refetchInterval: BADGE_POLL_SLOW,
+        refetchOnWindowFocus: false,
         retry: false,
     });
     const ledgerOutstandingCount =
@@ -186,8 +206,9 @@ export function Sidebar() {
     const { data: productionStats } = useQuery({
         queryKey: ['production-stats-sidebar', sidebarBranchId ?? 'all'],
         queryFn: () => getProductionStats(sidebarBranchId ?? undefined),
-        staleTime: 30_000,
-        refetchInterval: 30_000,
+        staleTime: BADGE_POLL_MED,
+        refetchInterval: BADGE_POLL_MED,
+        refetchOnWindowFocus: false,
         retry: false,
         enabled: isOwner ? true : userBranchId != null,
     });
@@ -196,12 +217,35 @@ export function Sidebar() {
     const { data: printStats } = useQuery({
         queryKey: ['print-queue-stats-sidebar', sidebarBranchId ?? 'all'],
         queryFn: () => getPrintQueueStats(sidebarBranchId ?? undefined),
-        staleTime: 30_000,
-        refetchInterval: 30_000,
+        staleTime: BADGE_POLL_MED,
+        refetchInterval: BADGE_POLL_MED,
+        refetchOnWindowFocus: false,
         retry: false,
         enabled: isOwner ? true : userBranchId != null,
     });
     const printReadyCount = printStats?.selesai ?? 0;
+
+    const { data: crmSummary } = useQuery({
+        queryKey: ['crm-leads-summary-sidebar', sidebarBranchId ?? 'all'],
+        queryFn: getLeadStatusSummary,
+        staleTime: BADGE_POLL_LONG,
+        refetchInterval: BADGE_POLL_LONG,
+        refetchOnWindowFocus: false,
+        retry: false,
+        enabled: isOwner ? true : userBranchId != null,
+    });
+    const crmLeadsNewCount = crmSummary?.NEW ?? 0;
+
+    const { data: crmFuBadge } = useQuery({
+        queryKey: ['crm-fu-badge', sidebarBranchId ?? 'all'],
+        queryFn: () => getFollowUpBadgeCount(true),
+        staleTime: BADGE_POLL_LONG,
+        refetchInterval: BADGE_POLL_LONG,
+        refetchOnWindowFocus: false,
+        retry: false,
+        enabled: isOwner ? true : userBranchId != null,
+    });
+    const crmFuPendingCount = crmFuBadge?.count ?? 0;
 
     const storeName = settings?.storeName || 'PosPro';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -218,6 +262,8 @@ export function Sidebar() {
         if (item.badgeKey === 'ledgerOutstanding') return ledgerOutstandingCount;
         if (item.badgeKey === 'productionReady') return productionReadyCount;
         if (item.badgeKey === 'printReady') return printReadyCount;
+        if (item.badgeKey === 'crmLeadsNew') return crmLeadsNewCount;
+        if (item.badgeKey === 'crmFuPending') return crmFuPendingCount;
         return 0;
     }
 

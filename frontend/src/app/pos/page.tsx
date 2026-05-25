@@ -193,8 +193,10 @@ function POSPageContent() {
     // ---- Pre-fill cart from Sales Order (?fromSO=<id>) ----
     useEffect(() => {
         if (!fromSOId || !soData || !products || soPrefilled) return;
-        // Guard: SO must be in SENT state (DRAFT shouldn't invoice yet, INVOICED/CANCELLED blocked)
-        if (soData.status !== 'SENT') {
+        // Guard: hanya block kalau SO sudah INVOICED (nota sudah terbit) atau CANCELLED.
+        // DRAFT & SENT keduanya boleh — SO dari CRM convert ada di DRAFT, SO manual
+        // ada di SENT setelah dikirim WA group.
+        if (soData.status === 'INVOICED' || soData.status === 'CANCELLED') {
             addNotification({ type: 'system', title: 'SO tidak valid', message: `SO ${soData.soNumber} tidak bisa dibuatkan nota (status: ${soData.status})` });
             setSoPrefilled(true);
             return;
@@ -1938,7 +1940,37 @@ function POSPageContent() {
                                     Share ke WA
                                 </button>
                             </div>
-                            <button onClick={() => setReceipt(null)}
+                            <button onClick={() => {
+                                // Defensive: pastikan cart & state customer bersih saat user
+                                // klik "Selesai / Transaksi Baru". Idempotent — onSuccess
+                                // sudah clear, ini guard kalau ada edge case (offline retry,
+                                // race condition, dll).
+                                clearCart();
+                                setCustomerName('');
+                                setCustomerPhone('');
+                                setCustomerAddress('');
+                                setDiscount('');
+                                setShippingCost('');
+                                setDueDate('');
+                                setDownPayment('');
+                                setDpBayarNanti('');
+                                setDpMethodBayarNanti('CASH');
+                                setDpBankBayarNanti('');
+                                setPaymentMethod('CASH');
+                                setSelectedBankId('');
+                                setProductionPriority('NORMAL');
+                                setProductionDeadline('');
+                                setProductionNotes('');
+                                setProductionBranchId(null);
+                                setTransactionDate('');
+                                setCashflowToday(false);
+                                if (salesOrderId) {
+                                    setSalesOrderId(null);
+                                    setSoPrefilled(false);
+                                    router.replace('/pos');
+                                }
+                                setReceipt(null);
+                            }}
                                 className="w-full py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl transition-colors text-sm">
                                 Selesai / Transaksi Baru
                             </button>
@@ -2007,6 +2039,18 @@ function POSPageContent() {
 }
 
 export default function POSPage() {
+    // Mounted guard: hindari hydration mismatch karena POSPageContent baca data
+    // dari TanStack Query Persist (IndexedDB) di mount yang berbeda dari snapshot
+    // SSR/SSG. POS = admin-only, tidak butuh pre-render SEO.
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
+    if (!mounted) {
+        return (
+            <div className="flex items-center justify-center h-[60vh] text-muted-foreground text-sm">
+                Memuat POS…
+            </div>
+        );
+    }
     return (
         <Suspense fallback={null}>
             <POSPageContent />

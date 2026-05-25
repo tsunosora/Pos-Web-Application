@@ -109,8 +109,9 @@ export function useReadyJobs() {
                 return bt - at;
             });
         },
-        refetchInterval: 30_000,
-        staleTime: 15_000,
+        refetchInterval: 60_000,
+        staleTime: 55_000,
+        refetchOnWindowFocus: false,
         retry: false,
         enabled: ready,
     });

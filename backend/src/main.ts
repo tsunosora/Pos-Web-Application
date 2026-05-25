@@ -18,6 +18,16 @@ async function bootstrap() {
         return;
       }
     }
+    // Disable cache untuk semua API response. Mencegah CDN (Cloudflare),
+    // nginx proxy_cache, atau browser cache JSON response yang bisa stale
+    // dan bikin bug seperti URL foto rusak masih tampil walau backend sudah
+    // sanitize. Static asset (gambar /uploads, dll) tidak terpengaruh karena
+    // di-serve via path lain.
+    if (req.method === 'GET' && !req.path.startsWith('/uploads')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
     next();
   });
 

@@ -21,13 +21,30 @@ import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 export class BranchInboxService {
     constructor(private prisma: PrismaService) { }
 
+    /**
+     * Strict — wajib branch spesifik. Dipakai untuk WRITE (acknowledge, markReady,
+     * confirmPickup, markHandover) yang harus jelas untuk cabang mana.
+     */
     private resolveBranchId(ctx: BranchContext): number {
         if (ctx.branchId == null) {
             throw new ForbiddenException(
-                'Mode "Semua Cabang" tidak didukung untuk inbox. Pilih cabang dulu di topbar.',
+                'Mode "Semua Cabang" tidak didukung untuk operasi ini. Pilih cabang dulu di topbar.',
             );
         }
         return ctx.branchId;
+    }
+
+    /**
+     * Lenient — return null untuk Owner di mode "Semua Cabang" (aggregate).
+     * Staff tetap di-lock ke branchId mereka. Dipakai untuk READ (list, unreadCount,
+     * readyOutbox, outbox, getDetail) supaya Owner bisa lihat agregat lintas cabang.
+     */
+    private resolveBranchIdOrAll(ctx: BranchContext): number | null {
+        if (ctx.branchId != null) return ctx.branchId;
+        if (ctx.isOwner) return null; // aggregate semua cabang
+        throw new ForbiddenException(
+            'User staff belum ter-assign ke cabang manapun. Hubungi admin.',
+        );
     }
 
     /**
@@ -53,13 +70,23 @@ export class BranchInboxService {
     }
 
     async list(ctx: BranchContext, status?: string) {
-        const branchId = this.resolveBranchId(ctx);
+        const branchId = this.resolveBranchIdOrAll(ctx);
 
+        // Filter: titipan masuk = productionBranchId tertentu & dari cabang berbeda.
+        // Mode Owner-all: ambil semua titipan lintas cabang (productionBranchId != branchId pemesan).
+        const where: any = branchId != null
+            ? { productionBranchId: branchId, branchId: { not: branchId } }
+            : {
+                productionBranchId: { not: null },
+                // Cross-branch titipan: productionBranchId beda dengan branchId
+                // pakai Prisma not equal via raw filter (workaround karena
+                // Prisma tidak support field-vs-field comparison langsung).
+                NOT: { productionBranchId: { equals: undefined } },
+            };
+
+        // Untuk mode all, kita filter cross-branch di sisi JS setelah fetch.
         const transactions = await (this.prisma as any).transaction.findMany({
-            where: {
-                productionBranchId: branchId,
-                branchId: { not: branchId },
-            },
+            where,
             orderBy: [{ createdAt: 'desc' }],
             include: {
                 branch: { select: { id: true, name: true, code: true } },
@@ -78,9 +105,16 @@ export class BranchInboxService {
             },
         });
 
-        const handoverMap = await this.loadHandoverMap(transactions.map((t: any) => t.id));
+        // Filter cross-branch di JS untuk mode all
+        const filtered = branchId != null
+            ? transactions
+            : transactions.filter((t: any) =>
+                t.branchId != null && t.productionBranchId != null && t.branchId !== t.productionBranchId
+            );
 
-        let result = transactions.map((tx: any) => {
+        const handoverMap = await this.loadHandoverMap(filtered.map((t: any) => t.id));
+
+        let result = filtered.map((tx: any) => {
             const h = handoverMap.get(tx.id) ?? { handoverStatus: 'BARU', handoverAckAt: null, handoverReadyAt: null, handoverDoneAt: null };
             return {
                 id: tx.id,
@@ -96,6 +130,7 @@ export class BranchInboxService {
                 handoverReadyAt: h.handoverReadyAt,
                 handoverDoneAt: h.handoverDoneAt,
                 sourceBranch: tx.branch,
+                productionBranch: tx.productionBranch,
                 createdAt: tx.createdAt,
                 itemCount: tx.items.length,
                 items: tx.items.map((it: any) => ({
@@ -154,18 +189,19 @@ export class BranchInboxService {
     }
 
     async unreadCount(ctx: BranchContext): Promise<{ count: number; latest: any[] }> {
-        const branchId = this.resolveBranchId(ctx);
-        // Ambil semua kandidat (dengan productionBranchId = cabang aktif & beda branch),
-        // lalu filter status BARU via raw map.
+        const branchId = this.resolveBranchIdOrAll(ctx);
+
+        const where: any = branchId != null
+            ? { productionBranchId: branchId, branchId: { not: branchId } }
+            : { productionBranchId: { not: null } };
+
         const candidates = await (this.prisma as any).transaction.findMany({
-            where: {
-                productionBranchId: branchId,
-                branchId: { not: branchId },
-            },
+            where,
             orderBy: [{ createdAt: 'desc' }],
-            take: 50,
+            take: branchId != null ? 50 : 200,
             include: {
                 branch: { select: { id: true, name: true, code: true } },
+                productionBranch: { select: { id: true, name: true, code: true } },
                 items: {
                     select: {
                         quantity: true,
@@ -179,8 +215,15 @@ export class BranchInboxService {
             },
         });
 
-        const map = await this.loadHandoverMap(candidates.map((t: any) => t.id));
-        const unread = candidates.filter((t: any) => (map.get(t.id)?.handoverStatus ?? 'BARU') === 'BARU');
+        // Mode all: filter cross-branch
+        const crossBranch = branchId != null
+            ? candidates
+            : candidates.filter((t: any) =>
+                t.branchId != null && t.productionBranchId != null && t.branchId !== t.productionBranchId
+            );
+
+        const map = await this.loadHandoverMap(crossBranch.map((t: any) => t.id));
+        const unread = crossBranch.filter((t: any) => (map.get(t.id)?.handoverStatus ?? 'BARU') === 'BARU');
         const latest = unread.slice(0, 5);
         return { count: unread.length, latest };
     }
@@ -303,14 +346,17 @@ export class BranchInboxService {
      * notifikasi di cabang pemesan: "Cetakan sudah jadi, siap diambil".
      */
     async readyOutbox(ctx: BranchContext): Promise<{ count: number; latest: any[] }> {
-        const branchId = this.resolveBranchId(ctx);
+        const branchId = this.resolveBranchIdOrAll(ctx);
+
+        // Mode all: hilangkan filter branch_id; mode single: filter sesuai branch.
+        const branchFilter = branchId != null ? `AND branch_id = ${Number(branchId)}` : '';
         const rows: any[] = await this.prisma.$queryRawUnsafe(
             `SELECT id FROM transactions
-             WHERE branch_id = ? AND production_branch_id IS NOT NULL
+             WHERE production_branch_id IS NOT NULL
                AND production_branch_id <> branch_id
                AND handover_status = 'SIAP_AMBIL'
+               ${branchFilter}
              ORDER BY handover_ready_at DESC LIMIT 20`,
-            branchId,
         );
         const ids = rows.map((r: any) => Number(r.id));
         if (!ids.length) return { count: 0, latest: [] };

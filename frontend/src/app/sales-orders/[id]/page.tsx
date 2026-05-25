@@ -132,7 +132,10 @@ export default function SalesOrderDetailPage() {
 
     const canEdit = so.status === 'DRAFT' || so.status === 'SENT';
     const canSendWa = so.status === 'DRAFT' || so.status === 'SENT';
-    const canInvoice = so.status === 'SENT';
+    // Allow invoice dari DRAFT juga — flow lama (manual SO) tetap bisa pakai
+    // "Kirim ke Group WA" dulu kalau mau notif desainer, tapi tidak wajib.
+    // Untuk SO hasil convert dari CRM lead, items sudah lengkap → bisa langsung invoice.
+    const canInvoice = so.status === 'DRAFT' || so.status === 'SENT';
     const canCancel = so.status === 'DRAFT' || so.status === 'SENT';
 
     return (

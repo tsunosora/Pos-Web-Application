@@ -82,6 +82,11 @@ export const BACKUP_GROUPS = {
         label: 'Laporan Shift',
         tables: ['shiftReport', 'competitor'],
     },
+    crm: {
+        label: 'CRM — Leads, Follow-ups, Templates',
+        // Lead + items + images + activities + follow-ups + message templates
+        tables: ['lead', 'leadItem', 'leadImage', 'leadActivity', 'followUp', 'messageTemplate'],
+    },
 } as const;
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
@@ -114,6 +119,18 @@ const RESTORE_ORDER = [
     'ledgerSettlement',                         // FK → interBranchLedger + cashflow + stockMovement. Setelah ledger & cashflow & movements.
     'clickRate', 'clickLog', 'machineReject', 'meterReading',
     'stockOpnameSession', 'stockOpnameItem',
+    // CRM — diletakkan paling akhir karena bisa reference banyak entity:
+    //   lead.assignedToId → user
+    //   lead.convertedCustomerId → customer
+    //   lead.convertedSalesOrderId → salesOrder
+    //   leadItem.productVariantId → productVariant
+    //   followUp.customerId → customer; followUp.leadId → lead
+    'messageTemplate',                          // standalone — no FK
+    'lead',                                     // FK → user, customer, salesOrder, companyBranch
+    'leadItem',                                 // FK → lead, productVariant
+    'leadImage',                                // FK → lead
+    'leadActivity',                             // FK → lead, customer, user
+    'followUp',                                 // FK → lead, customer, user, branch, messageTemplate
 ];
 
 // Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)
@@ -164,7 +181,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.2', // titipanFeePercent default 0 (1 owner setup), banner skip ledger (tracking via /reports/inter-branch-usage)
+                version: '3.3', // CRM module: lead, leadItem, leadImage, leadActivity, followUp, messageTemplate
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

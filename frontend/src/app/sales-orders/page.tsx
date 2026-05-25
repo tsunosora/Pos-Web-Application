@@ -257,10 +257,11 @@ export default function SalesOrdersPage() {
                                                 >
                                                     <Eye className="h-3 w-3" /> Detail
                                                 </Link>
-                                                {so.status === 'SENT' && (
+                                                {(so.status === 'DRAFT' || so.status === 'SENT') && (
                                                     <Link
                                                         href={`/pos?fromSO=${so.id}`}
                                                         className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+                                                        title="Bawa item SO ke POS, lanjutkan checkout untuk terbit nota"
                                                     >
                                                         <ExternalLink className="h-3 w-3" /> Buat Nota
                                                     </Link>
