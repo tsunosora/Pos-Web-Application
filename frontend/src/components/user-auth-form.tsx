@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Loader2 } from "lucide-react"
+import { Loader2, Eye, EyeOff } from "lucide-react"
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
     mobileGlass?: boolean;
@@ -18,6 +18,7 @@ export function UserAuthForm({ className, mobileGlass, ...props }: UserAuthFormP
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [isRegistering, setIsRegistering] = React.useState<boolean>(false)
     const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
+    const [showPassword, setShowPassword] = React.useState<boolean>(false)
 
     async function onSubmit(event: React.SyntheticEvent) {
         event.preventDefault()
@@ -90,17 +91,41 @@ export function UserAuthForm({ className, mobileGlass, ...props }: UserAuthFormP
                     </div>
                     <div className="grid gap-2">
                         <Label className="sr-only" htmlFor="password">Password</Label>
-                        <Input
-                            id="password"
-                            name="password"
-                            placeholder="Password"
-                            type="password"
-                            autoCapitalize="none"
-                            autoComplete="current-password"
-                            disabled={isLoading}
-                            required
-                            className={mobileGlass ? "bg-white/10 border-white/25 text-white placeholder:text-white/40 focus-visible:ring-white/30 lg:bg-background lg:border-input lg:text-foreground lg:placeholder:text-muted-foreground" : ""}
-                        />
+                        <div className="relative">
+                            <Input
+                                id="password"
+                                name="password"
+                                placeholder="Password"
+                                type={showPassword ? "text" : "password"}
+                                autoCapitalize="none"
+                                autoComplete="current-password"
+                                disabled={isLoading}
+                                required
+                                className={cn(
+                                    "pr-10",
+                                    mobileGlass && "bg-white/10 border-white/25 text-white placeholder:text-white/40 focus-visible:ring-white/30 lg:bg-background lg:border-input lg:text-foreground lg:placeholder:text-muted-foreground"
+                                )}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(v => !v)}
+                                disabled={isLoading}
+                                tabIndex={-1}
+                                aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                                className={cn(
+                                    "absolute inset-y-0 right-0 flex items-center pr-3 disabled:opacity-50",
+                                    mobileGlass
+                                        ? "text-white/60 hover:text-white lg:text-muted-foreground lg:hover:text-foreground"
+                                        : "text-muted-foreground hover:text-foreground"
+                                )}
+                            >
+                                {showPassword ? (
+                                    <EyeOff className="h-4 w-4" />
+                                ) : (
+                                    <Eye className="h-4 w-4" />
+                                )}
+                            </button>
+                        </div>
                     </div>
                     {errorMsg && (
                         <div className="text-sm font-medium text-destructive text-center">
