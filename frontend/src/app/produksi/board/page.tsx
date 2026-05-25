@@ -680,7 +680,7 @@ const KanbanCard = memo(function KanbanCard({
             {job.lastUpdatedBy && (
                 <div className="mt-1.5 pt-1 border-t border-gray-100 text-[9px] text-gray-400 italic truncate">
                     by {job.lastUpdatedBy}
-                    {job.lastUpdatedAt && ` · ${dayjs(job.lastUpdatedAt).fromNow ? dayjs(job.lastUpdatedAt).format("DD MMM HH:mm") : ''}`}
+                    {job.lastUpdatedAt && ` · ${dayjs(job.lastUpdatedAt).format("DD MMM HH:mm")}`}
                 </div>
             )}
         </div>
