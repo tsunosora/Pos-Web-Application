@@ -103,14 +103,22 @@ const LT_LETTERS = [
 type PublicSettings = {
     storeName: string;
     logoImageUrl: string | null;
+    loginLogoUrl: string | null;
     loginBgImages: string[];
     loginTaglines: string[];
+    theme?: {
+        mode: 'SOLID' | 'GRADIENT';
+        primaryColor: string;
+        secondaryColor: string;
+        gradientDirection: string;
+    };
 };
 
 export function AnimatedBackground() {
     const [settings, setSettings] = useState<PublicSettings>({
         storeName: 'PosPro',
         logoImageUrl: null,
+        loginLogoUrl: null,
         loginBgImages: [],
         loginTaglines: [],
     });
@@ -182,9 +190,24 @@ export function AnimatedBackground() {
                         </div>
                     ))
                 ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#1a0510] via-[#2d0818] to-[#08152a]" />
+                    // Theme-aware background — pakai gradient/solid dari StoreSettings.theme,
+                    // fallback ke default dark gradient kalau belum di-load.
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            background: settings.theme
+                                ? (settings.theme.mode === 'GRADIENT'
+                                    ? `linear-gradient(${settings.theme.gradientDirection}, ${settings.theme.primaryColor}, ${settings.theme.secondaryColor})`
+                                    : settings.theme.primaryColor)
+                                : 'linear-gradient(to bottom right, #1a0510, #2d0818, #08152a)',
+                        }}
+                    />
                 )}
-                <div className="absolute inset-0 bg-black/55" />
+                {/* Dim overlay: hanya untuk bg images supaya teks/logo putih kebaca.
+                    Kalau pakai theme color saja, overlay di-skip — warna tampil murni. */}
+                {settings.loginBgImages.length > 0 && (
+                    <div className="absolute inset-0 bg-black/55" />
+                )}
             </div>
 
             {/* ── Ambient glow ── */}
@@ -211,8 +234,38 @@ export function AnimatedBackground() {
                 </span>
             </div>
 
-            {/* ── Voliko animated logo ── */}
+            {/* ── Centerpiece: custom logo (kalau di-set) ATAU animasi Voliko default ── */}
             <div className="relative z-20 flex flex-1 items-center justify-center">
+                {settings.loginLogoUrl ? (
+                    // Custom logo — replace animasi Voliko. Sparkles & ring tetap di sekeliling.
+                    <div className="vl-scene relative flex flex-col items-center">
+                        <div className="absolute pointer-events-none" style={{ inset: '-60px', zIndex: 0 }}>
+                            {SPARKLES.map((sp, i) => (
+                                <div
+                                    key={i}
+                                    className="absolute rounded-full opacity-0"
+                                    style={{ width: sp.w, height: sp.h, background: sp.bg, ...sp.pos, animation: sp.anim }}
+                                />
+                            ))}
+                        </div>
+                        <div className="relative flex items-center justify-center" style={{ width: 280, height: 280 }}>
+                            <div className="absolute inset-0 rounded-full border-2 opacity-0"
+                                style={{ borderColor: 'rgba(230,27,77,.45)', animation: 'vl-ringOut 2.6s ease-out 1.3s infinite' }} />
+                            <div className="absolute inset-0 rounded-full border-2 opacity-0"
+                                style={{ borderColor: 'rgba(48,160,218,.35)', animation: 'vl-ringOut 2.6s ease-out 1.9s infinite' }} />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={`${base}${settings.loginLogoUrl}`}
+                                alt="Login Logo"
+                                className="relative z-10 max-w-full max-h-full object-contain"
+                                style={{
+                                    animation: 'vl-iconPop .85s cubic-bezier(.34,1.56,.64,1) .1s both, vl-iconBob 4s ease-in-out 1.8s infinite',
+                                    filter: 'drop-shadow(0 10px 32px rgba(0,0,0,.4)) drop-shadow(0 2px 10px rgba(0,0,0,.5))',
+                                }}
+                            />
+                        </div>
+                    </div>
+                ) : (
                 <div className="vl-scene relative flex flex-col items-center">
 
                     {/* Sparkles */}
@@ -283,6 +336,7 @@ export function AnimatedBackground() {
                         </div>
                     </div>
                 </div>
+                )}
             </div>
 
             {/* ── Taglines ── */}

@@ -5,6 +5,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { openDB, IDBPDatabase } from 'idb';
 import { useState } from 'react';
+import { ThemeProvider } from '@/components/ThemeProvider';
 
 const CACHE_MAX_AGE = 1000 * 60 * 60 * 24; // 24 jam
 
@@ -78,7 +79,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 buster: '2',
             }}
         >
-            {children}
+            <ThemeProvider>{children}</ThemeProvider>
         </PersistQueryClientProvider>
     );
 }

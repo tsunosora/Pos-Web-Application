@@ -565,6 +565,14 @@ model StoreSettings {
   taxRate               Decimal   @default(10) @map("tax_rate") @db.Decimal(5, 2)
   loginBgImages         String?   @map("login_bg_images") @db.Text
   loginTaglines         String?   @map("login_taglines") @db.Text
+  // Custom logo untuk login page (replace animasi Voliko centerpiece).
+  // Support SVG/PNG/JPG. Kalau null, animasi Voliko default tetap.
+  loginLogoUrl          String?   @map("login_logo_url") @db.Text
+  // Theme color app-wide (di-expose via CSS variable --theme-primary, --theme-bg).
+  themeMode             String?   @default("SOLID") @map("theme_mode") @db.VarChar(20)
+  themePrimaryColor     String?   @default("#4F46E5") @map("theme_primary_color") @db.VarChar(20)
+  themeSecondaryColor   String?   @default("#7C3AED") @map("theme_secondary_color") @db.VarChar(20)
+  themeGradientDirection String?  @default("135deg") @map("theme_gradient_direction") @db.VarChar(20)
   operatorPin           String?   @map("operator_pin") @db.VarChar(10)
   notifyNewTransaction  Boolean   @default(true) @map("notify_new_transaction")
   notifyLowStock        Boolean   @default(true) @map("notify_low_stock")

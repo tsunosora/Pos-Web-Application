@@ -27,6 +27,13 @@ export const uploadLogoImage = async (file: File) => {
         headers: { 'Content-Type': 'multipart/form-data' },
     })).data;
 };
+export const uploadLoginLogo = async (file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return (await api.post('/settings/upload-login-logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })).data;
+};
 
 // Users & Roles
 export const getUsers = async () => (await api.get('/users')).data;

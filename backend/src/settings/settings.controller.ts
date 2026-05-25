@@ -71,4 +71,24 @@ export class SettingsController {
         await compressImage(file.path);
         return { url: `/uploads/${file.filename}` };
     }
+
+    /** Upload login logo (centerpiece di login page, replace animasi Voliko). */
+    @Post('upload-login-logo')
+    @UseGuards(JwtAuthGuard)
+    @UseInterceptors(FileInterceptor('image', {
+        storage: diskStorage({
+            destination: './public/uploads',
+            filename: (req, file, cb) => cb(null, `loginlogo_${randomHex()}${extname(file.originalname)}`),
+        })
+    }))
+    async uploadLoginLogo(@UploadedFile() file: Express.Multer.File) {
+        // SVG tidak di-compress (vector preserved); raster image (jpg/png) di-compress
+        const ext = extname(file.originalname || '').toLowerCase();
+        if (ext !== '.svg') {
+            await compressImage(file.path);
+        }
+        const fileUrl = `/uploads/${file.filename}`;
+        await this.settingsService.updateLoginLogo(fileUrl);
+        return { url: fileUrl };
+    }
 }
