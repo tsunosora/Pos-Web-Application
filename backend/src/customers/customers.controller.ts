@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -35,6 +35,11 @@ export class CustomersController {
         return this.customersService.findAllWithStats();
     }
 
+    @Get('lookup')
+    lookup(@Query('phone') phone?: string) {
+        return this.customersService.lookupByPhone(phone || '');
+    }
+
     @Get('export-data')
     findAllForExport() {
         return this.customersService.findAllForExport();
@@ -45,8 +50,16 @@ export class CustomersController {
         return this.customersService.getAnalytics(+id);
     }
 
+    @Get(':id/crm-timeline')
+    getCrmTimeline(@Param('id') id: string) {
+        return this.customersService.getCrmTimeline(+id);
+    }
+
     @Patch(':id')
-    update(@Param('id') id: string, @Body() data: { name?: string; phone?: string; address?: string }) {
+    update(
+        @Param('id') id: string,
+        @Body() data: { name?: string; phone?: string; address?: string; assignedCsId?: number | null; tags?: any },
+    ) {
         return this.customersService.update(+id, data);
     }
 

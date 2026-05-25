@@ -9,3 +9,22 @@ export const createCustomer = async (data: { name: string, phone?: string, addre
 export const updateCustomer = async (id: number, data: { name?: string, phone?: string, address?: string }) =>
     (await api.patch(`/customers/${id}`, data)).data;
 export const deleteCustomer = async (id: number) => (await api.delete(`/customers/${id}`)).data;
+
+// CRM timeline (activities + follow-ups + assigned CS)
+export const getCustomerCrmTimeline = async (id: number): Promise<{
+    customer: {
+        id: number;
+        name: string;
+        phone: string | null;
+        leadSource: string | null;
+        assignedCs: { id: number; name: string | null; email: string } | null;
+        tags: any;
+    };
+    activities: any[];
+    followUps: any[];
+}> => (await api.get(`/customers/${id}/crm-timeline`)).data;
+
+export const updateCustomerCrm = async (
+    id: number,
+    data: { assignedCsId?: number | null; tags?: any; name?: string; phone?: string; address?: string },
+) => (await api.patch(`/customers/${id}`, data)).data;

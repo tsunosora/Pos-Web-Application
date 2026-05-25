@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ScheduleModule } from '@nestjs/schedule';
 import { join } from 'path';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -42,13 +43,18 @@ import { BranchSettingsModule } from './branch-settings/branch-settings.module';
 import { BranchInboxModule } from './branch-inbox/branch-inbox.module';
 import { BranchLedgerModule } from './branch-ledger/branch-ledger.module';
 import { InterBranchUsageModule } from './inter-branch-usage/inter-branch-usage.module';
+import { LeadsModule } from './crm/leads/leads.module';
+import { TemplatesModule } from './crm/templates/templates.module';
+import { FollowUpsModule } from './crm/follow-ups/follow-ups.module';
+import { KpiModule } from './crm/kpi/kpi.module';
 
 @Module({
   imports: [
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'public'), // Serve local uploads
     }),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule],
+    ScheduleModule.forRoot(),
+    PrismaModule, UsersModule, AuthModule, CategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule],
   controllers: [AppController],
   providers: [AppService],
 })

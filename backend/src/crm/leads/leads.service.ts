@@ -1,0 +1,746 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { LeadStatus, Prisma } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
+import { branchWhere, requireBranch } from '../../common/branch-where.helper';
+import type { BranchContext } from '../../common/branch-context.decorator';
+import { CloseLostDto, ConvertLeadDto, CreateActivityDto, CreateLeadDto, LeadItemDto, UpdateLeadDto } from './leads.dto';
+
+/** Normalisasi nomor HP untuk dedup: strip non-digit, drop leading 62/0. */
+function normalizePhone(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    let s = String(raw).replace(/\D/g, '');
+    if (s.startsWith('62')) s = s.slice(2);
+    if (s.startsWith('0')) s = s.slice(1);
+    return s || null;
+}
+
+@Injectable()
+export class LeadsService {
+    constructor(private readonly prisma: PrismaService) {}
+
+    private async generateSoNumber(): Promise<string> {
+        // Pattern existing: SO-YYYYMMDD-XXX (lihat sales-orders.service kalau ada — fallback simple)
+        const today = new Date();
+        const yyyymmdd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+        const prefix = `SO-${yyyymmdd}`;
+        const last = await this.prisma.salesOrder.findFirst({
+            where: { soNumber: { startsWith: prefix } },
+            orderBy: { soNumber: 'desc' },
+        });
+        let n = 1;
+        if (last) {
+            const tail = last.soNumber.split('-').pop() || '0';
+            n = parseInt(tail, 10) + 1;
+        }
+        return `${prefix}-${String(n).padStart(3, '0')}`;
+    }
+
+    /** List + filter + search. */
+    async list(ctx: BranchContext, params: {
+        status?: string;
+        source?: string;
+        assignedToId?: number;
+        search?: string;
+        page?: number;
+        limit?: number;
+    }) {
+        const where: Prisma.LeadWhereInput = { ...branchWhere(ctx) };
+        if (params.status) where.status = params.status as LeadStatus;
+        if (params.source) where.source = params.source as any;
+        if (params.assignedToId) where.assignedToId = params.assignedToId;
+        if (params.search) {
+            const norm = normalizePhone(params.search);
+            where.OR = [
+                { name: { contains: params.search } },
+                { phoneNormalized: norm ? { contains: norm } : undefined },
+                { city: { contains: params.search } },
+                { needs: { contains: params.search } },
+            ].filter(Boolean) as any;
+        }
+
+        const page = Math.max(1, params.page || 1);
+        const limit = Math.min(200, Math.max(1, params.limit || 50));
+        const [items, total] = await this.prisma.$transaction([
+            this.prisma.lead.findMany({
+                where,
+                orderBy: [{ status: 'asc' }, { updatedAt: 'desc' }],
+                include: {
+                    assignedTo: { select: { id: true, name: true, email: true } },
+                    branch: { select: { id: true, name: true, code: true } },
+                    convertedCustomer: { select: { id: true, name: true, phone: true } },
+                    convertedSO: { select: { id: true, soNumber: true } },
+                    _count: { select: { activities: true } },
+                },
+                skip: (page - 1) * limit,
+                take: limit,
+            }),
+            this.prisma.lead.count({ where }),
+        ]);
+
+        return { items, total, page, limit };
+    }
+
+    /** Status summary untuk badge + dashboard. */
+    async statusSummary(ctx: BranchContext) {
+        const grouped = await this.prisma.lead.groupBy({
+            by: ['status'],
+            where: branchWhere(ctx),
+            _count: { _all: true },
+        });
+        const summary: Record<string, number> = {
+            NEW: 0, FOLLOW_UP: 0, NEGOTIATION: 0, CLOSED_WON: 0, CLOSED_LOST: 0,
+        };
+        for (const g of grouped) summary[g.status] = g._count._all;
+        return summary;
+    }
+
+    async detail(ctx: BranchContext, id: number) {
+        const hasLeadItemModel = !!(this.prisma as any).leadItem?.findMany;
+        const includeBase: any = {
+            assignedTo: { select: { id: true, name: true, email: true } },
+            createdBy: { select: { id: true, name: true } },
+            branch: { select: { id: true, name: true, code: true } },
+            convertedCustomer: { select: { id: true, name: true, phone: true } },
+            convertedSO: { select: { id: true, soNumber: true } },
+            activities: {
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+                include: { createdBy: { select: { id: true, name: true } } },
+            },
+        };
+        if (hasLeadItemModel) {
+            includeBase.items = {
+                orderBy: { id: 'asc' },
+                include: {
+                    productVariant: {
+                        select: {
+                            id: true, sku: true, variantName: true, price: true,
+                            product: { select: { id: true, name: true, pricingMode: true } },
+                        },
+                    },
+                },
+            };
+        }
+
+        const lead: any = await this.prisma.lead.findUnique({
+            where: { id },
+            include: includeBase,
+        });
+        if (!lead) throw new NotFoundException('Lead tidak ditemukan');
+
+        // Fallback: load items via raw SQL kalau Prisma client tidak punya model
+        if (!hasLeadItemModel && lead) {
+            const rawItems: any[] = await this.prisma.$queryRawUnsafe(`
+                SELECT li.id, li.lead_id AS leadId, li.product_variant_id AS productVariantId,
+                       li.description, li.quantity, li.unit_price AS unitPrice,
+                       li.width_cm AS widthCm, li.height_cm AS heightCm,
+                       li.unit_type AS unitType, li.note,
+                       pv.sku AS pv_sku, pv.variant_name AS pv_variantName, pv.price AS pv_price,
+                       p.id AS p_id, p.name AS p_name, p.pricing_mode AS p_pricingMode
+                FROM lead_items li
+                LEFT JOIN product_variants pv ON pv.id = li.product_variant_id
+                LEFT JOIN products p ON p.id = pv.product_id
+                WHERE li.lead_id = ?
+                ORDER BY li.id ASC
+            `, id);
+            lead.items = (rawItems as any[]).map((r) => ({
+                id: Number(r.id),
+                leadId: Number(r.leadId),
+                productVariantId: r.productVariantId != null ? Number(r.productVariantId) : null,
+                description: r.description,
+                quantity: Number(r.quantity),
+                unitPrice: Number(r.unitPrice),
+                widthCm: r.widthCm != null ? Number(r.widthCm) : null,
+                heightCm: r.heightCm != null ? Number(r.heightCm) : null,
+                unitType: r.unitType,
+                note: r.note,
+                productVariant: r.productVariantId != null ? {
+                    id: Number(r.productVariantId),
+                    sku: r.pv_sku,
+                    variantName: r.pv_variantName,
+                    price: Number(r.pv_price),
+                    product: r.p_id != null ? {
+                        id: Number(r.p_id),
+                        name: r.p_name,
+                        pricingMode: r.p_pricingMode,
+                    } : null,
+                } : null,
+            }));
+        }
+        // Branch isolation: staff cabang lain tidak boleh akses lead cabang lain
+        if (!ctx.isOwner && lead.branchId != null && lead.branchId !== ctx.userBranchId) {
+            throw new NotFoundException('Lead tidak ditemukan');
+        }
+
+        // Always load images (multi). Tidak include via Prisma — defensive.
+        lead.images = await this._loadImages(id);
+
+        return lead;
+    }
+
+    /**
+     * Hitung subtotal item — AREA_BASED kalau widthCm & heightCm ter-isi.
+     * Formula:
+     *   AREA_BASED: qty × (w × h / 10000) × unitPrice  (unitPrice = harga per m²)
+     *   UNIT      : qty × unitPrice
+     */
+    private calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null }): number {
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.unitPrice) || 0;
+        const w = Number(item.widthCm) || 0;
+        const h = Number(item.heightCm) || 0;
+        if (w > 0 && h > 0) {
+            const areaM2 = (w * h) / 10000;
+            return qty * areaM2 * price;
+        }
+        return qty * price;
+    }
+
+    /** Sum total value dari array items. Dipakai auto-calc estimatedValue. */
+    private sumItemsTotal(items: LeadItemDto[] | undefined): number {
+        if (!items?.length) return 0;
+        return items.reduce((s, it) => s + this.calcItemSubtotal(it), 0);
+    }
+
+    /**
+     * Replace semua images untuk lead — pakai LeadImage model. Backward compat:
+     * juga update Lead.imageUrl = first image (legacy code yang baca single field
+     * tetap jalan). Defensive raw SQL fallback.
+     */
+    private async _syncImages(leadId: number, urls: string[]) {
+        const hasModel = !!(this.prisma as any).leadImage?.deleteMany;
+        if (hasModel) {
+            await (this.prisma as any).leadImage.deleteMany({ where: { leadId } });
+        } else {
+            await this.prisma.$executeRawUnsafe(`DELETE FROM lead_images WHERE lead_id = ?`, leadId);
+        }
+        if (urls.length === 0) {
+            // Reset Lead.imageUrl juga
+            await (this.prisma as any).lead.update({
+                where: { id: leadId }, data: { imageUrl: null },
+            });
+            return;
+        }
+        const rows = urls.map((url, i) => ({
+            leadId, filename: url, position: i, caption: null,
+        }));
+        if (hasModel) {
+            await (this.prisma as any).leadImage.createMany({ data: rows });
+        } else {
+            for (const r of rows) {
+                await this.prisma.$executeRawUnsafe(
+                    `INSERT INTO lead_images (lead_id, filename, position, caption) VALUES (?, ?, ?, ?)`,
+                    r.leadId, r.filename, r.position, r.caption,
+                );
+            }
+        }
+        // Backward compat: Lead.imageUrl = first image
+        await (this.prisma as any).lead.update({
+            where: { id: leadId }, data: { imageUrl: urls[0] },
+        });
+    }
+
+    /** Load images untuk lead — raw SQL fallback kalau Prisma client model belum ada. */
+    private async _loadImages(leadId: number): Promise<{ id: number; filename: string; caption: string | null; position: number }[]> {
+        const hasModel = !!(this.prisma as any).leadImage?.findMany;
+        if (hasModel) {
+            return (this.prisma as any).leadImage.findMany({
+                where: { leadId }, orderBy: { position: 'asc' },
+                select: { id: true, filename: true, caption: true, position: true },
+            });
+        }
+        const rows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT id, filename, caption, position FROM lead_images WHERE lead_id = ? ORDER BY position ASC`,
+            leadId,
+        );
+        return rows.map(r => ({ id: Number(r.id), filename: r.filename, caption: r.caption, position: Number(r.position) }));
+    }
+
+    /**
+     * Replace semua items untuk lead. Validate productVariantId existing.
+     * Defensive: kalau Prisma client belum punya `leadItem` model (Windows EPERM
+     * saat generate), fallback ke raw SQL.
+     */
+    private async _syncItems(leadId: number, items: LeadItemDto[]) {
+        const hasLeadItemModel = !!(this.prisma as any).leadItem?.deleteMany;
+
+        // Delete existing items, lalu insert ulang
+        if (hasLeadItemModel) {
+            await (this.prisma as any).leadItem.deleteMany({ where: { leadId } });
+        } else {
+            await this.prisma.$executeRawUnsafe(`DELETE FROM lead_items WHERE lead_id = ?`, leadId);
+        }
+        if (!items.length) return;
+
+        // Validate productVariantId yang non-null
+        const variantIds = Array.from(new Set(
+            items.map(i => i.productVariantId).filter((v): v is number => typeof v === 'number'),
+        ));
+        if (variantIds.length > 0) {
+            const found = await this.prisma.productVariant.findMany({
+                where: { id: { in: variantIds } },
+                select: { id: true },
+            });
+            const foundSet = new Set(found.map(v => v.id));
+            for (const vid of variantIds) {
+                if (!foundSet.has(vid)) {
+                    throw new BadRequestException(`ProductVariant #${vid} tidak ditemukan`);
+                }
+            }
+        }
+
+        const rows = items.map(it => ({
+            leadId,
+            productVariantId: it.productVariantId ?? null,
+            description: (it.description || '(tanpa nama)').slice(0, 255),
+            quantity: Math.max(1, Number(it.quantity) || 1),
+            unitPrice: Number(it.unitPrice) || 0,
+            widthCm: it.widthCm ?? null,
+            heightCm: it.heightCm ?? null,
+            unitType: it.unitType || null,
+            note: it.note || null,
+        }));
+
+        if (hasLeadItemModel) {
+            await (this.prisma as any).leadItem.createMany({ data: rows });
+        } else {
+            // Raw SQL fallback
+            for (const r of rows) {
+                await this.prisma.$executeRawUnsafe(
+                    `INSERT INTO lead_items
+                        (lead_id, product_variant_id, description, quantity, unit_price, width_cm, height_cm, unit_type, note)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    r.leadId, r.productVariantId, r.description, r.quantity, r.unitPrice,
+                    r.widthCm, r.heightCm, r.unitType, r.note,
+                );
+            }
+        }
+    }
+
+    async create(ctx: BranchContext, data: CreateLeadDto, userId?: number) {
+        const branchId = requireBranch(ctx);
+        const phoneNorm = normalizePhone(data.phone);
+
+        // Auto-calc estimatedValue dari items kalau tidak di-set manual
+        const itemsTotal = this.sumItemsTotal(data.items);
+        const finalEstimated = data.estimatedValue ?? (itemsTotal > 0 ? itemsTotal : null);
+
+        const lead = await this.prisma.lead.create({
+            data: {
+                name: data.name,
+                phone: data.phone || null,
+                phoneNormalized: phoneNorm,
+                source: data.source,
+                sourceDetail: data.sourceDetail || null,
+                level: data.level || 'WARM',
+                status: data.status || 'NEW',
+                needs: data.needs || null,
+                estimatedValue: finalEstimated,
+                city: data.city || null,
+                assignedToId: data.assignedToId ?? null,
+                followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
+                ...({ imageUrl: data.imageUrl ?? null } as any),
+                branchId,
+                createdById: userId ?? null,
+            } as any,
+        });
+
+        // Insert items kalau ada
+        if (data.items?.length) {
+            await this._syncItems(lead.id, data.items);
+        }
+        // Sync images kalau ada (imageUrls array). Backward compat: kalau cuma
+        // imageUrl single yang di-pass, convert ke array 1 elemen.
+        const initialImages = data.imageUrls && data.imageUrls.length > 0
+            ? data.imageUrls
+            : (data.imageUrl ? [data.imageUrl] : []);
+        if (initialImages.length > 0) {
+            await this._syncImages(lead.id, initialImages);
+        }
+
+        // Log activity FIRST_CONTACT
+        await this.prisma.leadActivity.create({
+            data: {
+                leadId: lead.id,
+                kind: 'FIRST_CONTACT',
+                text: `Lead masuk via ${data.source}${data.sourceDetail ? ` (${data.sourceDetail})` : ''}`,
+                meta: { source: data.source, sourceDetail: data.sourceDetail },
+                createdById: userId ?? null,
+            },
+        });
+
+        return this.detail(ctx, lead.id);
+    }
+
+    async update(ctx: BranchContext, id: number, data: UpdateLeadDto, userId?: number) {
+        const existing = await this.detail(ctx, id);
+        // Catatan: lead terminal (CLOSED_WON/CLOSED_LOST) tetap bisa diedit & diubah
+        // status-nya (mis. reopen ke FOLLOW_UP). Activity log mencatat perubahan
+        // supaya history tetap rapih. Kalau reopen, closedAt di-reset null.
+        const isReopen =
+            (existing.status === 'CLOSED_WON' || existing.status === 'CLOSED_LOST') &&
+            data.status && data.status !== existing.status &&
+            data.status !== 'CLOSED_WON' && data.status !== 'CLOSED_LOST';
+
+        const updateData: Prisma.LeadUpdateInput = {};
+        if (data.name !== undefined) updateData.name = data.name;
+        if (data.phone !== undefined) {
+            updateData.phone = data.phone || null;
+            updateData.phoneNormalized = normalizePhone(data.phone);
+        }
+        if (data.source !== undefined) updateData.source = data.source;
+        if (data.sourceDetail !== undefined) updateData.sourceDetail = data.sourceDetail || null;
+        if (data.level !== undefined) updateData.level = data.level;
+        if (data.needs !== undefined) updateData.needs = data.needs || null;
+        if (data.estimatedValue !== undefined) updateData.estimatedValue = data.estimatedValue;
+        if (data.city !== undefined) updateData.city = data.city || null;
+        if (data.assignedToId !== undefined) {
+            updateData.assignedTo = data.assignedToId
+                ? { connect: { id: data.assignedToId } }
+                : { disconnect: true };
+        }
+        if (data.followUpDate !== undefined) {
+            updateData.followUpDate = data.followUpDate ? new Date(data.followUpDate) : null;
+        }
+        if (data.imageUrl !== undefined) {
+            (updateData as any).imageUrl = data.imageUrl || null;
+        }
+        // Auto-recalc estimatedValue dari items kalau items di-update & estimatedValue tidak di-set manual
+        if (data.items !== undefined && data.estimatedValue === undefined) {
+            const total = this.sumItemsTotal(data.items);
+            if (total > 0) updateData.estimatedValue = total;
+        }
+        if (data.status !== undefined && data.status !== existing.status) {
+            updateData.status = data.status;
+            // Reopen: kalau pindah dari terminal ke non-terminal, reset closedAt
+            if (isReopen) {
+                updateData.closedAt = null;
+            }
+            // Kalau pindah ke terminal, set closedAt
+            if (data.status === 'CLOSED_WON' || data.status === 'CLOSED_LOST') {
+                updateData.closedAt = new Date();
+            }
+        }
+
+        const updated = await this.prisma.lead.update({ where: { id }, data: updateData });
+
+        // Sync items kalau di-set (replace semua)
+        if (data.items !== undefined) {
+            await this._syncItems(id, data.items);
+        }
+        // Sync images kalau di-set (replace semua). Kalau cuma imageUrl single,
+        // backward compat — replace dengan 1 gambar atau clear.
+        if (data.imageUrls !== undefined) {
+            await this._syncImages(id, data.imageUrls);
+        } else if (data.imageUrl !== undefined) {
+            await this._syncImages(id, data.imageUrl ? [data.imageUrl] : []);
+        }
+
+        // Log activity untuk perubahan signifikan
+        const changes: string[] = [];
+        if (data.status && data.status !== existing.status) {
+            changes.push(`status: ${existing.status} → ${data.status}`);
+            await this.prisma.leadActivity.create({
+                data: {
+                    leadId: id,
+                    kind: 'STATUS_CHANGE',
+                    text: `Status berubah dari ${existing.status} ke ${data.status}`,
+                    meta: { previousStatus: existing.status, newStatus: data.status },
+                    createdById: userId ?? null,
+                },
+            });
+        }
+        if (data.assignedToId !== undefined && data.assignedToId !== existing.assignedToId) {
+            await this.prisma.leadActivity.create({
+                data: {
+                    leadId: id,
+                    kind: 'ASSIGNED',
+                    text: data.assignedToId
+                        ? `Lead di-assign ke user #${data.assignedToId}`
+                        : `Assignment dilepas`,
+                    meta: { previousAssignedToId: existing.assignedToId, newAssignedToId: data.assignedToId },
+                    createdById: userId ?? null,
+                },
+            });
+        }
+
+        return this.detail(ctx, updated.id);
+    }
+
+    async addActivity(ctx: BranchContext, leadId: number, data: CreateActivityDto, userId?: number) {
+        await this.detail(ctx, leadId); // assert exist + access
+        const act = await this.prisma.leadActivity.create({
+            data: {
+                leadId,
+                kind: data.kind,
+                text: data.text || null,
+                meta: (data.meta as any) ?? undefined,
+                createdById: userId ?? null,
+            },
+        });
+        return act;
+    }
+
+    /** Convert lead → Customer (existing/baru) + opsional SO draft. */
+    async convert(ctx: BranchContext, leadId: number, data: ConvertLeadDto, userId?: number) {
+        const lead = await this.detail(ctx, leadId);
+        // Allow re-convert: kalau status sudah CLOSED_WON, biar UI yang warn.
+        // Backend tetap proses — biar fleksibel kalau owner mau re-link customer/SO.
+
+        // Resolve customer
+        let customerId = data.customerId ?? null;
+        if (!customerId && data.createCustomer) {
+            const customer = await this.prisma.customer.create({
+                data: {
+                    name: lead.name,
+                    phone: lead.phone,
+                    leadSource: lead.source,
+                    assignedCsId: lead.assignedToId ?? null,
+                },
+            });
+            customerId = customer.id;
+        }
+        if (!customerId) {
+            throw new BadRequestException('Pilih customer existing atau set createCustomer=true.');
+        }
+
+        // Load customer untuk pakai datanya
+        const customer = await this.prisma.customer.findUnique({ where: { id: customerId } });
+        if (!customer) throw new BadRequestException('Customer tidak ditemukan.');
+
+        // Load lead items dengan productVariant — untuk include di SO/Invoice saat convert
+        const hasLeadItemModel = !!(this.prisma as any).leadItem?.findMany;
+        let leadItems: any[] = [];
+        if (hasLeadItemModel) {
+            leadItems = await (this.prisma as any).leadItem.findMany({
+                where: { leadId },
+                orderBy: { id: 'asc' },
+                include: { productVariant: { include: { product: true } } },
+            });
+        } else {
+            const rawItems: any[] = await this.prisma.$queryRawUnsafe(`
+                SELECT li.*, pv.variant_name AS pv_variantName,
+                       p.id AS p_id, p.name AS p_name, p.pricing_mode AS p_pricingMode
+                FROM lead_items li
+                LEFT JOIN product_variants pv ON pv.id = li.product_variant_id
+                LEFT JOIN products p ON p.id = pv.product_id
+                WHERE li.lead_id = ? ORDER BY li.id ASC
+            `, leadId);
+            leadItems = rawItems.map(r => ({
+                id: Number(r.id),
+                productVariantId: r.product_variant_id != null ? Number(r.product_variant_id) : null,
+                description: r.description,
+                quantity: Number(r.quantity),
+                unitPrice: Number(r.unit_price),
+                widthCm: r.width_cm != null ? Number(r.width_cm) : null,
+                heightCm: r.height_cm != null ? Number(r.height_cm) : null,
+                unitType: r.unit_type,
+                note: r.note,
+                productVariant: r.product_variant_id != null ? {
+                    variantName: r.pv_variantName,
+                    product: r.p_id != null ? { id: Number(r.p_id), name: r.p_name, pricingMode: r.p_pricingMode } : null,
+                } : null,
+            }));
+        }
+
+        // Resolve SO draft (opsional) — SPK production-bound
+        let salesOrderId: number | null = null;
+        let soItemsCreated = 0;
+        let soItemsSkipped = 0;
+        let soProofsCopied = 0;
+        if (data.createSalesOrderDraft) {
+            const designerName = (data.designerName || '').trim() || 'TBD';
+            const soNumber = await this.generateSoNumber();
+            const so = await this.prisma.salesOrder.create({
+                data: {
+                    soNumber,
+                    status: 'DRAFT',
+                    customerId,
+                    customerName: customer.name,
+                    customerPhone: customer.phone,
+                    customerAddress: customer.address,
+                    designerName,
+                    notes: data.notes || lead.needs || null,
+                    branchName: (lead as any).branch?.name ?? null,
+                },
+            });
+            salesOrderId = so.id;
+
+            // Include items dari lead → SalesOrderItem. WAJIB productVariantId.
+            for (const it of leadItems) {
+                if (!it.productVariantId) {
+                    soItemsSkipped++;
+                    continue;
+                }
+                await this.prisma.salesOrderItem.create({
+                    data: {
+                        salesOrderId: so.id,
+                        productVariantId: it.productVariantId,
+                        quantity: it.quantity,
+                        widthCm: it.widthCm ?? null,
+                        heightCm: it.heightCm ?? null,
+                        unitType: it.unitType ?? null,
+                        customPrice: Number(it.unitPrice) || null,
+                        note: it.note ?? null,
+                    },
+                });
+                soItemsCreated++;
+            }
+
+            // Copy lead images → SalesOrderProof (supaya desainer langsung punya referensi)
+            const leadImages = await this._loadImages(leadId);
+            for (const img of leadImages) {
+                await this.prisma.salesOrderProof.create({
+                    data: {
+                        salesOrderId: so.id,
+                        filename: img.filename,
+                        caption: img.caption || `Referensi dari lead #${leadId}`,
+                    },
+                });
+                soProofsCopied++;
+            }
+        }
+
+        // Resolve Invoice draft (opsional) — nota tagihan / quotation
+        let invoiceId: number | null = null;
+        let invoiceNumber: string | null = null;
+        if (data.createInvoiceDraft) {
+            const invType = data.invoiceType || 'INVOICE';
+            const prefix = invType === 'QUOTATION' ? 'SPH' : 'INV';
+            const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const startsWith = `${prefix}-${yyyymmdd}`;
+            // Cari nomor terakhir hari ini supaya urutan rapi
+            const last = await this.prisma.invoice.findFirst({
+                where: { invoiceNumber: { startsWith } },
+                orderBy: { invoiceNumber: 'desc' },
+            });
+            let seq = 1;
+            if (last) {
+                const tail = last.invoiceNumber.split('-').pop() || '0';
+                seq = parseInt(tail, 10) + 1;
+            }
+            const newNumber = `${startsWith}-${String(seq).padStart(3, '0')}`;
+            // Build invoice items dari lead items.
+            // InvoiceItem hanya simpan qty × price (tidak ada area calc), jadi untuk
+            // AREA_BASED kita compress jadi:
+            //   - quantity = 1 (atau qty asli)
+            //   - price = subtotal-per-qty hasil area calc
+            // Supaya total invoice akurat tanpa perlu modify Invoice schema.
+            const invItems = leadItems.map((it: any) => {
+                const productName = it.productVariant?.product?.name || it.description;
+                const variantName = it.productVariant?.variantName;
+                const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
+                const sizeNote = isArea ? ` (${it.widthCm}×${it.heightCm}cm = ${((Number(it.widthCm) * Number(it.heightCm)) / 10000).toFixed(2)}m²)` : '';
+                const descParts = [productName, variantName].filter(Boolean).join(' - ');
+
+                let invQty = Number(it.quantity) || 1;
+                let invPrice = Number(it.unitPrice) || 0;
+                let unit = it.unitType || 'pcs';
+                if (isArea) {
+                    // Compress: per-qty price = (w × h / 10000) × pricePerM2
+                    const areaM2 = (Number(it.widthCm) * Number(it.heightCm)) / 10000;
+                    invPrice = areaM2 * invPrice;
+                    unit = 'pcs'; // invoice item per-pcs (sudah include area)
+                }
+                return {
+                    description: `${descParts || it.description}${sizeNote}`,
+                    unit,
+                    quantity: invQty,
+                    price: Math.round(invPrice), // round ke rupiah
+                };
+            });
+            const subtotal = invItems.reduce((s: number, it: any) => s + (it.quantity * Number(it.price)), 0);
+            const invoice = await this.prisma.invoice.create({
+                data: {
+                    invoiceNumber: newNumber,
+                    type: invType as any,
+                    status: 'DRAFT',
+                    clientName: customer.name,
+                    clientPhone: customer.phone,
+                    clientAddress: customer.address,
+                    date: new Date(),
+                    notes: data.notes || lead.needs || null,
+                    subtotal,
+                    total: subtotal, // belum termasuk PPN/diskon — bisa diedit di /invoices
+                    items: invItems.length ? { create: invItems } : undefined,
+                },
+            });
+            invoiceId = invoice.id;
+            invoiceNumber = invoice.invoiceNumber;
+        }
+
+        // Update lead: CLOSED_WON + link conversion
+        const updated = await this.prisma.lead.update({
+            where: { id: leadId },
+            data: {
+                status: 'CLOSED_WON',
+                convertedCustomerId: customerId,
+                convertedSalesOrderId: salesOrderId,
+                closedAt: new Date(),
+            },
+        });
+
+        // Log activity di lead + customer
+        await this.prisma.leadActivity.create({
+            data: {
+                leadId,
+                customerId,
+                kind: 'CONVERTED',
+                text: [
+                    `Lead converted → Customer #${customerId}`,
+                    salesOrderId ? ` + SPK (SO) draft #${salesOrderId}` : null,
+                    invoiceNumber ? ` + ${invoiceNumber}` : null,
+                ].filter(Boolean).join(''),
+                meta: {
+                    customerId, salesOrderId, invoiceId, invoiceNumber,
+                    designerName: data.designerName, invoiceType: data.invoiceType,
+                },
+                createdById: userId ?? null,
+            },
+        });
+
+        // Return detail + sertakan info dokumen yang baru dibuat untuk UI
+        const detail = await this.detail(ctx, updated.id);
+        return {
+            ...detail,
+            _convertResult: {
+                customerId,
+                salesOrderId,
+                soItemsCreated,
+                soItemsSkipped,
+                soProofsCopied,
+                invoiceId,
+                invoiceNumber,
+                invoiceItemsCreated: invoiceId ? leadItems.length : 0,
+            },
+        };
+    }
+
+    async closeLost(ctx: BranchContext, leadId: number, data: CloseLostDto, userId?: number) {
+        await this.detail(ctx, leadId);
+        const updated = await this.prisma.lead.update({
+            where: { id: leadId },
+            data: {
+                status: 'CLOSED_LOST',
+                closeLostReason: data.reason,
+                closedAt: new Date(),
+            },
+        });
+        await this.prisma.leadActivity.create({
+            data: {
+                leadId,
+                kind: 'CLOSED_LOST',
+                text: `Lead ditutup: ${data.reason}`,
+                meta: { reason: data.reason },
+                createdById: userId ?? null,
+            },
+        });
+        return this.detail(ctx, updated.id);
+    }
+
+    async remove(ctx: BranchContext, id: number) {
+        await this.detail(ctx, id);
+        await this.prisma.lead.delete({ where: { id } });
+        return { ok: true };
+    }
+}

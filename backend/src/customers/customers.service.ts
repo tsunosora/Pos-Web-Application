@@ -9,6 +9,54 @@ export class CustomersService {
         return this.prisma.customer.create({ data });
     }
 
+    /**
+     * Lookup customer by phone (untuk dedup di CRM Lead create).
+     *
+     * Strategi: query SEMUA customer yang punya phone, lalu normalize di JS
+     * supaya matching tidak gagal karena format berbeda di DB (mis. "+62 812-3456-7890"
+     * vs input "08123456789"). Untuk toko dengan <10k customer ini cukup cepat.
+     *
+     * Match rules (case-insensitive, urutan prioritas):
+     *   1. Exact match normalized (62812... === 62812...)
+     *   2. Last-8-digit match (tail nomor sama — biar match walau kode negara beda)
+     */
+    async lookupByPhone(phoneRaw: string): Promise<any[]> {
+        const inputNorm = String(phoneRaw || '').replace(/\D/g, '');
+        if (!inputNorm || inputNorm.length < 4) return [];
+
+        // Bentuk variants input untuk exact match (0xxx ↔ 62xxx)
+        const inputCanonical = this.canonicalPhone(inputNorm);
+        const inputLast8 = inputNorm.slice(-8);
+
+        const all = await this.prisma.customer.findMany({
+            where: { phone: { not: null } },
+            select: { id: true, name: true, phone: true, address: true },
+        });
+
+        // Score & rank: 2 = exact canonical, 1 = last-8 match
+        type Scored = { c: any; score: number };
+        const scored: Scored[] = [];
+        for (const c of all) {
+            const dbNorm = String(c.phone || '').replace(/\D/g, '');
+            if (!dbNorm) continue;
+            const dbCanon = this.canonicalPhone(dbNorm);
+            if (dbCanon === inputCanonical) { scored.push({ c, score: 2 }); continue; }
+            if (inputLast8.length >= 8 && dbNorm.endsWith(inputLast8)) { scored.push({ c, score: 1 }); continue; }
+            // Reverse: input bisa lebih pendek dari yang di DB
+            if (dbNorm.length >= 8 && inputNorm.endsWith(dbNorm.slice(-8))) { scored.push({ c, score: 1 }); }
+        }
+        scored.sort((a, b) => b.score - a.score);
+        return scored.slice(0, 5).map(s => s.c);
+    }
+
+    /** Normalize phone to canonical form: strip leading 62 atau 0, hanya digit. */
+    private canonicalPhone(digits: string): string {
+        let s = digits;
+        if (s.startsWith('62')) s = s.slice(2);
+        if (s.startsWith('0')) s = s.slice(1);
+        return s;
+    }
+
     async findAll() {
         return this.prisma.customer.findMany({ orderBy: { name: 'asc' } });
     }
@@ -167,8 +215,56 @@ export class CustomersService {
         });
     }
 
-    async update(id: number, data: { name?: string; phone?: string; address?: string }) {
-        return this.prisma.customer.update({ where: { id }, data });
+    async update(id: number, data: {
+        name?: string;
+        phone?: string;
+        address?: string;
+        assignedCsId?: number | null;
+        tags?: any;
+    }) {
+        // assignedCsId & tags adalah field CRM yang baru — biarkan Prisma yang validate.
+        return this.prisma.customer.update({ where: { id }, data: data as any });
+    }
+
+    /** Timeline CRM untuk customer: activities + follow-ups + assigned CS. */
+    async getCrmTimeline(id: number) {
+        const customer = await (this.prisma as any).customer.findUnique({
+            where: { id },
+            include: {
+                assignedCs: { select: { id: true, name: true, email: true } },
+            },
+        });
+        if (!customer) throw new NotFoundException('Customer not found');
+
+        const [activities, followUps] = await Promise.all([
+            (this.prisma as any).leadActivity.findMany({
+                where: { customerId: id },
+                orderBy: { createdAt: 'desc' },
+                take: 100,
+                include: { createdBy: { select: { id: true, name: true } } },
+            }),
+            (this.prisma as any).followUp.findMany({
+                where: { customerId: id },
+                orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+                include: {
+                    assignedTo: { select: { id: true, name: true, email: true } },
+                    template: { select: { id: true, name: true } },
+                },
+            }),
+        ]);
+
+        return {
+            customer: {
+                id: customer.id,
+                name: customer.name,
+                phone: customer.phone,
+                leadSource: customer.leadSource ?? null,
+                assignedCs: customer.assignedCs ?? null,
+                tags: customer.tags ?? null,
+            },
+            activities,
+            followUps,
+        };
     }
 
     async remove(id: number) {

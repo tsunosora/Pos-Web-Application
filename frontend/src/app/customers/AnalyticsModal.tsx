@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getCustomerAnalytics } from "@/lib/api";
+import { CustomerCrmPanel } from "@/components/crm/CustomerCrmPanel";
 import { X, Users, TrendingUp, Wallet, Phone, MapPin, BarChart2, MessageCircle, ShoppingBag, Calendar, Loader2, Package } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -196,6 +197,9 @@ export function AnalyticsModal({ customerId, onClose }: { customerId: number; on
                                 </div>
                             </div>
                         )}
+
+                        {/* CRM panel: activity timeline + assigned CS + follow-ups + copy template */}
+                        <CustomerCrmPanel customerId={customerId} />
                     </div>
                 ) : null}
             </div>

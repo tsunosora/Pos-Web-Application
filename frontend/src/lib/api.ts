@@ -16,3 +16,4 @@ export * from './api/backup';
 export * from './api/click-counting';
 export * from './api/designers';
 export * from './api/branch-inbox';
+export * from './api/crm';

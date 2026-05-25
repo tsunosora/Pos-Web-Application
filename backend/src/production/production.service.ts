@@ -1,9 +1,47 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { FollowUpsService } from '../crm/follow-ups/follow-ups.service';
 
 @Injectable()
 export class ProductionService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private followUps: FollowUpsService,
+    ) {}
+
+    /**
+     * Trigger after-sales FU 3 hari setelah pickup. Idempotent + dedup di
+     * FollowUpsService. Dipanggil dari pickupJob & bulkPickup. Error tidak
+     * boleh bubble — flow pickup tidak boleh gagal karena CRM error.
+     */
+    private async _triggerAfterSales(jobIds: number[]) {
+        try {
+            const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+                where: { id: { in: jobIds } },
+                select: { id: true, transactionId: true, branchId: true },
+            });
+            const txIds = Array.from(new Set(jobs.map(j => j.transactionId).filter(Boolean)));
+            if (txIds.length === 0) return;
+            const txs: any[] = await (this.prisma as any).transaction.findMany({
+                where: { id: { in: txIds } },
+                select: { id: true, customerId: true, branchId: true, userId: true },
+            });
+            const txMap = new Map(txs.map(t => [t.id, t]));
+            for (const job of jobs) {
+                const tx = txMap.get(job.transactionId);
+                if (!tx?.customerId) continue;
+                await this.followUps.scheduleAfterSales({
+                    customerId: tx.customerId,
+                    branchId: tx.branchId ?? job.branchId ?? null,
+                    sourceRef: `production-pickup:job-${job.id}`,
+                    assignedToId: tx.userId ?? null,
+                });
+            }
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error('[afterSales] gagal trigger:', err);
+        }
+    }
 
     // Multi-cabang: ubah stok di BranchStock + mirror ke ProductVariant.stock (cache agregat).
     // Selaras dengan TransactionsService._adjustStock supaya flow mulai-job ↔ hapus-transaksi konsisten.
@@ -316,11 +354,16 @@ export class ProductionService {
         if (!job) throw new NotFoundException('Job tidak ditemukan');
         if (job.status !== 'SELESAI') throw new BadRequestException('Job belum SELESAI');
 
-        return (this.prisma as any).productionJob.update({
+        const updated = await (this.prisma as any).productionJob.update({
             where: { id },
             data: { status: 'DIAMBIL', pickedUpAt: new Date() },
             include: this.jobInclude(),
         });
+
+        // Schedule after-sales FU (idempotent + error-tolerant)
+        await this._triggerAfterSales([id]);
+
+        return updated;
     }
 
     /**
@@ -370,7 +413,14 @@ export class ProductionService {
                 });
                 updated = res.count;
             }
-            return { updated, skipped };
+            return { updated, skipped, validIds };
+        }).then(async (result) => {
+            // After transaction commits, fire after-sales (outside tx supaya
+            // dedup query lihat data ter-commit, dan kalau gagal tidak rollback pickup).
+            if (result.validIds.length > 0) {
+                await this._triggerAfterSales(result.validIds);
+            }
+            return { updated: result.updated, skipped: result.skipped };
         });
     }
 

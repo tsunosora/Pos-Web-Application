@@ -67,6 +67,13 @@ model User {
   editRequests        TransactionEditRequest[]   @relation("EditRequests")
   editReviews         TransactionEditRequest[]   @relation("EditReviews")
   stockTransfers      StockTransfer[]
+  // CRM relations
+  leadsAssigned       Lead[]                     @relation("LeadAssignedTo")
+  leadsCreated        Lead[]                     @relation("LeadCreatedBy")
+  customersAssigned   Customer[]                 @relation("CustomerAssignedCs")
+  activitiesCreated   LeadActivity[]             @relation("ActivityCreatedBy")
+  followUpsAssigned   FollowUp[]                 @relation("FollowUpAssignee")
+  followUpsCreated    FollowUp[]                 @relation("FollowUpCreatedBy")
 
   @@index([branchId])
   @@map("users")
@@ -161,6 +168,7 @@ model ProductVariant {
   variantIngredientsAsRaw VariantIngredient[] @relation("VariantRawMaterial")
   hppWorksheets           HppWorksheet[]
   purchaseItems           StockPurchaseItem[]
+  leadItems               LeadItem[]          @relation("LeadItemVariant")
   salesOrderItems         SalesOrderItem[]
   branchWorkOrderItems    BranchWorkOrderItem[]
   branchStocks            BranchStock[]
@@ -605,11 +613,23 @@ model Customer {
   name      String    @db.VarChar(100)
   phone     String?   @db.VarChar(50)
   address   String?   @db.Text
+  // CRM fields — semua nullable supaya backward compat dengan customer existing
+  leadSource         LeadSource? @map("lead_source")
+  assignedCsId       Int?        @map("assigned_cs_id")
+  referrerCustomerId Int?        @map("referrer_customer_id")
+  tags               Json?       // ["sekolah", "akademi", "event-tahunan"]
   createdAt DateTime? @default(now()) @map("created_at")
   updatedAt DateTime? @default(now()) @updatedAt @map("updated_at")
 
   salesOrders SalesOrder[]
+  assignedCs  User?          @relation("CustomerAssignedCs", fields: [assignedCsId],       references: [id], onDelete: SetNull)
+  referrer    Customer?      @relation("CustomerReferrer",   fields: [referrerCustomerId], references: [id], onDelete: SetNull)
+  referrals   Customer[]     @relation("CustomerReferrer")
+  fromLeads   Lead[]         @relation("LeadConvertedCustomer")
+  activities  LeadActivity[] @relation("CustomerActivities")
+  followUps   FollowUp[]     @relation("CustomerFollowUps")
 
+  @@index([assignedCsId])
   @@map("customers")
 }
 
@@ -1051,6 +1071,7 @@ model SalesOrder {
   transaction Transaction?      @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   items       SalesOrderItem[]
   proofs      SalesOrderProof[]
+  fromLeads   Lead[]            @relation("LeadConvertedSO")
 
   @@index([status])
   @@index([customerId])
@@ -1143,6 +1164,8 @@ model CompanyBranch {
   transfersIn    StockTransfer[] @relation("TransferToBranch")
   ledgersFrom    InterBranchLedger[] @relation("LedgerFromBranch")
   ledgersTo      InterBranchLedger[] @relation("LedgerToBranch")
+  leads          Lead[]
+  followUps      FollowUp[]
 
   @@map("company_branches")
 }
@@ -1310,4 +1333,194 @@ model LedgerSettlement {
 
   @@index([ledgerId])
   @@map("ledger_settlements")
+}
+
+// ===========================
+// CRM MODULE
+// Lead pipeline pra-DEAL, activity timeline, follow-up scheduler, message templates.
+// PR1: Lead + LeadActivity + MessageTemplate (FollowUp di PR2).
+// ===========================
+
+enum LeadSource {
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+  TIKTOK
+  MARKETPLACE
+  REFERRAL
+  WEBSITE
+  WALK_IN
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  FOLLOW_UP
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum LeadLevel {
+  HOT
+  WARM
+  COLD
+}
+
+// Disiapkan untuk PR2 (FollowUp model), enum di-define dulu supaya FE/BE bisa
+// reference dari awal tanpa migration ganda.
+enum FollowUpType {
+  LEAD_FU
+  AFTER_SALES
+  REPEAT_ORDER
+  PAYMENT_REMINDER
+}
+
+enum FollowUpStatus {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+model Lead {
+  id                    Int           @id @default(autoincrement())
+  name                  String        @db.VarChar(120)
+  phone                 String?       @db.VarChar(30)
+  phoneNormalized       String?       @map("phone_normalized") @db.VarChar(30) // normalized untuk dedup (strip +62/0/spasi)
+  source                LeadSource
+  sourceDetail          String?       @map("source_detail") @db.VarChar(150)
+  status                LeadStatus    @default(NEW)
+  level                 LeadLevel     @default(WARM)
+  needs                 String?       @db.Text
+  estimatedValue        Decimal?      @map("estimated_value") @db.Decimal(14, 2)
+  city                  String?       @db.VarChar(80)
+  assignedToId          Int?          @map("assigned_to_id")
+  followUpDate          DateTime?     @map("follow_up_date")
+  convertedCustomerId   Int?          @map("converted_customer_id")
+  convertedSalesOrderId Int?          @map("converted_sales_order_id")
+  closeLostReason       String?       @map("close_lost_reason") @db.Text
+  imageUrl              String?       @map("image_url") @db.Text
+  branchId              Int?          @map("branch_id")
+  createdById           Int?          @map("created_by_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  closedAt              DateTime?     @map("closed_at")
+
+  assignedTo        User?          @relation("LeadAssignedTo",        fields: [assignedToId],          references: [id], onDelete: SetNull)
+  createdBy         User?          @relation("LeadCreatedBy",         fields: [createdById],           references: [id], onDelete: SetNull)
+  convertedCustomer Customer?      @relation("LeadConvertedCustomer", fields: [convertedCustomerId],   references: [id], onDelete: SetNull)
+  convertedSO       SalesOrder?    @relation("LeadConvertedSO",       fields: [convertedSalesOrderId], references: [id], onDelete: SetNull)
+  branch            CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  activities        LeadActivity[]
+  followUps         FollowUp[]
+  items             LeadItem[]
+  images            LeadImage[]
+
+  @@index([status, followUpDate])
+  @@index([assignedToId, status])
+  @@index([branchId, status])
+  @@index([phoneNormalized])
+  @@map("leads")
+}
+
+model LeadActivity {
+  id          Int      @id @default(autoincrement())
+  leadId      Int?     @map("lead_id")
+  customerId  Int?     @map("customer_id")
+  kind        String   @db.VarChar(40) // FIRST_CONTACT, MESSAGE, CALL, MEETING, PROPOSAL_SENT, STATUS_CHANGE, FOLLOW_UP_DONE, NOTE, AFTER_SALES_SCHEDULED, CONVERTED, dll
+  text        String?  @db.Text
+  meta        Json?
+  createdById Int?     @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  lead      Lead?     @relation(fields: [leadId],     references: [id], onDelete: Cascade)
+  customer  Customer? @relation("CustomerActivities", fields: [customerId], references: [id], onDelete: Cascade)
+  createdBy User?     @relation("ActivityCreatedBy",  fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([leadId, createdAt])
+  @@index([customerId, createdAt])
+  @@map("lead_activities")
+}
+
+model LeadImage {
+  id        Int      @id @default(autoincrement())
+  leadId    Int      @map("lead_id")
+  filename  String   @db.VarChar(500) // path relatif (/uploads/lead_xxx.jpg)
+  caption   String?  @db.Text
+  position  Int      @default(0)      // urutan slider
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, position])
+  @@map("lead_images")
+}
+
+model LeadItem {
+  id               Int      @id @default(autoincrement())
+  leadId           Int      @map("lead_id")
+  productVariantId Int?     @map("product_variant_id") // null = custom item (produk belum terdaftar)
+  description      String   @db.VarChar(255)           // display name (auto-fill dari product variant atau manual)
+  quantity         Int      @default(1)
+  unitPrice        Decimal  @map("unit_price") @db.Decimal(15, 2)
+  widthCm          Float?   @map("width_cm")
+  heightCm         Float?   @map("height_cm")
+  unitType         String?  @map("unit_type") @db.VarChar(10)
+  note             String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  lead           Lead            @relation(fields: [leadId],           references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation("LeadItemVariant", fields: [productVariantId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([productVariantId])
+  @@map("lead_items")
+}
+
+model MessageTemplate {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(120)
+  category     String   @db.VarChar(40) // GREETING, FU_LEAD, PROGRESS_UPDATE, AFTER_SALES, REPEAT_ORDER, CUSTOM
+  bodyTemplate String   @map("body_template") @db.Text
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  followUps    FollowUp[]
+
+  @@index([category, isActive])
+  @@map("message_templates")
+}
+
+model FollowUp {
+  id           Int            @id @default(autoincrement())
+  type         FollowUpType
+  status       FollowUpStatus @default(PENDING)
+  dueDate      DateTime       @map("due_date")
+  doneAt       DateTime?      @map("done_at")
+  leadId       Int?           @map("lead_id")
+  customerId   Int?           @map("customer_id")
+  assignedToId Int?           @map("assigned_to_id")
+  branchId     Int?           @map("branch_id")
+  notes        String?        @db.Text
+  doneNotes    String?        @map("done_notes") @db.Text
+  templateId   Int?           @map("template_id")
+  // Untuk dedup AFTER_SALES per customer per pickup event
+  sourceRef    String?        @map("source_ref") @db.VarChar(80) // mis. "production-pickup:job-123"
+  createdById  Int?           @map("created_by_id")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  lead       Lead?            @relation(fields: [leadId],       references: [id], onDelete: SetNull)
+  customer   Customer?        @relation("CustomerFollowUps", fields: [customerId], references: [id], onDelete: SetNull)
+  assignedTo User?            @relation("FollowUpAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  branch     CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  template   MessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  createdBy  User?            @relation("FollowUpCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([status, dueDate])
+  @@index([assignedToId, status])
+  @@index([branchId, status])
+  @@index([customerId, type])
+  @@map("follow_ups")
 }
