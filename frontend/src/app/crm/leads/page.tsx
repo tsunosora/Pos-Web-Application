@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
@@ -16,7 +16,7 @@ import { LeadImageCarousel } from "@/components/crm/LeadImageCarousel";
 import {
     Plus, Search, X, Phone, MessageSquare, Calendar, MapPin, Sparkles, Trash2,
     Loader2, ChevronRight, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
-    CheckCircle2, XCircle, LayoutGrid, Kanban,
+    CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
 import dayjs from "dayjs";
@@ -35,10 +35,40 @@ const STATUS_TABS: { value: LeadStatus | "ALL"; label: string; color: string }[]
 ];
 
 const SOURCE_OPTIONS: LeadSource[] = [
-    "WHATSAPP", "INSTAGRAM", "FACEBOOK", "TIKTOK", "MARKETPLACE", "REFERRAL", "WEBSITE", "WALK_IN", "REPEAT_ORDER", "OTHER",
+    "WHATSAPP", "INSTAGRAM", "FACEBOOK", "TIKTOK", "MARKETPLACE", "REFERRAL", "WEBSITE", "WALK_IN", "REPEAT_ORDER", "OTHER", "CUSTOM",
 ];
 
 const LEVEL_OPTIONS: LeadLevel[] = ["HOT", "WARM", "COLD"];
+
+type DatePreset = "" | "today" | "yesterday" | "this_week" | "this_month" | "last_month" | "3_months" | "1_year" | "custom";
+
+const DATE_PRESET_LABELS: Record<DatePreset, string> = {
+    "": "Semua Waktu",
+    today: "Hari Ini",
+    yesterday: "Kemarin",
+    this_week: "Minggu Ini",
+    this_month: "Bulan Ini",
+    last_month: "Bulan Lalu",
+    "3_months": "3 Bulan",
+    "1_year": "1 Tahun",
+    custom: "Kustom",
+};
+
+function getDateRange(preset: DatePreset): { from: string; to: string } | null {
+    if (!preset || preset === "custom") return null;
+    const now = dayjs();
+    const fmt = (d: ReturnType<typeof dayjs>) => d.format("YYYY-MM-DD");
+    switch (preset) {
+        case "today": return { from: fmt(now.startOf("day")), to: fmt(now) };
+        case "yesterday": return { from: fmt(now.subtract(1, "day").startOf("day")), to: fmt(now.subtract(1, "day").endOf("day")) };
+        case "this_week": return { from: fmt(now.startOf("week")), to: fmt(now) };
+        case "this_month": return { from: fmt(now.startOf("month")), to: fmt(now) };
+        case "last_month": return { from: fmt(now.subtract(1, "month").startOf("month")), to: fmt(now.subtract(1, "month").endOf("month")) };
+        case "3_months": return { from: fmt(now.subtract(3, "month")), to: fmt(now) };
+        case "1_year": return { from: fmt(now.subtract(1, "year")), to: fmt(now) };
+        default: return null;
+    }
+}
 
 // Format response time (firstResponseAt - createdAt) jadi string singkat
 // + warna berdasarkan kecepatan. Return null kalau belum direspon.
@@ -72,6 +102,13 @@ const levelColor: Record<LeadLevel, string> = {
     COLD: "bg-sky-100 text-sky-700 border-sky-200",
 };
 
+// Untuk sumber CUSTOM, tampilkan sourceDetail sebagai label. Untuk yang lain pakai LEAD_SOURCE_LABEL.
+function formatSource(source: LeadSource, sourceDetail?: string | null): string {
+    if (source === "CUSTOM") return sourceDetail || "Custom";
+    const base = LEAD_SOURCE_LABEL[source];
+    return sourceDetail ? `${base} (${sourceDetail})` : base;
+}
+
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function LeadsPage() {
@@ -79,19 +116,40 @@ export default function LeadsPage() {
     const [tabStatus, setTabStatus] = useState<LeadStatus | "ALL">("ALL");
     const [search, setSearch] = useState("");
     const [filterSource, setFilterSource] = useState<LeadSource | "">("");
+    const [filterLevel, setFilterLevel] = useState<LeadLevel | "">("");
+    const [filterAssignedTo, setFilterAssignedTo] = useState<number | "">("");
+    const [datePreset, setDatePreset] = useState<DatePreset>("");
+    const [customDateFrom, setCustomDateFrom] = useState("");
+    const [customDateTo, setCustomDateTo] = useState("");
+    const [showFilters, setShowFilters] = useState(false);
+    const [showDateDropdown, setShowDateDropdown] = useState(false);
+    const dateDropdownRef = useRef<HTMLDivElement>(null);
     const [formOpen, setFormOpen] = useState(false);
     const [editingLead, setEditingLead] = useState<Lead | null>(null);
     const [detailId, setDetailId] = useState<number | null>(null);
-    const [viewMode, setViewMode] = useState<"card" | "kanban">("card");
+
+    const dateRange = datePreset === "custom"
+        ? (customDateFrom || customDateTo ? { from: customDateFrom || "", to: customDateTo || "" } : null)
+        : getDateRange(datePreset);
 
     const { data: list, isLoading } = useQuery({
-        queryKey: ["crm-leads", tabStatus, filterSource, search],
+        queryKey: ["crm-leads", tabStatus, filterSource, filterLevel, filterAssignedTo, datePreset, customDateFrom, customDateTo, search],
         queryFn: () => getLeads({
             status: tabStatus === "ALL" ? undefined : tabStatus,
             source: filterSource || undefined,
+            level: filterLevel || undefined,
+            assignedToId: filterAssignedTo || undefined,
+            dateFrom: dateRange?.from || undefined,
+            dateTo: dateRange?.to || undefined,
             search: search || undefined,
-            limit: 100,
+            limit: 200,
         }),
+    });
+
+    const { data: users } = useQuery({
+        queryKey: ["users"],
+        queryFn: async () => (await api.get("/users")).data as { id: number; name: string; email: string }[],
+        staleTime: 5 * 60_000,
     });
 
     const { data: summary } = useQuery({
@@ -121,6 +179,31 @@ export default function LeadsPage() {
     const openCreate = () => { setEditingLead(null); setFormOpen(true); };
     const openEdit = (lead: Lead) => { setEditingLead(lead); setFormOpen(true); };
 
+    const clearFilters = () => {
+        setFilterSource("");
+        setFilterLevel("");
+        setFilterAssignedTo("");
+        setDatePreset("");
+        setCustomDateFrom("");
+        setCustomDateTo("");
+        setSearch("");
+    };
+
+    const activeFilterCount = [
+        filterSource, filterLevel, filterAssignedTo, datePreset, search,
+    ].filter(Boolean).length;
+
+    // Close date dropdown on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (dateDropdownRef.current && !dateDropdownRef.current.contains(e.target as Node)) {
+                setShowDateDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
     const statusMut = useMutation({
         mutationFn: ({ id, status }: { id: number; status: LeadStatus }) => updateLead(id, { status }),
         onSuccess: invalidate,
@@ -141,24 +224,6 @@ export default function LeadsPage() {
                     <p className="text-sm text-gray-500">Pipeline pra-jual — pelacakan calon customer dari berbagai channel</p>
                 </div>
                 <div className="flex gap-2 items-center">
-                    <div className="bg-gray-100 rounded-lg p-1 flex">
-                        <button
-                            onClick={() => setViewMode("card")}
-                            className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 ${
-                                viewMode === "card" ? "bg-white shadow text-indigo-700" : "text-gray-500"
-                            }`}
-                        >
-                            <LayoutGrid className="h-3 w-3" /> Card
-                        </button>
-                        <button
-                            onClick={() => setViewMode("kanban")}
-                            className={`px-3 py-1 rounded text-xs font-semibold flex items-center gap-1 ${
-                                viewMode === "kanban" ? "bg-white shadow text-indigo-700" : "text-gray-500"
-                            }`}
-                        >
-                            <Kanban className="h-3 w-3" /> Kanban
-                        </button>
-                    </div>
                     <button
                         onClick={openCreate}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 flex items-center gap-2"
@@ -190,27 +255,143 @@ export default function LeadsPage() {
             </div>
 
             {/* Filter bar */}
-            <div className="flex gap-2 flex-wrap items-center">
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Cari nama / HP / kota / kebutuhan..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
-                    />
+            <div className="space-y-2">
+                {/* Row 1: search + filter toggle */}
+                <div className="flex gap-2 flex-wrap items-center">
+                    <div className="relative flex-1 min-w-[200px]">
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <input
+                            type="text"
+                            placeholder="Cari nama / HP / kota / kebutuhan..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                    </div>
+                    <button
+                        onClick={() => setShowFilters((v) => !v)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                            showFilters || activeFilterCount > 0
+                                ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                                : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                        }`}
+                    >
+                        <Filter className="h-4 w-4" />
+                        Filter
+                        {activeFilterCount > 0 && (
+                            <span className="ml-0.5 bg-indigo-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                                {activeFilterCount}
+                            </span>
+                        )}
+                    </button>
+                    {activeFilterCount > 0 && (
+                        <button
+                            onClick={clearFilters}
+                            className="flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors"
+                        >
+                            <X className="h-3.5 w-3.5" /> Reset
+                        </button>
+                    )}
                 </div>
-                <select
-                    value={filterSource}
-                    onChange={(e) => setFilterSource(e.target.value as LeadSource | "")}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                >
-                    <option value="">Semua Sumber</option>
-                    {SOURCE_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>
-                    ))}
-                </select>
+
+                {/* Row 2: advanced filters (collapsible) */}
+                {showFilters && (
+                    <div className="flex gap-2 flex-wrap items-start p-3 bg-gray-50 rounded-xl border border-gray-200">
+                        {/* Date preset */}
+                        <div className="relative" ref={dateDropdownRef}>
+                            <button
+                                onClick={() => setShowDateDropdown((v) => !v)}
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm whitespace-nowrap ${
+                                    datePreset ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "border-gray-300 text-gray-600 bg-white"
+                                }`}
+                            >
+                                <CalendarDays className="h-4 w-4" />
+                                {DATE_PRESET_LABELS[datePreset]}
+                                <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                            </button>
+                            {showDateDropdown && (
+                                <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px]">
+                                    {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((p) => (
+                                        <button
+                                            key={p}
+                                            onClick={() => { setDatePreset(p); setShowDateDropdown(false); }}
+                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${datePreset === p ? "text-indigo-700 font-semibold" : "text-gray-700"}`}
+                                        >
+                                            {DATE_PRESET_LABELS[p]}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Custom date range */}
+                        {datePreset === "custom" && (
+                            <div className="flex items-center gap-1.5">
+                                <input
+                                    type="date"
+                                    value={customDateFrom}
+                                    onChange={(e) => setCustomDateFrom(e.target.value)}
+                                    className="border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                                />
+                                <span className="text-gray-400 text-xs">s/d</span>
+                                <input
+                                    type="date"
+                                    value={customDateTo}
+                                    onChange={(e) => setCustomDateTo(e.target.value)}
+                                    className="border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                                />
+                            </div>
+                        )}
+
+                        {/* CS / assigned to */}
+                        <div className="relative">
+                            <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
+                            <select
+                                value={filterAssignedTo}
+                                onChange={(e) => setFilterAssignedTo(e.target.value ? Number(e.target.value) : "")}
+                                className={`pl-8 pr-3 py-2 border rounded-lg text-sm ${
+                                    filterAssignedTo ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "border-gray-300 text-gray-600 bg-white"
+                                }`}
+                            >
+                                <option value="">Semua CS</option>
+                                {(users ?? []).map((u) => (
+                                    <option key={u.id} value={u.id}>{u.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Source */}
+                        <select
+                            value={filterSource}
+                            onChange={(e) => setFilterSource(e.target.value as LeadSource | "")}
+                            className={`border rounded-lg px-3 py-2 text-sm ${
+                                filterSource ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "border-gray-300 text-gray-600 bg-white"
+                            }`}
+                        >
+                            <option value="">Semua Sumber</option>
+                            {SOURCE_OPTIONS.map((s) => (
+                                <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>
+                            ))}
+                        </select>
+
+                        {/* Level pills */}
+                        <div className="flex gap-1 items-center">
+                            {LEVEL_OPTIONS.map((l) => (
+                                <button
+                                    key={l}
+                                    onClick={() => setFilterLevel(filterLevel === l ? "" : l)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                        filterLevel === l
+                                            ? levelColor[l]
+                                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                                    }`}
+                                >
+                                    {LEAD_LEVEL_LABEL[l]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* List */}
@@ -223,22 +404,12 @@ export default function LeadsPage() {
                     <Sparkles className="h-10 w-10 mx-auto mb-2 text-gray-300" />
                     <p>Belum ada lead. Tambah lead baru untuk mulai tracking calon customer.</p>
                 </div>
-            ) : viewMode === "kanban" ? (
+            ) : (
                 <LeadKanbanBoard
                     leads={items}
                     onCardClick={(l) => setDetailId(l.id)}
                     onStatusChange={(id, status) => statusMut.mutate({ id, status })}
                 />
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {items.map((lead) => (
-                        <LeadCard
-                            key={lead.id}
-                            lead={lead}
-                            onClick={() => setDetailId(lead.id)}
-                        />
-                    ))}
-                </div>
             )}
 
             {/* Form modal */}
@@ -269,92 +440,6 @@ export default function LeadsPage() {
     );
 }
 
-// ─── Lead Card ──────────────────────────────────────────────────────────────
-
-function LeadCard({ lead, onClick }: { lead: Lead; onClick: () => void }) {
-    const hasImage = (lead.images && lead.images.length > 0) || !!lead.imageUrl;
-    const levelBadge = (
-        <span className={`absolute top-2 right-2 text-[10px] px-2 py-0.5 rounded border whitespace-nowrap shadow z-10 ${levelColor[lead.level]}`}>
-            {LEAD_LEVEL_LABEL[lead.level]}
-        </span>
-    );
-    return (
-        <button
-            onClick={onClick}
-            className="text-left bg-white border border-gray-200 hover:border-indigo-300 hover:shadow-md rounded-xl overflow-hidden transition-all"
-        >
-            {/* Banner with carousel (kalau multi-image) */}
-            <LeadImageCarousel
-                images={lead.images || []}
-                fallbackUrl={lead.imageUrl}
-                alt={lead.name}
-                heightClass="h-44"
-                overlay={levelBadge}
-            />
-            <div className="p-4">
-                {!hasImage && (
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                        <div className="font-bold text-gray-800 truncate flex-1">{lead.name}</div>
-                        <span className={`text-[10px] px-2 py-0.5 rounded border whitespace-nowrap ${levelColor[lead.level]}`}>
-                            {LEAD_LEVEL_LABEL[lead.level]}
-                        </span>
-                    </div>
-                )}
-                {hasImage && (
-                    <div className="font-bold text-gray-800 truncate mb-2">{lead.name}</div>
-                )}
-            <div className="space-y-1.5 text-xs text-gray-600">
-                {lead.phone && (
-                    <div className="flex items-center gap-1.5">
-                        <Phone className="h-3 w-3" /> {lead.phone}
-                    </div>
-                )}
-                <div className="flex items-center gap-1.5">
-                    <Tag className="h-3 w-3" /> {LEAD_SOURCE_LABEL[lead.source]}
-                    {lead.sourceDetail && <span className="text-gray-400">· {lead.sourceDetail}</span>}
-                </div>
-                {lead.city && (
-                    <div className="flex items-center gap-1.5">
-                        <MapPin className="h-3 w-3" /> {lead.city}
-                    </div>
-                )}
-                {lead.followUpDate && (
-                    <div className="flex items-center gap-1.5 text-amber-700 font-medium">
-                        <Calendar className="h-3 w-3" /> FU: {dayjs(lead.followUpDate).format("DD MMM YY")}
-                    </div>
-                )}
-                {lead.deliveryDeadline && (
-                    <div className="flex items-center gap-1.5 text-rose-700 font-medium">
-                        <Calendar className="h-3 w-3" /> Kirim: {dayjs(lead.deliveryDeadline).format("DD MMM YY")}
-                    </div>
-                )}
-                {(() => {
-                    const rt = formatResponseTime(lead.createdAt, lead.firstResponseAt);
-                    if (!rt) return null;
-                    return (
-                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-semibold ${RESP_TONE_STYLE[rt.tone]}`}>
-                            <Clock className="h-3 w-3" /> Resp: {rt.text}
-                        </span>
-                    );
-                })()}
-                {lead.assignedTo && (
-                    <div className="flex items-center gap-1.5">
-                        <User className="h-3 w-3" /> {lead.assignedTo.name || lead.assignedTo.email}
-                    </div>
-                )}
-            </div>
-            {lead.needs && (
-                <p className="text-xs text-gray-500 mt-2 line-clamp-2">{lead.needs}</p>
-            )}
-            <div className="mt-3 pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-                <span>{dayjs(lead.createdAt).format("DD MMM YY")}</span>
-                <ChevronRight className="h-3 w-3" />
-            </div>
-            </div>
-        </button>
-    );
-}
-
 // ─── Lead Form Modal ────────────────────────────────────────────────────────
 
 function LeadFormModal({
@@ -374,6 +459,9 @@ function LeadFormModal({
         needs: initial?.needs ?? "",
         estimatedValue: initial?.estimatedValue ? Number(initial.estimatedValue) : "",
         city: initial?.city ?? "",
+        intakeAt: initial?.intakeAt
+            ? dayjs(initial.intakeAt).format("YYYY-MM-DDTHH:mm")
+            : dayjs().format("YYYY-MM-DDTHH:mm"),
         followUpDate: initial?.followUpDate ? dayjs(initial.followUpDate).format("YYYY-MM-DD") : "",
         deliveryDeadline: initial?.deliveryDeadline ? dayjs(initial.deliveryDeadline).format("YYYY-MM-DD") : "",
         assignedToId: initial?.assignedToId ? String(initial.assignedToId) : "",
@@ -475,6 +563,7 @@ function LeadFormModal({
             ...form,
             // Kalau ada items, estimasi auto dari sum items. Kalau user manual override, pakai itu.
             estimatedValue: form.estimatedValue === "" ? (itemsTotal > 0 ? itemsTotal : undefined) : Number(form.estimatedValue),
+            intakeAt: form.intakeAt || undefined,
             followUpDate: form.followUpDate || undefined,
             deliveryDeadline: form.deliveryDeadline || undefined,
             assignedToId: form.assignedToId === "" ? null : Number(form.assignedToId),
@@ -560,6 +649,22 @@ function LeadFormModal({
                             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                             placeholder="mis. PT Bina Sekolah / Andi futsal"
                         />
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Tanggal &amp; Jam Masuk Lead
+                            {!initial && <span className="text-indigo-500 font-normal ml-1">(otomatis = sekarang)</span>}
+                        </label>
+                        <input
+                            type="datetime-local"
+                            value={form.intakeAt}
+                            onChange={(e) => setForm({ ...form, intakeAt: e.target.value })}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                        <p className="text-[10px] text-gray-500 mt-1">
+                            Sesuaikan jika lead ini masuk sebelumnya tapi baru diinput sekarang.
+                        </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -655,13 +760,25 @@ function LeadFormModal({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Detail Sumber</label>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            {form.source === "CUSTOM" ? (
+                                <>Nama Sumber <span className="text-red-500">*</span></>
+                            ) : "Detail Sumber"}
+                        </label>
                         <input
+                            required={form.source === "CUSTOM"}
                             value={form.sourceDetail}
                             onChange={(e) => setForm({ ...form, sourceDetail: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            placeholder='mis. "IG @volikoprint - story balas" / "Referral kak Andi"'
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-gray-300"}`}
+                            placeholder={
+                                form.source === "CUSTOM"
+                                    ? 'mis. "Brosur Pameran", "Radio", "Event Kampus"...'
+                                    : 'mis. "IG @volikoprint - story balas" / "Referral kak Andi"'
+                            }
                         />
+                        {form.source === "CUSTOM" && (
+                            <p className="text-[10px] text-indigo-600 mt-1">Tulis nama sumber yang spesifik — akan tampil sebagai label sumber lead.</p>
+                        )}
                     </div>
 
                     <div>
@@ -827,8 +944,10 @@ function LeadDetailDrawer({
                     if (r.transactionItemsCreated > 0) tx += `\n   ${r.transactionItemsCreated} item → job otomatis di /produksi/pipeline`;
                     if (r.transactionItemsSkipped > 0) tx += `\n   ⚠ ${r.transactionItemsSkipped} item custom di-skip (tidak punya productVariant)`;
                     lines.push(tx);
+                } else if (r.transactionError) {
+                    lines.push(`⚠ Produksi gagal dibuat: ${r.transactionError}`);
                 } else if (r.transactionItemsSkipped > 0) {
-                    lines.push(`⚠ Tidak ada item dari katalog — produksi tidak dibuat`);
+                    lines.push(`⚠ Tidak ada item — produksi tidak dibuat`);
                 }
                 if (r.salesOrderId) {
                     // Fallback message kalau backend tetap bikin SO (mis. user enable manual via API)
@@ -853,7 +972,8 @@ function LeadDetailDrawer({
     }
 
     const lead2 = leadDetail;
-    const isClosed = lead2.status === "CLOSED_WON" || lead2.status === "CLOSED_LOST";
+    const isLost = lead2.status === "CLOSED_LOST";
+    const isWon  = lead2.status === "CLOSED_WON";
 
     return (
         <div className="fixed inset-0 bg-black/40 z-[200] flex justify-end" onClick={onClose}>
@@ -893,7 +1013,11 @@ function LeadDetailDrawer({
                 <div className="p-5 space-y-4">
                     <div className="grid grid-cols-2 gap-3 text-sm">
                         <Info label="Status" value={LEAD_STATUS_LABEL[lead2.status]} />
-                        <Info label="Sumber" value={`${LEAD_SOURCE_LABEL[lead2.source]}${lead2.sourceDetail ? ` (${lead2.sourceDetail})` : ""}`} />
+                        <Info label="Sumber" value={formatSource(lead2.source, lead2.sourceDetail)} />
+                        <Info
+                            label="Masuk Lead"
+                            value={dayjs(lead2.intakeAt || lead2.createdAt).format("DD MMM YYYY, HH:mm")}
+                        />
                         <Info label="HP" value={lead2.phone || "-"} />
                         <Info label="Kota" value={lead2.city || "-"} />
                         <Info label="Estimasi" value={lead2.estimatedValue ? `Rp ${Number(lead2.estimatedValue).toLocaleString("id-ID")}` : "-"} />
@@ -1009,14 +1133,27 @@ function LeadDetailDrawer({
                     )}
 
                     {lead2.convertedCustomer && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm">
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm space-y-1">
                             <div className="font-semibold text-emerald-700 flex items-center gap-1">
                                 <CheckCircle2 className="h-4 w-4" /> Sudah Convert
                             </div>
-                            <div className="text-emerald-800 mt-1">
+                            <div className="text-emerald-800">
                                 Customer: <strong>{lead2.convertedCustomer.name}</strong>
                                 {lead2.convertedSO && <span> · SO: <strong>{lead2.convertedSO.soNumber}</strong></span>}
                             </div>
+                            {lead2.convertedTransactionId && (
+                                <div className="flex items-center gap-2 pt-1 border-t border-emerald-200">
+                                    <span className="text-emerald-700">🧾 Nota Produksi:</span>
+                                    <a
+                                        href={`/transactions/${lead2.convertedTransactionId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-indigo-600 hover:text-indigo-800 font-medium underline underline-offset-2"
+                                    >
+                                        Lihat Nota #{lead2.convertedTransactionId}
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1029,8 +1166,8 @@ function LeadDetailDrawer({
                         </div>
                     )}
 
-                    {/* Status quick change */}
-                    {!isClosed && (
+                    {/* Status quick change — tampil selama bukan Lost */}
+                    {!isLost && (
                         <div className="flex gap-2 flex-wrap">
                             {(["NEW", "FOLLOW_UP", "NEGOTIATION"] as LeadStatus[]).map((s) => (
                                 <button
@@ -1050,34 +1187,40 @@ function LeadDetailDrawer({
                     )}
 
                     {/* Actions */}
-                    {!isClosed && (
-                        <div className="flex gap-2 flex-wrap pt-2 border-t">
-                            <button
-                                onClick={() => setShowTemplate(true)}
-                                className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 flex items-center gap-1"
-                            >
-                                <MessageCircle className="h-4 w-4" /> Copy Template WA
-                            </button>
+                    <div className="flex gap-2 flex-wrap pt-2 border-t">
+                        {/* WA template — selalu tampil */}
+                        <button
+                            onClick={() => setShowTemplate(true)}
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 flex items-center gap-1"
+                        >
+                            <MessageCircle className="h-4 w-4" /> Copy Template WA
+                        </button>
+                        {/* Convert — tampil selama bukan Lost */}
+                        {!isLost && (
                             <button
                                 onClick={() => setShowConvert(true)}
                                 className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 flex items-center gap-1"
                             >
-                                <CheckCircle2 className="h-4 w-4" /> Convert (Closing)
+                                <CheckCircle2 className="h-4 w-4" /> {isWon ? "Buat Nota / Pipeline" : "Convert (Closing)"}
                             </button>
+                        )}
+                        {/* Close Lost — hanya kalau belum closing/lost */}
+                        {!isWon && !isLost && (
                             <button
                                 onClick={() => setShowCloseLost(true)}
                                 className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 flex items-center gap-1"
                             >
                                 <XCircle className="h-4 w-4" /> Close Lost
                             </button>
-                            <button
-                                onClick={() => onEdit(lead2)}
-                                className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
-                            >
-                                Edit
-                            </button>
-                        </div>
-                    )}
+                        )}
+                        {/* Edit — selalu tampil */}
+                        <button
+                            onClick={() => onEdit(lead2)}
+                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                        >
+                            Edit
+                        </button>
+                    </div>
 
                     {/* Activity timeline */}
                     <div className="pt-3 border-t">
@@ -1085,7 +1228,7 @@ function LeadDetailDrawer({
                             <Clock className="h-4 w-4" /> Aktivitas
                         </h3>
 
-                        {!isClosed && (
+                        {!isLost && (
                             <div className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
                                 <div className="flex gap-2">
                                     <select
@@ -1211,6 +1354,10 @@ function ActivityItem({ activity }: { activity: any }) {
         FOLLOW_UP_DONE: "✔️",
         AFTER_SALES_SCHEDULED: "📦",
     };
+    const txId = activity.kind === 'CONVERTED'
+        ? (activity.meta as any)?.transactionId ?? null
+        : null;
+
     return (
         <div className="border-l-2 border-indigo-200 pl-3 py-1">
             <div className="flex items-center justify-between gap-2 text-xs">
@@ -1220,6 +1367,16 @@ function ActivityItem({ activity }: { activity: any }) {
                 <span className="text-gray-400">{dayjs(activity.createdAt).format("DD MMM HH:mm")}</span>
             </div>
             {activity.text && <p className="text-sm text-gray-700 mt-1">{activity.text}</p>}
+            {txId && (
+                <a
+                    href={`/transactions/${txId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 underline underline-offset-2 mt-1"
+                >
+                    🧾 Lihat Nota #{txId}
+                </a>
+            )}
             {activity.createdBy?.name && (
                 <p className="text-[10px] text-gray-400 mt-0.5">oleh {activity.createdBy.name}</p>
             )}
@@ -1238,27 +1395,20 @@ function ConvertModal({
     submitting: boolean;
 }) {
     const [createCustomer, setCreateCustomer] = useState(true);
-    // SO/SPK di-hide dari UI (alur baru: convert langsung ke Invoice + Production Transaction).
-    // Backend endpoint masih support `createSalesOrderDraft` — bisa diakses via /sales-orders manual.
-    const createSO = false;
-    const designerName = "";
-    // Invoice wajib (default ON, disabled di UI).
-    const createInvoice = true;
-    const [invoiceType, setInvoiceType] = useState<'INVOICE' | 'QUOTATION'>('INVOICE');
     const [notes, setNotes] = useState(lead.needs ?? "");
 
-    // Lead items dengan productVariantId akan auto-spawn production jobs via Transaction PENDING.
+    const totalItems = (lead.items || []).length;
     const itemsWithVariant = (lead.items || []).filter(it => it.productVariantId);
     const itemsCustom = (lead.items || []).filter(it => !it.productVariantId);
-    const willCreateProductionTx = itemsWithVariant.length > 0;
 
     // ── Payment state ───────────────────────────────────────────────────────
     const [paymentMode, setPaymentMode] = useState<'NONE' | 'DP' | 'LUNAS'>('NONE');
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'TRANSFER' | 'QRIS'>('CASH');
     const [paymentAmount, setPaymentAmount] = useState<string>("");
     const [bankAccountId, setBankAccountId] = useState<string>("");
+    const [marketplaceFee, setMarketplaceFee] = useState<string>("");
 
-    // Estimasi total dari lead items (untuk display & default Lunas)
+    // Estimasi total dari lead items
     const itemsEstimate = useMemo(() => {
         return (lead.items || []).reduce((sum, it) => {
             const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
@@ -1285,18 +1435,14 @@ function ConvertModal({
     const bankInvalid = needsBankAccount && !bankAccountId;
     const paymentInvalid = dpInvalid || bankInvalid;
 
-    const nothingSelected = !createCustomer && !createInvoice;
-
     return (
         <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
-                <h3 className="font-bold text-lg mb-2">Convert Lead → Closing</h3>
+                <h3 className="font-bold text-lg mb-2">Buat Nota & Masuk Produksi</h3>
                 <p className="text-sm text-gray-600 mb-4">
-                    Tutup lead sebagai closing. Sistem otomatis bikin:
-                    <strong className="text-gray-800"> Customer</strong>,
-                    <strong className="text-gray-800"> Invoice/Quotation</strong>, dan
-                    <strong className="text-gray-800"> antrian produksi</strong> (untuk item dari katalog).
-                    SPK (Sales Order) tidak dibuat — bisa dibuat manual di <code>/sales-orders</code> kalau perlu workflow desain.
+                    Tutup lead sebagai closing. Sistem otomatis bikin
+                    <strong className="text-gray-800"> Nota</strong> (masuk DP/Piutang sesuai pembayaran) dan
+                    <strong className="text-gray-800"> antrian produksi</strong> untuk semua item.
                 </p>
 
                 <div className="space-y-3">
@@ -1314,207 +1460,193 @@ function ConvertModal({
                                 Data dari lead: <strong>{lead.name}</strong>
                                 {lead.phone && ` · ${lead.phone}`}
                                 <br />
-                                <span className="text-gray-400">Kalau customer sudah ada (dari banner dedup di form), pilih existing — jangan duplikat.</span>
+                                <span className="text-gray-400">Kalau customer sudah ada, jangan centang — hindari duplikat.</span>
                             </div>
                         </div>
                     </label>
 
-                    {/* 2. Invoice / Quotation — WAJIB, di-set ON & disabled */}
-                    <label className="flex items-start gap-2 text-sm p-3 border-2 border-emerald-200 bg-emerald-50/50 rounded-lg">
-                        <input
-                            type="checkbox"
-                            checked={createInvoice}
-                            disabled
-                            className="mt-1"
-                        />
-                        <div className="flex-1">
-                            <div className="font-semibold">🧾 Buat Invoice / Quotation Draft <span className="text-[10px] text-emerald-700 font-normal">(wajib)</span></div>
-                            <div className="text-xs text-gray-500">Nota tagihan atau penawaran. Lanjutkan di /invoices untuk isi item, set due date, kirim ke customer.</div>
-                        </div>
-                    </label>
-                    {createInvoice && (
-                        <div className="ml-6 -mt-1 flex gap-2">
-                            <label className={`flex-1 flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${invoiceType === 'INVOICE' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold' : 'border-gray-200'}`}>
-                                <input type="radio" className="hidden"
-                                    checked={invoiceType === 'INVOICE'}
-                                    onChange={() => setInvoiceType('INVOICE')} />
-                                🧾 Invoice (INV-...)
-                            </label>
-                            <label className={`flex-1 flex items-center gap-1.5 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${invoiceType === 'QUOTATION' ? 'border-blue-500 bg-blue-50 text-blue-700 font-semibold' : 'border-gray-200'}`}>
-                                <input type="radio" className="hidden"
-                                    checked={invoiceType === 'QUOTATION'}
-                                    onChange={() => setInvoiceType('QUOTATION')} />
-                                📑 Quotation (SPH-...)
-                            </label>
-                        </div>
-                    )}
-
-                    {/* 3. Production pipeline — info-only (auto, tidak bisa di-toggle) */}
-                    <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border-2 ${willCreateProductionTx ? 'border-purple-200 bg-purple-50/50' : 'border-gray-200 bg-gray-50'}`}>
-                        <span className="text-base leading-none mt-0.5">🏭</span>
+                    {/* 2. Nota + Pipeline info */}
+                    <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border-2 ${totalItems > 0 ? 'border-purple-200 bg-purple-50/50' : 'border-gray-200 bg-gray-50'}`}>
+                        <span className="text-base leading-none mt-0.5">🧾🏭</span>
                         <div className="flex-1">
                             <div className="font-semibold">
-                                Antrian Produksi
-                                {willCreateProductionTx
-                                    ? <span className="text-[10px] text-purple-700 font-normal"> (otomatis)</span>
-                                    : <span className="text-[10px] text-gray-500 font-normal"> (tidak ada item katalog)</span>}
+                                Nota + Antrian Produksi
+                                <span className="text-[10px] text-purple-700 font-normal"> (otomatis)</span>
                             </div>
-                            <div className="text-xs text-gray-500">
-                                {willCreateProductionTx ? (
-                                    <>Transaction <strong>PENDING</strong> dibuat dengan {itemsWithVariant.length} item katalog → otomatis spawn job di <code>/produksi</code>.
-                                    {itemsCustom.length > 0 && <> {itemsCustom.length} item custom (tanpa katalog) hanya masuk Invoice.</>}
+                            <div className="text-xs text-gray-500 mt-0.5">
+                                {totalItems > 0 ? (
+                                    <>
+                                        {totalItems} item
+                                        {itemsWithVariant.length > 0 && ` (${itemsWithVariant.length} katalog`}
+                                        {itemsCustom.length > 0 && itemsWithVariant.length > 0 && ` + ${itemsCustom.length} custom)`}
+                                        {itemsCustom.length > 0 && itemsWithVariant.length === 0 && ` (${itemsCustom.length} custom)`}
+                                        {itemsWithVariant.length > 0 && itemsCustom.length === 0 && ')'}
+                                        {' '}→ Nota dibuat + job di-spawn ke <code>/produksi</code>.
                                     </>
                                 ) : (
-                                    <>Lead tidak punya item dari katalog. Untuk masuk antrian produksi, edit lead & tambah item dari katalog (productVariant).</>
+                                    <span className="text-amber-600">Lead belum punya item. Tambahkan item di lead agar masuk pipeline produksi.</span>
                                 )}
                             </div>
                         </div>
                     </div>
 
-                    {/* Shared notes — di-pass ke Invoice & production notes */}
-                    {createInvoice && (
+                    {/* 3. Catatan */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (di-pass ke Nota & job produksi)</label>
+                        <textarea
+                            rows={2}
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            placeholder="Detail kebutuhan, deadline, syarat khusus..."
+                        />
+                    </div>
+
+                    {/* 4. Pembayaran */}
+                    <div className="border-2 border-blue-200 bg-blue-50/50 rounded-lg p-3 space-y-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (di-pass ke Invoice & job produksi)</label>
-                            <textarea
-                                rows={3}
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                                placeholder="Detail kebutuhan, deadline, syarat khusus..."
-                            />
-                        </div>
-                    )}
-
-                    {/* 4. Payment options (only relevant if Transaction akan dibuat) */}
-                    {willCreateProductionTx && (
-                        <div className="border-2 border-blue-200 bg-blue-50/50 rounded-lg p-3 space-y-3">
-                            <div>
-                                <div className="font-semibold text-sm mb-0.5">💳 Pembayaran</div>
+                            <div className="font-semibold text-sm mb-0.5">💳 Pembayaran</div>
+                            {itemsEstimate > 0 && (
                                 <div className="text-[11px] text-gray-500">
-                                    Estimasi total dari items: <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>
+                                    Estimasi total: <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>
                                 </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-1.5">
-                                {(['NONE', 'DP', 'LUNAS'] as const).map((mode) => {
-                                    const label = mode === 'NONE' ? 'Belum Bayar' : mode === 'DP' ? 'DP' : 'Lunas';
-                                    const active = paymentMode === mode;
-                                    return (
-                                        <button
-                                            key={mode}
-                                            type="button"
-                                            onClick={() => setPaymentMode(mode)}
-                                            className={`px-2 py-1.5 rounded-lg border-2 text-xs font-semibold ${active ? 'border-blue-500 bg-blue-100 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}
-                                        >
-                                            {label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {paymentMode !== 'NONE' && (
-                                <>
-                                    <div>
-                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Metode</label>
-                                        <div className="grid grid-cols-3 gap-1.5">
-                                            {(['CASH', 'TRANSFER', 'QRIS'] as const).map((m) => {
-                                                const active = paymentMethod === m;
-                                                return (
-                                                    <button
-                                                        key={m}
-                                                        type="button"
-                                                        onClick={() => setPaymentMethod(m)}
-                                                        className={`px-2 py-1.5 rounded-lg border text-xs font-semibold ${active ? 'border-emerald-500 bg-emerald-100 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'}`}
-                                                    >
-                                                        {m === 'CASH' ? '💵 Cash' : m === 'TRANSFER' ? '🏦 Transfer' : '📱 QRIS'}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    {paymentMode === 'DP' && (
-                                        <div>
-                                            <label className="block text-[11px] font-semibold text-gray-600 mb-1">Nominal DP (Rp)</label>
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                max={itemsEstimate || undefined}
-                                                value={paymentAmount}
-                                                onChange={(e) => setPaymentAmount(e.target.value)}
-                                                placeholder="mis. 500000"
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
-                                            />
-                                            {dpInvalid && (
-                                                <p className="text-[10px] text-red-600 mt-0.5">Nominal DP wajib diisi (&gt; 0).</p>
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {paymentMode === 'LUNAS' && (
-                                        <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded p-1.5">
-                                            Dibayar lunas <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong> (auto dari estimasi). Cashflow INCOME otomatis tercatat.
-                                        </p>
-                                    )}
-
-                                    {needsBankAccount && (
-                                        <div>
-                                            <label className="block text-[11px] font-semibold text-gray-600 mb-1">Rekening Tujuan *</label>
-                                            <select
-                                                value={bankAccountId}
-                                                onChange={(e) => setBankAccountId(e.target.value)}
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                                            >
-                                                <option value="">— Pilih rekening —</option>
-                                                {(bankAccounts as any[] | undefined)?.map((acc: any) => (
-                                                    <option key={acc.id} value={acc.id}>
-                                                        {acc.bankName} · {acc.accountNumber} ({acc.accountHolder})
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {bankInvalid && (
-                                                <p className="text-[10px] text-red-600 mt-0.5">Pilih rekening tujuan untuk transfer.</p>
-                                            )}
-                                        </div>
-                                    )}
-                                </>
-                            )}
-
-                            {paymentMode === 'NONE' && (
-                                <p className="text-[11px] text-gray-500 italic">
-                                    Transaction PENDING dibuat tanpa pembayaran. Customer bayar nanti via /invoices atau POS.
-                                </p>
                             )}
                         </div>
-                    )}
-                </div>
 
-                {nothingSelected && (
-                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-3">
-                        ⚠️ Pilih minimal 1 dokumen untuk dibuat (atau pakai customer existing).
-                    </p>
-                )}
+                        <div className="grid grid-cols-3 gap-1.5">
+                            {(['NONE', 'DP', 'LUNAS'] as const).map((mode) => {
+                                const label = mode === 'NONE' ? 'Bayar Nanti' : mode === 'DP' ? 'DP / Uang Muka' : 'Lunas';
+                                const active = paymentMode === mode;
+                                return (
+                                    <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => setPaymentMode(mode)}
+                                        className={`px-2 py-1.5 rounded-lg border-2 text-xs font-semibold ${active ? 'border-blue-500 bg-blue-100 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {paymentMode === 'NONE' && (
+                            <p className="text-[11px] text-gray-500 italic">
+                                Nota status <strong>PENDING</strong> — masuk ke daftar Piutang/DP. Bisa dilunasi nanti dari halaman Transaksi.
+                            </p>
+                        )}
+
+                        {paymentMode !== 'NONE' && (
+                            <>
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">Metode Pembayaran</label>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        {(['CASH', 'TRANSFER', 'QRIS'] as const).map((m) => {
+                                            const active = paymentMethod === m;
+                                            return (
+                                                <button
+                                                    key={m}
+                                                    type="button"
+                                                    onClick={() => setPaymentMethod(m)}
+                                                    className={`px-2 py-1.5 rounded-lg border text-xs font-semibold ${active ? 'border-emerald-500 bg-emerald-100 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                                                >
+                                                    {m === 'CASH' ? '💵 Cash' : m === 'TRANSFER' ? '🏦 Transfer' : '📱 QRIS'}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {paymentMode === 'DP' && (
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Nominal DP (Rp)</label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={paymentAmount}
+                                            onChange={(e) => setPaymentAmount(e.target.value)}
+                                            placeholder="mis. 500000"
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                        />
+                                        {dpInvalid && (
+                                            <p className="text-[10px] text-red-600 mt-0.5">Nominal DP wajib diisi (&gt; 0).</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {paymentMode === 'LUNAS' && itemsEstimate > 0 && (
+                                    <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded p-1.5">
+                                        Dibayar lunas <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>. Nota langsung PAID, cashflow INCOME tercatat otomatis.
+                                    </p>
+                                )}
+
+                                {/* Potongan marketplace — muncul saat LUNAS */}
+                                {paymentMode === 'LUNAS' && (
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">
+                                            Potongan Marketplace (Rp) <span className="text-gray-400 font-normal">— mis. fee Shopee, Tokopedia</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={0}
+                                            value={marketplaceFee}
+                                            onChange={(e) => setMarketplaceFee(e.target.value)}
+                                            placeholder="0 (kosongkan jika tidak ada)"
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                        />
+                                        {Number(marketplaceFee) > 0 && itemsEstimate > 0 && (
+                                            <p className="text-[10px] text-emerald-700 mt-0.5">
+                                                Diterima (nett): <strong>Rp {Math.max(0, itemsEstimate - Number(marketplaceFee)).toLocaleString("id-ID")}</strong>
+                                                {" "}· Cashflow: INCOME {Math.max(0, itemsEstimate - Number(marketplaceFee)).toLocaleString("id-ID")} + EXPENSE {Number(marketplaceFee).toLocaleString("id-ID")} (Biaya Platform)
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {needsBankAccount && (
+                                    <div>
+                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Rekening Tujuan *</label>
+                                        <select
+                                            value={bankAccountId}
+                                            onChange={(e) => setBankAccountId(e.target.value)}
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                        >
+                                            <option value="">— Pilih rekening —</option>
+                                            {(bankAccounts as any[] | undefined)?.map((acc: any) => (
+                                                <option key={acc.id} value={acc.id}>
+                                                    {acc.bankName} · {acc.accountNumber} ({acc.accountHolder})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {bankInvalid && (
+                                            <p className="text-[10px] text-red-600 mt-0.5">Pilih rekening tujuan untuk transfer.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                </div>
 
                 <div className="flex gap-2 mt-5">
                     <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
                     <button
                         onClick={() => onSubmit({
                             createCustomer,
-                            createSalesOrderDraft: false, // alur baru: SO tidak dibuat dari convert
-                            createInvoiceDraft: createInvoice,
-                            invoiceType: createInvoice ? invoiceType : undefined,
+                            createSalesOrderDraft: false,
+                            createInvoiceDraft: false,
                             notes: notes || undefined,
                             createProductionTransaction: true,
-                            // Payment
                             paymentMode,
                             paymentMethod: paymentMode !== 'NONE' ? paymentMethod : undefined,
                             paymentAmount: paymentMode === 'DP' ? Number(paymentAmount) || 0 : undefined,
                             bankAccountId: needsBankAccount && bankAccountId ? Number(bankAccountId) : undefined,
+                            marketplaceFee: paymentMode === 'LUNAS' && Number(marketplaceFee) > 0 ? Number(marketplaceFee) : undefined,
                         })}
                         disabled={submitting || paymentInvalid}
                         className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
-                        {submitting ? "Memproses..." : "✓ Convert (Closing)"}
+                        {submitting ? "Memproses..." : "✓ Buat Nota & Masuk Produksi"}
                     </button>
                 </div>
             </div>

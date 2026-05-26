@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getPublicSettings } from '@/lib/api';
+
+const CACHE_KEY = '__vl_login_cfg';
 
 /* ---------- All keyframes prefixed vl- to avoid global conflicts ---------- */
 const VL_STYLES = `
@@ -52,6 +54,10 @@ const VL_STYLES = `
     0%   { transform: scale(1)    translate(0%,     0%);    }
     50%  { transform: scale(1.09) translate(-1.2%,  0.8%);  }
     100% { transform: scale(1.06) translate( 0.8%, -1.2%);  }
+  }
+  @keyframes vl-fadeIn {
+    0%  { opacity:0; transform:scale(.97); }
+    100%{ opacity:1; transform:scale(1); }
   }
   /* ── Responsive logo scaling for small/landscape viewports ── */
   .vl-scene { transform-origin: center top; }
@@ -124,12 +130,35 @@ export function AnimatedBackground() {
     });
     const [activeSlide, setActiveSlide] = useState(0);
     const [taglineIdx, setTaglineIdx] = useState(0);
+    // logoKey: berubah setiap kali loginLogoUrl berganti → trigger fade-in ulang
+    const [logoKey, setLogoKey] = useState(0);
+    const prevLoginLogoRef = useRef<string | null>(undefined as unknown as null);
     const strokeRefs = useRef<(SVGPathElement | null)[]>([null, null, null, null, null]);
     const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-    useEffect(() => {
-        getPublicSettings().then(setSettings).catch(() => { });
+    // ① Baca cache SEBELUM browser paint — eliminasi flash logo pada kunjungan ulang
+    useLayoutEffect(() => {
+        try {
+            const raw = localStorage.getItem(CACHE_KEY);
+            if (raw) setSettings(JSON.parse(raw));
+        } catch {}
     }, []);
+
+    // ② Fetch fresh dari API, lalu perbarui cache
+    useEffect(() => {
+        getPublicSettings().then(fresh => {
+            setSettings(fresh);
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify(fresh)); } catch {}
+        }).catch(() => {});
+    }, []);
+
+    /* Deteksi perubahan loginLogoUrl → increment logoKey untuk re-trigger fade-in */
+    useEffect(() => {
+        if (prevLoginLogoRef.current !== settings.loginLogoUrl) {
+            prevLoginLogoRef.current = settings.loginLogoUrl;
+            setLogoKey(k => k + 1);
+        }
+    }, [settings.loginLogoUrl]);
 
     /* Init stroke-dashoffset — must run after mount so paths are in the DOM */
     useEffect(() => {
@@ -238,7 +267,11 @@ export function AnimatedBackground() {
             <div className="relative z-20 flex flex-1 items-center justify-center">
                 {settings.loginLogoUrl ? (
                     // Custom logo — replace animasi Voliko. Sparkles & ring tetap di sekeliling.
-                    <div className="vl-scene relative flex flex-col items-center">
+                    <div
+                        key={logoKey}
+                        className="vl-scene relative flex flex-col items-center"
+                        style={{ animation: 'vl-fadeIn .4s ease-out both' }}
+                    >
                         <div className="absolute pointer-events-none" style={{ inset: '-60px', zIndex: 0 }}>
                             {SPARKLES.map((sp, i) => (
                                 <div
@@ -266,7 +299,11 @@ export function AnimatedBackground() {
                         </div>
                     </div>
                 ) : (
-                <div className="vl-scene relative flex flex-col items-center">
+                <div
+                    key={logoKey}
+                    className="vl-scene relative flex flex-col items-center"
+                    style={{ animation: 'vl-fadeIn .35s ease-out both' }}
+                >
 
                     {/* Sparkles */}
                     <div className="absolute pointer-events-none" style={{ inset: '-60px', zIndex: 0 }}>

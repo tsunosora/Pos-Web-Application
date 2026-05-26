@@ -130,6 +130,7 @@ function POSPageContent() {
     const [downPayment, setDownPayment] = useState<string>('');
     const [discount, setDiscount] = useState<string>('');
     const [shippingCost, setShippingCost] = useState<string>('');
+    const [marketplaceFeeItems, setMarketplaceFeeItems] = useState<{ name: string; amount: string }[]>([]);
     const [cashierName, setCashierName] = useState('');
     const [employeeName, setEmployeeName] = useState('');
     const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null);
@@ -172,6 +173,7 @@ function POSPageContent() {
     const discountNum = Number(discount) || 0;
     const taxAmount = (_subtotal - discountNum) * (taxRate / 100);
     const shippingCostNum = Number(shippingCost) || 0;
+    const marketplaceFeeNum = marketplaceFeeItems.reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const grandTotal = _subtotal - discountNum + taxAmount + shippingCostNum;
     const subtotal = _subtotal;
     const addNotification = useNotificationStore(s => s.addNotification);
@@ -183,6 +185,7 @@ function POSPageContent() {
             clearCart();
             setDiscount('');
             setShippingCost('');
+            setMarketplaceFeeItems([]);
             setDueDate('');
             setDownPayment('');
             setPaymentMethod('CASH');
@@ -462,6 +465,9 @@ function POSPageContent() {
             saveOnly: isPayLater ? true : undefined,
             discount: discountNum > 0 ? discountNum : 0,
             shippingCost: shippingCostNum > 0 ? shippingCostNum : undefined,
+            marketplaceFeeItems: marketplaceFeeNum > 0
+                ? marketplaceFeeItems.filter(f => Number(f.amount) > 0).map(f => ({ name: f.name || 'Potongan', amount: Number(f.amount) }))
+                : undefined,
             customerName: customerName.trim() || undefined,
             customerPhone: customerPhone.trim() || undefined,
             customerAddress: customerAddress.trim() || undefined,
@@ -1378,9 +1384,49 @@ function POSPageContent() {
                                         <input type="number" value={shippingCost} onChange={e => setShippingCost(e.target.value)} placeholder="0" min="0"
                                             className="w-28 text-right px-2 py-0.5 border border-border rounded text-xs bg-background outline-none focus:border-primary transition-colors" />
                                     </div>
+                                    {/* Potongan Marketplace — multi item */}
+                                    {marketplaceFeeItems.map((fi, idx) => (
+                                        <div key={idx} className="flex items-center gap-1">
+                                            <input
+                                                type="text"
+                                                value={fi.name}
+                                                onChange={e => setMarketplaceFeeItems(prev => prev.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                                                placeholder="Nama potongan"
+                                                className="flex-1 min-w-0 px-2 py-0.5 border border-border rounded text-xs bg-background outline-none focus:border-destructive"
+                                            />
+                                            <input
+                                                type="number"
+                                                value={fi.amount}
+                                                onChange={e => setMarketplaceFeeItems(prev => prev.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))}
+                                                placeholder="0"
+                                                min="0"
+                                                className="w-24 text-right px-2 py-0.5 border border-border rounded text-xs bg-background outline-none focus:border-destructive text-destructive font-medium"
+                                            />
+                                            <button type="button" onClick={() => setMarketplaceFeeItems(prev => prev.filter((_, i) => i !== idx))}
+                                                className="text-gray-400 hover:text-red-500 text-xs px-1">✕</button>
+                                        </div>
+                                    ))}
+                                    <div className="flex justify-between items-center">
+                                        <button type="button"
+                                            onClick={() => setMarketplaceFeeItems(prev => [...prev, { name: '', amount: '' }])}
+                                            className="text-[11px] text-destructive hover:underline">
+                                            + Tambah Potongan
+                                        </button>
+                                        {marketplaceFeeNum > 0 && (
+                                            <span className="text-[11px] text-destructive font-medium">
+                                                Total: Rp {marketplaceFeeNum.toLocaleString('id-ID')}
+                                            </span>
+                                        )}
+                                    </div>
                                     <div className="flex justify-between font-bold text-sm pt-1 border-t border-border">
                                         <span>Total</span><span className="text-primary">Rp {grandTotal.toLocaleString('id-ID')}</span>
                                     </div>
+                                    {marketplaceFeeNum > 0 && (
+                                        <div className="flex justify-between text-xs text-emerald-700 font-medium">
+                                            <span>Diterima (nett)</span>
+                                            <span>Rp {Math.max(0, grandTotal - marketplaceFeeNum).toLocaleString('id-ID')}</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1951,6 +1997,7 @@ function POSPageContent() {
                                 setCustomerAddress('');
                                 setDiscount('');
                                 setShippingCost('');
+                                setMarketplaceFeeItems([]);
                                 setDueDate('');
                                 setDownPayment('');
                                 setDpBayarNanti('');

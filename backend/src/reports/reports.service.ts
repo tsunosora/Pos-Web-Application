@@ -85,7 +85,8 @@ export class ReportsService {
 
                 trxHpp += itemHpp;
 
-                // Group by variant
+                // Group by variant — skip custom items (no productVariantId)
+                if (!item.productVariantId) continue;
                 if (!itemMap[item.productVariantId]) {
                     const pv = (item as any).productVariant;
                     const p = pv?.product;

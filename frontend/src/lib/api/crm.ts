@@ -7,7 +7,7 @@ import api from './client';
 export type LeadSource =
     | 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK'
     | 'MARKETPLACE' | 'REFERRAL' | 'WEBSITE' | 'WALK_IN'
-    | 'REPEAT_ORDER' | 'OTHER';
+    | 'REPEAT_ORDER' | 'OTHER' | 'CUSTOM';
 
 export type LeadStatus =
     | 'NEW' | 'FOLLOW_UP' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
@@ -25,6 +25,7 @@ export const LEAD_SOURCE_LABEL: Record<LeadSource, string> = {
     WALK_IN: 'Walk-in',
     REPEAT_ORDER: 'Repeat Order',
     OTHER: 'Lainnya',
+    CUSTOM: 'Custom',
 };
 
 export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
@@ -86,11 +87,13 @@ export interface Lead {
     firstResponseAt: string | null;
     convertedCustomerId: number | null;
     convertedSalesOrderId: number | null;
+    convertedTransactionId: number | null;
     closeLostReason: string | null;
     imageUrl: string | null;       // DEPRECATED — first image dari images array
     images?: LeadImage[];           // multi-image (urutan = posisi slider)
     branchId: number | null;
     createdById: number | null;
+    intakeAt: string | null;
     createdAt: string;
     updatedAt: string;
     closedAt: string | null;
@@ -175,6 +178,7 @@ export interface ConvertLeadInput {
     paymentMethod?: 'CASH' | 'TRANSFER' | 'QRIS';
     paymentAmount?: number;                // hanya untuk DP
     bankAccountId?: number;                // wajib untuk TRANSFER
+    marketplaceFee?: number;               // potongan platform — hanya berlaku saat LUNAS
 }
 
 export interface LeadConvertResult extends Lead {
@@ -183,6 +187,10 @@ export interface LeadConvertResult extends Lead {
         salesOrderId: number | null;
         invoiceId: number | null;
         invoiceNumber: string | null;
+        transactionId: number | null;
+        transactionItemsCreated: number;
+        transactionItemsSkipped: number;
+        transactionError: string | null;
     };
 }
 
@@ -222,6 +230,9 @@ export const getLeads = async (params?: {
     status?: LeadStatus;
     source?: LeadSource;
     assignedToId?: number;
+    level?: LeadLevel;
+    dateFrom?: string;
+    dateTo?: string;
     search?: string;
     page?: number;
     limit?: number;
@@ -427,6 +438,9 @@ export interface KpiLeaderboardEntry {
     name: string;
     leadsHandled: number;
     dealsClosed: number;
+    dealsLost: number;
+    wonValue: number;
+    lostValue: number;
     closingRate: number;
     avgResponseHrs: number | null;
 }
@@ -437,6 +451,8 @@ export interface KpiReport {
         totalLeads: number;
         closedWon: number;
         closedLost: number;
+        wonValue: number;
+        lostValue: number;
         customersWithOrder: number;
         customersRepeat: number;
         totalFu: number;

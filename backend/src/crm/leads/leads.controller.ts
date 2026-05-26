@@ -30,12 +30,15 @@ export class LeadsController {
         @Query('status') status?: string,
         @Query('source') source?: string,
         @Query('assignedToId') assignedToId?: string,
+        @Query('level') level?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
         @Query('search') search?: string,
         @Query('page') page?: string,
         @Query('limit') limit?: string,
     ) {
         return this.leads.list(ctx, {
-            status, source,
+            status, source, level, dateFrom, dateTo,
             assignedToId: assignedToId ? +assignedToId : undefined,
             search,
             page: page ? +page : undefined,

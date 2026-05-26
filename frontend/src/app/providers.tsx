@@ -56,10 +56,15 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 gcTime: CACHE_MAX_AGE,       // simpan di memory/cache 24 jam
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: true,    // auto-refresh saat internet kembali
-                // STOP polling saat tab tidak aktif (alt-tab / minimize) — hemat
-                // CPU/battery/network besar-besaran. Saat user balik ke tab,
-                // refetch otomatis kalau data sudah stale.
                 refetchIntervalInBackground: false,
+                // Jangan retry error 4xx (403/401/404/422) — percuma & bikin
+                // query stuck di error state lama. Hanya retry error jaringan
+                // atau 5xx (server down / transient).
+                retry: (failureCount: number, error: any) => {
+                    const status = error?.response?.status ?? error?.status;
+                    if (status && status >= 400 && status < 500) return false;
+                    return failureCount < 2;
+                },
             },
         },
     }));
@@ -70,13 +75,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             persistOptions={{
                 persister,
                 maxAge: CACHE_MAX_AGE,
-                // Bump buster ke '2' (2026-05-03) — invalidate semua cache lama
-                // di IndexedDB browser. Sebelumnya foto meter tersimpan dengan
-                // URL rusak `https//api.volikoprint.com/...` (typo env var) di
-                // cache. Setelah backend di-fix, frontend tetap baca dari cache
-                // lama. Bumping buster bikin semua client refetch fresh dari
-                // backend pada next visit.
-                buster: '2',
+                buster: '3',
+                // Hanya simpan query yang berhasil (status 'success') ke IDB.
+                // Query error tidak dipersist — kalau token baru atau permission
+                // berubah, query akan refetch fresh tanpa dibebani error lama.
+                dehydrateOptions: {
+                    shouldDehydrateQuery: (query) => query.state.status === 'success',
+                },
             }}
         >
             <ThemeProvider>{children}</ThemeProvider>

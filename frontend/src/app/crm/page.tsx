@@ -8,7 +8,7 @@ import {
     PieChart, Pie, Legend,
 } from "recharts";
 import {
-    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar,
+    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -110,7 +110,7 @@ export default function CrmDashboardPage() {
             ) : (
                 <>
                     {/* Summary cards */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                         <MetricCard
                             icon={<Clock className="h-5 w-5" />}
                             label="Avg Response Time"
@@ -138,6 +138,24 @@ export default function CrmDashboardPage() {
                             value={`${(data.metrics.repeatOrderRate * 100).toFixed(1)}%`}
                             sub={`${data.totals.customersRepeat}/${data.totals.customersWithOrder} customer`}
                             color="bg-purple-50 border-purple-200 text-purple-700"
+                        />
+                        <MetricCard
+                            icon={<TrendingUp className="h-5 w-5" />}
+                            label="Nilai WON"
+                            value={data.totals.wonValue > 0
+                                ? `Rp ${(data.totals.wonValue / 1_000_000).toFixed(1)}jt`
+                                : "Rp 0"}
+                            sub={`dari ${data.totals.closedWon} deal closing`}
+                            color="bg-emerald-50 border-emerald-200 text-emerald-700"
+                        />
+                        <MetricCard
+                            icon={<TrendingDown className="h-5 w-5" />}
+                            label="Nilai Lost"
+                            value={data.totals.lostValue > 0
+                                ? `Rp ${(data.totals.lostValue / 1_000_000).toFixed(1)}jt`
+                                : "Rp 0"}
+                            sub={`dari ${data.totals.closedLost} lead gagal`}
+                            color="bg-red-50 border-red-200 text-red-700"
                         />
                     </div>
 
@@ -207,10 +225,13 @@ export default function CrmDashboardPage() {
                                     <thead>
                                         <tr className="border-b text-xs text-gray-500 uppercase">
                                             <th className="text-left py-2 px-2">#</th>
-                                            <th className="text-left py-2 px-2">Nama</th>
+                                            <th className="text-left py-2 px-2">Nama CS</th>
                                             <th className="text-right py-2 px-2">Leads</th>
                                             <th className="text-right py-2 px-2">Closing</th>
+                                            <th className="text-right py-2 px-2">Lost</th>
                                             <th className="text-right py-2 px-2">Rate</th>
+                                            <th className="text-right py-2 px-2">Nilai WON</th>
+                                            <th className="text-right py-2 px-2">Nilai Lost</th>
                                             <th className="text-right py-2 px-2">Avg Response</th>
                                         </tr>
                                     </thead>
@@ -221,12 +242,23 @@ export default function CrmDashboardPage() {
                                                     {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
                                                 </td>
                                                 <td className="py-2 px-2 font-semibold">{row.name}</td>
-                                                <td className="py-2 px-2 text-right font-mono">{row.leadsHandled}</td>
-                                                <td className="py-2 px-2 text-right font-mono text-emerald-700">{row.dealsClosed}</td>
+                                                <td className="py-2 px-2 text-right font-mono text-gray-600">{row.leadsHandled}</td>
+                                                <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.dealsClosed}</td>
+                                                <td className="py-2 px-2 text-right font-mono text-red-600">{row.dealsLost}</td>
                                                 <td className="py-2 px-2 text-right font-mono">
                                                     {(row.closingRate * 100).toFixed(0)}%
                                                 </td>
-                                                <td className="py-2 px-2 text-right font-mono">
+                                                <td className="py-2 px-2 text-right font-mono text-emerald-700">
+                                                    {row.wonValue > 0
+                                                        ? `Rp ${row.wonValue.toLocaleString('id-ID')}`
+                                                        : <span className="text-gray-300">—</span>}
+                                                </td>
+                                                <td className="py-2 px-2 text-right font-mono text-red-600">
+                                                    {row.lostValue > 0
+                                                        ? `Rp ${row.lostValue.toLocaleString('id-ID')}`
+                                                        : <span className="text-gray-300">—</span>}
+                                                </td>
+                                                <td className="py-2 px-2 text-right font-mono text-gray-500">
                                                     {row.avgResponseHrs != null
                                                         ? `${row.avgResponseHrs.toFixed(1)}h`
                                                         : <span className="text-gray-400">—</span>}
@@ -234,6 +266,33 @@ export default function CrmDashboardPage() {
                                             </tr>
                                         ))}
                                     </tbody>
+                                    {/* Footer: total row */}
+                                    <tfoot>
+                                        <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-xs">
+                                            <td colSpan={2} className="py-2 px-2 text-gray-500">Total</td>
+                                            <td className="py-2 px-2 text-right font-mono">{data.totals.totalLeads}</td>
+                                            <td className="py-2 px-2 text-right font-mono text-emerald-700">{data.totals.closedWon}</td>
+                                            <td className="py-2 px-2 text-right font-mono text-red-600">{data.totals.closedLost}</td>
+                                            <td className="py-2 px-2 text-right font-mono">
+                                                {(data.metrics.closingRate * 100).toFixed(0)}%
+                                            </td>
+                                            <td className="py-2 px-2 text-right font-mono text-emerald-700">
+                                                {data.totals.wonValue > 0
+                                                    ? `Rp ${data.totals.wonValue.toLocaleString('id-ID')}`
+                                                    : '—'}
+                                            </td>
+                                            <td className="py-2 px-2 text-right font-mono text-red-600">
+                                                {data.totals.lostValue > 0
+                                                    ? `Rp ${data.totals.lostValue.toLocaleString('id-ID')}`
+                                                    : '—'}
+                                            </td>
+                                            <td className="py-2 px-2 text-right font-mono text-gray-500">
+                                                {data.metrics.responseTimeAvgHrs > 0
+                                                    ? `${data.metrics.responseTimeAvgHrs.toFixed(1)}h`
+                                                    : '—'}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
                                 </table>
                             </div>
                         )}

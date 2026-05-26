@@ -30,6 +30,8 @@ export class TransactionsController {
         productionNotes?: string;
         transactionDate?: string;  // backdate: "YYYY-MM-DD"
         cashflowDate?: string;     // cashflow date override (untuk masuk shift hari ini)
+        marketplaceFee?: number;   // fallback jika tidak pakai items
+        marketplaceFeeItems?: { name: string; amount: number }[];  // detail per kategori fee
         saveOnly?: boolean;        // true = simpan invoice tanpa pembayaran (PENDING)
         salesOrderId?: number;     // jika transaksi dibuat dari SO
         branchName?: string;       // cabang sumber order (auto-inherit dari SO jika ada)
@@ -117,7 +119,7 @@ export class TransactionsController {
     }
 
     @Post(':id/pay-off')
-    payOff(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string }) {
+    payOff(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }) {
         return this.transactionsService.payOff(id, body);
     }
 

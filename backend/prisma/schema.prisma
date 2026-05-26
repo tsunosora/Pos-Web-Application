@@ -285,6 +285,8 @@ model Transaction {
   tax                Decimal           @db.Decimal(15, 2)
   discount           Decimal           @default(0) @db.Decimal(15, 2)
   shippingCost       Decimal           @default(0) @map("shipping_cost") @db.Decimal(15, 2)
+  marketplaceFee     Decimal           @default(0) @map("marketplace_fee") @db.Decimal(15, 2)
+  marketplaceFeeItems Json?            @map("marketplace_fee_items")   // [{name:string, amount:number}]
   grandTotal         Decimal           @map("grand_total") @db.Decimal(15, 2)
   paymentMethod      PaymentMethod     @map("payment_method")
   status             TransactionStatus @default(PENDING)
@@ -339,7 +341,8 @@ model Transaction {
 model TransactionItem {
   id               Int       @id @default(autoincrement())
   transactionId    Int       @map("transaction_id")
-  productVariantId Int       @map("product_variant_id")
+  productVariantId Int?      @map("product_variant_id")
+  customName       String?   @map("custom_name") @db.VarChar(255)  // nama item custom (tanpa varian katalog)
   quantity         Int
   priceAtTime      Decimal   @map("price_at_time") @db.Decimal(15, 2)
   hppAtTime        Decimal   @default(0) @map("hpp_at_time") @db.Decimal(15, 2)
@@ -352,8 +355,8 @@ model TransactionItem {
   clickType        String?   @map("click_type") @db.VarChar(50)  // "A3+ WARNA", "A4 BW", dll
   createdAt        DateTime? @default(now()) @map("created_at")
 
-  transaction    Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
+  transaction    Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
   productionJob  ProductionJob?
   printJob       PrintJob?
   clickLogs      ClickLog[]
@@ -1413,6 +1416,7 @@ enum LeadSource {
   WALK_IN
   REPEAT_ORDER
   OTHER
+  CUSTOM
 }
 
 enum LeadStatus {
@@ -1462,10 +1466,12 @@ model Lead {
   firstResponseAt       DateTime?     @map("first_response_at")
   convertedCustomerId   Int?          @map("converted_customer_id")
   convertedSalesOrderId Int?          @map("converted_sales_order_id")
+  convertedTransactionId Int?         @map("converted_transaction_id")
   closeLostReason       String?       @map("close_lost_reason") @db.Text
   imageUrl              String?       @map("image_url") @db.Text
   branchId              Int?          @map("branch_id")
   createdById           Int?          @map("created_by_id")
+  intakeAt              DateTime?     @map("intake_at")              // jam masuk lead sesungguhnya (CS-set, bisa beda dari createdAt)
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
   closedAt              DateTime?     @map("closed_at")

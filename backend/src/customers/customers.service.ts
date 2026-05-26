@@ -117,6 +117,7 @@ export class CustomersService {
         const productMap: Record<string, { name: string; qty: number; revenue: number }> = {};
         for (const t of transactions) {
             for (const item of t.items) {
+                if (!item.productVariant) continue;
                 const name = item.productVariant.product.name;
                 if (!productMap[name]) productMap[name] = { name, qty: 0, revenue: 0 };
                 productMap[name].qty += item.quantity;
@@ -147,7 +148,7 @@ export class CustomersService {
             paymentMethod: t.paymentMethod,
             createdAt: t.createdAt,
             itemCount: t.items.length,
-            items: t.items.map(i => i.productVariant.product.name),
+            items: t.items.map(i => i.productVariant?.product.name ?? (i as any).customName ?? 'Item Custom'),
         }));
 
         return { customer, totalRevenue, totalOrders, lastOrderDate, topProducts, monthlySpend, recentTransactions };
@@ -186,6 +187,7 @@ export class CustomersService {
             const productMap: Record<string, { name: string; qty: number; revenue: number }> = {};
             for (const t of matching) {
                 for (const item of t.items) {
+                    if (!item.productVariant) continue;
                     const name = item.productVariant.product.name;
                     if (!productMap[name]) productMap[name] = { name, qty: 0, revenue: 0 };
                     productMap[name].qty += item.quantity;

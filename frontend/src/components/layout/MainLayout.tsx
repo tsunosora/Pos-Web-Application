@@ -41,8 +41,9 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isCetakPage = pathname.startsWith("/cetak");
     const isPublicProductPage = pathname.startsWith("/p/");
     const isDesignerPortal = pathname.startsWith("/so-designer");
+    const isHelpPage = pathname.startsWith("/help");
 
-    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal) {
+    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage) {
         return <>{children}</>;
     }
 

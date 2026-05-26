@@ -63,7 +63,7 @@ export class KpiService {
         // sort + ambil first di JS.
         const leadsInPeriod: any[] = await this.lead.findMany({
             where: { ...branchScope, createdAt: { gte: start, lte: end } },
-            select: { id: true, createdAt: true, status: true, source: true, assignedToId: true },
+            select: { id: true, createdAt: true, status: true, source: true, assignedToId: true, estimatedValue: true },
         });
         const leadIds = leadsInPeriod.map(l => l.id);
         const allActivities: any[] = leadIds.length === 0 ? [] : await this.activity.findMany({
@@ -90,11 +90,19 @@ export class KpiService {
         const responseTimeAvgMs = respCount > 0 ? respSum / respCount : 0;
         const responseTimeAvgHrs = responseTimeAvgMs / (1000 * 60 * 60);
 
-        // ── Closing rate ───────────────────────────────────────────────────
+        // ── Closing rate & nilai lead ──────────────────────────────────────
         const totalLeads = leadsInPeriod.length;
         const closedWon = leadsInPeriod.filter(l => l.status === 'CLOSED_WON').length;
         const closedLost = leadsInPeriod.filter(l => l.status === 'CLOSED_LOST').length;
         const closingRate = totalLeads > 0 ? closedWon / totalLeads : 0;
+
+        // Nilai estimasi yang lost & yang won (berdasarkan estimatedValue lead)
+        const lostValue = leadsInPeriod
+            .filter(l => l.status === 'CLOSED_LOST')
+            .reduce((s, l) => s + (Number(l.estimatedValue) || 0), 0);
+        const wonValue = leadsInPeriod
+            .filter(l => l.status === 'CLOSED_WON')
+            .reduce((s, l) => s + (Number(l.estimatedValue) || 0), 0);
 
         // ── FU compliance ──────────────────────────────────────────────────
         // FU due in period: total = pending+done+skipped that dueDate in period.
@@ -147,12 +155,19 @@ export class KpiService {
 
         // ── Leaderboard CS ────────────────────────────────────────────────
         // GROUP BY assignedToId untuk leadsInPeriod + match closed
-        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; respSum: number; respCount: number }>();
+        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; dealsLost: number; wonValue: number; lostValue: number; respSum: number; respCount: number }>();
         for (const l of leadsInPeriod) {
             if (!l.assignedToId) continue;
-            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, respSum: 0, respCount: 0 };
+            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, dealsLost: 0, wonValue: 0, lostValue: 0, respSum: 0, respCount: 0 };
             entry.leadsHandled++;
-            if (l.status === 'CLOSED_WON') entry.dealsClosed++;
+            if (l.status === 'CLOSED_WON') {
+                entry.dealsClosed++;
+                entry.wonValue += Number(l.estimatedValue) || 0;
+            }
+            if (l.status === 'CLOSED_LOST') {
+                entry.dealsLost++;
+                entry.lostValue += Number(l.estimatedValue) || 0;
+            }
             const first = firstActMap.get(l.id);
             if (first) {
                 const diff = new Date(first).getTime() - new Date(l.createdAt).getTime();
@@ -174,6 +189,9 @@ export class KpiService {
                     name: u?.name || u?.email || `User #${userId}`,
                     leadsHandled: stat.leadsHandled,
                     dealsClosed: stat.dealsClosed,
+                    dealsLost: stat.dealsLost,
+                    wonValue: stat.wonValue,
+                    lostValue: stat.lostValue,
                     closingRate: stat.leadsHandled > 0 ? stat.dealsClosed / stat.leadsHandled : 0,
                     avgResponseHrs: stat.respCount > 0
                         ? stat.respSum / stat.respCount / (1000 * 60 * 60)
@@ -188,6 +206,8 @@ export class KpiService {
                 totalLeads,
                 closedWon,
                 closedLost,
+                wonValue,
+                lostValue,
                 customersWithOrder,
                 customersRepeat,
                 totalFu,
