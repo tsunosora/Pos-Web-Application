@@ -1397,6 +1397,25 @@ function ConvertModal({
     const [createCustomer, setCreateCustomer] = useState(true);
     const [notes, setNotes] = useState(lead.needs ?? "");
 
+    // ── Customer picker (when createCustomer=false) ──────────────────────
+    const [existingCustomerId, setExistingCustomerId] = useState<number | null>(null);
+    const [existingCustomerName, setExistingCustomerName] = useState<string>("");
+    const [customerSearchPhone, setCustomerSearchPhone] = useState(lead.phone ?? "");
+    const [customerMatches, setCustomerMatches] = useState<CustomerLookupResult[]>([]);
+    const [customerSearching, setCustomerSearching] = useState(false);
+
+    useEffect(() => {
+        if (createCustomer) { setExistingCustomerId(null); setExistingCustomerName(""); return; }
+        if (!customerSearchPhone || customerSearchPhone.replace(/\D/g, "").length < 4) return;
+        const t = setTimeout(async () => {
+            setCustomerSearching(true);
+            try { setCustomerMatches(await lookupCustomerByPhone(customerSearchPhone)); }
+            catch { setCustomerMatches([]); }
+            finally { setCustomerSearching(false); }
+        }, 400);
+        return () => clearTimeout(t);
+    }, [createCustomer, customerSearchPhone]);
+
     const totalItems = (lead.items || []).length;
     const itemsWithVariant = (lead.items || []).filter(it => it.productVariantId);
     const itemsCustom = (lead.items || []).filter(it => !it.productVariantId);
@@ -1464,6 +1483,48 @@ function ConvertModal({
                             </div>
                         </div>
                     </label>
+
+                    {/* Customer picker — tampil kalau createCustomer=false */}
+                    {!createCustomer && (
+                        <div className="border rounded-lg p-3 bg-amber-50 border-amber-200 space-y-2">
+                            <p className="text-xs font-semibold text-amber-700">Pilih Customer Existing</p>
+                            {existingCustomerId ? (
+                                <div className="flex items-center justify-between bg-white rounded px-3 py-2 border border-emerald-300">
+                                    <span className="text-sm font-medium text-emerald-700">✓ {existingCustomerName}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setExistingCustomerId(null); setExistingCustomerName(""); }}
+                                        className="text-xs text-gray-400 hover:text-red-500 ml-2"
+                                    >Ganti</button>
+                                </div>
+                            ) : (
+                                <>
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nomor HP..."
+                                        value={customerSearchPhone}
+                                        onChange={(e) => setCustomerSearchPhone(e.target.value)}
+                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                    />
+                                    {customerSearching && <p className="text-xs text-gray-400">Mencari...</p>}
+                                    {!customerSearching && customerMatches.length === 0 && customerSearchPhone.replace(/\D/g, "").length >= 4 && (
+                                        <p className="text-xs text-red-500">Customer tidak ditemukan. Centang "Buat Customer Baru" atau cari HP lain.</p>
+                                    )}
+                                    {customerMatches.map(c => (
+                                        <button
+                                            key={c.id}
+                                            type="button"
+                                            onClick={() => { setExistingCustomerId(c.id); setExistingCustomerName(c.name); setCustomerMatches([]); }}
+                                            className="w-full text-left px-3 py-2 rounded border border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-sm"
+                                        >
+                                            <span className="font-medium">{c.name}</span>
+                                            {c.phone && <span className="text-gray-400 text-xs ml-2">{c.phone}</span>}
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     {/* 2. Nota + Pipeline info */}
                     <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border-2 ${totalItems > 0 ? 'border-purple-200 bg-purple-50/50' : 'border-gray-200 bg-gray-50'}`}>
@@ -1633,6 +1694,7 @@ function ConvertModal({
                     <button
                         onClick={() => onSubmit({
                             createCustomer,
+                            customerId: !createCustomer && existingCustomerId ? existingCustomerId : undefined,
                             createSalesOrderDraft: false,
                             createInvoiceDraft: false,
                             notes: notes || undefined,
@@ -1643,7 +1705,7 @@ function ConvertModal({
                             bankAccountId: needsBankAccount && bankAccountId ? Number(bankAccountId) : undefined,
                             marketplaceFee: paymentMode === 'LUNAS' && Number(marketplaceFee) > 0 ? Number(marketplaceFee) : undefined,
                         })}
-                        disabled={submitting || paymentInvalid}
+                        disabled={submitting || paymentInvalid || (!createCustomer && !existingCustomerId)}
                         className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
                         {submitting ? "Memproses..." : "✓ Buat Nota & Masuk Produksi"}
