@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, Patch, Query, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, Param, ParseIntPipe, Patch, Query, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -106,6 +106,13 @@ export class ProductionController {
         const proof = await this.productionService.addProof(id, url, { name: actorName, role: 'ADMIN' });
         await this.productionService.updatePipelineStage(id, { proofImageUrl: url });
         return { url, proofId: proof.id };
+    }
+
+    /** Hapus production job (beserta proofs — cascade). */
+    @UseGuards(JwtAuthGuard)
+    @Delete('pipeline/jobs/:id')
+    async deleteJob(@Param('id', ParseIntPipe) id: number) {
+        return this.productionService.deleteJob(id);
     }
 
     /** Hapus satu proof image dari job. */
