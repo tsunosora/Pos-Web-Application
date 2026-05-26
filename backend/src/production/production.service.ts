@@ -646,6 +646,12 @@ export class ProductionService {
         return { ok: true };
     }
 
+    async deleteJob(id: number) {
+        // ProductionJobProof di-cascade-delete otomatis (onDelete: Cascade di schema)
+        await (this.prisma as any).productionJob.delete({ where: { id } });
+        return { ok: true };
+    }
+
     async updatePipelineStage(
         id: number,
         data: {

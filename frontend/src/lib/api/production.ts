@@ -433,6 +433,11 @@ export const deletePipelineProof = async (proofId: number): Promise<{ ok: boolea
     return res.data;
 };
 
+export const deletePipelineJob = async (jobId: number): Promise<{ ok: boolean }> => {
+    const res = await api.delete(`/production/pipeline/jobs/${jobId}`);
+    return res.data;
+};
+
 // ─── Public Pipeline (OPERATOR — PIN-protected, no JWT) ────────────────────
 // Dipakai oleh /produksi/board (operator/desainer). Tiap call kirim PIN + operatorName.
 

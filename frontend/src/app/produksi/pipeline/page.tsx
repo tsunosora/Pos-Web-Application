@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/core";
 import {
     getPipelineJobs, updatePipelineStage, uploadPipelineProofImage,
-    deletePipelineProof, resolvePhotoUrl,
+    deletePipelineProof, deletePipelineJob, resolvePhotoUrl,
     type PipelineJob, type PipelineStage,
     PIPELINE_STAGES, PIPELINE_STAGE_LABEL,
 } from "@/lib/api/production";
@@ -99,6 +99,24 @@ export default function ProduksiPipelinePage() {
         mutationFn: (proofId: number) => deletePipelineProof(proofId),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["produksi-pipeline"] }),
     });
+
+    const deleteJobMut = useMutation({
+        mutationFn: (jobId: number) => deletePipelineJob(jobId),
+        onMutate: async (jobId) => {
+            await qc.cancelQueries({ queryKey: ["produksi-pipeline"] });
+            const prev = qc.getQueryData<PipelineJob[]>(["produksi-pipeline"]);
+            qc.setQueryData<PipelineJob[]>(["produksi-pipeline"], old => old?.filter(j => j.id !== jobId));
+            return { prev };
+        },
+        onError: (_err, _id, ctx) => {
+            if (ctx?.prev) qc.setQueryData(["produksi-pipeline"], ctx.prev);
+        },
+        onSettled: () => qc.invalidateQueries({ queryKey: ["produksi-pipeline"] }),
+    });
+
+    const handleDeleteJob = useCallback((jobId: number) => {
+        deleteJobMut.mutate(jobId);
+    }, [deleteJobMut]);
 
     const handleUploadProof = useCallback((jobId: number, files: FileList) => {
         Array.from(files).forEach((file) => uploadMut.mutate({ id: jobId, file }));
@@ -321,6 +339,7 @@ export default function ProduksiPipelinePage() {
                             activeJobId={activeJobId}
                             onUploadProof={handleUploadProof}
                             onOpenProofViewer={handleOpenProofViewer}
+                            onDeleteJob={handleDeleteJob}
                             uploading={uploadMut.isPending}
                         />
                     ))}
@@ -382,13 +401,14 @@ export default function ProduksiPipelinePage() {
 // ─── Column ────────────────────────────────────────────────────────────────
 
 const Column = memo(function Column({
-    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, uploading,
+    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onDeleteJob, uploading,
 }: {
     stage: PipelineStage;
     jobs: PipelineJob[];
     activeJobId: number | null;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
+    onDeleteJob: (jobId: number) => void;
     uploading: boolean;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: stage });
@@ -413,6 +433,7 @@ const Column = memo(function Column({
                             isActive={activeJobId === job.id}
                             onUploadProof={onUploadProof}
                             onOpenProofViewer={onOpenProofViewer}
+                            onDeleteJob={onDeleteJob}
                             uploading={uploading}
                         />
                     ))
@@ -429,12 +450,13 @@ const Column = memo(function Column({
 // semua JSX berat di-memo secara terpisah dan tidak akan re-render selama drag.
 
 const KanbanCard = memo(function KanbanCard({
-    job, isActive, onUploadProof, onOpenProofViewer, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
+    onDeleteJob: (jobId: number) => void;
     uploading: boolean;
 }) {
     const { attributes, listeners, setNodeRef } = useDraggable({ id: String(job.id) });
@@ -445,6 +467,7 @@ const KanbanCard = memo(function KanbanCard({
                 isActive={isActive}
                 onUploadProof={onUploadProof}
                 onOpenProofViewer={onOpenProofViewer}
+                onDeleteJob={onDeleteJob}
                 uploading={uploading}
             />
         </div>
@@ -458,15 +481,17 @@ const KanbanCard = memo(function KanbanCard({
 // → zero re-render selama drag. Ini sumber percepatan utama.
 
 const KanbanCardInner = memo(function KanbanCardInner({
-    job, isActive, onUploadProof, onOpenProofViewer, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
+    onDeleteJob: (jobId: number) => void;
     uploading: boolean;
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [confirmDelete, setConfirmDelete] = useState(false);
     const isDesign = (job.pipelineStage || "DESIGN") === "DESIGN";
     const proofs = getProofList(job);
 
@@ -494,7 +519,35 @@ const KanbanCardInner = memo(function KanbanCardInner({
         >
             <div className="flex items-start justify-between gap-1 mb-1">
                 <span className="font-mono font-bold text-[9px] sm:text-[10px] text-gray-600 truncate">{job.jobNumber}</span>
-                <GripVertical className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                <div className="flex items-center gap-1 flex-shrink-0">
+                    {confirmDelete ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onDeleteJob(job.id); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="text-[9px] px-1.5 py-0.5 bg-red-600 text-white rounded font-semibold"
+                            >Hapus</button>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded"
+                            >Batal</button>
+                        </>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            title="Hapus job"
+                            className="text-gray-300 hover:text-red-500 transition-colors"
+                        >
+                            <Trash2 className="h-3 w-3" />
+                        </button>
+                    )}
+                    <GripVertical className="h-3.5 w-3.5 text-gray-400" />
+                </div>
             </div>
 
             {job.priority && job.priority !== "NORMAL" && (
