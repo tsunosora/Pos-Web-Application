@@ -861,6 +861,288 @@ function SecFAQ() {
     );
 }
 
+// ─── ALUR SISTEM ─────────────────────────────────────────────────────────────
+
+function SecAlurSistem() {
+    const modules = [
+        { emoji: "🎯", label: "CRM & Lead",      desc: "Kelola calon pelanggan, follow-up terjadwal",    color: "bg-violet-50 border-violet-200 text-violet-800" },
+        { emoji: "🛒", label: "Kasir POS",        desc: "Transaksi, pembayaran, struk real-time",          color: "bg-blue-50 border-blue-200 text-blue-800" },
+        { emoji: "🖨️", label: "Produksi",         desc: "Antrian & pipeline kanban cetak",                 color: "bg-cyan-50 border-cyan-200 text-cyan-800" },
+        { emoji: "📦", label: "Inventori",        desc: "Produk, stok, bahan baku, HPP",                  color: "bg-orange-50 border-orange-200 text-orange-800" },
+        { emoji: "📊", label: "Laporan",          desc: "Penjualan, cashflow, laba, stok opname",         color: "bg-emerald-50 border-emerald-200 text-emerald-800" },
+        { emoji: "📄", label: "Invoice & SPH",    desc: "Penawaran & nota tagihan B2B",                   color: "bg-amber-50 border-amber-200 text-amber-800" },
+        { emoji: "🤖", label: "WhatsApp Bot",     desc: "Notifikasi & broadcast otomatis",                color: "bg-green-50 border-green-200 text-green-800" },
+        { emoji: "🏢", label: "Multi-Cabang",     desc: "Kelola beberapa cabang sekaligus",               color: "bg-indigo-50 border-indigo-200 text-indigo-800" },
+    ];
+
+    const roles = [
+        {
+            role: "👑 Owner / Admin",
+            desc: "Akses penuh ke semua fitur",
+            modules: ["Laporan & Cashflow", "CRM Dashboard", "Pengaturan", "Backup Data"],
+            color: "bg-purple-50 border-purple-300",
+            badge: "bg-purple-100 text-purple-700",
+        },
+        {
+            role: "🛒 Kasir",
+            desc: "Operasional transaksi harian",
+            modules: ["Kasir POS", "Piutang & DP", "Invoice", "Tutup Shift"],
+            color: "bg-blue-50 border-blue-300",
+            badge: "bg-blue-100 text-blue-700",
+        },
+        {
+            role: "🖨️ Operator Produksi",
+            desc: "Kerjakan dan pantau job cetak",
+            modules: ["Antrian Produksi", "Pipeline Kanban", "Upload Foto Bukti"],
+            color: "bg-cyan-50 border-cyan-300",
+            badge: "bg-cyan-100 text-cyan-700",
+        },
+        {
+            role: "📱 CS / Marketing",
+            desc: "Kelola prospek & komunikasi",
+            modules: ["CRM Leads", "Follow-Up Terjadwal", "WhatsApp Bot", "Performa CS"],
+            color: "bg-green-50 border-green-300",
+            badge: "bg-green-100 text-green-700",
+        },
+    ];
+
+    const mainFlow = [
+        {
+            emoji: "🙋",
+            title: "Pelanggan Datang / Menghubungi",
+            desc: "Via WhatsApp, Instagram, datang langsung ke toko, atau dari marketplace",
+            tag: "CRM → Tambah Lead",
+            tagColor: "bg-violet-100 text-violet-700",
+            card: "from-violet-50 to-purple-50 border-violet-200",
+            dot: "bg-violet-500",
+        },
+        {
+            emoji: "📞",
+            title: "CS Follow-Up & Negosiasi",
+            desc: "Lead dicatat, CS di-assign, follow-up dijadwalkan. Status: Baru → Follow Up → Negosiasi",
+            tag: "CRM → Pipeline Lead",
+            tagColor: "bg-pink-100 text-pink-700",
+            card: "from-pink-50 to-rose-50 border-pink-200",
+            dot: "bg-pink-500",
+        },
+        {
+            emoji: "🛒",
+            title: "Deal! Kasir Input Transaksi",
+            desc: "Lead di-convert → transaksi terbuat otomatis. Atau kasir input manual di POS. Pilih produk, ukuran, harga, metode bayar.",
+            tag: "Kasir POS",
+            tagColor: "bg-blue-100 text-blue-700",
+            card: "from-blue-50 to-indigo-50 border-blue-200",
+            dot: "bg-blue-500",
+        },
+        {
+            emoji: "📄",
+            title: "Nota Terbit & Pembayaran Dicatat",
+            desc: "Struk dicetak / dikirim WA. Cashflow terbuat otomatis. DP → status Belum Lunas, bisa dilunasi kapan saja.",
+            tag: "Nota / Invoice",
+            tagColor: "bg-indigo-100 text-indigo-700",
+            card: "from-indigo-50 to-blue-50 border-indigo-200",
+            dot: "bg-indigo-500",
+        },
+        {
+            emoji: "🖨️",
+            title: "Job Cetak Masuk Produksi",
+            desc: "Untuk produk cetak, job antrian terbuat otomatis. Operator buka halaman Produksi, masukkan bahan roll, mulai cetak.",
+            tag: "Antrian Produksi",
+            tagColor: "bg-cyan-100 text-cyan-700",
+            card: "from-cyan-50 to-teal-50 border-cyan-200",
+            dot: "bg-cyan-500",
+        },
+        {
+            emoji: "🎨",
+            title: "Proses Produksi Bertahap",
+            desc: "Admin geser card di Pipeline Kanban sesuai progres. Foto bukti design bisa diupload di tahap DESIGN.",
+            tag: "Pipeline Kanban",
+            tagColor: "bg-teal-100 text-teal-700",
+            card: "from-teal-50 to-emerald-50 border-teal-200",
+            dot: "bg-teal-500",
+        },
+        {
+            emoji: "📦",
+            title: "Packing & Pengiriman / Pickup",
+            desc: "Barang selesai, di-packing, dikirim atau diambil pelanggan. Upload foto bukti kirim untuk konfirmasi.",
+            tag: "KIRIM → SELESAI",
+            tagColor: "bg-emerald-100 text-emerald-700",
+            card: "from-emerald-50 to-green-50 border-emerald-200",
+            dot: "bg-emerald-500",
+        },
+        {
+            emoji: "🔄",
+            title: "After Sales & Repeat Order",
+            desc: "Sistem otomatis jadwalkan follow-up 3 hari setelah pickup. CS hubungi pelanggan → peluang repeat order!",
+            tag: "CRM After Sales",
+            tagColor: "bg-amber-100 text-amber-700",
+            card: "from-amber-50 to-orange-50 border-amber-200",
+            dot: "bg-amber-500",
+        },
+    ];
+
+    const pipelineStages = [
+        { label: "DESIGN",        emoji: "🎨", color: "bg-slate-100 text-slate-700 border-slate-300" },
+        { label: "PRINT",         emoji: "🖨️", color: "bg-blue-100 text-blue-700 border-blue-300" },
+        { label: "PRESS",         emoji: "⚡", color: "bg-cyan-100 text-cyan-700 border-cyan-300" },
+        { label: "JAHIT",         emoji: "🧵", color: "bg-purple-100 text-purple-700 border-purple-300" },
+        { label: "QC & PACKING",  emoji: "✅", color: "bg-amber-100 text-amber-700 border-amber-300" },
+        { label: "KIRIM",         emoji: "🚚", color: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+        { label: "SELESAI",       emoji: "🎉", color: "bg-green-100 text-green-700 border-green-300" },
+    ];
+
+    return (
+        <>
+            <H2 id="alur-sistem">Alur Sistem PosPro</H2>
+            <P>
+                Gambaran menyeluruh bagaimana PosPro bekerja — dari pelanggan pertama kali menghubungi,
+                proses transaksi, produksi, hingga barang sampai di tangan pelanggan dan follow-up after sales.
+            </P>
+
+            {/* ── 1. Peta Modul ─────────────────────────────────────── */}
+            <div className="mb-8 rounded-2xl border border-gray-200 bg-gray-50 p-5">
+                <div className="mb-4 flex items-center gap-2 text-sm font-bold text-gray-700">
+                    <span className="text-xl">🗺️</span> Peta Modul — 8 Fitur Utama PosPro
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                    {modules.map((m) => (
+                        <div key={m.label} className={`rounded-xl border p-3 ${m.color}`}>
+                            <div className="mb-1 text-2xl">{m.emoji}</div>
+                            <div className="mb-0.5 text-xs font-bold">{m.label}</div>
+                            <div className="text-[11px] leading-tight opacity-75">{m.desc}</div>
+                        </div>
+                    ))}
+                </div>
+                <p className="mt-3 text-[11px] text-gray-400">
+                    Semua modul terhubung satu sama lain — transaksi POS otomatis menciptakan job produksi, cashflow, dan data laporan secara bersamaan.
+                </p>
+            </div>
+
+            {/* ── 2. Siapa Pakai Apa ────────────────────────────────── */}
+            <H3>Siapa Pakai Apa?</H3>
+            <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {roles.map((r) => (
+                    <div key={r.role} className={`rounded-xl border-2 p-4 ${r.color}`}>
+                        <div className="mb-0.5 text-sm font-bold text-gray-800">{r.role}</div>
+                        <div className="mb-2.5 text-xs text-gray-500">{r.desc}</div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {r.modules.map((mod) => (
+                                <span key={mod} className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${r.badge}`}>
+                                    {mod}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* ── 3. Alur Transaksi Utama ───────────────────────────── */}
+            <H3>Alur Transaksi — dari Pertama Hubungi sampai Selesai</H3>
+            <div className="mb-8">
+                {mainFlow.map((f, i) => (
+                    <div key={i}>
+                        <div className={`flex items-start gap-3 rounded-xl border bg-gradient-to-r p-3.5 ${f.card}`}>
+                            {/* Step dot */}
+                            <div className="relative flex flex-col items-center self-stretch">
+                                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white shadow ${f.dot}`}>
+                                    {i + 1}
+                                </div>
+                                {i < mainFlow.length - 1 && (
+                                    <div className="mt-1 w-0.5 flex-1 rounded-full bg-gray-200" />
+                                )}
+                            </div>
+                            <div className="flex-1 pb-1">
+                                <div className="mb-1 flex flex-wrap items-center gap-2">
+                                    <span className="text-base">{f.emoji}</span>
+                                    <span className="text-sm font-bold text-gray-800">{f.title}</span>
+                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${f.tagColor}`}>
+                                        {f.tag}
+                                    </span>
+                                </div>
+                                <p className="text-xs leading-relaxed text-gray-600">{f.desc}</p>
+                            </div>
+                        </div>
+                        {i < mainFlow.length - 1 && <div className="my-0.5 ml-4 text-center text-xs text-gray-300">▼</div>}
+                    </div>
+                ))}
+            </div>
+
+            {/* ── 4. Pipeline Produksi Mini-view ────────────────────── */}
+            <H3>Tahapan Pipeline Produksi</H3>
+            <p className="mb-3 text-[13px] text-gray-500">
+                Setiap job cetak bergerak melewati tahapan ini. Admin drag card di kanban, operator lihat di halaman Produksi.
+            </p>
+            <div className="mb-3 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <div className="flex min-w-max items-center gap-1.5">
+                    {pipelineStages.map((s, i) => (
+                        <div key={s.label} className="flex items-center gap-1.5">
+                            <div className={`flex flex-col items-center gap-1 rounded-xl border-2 px-3 py-2.5 text-center font-semibold ${s.color}`}>
+                                <span className="text-xl">{s.emoji}</span>
+                                <span className="text-[11px]">{s.label}</span>
+                            </div>
+                            {i < pipelineStages.length - 1 && (
+                                <span className="text-sm font-bold text-gray-300">→</span>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <div className="mb-6 flex items-start gap-2 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                <span className="text-base">↩️</span>
+                <p className="text-[12px] text-red-700">
+                    <strong>RETUR</strong> — jika ada cacat/salah, card bisa ditandai Retur dengan keterangan alasan, lalu dikerjakan ulang dari tahap awal.
+                </p>
+            </div>
+
+            {/* ── 5. Alur Keuangan ──────────────────────────────────── */}
+            <H3>Alur Keuangan</H3>
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                    <div className="mb-2 text-2xl">💵</div>
+                    <div className="mb-2 text-sm font-bold text-green-800">Pembayaran Lunas</div>
+                    <div className="space-y-1 text-[12px] text-green-700">
+                        <div className="flex items-center gap-1.5"><span>→</span> Tunai masuk ke Kas</div>
+                        <div className="flex items-center gap-1.5"><span>→</span> Transfer ke Rekening Bank</div>
+                        <div className="flex items-center gap-1.5"><span>→</span> QRIS tercatat otomatis</div>
+                    </div>
+                    <div className="mt-3 rounded-lg bg-green-100 px-2.5 py-1.5 text-[11px] text-green-800">
+                        Cashflow <strong>INCOME</strong> terbuat otomatis saat transaksi dikonfirmasi
+                    </div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="mb-2 text-2xl">⏳</div>
+                    <div className="mb-2 text-sm font-bold text-amber-800">DP & Piutang</div>
+                    <div className="space-y-1 text-[12px] text-amber-700">
+                        <div className="flex items-center gap-1.5"><span>→</span> DP dibayar sebagian</div>
+                        <div className="flex items-center gap-1.5"><span>→</span> Sisa masuk menu Piutang</div>
+                        <div className="flex items-center gap-1.5"><span>→</span> Lunasi saat barang diambil</div>
+                    </div>
+                    <div className="mt-3 rounded-lg bg-amber-100 px-2.5 py-1.5 text-[11px] text-amber-800">
+                        Status: <strong>PARTIAL</strong> → setelah lunas → <strong>PAID</strong>
+                    </div>
+                </div>
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                    <div className="mb-2 text-2xl">🏪</div>
+                    <div className="mb-2 text-sm font-bold text-rose-800">Fee Marketplace</div>
+                    <div className="space-y-1 text-[12px] text-rose-700">
+                        <div className="flex items-center gap-1.5"><span>→</span> Input potongan Shopee/Tokopedia</div>
+                        <div className="flex items-center gap-1.5"><span>→</span> Income = nett yang diterima</div>
+                        <div className="flex items-center gap-1.5"><span>→</span> Fee tercatat sebagai Expense</div>
+                    </div>
+                    <div className="mt-3 rounded-lg bg-rose-100 px-2.5 py-1.5 text-[11px] text-rose-800">
+                        Cashflow <strong>split otomatis</strong> — harga ke pelanggan tidak berubah
+                    </div>
+                </div>
+            </div>
+
+            <Callout type="tip" title="Mulai dari Mana?">
+                Bagi pengguna baru: setup <strong>Produk & Stok</strong> dulu → coba <strong>Transaksi pertama di Kasir</strong> → cek hasilnya di <strong>Laporan Penjualan</strong>.
+                Tiga langkah itu sudah cukup untuk operasional dasar hari pertama.
+            </Callout>
+        </>
+    );
+}
+
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 
 const NAV_GROUPS = [
@@ -868,6 +1150,7 @@ const NAV_GROUPS = [
         label: "Pengantar",
         icon: <BookOpen size={14} />,
         items: [
+            { id: "alur-sistem", label: "Alur Sistem" },
             { id: "setup", label: "Setup Pertama Kali" },
             { id: "login", label: "Login & Dashboard" },
         ],
@@ -1065,6 +1348,7 @@ export default function HelpPage() {
                 {/* Content */}
                 <main className="flex-1 min-w-0 px-5 sm:px-8 lg:px-12 py-8 max-w-3xl">
                     <SecPengantar />
+                    <SecAlurSistem />
                     <SecKasir />
                     <SecInventori />
                     <SecPiutang />
