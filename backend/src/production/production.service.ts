@@ -568,8 +568,19 @@ export class ProductionService {
     ] as const;
 
     async getPipelineJobs(branchId?: number) {
-        const where: any = branchId ? { branchId } : {};
-        // Ambil semua job aktif (exclude pickedUpAt yang sudah lama supaya kanban tetap manageable)
+        // Hanya tampilkan: (1) job non-terminal di stage apapun, (2) job terminal (SELESAI/RETUR)
+        // yang baru di-update dalam 14 hari terakhir. Ini cegah ratusan job lama membebani kanban.
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - 14);
+
+        const where: any = {
+            ...(branchId ? { branchId } : {}),
+            OR: [
+                { pipelineStage: null },                                                 // belum di-stage → tampil di DESIGN
+                { pipelineStage: { notIn: ['SELESAI', 'RETUR'] } },                     // masih aktif
+                { pipelineStage: { in: ['SELESAI', 'RETUR'] }, updatedAt: { gte: cutoff } }, // baru selesai/retur
+            ],
+        };
         const jobs = await (this.prisma as any).productionJob.findMany({
             where,
             orderBy: [{ priority: 'desc' }, { deadline: 'asc' }, { createdAt: 'asc' }],

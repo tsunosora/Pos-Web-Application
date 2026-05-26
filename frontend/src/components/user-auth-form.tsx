@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
+import { useQueryClient } from "@tanstack/react-query"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,6 +16,7 @@ interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function UserAuthForm({ className, mobileGlass, ...props }: UserAuthFormProps) {
     const router = useRouter()
+    const queryClient = useQueryClient()
     const [isLoading, setIsLoading] = React.useState<boolean>(false)
     const [isRegistering, setIsRegistering] = React.useState<boolean>(false)
     const [errorMsg, setErrorMsg] = React.useState<string | null>(null)
@@ -60,6 +62,11 @@ export function UserAuthForm({ className, mobileGlass, ...props }: UserAuthFormP
                 const expires = new Date();
                 expires.setTime(expires.getTime() + (1 * 24 * 60 * 60 * 1000));
                 document.cookie = `token=${data.access_token};expires=${expires.toUTCString()};path=/`;
+
+                // Bersihkan seluruh query cache (memory + IndexedDB) sebelum navigasi.
+                // Ini memastikan user baru tidak kebawa data/error dari sesi user sebelumnya,
+                // dan semua query di-fetch ulang dengan token baru.
+                queryClient.clear();
 
                 router.replace('/');
             }

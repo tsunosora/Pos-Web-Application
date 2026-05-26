@@ -150,6 +150,8 @@ export default function SalesReportPage() {
             'Diskon': Number(t.discount),
             'Pajak': Number(t.tax),
             'Ongkos Kirim': Number(t.shippingCost),
+            'Potongan Marketplace': Number(t.marketplaceFee) || 0,
+            'Diterima (Nett)': Math.max(0, Number(t.grandTotal) - (Number(t.marketplaceFee) || 0)),
             'Total Bersih': Number(t.grandTotal),
             'Metode Pembayaran': t.paymentMethod,
             'Status': t.status
@@ -859,6 +861,7 @@ export default function SalesReportPage() {
                                     const discount = Number(selectedTransaction.discount) || 0;
                                     const tax = Number(selectedTransaction.tax) || 0;
                                     const shippingCost = Number(selectedTransaction.shippingCost) || 0;
+                                    const mFee = Number(selectedTransaction.marketplaceFee) || 0;
                                     const computedGrandTotal = Math.round(computedSubtotal) - discount + tax + shippingCost;
                                     const downPayment = Number(selectedTransaction.downPayment) || 0;
                                     return (
@@ -889,6 +892,18 @@ export default function SalesReportPage() {
                                                 <span>Total Bayar</span>
                                                 <span>Rp {computedGrandTotal.toLocaleString('id-ID')}</span>
                                             </div>
+                                            {mFee > 0 && (
+                                                <>
+                                                    <div className="flex justify-between text-red-600 text-xs">
+                                                        <span>Potongan Marketplace</span>
+                                                        <span>− Rp {mFee.toLocaleString('id-ID')}</span>
+                                                    </div>
+                                                    <div className="flex justify-between text-emerald-700 text-xs font-semibold">
+                                                        <span>Diterima (nett)</span>
+                                                        <span>Rp {Math.max(0, computedGrandTotal - mFee).toLocaleString('id-ID')}</span>
+                                                    </div>
+                                                </>
+                                            )}
                                             {/* DP Details if partial */}
                                             {selectedTransaction.status === 'PARTIAL' && (
                                                 <div className="mt-3 p-3 bg-orange-500/5 rounded-lg border border-orange-500/20 space-y-1">

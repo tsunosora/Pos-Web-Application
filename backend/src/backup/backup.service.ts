@@ -184,7 +184,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.4', // + Pipeline Produksi: productionJobProof, productionJobActivity. Schema additions: Lead.deliveryDeadline/firstResponseAt, ProductionJob.pipelineStage/jahitInfo/proofImageUrl/lastUpdatedBy, StoreSettings.loginLogoUrl/theme*
+                version: '3.5', // + Marketplace fee: Transaction.marketplaceFee/marketplaceFeeItems (Decimal+JSON). Lead.convertedTransactionId (FK → Transaction). payOff terima fee baru saat pelunasan DP. Pipeline filter client-side (no schema).
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

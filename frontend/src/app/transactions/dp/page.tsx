@@ -25,6 +25,7 @@ export default function DPTransactionsPage() {
     const [nominalBayar, setNominalBayar] = useState<string>('');
     const [checkoutCashierName, setCheckoutCashierName] = useState<string>('');
     const [checkoutPaidAt, setCheckoutPaidAt] = useState<string>('');
+    const [feeItemsPayoff, setFeeItemsPayoff] = useState<{ name: string; amount: string }[]>([]);
     const [editTrx, setEditTrx] = useState<any | null>(null);
 
     const [activeTab, setActiveTab] = useState<'Semua' | 'DP' | 'Kredit' | 'Bayar Nanti'>('Semua');
@@ -55,15 +56,22 @@ export default function DPTransactionsPage() {
         setPayoffBankId('');
         setCheckoutCashierName('');
         setCheckoutPaidAt('');
+        setFeeItemsPayoff([]);
     };
 
+    const feeItemsPayoffNum = feeItemsPayoff.reduce((s, f) => s + (Number(f.amount) || 0), 0);
+
     const payOffMutation = useMutation({
-        mutationFn: (id: number) => payOffTransaction(id, {
-            paymentMethod,
-            bankAccountId: payoffBankId ? Number(payoffBankId) : undefined,
-            checkoutCashierName: checkoutCashierName.trim() || undefined,
-            paidAt: checkoutPaidAt || undefined,
-        }),
+        mutationFn: (id: number) => {
+            const validFeeItems = feeItemsPayoff.filter(f => Number(f.amount) > 0).map(f => ({ name: f.name || 'Potongan', amount: Number(f.amount) }));
+            return payOffTransaction(id, {
+                paymentMethod,
+                bankAccountId: payoffBankId ? Number(payoffBankId) : undefined,
+                checkoutCashierName: checkoutCashierName.trim() || undefined,
+                paidAt: checkoutPaidAt || undefined,
+                marketplaceFeeItems: validFeeItems.length > 0 ? validFeeItems : undefined,
+            });
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
             resetModal();
@@ -110,6 +118,7 @@ export default function DPTransactionsPage() {
         setPayoffBankId('');
         setCheckoutCashierName('');
         setCheckoutPaidAt('');
+        setFeeItemsPayoff([]);
     };
 
     if (isLoading) {
@@ -401,6 +410,11 @@ export default function DPTransactionsPage() {
                                     ? Number(selectedTrx.grandTotal)
                                     : Number(selectedTrx.grandTotal) - Number(selectedTrx.downPayment);
                                 const kembalian = Number(nominalBayar) - sisaTagihan;
+                                // Fee efektif: dari input baru (prioritas) atau tersimpan di transaksi
+                                const effectiveFee = feeItemsPayoffNum > 0 ? feeItemsPayoffNum : (Number(selectedTrx.marketplaceFee) || 0);
+                                const displayFeeItems: { name: string; amount: number }[] = feeItemsPayoffNum > 0
+                                    ? feeItemsPayoff.filter(f => Number(f.amount) > 0).map(f => ({ name: f.name || 'Potongan', amount: Number(f.amount) }))
+                                    : Array.isArray(selectedTrx.marketplaceFeeItems) ? selectedTrx.marketplaceFeeItems : [];
                                 return (
                                     <div className="space-y-2">
                                         <label className="text-sm font-medium text-foreground">Nominal Diterima (Opsional)</label>
@@ -418,6 +432,75 @@ export default function DPTransactionsPage() {
                                             <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex justify-between items-center text-emerald-700 text-sm">
                                                 <span>Uang Kembalian:</span>
                                                 <span className="font-bold">Rp {kembalian.toLocaleString('id-ID')}</span>
+                                            </div>
+                                        )}
+                                        {/* Input potongan marketplace saat pelunasan */}
+                                        <div className="space-y-1.5 pt-1 border-t border-dashed border-border">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Potongan Platform / Fee</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFeeItemsPayoff(prev => [...prev, { name: '', amount: '' }])}
+                                                    className="text-xs text-primary hover:underline font-medium"
+                                                >
+                                                    + Tambah
+                                                </button>
+                                            </div>
+                                            {feeItemsPayoff.map((fi, idx) => (
+                                                <div key={idx} className="flex gap-1.5">
+                                                    <input
+                                                        type="text"
+                                                        value={fi.name}
+                                                        onChange={e => setFeeItemsPayoff(prev => prev.map((x, i) => i === idx ? { ...x, name: e.target.value } : x))}
+                                                        placeholder="Nama (cth: Shopee)"
+                                                        className="flex-1 px-2.5 py-1.5 bg-background border border-border rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none"
+                                                    />
+                                                    <div className="relative w-28">
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
+                                                        <input
+                                                            type="number"
+                                                            value={fi.amount}
+                                                            onChange={e => setFeeItemsPayoff(prev => prev.map((x, i) => i === idx ? { ...x, amount: e.target.value } : x))}
+                                                            placeholder="0"
+                                                            className="w-full pl-7 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none"
+                                                        />
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFeeItemsPayoff(prev => prev.filter((_, i) => i !== idx))}
+                                                        className="p-1.5 text-muted-foreground hover:text-red-500 transition-colors"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {feeItemsPayoff.length === 0 && (Number(selectedTrx.marketplaceFee) || 0) === 0 && (
+                                                <p className="text-xs text-muted-foreground italic">Klik "+ Tambah" jika ada potongan platform (Shopee, Tokopedia, dll)</p>
+                                            )}
+                                        </div>
+                                        {/* Ringkasan fee */}
+                                        {effectiveFee > 0 && (
+                                            <div className="p-2.5 bg-red-500/5 border border-red-500/20 rounded-lg space-y-0.5 text-xs">
+                                                {displayFeeItems.length > 0 ? displayFeeItems.map((fi, i) => (
+                                                    <div key={i} className="flex justify-between text-red-700">
+                                                        <span>{fi.name || 'Potongan'}</span>
+                                                        <span>− Rp {Number(fi.amount).toLocaleString('id-ID')}</span>
+                                                    </div>
+                                                )) : (
+                                                    <div className="flex justify-between text-red-700">
+                                                        <span>Potongan Marketplace</span>
+                                                        <span>− Rp {effectiveFee.toLocaleString('id-ID')}</span>
+                                                    </div>
+                                                )}
+                                                <div className="flex justify-between text-red-700 font-semibold border-t border-red-200 pt-0.5 mt-0.5">
+                                                    <span>Total Potongan</span>
+                                                    <span>− Rp {effectiveFee.toLocaleString('id-ID')}</span>
+                                                </div>
+                                                <div className="flex justify-between text-emerald-700 font-bold">
+                                                    <span>Diterima (nett)</span>
+                                                    <span>Rp {Math.max(0, sisaTagihan - effectiveFee).toLocaleString('id-ID')}</span>
+                                                </div>
+                                                <p className="text-muted-foreground pt-0.5">Cashflow: INCOME {Math.max(0, sisaTagihan - effectiveFee).toLocaleString('id-ID')} + EXPENSE {effectiveFee.toLocaleString('id-ID')} (Biaya Platform)</p>
                                             </div>
                                         )}
                                     </div>

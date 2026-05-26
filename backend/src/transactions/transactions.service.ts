@@ -116,7 +116,8 @@ export class TransactionsService {
 
     async create(data: {
         items: {
-            productVariantId: number;
+            productVariantId?: number | null;
+            customName?: string;
             quantity: number;
             widthCm?: number;
             heightCm?: number;
@@ -162,7 +163,8 @@ export class TransactionsService {
 
     private async _createTransaction(data: {
         items: {
-            productVariantId: number;
+            productVariantId?: number | null;
+            customName?: string;
             quantity: number;
             widthCm?: number;
             heightCm?: number;
@@ -185,6 +187,8 @@ export class TransactionsService {
         productionPriority?: string;
         productionDeadline?: string;
         productionNotes?: string;
+        marketplaceFee?: number;
+        marketplaceFeeItems?: { name: string; amount: number }[];
         transactionDate?: string;
         cashflowDate?: string;
         saveOnly?: boolean;
@@ -251,6 +255,27 @@ export class TransactionsService {
             const transactionItemsData: any[] = [];
 
             for (const item of data.items) {
+                // Item custom (tanpa varian katalog) — mis. dari CRM lead dengan item bebas.
+                // Tidak ada lookup stok, tidak ada BOM, langsung masuk produksi.
+                if (!item.productVariantId) {
+                    const qty = item.quantity || 1;
+                    const customPrice = item.customPrice ?? 0;
+                    transactionItemsData.push({
+                        productVariantId: null,
+                        customName: item.customName || null,
+                        quantity: qty,
+                        priceAtTime: customPrice,
+                        hppAtTime: 0,
+                        note: item.note || null,
+                        _requiresProduction: true,
+                        _clickRateId: null,
+                        _clickQuantity: 0,
+                        _clickPricePerClick: 0,
+                    });
+                    subtotal += customPrice * qty;
+                    continue;
+                }
+
                 const variant = await (tx as any).productVariant.findUnique({
                     where: { id: item.productVariantId },
                     include: {
@@ -296,29 +321,36 @@ export class TransactionsService {
                 }
 
                 if (pricingMode === 'AREA_BASED') {
-                    // Area-based calculation depending on unitType
-                    if (item.widthCm === undefined) {
+                    // Area-based calculation depending on unitType.
+                    // Kalau tidak ada dimensi tapi customPrice di-set (mis. dari CRM lead convert),
+                    // pakai customPrice sebagai total harga langsung — skip kalkulasi area.
+                    if (item.widthCm == null && item.customPrice == null) {
                         throw new BadRequestException(`Nilai / Dimensi cetak wajib diisi untuk produk area: ${variant.product.name}`);
                     }
-                    widthCm = item.widthCm;
+                    widthCm = item.widthCm ?? null;
                     heightCm = item.heightCm || 1;
 
                     // priceMultiplier: raw area in input unit (for price calculation)
                     // areaM2: always in m² (for stock deduction & movement logging)
                     let priceMultiplier = 0;
                     let areaM2 = 0;
-                    if (item.unitType === 'm') {
-                        priceMultiplier = widthCm * heightCm;
-                        areaM2 = widthCm * heightCm;
-                    } else if (item.unitType === 'cm') {
-                        priceMultiplier = (widthCm * heightCm) / 10000; // cm² → m², price is per m²
-                        areaM2 = (widthCm * heightCm) / 10000;          // convert to m² for stock
-                    } else if (item.unitType === 'menit') {
-                        priceMultiplier = widthCm;
-                        areaM2 = widthCm;
-                    } else {
-                        priceMultiplier = (widthCm * heightCm) / 10000;
-                        areaM2 = (widthCm * heightCm) / 10000;
+                    // Kalau widthCm null (dari CRM convert tanpa dimensi), skip kalkulasi area —
+                    // customPrice akan override lineTotal di bawah.
+                    if (widthCm != null) {
+                        const w = widthCm;
+                        if (item.unitType === 'm') {
+                            priceMultiplier = w * heightCm;
+                            areaM2 = w * heightCm;
+                        } else if (item.unitType === 'cm') {
+                            priceMultiplier = (w * heightCm) / 10000;
+                            areaM2 = (w * heightCm) / 10000;
+                        } else if (item.unitType === 'menit') {
+                            priceMultiplier = w;
+                            areaM2 = w;
+                        } else {
+                            priceMultiplier = (w * heightCm) / 10000;
+                            areaM2 = (w * heightCm) / 10000;
+                        }
                     }
 
                     areaCm2 = areaM2 * 10000;
@@ -439,6 +471,15 @@ export class TransactionsService {
 
             const shippingCost = data.shippingCost || 0;
             const grandTotal = amountAfterDiscount + taxAmount + shippingCost;
+
+            // Fee marketplace — hitung di sini supaya tersedia saat tx.create & cashflow
+            const feeItems = (data.marketplaceFeeItems && data.marketplaceFeeItems.length > 0)
+                ? data.marketplaceFeeItems
+                : [];
+            const marketplaceFee = feeItems.length > 0
+                ? feeItems.reduce((s, f) => s + (Number(f.amount) || 0), 0)
+                : (data.marketplaceFee || 0);
+
             const isPayLater = data.saveOnly === true;
             // saveOnly + DP > 0 → status PARTIAL (terima uang muka saat simpan invoice)
             const downPayment = isPayLater
@@ -483,6 +524,8 @@ export class TransactionsService {
                     totalAmount: subtotal,
                     discount: discountAmount,
                     shippingCost: shippingCost,
+                    marketplaceFee: marketplaceFee,
+                    marketplaceFeeItems: feeItems.length > 0 ? feeItems : undefined,
                     tax: taxAmount,
                     grandTotal,
                     paymentMethod: data.paymentMethod,
@@ -623,11 +666,16 @@ export class TransactionsService {
             const customerInfo = data.customerName ? ` untuk Bpk/Ibu ${data.customerName}` : '';
             const branchInfo = effectiveBranchName ? ` [${effectiveBranchName}]` : '';
             if (downPayment > 0) {
+                // Untuk LUNAS dengan marketplace fee: income = nett (setelah potongan platform)
+                const isLunas = status === TransactionStatus.PAID;
+                const incomeAmount = (isLunas && marketplaceFee > 0)
+                    ? Math.max(0, downPayment - marketplaceFee)
+                    : downPayment;
                 await tx.cashflow.create({
                     data: {
                         type: CashflowType.INCOME,
                         category: status === TransactionStatus.PARTIAL ? 'Pembayaran DP' : 'Penjualan Lunas',
-                        amount: downPayment,
+                        amount: incomeAmount,
                         paymentMethod: data.paymentMethod,
                         bankAccountId: data.bankAccountId || null,
                         note: `Pembayaran Invoice ${invoiceNumber}${customerInfo}${branchInfo} via ${data.paymentMethod}`,
@@ -636,6 +684,22 @@ export class TransactionsService {
                         date: effectiveCashflowDate,
                     } as any
                 });
+                // Catat potongan marketplace sebagai expense (hanya saat lunas)
+                if (isLunas && marketplaceFee > 0) {
+                    await tx.cashflow.create({
+                        data: {
+                            type: CashflowType.EXPENSE,
+                            category: 'Biaya Platform',
+                            amount: marketplaceFee,
+                            paymentMethod: data.paymentMethod,
+                            bankAccountId: data.bankAccountId || null,
+                            note: `Potongan marketplace Invoice ${invoiceNumber}${customerInfo}${branchInfo}`,
+                            branchName: effectiveBranchName,
+                            branchId: branchId,
+                            date: effectiveCashflowDate,
+                        } as any
+                    });
+                }
             }
 
             // Catat diskon sebagai pengeluaran agar laporan keuangan akurat
@@ -678,7 +742,7 @@ export class TransactionsService {
             return transaction;
         }).then(async (result) => {
             // Cek stok menipis setelah transaksi selesai (di luar prisma.$transaction)
-            this.checkLowStock(data.items.map(i => i.productVariantId)).catch(() => { });
+            this.checkLowStock(data.items.map(i => i.productVariantId).filter((id): id is number => id != null)).catch(() => { });
 
             // Kirim notif transaksi baru ke Discord
             this.notifyNewTransactionDiscord(result, data).catch(() => { });
@@ -997,7 +1061,7 @@ export class TransactionsService {
         });
     }
 
-    async payOff(id: number, data: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string }) {
+    async payOff(id: number, data: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }) {
         return this.prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
@@ -1007,15 +1071,40 @@ export class TransactionsService {
 
             const remainingBalance = Number(transaction.grandTotal) - Number(transaction.downPayment);
 
+            // Fee dari input saat pelunasan (prioritas) atau fee yang sudah tersimpan di transaksi
+            const incomingFeeItems = data.marketplaceFeeItems && data.marketplaceFeeItems.length > 0
+                ? data.marketplaceFeeItems
+                : null;
+            const incomingFeeTotal = incomingFeeItems
+                ? incomingFeeItems.reduce((s, f) => s + (Number(f.amount) || 0), 0)
+                : (data.marketplaceFee || 0);
+            const storedFee = Number((transaction as any).marketplaceFee) || 0;
+            const effectiveFeeItems = incomingFeeItems ?? (Array.isArray((transaction as any).marketplaceFeeItems) ? (transaction as any).marketplaceFeeItems : null);
+            const txMarketplaceFee = incomingFeeTotal > 0 ? incomingFeeTotal : storedFee;
+
+            // Simpan fee ke transaksi jika ada fee baru dari input pelunasan
+            if (incomingFeeTotal > 0) {
+                await tx.transaction.update({
+                    where: { id },
+                    data: {
+                        marketplaceFee: incomingFeeTotal,
+                        marketplaceFeeItems: effectiveFeeItems ?? undefined,
+                    } as any,
+                });
+            }
+
             if (remainingBalance > 0) {
                 const customerInfo = transaction.customerName ? ` untuk Bpk/Ibu ${transaction.customerName}` : '';
                 const branchInfoPO = (transaction as any).branchName ? ` [${(transaction as any).branchName}]` : '';
                 const isFromPending = transaction.status === TransactionStatus.PENDING;
+                const incomeAmount = txMarketplaceFee > 0
+                    ? Math.max(0, remainingBalance - txMarketplaceFee)
+                    : remainingBalance;
                 await tx.cashflow.create({
                     data: {
                         type: CashflowType.INCOME,
                         category: isFromPending ? 'Penjualan Lunas' : 'Pelunasan DP',
-                        amount: remainingBalance,
+                        amount: incomeAmount,
                         paymentMethod: data.paymentMethod,
                         bankAccountId: data.bankAccountId || null,
                         note: `${isFromPending ? 'Pembayaran' : 'Pelunasan'} Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoPO} via ${data.paymentMethod}`,
@@ -1023,6 +1112,20 @@ export class TransactionsService {
                         branchId: (transaction as any).branchId ?? null,
                     } as any
                 });
+                if (txMarketplaceFee > 0) {
+                    await tx.cashflow.create({
+                        data: {
+                            type: CashflowType.EXPENSE,
+                            category: 'Biaya Platform',
+                            amount: txMarketplaceFee,
+                            paymentMethod: data.paymentMethod,
+                            bankAccountId: data.bankAccountId || null,
+                            note: `Potongan marketplace Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoPO}`,
+                            branchName: (transaction as any).branchName || null,
+                            branchId: (transaction as any).branchId ?? null,
+                        } as any
+                    });
+                }
             }
 
             // Tentukan tanggal checkout (manual dari kasir, atau sekarang)
@@ -1125,6 +1228,7 @@ export class TransactionsService {
             for (const t of prevTransactions) {
                 for (const item of t.items) {
                     const vid = item.productVariantId;
+                    if (!vid) continue;
                     if (!prevItemSales[vid]) prevItemSales[vid] = { qty: 0, revenue: 0 };
                     prevItemSales[vid].qty += item.quantity;
                     prevItemSales[vid].revenue += Number(item.priceAtTime) * item.quantity;
@@ -1175,6 +1279,7 @@ export class TransactionsService {
 
             for (const item of t.items) {
                 const variantId = item.productVariantId;
+                if (!variantId || !item.productVariant) continue;
                 if (!itemSales[variantId]) {
                     itemSales[variantId] = {
                         variantId,

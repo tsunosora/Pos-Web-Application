@@ -40,7 +40,7 @@ export const createTransaction = async (data: {
 }) => (await api.post('/transactions', data)).data;
 export const addDPTransaction = async (id: number, data: { amount: number; paymentMethod: string; bankAccountId?: number }) =>
     (await api.post(`/transactions/${id}/add-dp`, data)).data;
-export const payOffTransaction = async (id: number, data: { paymentMethod: string, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string }) =>
+export const payOffTransaction = async (id: number, data: { paymentMethod: string, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }) =>
     (await api.post(`/transactions/${id}/pay-off`, data)).data;
 export const updateTransactionPaymentMethod = async (id: number, data: { paymentMethod: string; bankAccountId?: number }) =>
     (await api.patch(`/transactions/${id}/payment-method`, data)).data;

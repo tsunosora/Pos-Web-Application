@@ -190,7 +190,9 @@ function KanbanCard({ lead, onClick, dragging }: { lead: Lead; onClick: () => vo
                                 <Phone className="h-2.5 w-2.5" /> {lead.phone}
                             </div>
                         )}
-                        <div className="text-gray-500">{LEAD_SOURCE_LABEL[lead.source]}</div>
+                        <div className="text-gray-500">
+                            {lead.source === 'CUSTOM' ? (lead.sourceDetail || 'Custom') : LEAD_SOURCE_LABEL[lead.source]}
+                        </div>
                         {lead.city && (
                             <div className="flex items-center gap-1">
                                 <MapPin className="h-2.5 w-2.5" /> {lead.city}

@@ -1,10 +1,11 @@
 "use client";
 
-import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     DndContext, DragEndEvent, DragStartEvent, DragOverlay,
-    PointerSensor, TouchSensor, useSensor, useSensors, pointerWithin,
+    PointerSensor, TouchSensor, useSensor, useSensors,
+    rectIntersection, MeasuringStrategy,
     useDroppable, useDraggable,
 } from "@dnd-kit/core";
 import {
@@ -16,7 +17,7 @@ import {
 import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
-    Upload, FileText, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight,
+    Upload, FileText, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -51,17 +52,19 @@ function getProofList(job: PipelineJob): { id?: number; filename: string }[] {
 
 export default function ProduksiPipelinePage() {
     const qc = useQueryClient();
-    const [isDragging, setIsDragging] = useState(false);
     const [activeJobId, setActiveJobId] = useState<number | null>(null);
     const [jahitModal, setJahitModal] = useState<{ job: PipelineJob; targetStage: PipelineStage } | null>(null);
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
     const [proofViewer, setProofViewer] = useState<{ job: PipelineJob } | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [filterPriority, setFilterPriority] = useState<string>("ALL");
+    const [filterDate, setFilterDate] = useState<"ALL" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "OVERDUE">("ALL");
 
     const { data: jobs = [], isLoading } = useQuery({
         queryKey: ["produksi-pipeline"],
         queryFn: getPipelineJobs,
-        // Pause refetch saat drag, refetch tiap 60s (lebih ringan dari 30s sebelumnya)
-        refetchInterval: isDragging ? false : 60_000,
+        // Pause refetch saat ada card sedang di-drag
+        refetchInterval: activeJobId !== null ? false : 60_000,
         refetchOnWindowFocus: false,
     });
 
@@ -78,10 +81,13 @@ export default function ProduksiPipelinePage() {
             });
             return { prev };
         },
+        // Rollback kalau server error — refetch biar state sinkron kembali
         onError: (_err, _data, ctx) => {
             if (ctx?.prev) qc.setQueryData(["produksi-pipeline"], ctx.prev);
+            qc.invalidateQueries({ queryKey: ["produksi-pipeline"] });
         },
-        onSettled: () => qc.invalidateQueries({ queryKey: ["produksi-pipeline"] }),
+        // Tidak invalidate di onSettled — optimistic update sudah handle UI.
+        // Background refetch tiap 60s cukup untuk eventual consistency.
     });
 
     const uploadMut = useMutation({
@@ -117,25 +123,59 @@ export default function ProduksiPipelinePage() {
         useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
     );
 
+    // useDeferredValue: input search tetap responsif, filter recompute saat browser idle
+    const deferredSearch = useDeferredValue(searchQuery);
+
     const grouped = useMemo(() => {
+        const q = deferredSearch.trim().toLowerCase();
+        const now = dayjs();
+        const startOfToday = now.startOf("day");
+        const startOfWeek = now.startOf("week");
+        const startOfMonth = now.startOf("month");
+
         const g: Record<PipelineStage, PipelineJob[]> = {
             DESIGN: [], PRINT: [], ANTRIAN_PRESS: [], JAHIT: [],
             QC_PACKING: [], KIRIM: [], RETUR: [], SELESAI: [],
         };
         for (const j of jobs) {
+            // Filter prioritas
+            if (filterPriority !== "ALL" && (j.priority || "NORMAL") !== filterPriority) continue;
+
+            // Filter tanggal berdasarkan createdAt / deadline
+            if (filterDate !== "ALL") {
+                if (filterDate === "OVERDUE") {
+                    // Job lewat deadline, belum di stage terminal
+                    const done = j.pipelineStage === "SELESAI" || j.pipelineStage === "KIRIM";
+                    if (done || !j.deadline || !dayjs(j.deadline).isBefore(now, "day")) continue;
+                } else {
+                    const created = j.createdAt ? dayjs(j.createdAt) : null;
+                    if (!created) continue;
+                    if (filterDate === "TODAY" && !created.isSame(startOfToday, "day")) continue;
+                    if (filterDate === "THIS_WEEK" && created.isBefore(startOfWeek)) continue;
+                    if (filterDate === "THIS_MONTH" && created.isBefore(startOfMonth)) continue;
+                }
+            }
+
+            // Filter pencarian
+            if (q) {
+                const match =
+                    (j.transaction?.customerName ?? "").toLowerCase().includes(q) ||
+                    (j.transaction?.invoiceNumber ?? "").toLowerCase().includes(q) ||
+                    (j.jobNumber ?? "").toLowerCase().includes(q);
+                if (!match) continue;
+            }
+
             const s = (j.pipelineStage || "DESIGN") as PipelineStage;
             (g[s] || g.DESIGN).push(j);
         }
         return g;
-    }, [jobs]);
+    }, [jobs, deferredSearch, filterPriority, filterDate]);
 
     const handleDragStart = useCallback((e: DragStartEvent) => {
-        setIsDragging(true);
         setActiveJobId(Number(e.active.id));
     }, []);
 
     const handleDragEnd = useCallback((e: DragEndEvent) => {
-        setIsDragging(false);
         setActiveJobId(null);
         if (!e.over) return;
         const jobId = Number(e.active.id);
@@ -154,6 +194,10 @@ export default function ProduksiPipelinePage() {
         stageMut.mutate({ id: jobId, payload: { pipelineStage: newStage } });
     }, [jobs, stageMut]);
 
+    const totalFiltered = Object.values(grouped).reduce((s, arr) => s + arr.length, 0);
+    const totalAll = jobs.length;
+    const isFiltering = deferredSearch.trim() !== "" || filterPriority !== "ALL" || filterDate !== "ALL";
+
     return (
         <div className="p-2 sm:p-4 space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -161,17 +205,111 @@ export default function ProduksiPipelinePage() {
                     <h1 className="text-lg sm:text-xl font-bold text-gray-800">Pipeline Produksi</h1>
                     <p className="text-[10px] sm:text-xs text-gray-500">
                         Drag &amp; drop card antar kolom. Tap-hold di mobile.
+                        {isFiltering && (
+                            <span className="ml-1.5 text-indigo-600 font-semibold">
+                                · Menampilkan {totalFiltered} dari {totalAll} job
+                            </span>
+                        )}
                     </p>
                 </div>
                 {isLoading && <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />}
             </div>
 
+            {/* Filter bar */}
+            <div className="space-y-2">
+                {/* Baris 1: Search */}
+                <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Cari pelanggan, no. invoice, no. job..."
+                        className="w-full pl-8 pr-8 py-1.5 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-300 shadow-sm"
+                    />
+                    {searchQuery && (
+                        <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    )}
+                </div>
+
+                {/* Baris 2: Filter Tanggal + Prioritas + Reset */}
+                <div className="flex flex-wrap gap-2 items-center">
+                    {/* Filter Tanggal */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
+                        {([
+                            { key: "ALL",        label: "Semua" },
+                            { key: "TODAY",      label: "Hari Ini" },
+                            { key: "THIS_WEEK",  label: "Minggu Ini" },
+                            { key: "THIS_MONTH", label: "Bulan Ini" },
+                            { key: "OVERDUE",    label: "Lewat Deadline" },
+                        ] as const).map(({ key, label }) => (
+                            <button
+                                key={key}
+                                onClick={() => setFilterDate(key)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                    filterDate === key
+                                        ? key === "OVERDUE"
+                                            ? "bg-red-600 text-white border-red-600"
+                                            : "bg-indigo-600 text-white border-indigo-600"
+                                        : key === "OVERDUE"
+                                            ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Divider */}
+                    <div className="w-px h-4 bg-gray-200 self-center hidden sm:block" />
+
+                    {/* Filter Prioritas */}
+                    <div className="flex gap-1 flex-wrap">
+                        {(["ALL", "URGENT", "HIGH", "NORMAL", "LOW"] as const).map(p => (
+                            <button
+                                key={p}
+                                onClick={() => setFilterPriority(p)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                    filterPriority === p
+                                        ? p === "URGENT" ? "bg-red-600 text-white border-red-600"
+                                        : p === "HIGH" ? "bg-orange-500 text-white border-orange-500"
+                                        : p === "LOW" ? "bg-sky-500 text-white border-sky-500"
+                                        : p === "NORMAL" ? "bg-gray-600 text-white border-gray-600"
+                                        : "bg-indigo-600 text-white border-indigo-600"
+                                        : p === "URGENT" ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+                                        : p === "HIGH" ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
+                                        : p === "LOW" ? "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100"
+                                        : p === "NORMAL" ? "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
+                                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                }`}
+                            >
+                                {p === "ALL" ? "Semua" : p}
+                            </button>
+                        ))}
+                    </div>
+
+                    {isFiltering && (
+                        <button
+                            onClick={() => { setSearchQuery(""); setFilterPriority("ALL"); setFilterDate("ALL"); }}
+                            className="text-[11px] text-gray-500 hover:text-gray-700 underline whitespace-nowrap ml-auto"
+                        >
+                            Reset filter
+                        </button>
+                    )}
+                </div>
+            </div>
+
             <DndContext
                 sensors={sensors}
-                collisionDetection={pointerWithin}
+                collisionDetection={rectIntersection}
+                measuring={{ droppable: { strategy: MeasuringStrategy.BeforeDragging } }}
                 onDragStart={handleDragStart}
                 onDragEnd={handleDragEnd}
-                onDragCancel={() => { setIsDragging(false); setActiveJobId(null); }}
+                onDragCancel={() => { setActiveJobId(null); }}
             >
                 {/* Horizontal scroll di mobile, grid 4/8 kolom di desktop */}
                 <div className="flex sm:grid sm:grid-cols-4 lg:grid-cols-8 gap-2 sm:gap-3 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0 -mx-2 px-2 sm:mx-0 sm:px-0 snap-x snap-mandatory sm:snap-none">
@@ -180,6 +318,7 @@ export default function ProduksiPipelinePage() {
                             key={stage}
                             stage={stage}
                             jobs={grouped[stage]}
+                            activeJobId={activeJobId}
                             onUploadProof={handleUploadProof}
                             onOpenProofViewer={handleOpenProofViewer}
                             uploading={uploadMut.isPending}
@@ -243,10 +382,11 @@ export default function ProduksiPipelinePage() {
 // ─── Column ────────────────────────────────────────────────────────────────
 
 const Column = memo(function Column({
-    stage, jobs, onUploadProof, onOpenProofViewer, uploading,
+    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, uploading,
 }: {
     stage: PipelineStage;
     jobs: PipelineJob[];
+    activeJobId: number | null;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     uploading: boolean;
@@ -270,6 +410,7 @@ const Column = memo(function Column({
                         <KanbanCard
                             key={job.id}
                             job={job}
+                            isActive={activeJobId === job.id}
                             onUploadProof={onUploadProof}
                             onOpenProofViewer={onOpenProofViewer}
                             uploading={uploading}
@@ -281,23 +422,50 @@ const Column = memo(function Column({
     );
 });
 
-// ─── Card (memoized) ───────────────────────────────────────────────────────
+// ─── Card: thin draggable wrapper ─────────────────────────────────────────
+// Sengaja dipisah dari KanbanCardInner. useDraggable subscribe ke DnD context,
+// artinya komponen ini re-render setiap pointer move saat drag. Tapi render-nya
+// cuma sebuah <div> kosong — sangat murah. KanbanCardInner di bawah yang punya
+// semua JSX berat di-memo secara terpisah dan tidak akan re-render selama drag.
 
-interface CardProps {
+const KanbanCard = memo(function KanbanCard({
+    job, isActive, onUploadProof, onOpenProofViewer, uploading,
+}: {
     job: PipelineJob;
+    isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     uploading: boolean;
-}
+}) {
+    const { attributes, listeners, setNodeRef } = useDraggable({ id: String(job.id) });
+    return (
+        <div ref={setNodeRef} {...attributes} {...listeners} style={{ touchAction: "none" }}>
+            <KanbanCardInner
+                job={job}
+                isActive={isActive}
+                onUploadProof={onUploadProof}
+                onOpenProofViewer={onOpenProofViewer}
+                uploading={uploading}
+            />
+        </div>
+    );
+});
 
-const KanbanCard = memo(function KanbanCard({
-    job, onUploadProof, onOpenProofViewer, uploading,
-}: CardProps) {
-    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: String(job.id),
-    });
-    // Tidak pakai transform di card asli — DragOverlay (portal) yang follow cursor.
-    // Card asli cuma di-fade saat dragging supaya layout placeholder tetap di tempat.
+// ─── Card: heavy content (memoized, zero dnd hooks) ───────────────────────
+// Tidak ada useDraggable/useDroppable → tidak subscribe ke DnD context.
+// Saat pointer move selama drag, props komponen ini tidak berubah (isActive
+// hanya berubah saat drag start/end, bukan saat move) → React.memo bail out
+// → zero re-render selama drag. Ini sumber percepatan utama.
+
+const KanbanCardInner = memo(function KanbanCardInner({
+    job, isActive, onUploadProof, onOpenProofViewer, uploading,
+}: {
+    job: PipelineJob;
+    isActive: boolean;
+    onUploadProof: (jobId: number, files: FileList) => void;
+    onOpenProofViewer: (job: PipelineJob) => void;
+    uploading: boolean;
+}) {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const isDesign = (job.pipelineStage || "DESIGN") === "DESIGN";
     const proofs = getProofList(job);
@@ -322,19 +490,11 @@ const KanbanCard = memo(function KanbanCard({
 
     return (
         <div
-            ref={setNodeRef}
-            className={`bg-white rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs ${isDragging ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+            className={`bg-white rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs cursor-grab active:cursor-grabbing select-none ${isActive ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : "border-gray-200"}`}
         >
             <div className="flex items-start justify-between gap-1 mb-1">
                 <span className="font-mono font-bold text-[9px] sm:text-[10px] text-gray-600 truncate">{job.jobNumber}</span>
-                <button
-                    {...attributes}
-                    {...listeners}
-                    className="text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing touch-none flex-shrink-0 p-0.5"
-                    aria-label="Drag"
-                >
-                    <GripVertical className="h-3.5 w-3.5" />
-                </button>
+                <GripVertical className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
             </div>
 
             {job.priority && job.priority !== "NORMAL" && (
@@ -380,13 +540,12 @@ const KanbanCard = memo(function KanbanCard({
                 )}
             </div>
 
-            {/* Proof images — thumbnail + count badge, klik buka viewer */}
             {firstProof ? (
                 <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onOpenProofViewer(job); }}
                     onPointerDown={(e) => e.stopPropagation()}
-                    className="mt-1.5 relative w-full block group/proof"
+                    className="mt-1.5 relative w-full block"
                 >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -398,7 +557,7 @@ const KanbanCard = memo(function KanbanCard({
                     />
                     <span className="absolute top-1 left-1 bg-emerald-600 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold flex items-center gap-0.5">
                         <ImageIcon className="h-2.5 w-2.5" />
-                        {proofs.length > 1 ? `${proofs.length}x` : 'ACC'}
+                        {proofs.length > 1 ? `${proofs.length}x` : "ACC"}
                     </span>
                 </button>
             ) : isDesign ? (
@@ -462,7 +621,12 @@ function DragPreview({ job }: { job: PipelineJob }) {
         || "—";
     const customerName = job.transaction?.customerName || "—";
     return (
-        <div className="bg-white rounded-lg shadow-2xl border-2 border-indigo-400 p-2 text-xs w-56 rotate-2 cursor-grabbing">
+        // will-change + translateZ: hint ke browser supaya layer ini di-composite di GPU
+        // → transform animasi tidak blokir main thread → gerakan smooth
+        <div
+            className="bg-white rounded-lg shadow-2xl border-2 border-indigo-400 p-2 text-xs w-56 rotate-2 cursor-grabbing"
+            style={{ willChange: "transform", transform: "translateZ(0)" }}
+        >
             <div className="font-mono font-bold text-[10px] text-gray-600 mb-1">{job.jobNumber}</div>
             <div className="font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">{productName}</div>
             <div className="text-gray-500 text-[11px] truncate">{customerName}</div>

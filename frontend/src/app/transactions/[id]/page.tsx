@@ -39,6 +39,8 @@ interface Transaction {
     tax: number;
     discount: number;
     shippingCost: number;
+    marketplaceFee: number;
+    marketplaceFeeItems?: { name: string; amount: number }[] | null;
     grandTotal: number;
     paymentMethod: string;
     status: string;
@@ -295,13 +297,14 @@ export default function TransactionDetailPage() {
 
     const statusCfg = STATUS_CONFIG[trx.status] ?? { label: trx.status, color: "bg-gray-100 text-gray-600", icon: AlertCircle };
     const StatusIcon = statusCfg.icon;
-    const subtotal   = Number(trx.totalAmount);
-    const discount   = Number(trx.discount);
-    const shipping   = Number(trx.shippingCost);
-    const tax        = Number(trx.tax);
-    const grandTotal = Number(trx.grandTotal);
-    const dp         = Number(trx.downPayment);
-    const remaining  = grandTotal - dp;
+    const subtotal        = Number(trx.totalAmount);
+    const discount        = Number(trx.discount);
+    const shipping        = Number(trx.shippingCost);
+    const tax             = Number(trx.tax);
+    const grandTotal      = Number(trx.grandTotal);
+    const marketplaceFee  = Number(trx.marketplaceFee) || 0;
+    const dp              = Number(trx.downPayment);
+    const remaining       = grandTotal - dp;
 
     return (
         <>
@@ -524,6 +527,29 @@ export default function TransactionDetailPage() {
                                     <span>Grand Total</span>
                                     <span>{formatRp(grandTotal)}</span>
                                 </div>
+                                {marketplaceFee > 0 && (
+                                    <>
+                                        {(trx.marketplaceFeeItems && trx.marketplaceFeeItems.length > 0
+                                            ? trx.marketplaceFeeItems
+                                            : [{ name: 'Potongan Marketplace', amount: marketplaceFee }]
+                                        ).map((fi, i) => (
+                                            <div key={i} className="flex justify-between text-red-600 text-sm">
+                                                <span>{fi.name}</span>
+                                                <span>− {formatRp(Number(fi.amount))}</span>
+                                            </div>
+                                        ))}
+                                        {trx.marketplaceFeeItems && trx.marketplaceFeeItems.length > 1 && (
+                                            <div className="flex justify-between text-red-700 font-semibold text-sm border-t border-red-100 pt-1">
+                                                <span>Total Potongan</span>
+                                                <span>− {formatRp(marketplaceFee)}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between text-emerald-700 font-semibold text-sm">
+                                            <span>Diterima (nett)</span>
+                                            <span>{formatRp(Math.max(0, grandTotal - marketplaceFee))}</span>
+                                        </div>
+                                    </>
+                                )}
                                 {dp > 0 && (
                                     <>
                                         <div className="flex justify-between text-emerald-600">

@@ -44,6 +44,9 @@ export class LeadsService {
         status?: string;
         source?: string;
         assignedToId?: number;
+        level?: string;
+        dateFrom?: string;
+        dateTo?: string;
         search?: string;
         page?: number;
         limit?: number;
@@ -52,6 +55,17 @@ export class LeadsService {
         if (params.status) where.status = params.status as LeadStatus;
         if (params.source) where.source = params.source as any;
         if (params.assignedToId) where.assignedToId = params.assignedToId;
+        if (params.level) where.level = params.level as any;
+        if (params.dateFrom || params.dateTo) {
+            const createdAtFilter: Prisma.DateTimeFilter = {};
+            if (params.dateFrom) createdAtFilter.gte = new Date(params.dateFrom);
+            if (params.dateTo) {
+                const to = new Date(params.dateTo);
+                to.setHours(23, 59, 59, 999);
+                createdAtFilter.lte = to;
+            }
+            where.createdAt = createdAtFilter;
+        }
         if (params.search) {
             const norm = normalizePhone(params.search);
             where.OR = [
@@ -437,6 +451,7 @@ export class LeadsService {
                 estimatedValue: finalEstimated,
                 city: data.city || null,
                 assignedToId: data.assignedToId ?? null,
+                intakeAt: data.intakeAt ? new Date(data.intakeAt) : new Date(),
                 followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
                 deliveryDeadline: data.deliveryDeadline ? new Date(data.deliveryDeadline) : null,
                 ...({ imageUrl: data.imageUrl ?? null } as any),
@@ -509,6 +524,9 @@ export class LeadsService {
             updateData.assignedTo = data.assignedToId
                 ? { connect: { id: data.assignedToId } }
                 : { disconnect: true };
+        }
+        if (data.intakeAt !== undefined) {
+            (updateData as any).intakeAt = data.intakeAt ? new Date(data.intakeAt) : null;
         }
         if (data.followUpDate !== undefined) {
             updateData.followUpDate = data.followUpDate ? new Date(data.followUpDate) : null;
@@ -701,20 +719,23 @@ export class LeadsService {
         let transactionId: number | null = null;
         let transactionItemsCreated = 0;
         let transactionItemsSkipped = 0;
+        let transactionError: string | null = null;
         const wantProductionTx = data.createProductionTransaction !== false;
-        const txItems = wantProductionTx
-            ? leadItems.filter((it: any) => it.productVariantId)
-            : [];
+        // Semua item dikirim ke transaksi — custom item (tanpa productVariantId) ditangani
+        // di transactions.service sebagai item custom tanpa stok.
+        const txItems = wantProductionTx ? leadItems : [];
         if (wantProductionTx && txItems.length > 0) {
             try {
                 const branchId = (lead as any).branchId ?? ctx.branchId ?? null;
 
                 // Payment options. Default NONE = PENDING (saveOnly true, no DP).
                 const paymentMode = data.paymentMode || 'NONE';
-                const paymentMethod = (data.paymentMethod || 'CASH') as any;
+                const rawMethod = data.paymentMethod || 'CASH';
+                const paymentMethod = (rawMethod === 'TRANSFER' ? 'BANK_TRANSFER' : rawMethod) as any;
                 const txPayload: any = {
                     items: txItems.map((it: any) => ({
-                        productVariantId: Number(it.productVariantId),
+                        productVariantId: it.productVariantId ? Number(it.productVariantId) : null,
+                        customName: it.productVariantId ? undefined : (it.description || undefined),
                         quantity: Number(it.quantity) || 1,
                         widthCm: it.widthCm ? Number(it.widthCm) : undefined,
                         heightCm: it.heightCm ? Number(it.heightCm) : undefined,
@@ -747,12 +768,15 @@ export class LeadsService {
                 } else if (paymentMode === 'LUNAS') {
                     txPayload.saveOnly = false;
                     // Don't set downPayment — service defaults to grandTotal
+                    if (data.marketplaceFee && data.marketplaceFee > 0) {
+                        txPayload.marketplaceFee = data.marketplaceFee;
+                    }
                 }
 
                 const tx = await this.transactionsService.create(txPayload);
                 transactionId = (tx as any).id ?? null;
                 transactionItemsCreated = txItems.length;
-                transactionItemsSkipped = leadItems.length - txItems.length;
+                transactionItemsSkipped = 0;
 
                 // BYPASS requiresProduction: ensure all transaction items have a production job.
                 // transactions.service hanya bikin job untuk product.requiresProduction=true. CRM
@@ -806,6 +830,7 @@ export class LeadsService {
                 // eslint-disable-next-line no-console
                 console.error('[convert] auto-create transaction failed:', err?.message);
                 transactionItemsSkipped = leadItems.length;
+                transactionError = err?.message || 'Unknown error';
             }
         } else if (wantProductionTx) {
             transactionItemsSkipped = leadItems.length;
@@ -944,6 +969,7 @@ export class LeadsService {
                 status: 'CLOSED_WON',
                 convertedCustomerId: customerId,
                 convertedSalesOrderId: salesOrderId,
+                ...(transactionId ? { convertedTransactionId: transactionId } : {}),
                 closedAt: new Date(),
             },
         });
@@ -984,6 +1010,7 @@ export class LeadsService {
                 transactionId,
                 transactionItemsCreated,
                 transactionItemsSkipped,
+                transactionError,
             },
         };
     }

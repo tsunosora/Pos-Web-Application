@@ -21,6 +21,7 @@ export class CreateLeadDto {
     estimatedValue?: number;
     city?: string;
     assignedToId?: number;
+    intakeAt?: string;     // ISO datetime — jam masuk lead sesungguhnya (default = waktu create)
     followUpDate?: string; // ISO date
     deliveryDeadline?: string; // ISO date — tanggal kirim deadline
     status?: LeadStatus;   // optional override (default NEW)
@@ -39,6 +40,7 @@ export class UpdateLeadDto {
     estimatedValue?: number;
     city?: string;
     assignedToId?: number | null;
+    intakeAt?: string | null;  // ISO datetime — bisa di-update jika CS salah input waktu
     followUpDate?: string | null;
     deliveryDeadline?: string | null;
     firstResponseAt?: string | null; // manual override response time
@@ -73,6 +75,7 @@ export class ConvertLeadDto {
     paymentMethod?: 'CASH' | 'TRANSFER' | 'QRIS';
     paymentAmount?: number;   // hanya untuk DP. LUNAS auto = grandTotal.
     bankAccountId?: number;   // wajib untuk TRANSFER (rekening tujuan)
+    marketplaceFee?: number;  // potongan platform (Shopee, dll) — hanya berlaku saat LUNAS
 }
 
 export class CloseLostDto {
