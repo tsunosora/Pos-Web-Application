@@ -18,6 +18,7 @@ import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
     Upload, FileText, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
+    Share2, Copy, Check,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -59,6 +60,8 @@ export default function ProduksiPipelinePage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterPriority, setFilterPriority] = useState<string>("ALL");
     const [filterDate, setFilterDate] = useState<"ALL" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "OVERDUE">("ALL");
+    const [showShare, setShowShare] = useState(false);
+    const shareRef = useRef<HTMLDivElement>(null);
 
     const { data: jobs = [], isLoading } = useQuery({
         queryKey: ["produksi-pipeline"],
@@ -230,7 +233,21 @@ export default function ProduksiPipelinePage() {
                         )}
                     </p>
                 </div>
-                {isLoading && <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />}
+                <div className="flex items-center gap-2">
+                    {isLoading && <Loader2 className="h-5 w-5 animate-spin text-indigo-600" />}
+                    {/* Share link ke halaman produksi operator */}
+                    <div className="relative" ref={shareRef}>
+                        <button
+                            onClick={() => setShowShare(v => !v)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                            <Share2 className="h-3.5 w-3.5" /> Bagikan Link
+                        </button>
+                        {showShare && (
+                            <SharePopover onClose={() => setShowShare(false)} />
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* Filter bar */}
@@ -395,6 +412,87 @@ export default function ProduksiPipelinePage() {
                 />
             )}
         </div>
+    );
+}
+
+// ─── Share Popover ─────────────────────────────────────────────────────────
+
+function SharePopover({ onClose }: { onClose: () => void }) {
+    const [copied, setCopied] = useState<string | null>(null);
+
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const links = [
+        { label: "Board Operator", desc: "Untuk desainer & operator mesin", path: "/produksi/board" },
+        { label: "Antrian Produksi", desc: "Tampilan antrian + status job", path: "/produksi" },
+    ];
+
+    const copy = async (url: string) => {
+        try {
+            await navigator.clipboard.writeText(url);
+            setCopied(url);
+            setTimeout(() => setCopied(null), 2000);
+        } catch {
+            // fallback
+            const el = document.createElement("textarea");
+            el.value = url;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand("copy");
+            document.body.removeChild(el);
+            setCopied(url);
+            setTimeout(() => setCopied(null), 2000);
+        }
+    };
+
+    const share = async (url: string, label: string) => {
+        if (navigator.share) {
+            await navigator.share({ title: `PosPro — ${label}`, url });
+        } else {
+            copy(url);
+        }
+    };
+
+    return (
+        <>
+            {/* overlay untuk close klik luar */}
+            <div className="fixed inset-0 z-[40]" onClick={onClose} />
+            <div className="absolute right-0 top-full mt-2 z-[50] w-80 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 space-y-3">
+                <div className="flex items-center justify-between mb-1">
+                    <p className="font-semibold text-sm text-gray-800">Bagikan ke Operator / Desainer</p>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                </div>
+                <p className="text-[11px] text-gray-500">Halaman berikut bisa diakses tanpa login — cukup masukkan PIN operator.</p>
+                {links.map(({ label, desc, path }) => {
+                    const url = `${origin}${path}`;
+                    const isCopied = copied === url;
+                    return (
+                        <div key={path} className="rounded-lg border border-gray-200 p-3 space-y-1.5">
+                            <div>
+                                <p className="text-xs font-semibold text-gray-800">{label}</p>
+                                <p className="text-[10px] text-gray-500">{desc}</p>
+                            </div>
+                            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1 border border-gray-200">
+                                <span className="text-[10px] text-gray-600 font-mono truncate flex-1">{url}</span>
+                            </div>
+                            <div className="flex gap-1.5">
+                                <button
+                                    onClick={() => copy(url)}
+                                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-semibold transition-colors ${isCopied ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                >
+                                    {isCopied ? <><Check className="h-3 w-3" /> Tersalin!</> : <><Copy className="h-3 w-3" /> Salin Link</>}
+                                </button>
+                                <button
+                                    onClick={() => share(url, label)}
+                                    className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[11px] font-semibold transition-colors"
+                                >
+                                    <Share2 className="h-3 w-3" /> Bagikan
+                                </button>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </>
     );
 }
 
