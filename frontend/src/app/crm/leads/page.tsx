@@ -19,6 +19,7 @@ import {
     CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -888,6 +889,7 @@ function LeadDetailDrawer({
     onDelete: (id: number) => void;
 }) {
     const qc = useQueryClient();
+    const { isOwner } = useCurrentUser();
     const { data: lead, isLoading } = useQuery({
         queryKey: ["crm-lead-detail", leadId],
         queryFn: () => getLeads({ search: "" }).then(() => null), // placeholder, gantii dengan getLead
@@ -950,11 +952,14 @@ function LeadDetailDrawer({
                     lines.push(`⚠ Tidak ada item — produksi tidak dibuat`);
                 }
                 if (r.salesOrderId) {
-                    // Fallback message kalau backend tetap bikin SO (mis. user enable manual via API)
                     lines.push(`📋 SPK #${r.salesOrderId}${r.soItemsCreated > 0 ? ` (${r.soItemsCreated} item)` : ''}`);
                 }
                 alert(lines.join('\n'));
             }
+        },
+        onError: (err: any) => {
+            const msg = err?.response?.data?.message || err?.message || 'Terjadi kesalahan.';
+            alert(`Gagal convert: ${msg}`);
         },
     });
 
@@ -1197,12 +1202,20 @@ function LeadDetailDrawer({
                         </button>
                         {/* Convert — tampil selama bukan Lost */}
                         {!isLost && (
-                            <button
-                                onClick={() => setShowConvert(true)}
-                                className="px-3 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 flex items-center gap-1"
-                            >
-                                <CheckCircle2 className="h-4 w-4" /> {isWon ? "Buat Nota / Pipeline" : "Convert (Closing)"}
-                            </button>
+                            isWon && !isOwner ? (
+                                <span className="px-3 py-2 bg-gray-100 text-gray-500 rounded-lg text-sm flex items-center gap-1 cursor-default" title="Sudah di-convert. Hanya owner yang bisa convert ulang.">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Sudah Di-convert
+                                </span>
+                            ) : (
+                                <button
+                                    onClick={() => setShowConvert(true)}
+                                    className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 ${isWon ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
+                                    title={isWon ? "Lead sudah di-convert — re-convert sebagai owner" : undefined}
+                                >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    {isWon ? "Re-convert (Owner)" : "Convert (Closing)"}
+                                </button>
+                            )
                         )}
                         {/* Close Lost — hanya kalau belum closing/lost */}
                         {!isWon && !isLost && (
@@ -1458,6 +1471,11 @@ function ConvertModal({
         <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <h3 className="font-bold text-lg mb-2">Buat Nota & Masuk Produksi</h3>
+                {lead.status === 'CLOSED_WON' && (
+                    <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800 font-medium">
+                        Peringatan: lead ini sudah pernah di-convert. Re-convert akan membuat nota & job baru lagi.
+                    </div>
+                )}
                 <p className="text-sm text-gray-600 mb-4">
                     Tutup lead sebagai closing. Sistem otomatis bikin
                     <strong className="text-gray-800"> Nota</strong> (masuk DP/Piutang sesuai pembayaran) dan

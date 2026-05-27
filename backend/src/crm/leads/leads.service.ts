@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere, requireBranch } from '../../common/branch-where.helper';
@@ -654,8 +654,10 @@ export class LeadsService {
     /** Convert lead → Customer (existing/baru) + opsional SO draft. */
     async convert(ctx: BranchContext, leadId: number, data: ConvertLeadDto, userId?: number) {
         const lead = await this.detail(ctx, leadId);
-        // Allow re-convert: kalau status sudah CLOSED_WON, biar UI yang warn.
-        // Backend tetap proses — biar fleksibel kalau owner mau re-link customer/SO.
+        // Re-convert hanya boleh dilakukan oleh owner. Staff biasa hanya bisa convert sekali.
+        if (lead.status === 'CLOSED_WON' && !ctx.isOwner) {
+            throw new ForbiddenException('Lead ini sudah pernah di-convert. Hubungi owner untuk convert ulang.');
+        }
 
         // Resolve customer
         let customerId = data.customerId ?? null;
