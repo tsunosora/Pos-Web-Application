@@ -267,8 +267,10 @@ export function AnimatedBackground() {
             <div className="relative z-20 flex flex-1 items-center justify-center">
                 {settings.loginLogoUrl ? (
                     // Custom logo — replace animasi Voliko. Sparkles & ring tetap di sekeliling.
+                    // Key prefix "c-" berbeda dari "d-" (default) supaya React selalu
+                    // unmount+remount saat beralih antara dua branch ini, bukan patch in-place.
                     <div
-                        key={logoKey}
+                        key={`c-${logoKey}`}
                         className="vl-scene relative flex flex-col items-center"
                         style={{ animation: 'vl-fadeIn .4s ease-out both' }}
                     >
@@ -300,7 +302,7 @@ export function AnimatedBackground() {
                     </div>
                 ) : (
                 <div
-                    key={logoKey}
+                    key={`d-${logoKey}`}
                     className="vl-scene relative flex flex-col items-center"
                     style={{ animation: 'vl-fadeIn .35s ease-out both' }}
                 >
