@@ -480,13 +480,36 @@ function LeadFormModal({
     const [phoneChecked, setPhoneChecked] = useState(false);
     const [savedCustomSources, setSavedCustomSources] = useState<string[]>([]);
 
-    // Load custom sources dari localStorage
+    // Load custom sources dari localStorage, juga tambahkan sourceDetail lead yang sedang diedit
     useEffect(() => {
         try {
             const raw = localStorage.getItem("crm_custom_sources");
-            if (raw) setSavedCustomSources(JSON.parse(raw));
+            const stored: string[] = raw ? JSON.parse(raw) : [];
+            const initCustom = initial?.source === "CUSTOM" && initial.sourceDetail ? initial.sourceDetail : null;
+            if (initCustom && !stored.includes(initCustom)) {
+                const updated = [initCustom, ...stored].slice(0, 20);
+                try { localStorage.setItem("crm_custom_sources", JSON.stringify(updated)); } catch {}
+                setSavedCustomSources(updated);
+            } else {
+                setSavedCustomSources(stored);
+            }
         } catch {}
     }, []);
+
+    // Nilai select sumber: kalau CUSTOM+sourceDetail ada di list → "CUSTOM:Name", kalau baru → "CUSTOM_NEW"
+    const selectSourceValue = form.source === "CUSTOM"
+        ? (savedCustomSources.includes(form.sourceDetail) ? `CUSTOM:${form.sourceDetail}` : "CUSTOM_NEW")
+        : form.source;
+
+    const handleSourceChange = (value: string) => {
+        if (value.startsWith("CUSTOM:")) {
+            setForm(f => ({ ...f, source: "CUSTOM" as LeadSource, sourceDetail: value.slice(7) }));
+        } else if (value === "CUSTOM_NEW") {
+            setForm(f => ({ ...f, source: "CUSTOM" as LeadSource, sourceDetail: "" }));
+        } else {
+            setForm(f => ({ ...f, source: value as LeadSource }));
+        }
+    };
 
     // Load list of users untuk CS assignment dropdown
     const { data: users } = useQuery({
@@ -753,13 +776,21 @@ function LeadFormModal({
                             <label className="block text-xs font-semibold text-gray-600 mb-1">Sumber *</label>
                             <select
                                 required
-                                value={form.source}
-                                onChange={(e) => setForm({ ...form, source: e.target.value as LeadSource })}
+                                value={selectSourceValue}
+                                onChange={(e) => handleSourceChange(e.target.value)}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                             >
-                                {SOURCE_OPTIONS.map((s) => (
+                                {SOURCE_OPTIONS.filter(s => s !== "CUSTOM").map((s) => (
                                     <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>
                                 ))}
+                                {savedCustomSources.length > 0 && (
+                                    <optgroup label="— Sumber Tersimpan —">
+                                        {savedCustomSources.map(s => (
+                                            <option key={`CUSTOM:${s}`} value={`CUSTOM:${s}`}>{s}</option>
+                                        ))}
+                                    </optgroup>
+                                )}
+                                <option value="CUSTOM_NEW">+ Tambah Sumber Baru...</option>
                             </select>
                         </div>
                         <div>
@@ -778,37 +809,23 @@ function LeadFormModal({
 
                     <div>
                         <label className="block text-xs font-semibold text-gray-600 mb-1">
-                            {form.source === "CUSTOM" ? (
-                                <>Nama Sumber <span className="text-red-500">*</span></>
+                            {form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" ? (
+                                <>Nama Sumber Baru <span className="text-red-500">*</span></>
                             ) : "Detail Sumber"}
                         </label>
                         <input
-                            required={form.source === "CUSTOM"}
+                            required={form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW"}
                             value={form.sourceDetail}
                             onChange={(e) => setForm({ ...form, sourceDetail: e.target.value })}
-                            className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-gray-300"}`}
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-gray-300"}`}
                             placeholder={
-                                form.source === "CUSTOM"
-                                    ? 'mis. "Brosur Pameran", "Radio", "Event Kampus"...'
+                                form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW"
+                                    ? 'mis. "Shopee", "Brosur Pameran", "Event Kampus"...'
                                     : 'mis. "IG @volikoprint - story balas" / "Referral kak Andi"'
                             }
                         />
-                        {form.source === "CUSTOM" && savedCustomSources.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1.5">
-                                {savedCustomSources.map(s => (
-                                    <button
-                                        key={s}
-                                        type="button"
-                                        onClick={() => setForm({ ...form, sourceDetail: s })}
-                                        className={`text-xs rounded-full px-2 py-0.5 border transition-colors ${form.sourceDetail === s ? "bg-indigo-600 text-white border-indigo-600" : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"}`}
-                                    >
-                                        {s}
-                                    </button>
-                                ))}
-                            </div>
-                        )}
-                        {form.source === "CUSTOM" && (
-                            <p className="text-[10px] text-indigo-600 mt-1">Tulis nama sumber yang spesifik — akan tampil sebagai label sumber lead.</p>
+                        {form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" && (
+                            <p className="text-[10px] text-indigo-600 mt-1">Nama ini akan tersimpan dan bisa dipilih langsung di lain waktu.</p>
                         )}
                     </div>
 
