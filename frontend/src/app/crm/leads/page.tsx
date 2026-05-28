@@ -496,9 +496,12 @@ function LeadFormModal({
         } catch {}
     }, []);
 
-    // Nilai select sumber: kalau CUSTOM+sourceDetail ada di list → "CUSTOM:Name", kalau baru → "CUSTOM_NEW"
+    // Nilai select sumber: kalau CUSTOM+sourceDetail ada di list (case-insensitive) → pakai nama tersimpan, kalau baru → "CUSTOM_NEW"
+    const matchedSavedSource = form.source === "CUSTOM"
+        ? savedCustomSources.find(s => s.toLowerCase() === form.sourceDetail.toLowerCase())
+        : undefined;
     const selectSourceValue = form.source === "CUSTOM"
-        ? (savedCustomSources.includes(form.sourceDetail) ? `CUSTOM:${form.sourceDetail}` : "CUSTOM_NEW")
+        ? (matchedSavedSource ? `CUSTOM:${matchedSavedSource}` : "CUSTOM_NEW")
         : form.source;
 
     const handleSourceChange = (value: string) => {
@@ -595,7 +598,8 @@ function LeadFormModal({
         // Simpan custom source ke localStorage supaya bisa dipilih lagi
         if (form.source === "CUSTOM" && form.sourceDetail.trim()) {
             const label = form.sourceDetail.trim();
-            const updated = [label, ...savedCustomSources.filter(s => s !== label)].slice(0, 20);
+            const labelLower = label.toLowerCase();
+            const updated = [label, ...savedCustomSources.filter(s => s.toLowerCase() !== labelLower)].slice(0, 20);
             setSavedCustomSources(updated);
             try { localStorage.setItem("crm_custom_sources", JSON.stringify(updated)); } catch {}
         }
