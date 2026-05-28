@@ -63,7 +63,7 @@ export class KpiService {
         // sort + ambil first di JS.
         const leadsInPeriod: any[] = await this.lead.findMany({
             where: { ...branchScope, createdAt: { gte: start, lte: end } },
-            select: { id: true, createdAt: true, status: true, source: true, assignedToId: true, estimatedValue: true },
+            select: { id: true, createdAt: true, status: true, source: true, sourceDetail: true, assignedToId: true, estimatedValue: true, convertedTransactionId: true },
         });
         const leadIds = leadsInPeriod.map(l => l.id);
         const allActivities: any[] = leadIds.length === 0 ? [] : await this.activity.findMany({
@@ -103,6 +103,36 @@ export class KpiService {
         const wonValue = leadsInPeriod
             .filter(l => l.status === 'CLOSED_WON')
             .reduce((s, l) => s + (Number(l.estimatedValue) || 0), 0);
+
+        // ── Nilai akan datang (saldo outstanding dari tx PENDING/PARTIAL) ──
+        // Lead CLOSED_WON yang punya convertedTransactionId → cek status tx-nya.
+        // PENDING  : grandTotal full belum dibayar (COD / bayar nanti)
+        // PARTIAL  : ada DP, sisanya (grandTotal - downPayment) masih piutang
+        // PAID     : lunas → tidak masuk hitungan pending
+        const convertedTxIds = leadsInPeriod
+            .filter(l => l.status === 'CLOSED_WON' && l.convertedTransactionId)
+            .map(l => Number(l.convertedTransactionId));
+
+        const txPendingMap = new Map<number, number>(); // txId → saldo outstanding
+        if (convertedTxIds.length > 0) {
+            const txs: any[] = await this.tx.findMany({
+                where: { id: { in: convertedTxIds }, status: { in: ['PENDING', 'PARTIAL'] } },
+                select: { id: true, grandTotal: true, downPayment: true, status: true },
+            });
+            for (const t of txs) {
+                const outstanding = Number(t.grandTotal) - Number(t.downPayment);
+                txPendingMap.set(t.id, Math.max(0, outstanding));
+            }
+        }
+
+        // Peta lead → saldo pending (0 kalau sudah lunas / tidak punya tx)
+        const leadPendingMap = new Map<number, number>();
+        for (const l of leadsInPeriod) {
+            if (l.status !== 'CLOSED_WON' || !l.convertedTransactionId) continue;
+            const pending = txPendingMap.get(Number(l.convertedTransactionId)) ?? 0;
+            leadPendingMap.set(l.id, pending);
+        }
+        const totalPendingValue = Array.from(leadPendingMap.values()).reduce((s, v) => s + v, 0);
 
         // ── FU compliance ──────────────────────────────────────────────────
         // FU due in period: total = pending+done+skipped that dueDate in period.
@@ -147,22 +177,28 @@ export class KpiService {
         const repeatOrderRate = customersWithOrder > 0 ? customersRepeat / customersWithOrder : 0;
 
         // ── Leads by source ───────────────────────────────────────────────
+        // Untuk sumber CUSTOM, gunakan sourceDetail sebagai key supaya
+        // setiap nama custom tampil terpisah di chart (bukan semua digabung jadi "Custom").
         const bySourceMap: Record<string, number> = {};
         for (const l of leadsInPeriod) {
-            bySourceMap[l.source] = (bySourceMap[l.source] || 0) + 1;
+            const key = l.source === 'CUSTOM' && l.sourceDetail
+                ? l.sourceDetail
+                : l.source;
+            bySourceMap[key] = (bySourceMap[key] || 0) + 1;
         }
         const leadsBySource = Object.entries(bySourceMap).map(([source, count]) => ({ source, count }));
 
         // ── Leaderboard CS ────────────────────────────────────────────────
         // GROUP BY assignedToId untuk leadsInPeriod + match closed
-        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; dealsLost: number; wonValue: number; lostValue: number; respSum: number; respCount: number }>();
+        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; dealsLost: number; wonValue: number; lostValue: number; pendingValue: number; respSum: number; respCount: number }>();
         for (const l of leadsInPeriod) {
             if (!l.assignedToId) continue;
-            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, dealsLost: 0, wonValue: 0, lostValue: 0, respSum: 0, respCount: 0 };
+            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, dealsLost: 0, wonValue: 0, lostValue: 0, pendingValue: 0, respSum: 0, respCount: 0 };
             entry.leadsHandled++;
             if (l.status === 'CLOSED_WON') {
                 entry.dealsClosed++;
                 entry.wonValue += Number(l.estimatedValue) || 0;
+                entry.pendingValue += leadPendingMap.get(l.id) ?? 0;
             }
             if (l.status === 'CLOSED_LOST') {
                 entry.dealsLost++;
@@ -192,6 +228,7 @@ export class KpiService {
                     dealsLost: stat.dealsLost,
                     wonValue: stat.wonValue,
                     lostValue: stat.lostValue,
+                    pendingValue: stat.pendingValue,
                     closingRate: stat.leadsHandled > 0 ? stat.dealsClosed / stat.leadsHandled : 0,
                     avgResponseHrs: stat.respCount > 0
                         ? stat.respSum / stat.respCount / (1000 * 60 * 60)
@@ -208,6 +245,7 @@ export class KpiService {
                 closedLost,
                 wonValue,
                 lostValue,
+                pendingValue: totalPendingValue,
                 customersWithOrder,
                 customersRepeat,
                 totalFu,

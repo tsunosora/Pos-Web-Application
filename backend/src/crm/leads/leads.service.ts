@@ -735,16 +735,41 @@ export class LeadsService {
                 const rawMethod = data.paymentMethod || 'CASH';
                 const paymentMethod = (rawMethod === 'TRANSFER' ? 'BANK_TRANSFER' : rawMethod) as any;
                 const txPayload: any = {
-                    items: txItems.map((it: any) => ({
-                        productVariantId: it.productVariantId ? Number(it.productVariantId) : null,
-                        customName: it.productVariantId ? undefined : (it.description || undefined),
-                        quantity: Number(it.quantity) || 1,
-                        widthCm: it.widthCm ? Number(it.widthCm) : undefined,
-                        heightCm: it.heightCm ? Number(it.heightCm) : undefined,
-                        unitType: it.unitType || undefined,
-                        note: it.note || undefined,
-                        customPrice: it.unitPrice ? Number(it.unitPrice) : undefined,
-                    })),
+                    items: txItems.map((it: any) => {
+                        const w = Number(it.widthCm) || 0;
+                        const h = Number(it.heightCm) || 0;
+                        const isArea = w > 0 && h > 0;
+                        const areaM2 = isArea ? (w * h) / 10000 : 0;
+                        const qty = Number(it.quantity) || 1;
+                        const uPrice = Number(it.unitPrice) || 0;
+
+                        let customPrice: number | undefined;
+                        if (uPrice > 0) {
+                            if (it.productVariantId && isArea) {
+                                // AREA_BASED catalog item: transactions service memakai customPrice
+                                // sebagai FULL line total. Hitung qty × area × harga/m² di sini
+                                // karena pcs tidak dikirim (default 1 di service).
+                                customPrice = Math.round(qty * areaM2 * uPrice);
+                            } else if (!it.productVariantId && isArea) {
+                                // Custom item (free-text) dengan dimensi: service akan × qty otomatis.
+                                customPrice = Math.round(areaM2 * uPrice);
+                            } else {
+                                // UNIT item (catalog/custom): service akan × qty otomatis.
+                                customPrice = uPrice;
+                            }
+                        }
+
+                        return {
+                            productVariantId: it.productVariantId ? Number(it.productVariantId) : null,
+                            customName: it.productVariantId ? undefined : (it.description || undefined),
+                            quantity: qty,
+                            widthCm: it.widthCm ? Number(it.widthCm) : undefined,
+                            heightCm: it.heightCm ? Number(it.heightCm) : undefined,
+                            unitType: it.unitType || undefined,
+                            note: it.note || undefined,
+                            customPrice,
+                        };
+                    }),
                     paymentMethod,
                     bankAccountId: data.bankAccountId,
                     customerName: customer.name,
@@ -822,9 +847,18 @@ export class LeadsService {
                                     branchId,
                                     pipelineStage: 'DESIGN',
                                     deadline,
+                                    designerName: data.designerName || null,
                                 },
                             });
                         }
+                    }
+
+                    // Set designerName juga pada job yang sudah dibuat oleh transactionsService
+                    if (data.designerName) {
+                        await (this.prisma as any).productionJob.updateMany({
+                            where: { transactionId },
+                            data: { designerName: data.designerName },
+                        });
                     }
                 }
             } catch (err: any) {

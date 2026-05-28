@@ -441,6 +441,7 @@ export interface KpiLeaderboardEntry {
     dealsLost: number;
     wonValue: number;
     lostValue: number;
+    pendingValue: number;
     closingRate: number;
     avgResponseHrs: number | null;
 }
@@ -453,6 +454,7 @@ export interface KpiReport {
         closedLost: number;
         wonValue: number;
         lostValue: number;
+        pendingValue: number;
         customersWithOrder: number;
         customersRepeat: number;
         totalFu: number;
@@ -464,7 +466,7 @@ export interface KpiReport {
         fuComplianceRate: number;
         repeatOrderRate: number;
     };
-    leadsBySource: { source: LeadSource; count: number }[];
+    leadsBySource: { source: string; count: number }[];
     leaderboard: KpiLeaderboardEntry[];
 }
 

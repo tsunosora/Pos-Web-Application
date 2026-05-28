@@ -726,6 +726,8 @@ model ProductionJob {
   penjahitName        String?   @map("penjahit_name") @db.VarChar(120)
   jahitInDate         DateTime? @map("jahit_in_date")
   jahitEstimate       DateTime? @map("jahit_estimate")
+  // Desainer yang ditugaskan (nama bebas, diisi saat convert dari CRM atau manual)
+  designerName        String?   @map("designer_name") @db.VarChar(120)
   // QC & Packing notes
   qcNote              String?   @map("qc_note") @db.Text
   // Kirim / Retur tracking
