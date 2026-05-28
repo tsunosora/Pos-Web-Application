@@ -8,7 +8,7 @@ import {
     PieChart, Pie, Legend,
 } from "recharts";
 import {
-    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown,
+    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown, Hourglass,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -157,6 +157,15 @@ export default function CrmDashboardPage() {
                             sub={`dari ${data.totals.closedLost} lead gagal`}
                             color="bg-red-50 border-red-200 text-red-700"
                         />
+                        <MetricCard
+                            icon={<Hourglass className="h-5 w-5" />}
+                            label="Nilai Akan Datang"
+                            value={data.totals.pendingValue > 0
+                                ? `Rp ${(data.totals.pendingValue / 1_000_000).toFixed(1)}jt`
+                                : "Rp 0"}
+                            sub="Saldo piutang belum lunas (PENDING + DP)"
+                            color="bg-amber-50 border-amber-200 text-amber-700"
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -231,6 +240,7 @@ export default function CrmDashboardPage() {
                                             <th className="text-right py-2 px-2">Lost</th>
                                             <th className="text-right py-2 px-2">Rate</th>
                                             <th className="text-right py-2 px-2">Nilai WON</th>
+                                            <th className="text-right py-2 px-2">Nilai Akan Datang</th>
                                             <th className="text-right py-2 px-2">Nilai Lost</th>
                                             <th className="text-right py-2 px-2">Avg Response</th>
                                         </tr>
@@ -252,6 +262,13 @@ export default function CrmDashboardPage() {
                                                     {row.wonValue > 0
                                                         ? `Rp ${row.wonValue.toLocaleString('id-ID')}`
                                                         : <span className="text-gray-300">—</span>}
+                                                </td>
+                                                <td className="py-2 px-2 text-right font-mono text-amber-600">
+                                                    {row.pendingValue > 0 ? (
+                                                        <span title="Saldo piutang dari transaksi PENDING/DP belum lunas">
+                                                            Rp {row.pendingValue.toLocaleString('id-ID')}
+                                                        </span>
+                                                    ) : <span className="text-gray-300">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-red-600">
                                                     {row.lostValue > 0
@@ -279,6 +296,11 @@ export default function CrmDashboardPage() {
                                             <td className="py-2 px-2 text-right font-mono text-emerald-700">
                                                 {data.totals.wonValue > 0
                                                     ? `Rp ${data.totals.wonValue.toLocaleString('id-ID')}`
+                                                    : '—'}
+                                            </td>
+                                            <td className="py-2 px-2 text-right font-mono text-amber-600">
+                                                {data.totals.pendingValue > 0
+                                                    ? `Rp ${data.totals.pendingValue.toLocaleString('id-ID')}`
                                                     : '—'}
                                             </td>
                                             <td className="py-2 px-2 text-right font-mono text-red-600">

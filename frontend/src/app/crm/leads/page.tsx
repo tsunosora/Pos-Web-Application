@@ -478,6 +478,15 @@ function LeadFormModal({
     const [phoneMatches, setPhoneMatches] = useState<CustomerLookupResult[]>([]);
     const [phoneSearching, setPhoneSearching] = useState(false);
     const [phoneChecked, setPhoneChecked] = useState(false);
+    const [savedCustomSources, setSavedCustomSources] = useState<string[]>([]);
+
+    // Load custom sources dari localStorage
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem("crm_custom_sources");
+            if (raw) setSavedCustomSources(JSON.parse(raw));
+        } catch {}
+    }, []);
 
     // Load list of users untuk CS assignment dropdown
     const { data: users } = useQuery({
@@ -560,6 +569,13 @@ function LeadFormModal({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        // Simpan custom source ke localStorage supaya bisa dipilih lagi
+        if (form.source === "CUSTOM" && form.sourceDetail.trim()) {
+            const label = form.sourceDetail.trim();
+            const updated = [label, ...savedCustomSources.filter(s => s !== label)].slice(0, 20);
+            setSavedCustomSources(updated);
+            try { localStorage.setItem("crm_custom_sources", JSON.stringify(updated)); } catch {}
+        }
         onSubmit({
             ...form,
             // Kalau ada items, estimasi auto dari sum items. Kalau user manual override, pakai itu.
@@ -770,6 +786,7 @@ function LeadFormModal({
                             required={form.source === "CUSTOM"}
                             value={form.sourceDetail}
                             onChange={(e) => setForm({ ...form, sourceDetail: e.target.value })}
+                            list={form.source === "CUSTOM" ? "custom-source-list" : undefined}
                             className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-gray-300"}`}
                             placeholder={
                                 form.source === "CUSTOM"
@@ -777,6 +794,11 @@ function LeadFormModal({
                                     : 'mis. "IG @volikoprint - story balas" / "Referral kak Andi"'
                             }
                         />
+                        {form.source === "CUSTOM" && savedCustomSources.length > 0 && (
+                            <datalist id="custom-source-list">
+                                {savedCustomSources.map(s => <option key={s} value={s} />)}
+                            </datalist>
+                        )}
                         {form.source === "CUSTOM" && (
                             <p className="text-[10px] text-indigo-600 mt-1">Tulis nama sumber yang spesifik — akan tampil sebagai label sumber lead.</p>
                         )}
@@ -1409,6 +1431,7 @@ function ConvertModal({
 }) {
     const [createCustomer, setCreateCustomer] = useState(true);
     const [notes, setNotes] = useState(lead.needs ?? "");
+    const [designerName, setDesignerName] = useState("");
 
     // ── Customer picker (when createCustomer=false) ──────────────────────
     const [existingCustomerId, setExistingCustomerId] = useState<number | null>(null);
@@ -1453,6 +1476,14 @@ function ConvertModal({
             return sum + Math.round(price * qty);
         }, 0);
     }, [lead.items]);
+
+    // Designers list untuk picker
+    const { data: designers } = useQuery({
+        queryKey: ['designers-list'],
+        queryFn: async () => (await api.get('/designers')).data as { id: number; name: string; isActive: boolean }[],
+        staleTime: 5 * 60_000,
+    });
+    const activeDesigners = (designers || []).filter(d => d.isActive);
 
     // Bank accounts hanya di-load kalau TRANSFER dipilih
     const { data: bankAccounts } = useQuery({
@@ -1581,7 +1612,34 @@ function ConvertModal({
                         />
                     </div>
 
-                    {/* 4. Pembayaran */}
+                    {/* 4. Desainer */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Desainer yang Mengerjakan <span className="font-normal text-gray-400">(opsional)</span>
+                        </label>
+                        {activeDesigners.length > 0 ? (
+                            <select
+                                value={designerName}
+                                onChange={(e) => setDesignerName(e.target.value)}
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            >
+                                <option value="">— Belum ditentukan —</option>
+                                {activeDesigners.map(d => (
+                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                ))}
+                            </select>
+                        ) : (
+                            <input
+                                type="text"
+                                value={designerName}
+                                onChange={(e) => setDesignerName(e.target.value)}
+                                placeholder="Nama desainer..."
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            />
+                        )}
+                    </div>
+
+                    {/* 5. Pembayaran */}
                     <div className="border-2 border-blue-200 bg-blue-50/50 rounded-lg p-3 space-y-3">
                         <div>
                             <div className="font-semibold text-sm mb-0.5">💳 Pembayaran</div>
@@ -1716,6 +1774,7 @@ function ConvertModal({
                             createSalesOrderDraft: false,
                             createInvoiceDraft: false,
                             notes: notes || undefined,
+                            designerName: designerName || undefined,
                             createProductionTransaction: true,
                             paymentMode,
                             paymentMethod: paymentMode !== 'NONE' ? paymentMethod : undefined,

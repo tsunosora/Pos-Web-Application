@@ -18,7 +18,7 @@ import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
     Upload, FileText, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
-    Share2, Copy, Check,
+    Share2, Copy, Check, Pen,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -663,6 +663,12 @@ const KanbanCardInner = memo(function KanbanCardInner({
                     <User className="h-3 w-3 text-gray-400 flex-shrink-0" />
                     <span className="truncate">{customerName}</span>
                 </div>
+                {job.designerName && (
+                    <div className="flex items-center gap-1">
+                        <Pen className="h-3 w-3 text-indigo-400 flex-shrink-0" />
+                        <span className="truncate text-indigo-700 font-medium">{job.designerName}</span>
+                    </div>
+                )}
                 <div className="text-gray-500">
                     {qty} pcs{dim && ` · ${dim}`}
                 </div>

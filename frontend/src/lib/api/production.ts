@@ -390,6 +390,7 @@ export interface PipelineJob {
     returnReason: string | null;
     proofImageUrl: string | null; // legacy single (backward compat)
     proofs?: { id: number; filename: string; caption: string | null }[];
+    designerName: string | null;
     lastUpdatedBy: string | null;
     lastUpdatedAt: string | null;
     createdAt: string | null;
