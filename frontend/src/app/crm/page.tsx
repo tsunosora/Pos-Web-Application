@@ -51,7 +51,7 @@ export default function CrmDashboardPage() {
 
     const sourceChartData = useMemo(() => {
         return (data?.leadsBySource ?? []).map(s => ({
-            name: LEAD_SOURCE_LABEL[s.source] || s.source,
+            name: (LEAD_SOURCE_LABEL as Record<string, string>)[s.source] || s.source,
             value: s.count,
             source: s.source,
         }));

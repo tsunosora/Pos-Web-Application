@@ -786,7 +786,6 @@ function LeadFormModal({
                             required={form.source === "CUSTOM"}
                             value={form.sourceDetail}
                             onChange={(e) => setForm({ ...form, sourceDetail: e.target.value })}
-                            list={form.source === "CUSTOM" ? "custom-source-list" : undefined}
                             className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-gray-300"}`}
                             placeholder={
                                 form.source === "CUSTOM"
@@ -795,9 +794,18 @@ function LeadFormModal({
                             }
                         />
                         {form.source === "CUSTOM" && savedCustomSources.length > 0 && (
-                            <datalist id="custom-source-list">
-                                {savedCustomSources.map(s => <option key={s} value={s} />)}
-                            </datalist>
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                {savedCustomSources.map(s => (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        onClick={() => setForm({ ...form, sourceDetail: s })}
+                                        className={`text-xs rounded-full px-2 py-0.5 border transition-colors ${form.sourceDetail === s ? "bg-indigo-600 text-white border-indigo-600" : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"}`}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
                         )}
                         {form.source === "CUSTOM" && (
                             <p className="text-[10px] text-indigo-600 mt-1">Tulis nama sumber yang spesifik — akan tampil sebagai label sumber lead.</p>
