@@ -997,9 +997,10 @@ function LeadDetailDrawer({
                     if (r.transactionItemsCreated > 0) tx += `\n   ${r.transactionItemsCreated} item → job otomatis di /produksi/pipeline`;
                     if (r.transactionItemsSkipped > 0) tx += `\n   ⚠ ${r.transactionItemsSkipped} item custom di-skip (tidak punya productVariant)`;
                     lines.push(tx);
-                } else if (r.transactionError) {
+                }
+                if (r.transactionError) {
                     lines.push(`⚠ Produksi gagal dibuat: ${r.transactionError}`);
-                } else if (r.transactionItemsSkipped > 0) {
+                } else if (!r.transactionId && r.transactionItemsSkipped > 0) {
                     lines.push(`⚠ Tidak ada item — produksi tidak dibuat`);
                 }
                 if (r.salesOrderId) {
@@ -1743,6 +1744,11 @@ function ConvertModal({
                                 {paymentMode === 'LUNAS' && itemsEstimate > 0 && (
                                     <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded p-1.5">
                                         Dibayar lunas <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>. Nota langsung PAID, cashflow INCOME tercatat otomatis.
+                                    </p>
+                                )}
+                                {paymentMode === 'LUNAS' && itemsEstimate === 0 && (
+                                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5">
+                                        ⚠ Estimasi total Rp 0 — pastikan harga item sudah diisi. Nota akan PAID tapi <strong>tidak ada cashflow</strong> yang tercatat karena grandTotal = 0.
                                     </p>
                                 )}
 

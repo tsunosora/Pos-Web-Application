@@ -1018,6 +1018,7 @@ export class TransactionsService {
                     note: `Pembayaran DP Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoDP} via ${data.paymentMethod}`,
                     branchName: (transaction as any).branchName || null,
                     branchId: (transaction as any).branchId ?? null,
+                    date: new Date(),
                 } as any
             });
 
@@ -1093,6 +1094,9 @@ export class TransactionsService {
                 });
             }
 
+            // Tentukan tanggal checkout (manual dari kasir, atau sekarang)
+            const checkoutDate = data.paidAt ? new Date(data.paidAt) : new Date();
+
             if (remainingBalance > 0) {
                 const customerInfo = transaction.customerName ? ` untuk Bpk/Ibu ${transaction.customerName}` : '';
                 const branchInfoPO = (transaction as any).branchName ? ` [${(transaction as any).branchName}]` : '';
@@ -1110,6 +1114,7 @@ export class TransactionsService {
                         note: `${isFromPending ? 'Pembayaran' : 'Pelunasan'} Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoPO} via ${data.paymentMethod}`,
                         branchName: (transaction as any).branchName || null,
                         branchId: (transaction as any).branchId ?? null,
+                        date: checkoutDate,
                     } as any
                 });
                 if (txMarketplaceFee > 0) {
@@ -1123,13 +1128,11 @@ export class TransactionsService {
                             note: `Potongan marketplace Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoPO}`,
                             branchName: (transaction as any).branchName || null,
                             branchId: (transaction as any).branchId ?? null,
+                            date: checkoutDate,
                         } as any
                     });
                 }
             }
-
-            // Tentukan tanggal checkout (manual dari kasir, atau sekarang)
-            const checkoutDate = data.paidAt ? new Date(data.paidAt) : new Date();
 
             // Generate nomor SC berdasarkan tanggal checkout
             const cy = checkoutDate.getFullYear();
