@@ -738,6 +738,10 @@ model ProductionJob {
   shippedAt           DateTime? @map("shipped_at")
   returnedAt          DateTime? @map("returned_at")
   returnReason        String?   @map("return_reason") @db.Text
+  // Batal / klien tidak jadi order — desain sudah dikerjakan tapi order tidak lanjut.
+  // Job di-hide dari kanban aktif tapi tetap dihitung di leaderboard designer.
+  cancelledAt         DateTime? @map("cancelled_at")
+  cancelReason        String?   @map("cancel_reason") @db.Text
   createdAt           DateTime? @default(now()) @map("created_at")
   updatedAt           DateTime? @default(now()) @updatedAt @map("updated_at")
 

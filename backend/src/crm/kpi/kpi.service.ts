@@ -401,6 +401,259 @@ export class KpiService {
         };
     }
 
+    // ── Leaderboard Designer ────────────────────────────────────────────────
+    // Performa designer dari ProductionJob (grouped by designerName) dalam periode.
+    //  - assignment : total job yang di-assign ke designer
+    //  - acc        : job yang sudah LEWAT stage DESIGN (disetujui & lanjut produksi)
+    //  - wip        : masih di stage DESIGN (belum ACC)
+    //  - retur      : job di stage RETUR
+    //  - selesai    : job di KIRIM/SELESAI (terkirim)
+    //  - batal      : job ditandai batal (klien tidak jadi order)
+    //  - express    : job Express yang ditangani
+    //  - avgDesignHrs: rata-rata jam dari job dibuat sampai proof pertama (designEnteredAt)
+    // accRate = acc / (assignment - batal). Bucket/periode pakai job.createdAt.
+    async designerLeaderboard(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+
+        const FORWARD = new Set(['PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'SELESAI']);
+        const DONE = new Set(['KIRIM', 'SELESAI']);
+
+        const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+            where: {
+                ...branchScope,
+                createdAt: { gte: start, lte: end },
+                designerName: { not: null },
+            },
+            select: {
+                designerName: true, pipelineStage: true, cancelledAt: true,
+                isExpress: true, createdAt: true, designEnteredAt: true,
+            },
+        });
+
+        type Stat = {
+            assignment: number; acc: number; wip: number; retur: number;
+            selesai: number; batal: number; express: number;
+            designSumMs: number; designCount: number;
+        };
+        const byDesigner = new Map<string, Stat>();
+        for (const j of jobs) {
+            const name = (j.designerName || '').trim();
+            if (!name) continue;
+            const s = byDesigner.get(name) || {
+                assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0,
+                express: 0, designSumMs: 0, designCount: 0,
+            };
+            s.assignment++;
+            if (j.cancelledAt) {
+                s.batal++;
+            } else {
+                const stage = j.pipelineStage || 'DESIGN';
+                if (stage === 'DESIGN') s.wip++;
+                else if (stage === 'RETUR') s.retur++;
+                else if (FORWARD.has(stage)) s.acc++;
+                if (DONE.has(stage)) s.selesai++;
+            }
+            if (j.isExpress) s.express++;
+            if (j.designEnteredAt && j.createdAt) {
+                const diff = new Date(j.designEnteredAt).getTime() - new Date(j.createdAt).getTime();
+                if (diff > 0) { s.designSumMs += diff; s.designCount++; }
+            }
+            byDesigner.set(name, s);
+        }
+
+        const leaderboard = Array.from(byDesigner.entries())
+            .map(([name, s]) => {
+                const denom = s.assignment - s.batal;
+                return {
+                    name,
+                    assignment: s.assignment,
+                    acc: s.acc,
+                    accRate: denom > 0 ? s.acc / denom : 0,
+                    wip: s.wip,
+                    retur: s.retur,
+                    selesai: s.selesai,
+                    batal: s.batal,
+                    express: s.express,
+                    avgDesignHrs: s.designCount > 0 ? s.designSumMs / s.designCount / 3_600_000 : null,
+                };
+            })
+            .sort((a, b) => b.acc - a.acc || b.assignment - a.assignment);
+
+        const totals = leaderboard.reduce((t, r) => ({
+            assignment: t.assignment + r.assignment,
+            acc: t.acc + r.acc,
+            wip: t.wip + r.wip,
+            retur: t.retur + r.retur,
+            selesai: t.selesai + r.selesai,
+            batal: t.batal + r.batal,
+            express: t.express + r.express,
+        }), { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0 });
+
+        return {
+            period: { start: start.toISOString(), end: end.toISOString() },
+            leaderboard,
+            totals,
+        };
+    }
+
+    // ── Helper bucket (dipakai csTrend & designerTrend) ─────────────────────
+    private buildBuckets(start: Date, end: Date) {
+        const rangeDays = Math.ceil((end.getTime() - start.getTime()) / 86_400_000);
+        const bucketBy: 'day' | 'week' = rangeDays > 31 ? 'week' : 'day';
+        const bucketStart = (d: Date) => (bucketBy === 'week' ? startOfWeekMon(d) : startOfDay(d));
+        const buckets: { key: string; label: string }[] = [];
+        let cursor = bucketStart(start);
+        while (cursor.getTime() <= end.getTime()) {
+            buckets.push({ key: ymd(cursor), label: labelDdMmm(cursor) });
+            const n = new Date(cursor);
+            n.setDate(n.getDate() + (bucketBy === 'week' ? 7 : 1));
+            cursor = n;
+        }
+        return { bucketBy, bucketStart, buckets };
+    }
+
+    // Pivot: metricKey → bucketKey → person → value  ==> flat rows per metric
+    private pivotTrend(
+        buckets: { key: string; label: string }[],
+        persons: string[],
+        acc: Record<string, Map<string, Map<string, number>>>,
+        metricKeys: string[],
+    ) {
+        const out: Record<string, any[]> = {};
+        for (const m of metricKeys) {
+            out[m] = buckets.map(({ key, label }) => {
+                const row: any = { bucket: key, label };
+                for (const p of persons) row[p] = 0;
+                const mp = acc[m]?.get(key);
+                if (mp) for (const [p, v] of mp.entries()) row[p] = v;
+                return row;
+            });
+        }
+        return out;
+    }
+
+    // ── Tren CS (time-series per CS untuk modal grafik leaderboard) ─────────
+    async csTrend(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const { bucketBy, bucketStart, buckets } = this.buildBuckets(start, end);
+
+        const leads: any[] = await this.lead.findMany({
+            where: { ...branchScope, createdAt: { gte: start, lte: end }, assignedToId: { not: null } },
+            select: { createdAt: true, status: true, estimatedValue: true, convertedTransactionId: true, assignedToId: true },
+        });
+
+        const userIds = Array.from(new Set(leads.map(l => l.assignedToId)));
+        const users: any[] = userIds.length === 0 ? [] : await this.prisma.user.findMany({
+            where: { id: { in: userIds } }, select: { id: true, name: true, email: true },
+        });
+        const nameOf = new Map(users.map(u => [u.id, u.name || u.email || `User #${u.id}`]));
+
+        const wonTxIds = leads.filter(l => l.status === 'CLOSED_WON' && l.convertedTransactionId).map(l => Number(l.convertedTransactionId));
+        const txPcsMap = new Map<number, number>();
+        if (wonTxIds.length > 0) {
+            const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
+                by: ['transactionId'], where: { transactionId: { in: wonTxIds } }, _sum: { quantity: true },
+            });
+            for (const g of groups) txPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
+        }
+
+        const SUM_METRICS = ['leads', 'closing', 'pcs', 'lost', 'invalid', 'wonValue', 'lostValue'];
+        const acc: Record<string, Map<string, Map<string, number>>> = {};
+        for (const m of SUM_METRICS) acc[m] = new Map();
+        const personTotals = new Map<string, number>();
+
+        const add = (m: string, bk: string, person: string, v: number) => {
+            if (!acc[m].has(bk)) acc[m].set(bk, new Map());
+            const mp = acc[m].get(bk)!;
+            mp.set(person, (mp.get(person) || 0) + v);
+        };
+
+        for (const l of leads) {
+            const person = nameOf.get(l.assignedToId);
+            if (!person) continue;
+            const bk = ymd(bucketStart(new Date(l.createdAt)));
+            add('leads', bk, person, 1);
+            personTotals.set(person, (personTotals.get(person) || 0) + 1);
+            if (l.status === 'CLOSED_WON') {
+                add('closing', bk, person, 1);
+                add('wonValue', bk, person, Number(l.estimatedValue) || 0);
+                if (l.convertedTransactionId) add('pcs', bk, person, txPcsMap.get(Number(l.convertedTransactionId)) ?? 0);
+            } else if (l.status === 'CLOSED_LOST') {
+                add('lost', bk, person, 1);
+                add('lostValue', bk, person, Number(l.estimatedValue) || 0);
+            } else if (l.status === 'INVALID') {
+                add('invalid', bk, person, 1);
+            }
+        }
+
+        const persons = Array.from(personTotals.entries()).sort((a, b) => b[1] - a[1]).map(([n]) => n);
+        const metrics = this.pivotTrend(buckets, persons, acc, SUM_METRICS);
+        // closingRate (%) per bucket per person = closing / leads
+        metrics['closingRate'] = buckets.map(({ key, label }) => {
+            const row: any = { bucket: key, label };
+            const lm = acc['leads'].get(key);
+            const cm = acc['closing'].get(key);
+            for (const p of persons) {
+                const lc = lm?.get(p) || 0;
+                const cc = cm?.get(p) || 0;
+                row[p] = lc > 0 ? Math.round((cc / lc) * 1000) / 10 : 0;
+            }
+            return row;
+        });
+
+        return { period: { start: start.toISOString(), end: end.toISOString() }, bucketBy, persons, metrics };
+    }
+
+    // ── Tren Designer (time-series per designer untuk modal grafik) ─────────
+    async designerTrend(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const { bucketBy, bucketStart, buckets } = this.buildBuckets(start, end);
+
+        const FORWARD = new Set(['PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'SELESAI']);
+        const DONE = new Set(['KIRIM', 'SELESAI']);
+
+        const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+            where: { ...branchScope, createdAt: { gte: start, lte: end }, designerName: { not: null } },
+            select: { designerName: true, pipelineStage: true, cancelledAt: true, isExpress: true, createdAt: true },
+        });
+
+        const SUM_METRICS = ['assignment', 'acc', 'wip', 'retur', 'selesai', 'batal', 'express'];
+        const acc: Record<string, Map<string, Map<string, number>>> = {};
+        for (const m of SUM_METRICS) acc[m] = new Map();
+        const personTotals = new Map<string, number>();
+
+        const add = (m: string, bk: string, person: string, v: number) => {
+            if (!acc[m].has(bk)) acc[m].set(bk, new Map());
+            const mp = acc[m].get(bk)!;
+            mp.set(person, (mp.get(person) || 0) + v);
+        };
+
+        for (const j of jobs) {
+            const person = (j.designerName || '').trim();
+            if (!person) continue;
+            const bk = ymd(bucketStart(new Date(j.createdAt)));
+            add('assignment', bk, person, 1);
+            personTotals.set(person, (personTotals.get(person) || 0) + 1);
+            if (j.cancelledAt) {
+                add('batal', bk, person, 1);
+            } else {
+                const stage = j.pipelineStage || 'DESIGN';
+                if (stage === 'DESIGN') add('wip', bk, person, 1);
+                else if (stage === 'RETUR') add('retur', bk, person, 1);
+                else if (FORWARD.has(stage)) add('acc', bk, person, 1);
+                if (DONE.has(stage)) add('selesai', bk, person, 1);
+            }
+            if (j.isExpress) add('express', bk, person, 1);
+        }
+
+        const persons = Array.from(personTotals.entries()).sort((a, b) => b[1] - a[1]).map(([n]) => n);
+        const metrics = this.pivotTrend(buckets, persons, acc, SUM_METRICS);
+        return { period: { start: start.toISOString(), end: end.toISOString() }, bucketBy, persons, metrics };
+    }
+
     private async _report(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);

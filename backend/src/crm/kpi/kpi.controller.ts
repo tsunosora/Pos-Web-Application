@@ -39,6 +39,40 @@ export class KpiController {
         );
     }
 
+    @Get('designer-leaderboard')
+    designerLeaderboard(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+    ) {
+        return this.kpi.designerLeaderboard(ctx, {
+            period: (period as KpiPeriod) || 'month',
+            start,
+            end,
+        });
+    }
+
+    @Get('cs-trend')
+    csTrend(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+    ) {
+        return this.kpi.csTrend(ctx, { period: (period as KpiPeriod) || 'month', start, end });
+    }
+
+    @Get('designer-trend')
+    designerTrend(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+    ) {
+        return this.kpi.designerTrend(ctx, { period: (period as KpiPeriod) || 'month', start, end });
+    }
+
     @Get('source-breakdown')
     sourceBreakdown(
         @CurrentBranch() ctx: BranchContext,

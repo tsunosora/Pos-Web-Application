@@ -575,6 +575,7 @@ export class ProductionService {
 
         const where: any = {
             ...(branchId ? { branchId } : {}),
+            cancelledAt: null, // job batal di-hide dari kanban aktif (tetap dihitung di leaderboard)
             OR: [
                 { pipelineStage: null },                                                 // belum di-stage → tampil di DESIGN
                 { pipelineStage: { notIn: ['SELESAI', 'RETUR'] } },                     // masih aktif
@@ -670,6 +671,22 @@ export class ProductionService {
     async deleteJob(id: number) {
         // ProductionJobProof di-cascade-delete otomatis (onDelete: Cascade di schema)
         await (this.prisma as any).productionJob.delete({ where: { id } });
+        return { ok: true };
+    }
+
+    // Tandai job batal (klien tidak jadi order). Di-hide dari kanban tapi tetap di DB
+    // untuk statistik leaderboard designer. Set cancel=false untuk membatalkan status batal.
+    async setJobCancelled(id: number, cancel: boolean, reason?: string, actor?: { name?: string }) {
+        await (this.prisma as any).productionJob.update({
+            where: { id },
+            data: cancel
+                ? {
+                    cancelledAt: new Date(),
+                    cancelReason: reason?.trim() || null,
+                    ...(actor?.name ? { lastUpdatedBy: actor.name, lastUpdatedAt: new Date() } : {}),
+                }
+                : { cancelledAt: null, cancelReason: null },
+        });
         return { ok: true };
     }
 

@@ -529,3 +529,48 @@ export const getSourceBreakdown = async (params: {
     status?: string;   // comma-separated: CLOSED_WON,CLOSED_LOST,INVALID
 }): Promise<SourceBreakdownReport> =>
     (await api.get('/crm/kpi/source-breakdown', { params })).data;
+
+// ── Leaderboard Designer ─────────────────────────────────────────────────
+export interface DesignerLeaderboardEntry {
+    name: string;
+    assignment: number;
+    acc: number;
+    accRate: number;
+    wip: number;
+    retur: number;
+    selesai: number;
+    batal: number;
+    express: number;
+    avgDesignHrs: number | null;
+}
+
+export interface DesignerLeaderboardReport {
+    period: { start: string; end: string };
+    leaderboard: DesignerLeaderboardEntry[];
+    totals: { assignment: number; acc: number; wip: number; retur: number; selesai: number; batal: number; express: number };
+}
+
+export const getDesignerLeaderboard = async (params: {
+    period: KpiPeriod;
+    start?: string;
+    end?: string;
+}): Promise<DesignerLeaderboardReport> =>
+    (await api.get('/crm/kpi/designer-leaderboard', { params })).data;
+
+// ── Tren leaderboard (time-series per orang, untuk modal grafik) ──────────
+export interface LeaderboardTrendReport {
+    period: { start: string; end: string };
+    bucketBy: 'day' | 'week';
+    persons: string[];                                          // nama CS / designer (urut aktivitas desc)
+    metrics: Record<string, Record<string, number | string>[]>; // metricKey -> baris per bucket { bucket, label, <person>: val }
+}
+
+export const getCsTrend = async (params: {
+    period: KpiPeriod; start?: string; end?: string;
+}): Promise<LeaderboardTrendReport> =>
+    (await api.get('/crm/kpi/cs-trend', { params })).data;
+
+export const getDesignerTrend = async (params: {
+    period: KpiPeriod; start?: string; end?: string;
+}): Promise<LeaderboardTrendReport> =>
+    (await api.get('/crm/kpi/designer-trend', { params })).data;

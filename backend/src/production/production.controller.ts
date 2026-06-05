@@ -115,6 +115,18 @@ export class ProductionController {
         return this.productionService.deleteJob(id);
     }
 
+    /** Tandai job batal / klien tidak jadi order (atau batalkan status batal). */
+    @UseGuards(JwtAuthGuard)
+    @Patch('pipeline/jobs/:id/cancel')
+    async cancelJob(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { cancel?: boolean; reason?: string },
+        @Req() req: any,
+    ) {
+        const actorName = req?.user?.name || req?.user?.email || 'Admin';
+        return this.productionService.setJobCancelled(id, body.cancel !== false, body.reason, { name: actorName });
+    }
+
     /** Hapus satu proof image dari job. */
     @UseGuards(JwtAuthGuard)
     @Patch('pipeline/proofs/:proofId/delete')
