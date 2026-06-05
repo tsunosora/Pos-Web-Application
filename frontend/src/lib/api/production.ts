@@ -393,6 +393,8 @@ export interface PipelineJob {
     designerName: string | null;
     isExpress: boolean;
     designEnteredAt: string | null;
+    cancelledAt: string | null;
+    cancelReason: string | null;
     lastUpdatedBy: string | null;
     lastUpdatedAt: string | null;
     createdAt: string | null;
@@ -440,6 +442,11 @@ export const deletePipelineProof = async (proofId: number): Promise<{ ok: boolea
 
 export const deletePipelineJob = async (jobId: number): Promise<{ ok: boolean }> => {
     const res = await api.delete(`/production/pipeline/jobs/${jobId}`);
+    return res.data;
+};
+
+export const cancelPipelineJob = async (jobId: number, cancel: boolean, reason?: string): Promise<{ ok: boolean }> => {
+    const res = await api.patch(`/production/pipeline/jobs/${jobId}/cancel`, { cancel, reason });
     return res.data;
 };
 

@@ -11,7 +11,7 @@ import {
 } from "@dnd-kit/core";
 import {
     getPipelineJobs, updatePipelineStage, uploadPipelineProofImage,
-    deletePipelineProof, deletePipelineJob, resolvePhotoUrl,
+    deletePipelineProof, deletePipelineJob, cancelPipelineJob, resolvePhotoUrl,
     type PipelineJob, type PipelineStage,
     PIPELINE_STAGES, PIPELINE_STAGE_LABEL,
 } from "@/lib/api/production";
@@ -19,7 +19,7 @@ import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
     Upload, FileText, ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
-    Share2, Copy, Check, Pen, Zap,
+    Share2, Copy, Check, Pen, Zap, Ban,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -57,6 +57,7 @@ export default function ProduksiPipelinePage() {
     const [activeJobId, setActiveJobId] = useState<number | null>(null);
     const [jahitModal, setJahitModal] = useState<{ job: PipelineJob; targetStage: PipelineStage } | null>(null);
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
+    const [cancelModal, setCancelModal] = useState<{ job: PipelineJob } | null>(null);
     const [proofViewer, setProofViewer] = useState<{ job: PipelineJob } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterPriority, setFilterPriority] = useState<string>("ALL");
@@ -122,6 +123,25 @@ export default function ProduksiPipelinePage() {
     const handleDeleteJob = useCallback((jobId: number) => {
         deleteJobMut.mutate(jobId);
     }, [deleteJobMut]);
+
+    const cancelJobMut = useMutation({
+        mutationFn: (data: { jobId: number; reason: string }) => cancelPipelineJob(data.jobId, true, data.reason),
+        onMutate: async (data) => {
+            await qc.cancelQueries({ queryKey: ["produksi-pipeline"] });
+            const prev = qc.getQueryData<PipelineJob[]>(["produksi-pipeline"]);
+            // Job batal langsung hilang dari kanban (optimistic)
+            qc.setQueryData<PipelineJob[]>(["produksi-pipeline"], old => old?.filter(j => j.id !== data.jobId));
+            return { prev };
+        },
+        onError: (_err, _data, ctx) => {
+            if (ctx?.prev) qc.setQueryData(["produksi-pipeline"], ctx.prev);
+        },
+        onSettled: () => qc.invalidateQueries({ queryKey: ["produksi-pipeline"] }),
+    });
+
+    const handleOpenCancel = useCallback((job: PipelineJob) => {
+        setCancelModal({ job });
+    }, []);
 
     const handleUploadProof = useCallback((jobId: number, files: FileList) => {
         Array.from(files).forEach((file) => uploadMut.mutate({ id: jobId, file }));
@@ -416,6 +436,7 @@ export default function ProduksiPipelinePage() {
                             onUploadProof={handleUploadProof}
                             onOpenProofViewer={handleOpenProofViewer}
                             onDeleteJob={handleDeleteJob}
+                            onCancelJob={handleOpenCancel}
                             onToggleExpress={(jobId, val) => stageMut.mutate({ id: jobId, payload: { isExpress: val } })}
                             onUpdateDesigner={(jobId, name) => stageMut.mutate({ id: jobId, payload: { designerName: name } })}
                             uploading={uploadMut.isPending}
@@ -459,6 +480,18 @@ export default function ProduksiPipelinePage() {
                         setReturModal(null);
                     }}
                     submitting={stageMut.isPending}
+                />
+            )}
+
+            {cancelModal && (
+                <CancelModal
+                    job={cancelModal.job}
+                    onClose={() => setCancelModal(null)}
+                    onSubmit={(reason) => {
+                        cancelJobMut.mutate({ jobId: cancelModal.job.id, reason });
+                        setCancelModal(null);
+                    }}
+                    submitting={cancelJobMut.isPending}
                 />
             )}
 
@@ -560,7 +593,7 @@ function SharePopover({ onClose }: { onClose: () => void }) {
 // ─── Column ────────────────────────────────────────────────────────────────
 
 const Column = memo(function Column({
-    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onDeleteJob, onToggleExpress, onUpdateDesigner, uploading,
+    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     stage: PipelineStage;
     jobs: PipelineJob[];
@@ -568,6 +601,7 @@ const Column = memo(function Column({
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
+    onCancelJob: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
     onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
@@ -595,6 +629,7 @@ const Column = memo(function Column({
                             onUploadProof={onUploadProof}
                             onOpenProofViewer={onOpenProofViewer}
                             onDeleteJob={onDeleteJob}
+                            onCancelJob={onCancelJob}
                             onToggleExpress={onToggleExpress}
                             onUpdateDesigner={onUpdateDesigner}
                             uploading={uploading}
@@ -613,13 +648,14 @@ const Column = memo(function Column({
 // semua JSX berat di-memo secara terpisah dan tidak akan re-render selama drag.
 
 const KanbanCard = memo(function KanbanCard({
-    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onToggleExpress, onUpdateDesigner, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
+    onCancelJob: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
     onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
@@ -633,6 +669,7 @@ const KanbanCard = memo(function KanbanCard({
                 onUploadProof={onUploadProof}
                 onOpenProofViewer={onOpenProofViewer}
                 onDeleteJob={onDeleteJob}
+                onCancelJob={onCancelJob}
                 onToggleExpress={onToggleExpress}
                 onUpdateDesigner={onUpdateDesigner}
                 uploading={uploading}
@@ -674,13 +711,14 @@ const URGENCY_UPLOAD_BTN: Record<UrgencyLevel, string> = {
 // → zero re-render selama drag. Ini sumber percepatan utama.
 
 const KanbanCardInner = memo(function KanbanCardInner({
-    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onToggleExpress, onUpdateDesigner, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
+    onCancelJob: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
     onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
@@ -733,15 +771,26 @@ const KanbanCardInner = memo(function KanbanCardInner({
                             >Batal</button>
                         </>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            title="Hapus job"
-                            className="text-gray-300 hover:text-red-500 transition-colors"
-                        >
-                            <Trash2 className="h-3 w-3" />
-                        </button>
+                        <>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onCancelJob(job); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                title="Tandai batal / klien tidak jadi order"
+                                className="text-gray-300 hover:text-amber-600 transition-colors"
+                            >
+                                <Ban className="h-3 w-3" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                                onPointerDown={(e) => e.stopPropagation()}
+                                title="Hapus job"
+                                className="text-gray-300 hover:text-red-500 transition-colors"
+                            >
+                                <Trash2 className="h-3 w-3" />
+                            </button>
+                        </>
                     )}
                     <GripVertical className="h-3.5 w-3.5 text-gray-400" />
                 </div>
@@ -1225,6 +1274,56 @@ function ReturModal({
                         className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                     >
                         {submitting ? "Menyimpan..." : "Tandai Retur"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Cancel Modal (klien tidak jadi order) ──────────────────────────────────
+
+function CancelModal({
+    job, onClose, onSubmit, submitting,
+}: {
+    job: PipelineJob;
+    onClose: () => void;
+    onSubmit: (reason: string) => void;
+    submitting: boolean;
+}) {
+    const [reason, setReason] = useState("");
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="font-bold text-base sm:text-lg text-amber-700 flex items-center gap-1.5">
+                        <Ban className="h-5 w-5" /> Tandai Batal
+                    </h3>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <p className="text-xs text-gray-500 mb-3">
+                    Job <span className="font-mono font-semibold">{job.jobNumber}</span> ditandai batal (klien tidak jadi order).
+                    Kartu hilang dari kanban, tapi tetap tercatat di leaderboard designer.
+                </p>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Alasan Batal <span className="font-normal text-gray-400">(opsional)</span></label>
+                <textarea
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    rows={3}
+                    placeholder="mis. Klien mundur, pindah ke kompetitor, harga tidak deal, dll"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    autoFocus
+                />
+                <div className="flex gap-2 mt-5">
+                    <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Kembali</button>
+                    <button
+                        onClick={() => onSubmit(reason.trim())}
+                        disabled={submitting}
+                        className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                    >
+                        {submitting ? "Menyimpan..." : "Tandai Batal"}
                     </button>
                 </div>
             </div>

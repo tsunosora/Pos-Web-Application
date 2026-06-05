@@ -184,7 +184,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.5', // + Marketplace fee: Transaction.marketplaceFee/marketplaceFeeItems (Decimal+JSON). Lead.convertedTransactionId (FK → Transaction). payOff terima fee baru saat pelunasan DP. Pipeline filter client-side (no schema).
+                version: '3.6', // + ProductionJob: isExpress, designEnteredAt, cancelledAt, cancelReason (order express, urgensi desain, penanda batal/klien-tidak-jadi). LeadStatus enum + INVALID (lead salah target). Field2 auto-included via findMany() — tidak perlu ubah daftar tabel. v3.5: Marketplace fee Transaction.marketplaceFee/marketplaceFeeItems, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

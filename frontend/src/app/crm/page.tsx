@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getKpiReport, getProductTrend, getSourceBreakdown, type KpiPeriod, LEAD_SOURCE_LABEL } from "@/lib/api";
+import { getKpiReport, getProductTrend, getSourceBreakdown, getDesignerLeaderboard, getCsTrend, getDesignerTrend, type KpiPeriod, type LeaderboardTrendReport, LEAD_SOURCE_LABEL } from "@/lib/api";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, Legend, LineChart, Line,
 } from "recharts";
 import {
-    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown, Hourglass, Package,
+    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown, Hourglass, Package, Palette, BarChart3, X,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -20,6 +20,16 @@ const PERIOD_OPTIONS: { value: KpiPeriod; label: string }[] = [
     { value: "month", label: "Bulan Ini" },
     { value: "custom", label: "Custom" },
 ];
+
+// Gelar juara #1 — berubah sesuai filter urutan leaderboard (gamifikasi biar CS semangat)
+const CHAMP_TITLE: Record<string, { icon: string; label: string }> = {
+    uang: { icon: "👑", label: "Sultan Cuan" },
+    lead: { icon: "🔥", label: "Raja Lead" },
+    rate: { icon: "🎯", label: "Sniper Closing" },
+};
+const MEDAL = ["🥇", "🥈", "🥉"];
+const PODIUM_TINT = ["bg-amber-50", "bg-slate-50", "bg-orange-50/60"];
+const PODIUM_ACCENT = ["border-l-amber-400", "border-l-slate-400", "border-l-orange-400"];
 
 const SOURCE_COLOR: Record<string, string> = {
     WHATSAPP: "#25D366",
@@ -56,6 +66,20 @@ export default function CrmDashboardPage() {
             source: s.source,
         }));
     }, [data]);
+
+    // Urutan leaderboard CS — bisa dipilih: CS / Lead / Closing Rate / Uang
+    const [leaderboardSort, setLeaderboardSort] = useState<"cs" | "lead" | "rate" | "uang">("uang");
+    const [showCsChart, setShowCsChart] = useState(false);
+    const sortedLeaderboard = useMemo(() => {
+        const rows = [...(data?.leaderboard ?? [])];
+        switch (leaderboardSort) {
+            case "cs":   return rows.sort((a, b) => a.name.localeCompare(b.name));
+            case "lead": return rows.sort((a, b) => b.leadsHandled - a.leadsHandled);
+            case "rate": return rows.sort((a, b) => b.closingRate - a.closingRate);
+            case "uang": return rows.sort((a, b) => b.wonValue - a.wonValue);
+            default:     return rows;
+        }
+    }, [data, leaderboardSort]);
 
     return (
         <div className="space-y-4">
@@ -236,10 +260,40 @@ export default function CrmDashboardPage() {
 
                     {/* Leaderboard */}
                     <div className="bg-white rounded-xl border p-5">
-                        <h2 className="font-bold text-base mb-3 flex items-center gap-2">
-                            <Trophy className="h-5 w-5 text-amber-500" />
-                            Leaderboard CS
-                        </h2>
+                        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                            <h2 className="font-bold text-base flex items-center gap-2">
+                                <Trophy className="h-5 w-5 text-amber-500" />
+                                Leaderboard CS
+                            </h2>
+                            {/* Urutkan berdasarkan + tombol grafik */}
+                            <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">Urutkan:</span>
+                                {([
+                                    { key: "cs",   label: "CS" },
+                                    { key: "lead", label: "Lead" },
+                                    { key: "rate", label: "Closing Rate" },
+                                    { key: "uang", label: "Uang" },
+                                ] as const).map(({ key, label }) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => setLeaderboardSort(key)}
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                            leaderboardSort === key
+                                                ? "bg-amber-500 text-white border-amber-500"
+                                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                        }`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                                <button
+                                    onClick={() => setShowCsChart(true)}
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors ml-1"
+                                >
+                                    <BarChart3 className="h-3.5 w-3.5" /> Grafik CS
+                                </button>
+                            </div>
+                        </div>
                         {data.leaderboard.length === 0 ? (
                             <p className="text-sm text-gray-500 text-center py-6">
                                 Belum ada lead yang ter-assign ke user di periode ini.
@@ -264,12 +318,29 @@ export default function CrmDashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {data.leaderboard.map((row, i) => (
-                                            <tr key={row.userId} className="border-t hover:bg-gray-50">
-                                                <td className="py-2 px-2">
-                                                    {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                                        {sortedLeaderboard.map((row, i) => {
+                                            const isPodium = leaderboardSort !== "cs" && i < 3;
+                                            const champ = i === 0 && leaderboardSort !== "cs" ? CHAMP_TITLE[leaderboardSort] : null;
+                                            return (
+                                            <tr
+                                                key={row.userId}
+                                                className={`border-t hover:bg-gray-50 ${isPodium ? `${PODIUM_TINT[i]} border-l-4 ${PODIUM_ACCENT[i]}` : ""}`}
+                                            >
+                                                <td className="py-2 px-2 text-center">
+                                                    {isPodium
+                                                        ? <span className="text-lg">{MEDAL[i]}</span>
+                                                        : <span className="text-gray-400">{i + 1}</span>}
                                                 </td>
-                                                <td className="py-2 px-2 font-semibold">{row.name}</td>
+                                                <td className="py-2 px-2">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span className={`font-semibold ${i === 0 && isPodium ? "text-amber-700" : ""}`}>{row.name}</span>
+                                                        {champ && (
+                                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 text-[9px] font-bold whitespace-nowrap">
+                                                                {champ.icon} {champ.label}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="py-2 px-2 text-right font-mono text-gray-600">{row.leadsHandled}</td>
                                                 <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.dealsClosed}</td>
                                                 <td className="py-2 px-2 text-right font-mono text-blue-600 font-semibold">
@@ -305,7 +376,8 @@ export default function CrmDashboardPage() {
                                                         : <span className="text-gray-400">—</span>}
                                                 </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                     </tbody>
                                     {/* Footer: total row */}
                                     <tfoot>
@@ -347,6 +419,26 @@ export default function CrmDashboardPage() {
                             </div>
                         )}
                     </div>
+
+                    {showCsChart && (
+                        <LeaderboardChartModal
+                            title="Grafik Tren CS"
+                            fetcher={getCsTrend}
+                            queryKey="crm-cs-trend"
+                            metrics={CS_CHART_METRICS}
+                            period={period}
+                            customStart={customStart}
+                            customEnd={customEnd}
+                            onClose={() => setShowCsChart(false)}
+                        />
+                    )}
+
+                    {/* Leaderboard Designer */}
+                    <DesignerLeaderboard
+                        period={period}
+                        customStart={customStart}
+                        customEnd={customEnd}
+                    />
                 </>
             )}
         </div>
@@ -779,6 +871,329 @@ function SourceBreakdownChart({
                     )}
                 </>
             )}
+        </div>
+    );
+}
+
+// ── Leaderboard Designer ─────────────────────────────────────────────────────
+const DESIGNER_CHAMP: Record<string, { icon: string; label: string }> = {
+    assignment: { icon: "💪", label: "Paling Rajin" },
+    acc:        { icon: "🏆", label: "Raja ACC" },
+    selesai:    { icon: "🏭", label: "Mesin Produksi" },
+};
+
+function DesignerLeaderboard({
+    period, customStart, customEnd,
+}: {
+    period: KpiPeriod;
+    customStart: string;
+    customEnd: string;
+}) {
+    const [sort, setSort] = useState<"designer" | "assignment" | "acc" | "selesai">("acc");
+    const [showChart, setShowChart] = useState(false);
+
+    const { data, isLoading } = useQuery({
+        queryKey: ["crm-designer-leaderboard", period, customStart, customEnd],
+        queryFn: () => getDesignerLeaderboard({
+            period,
+            start: period === "custom" ? customStart : undefined,
+            end: period === "custom" ? customEnd : undefined,
+        }),
+        staleTime: 60_000,
+    });
+
+    const rows = useMemo(() => {
+        const list = [...(data?.leaderboard ?? [])];
+        switch (sort) {
+            case "designer":   return list.sort((a, b) => a.name.localeCompare(b.name));
+            case "assignment": return list.sort((a, b) => b.assignment - a.assignment);
+            case "acc":        return list.sort((a, b) => b.acc - a.acc || b.accRate - a.accRate);
+            case "selesai":    return list.sort((a, b) => b.selesai - a.selesai);
+            default:           return list;
+        }
+    }, [data, sort]);
+
+    const champKey = sort === "designer" ? null : sort === "assignment" ? "assignment" : sort === "selesai" ? "selesai" : "acc";
+
+    return (
+        <div className="bg-white rounded-xl border p-5">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <h2 className="font-bold text-base flex items-center gap-2">
+                    <Palette className="h-5 w-5 text-fuchsia-500" />
+                    Leaderboard Designer
+                </h2>
+                <div className="flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">Urutkan:</span>
+                    {([
+                        { key: "designer",   label: "Designer" },
+                        { key: "assignment", label: "Assignment" },
+                        { key: "acc",        label: "ACC" },
+                        { key: "selesai",    label: "Selesai" },
+                    ] as const).map(({ key, label }) => (
+                        <button
+                            key={key}
+                            onClick={() => setSort(key)}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                sort === key
+                                    ? "bg-fuchsia-500 text-white border-fuchsia-500"
+                                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                            }`}
+                        >
+                            {label}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => setShowChart(true)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors ml-1"
+                    >
+                        <BarChart3 className="h-3.5 w-3.5" /> Grafik Desainer
+                    </button>
+                </div>
+            </div>
+
+            {showChart && (
+                <LeaderboardChartModal
+                    title="Grafik Tren Designer"
+                    fetcher={getDesignerTrend}
+                    queryKey="crm-designer-trend"
+                    metrics={DESIGNER_CHART_METRICS}
+                    period={period}
+                    customStart={customStart}
+                    customEnd={customEnd}
+                    onClose={() => setShowChart(false)}
+                />
+            )}
+
+            {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-6 w-6 animate-spin text-fuchsia-500" />
+                </div>
+            ) : rows.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">
+                    Belum ada job desain yang ter-assign ke designer di periode ini.
+                </p>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="border-b text-xs text-gray-500 uppercase">
+                                <th className="text-left py-2 px-2">#</th>
+                                <th className="text-left py-2 px-2">Designer</th>
+                                <th className="text-right py-2 px-2">Assignment</th>
+                                <th className="text-right py-2 px-2 text-emerald-600">ACC</th>
+                                <th className="text-right py-2 px-2">ACC Rate</th>
+                                <th className="text-right py-2 px-2 text-slate-500">Masih Desain</th>
+                                <th className="text-right py-2 px-2 text-red-600">Retur</th>
+                                <th className="text-right py-2 px-2">Selesai</th>
+                                <th className="text-right py-2 px-2 text-amber-600">Batal</th>
+                                <th className="text-right py-2 px-2 text-orange-500">Express</th>
+                                <th className="text-right py-2 px-2">Avg Desain</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((row, i) => {
+                                const isPodium = sort !== "designer" && i < 3;
+                                const champ = i === 0 && champKey ? DESIGNER_CHAMP[champKey] : null;
+                                return (
+                                <tr
+                                    key={row.name}
+                                    className={`border-t hover:bg-gray-50 ${isPodium ? `${PODIUM_TINT[i]} border-l-4 ${PODIUM_ACCENT[i]}` : ""}`}
+                                >
+                                    <td className="py-2 px-2 text-center">
+                                        {isPodium ? <span className="text-lg">{MEDAL[i]}</span> : <span className="text-gray-400">{i + 1}</span>}
+                                    </td>
+                                    <td className="py-2 px-2">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className={`font-semibold ${i === 0 && isPodium ? "text-fuchsia-700" : ""}`}>{row.name}</span>
+                                            {champ && (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-300 text-[9px] font-bold whitespace-nowrap">
+                                                    {champ.icon} {champ.label}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono text-gray-600">{row.assignment}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.acc}</td>
+                                    <td className="py-2 px-2 text-right font-mono">{(row.accRate * 100).toFixed(0)}%</td>
+                                    <td className="py-2 px-2 text-right font-mono text-slate-500">{row.wip > 0 ? row.wip : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-red-600">{row.retur > 0 ? row.retur : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-gray-700">{row.selesai}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-amber-600">{row.batal > 0 ? row.batal : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-orange-500">{row.express > 0 ? row.express : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-gray-500">{row.avgDesignHrs != null ? `${row.avgDesignHrs.toFixed(1)}h` : <span className="text-gray-400">—</span>}</td>
+                                </tr>
+                                );
+                            })}
+                        </tbody>
+                        <tfoot>
+                            <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-xs">
+                                <td colSpan={2} className="py-2 px-2 text-gray-500">Total</td>
+                                <td className="py-2 px-2 text-right font-mono">{data?.totals.assignment ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-emerald-700">{data?.totals.acc ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
+                                <td className="py-2 px-2 text-right font-mono text-slate-500">{data?.totals.wip ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-red-600">{data?.totals.retur ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-gray-700">{data?.totals.selesai ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-amber-600">{data?.totals.batal ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-orange-500">{data?.totals.express ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Modal Grafik Leaderboard (reusable: CS & Designer) ───────────────────────
+type ChartMetric = { key: string; label: string; fmt: "num" | "pct" | "money" };
+
+const CS_CHART_METRICS: ChartMetric[] = [
+    { key: "leads", label: "Leads", fmt: "num" },
+    { key: "closing", label: "Closing", fmt: "num" },
+    { key: "pcs", label: "Pcs Order", fmt: "num" },
+    { key: "lost", label: "Lost", fmt: "num" },
+    { key: "invalid", label: "Invalid", fmt: "num" },
+    { key: "closingRate", label: "Closing Rate", fmt: "pct" },
+    { key: "wonValue", label: "Nilai WON", fmt: "money" },
+    { key: "lostValue", label: "Nilai Lost", fmt: "money" },
+];
+
+const DESIGNER_CHART_METRICS: ChartMetric[] = [
+    { key: "assignment", label: "Assignment", fmt: "num" },
+    { key: "acc", label: "ACC", fmt: "num" },
+    { key: "wip", label: "Masih Desain", fmt: "num" },
+    { key: "retur", label: "Retur", fmt: "num" },
+    { key: "selesai", label: "Selesai", fmt: "num" },
+    { key: "batal", label: "Batal", fmt: "num" },
+    { key: "express", label: "Express", fmt: "num" },
+];
+
+// Modal grafik TREN waktu (garis naik-turun per hari/minggu) — tiap orang satu garis.
+function LeaderboardChartModal({
+    title, fetcher, queryKey, metrics, period, customStart, customEnd, onClose,
+}: {
+    title: string;
+    fetcher: (p: { period: KpiPeriod; start?: string; end?: string }) => Promise<LeaderboardTrendReport>;
+    queryKey: string;
+    metrics: ChartMetric[];
+    period: KpiPeriod;
+    customStart: string;
+    customEnd: string;
+    onClose: () => void;
+}) {
+    const [metricKey, setMetricKey] = useState(metrics[0].key);
+    const [activePersons, setActivePersons] = useState<string[]>([]);
+    const metric = metrics.find(m => m.key === metricKey) ?? metrics[0];
+
+    const { data, isLoading } = useQuery({
+        queryKey: [queryKey, period, customStart, customEnd],
+        queryFn: () => fetcher({
+            period,
+            start: period === "custom" ? customStart : undefined,
+            end: period === "custom" ? customEnd : undefined,
+        }),
+        staleTime: 60_000,
+    });
+
+    const persons = useMemo(() => data?.persons ?? [], [data]);
+    const personsSig = persons.join("|");
+    useEffect(() => {
+        if (!data) return;
+        setActivePersons(prev => {
+            const valid = prev.filter(p => persons.includes(p));
+            return valid.length > 0 ? valid : persons.slice(0, 5);
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [personsSig]);
+
+    const colorOf = (p: string) => TREND_COLORS[persons.indexOf(p) % TREND_COLORS.length];
+    const fmtFull = (v: number) =>
+        metric.fmt === "money" ? `Rp ${v.toLocaleString("id-ID")}`
+        : metric.fmt === "pct" ? `${v}%`
+        : v.toLocaleString("id-ID");
+    const fmtAxis = (v: number) =>
+        metric.fmt === "money" ? fmtRpShort(v)
+        : metric.fmt === "pct" ? `${v}%`
+        : `${v}`;
+
+    const chartData = data ? data.metrics[metric.key] ?? [] : [];
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-4 border-b">
+                    <h3 className="font-bold text-base flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5 text-indigo-500" /> {title}
+                        {data && <span className="text-xs font-normal text-gray-400">({data.bucketBy === "week" ? "per minggu" : "per hari"})</span>}
+                    </h3>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                        <X className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="p-4 overflow-y-auto">
+                    {/* Filter metrik */}
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                        <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1 self-center">Metrik:</span>
+                        {metrics.map(m => (
+                            <button
+                                key={m.key}
+                                onClick={() => setMetricKey(m.key)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                    metricKey === m.key
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                }`}
+                            >
+                                {m.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-indigo-500" /></div>
+                    ) : persons.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-12">Belum ada data di periode ini.</p>
+                    ) : (
+                        <>
+                            {/* Toggle orang (klik untuk tampil/sembunyi garis) */}
+                            <div className="flex flex-wrap gap-1.5 mb-3">
+                                {persons.map(p => {
+                                    const on = activePersons.includes(p);
+                                    return (
+                                        <button
+                                            key={p}
+                                            onClick={() => setActivePersons(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}
+                                            className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-all ${on ? "bg-white" : "bg-gray-50 text-gray-400 opacity-60"}`}
+                                            style={on ? { borderColor: colorOf(p) } : undefined}
+                                        >
+                                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: on ? colorOf(p) : "#cbd5e1" }} />
+                                            {p}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {activePersons.length === 0 ? (
+                                <p className="text-sm text-gray-400 text-center py-12">Pilih minimal satu nama di atas untuk menampilkan garis.</p>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={320}>
+                                    <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
+                                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} tickFormatter={(v: any) => fmtAxis(Number(v))} />
+                                        <Tooltip formatter={(v: any, n: any) => [fmtFull(Number(v)), n]} contentStyle={{ fontSize: 12 }} />
+                                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                                        {activePersons.map(p => (
+                                            <Line key={p} type="monotone" dataKey={p} stroke={colorOf(p)} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                                        ))}
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
