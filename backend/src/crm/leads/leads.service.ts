@@ -106,7 +106,7 @@ export class LeadsService {
             _count: { _all: true },
         });
         const summary: Record<string, number> = {
-            NEW: 0, FOLLOW_UP: 0, NEGOTIATION: 0, CLOSED_WON: 0, CLOSED_LOST: 0,
+            NEW: 0, FOLLOW_UP: 0, NEGOTIATION: 0, CLOSED_WON: 0, CLOSED_LOST: 0, INVALID: 0,
         };
         for (const g of grouped) summary[g.status] = g._count._all;
         return summary;
@@ -504,9 +504,9 @@ export class LeadsService {
         // status-nya (mis. reopen ke FOLLOW_UP). Activity log mencatat perubahan
         // supaya history tetap rapih. Kalau reopen, closedAt di-reset null.
         const isReopen =
-            (existing.status === 'CLOSED_WON' || existing.status === 'CLOSED_LOST') &&
+            (existing.status === 'CLOSED_WON' || existing.status === 'CLOSED_LOST' || existing.status === 'INVALID') &&
             data.status && data.status !== existing.status &&
-            data.status !== 'CLOSED_WON' && data.status !== 'CLOSED_LOST';
+            data.status !== 'CLOSED_WON' && data.status !== 'CLOSED_LOST' && data.status !== 'INVALID';
 
         const updateData: Prisma.LeadUpdateInput = {};
         if (data.name !== undefined) updateData.name = data.name;
@@ -564,7 +564,7 @@ export class LeadsService {
                 updateData.closedAt = null;
             }
             // Kalau pindah ke terminal, set closedAt
-            if (data.status === 'CLOSED_WON' || data.status === 'CLOSED_LOST') {
+            if (data.status === 'CLOSED_WON' || data.status === 'CLOSED_LOST' || data.status === 'INVALID') {
                 updateData.closedAt = new Date();
             }
         }
@@ -848,16 +848,20 @@ export class LeadsService {
                                     pipelineStage: 'DESIGN',
                                     deadline,
                                     designerName: data.designerName || null,
+                                    isExpress: data.isExpress === true,
                                 },
                             });
                         }
                     }
 
-                    // Set designerName juga pada job yang sudah dibuat oleh transactionsService
-                    if (data.designerName) {
+                    // Set designerName + isExpress juga pada job yang sudah dibuat oleh transactionsService
+                    const bulkJobUpdate: any = {};
+                    if (data.designerName) bulkJobUpdate.designerName = data.designerName;
+                    if (data.isExpress === true) bulkJobUpdate.isExpress = true;
+                    if (Object.keys(bulkJobUpdate).length > 0) {
                         await (this.prisma as any).productionJob.updateMany({
                             where: { transactionId },
-                            data: { designerName: data.designerName },
+                            data: bulkJobUpdate,
                         });
                     }
                 }
@@ -1067,6 +1071,28 @@ export class LeadsService {
                 kind: 'CLOSED_LOST',
                 text: `Lead ditutup: ${data.reason}`,
                 meta: { reason: data.reason },
+                createdById: userId ?? null,
+            },
+        });
+        return this.detail(ctx, updated.id);
+    }
+
+    async markInvalid(ctx: BranchContext, leadId: number, reason: string, userId?: number) {
+        await this.detail(ctx, leadId);
+        const updated = await (this.prisma as any).lead.update({
+            where: { id: leadId },
+            data: {
+                status: 'INVALID',
+                closeLostReason: reason || null,
+                closedAt: new Date(),
+            },
+        });
+        await this.prisma.leadActivity.create({
+            data: {
+                leadId,
+                kind: 'NOTE',
+                text: `Lead ditandai invalid${reason ? `: ${reason}` : ''}`,
+                meta: { reason },
                 createdById: userId ?? null,
             },
         });

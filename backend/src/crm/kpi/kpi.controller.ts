@@ -22,4 +22,41 @@ export class KpiController {
             end,
         });
     }
+
+    @Get('product-trend')
+    productTrend(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+        @Query('csId') csId?: string,
+    ) {
+        const parsedCsId = csId ? parseInt(csId, 10) : undefined;
+        return this.kpi.productTrend(
+            ctx,
+            { period: (period as KpiPeriod) || 'month', start, end },
+            Number.isFinite(parsedCsId) ? parsedCsId : undefined,
+        );
+    }
+
+    @Get('source-breakdown')
+    sourceBreakdown(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+        @Query('csId') csId?: string,
+        @Query('status') status?: string,
+    ) {
+        const parsedCsId = csId ? parseInt(csId, 10) : undefined;
+        const statuses = status ? status.split(',').map(s => s.trim()).filter(Boolean) : undefined;
+        return this.kpi.sourceBreakdown(
+            ctx,
+            { period: (period as KpiPeriod) || 'month', start, end },
+            {
+                csId: Number.isFinite(parsedCsId) ? parsedCsId : undefined,
+                statuses,
+            },
+        );
+    }
 }

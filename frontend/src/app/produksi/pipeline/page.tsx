@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api/client";
 import {
     DndContext, DragEndEvent, DragStartEvent, DragOverlay,
     PointerSensor, TouchSensor, useSensor, useSensors,
@@ -17,8 +18,8 @@ import {
 import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
-    Upload, FileText, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
-    Share2, Copy, Check, Pen,
+    Upload, FileText, ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
+    Share2, Copy, Check, Pen, Zap,
 } from "lucide-react";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -60,6 +61,7 @@ export default function ProduksiPipelinePage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [filterPriority, setFilterPriority] = useState<string>("ALL");
     const [filterDate, setFilterDate] = useState<"ALL" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "OVERDUE">("ALL");
+    const [filterDesigner, setFilterDesigner] = useState<string>("ALL");
     const [showShare, setShowShare] = useState(false);
     const shareRef = useRef<HTMLDivElement>(null);
 
@@ -133,7 +135,6 @@ export default function ProduksiPipelinePage() {
         setProofViewer({ job });
     }, []);
 
-    // Refresh proofViewer.job kalau data updated (mis. delete proof)
     const currentProofViewerJob = useMemo(() => {
         if (!proofViewer) return null;
         return jobs.find(j => j.id === proofViewer.job.id) || proofViewer.job;
@@ -161,6 +162,15 @@ export default function ProduksiPipelinePage() {
         for (const j of jobs) {
             // Filter prioritas
             if (filterPriority !== "ALL" && (j.priority || "NORMAL") !== filterPriority) continue;
+
+            // Filter designer
+            if (filterDesigner !== "ALL") {
+                if (filterDesigner === "__UNASSIGNED__") {
+                    if (j.designerName) continue;
+                } else {
+                    if (j.designerName !== filterDesigner) continue;
+                }
+            }
 
             // Filter tanggal berdasarkan createdAt / deadline
             if (filterDate !== "ALL") {
@@ -190,7 +200,7 @@ export default function ProduksiPipelinePage() {
             (g[s] || g.DESIGN).push(j);
         }
         return g;
-    }, [jobs, deferredSearch, filterPriority, filterDate]);
+    }, [jobs, deferredSearch, filterPriority, filterDate, filterDesigner]);
 
     const handleDragStart = useCallback((e: DragStartEvent) => {
         setActiveJobId(Number(e.active.id));
@@ -215,9 +225,17 @@ export default function ProduksiPipelinePage() {
         stageMut.mutate({ id: jobId, payload: { pipelineStage: newStage } });
     }, [jobs, stageMut]);
 
+    const designerOptions = useMemo(() => {
+        const names = new Set<string>();
+        for (const j of jobs) {
+            if (j.designerName) names.add(j.designerName);
+        }
+        return Array.from(names).sort();
+    }, [jobs]);
+
     const totalFiltered = Object.values(grouped).reduce((s, arr) => s + arr.length, 0);
     const totalAll = jobs.length;
-    const isFiltering = deferredSearch.trim() !== "" || filterPriority !== "ALL" || filterDate !== "ALL";
+    const isFiltering = deferredSearch.trim() !== "" || filterPriority !== "ALL" || filterDate !== "ALL" || filterDesigner !== "ALL";
 
     return (
         <div className="p-2 sm:p-4 space-y-3 sm:space-y-4">
@@ -327,9 +345,50 @@ export default function ProduksiPipelinePage() {
                         ))}
                     </div>
 
+                    {/* Divider */}
+                    <div className="w-px h-4 bg-gray-200 self-center hidden sm:block" />
+
+                    {/* Filter Designer */}
+                    <div className="flex items-center gap-1 flex-wrap">
+                        <Pen className="w-3 h-3 text-gray-400 shrink-0" />
+                        <button
+                            onClick={() => setFilterDesigner("ALL")}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                filterDesigner === "ALL"
+                                    ? "bg-indigo-600 text-white border-indigo-600"
+                                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                            }`}
+                        >
+                            Semua
+                        </button>
+                        <button
+                            onClick={() => setFilterDesigner("__UNASSIGNED__")}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                filterDesigner === "__UNASSIGNED__"
+                                    ? "bg-gray-600 text-white border-gray-600"
+                                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                            }`}
+                        >
+                            Belum Assign
+                        </button>
+                        {designerOptions.map(name => (
+                            <button
+                                key={name}
+                                onClick={() => setFilterDesigner(name)}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                    filterDesigner === name
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                                }`}
+                            >
+                                {name}
+                            </button>
+                        ))}
+                    </div>
+
                     {isFiltering && (
                         <button
-                            onClick={() => { setSearchQuery(""); setFilterPriority("ALL"); setFilterDate("ALL"); }}
+                            onClick={() => { setSearchQuery(""); setFilterPriority("ALL"); setFilterDate("ALL"); setFilterDesigner("ALL"); }}
                             className="text-[11px] text-gray-500 hover:text-gray-700 underline whitespace-nowrap ml-auto"
                         >
                             Reset filter
@@ -357,6 +416,8 @@ export default function ProduksiPipelinePage() {
                             onUploadProof={handleUploadProof}
                             onOpenProofViewer={handleOpenProofViewer}
                             onDeleteJob={handleDeleteJob}
+                            onToggleExpress={(jobId, val) => stageMut.mutate({ id: jobId, payload: { isExpress: val } })}
+                            onUpdateDesigner={(jobId, name) => stageMut.mutate({ id: jobId, payload: { designerName: name } })}
                             uploading={uploadMut.isPending}
                         />
                     ))}
@@ -499,7 +560,7 @@ function SharePopover({ onClose }: { onClose: () => void }) {
 // ─── Column ────────────────────────────────────────────────────────────────
 
 const Column = memo(function Column({
-    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onDeleteJob, uploading,
+    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onDeleteJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     stage: PipelineStage;
     jobs: PipelineJob[];
@@ -507,6 +568,8 @@ const Column = memo(function Column({
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
+    onToggleExpress: (jobId: number, val: boolean) => void;
+    onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
 }) {
     const { setNodeRef, isOver } = useDroppable({ id: stage });
@@ -532,6 +595,8 @@ const Column = memo(function Column({
                             onUploadProof={onUploadProof}
                             onOpenProofViewer={onOpenProofViewer}
                             onDeleteJob={onDeleteJob}
+                            onToggleExpress={onToggleExpress}
+                            onUpdateDesigner={onUpdateDesigner}
                             uploading={uploading}
                         />
                     ))
@@ -548,13 +613,15 @@ const Column = memo(function Column({
 // semua JSX berat di-memo secara terpisah dan tidak akan re-render selama drag.
 
 const KanbanCard = memo(function KanbanCard({
-    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
+    onToggleExpress: (jobId: number, val: boolean) => void;
+    onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
 }) {
     const { attributes, listeners, setNodeRef } = useDraggable({ id: String(job.id) });
@@ -566,11 +633,39 @@ const KanbanCard = memo(function KanbanCard({
                 onUploadProof={onUploadProof}
                 onOpenProofViewer={onOpenProofViewer}
                 onDeleteJob={onDeleteJob}
+                onToggleExpress={onToggleExpress}
+                onUpdateDesigner={onUpdateDesigner}
                 uploading={uploading}
             />
         </div>
     );
 });
+
+// ─── Design urgency helper ────────────────────────────────────────────────
+// Berapa hari job sudah menunggu proof. Hanya relevan di stage DESIGN tanpa proof.
+// Skala: Aman (0-1h) · Normal (2-3h) · Urgent (4h+)
+type UrgencyLevel = "aman" | "normal" | "urgent";
+interface DesignUrgency { label: string; days: number; level: UrgencyLevel }
+
+function getDesignUrgency(createdAt: string | null | undefined): DesignUrgency | null {
+    if (!createdAt) return null;
+    const days = dayjs().diff(dayjs(createdAt), "day");
+    if (days <= 1) return { label: "Aman", days, level: "aman" };
+    if (days <= 3) return { label: "Normal", days, level: "normal" };
+    return { label: "Urgent", days, level: "urgent" };
+}
+
+const URGENCY_STRIP: Record<UrgencyLevel, string> = {
+    aman:   "border-emerald-200 bg-emerald-50 text-emerald-700",
+    normal: "border-amber-300 bg-amber-50 text-amber-700",
+    urgent: "border-red-300 bg-red-50 text-red-700",
+};
+
+const URGENCY_UPLOAD_BTN: Record<UrgencyLevel, string> = {
+    aman:   "border-gray-300 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600",
+    normal: "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100",
+    urgent: "border-red-400 bg-red-50 text-red-700 hover:bg-red-100 animate-pulse",
+};
 
 // ─── Card: heavy content (memoized, zero dnd hooks) ───────────────────────
 // Tidak ada useDraggable/useDroppable → tidak subscribe ke DnD context.
@@ -579,13 +674,15 @@ const KanbanCard = memo(function KanbanCard({
 // → zero re-render selama drag. Ini sumber percepatan utama.
 
 const KanbanCardInner = memo(function KanbanCardInner({
-    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
+    onToggleExpress: (jobId: number, val: boolean) => void;
+    onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -602,6 +699,10 @@ const KanbanCardInner = memo(function KanbanCardInner({
         ? `${job.transactionItem.widthCm}×${job.transactionItem.heightCm}cm`
         : null;
 
+    const needsProof = isDesign && proofs.length === 0;
+    const designUrgency = needsProof ? getDesignUrgency(job.createdAt) : null;
+    const firstProof = proofs[0] ? resolvePhotoUrl(proofs[0].filename) : null;
+
     const jahitLate = job.pipelineStage === "JAHIT"
         && job.jahitEstimate
         && dayjs(job.jahitEstimate).isBefore(dayjs());
@@ -609,11 +710,9 @@ const KanbanCardInner = memo(function KanbanCardInner({
     const deadlineLate = job.deadline && dayjs(job.deadline).isBefore(dayjs())
         && job.pipelineStage !== "SELESAI" && job.pipelineStage !== "KIRIM";
 
-    const firstProof = proofs[0] ? resolvePhotoUrl(proofs[0].filename) : null;
-
     return (
         <div
-            className={`bg-white rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs cursor-grab active:cursor-grabbing select-none ${isActive ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+            className={`bg-white rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs cursor-grab active:cursor-grabbing select-none ${isActive ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : job.isExpress ? "border-orange-400" : "border-gray-200"}`}
         >
             <div className="flex items-start justify-between gap-1 mb-1">
                 <span className="font-mono font-bold text-[9px] sm:text-[10px] text-gray-600 truncate">{job.jobNumber}</span>
@@ -648,11 +747,31 @@ const KanbanCardInner = memo(function KanbanCardInner({
                 </div>
             </div>
 
-            {job.priority && job.priority !== "NORMAL" && (
-                <span className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-semibold mb-1 ${PRIORITY_BADGE[job.priority] || PRIORITY_BADGE.NORMAL}`}>
-                    {job.priority}
-                </span>
-            )}
+            <div className="flex items-center gap-1 flex-wrap mb-1">
+                {job.isExpress && (
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-orange-400 bg-orange-100 text-orange-700 text-[9px] font-bold">
+                        <Zap className="h-2.5 w-2.5" /> EXPRESS
+                    </span>
+                )}
+                {job.priority && job.priority !== "NORMAL" && (
+                    <span className={`inline-block px-1.5 py-0.5 rounded border text-[9px] font-semibold ${PRIORITY_BADGE[job.priority] || PRIORITY_BADGE.NORMAL}`}>
+                        {job.priority}
+                    </span>
+                )}
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onToggleExpress(job.id, !job.isExpress); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    title={job.isExpress ? "Batalkan express" : "Tandai sebagai express"}
+                    className={`ml-auto text-[9px] flex items-center gap-0.5 px-1.5 py-0.5 rounded border transition-colors ${
+                        job.isExpress
+                            ? "border-orange-300 text-orange-600 hover:bg-orange-100"
+                            : "border-gray-200 text-gray-400 hover:text-orange-500 hover:border-orange-300"
+                    }`}
+                >
+                    <Zap className="h-2.5 w-2.5" />
+                </button>
+            </div>
 
             <div className="font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">
                 {productName}
@@ -663,12 +782,10 @@ const KanbanCardInner = memo(function KanbanCardInner({
                     <User className="h-3 w-3 text-gray-400 flex-shrink-0" />
                     <span className="truncate">{customerName}</span>
                 </div>
-                {job.designerName && (
-                    <div className="flex items-center gap-1">
-                        <Pen className="h-3 w-3 text-indigo-400 flex-shrink-0" />
-                        <span className="truncate text-indigo-700 font-medium">{job.designerName}</span>
-                    </div>
-                )}
+                <DesignerInlineEdit
+                    designerName={job.designerName}
+                    onSave={(name) => onUpdateDesigner(job.id, name)}
+                />
                 <div className="text-gray-500">
                     {qty} pcs{dim && ` · ${dim}`}
                 </div>
@@ -718,7 +835,15 @@ const KanbanCardInner = memo(function KanbanCardInner({
                     </span>
                 </button>
             ) : isDesign ? (
-                <div className="mt-1.5">
+                <div className="mt-1.5 space-y-1">
+                    {designUrgency && (
+                        <div className={`flex items-center justify-between px-2 py-1 rounded border text-[9px] font-semibold ${URGENCY_STRIP[designUrgency.level]}`}>
+                            <span>
+                                {designUrgency.days === 0 ? "Masuk hari ini" : `Masuk ${designUrgency.days} hari lalu`}
+                            </span>
+                            <span className="font-bold tracking-wide">{designUrgency.label.toUpperCase()}</span>
+                        </div>
+                    )}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -736,7 +861,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                         onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                         onPointerDown={(e) => e.stopPropagation()}
                         disabled={uploading}
-                        className="w-full flex items-center justify-center gap-1 px-2 py-1.5 border-2 border-dashed border-gray-300 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 rounded text-[10px] font-semibold disabled:opacity-50"
+                        className={`w-full flex items-center justify-center gap-1 px-2 py-1.5 border-2 border-dashed rounded text-[10px] font-semibold disabled:opacity-50 transition-colors ${designUrgency ? URGENCY_UPLOAD_BTN[designUrgency.level] : URGENCY_UPLOAD_BTN.aman}`}
                     >
                         {uploading ? (
                             <><Loader2 className="h-3 w-3 animate-spin" /> Uploading...</>
@@ -772,6 +897,88 @@ const KanbanCardInner = memo(function KanbanCardInner({
 // ─── Drag Preview (lightweight, untuk DragOverlay) ────────────────────────
 // Hanya render summary minimum supaya drag tetap smooth — image & link skip.
 
+// ─── Designer Inline Edit ──────────────────────────────────────────────────
+// Klik ikon pensil → dropdown designer terdaftar muncul.
+// useQuery dengan key ['designers-list'] di-deduplicate oleh React Query —
+// satu request untuk semua card, shared via cache.
+
+function DesignerInlineEdit({
+    designerName, onSave,
+}: {
+    designerName: string | null;
+    onSave: (name: string | null) => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const selectRef = useRef<HTMLSelectElement>(null);
+
+    const { data: designers = [] } = useQuery({
+        queryKey: ["designers-list"],
+        queryFn: async () => (await api.get("/designers")).data as { id: number; name: string; isActive: boolean }[],
+        staleTime: 5 * 60_000,
+    });
+    const activeDesigners = designers.filter(d => d.isActive);
+
+    const open = () => {
+        setEditing(true);
+        setTimeout(() => selectRef.current?.focus(), 50);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setEditing(false);
+        const val = e.target.value || null;
+        if (val !== designerName) onSave(val);
+    };
+
+    const cancel = () => setEditing(false);
+
+    if (editing) {
+        return (
+            <div className="flex items-center gap-1" onPointerDown={(e) => e.stopPropagation()}>
+                <Pen className="h-3 w-3 text-indigo-400 flex-shrink-0" />
+                <select
+                    ref={selectRef}
+                    defaultValue={designerName || ""}
+                    onChange={handleChange}
+                    onBlur={cancel}
+                    className="flex-1 min-w-0 text-[10px] px-1 py-0.5 border border-indigo-300 rounded outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                >
+                    <option value="">— Kosongkan —</option>
+                    {activeDesigners.map(d => (
+                        <option key={d.id} value={d.name}>{d.name}</option>
+                    ))}
+                </select>
+                <button
+                    type="button"
+                    onMouseDown={(e) => { e.preventDefault(); cancel(); }}
+                    className="text-gray-400 hover:text-gray-600"
+                >
+                    <X className="h-3 w-3" />
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-1 group/designer">
+            <Pen className="h-3 w-3 text-indigo-400 flex-shrink-0" />
+            {designerName ? (
+                <span className="truncate text-indigo-700 font-medium text-[11px]">{designerName}</span>
+            ) : (
+                <span className="text-gray-400 italic text-[10px]">Belum assign</span>
+            )}
+            <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); open(); }}
+                onMouseDown={(e) => e.preventDefault()}
+                title="Ubah designer"
+                className="ml-auto opacity-0 group-hover/designer:opacity-100 transition-opacity text-gray-400 hover:text-indigo-600"
+            >
+                <Pen className="h-2.5 w-2.5" />
+            </button>
+        </div>
+    );
+}
+
 function DragPreview({ job }: { job: PipelineJob }) {
     const productName = job.transactionItem?.productVariant?.product?.name
         || job.transactionItem?.productVariant?.variantName
@@ -806,10 +1013,8 @@ function ProofViewer({
     const proofs = getProofList(job);
     const [idx, setIdx] = useState(0);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const isDesign = (job.pipelineStage || "DESIGN") === "DESIGN";
 
     if (proofs.length === 0) {
-        // Job tidak punya proof — close otomatis
         onClose();
         return null;
     }
@@ -822,7 +1027,6 @@ function ProofViewer({
 
     return (
         <div className="fixed inset-0 bg-black/80 z-[300] flex flex-col" onClick={onClose}>
-            {/* Header */}
             <div className="flex items-center justify-between p-3 sm:p-4 text-white" onClick={(e) => e.stopPropagation()}>
                 <div className="text-xs sm:text-sm">
                     <div className="font-bold font-mono">{job.jobNumber}</div>
@@ -835,101 +1039,57 @@ function ProofViewer({
                 </button>
             </div>
 
-            {/* Image */}
             <div className="flex-1 flex items-center justify-center relative px-2 sm:px-12" onClick={(e) => e.stopPropagation()}>
                 {currentUrl && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                        src={currentUrl}
-                        alt={`Proof ${safeIdx + 1}`}
-                        className="max-w-full max-h-[70vh] object-contain"
-                    />
+                    <img src={currentUrl} alt={`Proof ${safeIdx + 1}`} className="max-w-full max-h-[70vh] object-contain" />
                 )}
                 {proofs.length > 1 && (
                     <>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); prev(); }}
-                            className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/30 text-white rounded-full flex items-center justify-center"
-                            aria-label="Previous"
-                        >
+                        <button onClick={(e) => { e.stopPropagation(); prev(); }} className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/30 text-white rounded-full flex items-center justify-center" aria-label="Previous">
                             <ChevronLeft className="h-5 w-5" />
                         </button>
-                        <button
-                            onClick={(e) => { e.stopPropagation(); next(); }}
-                            className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/30 text-white rounded-full flex items-center justify-center"
-                            aria-label="Next"
-                        >
+                        <button onClick={(e) => { e.stopPropagation(); next(); }} className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 hover:bg-white/30 text-white rounded-full flex items-center justify-center" aria-label="Next">
                             <ChevronRight className="h-5 w-5" />
                         </button>
                     </>
                 )}
             </div>
 
-            {/* Thumbnails + actions */}
             <div className="bg-black/90 p-3 sm:p-4 space-y-2" onClick={(e) => e.stopPropagation()}>
                 {proofs.length > 1 && (
                     <div className="flex gap-1.5 overflow-x-auto pb-1">
                         {proofs.map((p, i) => {
                             const u = resolvePhotoUrl(p.filename);
                             return (
-                                <button
-                                    key={p.id ?? i}
-                                    onClick={() => setIdx(i)}
-                                    className={`flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 ${i === safeIdx ? "border-emerald-400" : "border-white/30 opacity-60 hover:opacity-100"}`}
-                                >
-                                    {u && (
-                                        // eslint-disable-next-line @next/next/no-img-element
-                                        <img src={u} alt="" loading="lazy" className="w-full h-full object-cover" />
-                                    )}
+                                <button key={p.id ?? i} onClick={() => setIdx(i)} className={`flex-shrink-0 w-14 h-14 rounded overflow-hidden border-2 ${i === safeIdx ? "border-emerald-400" : "border-white/30 opacity-60 hover:opacity-100"}`}>
+                                    {u && <img src={u} alt="" loading="lazy" className="w-full h-full object-cover" />}
                                 </button>
                             );
                         })}
                     </div>
                 )}
                 <div className="flex flex-wrap gap-2">
-                    {isDesign && (
-                        <>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept="image/*"
-                                multiple
-                                className="hidden"
-                                onChange={(e) => {
-                                    const f = e.target.files;
-                                    if (f && f.length > 0) onUpload(job.id, f);
-                                    e.target.value = "";
-                                }}
-                            />
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={uploading}
-                                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold disabled:opacity-50"
-                            >
-                                {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
-                                Tambah Proof
-                            </button>
-                            {current.id != null && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (confirm("Hapus proof ini?")) onDelete(current.id!);
-                                    }}
-                                    disabled={deleting}
-                                    className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold disabled:opacity-50"
-                                >
-                                    {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-                                    Hapus
-                                </button>
-                            )}
-                        </>
+                    <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden"
+                        onChange={(e) => { const f = e.target.files; if (f && f.length > 0) onUpload(job.id, f); e.target.value = ""; }}
+                    />
+                    <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-semibold disabled:opacity-50"
+                    >
+                        {uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
+                        Tambah Proof
+                    </button>
+                    {current.id != null && (
+                        <button type="button" disabled={deleting}
+                            onClick={() => { if (confirm("Hapus foto proof ini?")) onDelete(current.id!); }}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-semibold disabled:opacity-50"
+                        >
+                            {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                            Hapus Foto Ini
+                        </button>
                     )}
                     {currentUrl && (
-                        <a
-                            href={currentUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        <a href={currentUrl} target="_blank" rel="noopener noreferrer"
                             className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded text-xs font-semibold"
                         >
                             Buka Original

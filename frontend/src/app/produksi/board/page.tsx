@@ -60,6 +60,29 @@ function getProofList(job: PipelineJob): { id?: number; filename: string }[] {
     return [];
 }
 
+type UrgencyLevel = "aman" | "normal" | "urgent";
+interface DesignUrgency { label: string; days: number; level: UrgencyLevel }
+
+function getDesignUrgency(createdAt: string | null | undefined): DesignUrgency | null {
+    if (!createdAt) return null;
+    const days = dayjs().diff(dayjs(createdAt), "day");
+    if (days <= 1) return { label: "Aman", days, level: "aman" };
+    if (days <= 3) return { label: "Normal", days, level: "normal" };
+    return { label: "Urgent", days, level: "urgent" };
+}
+
+const URGENCY_STRIP: Record<UrgencyLevel, string> = {
+    aman:   "border-emerald-200 bg-emerald-50 text-emerald-700",
+    normal: "border-amber-300 bg-amber-50 text-amber-700",
+    urgent: "border-red-300 bg-red-50 text-red-700",
+};
+
+const URGENCY_UPLOAD_BTN: Record<UrgencyLevel, string> = {
+    aman:   "border-gray-300 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600",
+    normal: "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100",
+    urgent: "border-red-400 bg-red-50 text-red-700 hover:bg-red-100 animate-pulse",
+};
+
 export default function ProduksiBoardPage() {
     const [session, setSession] = useState<BoardSession | null>(null);
     const [hydrated, setHydrated] = useState(false);
@@ -545,6 +568,9 @@ const KanbanCard = memo(function KanbanCard({
     const deadlineLate = job.deadline && dayjs(job.deadline).isBefore(dayjs())
         && job.pipelineStage !== "SELESAI" && job.pipelineStage !== "KIRIM";
 
+    const needsProof = isDesign && proofs.length === 0;
+    const designUrgency = needsProof ? getDesignUrgency(job.createdAt) : null;
+
     const firstProof = proofs[0] ? resolvePhotoUrl(proofs[0].filename) : null;
 
     return (
@@ -628,7 +654,15 @@ const KanbanCard = memo(function KanbanCard({
                     </span>
                 </button>
             ) : isDesign ? (
-                <div className="mt-1.5">
+                <div className="mt-1.5 space-y-1">
+                    {designUrgency && (
+                        <div className={`flex items-center justify-between px-2 py-1 rounded border text-[9px] font-semibold ${URGENCY_STRIP[designUrgency.level]}`}>
+                            <span>
+                                {designUrgency.days === 0 ? "Masuk hari ini" : `Masuk ${designUrgency.days} hari lalu`}
+                            </span>
+                            <span className="font-bold tracking-wide">{designUrgency.label.toUpperCase()}</span>
+                        </div>
+                    )}
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -646,7 +680,7 @@ const KanbanCard = memo(function KanbanCard({
                         onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                         onPointerDown={(e) => e.stopPropagation()}
                         disabled={uploading}
-                        className="w-full flex items-center justify-center gap-1 px-2 py-1.5 border-2 border-dashed border-gray-300 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600 rounded text-[10px] font-semibold disabled:opacity-50"
+                        className={`w-full flex items-center justify-center gap-1 px-2 py-1.5 border-2 border-dashed rounded text-[10px] font-semibold disabled:opacity-50 transition-colors ${designUrgency ? URGENCY_UPLOAD_BTN[designUrgency.level] : URGENCY_UPLOAD_BTN.aman}`}
                     >
                         {uploading ? (
                             <><Loader2 className="h-3 w-3 animate-spin" /> Uploading...</>

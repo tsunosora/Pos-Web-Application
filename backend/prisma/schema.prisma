@@ -728,6 +728,10 @@ model ProductionJob {
   jahitEstimate       DateTime? @map("jahit_estimate")
   // Desainer yang ditugaskan (nama bebas, diisi saat convert dari CRM atau manual)
   designerName        String?   @map("designer_name") @db.VarChar(120)
+  // Order express: dicentang CS saat convert lead, tampil sebagai badge merah di pipeline
+  isExpress           Boolean   @default(false) @map("is_express")
+  // Waktu proof pertama diupload — dasar skala aman/normal/urgent di kanban DESIGN
+  designEnteredAt     DateTime? @map("design_entered_at")
   // QC & Packing notes
   qcNote              String?   @map("qc_note") @db.Text
   // Kirim / Retur tracking
@@ -1427,6 +1431,7 @@ enum LeadStatus {
   NEGOTIATION
   CLOSED_WON
   CLOSED_LOST
+  INVALID
 }
 
 enum LeadLevel {
