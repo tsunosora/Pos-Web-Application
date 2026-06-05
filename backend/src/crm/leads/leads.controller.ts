@@ -105,6 +105,16 @@ export class LeadsController {
         return this.leads.closeLost(ctx, id, data, req?.user?.id);
     }
 
+    @Post(':id/mark-invalid')
+    markInvalid(
+        @CurrentBranch() ctx: BranchContext,
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { reason?: string },
+        @Req() req: any,
+    ) {
+        return this.leads.markInvalid(ctx, id, body.reason || '', req?.user?.id);
+    }
+
     @Delete(':id')
     remove(@CurrentBranch() ctx: BranchContext, @Param('id', ParseIntPipe) id: number) {
         return this.leads.remove(ctx, id);

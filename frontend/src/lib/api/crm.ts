@@ -10,7 +10,7 @@ export type LeadSource =
     | 'REPEAT_ORDER' | 'OTHER' | 'CUSTOM';
 
 export type LeadStatus =
-    | 'NEW' | 'FOLLOW_UP' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST';
+    | 'NEW' | 'FOLLOW_UP' | 'NEGOTIATION' | 'CLOSED_WON' | 'CLOSED_LOST' | 'INVALID';
 
 export type LeadLevel = 'HOT' | 'WARM' | 'COLD';
 
@@ -34,6 +34,7 @@ export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
     NEGOTIATION: 'Negosiasi',
     CLOSED_WON: 'Closing ✓',
     CLOSED_LOST: 'Hilang ✗',
+    INVALID: 'Invalid 🚫',
 };
 
 export const LEAD_LEVEL_LABEL: Record<LeadLevel, string> = {
@@ -263,6 +264,9 @@ export const convertLead = async (leadId: number, data: ConvertLeadInput): Promi
 export const closeLeadLost = async (leadId: number, reason: string): Promise<Lead> =>
     (await api.post(`/crm/leads/${leadId}/close-lost`, { reason })).data;
 
+export const markLeadInvalid = async (leadId: number, reason?: string): Promise<Lead> =>
+    (await api.post(`/crm/leads/${leadId}/mark-invalid`, { reason })).data;
+
 export const deleteLead = async (id: number): Promise<{ ok: boolean }> =>
     (await api.delete(`/crm/leads/${id}`)).data;
 
@@ -439,6 +443,8 @@ export interface KpiLeaderboardEntry {
     leadsHandled: number;
     dealsClosed: number;
     dealsLost: number;
+    invalidLeads: number;
+    pcsOrdered: number;
     wonValue: number;
     lostValue: number;
     pendingValue: number;
@@ -452,6 +458,8 @@ export interface KpiReport {
         totalLeads: number;
         closedWon: number;
         closedLost: number;
+        totalInvalid: number;
+        totalPcs: number;
         wonValue: number;
         lostValue: number;
         pendingValue: number;
@@ -476,3 +484,48 @@ export const getKpiReport = async (params: {
     end?: string;
 }): Promise<KpiReport> =>
     (await api.get('/crm/kpi', { params })).data;
+
+// ── Tren Produk ──────────────────────────────────────────────────────────
+export interface ProductTrendGroup {
+    series: string[];                              // nama seri (kategori / produk) untuk garis chart
+    totals: { name: string; pcs: number }[];       // total pcs per seri di seluruh periode
+    data: Record<string, number | string>[];       // baris per bucket: { bucket, label, <seri>: pcs, ... }
+}
+
+export interface ProductTrendReport {
+    period: { start: string; end: string };
+    bucketBy: 'day' | 'week';
+    // Pisahan sumber pcs saat filter CS aktif; null kalau "Semua CS"
+    sourceSplit: { lead: number; walkin: number } | null;
+    category: ProductTrendGroup;
+    product: ProductTrendGroup;
+}
+
+export const getProductTrend = async (params: {
+    period: KpiPeriod;
+    start?: string;
+    end?: string;
+    csId?: number;
+}): Promise<ProductTrendReport> =>
+    (await api.get('/crm/kpi/product-trend', { params })).data;
+
+// ── Breakdown per Sumber ─────────────────────────────────────────────────
+export interface SourceBreakdownReport {
+    period: { start: string; end: string };
+    bucketBy: 'day' | 'week';
+    statuses: string[];
+    sources: { key: string; pcs: number; value: number }[];   // kotak yang bisa diklik
+    // Distribusi closing rate per sumber (won / total valid; lepas dari filter status)
+    closingRateBySource: { key: string; closedWon: number; leadsValid: number; rate: number }[];
+    pcs: { data: Record<string, number | string>[] };          // baris per bucket: { bucket, label, <source>: pcs }
+    value: { data: Record<string, number | string>[] };        // baris per bucket: { bucket, label, <source>: rupiah }
+}
+
+export const getSourceBreakdown = async (params: {
+    period: KpiPeriod;
+    start?: string;
+    end?: string;
+    csId?: number;
+    status?: string;   // comma-separated: CLOSED_WON,CLOSED_LOST,INVALID
+}): Promise<SourceBreakdownReport> =>
+    (await api.get('/crm/kpi/source-breakdown', { params })).data;

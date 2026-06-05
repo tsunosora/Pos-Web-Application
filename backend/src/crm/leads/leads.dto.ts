@@ -70,6 +70,8 @@ export class ConvertLeadDto {
     // production jobs. Kalau ada lead items dengan productVariantId & flag ini tidak
     // false, Transaction PENDING dibuat otomatis → production pipeline langsung jalan.
     createProductionTransaction?: boolean;
+    // Tandai sebagai order express — tampil sebagai badge merah di kanban pipeline
+    isExpress?: boolean;
     // Payment options saat convert. Default: NONE (Transaction PENDING tanpa pembayaran).
     paymentMode?: 'NONE' | 'DP' | 'LUNAS';
     paymentMethod?: 'CASH' | 'TRANSFER' | 'QRIS';

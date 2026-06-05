@@ -615,15 +615,24 @@ export class ProductionService {
             orderBy: { position: 'desc' },
             select: { position: true },
         });
+        const isFirstProof = !last;
         const nextPos = last ? last.position + 1 : 0;
         const caption = actor?.name ? `by ${actor.name}` : null;
         const proof = await (this.prisma as any).productionJobProof.create({
             data: { jobId, filename, position: nextPos, caption },
         });
+        const jobUpdate: any = {};
         if (actor?.name) {
+            jobUpdate.lastUpdatedBy = actor.name;
+            jobUpdate.lastUpdatedAt = new Date();
+        }
+        if (isFirstProof) {
+            jobUpdate.designEnteredAt = new Date();
+        }
+        if (Object.keys(jobUpdate).length > 0) {
             await (this.prisma as any).productionJob.update({
                 where: { id: jobId },
-                data: { lastUpdatedBy: actor.name, lastUpdatedAt: new Date() },
+                data: jobUpdate,
             });
         }
         await this.logProofActivity(jobId, 'PROOF_UPLOAD', actor, { proofId: proof.id, filename });
@@ -636,12 +645,24 @@ export class ProductionService {
         });
         if (!proof) return { ok: true };
         await (this.prisma as any).productionJobProof.delete({ where: { id: proofId } });
+
+        // Sync proofImageUrl ke proof terakhir yang tersisa, atau null jika sudah habis.
+        // Ini penting supaya legacy fallback di getProofList tidak menampilkan gambar lama.
+        const remaining = await (this.prisma as any).productionJobProof.findFirst({
+            where: { jobId: proof.jobId },
+            orderBy: { position: 'asc' },
+            select: { filename: true },
+        });
+        const jobUpdate: any = { proofImageUrl: remaining ? remaining.filename : null };
         if (actor?.name) {
-            await (this.prisma as any).productionJob.update({
-                where: { id: proof.jobId },
-                data: { lastUpdatedBy: actor.name, lastUpdatedAt: new Date() },
-            });
+            jobUpdate.lastUpdatedBy = actor.name;
+            jobUpdate.lastUpdatedAt = new Date();
         }
+        await (this.prisma as any).productionJob.update({
+            where: { id: proof.jobId },
+            data: jobUpdate,
+        });
+
         await this.logProofActivity(proof.jobId, 'PROOF_DELETE', actor, { proofId, filename: proof.filename });
         return { ok: true };
     }
@@ -662,6 +683,8 @@ export class ProductionService {
             qcNote?: string;
             returnReason?: string;
             proofImageUrl?: string | null;
+            isExpress?: boolean;
+            designerName?: string | null;
         },
         actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' },
     ) {
@@ -679,6 +702,12 @@ export class ProductionService {
         // Proof image setter (stage-agnostic — biasa di DESIGN tapi bisa di-update di stage lain juga)
         if (data.proofImageUrl !== undefined) {
             updateData.proofImageUrl = data.proofImageUrl || null;
+        }
+        if (data.isExpress !== undefined) {
+            updateData.isExpress = data.isExpress;
+        }
+        if (data.designerName !== undefined) {
+            updateData.designerName = data.designerName || null;
         }
 
         // Auto-set timestamp berdasarkan transisi

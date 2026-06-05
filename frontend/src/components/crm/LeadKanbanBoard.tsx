@@ -43,7 +43,7 @@ export function LeadKanbanBoard({ leads, onCardClick, onStatusChange }: Props) {
 
     const grouped = useMemo(() => {
         const g: Record<LeadStatus, Lead[]> = {
-            NEW: [], FOLLOW_UP: [], NEGOTIATION: [], CLOSED_WON: [], CLOSED_LOST: [],
+            NEW: [], FOLLOW_UP: [], NEGOTIATION: [], CLOSED_WON: [], CLOSED_LOST: [], INVALID: [],
         };
         for (const l of leads) g[l.status]?.push(l);
         return g;

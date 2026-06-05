@@ -391,6 +391,8 @@ export interface PipelineJob {
     proofImageUrl: string | null; // legacy single (backward compat)
     proofs?: { id: number; filename: string; caption: string | null }[];
     designerName: string | null;
+    isExpress: boolean;
+    designEnteredAt: string | null;
     lastUpdatedBy: string | null;
     lastUpdatedAt: string | null;
     createdAt: string | null;
@@ -415,6 +417,8 @@ export const updatePipelineStage = async (id: number, data: {
     qcNote?: string;
     returnReason?: string;
     proofImageUrl?: string | null;
+    isExpress?: boolean;
+    designerName?: string | null;
 }): Promise<PipelineJob> => {
     const res = await api.patch(`/production/pipeline/jobs/${id}`, data);
     return res.data;

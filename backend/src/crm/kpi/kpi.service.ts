@@ -11,6 +11,33 @@ export interface KpiParams {
     end?: string;
 }
 
+const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+
+function ymd(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function startOfDay(d: Date): Date {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x;
+}
+
+// Senin sebagai awal minggu (konsisten dengan kebiasaan operasional toko)
+function startOfWeekMon(d: Date): Date {
+    const x = startOfDay(d);
+    const diff = (x.getDay() + 6) % 7; // jumlah hari sejak Senin
+    x.setDate(x.getDate() - diff);
+    return x;
+}
+
+function labelDdMmm(d: Date): string {
+    return `${d.getDate()} ${MONTHS_ID[d.getMonth()]}`;
+}
+
 function resolvePeriod(p: KpiParams): { start: Date; end: Date } {
     const end = new Date();
     end.setHours(23, 59, 59, 999);
@@ -51,6 +78,327 @@ export class KpiService {
             console.error('[kpi.report] failed:', err?.message, err?.stack);
             throw err;
         }
+    }
+
+    // ── Tren Produk ─────────────────────────────────────────────────────────
+    // Trend volume order (pcs) per kategori & per produk. Default dari SEMUA
+    // transaksi (POS walk-in maupun hasil convert lead). Kalau `csId` diisi,
+    // dibatasi hanya transaksi hasil convert lead yang di-handle CS tsb.
+    // Bucket harian (range <=31 hari) atau mingguan (lebih panjang).
+    async productTrend(ctx: BranchContext, params: KpiParams, csId?: number) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+
+        // Filter CS: gabungkan transaksi dari 2 sumber, lalu pisahkan kontribusinya.
+        //  - "lead"   : transaksi hasil convert lead yang di-assign ke CS (Lead.assignedToId)
+        //  - "walkin" : transaksi POS di mana CS dipilih sebagai Kasir/Staff (cashierName)
+        // cashierName menyimpan nama user (dropdown di POS), jadi pencocokan by-name andal.
+        let leadTxIdSet: Set<number> | null = null;
+        let csTxWhere: any = null; // klausa filter CS untuk findMany; null = tanpa filter
+        if (csId) {
+            const [csLeads, csUser] = await Promise.all([
+                this.lead.findMany({
+                    where: { ...branchScope, assignedToId: csId, convertedTransactionId: { not: null } },
+                    select: { convertedTransactionId: true },
+                }),
+                this.prisma.user.findUnique({ where: { id: csId }, select: { name: true } }),
+            ]);
+            leadTxIdSet = new Set<number>(csLeads.map((l: any) => Number(l.convertedTransactionId)));
+            const csName = csUser?.name ?? null;
+
+            const or: any[] = [];
+            if (leadTxIdSet.size > 0) or.push({ id: { in: Array.from(leadTxIdSet) } });
+            if (csName) or.push({ cashierName: csName });
+            // Tidak ada sumber sama sekali → paksa match kosong
+            csTxWhere = or.length > 0 ? { OR: or } : { id: { in: [-1] } };
+        }
+
+        const rangeDays = Math.ceil((end.getTime() - start.getTime()) / 86_400_000);
+        const bucketBy: 'day' | 'week' = rangeDays > 31 ? 'week' : 'day';
+        const bucketStart = (d: Date) => (bucketBy === 'week' ? startOfWeekMon(d) : startOfDay(d));
+
+        // Daftar bucket berurutan supaya sumbu-X kontinu walau ada hari kosong
+        const buckets: { key: string; label: string }[] = [];
+        let cursor = bucketStart(start);
+        const endTime = end.getTime();
+        while (cursor.getTime() <= endTime) {
+            buckets.push({ key: ymd(cursor), label: labelDdMmm(cursor) });
+            const nextC = new Date(cursor);
+            nextC.setDate(nextC.getDate() + (bucketBy === 'week' ? 7 : 1));
+            cursor = nextC;
+        }
+
+        const txs: any[] = await this.tx.findMany({
+            where: {
+                ...branchScope,
+                status: { not: 'FAILED' },
+                createdAt: { gte: start, lte: end },
+                ...(csTxWhere || {}),
+            },
+            select: {
+                id: true,
+                createdAt: true,
+                items: {
+                    select: {
+                        quantity: true,
+                        customName: true,
+                        productVariant: {
+                            select: {
+                                variantName: true,
+                                product: {
+                                    select: {
+                                        name: true,
+                                        category: { select: { name: true } },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        const catTotals = new Map<string, number>();
+        const prodTotals = new Map<string, number>();
+        const catByBucket = new Map<string, Map<string, number>>();
+        const prodByBucket = new Map<string, Map<string, number>>();
+        // Pisahkan kontribusi pcs: dari lead vs dari walk-in (hanya saat filter CS aktif).
+        // Lead diprioritaskan — transaksi yang sekaligus lead-converted & cashierName CS
+        // dihitung sebagai "lead" supaya tidak dobel.
+        const sourceSplit = { lead: 0, walkin: 0 };
+
+        for (const tx of txs) {
+            const bk = ymd(bucketStart(new Date(tx.createdAt)));
+            const fromLead = leadTxIdSet ? leadTxIdSet.has(tx.id) : false;
+            for (const it of tx.items) {
+                const qty = Number(it.quantity) || 0;
+                if (qty <= 0) continue;
+                const prodName = it.productVariant?.product?.name
+                    || it.productVariant?.variantName
+                    || it.customName
+                    || 'Lainnya';
+                const catName = it.productVariant?.product?.category?.name
+                    || (it.customName ? 'Custom' : 'Lainnya');
+
+                if (csId) {
+                    if (fromLead) sourceSplit.lead += qty;
+                    else sourceSplit.walkin += qty;
+                }
+
+                catTotals.set(catName, (catTotals.get(catName) || 0) + qty);
+                prodTotals.set(prodName, (prodTotals.get(prodName) || 0) + qty);
+
+                if (!catByBucket.has(bk)) catByBucket.set(bk, new Map());
+                const cb = catByBucket.get(bk)!;
+                cb.set(catName, (cb.get(catName) || 0) + qty);
+
+                if (!prodByBucket.has(bk)) prodByBucket.set(bk, new Map());
+                const pb = prodByBucket.get(bk)!;
+                pb.set(prodName, (pb.get(prodName) || 0) + qty);
+            }
+        }
+
+        // Kategori: tampil semua, urut dari total terbesar
+        const catSeries = Array.from(catTotals.entries())
+            .sort((a, b) => b[1] - a[1])
+            .map(([name]) => name);
+
+        // Produk: top 8, sisanya digabung jadi "Lainnya" agar chart tetap terbaca
+        const TOP_N = 8;
+        const sortedProds = Array.from(prodTotals.entries()).sort((a, b) => b[1] - a[1]);
+        const topProds = sortedProds.slice(0, TOP_N).map(([name]) => name);
+        const hasOther = sortedProds.length > TOP_N;
+        const topProdSet = new Set(topProds);
+        const prodSeries = hasOther ? [...topProds, 'Lainnya'] : topProds;
+
+        const buildData = (
+            byBucket: Map<string, Map<string, number>>,
+            series: string[],
+            topSet?: Set<string>,
+        ) => buckets.map(({ key, label }) => {
+            const row: any = { bucket: key, label };
+            for (const s of series) row[s] = 0;
+            const m = byBucket.get(key);
+            if (m) {
+                for (const [name, qty] of m.entries()) {
+                    if (topSet) {
+                        if (topSet.has(name)) row[name] = qty;
+                        else row['Lainnya'] = (row['Lainnya'] || 0) + qty;
+                    } else {
+                        row[name] = qty;
+                    }
+                }
+            }
+            return row;
+        });
+
+        return {
+            period: { start: start.toISOString(), end: end.toISOString() },
+            bucketBy,
+            // Pisahan sumber pcs — hanya saat filter CS aktif (null kalau "Semua CS")
+            sourceSplit: csId ? sourceSplit : null,
+            category: {
+                series: catSeries,
+                totals: catSeries.map(name => ({ name, pcs: catTotals.get(name) || 0 })),
+                data: buildData(catByBucket, catSeries),
+            },
+            product: {
+                series: prodSeries,
+                totals: prodSeries.map(name => ({
+                    name,
+                    pcs: name === 'Lainnya' && hasOther
+                        ? sortedProds.slice(TOP_N).reduce((s, [, q]) => s + q, 0)
+                        : (prodTotals.get(name) || 0),
+                })),
+                data: buildData(prodByBucket, prodSeries, hasOther ? topProdSet : undefined),
+            },
+        };
+    }
+
+    // ── Breakdown per Sumber (gaya dashboard Shopee) ────────────────────────
+    // Kotak per sumber (Meta/Shopee/RO/Lazada/...) yang bisa di-toggle ke chart.
+    // Dua metrik: pcs (jumlah barang diorder) & nilai uang (Rp). Filter: CS + status.
+    // Berbasis LEAD (closing/lost/invalid) — bukan transaksi walk-in tanpa lead.
+    //  - pcs   : hanya dari lead CLOSED_WON yang punya transaksi (lost/invalid = 0 pcs)
+    //  - value : estimatedValue lead (tersedia untuk semua status)
+    // Periode & bucket pakai lead.createdAt (konsisten dgn panel lain di dashboard).
+    async sourceBreakdown(
+        ctx: BranchContext,
+        params: KpiParams,
+        opts: { csId?: number; statuses?: string[] } = {},
+    ) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const validStatuses = ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'];
+        const statuses = (opts.statuses || []).filter(s => validStatuses.includes(s));
+        const statusFilter = statuses.length > 0 ? statuses : ['CLOSED_WON'];
+
+        const rangeDays = Math.ceil((end.getTime() - start.getTime()) / 86_400_000);
+        const bucketBy: 'day' | 'week' = rangeDays > 31 ? 'week' : 'day';
+        const bucketStart = (d: Date) => (bucketBy === 'week' ? startOfWeekMon(d) : startOfDay(d));
+
+        const buckets: { key: string; label: string }[] = [];
+        let cursor = bucketStart(start);
+        const endTime = end.getTime();
+        while (cursor.getTime() <= endTime) {
+            buckets.push({ key: ymd(cursor), label: labelDdMmm(cursor) });
+            const nextC = new Date(cursor);
+            nextC.setDate(nextC.getDate() + (bucketBy === 'week' ? 7 : 1));
+            cursor = nextC;
+        }
+
+        // Ambil SEMUA lead di periode+CS (tanpa filter status) — perlu untuk
+        // hitung closing rate per sumber (won / total valid, lepas dari filter status).
+        // Box & chart pcs/value tetap dibatasi statusFilter di loop di bawah.
+        const statusSet = new Set(statusFilter);
+        const leads: any[] = await this.lead.findMany({
+            where: {
+                ...branchScope,
+                createdAt: { gte: start, lte: end },
+                ...(opts.csId ? { assignedToId: opts.csId } : {}),
+            },
+            select: {
+                createdAt: true, status: true, source: true, sourceDetail: true,
+                estimatedValue: true, convertedTransactionId: true,
+            },
+        });
+
+        // pcs hanya untuk lead CLOSED_WON yang punya transaksi (dan Closing dipilih)
+        const wonTxIds = statusSet.has('CLOSED_WON')
+            ? leads.filter(l => l.status === 'CLOSED_WON' && l.convertedTransactionId).map(l => Number(l.convertedTransactionId))
+            : [];
+        const txPcsMap = new Map<number, number>();
+        if (wonTxIds.length > 0) {
+            const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
+                by: ['transactionId'],
+                where: { transactionId: { in: wonTxIds } },
+                _sum: { quantity: true },
+            });
+            for (const g of groups) txPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
+        }
+
+        // Key sumber: pakai sourceDetail untuk MARKETPLACE/CUSTOM/OTHER (mis. Shopee, Lazada),
+        // selain itu pakai enum source (mis. WHATSAPP, REPEAT_ORDER).
+        const sourceKey = (source: string, detail: string | null): string => {
+            if ((source === 'MARKETPLACE' || source === 'CUSTOM' || source === 'OTHER') && detail?.trim()) {
+                return detail.trim();
+            }
+            return source;
+        };
+
+        const sourceTotals = new Map<string, { pcs: number; value: number }>();
+        const pcsByBucket = new Map<string, Map<string, number>>();
+        const valueByBucket = new Map<string, Map<string, number>>();
+        // Closing rate per sumber: won / total valid (INVALID dikecualikan dari denominator,
+        // karena lead invalid = salah target, bukan peluang nyata). Lepas dari filter status.
+        const rateBySource = new Map<string, { won: number; valid: number }>();
+
+        for (const l of leads) {
+            const key = sourceKey(l.source, l.sourceDetail);
+
+            // Closing rate dihitung dari SEMUA lead (kecuali INVALID di denominator)
+            if (l.status !== 'INVALID') {
+                const r = rateBySource.get(key) || { won: 0, valid: 0 };
+                r.valid++;
+                if (l.status === 'CLOSED_WON') r.won++;
+                rateBySource.set(key, r);
+            }
+
+            // Box & chart pcs/value: hanya lead yang lolos filter status
+            if (!statusSet.has(l.status)) continue;
+
+            const bk = ymd(bucketStart(new Date(l.createdAt)));
+            const pcs = (l.status === 'CLOSED_WON' && l.convertedTransactionId)
+                ? (txPcsMap.get(Number(l.convertedTransactionId)) ?? 0)
+                : 0;
+            const value = Number(l.estimatedValue) || 0;
+
+            const st = sourceTotals.get(key) || { pcs: 0, value: 0 };
+            st.pcs += pcs; st.value += value;
+            sourceTotals.set(key, st);
+
+            if (!pcsByBucket.has(bk)) pcsByBucket.set(bk, new Map());
+            const pb = pcsByBucket.get(bk)!;
+            pb.set(key, (pb.get(key) || 0) + pcs);
+
+            if (!valueByBucket.has(bk)) valueByBucket.set(bk, new Map());
+            const vb = valueByBucket.get(bk)!;
+            vb.set(key, (vb.get(key) || 0) + value);
+        }
+
+        const sources = Array.from(sourceTotals.entries())
+            .map(([key, t]) => ({ key, pcs: t.pcs, value: t.value }))
+            .sort((a, b) => b.value - a.value || b.pcs - a.pcs);
+        const sourceKeys = sources.map(s => s.key);
+
+        // Distribusi closing rate per sumber — urut dari rate tertinggi
+        const closingRateBySource = Array.from(rateBySource.entries())
+            .map(([key, r]) => ({
+                key,
+                closedWon: r.won,
+                leadsValid: r.valid,
+                rate: r.valid > 0 ? r.won / r.valid : 0,
+            }))
+            .sort((a, b) => b.rate - a.rate || b.leadsValid - a.leadsValid);
+
+        const buildData = (byBucket: Map<string, Map<string, number>>) =>
+            buckets.map(({ key, label }) => {
+                const row: any = { bucket: key, label };
+                for (const s of sourceKeys) row[s] = 0;
+                const m = byBucket.get(key);
+                if (m) for (const [k, v] of m.entries()) row[k] = v;
+                return row;
+            });
+
+        return {
+            period: { start: start.toISOString(), end: end.toISOString() },
+            bucketBy,
+            statuses: statusFilter,
+            sources,                       // kotak: { key, pcs, value }
+            closingRateBySource,           // distribusi closing rate per sumber (lepas filter status)
+            pcs: { data: buildData(pcsByBucket) },
+            value: { data: buildData(valueByBucket) },
+        };
     }
 
     private async _report(ctx: BranchContext, params: KpiParams) {
@@ -94,6 +442,7 @@ export class KpiService {
         const totalLeads = leadsInPeriod.length;
         const closedWon = leadsInPeriod.filter(l => l.status === 'CLOSED_WON').length;
         const closedLost = leadsInPeriod.filter(l => l.status === 'CLOSED_LOST').length;
+        const totalInvalid = leadsInPeriod.filter(l => l.status === 'INVALID').length;
         const closingRate = totalLeads > 0 ? closedWon / totalLeads : 0;
 
         // Nilai estimasi yang lost & yang won (berdasarkan estimatedValue lead)
@@ -122,6 +471,20 @@ export class KpiService {
             for (const t of txs) {
                 const outstanding = Number(t.grandTotal) - Number(t.downPayment);
                 txPendingMap.set(t.id, Math.max(0, outstanding));
+            }
+        }
+
+        // Total pcs (jumlah barang) per transaksi — sumber tracking jumlah orderan
+        // (jersey maupun produk lain). Dijumlahkan dari quantity tiap TransactionItem.
+        const txPcsMap = new Map<number, number>(); // txId → total pcs
+        if (convertedTxIds.length > 0) {
+            const itemGroups: any[] = await (this.prisma as any).transactionItem.groupBy({
+                by: ['transactionId'],
+                where: { transactionId: { in: convertedTxIds } },
+                _sum: { quantity: true },
+            });
+            for (const g of itemGroups) {
+                txPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
             }
         }
 
@@ -190,19 +553,25 @@ export class KpiService {
 
         // ── Leaderboard CS ────────────────────────────────────────────────
         // GROUP BY assignedToId untuk leadsInPeriod + match closed
-        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; dealsLost: number; wonValue: number; lostValue: number; pendingValue: number; respSum: number; respCount: number }>();
+        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; dealsLost: number; invalidLeads: number; pcsOrdered: number; wonValue: number; lostValue: number; pendingValue: number; respSum: number; respCount: number }>();
         for (const l of leadsInPeriod) {
             if (!l.assignedToId) continue;
-            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, dealsLost: 0, wonValue: 0, lostValue: 0, pendingValue: 0, respSum: 0, respCount: 0 };
+            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, dealsLost: 0, invalidLeads: 0, pcsOrdered: 0, wonValue: 0, lostValue: 0, pendingValue: 0, respSum: 0, respCount: 0 };
             entry.leadsHandled++;
             if (l.status === 'CLOSED_WON') {
                 entry.dealsClosed++;
                 entry.wonValue += Number(l.estimatedValue) || 0;
                 entry.pendingValue += leadPendingMap.get(l.id) ?? 0;
+                if (l.convertedTransactionId) {
+                    entry.pcsOrdered += txPcsMap.get(Number(l.convertedTransactionId)) ?? 0;
+                }
             }
             if (l.status === 'CLOSED_LOST') {
                 entry.dealsLost++;
                 entry.lostValue += Number(l.estimatedValue) || 0;
+            }
+            if (l.status === 'INVALID') {
+                entry.invalidLeads++;
             }
             const first = firstActMap.get(l.id);
             if (first) {
@@ -226,6 +595,8 @@ export class KpiService {
                     leadsHandled: stat.leadsHandled,
                     dealsClosed: stat.dealsClosed,
                     dealsLost: stat.dealsLost,
+                    invalidLeads: stat.invalidLeads,
+                    pcsOrdered: stat.pcsOrdered,
                     wonValue: stat.wonValue,
                     lostValue: stat.lostValue,
                     pendingValue: stat.pendingValue,
@@ -243,6 +614,8 @@ export class KpiService {
                 totalLeads,
                 closedWon,
                 closedLost,
+                totalInvalid,
+                totalPcs: Array.from(txPcsMap.values()).reduce((s, n) => s + n, 0),
                 wonValue,
                 lostValue,
                 pendingValue: totalPendingValue,

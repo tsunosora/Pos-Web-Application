@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
-    addLeadActivity, convertLead, closeLeadLost,
+    addLeadActivity, convertLead, closeLeadLost, markLeadInvalid,
     getMessageTemplates, renderTemplate,
     uploadLeadImage, resolveLeadImageUrl, lookupCustomerByPhone, type CustomerLookupResult,
     type Lead, type LeadItem, type LeadStatus, type LeadSource, type LeadLevel, type MessageTemplate,
@@ -33,6 +33,7 @@ const STATUS_TABS: { value: LeadStatus | "ALL"; label: string; color: string }[]
     { value: "NEGOTIATION", label: "Negosiasi", color: "bg-purple-100 text-purple-700" },
     { value: "CLOSED_WON", label: "Closing", color: "bg-emerald-100 text-emerald-700" },
     { value: "CLOSED_LOST", label: "Lost", color: "bg-red-100 text-red-700" },
+    { value: "INVALID", label: "Invalid", color: "bg-orange-100 text-orange-700" },
 ];
 
 const SOURCE_OPTIONS: LeadSource[] = [
@@ -956,6 +957,8 @@ function LeadDetailDrawer({
     const [activityKind, setActivityKind] = useState("NOTE");
     const [showConvert, setShowConvert] = useState(false);
     const [showCloseLost, setShowCloseLost] = useState(false);
+    const [showMarkInvalid, setShowMarkInvalid] = useState(false);
+    const [invalidReason, setInvalidReason] = useState("");
     const [showTemplate, setShowTemplate] = useState(false);
     const [closeLostReason, setCloseLostReason] = useState("");
 
@@ -1020,6 +1023,11 @@ function LeadDetailDrawer({
         onSuccess: () => { invalidate(); setShowCloseLost(false); setCloseLostReason(""); },
     });
 
+    const markInvalidMut = useMutation({
+        mutationFn: () => markLeadInvalid(leadId, invalidReason.trim() || undefined),
+        onSuccess: () => { invalidate(); setShowMarkInvalid(false); setInvalidReason(""); },
+    });
+
     if (!leadDetail) {
         return (
             <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center">
@@ -1029,8 +1037,9 @@ function LeadDetailDrawer({
     }
 
     const lead2 = leadDetail;
-    const isLost = lead2.status === "CLOSED_LOST";
-    const isWon  = lead2.status === "CLOSED_WON";
+    const isLost    = lead2.status === "CLOSED_LOST";
+    const isWon     = lead2.status === "CLOSED_WON";
+    const isInvalid = lead2.status === "INVALID";
 
     return (
         <div className="fixed inset-0 bg-black/40 z-[200] flex justify-end" onClick={onClose}>
@@ -1269,13 +1278,22 @@ function LeadDetailDrawer({
                                 </button>
                             )
                         )}
-                        {/* Close Lost — hanya kalau belum closing/lost */}
-                        {!isWon && !isLost && (
+                        {/* Close Lost — hanya kalau belum terminal */}
+                        {!isWon && !isLost && !isInvalid && (
                             <button
                                 onClick={() => setShowCloseLost(true)}
                                 className="px-3 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 flex items-center gap-1"
                             >
                                 <XCircle className="h-4 w-4" /> Close Lost
+                            </button>
+                        )}
+                        {/* Tandai Invalid — hanya kalau belum terminal */}
+                        {!isWon && !isLost && !isInvalid && (
+                            <button
+                                onClick={() => setShowMarkInvalid(true)}
+                                className="px-3 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 flex items-center gap-1"
+                            >
+                                <XCircle className="h-4 w-4" /> Invalid
                             </button>
                         )}
                         {/* Edit — selalu tampil */}
@@ -1382,6 +1400,36 @@ function LeadDetailDrawer({
                     </div>
                 )}
 
+                {showMarkInvalid && (
+                    <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-xl p-5 max-w-md w-full">
+                            <h3 className="font-bold text-lg mb-2 text-orange-700">Tandai Lead Invalid</h3>
+                            <p className="text-sm text-gray-600 mb-3">
+                                Lead ini tidak sesuai target iklan (mis. tanya jersey padahal iklan banner).
+                                Akan dicatat sebagai <strong>Invalid</strong> di leaderboard CS.
+                            </p>
+                            <textarea
+                                rows={3}
+                                value={invalidReason}
+                                onChange={(e) => setInvalidReason(e.target.value)}
+                                placeholder="mis. Tanya harga jersey, iklan kami untuk banner (opsional)"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
+                                autoFocus
+                            />
+                            <div className="flex gap-2">
+                                <button onClick={() => setShowMarkInvalid(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                                <button
+                                    onClick={() => markInvalidMut.mutate()}
+                                    disabled={markInvalidMut.isPending}
+                                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                                >
+                                    {markInvalidMut.isPending ? "..." : "Tandai Invalid"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {showTemplate && (
                     <TemplateCopyModal
                         leadId={lead2.id}
@@ -1416,6 +1464,7 @@ function ActivityItem({ activity }: { activity: any }) {
         PROPOSAL_SENT: "📄",
         CONVERTED: "✅",
         CLOSED_LOST: "❌",
+        INVALID: "🚫",
         FOLLOW_UP_DONE: "✔️",
         AFTER_SALES_SCHEDULED: "📦",
     };
@@ -1462,6 +1511,7 @@ function ConvertModal({
     const [createCustomer, setCreateCustomer] = useState(true);
     const [notes, setNotes] = useState(lead.needs ?? "");
     const [designerName, setDesignerName] = useState("");
+    const [isExpress, setIsExpress] = useState(false);
 
     // ── Customer picker (when createCustomer=false) ──────────────────────
     const [existingCustomerId, setExistingCustomerId] = useState<number | null>(null);
@@ -1669,7 +1719,27 @@ function ConvertModal({
                         )}
                     </div>
 
-                    {/* 5. Pembayaran */}
+                    {/* 5. Express order */}
+                    <button
+                        type="button"
+                        onClick={() => setIsExpress(v => !v)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 transition-colors text-left ${
+                            isExpress
+                                ? "border-orange-400 bg-orange-50 text-orange-700"
+                                : "border-gray-200 bg-white text-gray-600 hover:border-orange-300"
+                        }`}
+                    >
+                        <span className={`text-lg ${isExpress ? "" : "grayscale opacity-50"}`}>⚡</span>
+                        <div>
+                            <div className="text-sm font-semibold">Order Express</div>
+                            <div className="text-[11px] opacity-70">Tandai sebagai order yang harus didahulukan di pipeline desain</div>
+                        </div>
+                        <div className={`ml-auto w-9 h-5 rounded-full flex items-center transition-colors ${isExpress ? "bg-orange-400" : "bg-gray-300"}`}>
+                            <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform mx-0.5 ${isExpress ? "translate-x-4" : "translate-x-0"}`} />
+                        </div>
+                    </button>
+
+                    {/* 6. Pembayaran */}
                     <div className="border-2 border-blue-200 bg-blue-50/50 rounded-lg p-3 space-y-3">
                         <div>
                             <div className="font-semibold text-sm mb-0.5">💳 Pembayaran</div>
@@ -1810,6 +1880,7 @@ function ConvertModal({
                             createInvoiceDraft: false,
                             notes: notes || undefined,
                             designerName: designerName || undefined,
+                            isExpress: isExpress || undefined,
                             createProductionTransaction: true,
                             paymentMode,
                             paymentMethod: paymentMode !== 'NONE' ? paymentMethod : undefined,
