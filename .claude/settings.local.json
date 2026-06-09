@@ -95,7 +95,25 @@
       "PowerShell(\"---\")",
       "Bash(taskkill /F /IM node.exe)",
       "Bash(cmd //c \"dir D:\\\\FAISAL\\\\appdev\\\\comprehensive-pos-web-application\\\\*.md /b 2>nul\")",
-      "Bash(rm tscheck.log)"
+      "Bash(rm tscheck.log)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__lean-ctx__ctx_outline",
+      "WebFetch(domain:api.github.com)",
+      "Bash(cmd //c \"npx prisma db pull --print\")",
+      "Bash(cmd //c \"curl -s http://localhost:3001/auth/me -H \\\\\"Authorization: Bearer $\\(echo\\)\\\\\"\")",
+      "Bash(cmd //c \"type D:\\\\\\\\FAISAL\\\\\\\\appdev\\\\\\\\comprehensive-pos-web-application\\\\\\\\docs\\\\\\\\wiki\\\\\\\\backup.md\")",
+      "Bash(findstr /R \"^# ^## version\")",
+      "PowerShell(claude mcp *)",
+      "Bash(cmd //c \"git diff frontend/src/app/crm/leads/page.tsx --stat && echo --- && git diff frontend/src/app/crm/leads/page.tsx | findstr /R \\\\\"^@@\\\\\"\")",
+      "Bash(git push *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(cmd //c \"powershell -command \\\\\"\\(Get-Item 'backend\\\\node_modules\\\\.prisma\\\\client\\\\index.d.ts'\\).LastWriteTime; \\(Get-Item 'backend\\\\prisma\\\\schema.prisma'\\).LastWriteTime\\\\\"\")",
+      "Bash(cmd //c \"curl -s http://localhost:3001/print-queue/jobs?status=SELESAI&branchId=1\")",
+      "Bash(cmd //c \"tasklist | findstr /I node\")",
+      "Bash(cd /d/FAISAL/appdev/comprehensive-pos-web-application/frontend && grep -rn \"productVariant\\\\.product\\\\|productVariant\\\\.variantName\" src/app/print-queue/ 2>/dev/null | grep -v \"?\\\\.\" | head)",
+      "Bash(cmd //c \"curl -s -X POST http://localhost:3001/work-orders -H \\\\\"Content-Type: application/json\\\\\" -d \\\\\"{\\\\\\\\\\\\\"productionJobId\\\\\\\\\\\\\":999999}\\\\\"\")",
+      "Bash(cd /d/FAISAL/appdev/comprehensive-pos-web-application && grep -n \"import { useEffect\" frontend/src/components/produksi/WorkOrderModal.tsx)"
     ]
   }
 }

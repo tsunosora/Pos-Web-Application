@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { DiscordService } from '../discord/discord.service';
 
 export type PrintJobStatus = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL';
 
 @Injectable()
 export class PrintQueueService {
-    constructor(private prisma: PrismaService) {}
+    constructor(
+        private prisma: PrismaService,
+        private discord: DiscordService,
+    ) {}
 
     private jobInclude() {
         return {
@@ -76,11 +80,37 @@ export class PrintQueueService {
                 { transaction: { customerName: { contains: q } } },
             ];
         }
-        const jobs = await (this.prisma as any).printJob.findMany({
+        // Ambil scalar dulu TANPA include relasi: kalau ada job yatim (transaksi /
+        // item-nya sudah terhapus), `include` relasi wajib bikin Prisma throw
+        // ("Field transaction is required ... got null"). Relasi di-join manual
+        // di bawah supaya yatim cukup di-skip, bukan men-crash seluruh antrian.
+        const rows: any[] = await (this.prisma as any).printJob.findMany({
             where,
-            include: this.jobInclude(),
             orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
         });
+
+        const inc = this.jobInclude();
+        const txIds = Array.from(new Set(rows.map(r => r.transactionId).filter(Boolean)));
+        const itemIds = Array.from(new Set(rows.map(r => r.transactionItemId).filter(Boolean)));
+        const [txs, items] = await Promise.all([
+            txIds.length
+                ? this.prisma.transaction.findMany({ where: { id: { in: txIds } }, select: inc.transaction.select })
+                : Promise.resolve([]),
+            itemIds.length
+                ? (this.prisma as any).transactionItem.findMany({ where: { id: { in: itemIds } }, select: inc.transactionItem.select })
+                : Promise.resolve([]),
+        ]);
+        const txMap = new Map((txs as any[]).map(t => [t.id, t]));
+        const itemMap = new Map((items as any[]).map(it => [it.id, it]));
+
+        const jobs = rows
+            .map(r => ({
+                ...r,
+                transaction: txMap.get(r.transactionId) ?? null,
+                transactionItem: itemMap.get(r.transactionItemId) ?? null,
+            }))
+            .filter(j => j.transaction); // skip job yatim (transaksi sudah terhapus)
+
         return this.filterPendingTitipan(jobs);
     }
 
@@ -136,11 +166,22 @@ export class PrintQueueService {
     async finishJob(id: number, operatorName?: string) {
         const job = await this.getJob(id);
         if (job.status !== 'PROSES') throw new BadRequestException('Job tidak dalam status PROSES');
-        return (this.prisma as any).printJob.update({
+        const updated = await (this.prisma as any).printJob.update({
             where: { id },
             data: { status: 'SELESAI', finishedAt: new Date(), operatorName: operatorName || job.operatorName },
             include: this.jobInclude(),
         });
+        // Notifikasi Discord: pesanan selesai dicetak → siap diambil (channel #produksi)
+        const tx = updated.transaction;
+        const branchLabel = tx?.branch
+            ? (tx.branch.code ? `[${tx.branch.code}] ${tx.branch.name}` : tx.branch.name)
+            : undefined;
+        this.discord.notifyJobReady({
+            jobNumber: updated.jobNumber,
+            customerName: tx?.customerName ?? undefined,
+            branchLabel,
+        });
+        return updated;
     }
 
     async pickupJob(id: number) {

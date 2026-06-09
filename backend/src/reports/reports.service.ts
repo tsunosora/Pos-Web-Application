@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DiscordService } from '../discord/discord.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
@@ -14,6 +15,7 @@ export class ReportsService {
         private readonly prisma: PrismaService,
         private readonly whatsappService: WhatsappService,
         private readonly notificationsService: NotificationsService,
+        private readonly discord: DiscordService,
     ) { }
 
     async getStaffList() {
@@ -446,6 +448,18 @@ export class ReportsService {
             ].filter(Boolean).join('\n');
             this.notificationsService.sendToDiscord(discordUrl, discordMsg).catch(() => { });
         }
+
+        // Notifikasi Discord via sistem multi-channel baru (channel #keuangan)
+        this.discord.notifyShiftRecap({
+            shiftName: dto.shiftName || undefined,
+            cashierName: dto.adminName || undefined,
+            branchLabel: (settings as any)?.storeName || undefined,
+            omzet: dto.actualCash + dto.actualQris + dto.actualTransfer,
+            cash: dto.actualCash,
+            qris: dto.actualQris,
+            transfer: dto.actualTransfer,
+            notes: dto.notes || undefined,
+        });
 
         return { success: true, message: 'Shift closed successfully.', data: shift };
     }

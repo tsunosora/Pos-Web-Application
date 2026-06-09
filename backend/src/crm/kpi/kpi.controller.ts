@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
@@ -71,6 +71,21 @@ export class KpiController {
         @Query('end') end?: string,
     ) {
         return this.kpi.designerTrend(ctx, { period: (period as KpiPeriod) || 'month', start, end });
+    }
+
+    /** Kirim pengumuman juara leaderboard ke Discord (manual / dipanggil terjadwal). */
+    @Post('discord-recap')
+    discordRecap(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+    ) {
+        return this.kpi.sendChampionRecap(ctx, {
+            period: (period as KpiPeriod) || 'week',
+            start,
+            end,
+        });
     }
 
     @Get('source-breakdown')

@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BackupService } from './backup.service';
+import { DiscordService } from '../discord/discord.service';
 import { CronJob } from 'cron';
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -20,6 +21,7 @@ export class RcloneService implements OnModuleInit {
         private readonly prisma: PrismaService,
         private readonly backupService: BackupService,
         private readonly schedulerRegistry: SchedulerRegistry,
+        private readonly discord: DiscordService,
     ) {}
 
     async onModuleInit() {
@@ -127,10 +129,12 @@ export class RcloneService implements OnModuleInit {
                 data: { rcloneLastBackupAt: now, rcloneLastStatus: statusMsg } as any,
             });
 
+            this.discord.notifyBackup({ ok: true, detail: statusMsg });
             return { success: true, message: statusMsg, filename };
         } catch (err: any) {
             const msg: string = err?.message ?? String(err);
             this.logger.error('Backup gagal:', msg);
+            this.discord.notifyBackup({ ok: false, detail: msg.slice(0, 400) });
             if (settings) {
                 await this.prisma.storeSettings.update({
                     where: { id: settings.id },

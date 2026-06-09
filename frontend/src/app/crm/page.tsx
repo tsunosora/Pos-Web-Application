@@ -76,7 +76,7 @@ export default function CrmDashboardPage() {
             case "cs":   return rows.sort((a, b) => a.name.localeCompare(b.name));
             case "lead": return rows.sort((a, b) => b.leadsHandled - a.leadsHandled);
             case "rate": return rows.sort((a, b) => b.closingRate - a.closingRate);
-            case "uang": return rows.sort((a, b) => b.wonValue - a.wonValue);
+            case "uang": return rows.sort((a, b) => (b.wonValue + b.walkinValue) - (a.wonValue + a.walkinValue));
             default:     return rows;
         }
     }, [data, leaderboardSort]);
@@ -296,7 +296,7 @@ export default function CrmDashboardPage() {
                         </div>
                         {data.leaderboard.length === 0 ? (
                             <p className="text-sm text-gray-500 text-center py-6">
-                                Belum ada lead yang ter-assign ke user di periode ini.
+                                Belum ada lead ter-assign maupun transaksi POS yang ditangani CS di periode ini.
                             </p>
                         ) : (
                             <div className="overflow-x-auto">
@@ -307,11 +307,14 @@ export default function CrmDashboardPage() {
                                             <th className="text-left py-2 px-2">Nama CS</th>
                                             <th className="text-right py-2 px-2">Leads</th>
                                             <th className="text-right py-2 px-2">Closing</th>
-                                            <th className="text-right py-2 px-2 text-blue-600">Pcs Order</th>
+                                            <th className="text-right py-2 px-2 text-blue-600">Pcs Lead</th>
+                                            <th className="text-right py-2 px-2 text-amber-600" title="Jumlah barang dari transaksi POS walk-in (non-lead) yang ditangani CS">Pcs WO</th>
+                                            <th className="text-right py-2 px-2 text-amber-600" title="Jumlah transaksi POS walk-in (non-lead) yang ditangani CS">Trx WO</th>
                                             <th className="text-right py-2 px-2">Lost</th>
                                             <th className="text-right py-2 px-2 text-orange-600">Invalid</th>
                                             <th className="text-right py-2 px-2">Rate</th>
                                             <th className="text-right py-2 px-2">Nilai WON</th>
+                                            <th className="text-right py-2 px-2 text-amber-600" title="Omzet (grandTotal) dari transaksi POS walk-in (non-lead) yang ditangani CS">Omzet WO</th>
                                             <th className="text-right py-2 px-2">Nilai Akan Datang</th>
                                             <th className="text-right py-2 px-2">Nilai Lost</th>
                                             <th className="text-right py-2 px-2">Avg Response</th>
@@ -346,6 +349,12 @@ export default function CrmDashboardPage() {
                                                 <td className="py-2 px-2 text-right font-mono text-blue-600 font-semibold">
                                                     {row.pcsOrdered > 0 ? `${row.pcsOrdered.toLocaleString('id-ID')} pcs` : <span className="text-gray-300">—</span>}
                                                 </td>
+                                                <td className="py-2 px-2 text-right font-mono text-amber-600 font-semibold">
+                                                    {row.walkinPcs > 0 ? `${row.walkinPcs.toLocaleString('id-ID')} pcs` : <span className="text-gray-300">—</span>}
+                                                </td>
+                                                <td className="py-2 px-2 text-right font-mono text-amber-600">
+                                                    {row.walkinTx > 0 ? row.walkinTx.toLocaleString('id-ID') : <span className="text-gray-300">—</span>}
+                                                </td>
                                                 <td className="py-2 px-2 text-right font-mono text-red-600">{row.dealsLost}</td>
                                                 <td className="py-2 px-2 text-right font-mono text-orange-600">
                                                     {row.invalidLeads > 0 ? row.invalidLeads : <span className="text-gray-300">—</span>}
@@ -356,6 +365,11 @@ export default function CrmDashboardPage() {
                                                 <td className="py-2 px-2 text-right font-mono text-emerald-700">
                                                     {row.wonValue > 0
                                                         ? `Rp ${row.wonValue.toLocaleString('id-ID')}`
+                                                        : <span className="text-gray-300">—</span>}
+                                                </td>
+                                                <td className="py-2 px-2 text-right font-mono text-amber-600 font-semibold">
+                                                    {row.walkinValue > 0
+                                                        ? `Rp ${row.walkinValue.toLocaleString('id-ID')}`
                                                         : <span className="text-gray-300">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-amber-600">
@@ -980,6 +994,7 @@ function DesignerLeaderboard({
                                 <th className="text-left py-2 px-2">#</th>
                                 <th className="text-left py-2 px-2">Designer</th>
                                 <th className="text-right py-2 px-2">Assignment</th>
+                                <th className="text-right py-2 px-2 text-cyan-600">SO Dibuat</th>
                                 <th className="text-right py-2 px-2 text-emerald-600">ACC</th>
                                 <th className="text-right py-2 px-2">ACC Rate</th>
                                 <th className="text-right py-2 px-2 text-slate-500">Masih Desain</th>
@@ -1013,6 +1028,7 @@ function DesignerLeaderboard({
                                         </div>
                                     </td>
                                     <td className="py-2 px-2 text-right font-mono text-gray-600">{row.assignment}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-cyan-600">{row.soCreated > 0 ? row.soCreated : <span className="text-gray-300">—</span>}</td>
                                     <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.acc}</td>
                                     <td className="py-2 px-2 text-right font-mono">{(row.accRate * 100).toFixed(0)}%</td>
                                     <td className="py-2 px-2 text-right font-mono text-slate-500">{row.wip > 0 ? row.wip : <span className="text-gray-300">—</span>}</td>
@@ -1029,6 +1045,7 @@ function DesignerLeaderboard({
                             <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-xs">
                                 <td colSpan={2} className="py-2 px-2 text-gray-500">Total</td>
                                 <td className="py-2 px-2 text-right font-mono">{data?.totals.assignment ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-cyan-600">{data?.totals.soCreated ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-emerald-700">{data?.totals.acc ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
                                 <td className="py-2 px-2 text-right font-mono text-slate-500">{data?.totals.wip ?? 0}</td>
@@ -1062,6 +1079,7 @@ const CS_CHART_METRICS: ChartMetric[] = [
 
 const DESIGNER_CHART_METRICS: ChartMetric[] = [
     { key: "assignment", label: "Assignment", fmt: "num" },
+    { key: "soCreated", label: "SO Dibuat", fmt: "num" },
     { key: "acc", label: "ACC", fmt: "num" },
     { key: "wip", label: "Masih Desain", fmt: "num" },
     { key: "retur", label: "Retur", fmt: "num" },

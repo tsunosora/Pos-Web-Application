@@ -6,6 +6,7 @@ import { getBranchSettings } from '@/lib/api/settings';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock, CalendarRange, Clock, Send, Building2 } from "lucide-react";
 import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
+import { ProductImageFill } from "@/components/ui/ProductImageFill";
 import { useCartStore, CartItem } from '@/store/cart-store';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -710,12 +711,12 @@ function POSPageContent() {
                                                 </div>
                                             )}
 
-                                            <div className="aspect-square bg-muted/50 rounded-lg mb-2 sm:mb-3 flex items-center justify-center overflow-hidden border border-border group-hover:bg-primary/10 transition-colors">
-                                                {imgSrc
-                                                    ? <img src={`${API_BASE}${imgSrc}`} alt={p.name} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                                                    : <span className="text-3xl sm:text-4xl text-primary/50 font-bold">{p.name.charAt(0)}</span>
-                                                }
-                                            </div>
+                                            <ProductImageFill
+                                                src={imgSrc ? `${API_BASE}${imgSrc}` : null}
+                                                alt={p.name}
+                                                className="aspect-square rounded-lg mb-2 sm:mb-3 border border-border"
+                                                fallback={<span className="text-3xl sm:text-4xl text-primary/50 font-bold">{p.name.charAt(0)}</span>}
+                                            />
                                             <p className="font-semibold text-xs sm:text-sm text-foreground line-clamp-2 leading-tight">{p.name}{v.variantName ? ` — ${v.variantName}` : (v.size ? ` (${v.size})` : '')}</p>
                                             <p className="text-[10px] sm:text-xs text-muted-foreground truncate mb-1 mt-0.5">{v.sku}</p>
                                             <div className="flex items-center justify-between gap-1">

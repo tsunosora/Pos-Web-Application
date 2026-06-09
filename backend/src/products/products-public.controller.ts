@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ProductsService } from './products.service';
 
 @Controller('products/public')
@@ -7,7 +7,14 @@ export class ProductsPublicController {
 
     @Get()
     findAllPublic() {
-        return this.productsService.findAll();
+        return this.productsService.findAllPublicSafe();
+    }
+
+    /** Produk terlaris (paling banyak diorder) — untuk blok landing. */
+    @Get('best-sellers')
+    bestSellers(@Query('limit') limit?: string) {
+        const n = limit ? parseInt(limit, 10) : 10;
+        return this.productsService.bestSellers(Number.isFinite(n) ? n : 10);
     }
 
     @Get(':id')

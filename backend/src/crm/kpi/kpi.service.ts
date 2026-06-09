@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere } from '../../common/branch-where.helper';
 import type { BranchContext } from '../../common/branch-context.decorator';
+import { DiscordService } from '../../discord/discord.service';
 
 export type KpiPeriod = 'today' | 'week' | 'month' | 'custom';
 
@@ -63,7 +64,42 @@ function resolvePeriod(p: KpiParams): { start: Date; end: Date } {
 
 @Injectable()
 export class KpiService {
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly discord: DiscordService,
+    ) {}
+
+    private periodLabel(p: KpiParams): string {
+        if (p.period === 'today') return 'Hari Ini';
+        if (p.period === 'week') return 'Minggu Ini';
+        if (p.period === 'month') return 'Bulan Ini';
+        return 'Periode';
+    }
+
+    /**
+     * Hitung leaderboard lalu kirim pengumuman juara (gamifikasi) ke Discord
+     * channel #leaderboard. Sultan Cuan = omzet (lead + walk-in), Raja Lead =
+     * lead terbanyak, Sniper Closing = closing rate tertinggi (min 3 lead).
+     */
+    async sendChampionRecap(ctx: BranchContext, params: KpiParams) {
+        const rep = await this.report(ctx, params);
+        const lb = rep.leaderboard as any[];
+        const rp = (n: number) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
+        if (!lb.length) {
+            await this.discord.notifyChampion({ period: this.periodLabel(params), lines: ['Belum ada aktivitas CS di periode ini.'] });
+            return { sent: true, champions: null };
+        }
+        const byMoney = [...lb].sort((a, b) => (b.wonValue + b.walkinValue) - (a.wonValue + a.walkinValue))[0];
+        const byLead = [...lb].sort((a, b) => b.leadsHandled - a.leadsHandled)[0];
+        const byRate = [...lb].filter(r => r.leadsHandled >= 3).sort((a, b) => b.closingRate - a.closingRate)[0] || null;
+        const lines = [
+            `👑 **Sultan Cuan**: ${byMoney.name} — ${rp(byMoney.wonValue + byMoney.walkinValue)}`,
+            `🔥 **Raja Lead**: ${byLead.name} — ${byLead.leadsHandled} lead`,
+            byRate ? `🎯 **Sniper Closing**: ${byRate.name} — ${(byRate.closingRate * 100).toFixed(0)}%` : null,
+        ].filter(Boolean) as string[];
+        await this.discord.notifyChampion({ period: this.periodLabel(params), lines });
+        return { sent: true };
+    }
 
     private get lead(): any { return (this.prisma as any).lead; }
     private get activity(): any { return (this.prisma as any).leadActivity; }
@@ -462,8 +498,28 @@ export class KpiService {
             byDesigner.set(name, s);
         }
 
-        const leaderboard = Array.from(byDesigner.entries())
-            .map(([name, s]) => {
+        // SO Dibuat: jumlah Sales Order (kecuali CANCELLED) yang dibuat designer di periode.
+        // Menutup celah designer yang kerjanya tidak menghasilkan production job (mis. produk
+        // non-AREA_BASED). Kolom terpisah dari assignment → tidak dobel hitung.
+        // Catatan: SalesOrder tidak punya branchId, jadi tidak di-scope per cabang.
+        const sos: any[] = await (this.prisma as any).salesOrder.findMany({
+            where: { createdAt: { gte: start, lte: end }, status: { not: 'CANCELLED' } },
+            select: { designerName: true },
+        });
+        const soByDesigner = new Map<string, number>();
+        for (const so of sos) {
+            const name = (so.designerName || '').trim();
+            if (!name) continue;
+            soByDesigner.set(name, (soByDesigner.get(name) || 0) + 1);
+        }
+
+        // Union nama: designer dari production job + designer yang hanya punya SO
+        const allNames = new Set<string>([...byDesigner.keys(), ...soByDesigner.keys()]);
+        const ZERO: Stat = { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, designSumMs: 0, designCount: 0 };
+
+        const leaderboard = Array.from(allNames)
+            .map((name) => {
+                const s = byDesigner.get(name) || ZERO;
                 const denom = s.assignment - s.batal;
                 return {
                     name,
@@ -475,10 +531,11 @@ export class KpiService {
                     selesai: s.selesai,
                     batal: s.batal,
                     express: s.express,
+                    soCreated: soByDesigner.get(name) || 0,
                     avgDesignHrs: s.designCount > 0 ? s.designSumMs / s.designCount / 3_600_000 : null,
                 };
             })
-            .sort((a, b) => b.acc - a.acc || b.assignment - a.assignment);
+            .sort((a, b) => b.acc - a.acc || b.assignment - a.assignment || b.soCreated - a.soCreated);
 
         const totals = leaderboard.reduce((t, r) => ({
             assignment: t.assignment + r.assignment,
@@ -488,7 +545,8 @@ export class KpiService {
             selesai: t.selesai + r.selesai,
             batal: t.batal + r.batal,
             express: t.express + r.express,
-        }), { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0 });
+            soCreated: t.soCreated + r.soCreated,
+        }), { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, soCreated: 0 });
 
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
@@ -620,7 +678,7 @@ export class KpiService {
             select: { designerName: true, pipelineStage: true, cancelledAt: true, isExpress: true, createdAt: true },
         });
 
-        const SUM_METRICS = ['assignment', 'acc', 'wip', 'retur', 'selesai', 'batal', 'express'];
+        const SUM_METRICS = ['assignment', 'soCreated', 'acc', 'wip', 'retur', 'selesai', 'batal', 'express'];
         const acc: Record<string, Map<string, Map<string, number>>> = {};
         for (const m of SUM_METRICS) acc[m] = new Map();
         const personTotals = new Map<string, number>();
@@ -647,6 +705,19 @@ export class KpiService {
                 if (DONE.has(stage)) add('selesai', bk, person, 1);
             }
             if (j.isExpress) add('express', bk, person, 1);
+        }
+
+        // SO Dibuat per bucket (kecuali CANCELLED) — SalesOrder tidak punya branchId
+        const sos: any[] = await (this.prisma as any).salesOrder.findMany({
+            where: { createdAt: { gte: start, lte: end }, status: { not: 'CANCELLED' } },
+            select: { designerName: true, createdAt: true },
+        });
+        for (const so of sos) {
+            const person = (so.designerName || '').trim();
+            if (!person) continue;
+            const bk = ymd(bucketStart(new Date(so.createdAt)));
+            add('soCreated', bk, person, 1);
+            if (!personTotals.has(person)) personTotals.set(person, 0);
         }
 
         const persons = Array.from(personTotals.entries()).sort((a, b) => b[1] - a[1]).map(([n]) => n);
@@ -805,11 +876,27 @@ export class KpiService {
         const leadsBySource = Object.entries(bySourceMap).map(([source, count]) => ({ source, count }));
 
         // ── Leaderboard CS ────────────────────────────────────────────────
-        // GROUP BY assignedToId untuk leadsInPeriod + match closed
-        const byAssignee = new Map<number, { leadsHandled: number; dealsClosed: number; dealsLost: number; invalidLeads: number; pcsOrdered: number; wonValue: number; lostValue: number; pendingValue: number; respSum: number; respCount: number }>();
+        // Skor CS digabung dari 2 sumber:
+        //  1. LEAD       — group by assignedToId (closing/lost/invalid + pcs/omzet hasil convert).
+        //  2. POS walk-in — transaksi POS yang ditangani CS (cashierName == user.name) DAN
+        //     TIDAK berasal dari lead (semua convertedTransactionId lead dikecualikan, anti
+        //     dobel-hitung). Transaction tak punya FK user → cocokkan by-name (POS "Kasir/Staff"
+        //     adalah dropdown nama user, jadi pencocokan andal).
+        type CsStat = {
+            leadsHandled: number; dealsClosed: number; dealsLost: number; invalidLeads: number;
+            pcsOrdered: number; wonValue: number; lostValue: number; pendingValue: number;
+            walkinTx: number; walkinPcs: number; walkinValue: number;
+            respSum: number; respCount: number;
+        };
+        const zeroStat = (): CsStat => ({
+            leadsHandled: 0, dealsClosed: 0, dealsLost: 0, invalidLeads: 0,
+            pcsOrdered: 0, wonValue: 0, lostValue: 0, pendingValue: 0,
+            walkinTx: 0, walkinPcs: 0, walkinValue: 0, respSum: 0, respCount: 0,
+        });
+        const byAssignee = new Map<number, CsStat>();
         for (const l of leadsInPeriod) {
             if (!l.assignedToId) continue;
-            const entry = byAssignee.get(l.assignedToId) || { leadsHandled: 0, dealsClosed: 0, dealsLost: 0, invalidLeads: 0, pcsOrdered: 0, wonValue: 0, lostValue: 0, pendingValue: 0, respSum: 0, respCount: 0 };
+            const entry = byAssignee.get(l.assignedToId) || zeroStat();
             entry.leadsHandled++;
             if (l.status === 'CLOSED_WON') {
                 entry.dealsClosed++;
@@ -833,12 +920,62 @@ export class KpiService {
             }
             byAssignee.set(l.assignedToId, entry);
         }
-        const userIds = Array.from(byAssignee.keys());
-        const users: any[] = userIds.length === 0 ? [] : await this.prisma.user.findMany({
-            where: { id: { in: userIds } },
+
+        // ── Kontribusi POS walk-in (non-lead) ──────────────────────────────
+        // Set tx yang berasal dari lead (semua periode, scope cabang) → dikecualikan.
+        const leadTxIds: number[] = (await this.lead.findMany({
+            where: { ...branchScope, convertedTransactionId: { not: null } },
+            select: { convertedTransactionId: true },
+        })).map((l: any) => Number(l.convertedTransactionId));
+        const leadTxSet = new Set<number>(leadTxIds);
+
+        const walkinTxsRaw: any[] = await this.tx.findMany({
+            where: {
+                ...branchScope,
+                status: { not: 'FAILED' },
+                createdAt: { gte: start, lte: end },
+                cashierName: { not: null },
+            },
+            select: { id: true, cashierName: true, grandTotal: true, downPayment: true, status: true },
+        });
+        const walkinTxs = walkinTxsRaw.filter(t => !leadTxSet.has(t.id) && (t.cashierName || '').trim());
+
+        // pcs per transaksi walk-in (jumlah quantity item)
+        const walkinPcsMap = new Map<number, number>();
+        if (walkinTxs.length > 0) {
+            const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
+                by: ['transactionId'],
+                where: { transactionId: { in: walkinTxs.map(t => t.id) } },
+                _sum: { quantity: true },
+            });
+            for (const g of groups) walkinPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
+        }
+
+        // Semua user — untuk match cashierName→userId & resolve nama leaderboard
+        // (CS yang hanya punya walk-in tanpa lead tetap muncul di leaderboard).
+        const allUsers: any[] = await this.prisma.user.findMany({
             select: { id: true, name: true, email: true },
         });
-        const userMap = new Map(users.map(u => [u.id, u]));
+        const userMap = new Map(allUsers.map(u => [u.id, u]));
+        const nameToUser = new Map<string, any>();
+        for (const u of allUsers) {
+            if (u.name) nameToUser.set(u.name.trim().toLowerCase(), u);
+        }
+
+        for (const t of walkinTxs) {
+            const u = nameToUser.get((t.cashierName || '').trim().toLowerCase());
+            if (!u) continue; // cashierName tak cocok user mana pun → abaikan
+            const entry = byAssignee.get(u.id) || zeroStat();
+            entry.walkinTx++;
+            entry.walkinPcs += walkinPcsMap.get(t.id) ?? 0;
+            entry.walkinValue += Number(t.grandTotal) || 0;
+            // Sisa piutang tx PENDING/PARTIAL → Nilai Akan Datang (gabung dgn pending lead)
+            if (t.status === 'PENDING' || t.status === 'PARTIAL') {
+                entry.pendingValue += Math.max(0, Number(t.grandTotal) - Number(t.downPayment));
+            }
+            byAssignee.set(u.id, entry);
+        }
+
         const leaderboard = Array.from(byAssignee.entries())
             .map(([userId, stat]) => {
                 const u = userMap.get(userId);
@@ -853,13 +990,24 @@ export class KpiService {
                     wonValue: stat.wonValue,
                     lostValue: stat.lostValue,
                     pendingValue: stat.pendingValue,
+                    walkinTx: stat.walkinTx,
+                    walkinPcs: stat.walkinPcs,
+                    walkinValue: stat.walkinValue,
                     closingRate: stat.leadsHandled > 0 ? stat.dealsClosed / stat.leadsHandled : 0,
                     avgResponseHrs: stat.respCount > 0
                         ? stat.respSum / stat.respCount / (1000 * 60 * 60)
                         : null,
                 };
             })
-            .sort((a, b) => b.dealsClosed - a.dealsClosed || b.leadsHandled - a.leadsHandled);
+            .sort((a, b) =>
+                b.dealsClosed - a.dealsClosed
+                || b.leadsHandled - a.leadsHandled
+                || b.walkinValue - a.walkinValue);
+
+        const walkinTotals = leaderboard.reduce(
+            (t, r) => ({ tx: t.tx + r.walkinTx, pcs: t.pcs + r.walkinPcs, value: t.value + r.walkinValue }),
+            { tx: 0, pcs: 0, value: 0 },
+        );
 
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
@@ -869,6 +1017,9 @@ export class KpiService {
                 closedLost,
                 totalInvalid,
                 totalPcs: Array.from(txPcsMap.values()).reduce((s, n) => s + n, 0),
+                totalWalkinTx: walkinTotals.tx,
+                totalWalkinPcs: walkinTotals.pcs,
+                totalWalkinValue: walkinTotals.value,
                 wonValue,
                 lostValue,
                 pendingValue: totalPendingValue,

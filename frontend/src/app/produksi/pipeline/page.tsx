@@ -21,6 +21,7 @@ import {
     Upload, FileText, ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
     Share2, Copy, Check, Pen, Zap, Ban,
 } from "lucide-react";
+import { WorkOrderModal } from "@/components/produksi/WorkOrderModal";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -59,6 +60,7 @@ export default function ProduksiPipelinePage() {
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
     const [cancelModal, setCancelModal] = useState<{ job: PipelineJob } | null>(null);
     const [proofViewer, setProofViewer] = useState<{ job: PipelineJob } | null>(null);
+    const [woModalJob, setWoModalJob] = useState<{ id: number; jobNumber: string } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterPriority, setFilterPriority] = useState<string>("ALL");
     const [filterDate, setFilterDate] = useState<"ALL" | "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "OVERDUE">("ALL");
@@ -153,6 +155,10 @@ export default function ProduksiPipelinePage() {
 
     const handleOpenProofViewer = useCallback((job: PipelineJob) => {
         setProofViewer({ job });
+    }, []);
+
+    const handleOpenWO = useCallback((job: PipelineJob) => {
+        setWoModalJob({ id: job.id, jobNumber: job.jobNumber });
     }, []);
 
     const currentProofViewerJob = useMemo(() => {
@@ -435,6 +441,7 @@ export default function ProduksiPipelinePage() {
                             activeJobId={activeJobId}
                             onUploadProof={handleUploadProof}
                             onOpenProofViewer={handleOpenProofViewer}
+                            onOpenWO={handleOpenWO}
                             onDeleteJob={handleDeleteJob}
                             onCancelJob={handleOpenCancel}
                             onToggleExpress={(jobId, val) => stageMut.mutate({ id: jobId, payload: { isExpress: val } })}
@@ -503,6 +510,14 @@ export default function ProduksiPipelinePage() {
                     onDelete={handleDeleteProof}
                     uploading={uploadMut.isPending}
                     deleting={deleteProofMut.isPending}
+                />
+            )}
+
+            {woModalJob && (
+                <WorkOrderModal
+                    jobId={woModalJob.id}
+                    jobNumber={woModalJob.jobNumber}
+                    onClose={() => setWoModalJob(null)}
                 />
             )}
         </div>
@@ -593,13 +608,14 @@ function SharePopover({ onClose }: { onClose: () => void }) {
 // ─── Column ────────────────────────────────────────────────────────────────
 
 const Column = memo(function Column({
-    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
+    stage, jobs, activeJobId, onUploadProof, onOpenProofViewer, onOpenWO, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     stage: PipelineStage;
     jobs: PipelineJob[];
     activeJobId: number | null;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
+    onOpenWO: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
     onCancelJob: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
@@ -628,6 +644,7 @@ const Column = memo(function Column({
                             isActive={activeJobId === job.id}
                             onUploadProof={onUploadProof}
                             onOpenProofViewer={onOpenProofViewer}
+                            onOpenWO={onOpenWO}
                             onDeleteJob={onDeleteJob}
                             onCancelJob={onCancelJob}
                             onToggleExpress={onToggleExpress}
@@ -648,12 +665,13 @@ const Column = memo(function Column({
 // semua JSX berat di-memo secara terpisah dan tidak akan re-render selama drag.
 
 const KanbanCard = memo(function KanbanCard({
-    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onOpenWO, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
+    onOpenWO: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
     onCancelJob: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
@@ -668,6 +686,7 @@ const KanbanCard = memo(function KanbanCard({
                 isActive={isActive}
                 onUploadProof={onUploadProof}
                 onOpenProofViewer={onOpenProofViewer}
+                onOpenWO={onOpenWO}
                 onDeleteJob={onDeleteJob}
                 onCancelJob={onCancelJob}
                 onToggleExpress={onToggleExpress}
@@ -711,12 +730,13 @@ const URGENCY_UPLOAD_BTN: Record<UrgencyLevel, string> = {
 // → zero re-render selama drag. Ini sumber percepatan utama.
 
 const KanbanCardInner = memo(function KanbanCardInner({
-    job, isActive, onUploadProof, onOpenProofViewer, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
+    job, isActive, onUploadProof, onOpenProofViewer, onOpenWO, onDeleteJob, onCancelJob, onToggleExpress, onUpdateDesigner, uploading,
 }: {
     job: PipelineJob;
     isActive: boolean;
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
+    onOpenWO: (job: PipelineJob) => void;
     onDeleteJob: (jobId: number) => void;
     onCancelJob: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
@@ -938,6 +958,18 @@ const KanbanCardInner = memo(function KanbanCardInner({
                 <div className="mt-1.5 pt-1.5 border-t border-red-200 text-[10px] text-red-700 line-clamp-2">
                     📦 {job.returnReason}
                 </div>
+            )}
+
+            {/* Work Order — muncul setelah desain ACC (stage bukan DESIGN). */}
+            {(job.pipelineStage || "DESIGN") !== "DESIGN" && (
+                <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); onOpenWO(job); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="mt-1.5 w-full flex items-center justify-center gap-1 px-2 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded text-[10px] font-semibold transition-colors"
+                >
+                    <FileText className="h-3 w-3" /> Work Order
+                </button>
             )}
         </div>
     );
