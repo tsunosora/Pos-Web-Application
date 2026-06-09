@@ -8,6 +8,7 @@ import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2
 import { EmptyState } from '@/components/ui/responsive-table';
 import { useUIStore, type InventoryViewMode } from '@/store/ui-store';
 import { cn } from '@/lib/utils';
+import { ProductImageFill } from '@/components/ui/ProductImageFill';
 import StockHistoryModal from './StockHistoryModal';
 import PurchaseModal from './PurchaseModal';
 import Link from 'next/link';
@@ -1150,11 +1151,12 @@ export default function InventoryPage() {
                                                 </span>
                                             )}
                                             {/* Image */}
-                                            <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
-                                                {avatarSrc
-                                                    ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform group-hover:scale-105" />
-                                                    : <ImageIcon className="w-10 h-10 text-muted-foreground/30" />}
-                                            </div>
+                                            <ProductImageFill
+                                                src={avatarSrc ? `${API_BASE}${avatarSrc}` : null}
+                                                alt={product.name}
+                                                className="aspect-square"
+                                                fallback={<ImageIcon className="w-10 h-10 text-muted-foreground/30" />}
+                                            />
                                             {/* Body */}
                                             <div className="flex-1 flex flex-col p-3">
                                                 <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">{product.name}</p>
@@ -1248,17 +1250,20 @@ export default function InventoryPage() {
                                         <div key={product.id} className={cn('group flex flex-col sm:flex-row gap-4 rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-primary/40 transition-all', selectedIds.has(product.id) && 'ring-2 ring-destructive/40')}>
                                             {/* Hero image + thumbnails */}
                                             <div className="sm:w-56 shrink-0">
-                                                <div className="aspect-square rounded-lg bg-muted overflow-hidden border border-border relative">
-                                                    {avatarSrc
-                                                        ? <img src={`${API_BASE}${avatarSrc}`} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                                                        : <ImageIcon className="absolute inset-0 m-auto w-12 h-12 text-muted-foreground/30" />}
+                                                <ProductImageFill
+                                                    src={avatarSrc ? `${API_BASE}${avatarSrc}` : null}
+                                                    alt={product.name}
+                                                    className="aspect-square rounded-lg border border-border"
+                                                    hoverZoom={false}
+                                                    fallback={<ImageIcon className="w-12 h-12 text-muted-foreground/30" />}
+                                                >
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedIds.has(product.id)}
                                                         onChange={() => toggleSelect(product.id)}
-                                                        className="absolute top-2 left-2 w-4 h-4 rounded accent-primary"
+                                                        className="absolute top-2 left-2 z-10 w-4 h-4 rounded accent-primary"
                                                     />
-                                                </div>
+                                                </ProductImageFill>
                                                 {allImages.length > 1 && (
                                                     <div className="mt-2 grid grid-cols-4 gap-1">
                                                         {allImages.slice(1, 5).map((img, i) => (

@@ -17,3 +17,7 @@ export * from './api/click-counting';
 export * from './api/designers';
 export * from './api/branch-inbox';
 export * from './api/crm';
+export * from './api/work-orders';
+export * from './api/discord';
+export * from './api/landing';
+export * from './api/articles';

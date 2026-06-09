@@ -145,6 +145,62 @@ export class ProductsService {
         };
     }
 
+    /**
+     * Produk terlaris — ranking berdasarkan total quantity di TransactionItem.
+     * Return produk (shape sama seperti findAll) + `soldQty`, urut terbanyak.
+     * Publik (dipakai blok landing "Produk Unggulan").
+     */
+    async bestSellers(limit = 10) {
+        const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
+            by: ['productVariantId'],
+            where: { productVariantId: { not: null } },
+            _sum: { quantity: true },
+        });
+        if (!groups.length) return [];
+
+        const variantIds = groups.map(g => g.productVariantId).filter(Boolean);
+        const variants = await this.prisma.productVariant.findMany({
+            where: { id: { in: variantIds } },
+            select: { id: true, productId: true },
+        });
+        const vToP = new Map(variants.map(v => [v.id, v.productId]));
+
+        const prodQty = new Map<number, number>();
+        for (const g of groups) {
+            const pid = vToP.get(g.productVariantId);
+            if (!pid) continue;
+            prodQty.set(pid, (prodQty.get(pid) || 0) + Number(g._sum?.quantity || 0));
+        }
+        const topIds = Array.from(prodQty.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, Math.max(1, limit))
+            .map(([id]) => id);
+        if (!topIds.length) return [];
+
+        const all = await this.findAllPublicSafe();
+        const byId = new Map((all as any[]).map(p => [p.id, p]));
+        return topIds
+            .map(id => byId.get(id))
+            .filter(Boolean)
+            .map(p => ({ ...p, soldQty: prodQty.get(p.id) || 0 }));
+    }
+
+    /** Buang field sensitif (hpp/modal) dari varian untuk konsumsi publik. */
+    private sanitizePublic(products: any[]): any[] {
+        return (products || []).map((p) => ({
+            ...p,
+            variants: (p.variants || []).map((v: any) => {
+                const { hpp, aggregateStock, ...rest } = v;
+                return rest;
+            }),
+        }));
+    }
+
+    /** Daftar produk untuk publik (tanpa hpp). */
+    async findAllPublicSafe() {
+        return this.sanitizePublic(await this.findAll());
+    }
+
     async update(id: number, data: any) {
         await this.findOne(id);
         const { variants, ingredients, deletedVariantIds, ...productData } = data;

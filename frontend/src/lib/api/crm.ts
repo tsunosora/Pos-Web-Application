@@ -448,6 +448,10 @@ export interface KpiLeaderboardEntry {
     wonValue: number;
     lostValue: number;
     pendingValue: number;
+    // Kontribusi POS walk-in (non-lead) yang ditangani CS — match by cashierName
+    walkinTx: number;
+    walkinPcs: number;
+    walkinValue: number;
     closingRate: number;
     avgResponseHrs: number | null;
 }
@@ -460,6 +464,9 @@ export interface KpiReport {
         closedLost: number;
         totalInvalid: number;
         totalPcs: number;
+        totalWalkinTx: number;
+        totalWalkinPcs: number;
+        totalWalkinValue: number;
         wonValue: number;
         lostValue: number;
         pendingValue: number;
@@ -541,13 +548,14 @@ export interface DesignerLeaderboardEntry {
     selesai: number;
     batal: number;
     express: number;
+    soCreated: number;
     avgDesignHrs: number | null;
 }
 
 export interface DesignerLeaderboardReport {
     period: { start: string; end: string };
     leaderboard: DesignerLeaderboardEntry[];
-    totals: { assignment: number; acc: number; wip: number; retur: number; selesai: number; batal: number; express: number };
+    totals: { assignment: number; acc: number; wip: number; retur: number; selesai: number; batal: number; express: number; soCreated: number };
 }
 
 export const getDesignerLeaderboard = async (params: {

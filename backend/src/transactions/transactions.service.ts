@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, NotFoundException, ForbiddenException 
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod, TransactionStatus, CashflowType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
+import { DiscordService } from '../discord/discord.service';
 import { BranchContext } from '../common/branch-context.decorator';
 import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 import { branchWhere } from '../common/branch-where.helper';
@@ -31,6 +32,7 @@ export class TransactionsService {
     constructor(
         private prisma: PrismaService,
         private notificationsService: NotificationsService,
+        private discord: DiscordService,
     ) { }
 
     // Helper: buat StockMovement dengan balanceAfter otomatis dari stok variant saat ini (post-update)
@@ -941,6 +943,13 @@ export class TransactionsService {
                         `⚠️ **Stok Hampir Habis**\n${name}: sisa **${variant.stock}** unit`,
                     );
                 }
+                // Notifikasi Discord (channel #stok-gudang) via DiscordService baru
+                this.discord.notifyLowStock({
+                    name,
+                    sku: (variant as any).sku ?? undefined,
+                    stock: variant.stock,
+                    threshold,
+                });
             }
         }
     }

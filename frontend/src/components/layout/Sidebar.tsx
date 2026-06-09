@@ -118,6 +118,14 @@ const SECTIONS: NavSection[] = [
         ],
     },
     {
+        key: 'landing',
+        label: 'Landing Page',
+        items: [
+            { name: "Landing Page", href: "/landing-page", icon: Store },
+            { name: "Artikel", href: "/articles", icon: FileText },
+        ],
+    },
+    {
         key: 'others',
         label: 'Analisa & Kalkulator',
         items: [

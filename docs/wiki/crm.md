@@ -148,9 +148,23 @@ Metrik performa CRM untuk owner monitoring:
 | **FU Compliance** | % follow-up done sebelum due date + 1 hari |
 | **Repeat Order Rate** | % customer yang order ≥2 kali |
 | **Leads by Source** | Pie + bar chart: WA / IG / FB / Marketplace / Referral / dll |
-| **Leaderboard CS** | Ranking per user: leads handled, deals closed, avg response |
+| **Leaderboard CS** | Ranking per user: leads handled, deals closed, pcs/omzet lead, **+ kontribusi POS walk-in** (Pcs WO / Trx WO / Omzet WO), avg response |
 
 Filter periode: hari ini / 7 hari / bulan ini / custom range.
+
+**Skor Leaderboard CS = Lead + POS walk-in.** Selain metrik dari lead (closing,
+pcs/omzet hasil convert), leaderboard juga menghitung transaksi POS langsung yang
+ditangani CS:
+
+- **Pcs WO** — jumlah barang dari transaksi POS walk-in (non-lead).
+- **Trx WO** — jumlah transaksi POS walk-in.
+- **Omzet WO** — total nilai (grandTotal) transaksi POS walk-in.
+
+Atribusi walk-in dicocokkan lewat kolom **Kasir/Staff** di POS (`cashierName`) yang
+sama dengan nama user CS. Transaksi yang berasal dari konversi lead **tidak** dihitung
+lagi sebagai walk-in (anti dobel). Sisa piutang transaksi PENDING/DP walk-in ikut
+masuk ke kolom **Nilai Akan Datang**. CS yang hanya punya penjualan POS (tanpa lead)
+tetap muncul di leaderboard.
 
 ---
 

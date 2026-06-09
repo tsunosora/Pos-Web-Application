@@ -42,8 +42,12 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isPublicProductPage = pathname.startsWith("/p/");
     const isDesignerPortal = pathname.startsWith("/so-designer");
     const isHelpPage = pathname.startsWith("/help");
+    // Builder landing & halaman landing publik: full-screen tanpa chrome dashboard
+    const isLandingBuilder = pathname.startsWith("/landing-builder");
+    const isLandingPublic = pathname === "/landing" || pathname.startsWith("/landing/");
+    const isArtikelPublic = pathname === "/artikel" || pathname.startsWith("/artikel/");
 
-    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage) {
+    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic) {
         return <>{children}</>;
     }
 

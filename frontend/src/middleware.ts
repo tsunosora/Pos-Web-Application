@@ -12,12 +12,30 @@ export function middleware(request: NextRequest) {
         return new NextResponse(null, { status: 404 });
     }
 
+    // Domain custom landing: kalau host == NEXT_PUBLIC_LANDING_DOMAIN, selalu
+    // sajikan halaman /landing (publik, tanpa login). Pointing DNS + reverse
+    // proxy ke app ini diatur di sisi server/hosting.
+    const landingEnv = process.env.NEXT_PUBLIC_LANDING_DOMAIN;
+    const landingHost = landingEnv ? new URL(landingEnv).host : null;
+    if (landingHost && host === landingHost) {
+        // Aset & halaman publik yang boleh diakses langsung di domain landing
+        if (
+            pathname.startsWith('/_next/') || pathname === '/manifest.webmanifest' ||
+            pathname.startsWith('/uploads') || pathname === '/landing' ||
+            pathname === '/artikel' || pathname.startsWith('/artikel/')
+        ) {
+            return NextResponse.next();
+        }
+        // Selain itu (mis. root "/") → sajikan landing
+        return NextResponse.rewrite(new URL('/landing', request.url));
+    }
+
     const token = request.cookies.get('token')?.value;
     const isLoginPage = pathname.startsWith('/login');
     // /produksi (operator PIN page) public, KECUALI /produksi/pipeline (admin kanban → JWT-required).
     // /produksi/board (operator pipeline view) tetap PUBLIC (PIN-protected di sisi backend).
     const isProduksiPublic = pathname.startsWith('/produksi') && !pathname.startsWith('/produksi/pipeline');
-    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer');
+    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname === '/artikel' || pathname.startsWith('/artikel/');
 
     // If there is no token and the user is NOT on the login page (or public paths), redirect to login
     if (!token && !isLoginPage && !isPublicPage) {

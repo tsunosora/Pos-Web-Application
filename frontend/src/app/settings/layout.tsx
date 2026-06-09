@@ -1,6 +1,6 @@
 "use client";
 
-import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, Palette, GitBranch, SlidersHorizontal } from 'lucide-react';
+import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, Palette, GitBranch, SlidersHorizontal, Webhook } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -29,6 +29,7 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: stri
         items: [
             { href: '/settings/whatsapp', icon: MessageCircle, label: 'Bot WhatsApp' },
             { href: '/settings/notifications', icon: Bell, label: 'Notifikasi' },
+            { href: '/settings/discord', icon: Webhook, label: 'Discord' },
             { href: '/settings/backup', icon: HardDrive, label: 'Backup & Recovery' },
         ],
     },

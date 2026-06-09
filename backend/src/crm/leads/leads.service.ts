@@ -5,6 +5,7 @@ import { branchWhere, requireBranch } from '../../common/branch-where.helper';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { CloseLostDto, ConvertLeadDto, CreateActivityDto, CreateLeadDto, LeadItemDto, UpdateLeadDto } from './leads.dto';
 import { TransactionsService } from '../../transactions/transactions.service';
+import { DiscordService } from '../../discord/discord.service';
 
 /** Normalisasi nomor HP untuk dedup: strip non-digit, drop leading 62/0. */
 function normalizePhone(raw: string | null | undefined): string | null {
@@ -20,6 +21,7 @@ export class LeadsService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly transactionsService: TransactionsService,
+        private readonly discord: DiscordService,
     ) {}
 
     private async generateSoNumber(): Promise<string> {
@@ -374,6 +376,61 @@ export class LeadsService {
      * Defensive: kalau Prisma client belum punya `leadItem` model (Windows EPERM
      * saat generate), fallback ke raw SQL.
      */
+    /**
+     * Buat order online dari website publik (tanpa auth) → tercatat sebagai Lead
+     * NEW source WEBSITE (masuk CRM untuk di-follow-up & convert). branchId null.
+     * Memicu notifikasi Discord "Lead baru".
+     */
+    async createPublicOrder(dto: {
+        name: string; phone?: string; address?: string; note?: string;
+        items?: LeadItemDto[];
+    }) {
+        if (!dto?.name?.trim()) throw new BadRequestException('Nama wajib diisi');
+        const items = Array.isArray(dto.items) ? dto.items.filter(i => i && i.description) : [];
+        const itemsTotal = items.reduce((s, it) => s + (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0), 0);
+
+        const needsParts: string[] = [];
+        if (dto.note?.trim()) needsParts.push(dto.note.trim());
+        if (dto.address?.trim()) needsParts.push(`Alamat: ${dto.address.trim()}`);
+
+        const lead = await this.prisma.lead.create({
+            data: {
+                name: dto.name.trim(),
+                phone: dto.phone || null,
+                phoneNormalized: normalizePhone(dto.phone),
+                source: 'WEBSITE' as any,
+                status: 'NEW' as any,
+                level: 'WARM' as any,
+                needs: needsParts.join('\n') || null,
+                estimatedValue: itemsTotal > 0 ? itemsTotal : null,
+                intakeAt: new Date(),
+                branchId: null,
+                createdById: null,
+            } as any,
+        });
+
+        if (items.length) await this._syncItems(lead.id, items);
+
+        await this.prisma.leadActivity.create({
+            data: {
+                leadId: lead.id,
+                kind: 'FIRST_CONTACT',
+                text: 'Order online via website',
+                meta: { source: 'WEBSITE', online: true } as any,
+                createdById: null,
+            },
+        });
+
+        this.discord.notifyNewLead({
+            name: dto.name,
+            phone: dto.phone || undefined,
+            source: 'Website (Order Online)',
+            estimatedValue: itemsTotal > 0 ? itemsTotal : undefined,
+        });
+
+        return { ok: true, leadId: lead.id, total: itemsTotal };
+    }
+
     private async _syncItems(leadId: number, items: LeadItemDto[]) {
         const hasLeadItemModel = !!(this.prisma as any).leadItem?.deleteMany;
 
@@ -493,6 +550,20 @@ export class LeadsService {
                 meta: { source: data.source, sourceDetail: data.sourceDetail },
                 createdById: userId ?? null,
             },
+        });
+
+        // Notifikasi Discord: lead baru masuk (channel #penjualan)
+        let csName: string | undefined;
+        if (data.assignedToId) {
+            const u = await this.prisma.user.findUnique({ where: { id: data.assignedToId }, select: { name: true } });
+            csName = u?.name ?? undefined;
+        }
+        this.discord.notifyNewLead({
+            name: data.name,
+            phone: data.phone || undefined,
+            source: data.sourceDetail?.trim() || data.source || undefined,
+            csName,
+            estimatedValue: finalEstimated != null ? Number(finalEstimated) : undefined,
         });
 
         return this.detail(ctx, lead.id);
@@ -1032,6 +1103,15 @@ export class LeadsService {
                 },
                 createdById: userId ?? null,
             },
+        });
+
+        // Notifikasi Discord: deal closing baru (channel #penjualan)
+        this.discord.notifyDealClosing({
+            csName: (lead as any).assignedTo?.name ?? undefined,
+            customerName: customer.name ?? lead.name ?? undefined,
+            value: Number(lead.estimatedValue) || 0,
+            pcs: leadItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0) || undefined,
+            source: (lead as any).sourceDetail?.trim() || lead.source || undefined,
         });
 
         // Return detail + sertakan info dokumen yang baru dibuat untuk UI

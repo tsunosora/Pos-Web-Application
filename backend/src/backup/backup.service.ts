@@ -14,7 +14,7 @@ const AdmZip = require('adm-zip');
 export const BACKUP_GROUPS = {
     master: {
         label: 'Master Data',
-        tables: ['role', 'category', 'unit', 'storeSettings', 'bankAccount', 'branch'],
+        tables: ['role', 'category', 'unit', 'storeSettings', 'bankAccount', 'branch', 'discordConfig'],
     },
     branches: {
         label: 'Cabang & Pengaturan Cabang',
@@ -87,13 +87,17 @@ export const BACKUP_GROUPS = {
         // Lead + items + images + activities + follow-ups + message templates
         tables: ['lead', 'leadItem', 'leadImage', 'leadActivity', 'followUp', 'messageTemplate'],
     },
+    website: {
+        label: 'Website — Landing Page & Artikel',
+        tables: ['landingConfig', 'article'],
+    },
 } as const;
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
 
 // Urutan restore — penting untuk FK integrity
 const RESTORE_ORDER = [
-    'role', 'storeSettings', 'category', 'unit', 'branch', 'competitor',
+    'role', 'storeSettings', 'discordConfig', 'category', 'unit', 'branch', 'competitor',
     'companyBranch',                            // tenant root — sebelum semua model operasional ber-branchId
     'bankAccount',                              // FK → companyBranch
     'branchSettings',                           // FK → companyBranch
@@ -134,6 +138,9 @@ const RESTORE_ORDER = [
     'leadImage',                                // FK → lead
     'leadActivity',                             // FK → lead, customer, user
     'followUp',                                 // FK → lead, customer, user, branch, messageTemplate
+    // Website — standalone (tanpa FK)
+    'landingConfig',
+    'article',
 ];
 
 // Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)
@@ -184,7 +191,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.6', // + ProductionJob: isExpress, designEnteredAt, cancelledAt, cancelReason (order express, urgensi desain, penanda batal/klien-tidak-jadi). LeadStatus enum + INVALID (lead salah target). Field2 auto-included via findMany() — tidak perlu ubah daftar tabel. v3.5: Marketplace fee Transaction.marketplaceFee/marketplaceFeeItems, Lead.convertedTransactionId.
+                version: '3.7', // v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

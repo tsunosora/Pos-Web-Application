@@ -600,6 +600,56 @@ model StoreSettings {
   @@map("store_settings")
 }
 
+// Konfigurasi notifikasi Discord (singleton, id=1).
+// webhooks: map channel→URL { sales, production, finance, inventory, leaderboard, system }
+// events  : map event→bool  { shiftRecap, dealClosing, jobReady, lowStock, backup, error, champion }
+// Terpisah dari StoreSettings.discordWebhookUrl (yang khusus notif GitHub commit).
+model DiscordConfig {
+  id        Int      @id @default(autoincrement())
+  enabled   Boolean  @default(false)
+  webhooks  Json?
+  events    Json?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("discord_config")
+}
+
+// Landing page builder (singleton, id=1). data/draftData = struktur Puck (JSON).
+// data = versi terpublikasi (dirender ke publik), draftData = simpanan editor.
+model LandingConfig {
+  id             Int      @id @default(autoincrement())
+  data           Json?
+  draftData      Json?
+  published      Boolean  @default(false)
+  customDomain   String?  @map("custom_domain") @db.VarChar(255)
+  seoTitle       String?  @map("seo_title") @db.VarChar(200)
+  seoDescription String?  @map("seo_description") @db.Text
+  faviconUrl     String?  @map("favicon_url") @db.Text
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("landing_config")
+}
+
+// Artikel / blog untuk landing. content = HTML dari editor rich text (Tiptap).
+model Article {
+  id             Int       @id @default(autoincrement())
+  title          String    @db.VarChar(255)
+  slug           String    @unique @db.VarChar(255)
+  excerpt        String?   @db.Text
+  content        String?   @db.LongText
+  coverImage     String?   @map("cover_image") @db.Text
+  status         String    @default("DRAFT") @db.VarChar(20) // DRAFT | PUBLISHED
+  publishedAt    DateTime? @map("published_at")
+  authorName     String?   @map("author_name") @db.VarChar(120)
+  seoTitle       String?   @map("seo_title") @db.VarChar(200)
+  seoDescription String?   @map("seo_description") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, publishedAt])
+  @@map("articles")
+}
+
 model BankAccount {
   id             Int       @id @default(autoincrement())
   bankName       String    @map("bank_name") @db.VarChar(100)
@@ -751,9 +801,65 @@ model ProductionJob {
   batch           ProductionBatch? @relation(fields: [batchId], references: [id])
   branch          CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   proofs          ProductionJobProof[]
+  workOrder       JerseyWorkOrder?
 
   @@index([branchId])
   @@map("production_jobs")
+}
+
+// Work Order Jersey — surat perintah kerja produksi jersey custom.
+// Diterbitkan setelah desain ACC (job pindah DESIGN → PRINT). Berisi spec
+// lengkap untuk tukang print + tukang jahit: jenis kerah, bahan, jumlah order
+// per garment & size, pola print yang harus dicetak, QC checklist, tanggal
+// tiap tahap produksi. 1-1 dengan ProductionJob.
+model JerseyWorkOrder {
+  id              Int       @id @default(autoincrement())
+  productionJobId Int       @unique @map("production_job_id")
+  woNumber        String?   @unique @map("wo_number") @db.VarChar(60) // kode produksi mis. 03.070526.M
+
+  // Header
+  orderDate       DateTime? @map("order_date")
+  source          String?   @db.VarChar(60)   // META, WA, IG, dll (dari lead.source)
+  designerName    String?   @map("designer_name") @db.VarChar(120)
+  deadline        DateTime?
+
+  // Identitas produk
+  customerName    String?   @map("customer_name") @db.VarChar(200)
+  collarType      String?   @map("collar_type") @db.VarChar(60)   // V-Neck, O-Neck, Shanghai, dll
+  fabricType      String?   @map("fabric_type") @db.VarChar(80)   // Milano, Dryfit, Hyget, dll
+  mockupImageUrl  String?   @map("mockup_image_url") @db.Text     // DEPRECATED single — first image (backward compat)
+  printLayoutImageUrl String? @map("print_layout_image_url") @db.Text // DEPRECATED single — first image
+  mockupImages    Json?     @map("mockup_images")      // array URL gambar mockup desain (multi)
+  printLayoutImages Json?   @map("print_layout_images") // array URL gambar layout pola print (multi)
+
+  // Jumlah order per garment — JSON [{size, qty}]
+  shortSleeveItems Json?    @map("short_sleeve_items")  // Atasan Lengan Pendek
+  longSleeveItems  Json?    @map("long_sleeve_items")   // Atasan Lengan Panjang
+  pantsItems       Json?    @map("pants_items")         // Celana
+
+  // Pola print — JSON [{name, qty, ok}]
+  printPatterns    Json?    @map("print_patterns")
+
+  // QC checklist — JSON [{criteria, ok, note, inspector}]
+  qcChecklist      Json?    @map("qc_checklist")
+
+  // Tanggal tahap produksi
+  tglPrint         DateTime? @map("tgl_print")
+  tglPress         DateTime? @map("tgl_press")
+  tglJahit         DateTime? @map("tgl_jahit")
+  printInspector   String?   @map("print_inspector") @db.VarChar(120)
+  jahitInspector   String?   @map("jahit_inspector") @db.VarChar(120)
+
+  notes           String?   @db.Text
+  branchId        Int?      @map("branch_id")
+  createdById     Int?      @map("created_by_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  productionJob   ProductionJob @relation(fields: [productionJobId], references: [id], onDelete: Cascade)
+
+  @@index([branchId])
+  @@map("jersey_work_orders")
 }
 
 // Multi proof images per production job (di-upload di stage DESIGN sebagai bukti ACC).

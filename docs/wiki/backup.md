@@ -38,11 +38,11 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
 
 ### Grup Data yang Tersedia
 
-Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.4** (CRM + Pipeline Produksi Kanban + Custom Login Logo & Theme) dengan grup berikut:
+Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi backup saat ini adalah **3.7** (CRM + Pipeline Produksi + Landing Builder & Artikel + Discord) dengan grup berikut:
 
 | Grup | Isi |
 |---|---|
-| 🏷️ Master Data | Role, kategori, unit, store settings, bank, branch (peta) |
+| 🏷️ Master Data | Role, kategori, unit, store settings, bank, branch (peta), **konfigurasi Discord** (`discordConfig`) |
 | 🏢 Cabang & Pengaturan Cabang | `companyBranch`, `branchSettings` (PIN, WA group, fee titipan), `branchStock` (stok per cabang) |
 | 👤 Pengguna | User + branch assignment + role |
 | 📦 Produk & Inventori | Produk, varian, BOM, harga tier, batch, stock movement, pembelian stok |
@@ -60,6 +60,7 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 | 📋 Stok Opname | Sesi opname + item opname |
 | 📊 Laporan Shift | Shift report + competitor (peta cuan) |
 | ✨ CRM — Leads, Follow-ups, Templates | `lead` (+ `deliveryDeadline`, `firstResponseAt`), `leadItem`, `leadImage`, `leadActivity`, `followUp`, `messageTemplate` — pipeline lead pra-jual + auto follow-up + template WA + REPEAT_ORDER source |
+| 🌐 Website — Landing Page & Artikel | `landingConfig` (struktur builder Puck + SEO + domain) + `article` (blog/artikel rich-text) |
 
 > **Catatan tentang Bahan Titipan**: Laporan `/reports/inter-branch-usage` (audit bahan Pusat dipakai cabang) **tidak butuh tabel sendiri** — diturunkan dari `stock_movements` saat di-render. Backup `stockMovement` di grup "Produk & Inventori" sudah cukup untuk preserve riwayat tracking.
 

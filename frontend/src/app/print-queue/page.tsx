@@ -196,8 +196,12 @@ export default function PrintQueueAdminPage() {
                                     </td>
                                     <td className="px-3 py-2">{j.transaction.customerName || '—'}</td>
                                     <td className="px-3 py-2">
-                                        <div className="font-medium">{j.transactionItem.productVariant.product.name}</div>
-                                        {j.transactionItem.productVariant.variantName && (
+                                        <div className="font-medium">
+                                            {j.transactionItem?.productVariant?.product?.name
+                                                ?? (j.transactionItem as any)?.customName
+                                                ?? 'Item Custom'}
+                                        </div>
+                                        {j.transactionItem?.productVariant?.variantName && (
                                             <div className="text-xs text-gray-500">{j.transactionItem.productVariant.variantName}</div>
                                         )}
                                     </td>
