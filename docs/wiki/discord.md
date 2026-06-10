@@ -11,8 +11,8 @@ Buat 1 webhook Discord untuk tiap channel (di Discord: *Channel Settings › Int
 | Channel | Isi |
 |---|---|
 | `#penjualan` | Transaksi & deal closing |
-| `#produksi` | Pesanan siap diambil |
-| `#keuangan` | Rekap tutup shift |
+| `#produksi` | Pesanan siap diambil & Surat Order desain |
+| `#keuangan` | Laporan tutup shift lengkap + foto bukti |
 | `#stok-gudang` | Stok menipis |
 | `#leaderboard` | Pengumuman juara CS |
 | `#sistem` | Backup & error |
@@ -23,7 +23,8 @@ Channel yang URL-nya dikosongkan akan otomatis dilewati. Gunakan tombol **Test**
 
 | Event | Channel | Pemicu |
 |---|---|---|
-| Rekap Tutup Shift | keuangan | Saat kasir tutup shift |
+| Laporan Tutup Shift | keuangan | Saat kasir tutup shift — embed ringkasan **+ laporan lengkap + foto bukti** |
+| Surat Order Desain | produksi | SO dikirim desainer ke kasir/operator (caption + lampiran gambar desain) |
 | Lead Baru Masuk | penjualan | Setiap lead baru dibuat (real-time) |
 | Deal Closing Baru | penjualan | Lead di-convert (CLOSED_WON) |
 | Pesanan Siap Diambil | produksi | Job cetak selesai (SELESAI) |
@@ -35,6 +36,15 @@ Channel yang URL-nya dikosongkan akan otomatis dilewati. Gunakan tombol **Test**
 Semua event **default aktif**. Master switch di atas halaman mematikan seluruh notifikasi Discord sekaligus.
 
 **Juara leaderboard**: 👑 Sultan Cuan (omzet lead + walk-in POS), 🔥 Raja Lead (lead terbanyak), 🎯 Sniper Closing (closing rate tertinggi, min 3 lead).
+
+## Migrasi dari WhatsApp (Juni 2026)
+
+Laporan harian yang dulu dikirim via WhatsApp Bot kini **sepenuhnya lewat Discord**:
+
+- **Laporan tutup shift** → channel `#keuangan`: embed ringkasan, lalu teks laporan lengkap (otomatis dipecah jika melebihi 2000 karakter), lalu foto bukti sebagai lampiran. Tombol **Kirim Ulang** di Riwayat Shift juga mengirim ke Discord.
+- **Surat Order** (desainer → kasir/operator) → channel `#produksi` dengan lampiran gambar desain. Konfigurasi grup WA desain per cabang tidak diperlukan lagi.
+- Format tebal `*teks*` gaya WhatsApp otomatis dikonversi ke `**teks**` gaya Discord.
+- Bot WhatsApp tidak lagi dipakai untuk laporan — endpoint & halaman setting WhatsApp masih ada untuk fitur broadcast lama, tapi tidak wajib aktif.
 
 ## Aktivasi (developer)
 

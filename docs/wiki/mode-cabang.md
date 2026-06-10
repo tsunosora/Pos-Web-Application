@@ -180,25 +180,16 @@ Menu **Laporan → Laporan Stok** tetap jalan — sekarang scoped ke cabang akti
 
 ## 💬 WhatsApp Bot per Cabang
 
-### Alur Dispatch
+> ⚠️ **DEPRECATED (Juni 2026)** — Laporan tutup shift & Surat Order kini dikirim via **Discord** (lihat [Notifikasi Discord](discord.md)), bukan WhatsApp. Laporan semua cabang masuk ke satu channel `#keuangan` (nama toko/cabang tercantum di pesan). Field `waReportGroupId` / `waDesignGroupId` di Pengaturan Per Cabang tidak lagi dipakai untuk pengiriman.
+
+Bagian di bawah ini adalah dokumentasi alur lama (era WhatsApp), disimpan sebagai arsip:
+
+### Alur Dispatch (lama)
 
 Saat **Tutup Shift** cabang Sewon dikirim:
 1. Sistem baca `BranchSettings(branchId=Sewon).waReportGroupId`
 2. Kalau ada → kirim ke grup itu
 3. Kalau kosong → fallback ke `whatsapp_bot_config.json > reportGroupId` (grup global)
-
-Ini memudahkan transisi: cabang lama (Pusat) tetap kirim ke grup existing, cabang baru bisa atur grup baru tanpa mengganggu.
-
-### Setup Grup Baru untuk Cabang
-
-1. Bot WA sudah connected (lihat [WhatsApp Bot](#-9-pengaturan-whatsapp-bot))
-2. Buat/buka grup "Laporan Cabang Sewon"
-3. Tambahkan nomor bot ke grup
-4. Di grup, ketik `!getgroupid` → bot balas dengan ID grup
-5. Salin ID → buka **Pengaturan Per Cabang → Sewon → WA Report Group** → paste
-6. Klik **Simpan**
-
-Mulai shift berikutnya, laporan Sewon akan kirim ke grup ini.
 
 ---
 
@@ -278,8 +269,8 @@ Cabang baru belum ada stok. Solusi: lakukan Pembelian atau Transfer Stok dulu.
 ### Data cabang Pusat "tidak muncul" setelah switch
 Klik dropdown → pilih ulang cabang. BranchSwitcher melakukan `queryClient.invalidateQueries()` otomatis, tapi kalau masih aneh: F5 refresh halaman.
 
-### WA laporan shift kirim ke grup salah
-Cek `/settings/branch-config` → pilih cabang → pastikan `waReportGroupId` benar. Kalau kosong, sistem fallback ke `whatsapp_bot_config.json > reportGroupId` (grup global default).
+### Laporan shift tidak terkirim ke Discord
+Cek `/settings/discord` → master switch aktif, webhook channel **#keuangan** terisi (tes dengan tombol Test), event "Laporan Tutup Shift" menyala. (Pengiriman via WhatsApp per cabang sudah tidak dipakai sejak Juni 2026.)
 
 ### Transfer stok error di Windows ("EPERM" Prisma client)
 Ini karena Prisma client belum regenerate (backend DLL ter-lock). Solusi: stop backend → `npx prisma generate` → restart backend. Atau tunggu build ulang berikutnya — kode pakai pola `(prisma as any).branchStock` supaya tetap jalan tanpa regenerate client.

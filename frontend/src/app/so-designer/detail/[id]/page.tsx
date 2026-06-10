@@ -27,7 +27,7 @@ const STATUS_BADGE: Record<SalesOrderStatus, string> = {
 };
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
     DRAFT: "Draft",
-    SENT: "Terkirim ke Group WA",
+    SENT: "Terkirim ke Discord",
     INVOICED: "Sudah Dibuatkan Nota",
     CANCELLED: "Dibatalkan",
 };
@@ -85,7 +85,7 @@ export default function DesignerSODetailPage() {
             await designerSendWA(so.id, session.id, session.pin, waMessage.trim() || undefined);
             await reload();
         } catch (e: any) {
-            setError(e?.response?.data?.message || "Gagal kirim ke WA");
+            setError(e?.response?.data?.message || "Gagal kirim ke Discord");
         } finally {
             setSending(false);
         }
@@ -233,17 +233,17 @@ export default function DesignerSODetailPage() {
                     )}
                 </Card>
 
-                {/* Kirim WA */}
+                {/* Kirim ke Discord */}
                 {canSendWa && (
-                    <Card title="Kirim ke Group WA Internal">
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Broadcast ke group tim (desain/kasir/operator) dengan caption + gambar proof.</p>
+                    <Card title="Kirim ke Discord Internal">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Broadcast ke channel Discord #produksi tim (desain/kasir/operator) dengan caption + gambar proof.</p>
                         <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)}
                             placeholder={`Pesan tambahan (opsional)\n\nCaption auto:\n${caption.slice(0, 200)}...`}
                             className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400" rows={4} />
                         <button onClick={sendWA} disabled={sending}
-                            className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-green-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-[#5865F2] to-indigo-600 hover:from-[#4752C4] hover:to-indigo-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition">
                             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            {so.status === "SENT" ? "Kirim Ulang ke Group" : "Kirim ke Group WA"}
+                            {so.status === "SENT" ? "Kirim Ulang ke Discord" : "Kirim ke Discord"}
                         </button>
                     </Card>
                 )}

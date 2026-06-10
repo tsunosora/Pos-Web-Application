@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { DiscordService } from '../discord/discord.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -33,7 +33,7 @@ export interface UpdateSalesOrderDto extends Partial<CreateSalesOrderDto> {}
 export class SalesOrdersService {
     constructor(
         private prisma: PrismaService,
-        private whatsapp: WhatsappService,
+        private discord: DiscordService,
     ) {}
 
     private soInclude() {
@@ -310,6 +310,7 @@ export class SalesOrdersService {
         lines.push(`Pelanggan: ${so.customerName}`);
         if (so.customerPhone) lines.push(`HP: ${so.customerPhone}`);
         lines.push(`Desainer: ${so.designerName}`);
+        if (so.branchName) lines.push(`Cabang: ${so.branchName}`);
         if (so.deadline) {
             lines.push(`Deadline: ${new Date(so.deadline).toLocaleString('id-ID')}`);
         }
@@ -341,140 +342,21 @@ export class SalesOrdersService {
         return lines.join('\n');
     }
 
-    async sendToWhatsappGroup(id: number, customMessage?: string, fallbackBranchId?: number | null) {
+    /** Kirim Surat Order ke Discord channel #produksi (pengganti grup WA desain). */
+    async sendToDesignChannel(id: number, customMessage?: string) {
         const so = await this.findOne(id);
         if (so.status === 'INVOICED' || so.status === 'CANCELLED') {
             throw new BadRequestException('SO yang sudah diinvoice / dibatalkan tidak dapat dikirim ulang');
         }
 
-        // Resolve branchId dari SO.branchName (SalesOrder belum punya FK branchId).
-        // Coba 3 strategi: exact match, case-insensitive, substring (untuk handle "Cab Sewon" vs "Sewon").
-        const soBranchName: string | null = (so as any).branchName ?? null;
-        let branchId: number | null = null;
-        let matchedBranchName: string | null = null;
-        let resolvedFrom: string = 'none';
-        if (soBranchName) {
-            try {
-                // 1) Exact match name
-                let branch = await (this.prisma as any).companyBranch.findFirst({
-                    where: { name: soBranchName, isActive: true },
-                    select: { id: true, name: true, code: true },
-                });
-                // 2) Try multiple strategies dengan loop di memori
-                if (!branch) {
-                    const allBranches: any[] = await (this.prisma as any).companyBranch.findMany({
-                        where: { isActive: true },
-                        select: { id: true, name: true, code: true },
-                    });
-                    const queryLower = soBranchName.toLowerCase().trim();
-                    const queryTokens = queryLower.split(/\s+/).filter(t => t.length >= 3); // skip token kecil
-
-                    // 2a) Case-insensitive name match
-                    branch = allBranches.find(b => b.name.toLowerCase().trim() === queryLower) || null;
-                    // 2b) Match by code (case-insensitive)
-                    if (!branch) {
-                        branch = allBranches.find(b =>
-                            b.code && (
-                                b.code.toLowerCase() === queryLower ||
-                                queryLower.includes(b.code.toLowerCase()) ||
-                                queryLower === b.code.toLowerCase()
-                            ),
-                        ) || null;
-                    }
-                    // 2c) Substring match name
-                    if (!branch) {
-                        branch = allBranches.find(b =>
-                            b.name.toLowerCase().includes(queryLower) ||
-                            queryLower.includes(b.name.toLowerCase()),
-                        ) || null;
-                    }
-                    // 2d) Token-based match — paling longgar.
-                    // Misal query "Cab Sewon" → token ["cab","sewon"]; branch "Voliko Cabang Sewon (CAB)" → match karena ada "sewon" & "cab"
-                    if (!branch && queryTokens.length > 0) {
-                        let bestScore = 0;
-                        for (const b of allBranches) {
-                            const haystack = `${b.name} ${b.code ?? ''}`.toLowerCase();
-                            let score = 0;
-                            for (const tok of queryTokens) {
-                                if (haystack.includes(tok)) score++;
-                            }
-                            if (score > bestScore) {
-                                bestScore = score;
-                                branch = b;
-                            }
-                        }
-                    }
-                }
-                if (branch) {
-                    branchId = branch.id;
-                    matchedBranchName = branch.name;
-                    resolvedFrom = 'so.branchName';
-                }
-            } catch { /* abaikan */ }
-        }
-
-        // Fallback: kalau SO tidak punya branchName atau tidak match, pakai cabang aktif user
-        // (dari header X-Branch-Id). Cocok untuk SO lama yang dibuat sebelum multi-branch.
-        if (!branchId && fallbackBranchId != null) {
-            try {
-                const branch = await (this.prisma as any).companyBranch.findUnique({
-                    where: { id: fallbackBranchId },
-                    select: { id: true, name: true, isActive: true },
-                });
-                if (branch?.isActive) {
-                    branchId = branch.id;
-                    matchedBranchName = branch.name;
-                    resolvedFrom = 'fallback (cabang aktif user)';
-                }
-            } catch { /* abaikan */ }
-        }
-
-        // Logging untuk debug
-        // eslint-disable-next-line no-console
-        console.log(`[sendToWhatsappGroup] SO #${id} branchName="${soBranchName}" fallbackBranchId=${fallbackBranchId} → branchId=${branchId} (matched="${matchedBranchName}", from=${resolvedFrom})`);
-
-        const designGroupId = await this.whatsapp.resolveDesignGroupId(branchId);
-        if (!designGroupId) {
-            const detail: string[] = [];
-            detail.push(`SO branchName: "${soBranchName ?? '(kosong)'}"`);
-            detail.push(`Cabang aktif user: ${fallbackBranchId ?? '(none)'}`);
-            detail.push(`Resolusi: ${resolvedFrom}`);
-            detail.push(`Cabang ter-resolve: ${matchedBranchName ? `"${matchedBranchName}" (id=${branchId})` : 'TIDAK DITEMUKAN'}`);
-            detail.push(`BranchSettings.waDesignGroupId: kosong`);
-            detail.push(`Global designGroupId fallback: kosong`);
-            // Tampilkan daftar cabang aktif supaya user tahu nama persisnya
-            try {
-                const allBranches: any[] = await (this.prisma as any).companyBranch.findMany({
-                    where: { isActive: true },
-                    select: { name: true, code: true },
-                });
-                if (allBranches.length) {
-                    const list = allBranches.map(b => `"${b.name}"${b.code ? ` (${b.code})` : ''}`).join(', ');
-                    detail.push(`Cabang tersedia: ${list}`);
-                }
-            } catch { /* abaikan */ }
-            throw new BadRequestException(
-                `Group WA Desain belum di-set. Diagnostik: ${detail.join(' | ')}. ` +
-                `Solusi: (1) buka Settings → Konfigurasi Cabang → pilih cabang yang benar → isi "Design Group ID", ATAU ` +
-                `(2) update profil desainer di Settings → Designers supaya Branch Name persis sama dengan salah satu cabang di atas.`,
-            );
-        }
-
-        // Cek bot connection sebelum kirim
-        const status = this.whatsapp.getConnectionStatus();
-        if (!status?.isReady) {
-            throw new BadRequestException(
-                `Bot WA tidak terhubung (status: ${status?.status || 'unknown'}). Buka Settings → WhatsApp → scan QR ulang.`,
-            );
-        }
-
         const caption = this.buildCaption(so, customMessage);
         const imagePaths = (so.proofs || []).map((p: any) => p.filename);
 
-        const ok = await this.whatsapp.sendToDesignGroup(caption, imagePaths, branchId);
+        const ok = await this.discord.notifySuratOrder(caption, imagePaths);
         if (!ok) {
             throw new BadRequestException(
-                `Gagal kirim ke WA group "${designGroupId}". Kemungkinan: bot belum jadi member group, atau group ID salah. Cek log backend untuk detail.`,
+                'Gagal kirim Surat Order ke Discord. Pastikan notifikasi Discord aktif, event "Surat Order" menyala, ' +
+                'dan webhook channel Produksi terisi (Settings → Discord).',
             );
         }
 

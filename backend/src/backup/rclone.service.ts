@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { BackupService } from './backup.service';
+import { BackupService, storeSlug } from './backup.service';
 import { DiscordService } from '../discord/discord.service';
 import { CronJob } from 'cron';
 import { exec } from 'child_process';
@@ -101,7 +101,7 @@ export class RcloneService implements OnModuleInit {
             // Build filename
             const pad = (n: number) => String(n).padStart(2, '0');
             const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-            const filename = `pospro-backup-${dateStr}.zip`;
+            const filename = `pospro-backup-${storeSlug(settings?.storeName)}-${dateStr}.zip`;
             localPath = path.join(BACKUP_DIR, filename);
 
             // Save backup ZIP to local file

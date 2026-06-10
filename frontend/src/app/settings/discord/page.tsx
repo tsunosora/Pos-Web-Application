@@ -12,15 +12,16 @@ import {
 
 const CHANNELS: { key: DiscordChannelKey; label: string; hint: string }[] = [
     { key: 'sales', label: '#penjualan', hint: 'Transaksi & deal closing' },
-    { key: 'production', label: '#produksi', hint: 'Pesanan siap diambil' },
-    { key: 'finance', label: '#keuangan', hint: 'Rekap tutup shift' },
+    { key: 'production', label: '#produksi', hint: 'Pesanan siap & Surat Order' },
+    { key: 'finance', label: '#keuangan', hint: 'Laporan tutup shift + bukti' },
     { key: 'inventory', label: '#stok-gudang', hint: 'Stok menipis' },
     { key: 'leaderboard', label: '#leaderboard', hint: 'Pengumuman juara CS' },
     { key: 'system', label: '#sistem', hint: 'Backup & error' },
 ];
 
 const EVENTS: { key: DiscordEventKey; label: string; desc: string; channel: DiscordChannelKey }[] = [
-    { key: 'shiftRecap', label: 'Rekap Tutup Shift', desc: 'Ringkasan omzet & kas saat tutup shift', channel: 'finance' },
+    { key: 'shiftRecap', label: 'Laporan Tutup Shift', desc: 'Ringkasan + laporan lengkap & foto bukti saat tutup shift', channel: 'finance' },
+    { key: 'suratOrder', label: 'Surat Order Desain', desc: 'SO dari desainer ke kasir/operator (teks + lampiran desain)', channel: 'production' },
     { key: 'newLead', label: 'Lead Baru Masuk', desc: 'Setiap lead baru dibuat (real-time)', channel: 'sales' },
     { key: 'dealClosing', label: 'Deal Closing Baru', desc: 'Saat lead berhasil di-convert (CLOSED_WON)', channel: 'sales' },
     { key: 'jobReady', label: 'Pesanan Siap Diambil', desc: 'Saat job cetak selesai (SELESAI)', channel: 'production' },

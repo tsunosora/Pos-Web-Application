@@ -1,7 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
-import { NotificationsService } from '../notifications/notifications.service';
 import { DiscordService } from '../discord/discord.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
 import { BranchContext } from '../common/branch-context.decorator';
@@ -13,8 +11,6 @@ export class ReportsService {
 
     constructor(
         private readonly prisma: PrismaService,
-        private readonly whatsappService: WhatsappService,
-        private readonly notificationsService: NotificationsService,
         private readonly discord: DiscordService,
     ) { }
 
@@ -421,44 +417,28 @@ export class ReportsService {
             dto.paymentExchanges || [],
         );
 
-        // Simpan pesan WA sebagai backup log agar bisa di-resend jika gagal
+        // Simpan pesan laporan sebagai backup log agar bisa di-resend jika gagal
         await (this.prisma as any).shiftReport.update({
             where: { id: shiftId },
             data: { whatsappMessage: reportMsg },
         });
 
-        this.whatsappService.sendReport(reportMsg, proofImages, branchId).catch((err) => {
-            this.logger.error('Background WhatsApp send failed', err);
-        });
-
-        // Kirim ringkasan ke Discord jika dikonfigurasi
-        const discordUrl = (settings as any)?.discordWebhookUrl;
-        if (discordUrl) {
-            const totalCash = dto.actualCash + dto.actualQris + dto.actualTransfer;
-            const shiftName = dto.shiftName || 'Shift';
-            const adminName = dto.adminName || 'Kasir';
-            const discordMsg = [
-                `📊 **Laporan Tutup Shift — ${shiftName}**`,
-                `👤 Kasir: ${adminName}`,
-                `💰 Total Penerimaan: Rp ${totalCash.toLocaleString('id-ID')}`,
-                `   • Tunai: Rp ${dto.actualCash.toLocaleString('id-ID')}`,
-                `   • QRIS: Rp ${dto.actualQris.toLocaleString('id-ID')}`,
-                `   • Transfer: Rp ${dto.actualTransfer.toLocaleString('id-ID')}`,
-                dto.notes ? `📝 Catatan: ${dto.notes}` : '',
-            ].filter(Boolean).join('\n');
-            this.notificationsService.sendToDiscord(discordUrl, discordMsg).catch(() => { });
-        }
-
-        // Notifikasi Discord via sistem multi-channel baru (channel #keuangan)
-        this.discord.notifyShiftRecap({
-            shiftName: dto.shiftName || undefined,
-            cashierName: dto.adminName || undefined,
-            branchLabel: (settings as any)?.storeName || undefined,
-            omzet: dto.actualCash + dto.actualQris + dto.actualTransfer,
-            cash: dto.actualCash,
-            qris: dto.actualQris,
-            transfer: dto.actualTransfer,
-            notes: dto.notes || undefined,
+        // Laporan harian via Discord (#keuangan): embed ringkasan → laporan lengkap + foto bukti.
+        // Berurutan dalam satu rantai supaya ringkasan selalu tampil duluan.
+        (async () => {
+            await this.discord.notifyShiftRecap({
+                shiftName: dto.shiftName || undefined,
+                cashierName: dto.adminName || undefined,
+                branchLabel: (settings as any)?.storeName || undefined,
+                omzet: dto.actualCash + dto.actualQris + dto.actualTransfer,
+                cash: dto.actualCash,
+                qris: dto.actualQris,
+                transfer: dto.actualTransfer,
+                notes: dto.notes || undefined,
+            });
+            await this.discord.notifyShiftReport(reportMsg, proofImages);
+        })().catch((err) => {
+            this.logger.error('Background Discord report send failed', err);
         });
 
         return { success: true, message: 'Shift closed successfully.', data: shift };
@@ -516,11 +496,14 @@ export class ReportsService {
         if (!shift) throw new Error(`Shift report #${id} tidak ditemukan`);
 
         const msg = shift.whatsappMessage;
-        if (!msg) throw new Error(`Backup pesan WA untuk shift #${id} belum tersedia`);
+        if (!msg) throw new Error(`Backup pesan laporan untuk shift #${id} belum tersedia`);
 
         const images: string[] = proofImages ?? (Array.isArray(shift.proofImages) ? shift.proofImages : []);
-        await this.whatsappService.sendReport(msg, images, (shift as any).branchId ?? null);
-        return { success: true, message: 'Laporan shift berhasil dikirim ulang ke WhatsApp.' };
+        const ok = await this.discord.notifyShiftReport(msg, images);
+        if (!ok) {
+            throw new Error('Gagal kirim ke Discord. Pastikan notifikasi Discord aktif dan webhook channel Keuangan terisi (Settings → Discord).');
+        }
+        return { success: true, message: 'Laporan shift berhasil dikirim ulang ke Discord.' };
     }
 
     async amendShiftReport(id: number, dto: {

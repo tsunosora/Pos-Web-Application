@@ -1,0 +1,21 @@
+User-agent: *
+Allow: /
+
+# Halaman admin & non-publik — jangan diindeks
+Disallow: /login.php
+Disallow: /logout.php
+Disallow: /install.php
+Disallow: /dashboard.php
+Disallow: /orders.php
+Disallow: /order.php
+Disallow: /articles.php
+Disallow: /article-edit.php
+Disallow: /accounts.php
+Disallow: /appearance.php
+Disallow: /settings.php
+Disallow: /backup.php
+Disallow: /upload.php
+Disallow: /cart.php
+
+# Sitemap (ganti dengan domain produksi kamu):
+# Sitemap: https://www.tokokamu.com/sitemap.php

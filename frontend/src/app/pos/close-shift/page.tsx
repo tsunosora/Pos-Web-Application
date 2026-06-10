@@ -103,7 +103,7 @@ export default function CloseShiftPage() {
     const closeShiftMutation = useMutation({
         mutationFn: closeShift,
         onSuccess: () => {
-            alert('✅ Laporan Tutup Shift berhasil dikirim ke WhatsApp Group!');
+            alert('✅ Laporan Tutup Shift berhasil dikirim ke Discord!');
             router.push('/pos');
         },
         onError: (err: any) => {
@@ -373,7 +373,7 @@ export default function CloseShiftPage() {
                     </Link>
                     <div>
                         <h1 className="text-xl font-bold text-slate-800">Laporan Tutup Shift</h1>
-                        <p className="text-xs text-slate-500">POS System • WA Bot Terintegrasi</p>
+                        <p className="text-xs text-slate-500">POS System • Notifikasi Discord</p>
                     </div>
                 </div>
             </header>
@@ -1187,7 +1187,7 @@ export default function CloseShiftPage() {
                                 disabled={closeShiftMutation.isPending || !adminName}
                                 className="w-full sm:w-auto text-base gap-2 bg-blue-600 hover:bg-blue-700 font-bold px-10 shadow-lg shadow-blue-500/30"
                             >
-                                {closeShiftMutation.isPending ? 'Mengirim...' : '📤 Kirim Laporan Shift ke WA'}
+                                {closeShiftMutation.isPending ? 'Mengirim...' : '📤 Kirim Laporan Shift ke Discord'}
                                 {!closeShiftMutation.isPending && <ChevronRight className="w-5 h-5" />}
                             </Button>
                         </div>

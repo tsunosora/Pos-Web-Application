@@ -1,16 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // ── Channel & event keys ────────────────────────────────────────────────────
 export type DiscordChannel =
     | 'sales' | 'production' | 'finance' | 'inventory' | 'leaderboard' | 'system';
 export type DiscordEvent =
-    | 'shiftRecap' | 'newLead' | 'dealClosing' | 'jobReady' | 'lowStock' | 'backup' | 'error' | 'champion';
+    | 'shiftRecap' | 'newLead' | 'dealClosing' | 'jobReady' | 'lowStock' | 'backup' | 'error' | 'champion' | 'suratOrder';
 
 export const DISCORD_CHANNELS: DiscordChannel[] =
     ['sales', 'production', 'finance', 'inventory', 'leaderboard', 'system'];
 export const DISCORD_EVENTS: DiscordEvent[] =
-    ['shiftRecap', 'newLead', 'dealClosing', 'jobReady', 'lowStock', 'backup', 'error', 'champion'];
+    ['shiftRecap', 'newLead', 'dealClosing', 'jobReady', 'lowStock', 'backup', 'error', 'champion', 'suratOrder'];
 
 // Event → channel default routing
 const EVENT_CHANNEL: Record<DiscordEvent, DiscordChannel> = {
@@ -22,6 +24,7 @@ const EVENT_CHANNEL: Record<DiscordEvent, DiscordChannel> = {
     backup: 'system',
     error: 'system',
     champion: 'leaderboard',
+    suratOrder: 'production',
 };
 
 // Warna embed (decimal) per tipe
@@ -116,6 +119,92 @@ export class DiscordService {
         }
     }
 
+    /** POST multipart dengan lampiran file lokal (limit Discord: 10 file per pesan). */
+    private async postWithFiles(url: string, payload: any, filePaths: string[]): Promise<boolean> {
+        if (!url) return false;
+        const form = new FormData();
+        form.append('payload_json', JSON.stringify(payload));
+        let n = 0;
+        for (const rel of filePaths.slice(0, 10)) {
+            try {
+                const abs = path.isAbsolute(rel) ? rel : path.join(process.cwd(), rel);
+                if (!fs.existsSync(abs)) continue;
+                const buf = fs.readFileSync(abs);
+                form.append(`files[${n}]`, new Blob([new Uint8Array(buf)]), path.basename(abs));
+                n++;
+            } catch { /* file rusak/tak terbaca — lewati */ }
+        }
+        if (n === 0) return this.post(url, payload);
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 20_000); // upload butuh waktu lebih lama
+        try {
+            const res = await fetch(url, { method: 'POST', body: form, signal: ctrl.signal });
+            return res.ok;
+        } catch (e: any) {
+            this.logger.warn(`Gagal upload lampiran webhook: ${e?.message || e}`);
+            return false;
+        } finally {
+            clearTimeout(t);
+        }
+    }
+
+    /** Konversi markdown gaya WhatsApp (*tebal*) ke gaya Discord (**tebal**). */
+    private toDiscordMarkdown(text: string): string {
+        return (text || '').replace(/\*([^*\n]+)\*/g, '**$1**');
+    }
+
+    /** Pecah teks panjang per baris, maks `max` char per pesan (limit konten Discord 2000). */
+    private chunkText(text: string, max = 1900): string[] {
+        const chunks: string[] = [];
+        let buf = '';
+        for (const line of (text || '').split('\n')) {
+            const piece = line.length > max ? line.slice(0, max) : line;
+            if (buf.length + piece.length + 1 > max) {
+                if (buf) chunks.push(buf);
+                buf = piece;
+            } else {
+                buf = buf ? buf + '\n' + piece : piece;
+            }
+        }
+        if (buf) chunks.push(buf);
+        return chunks;
+    }
+
+    /** Webhook URL untuk sebuah event — null kalau master off / event off / URL kosong. */
+    private async resolveUrl(event: DiscordEvent): Promise<string | null> {
+        const cfg = await this.getConfig();
+        if (!cfg.enabled) return null;
+        if (cfg.events[event] === false) return null; // default ON kalau undefined
+        return cfg.webhooks[EVENT_CHANNEL[event]] || null;
+    }
+
+    /**
+     * Kirim laporan teks panjang + lampiran gambar untuk sebuah event.
+     * Teks dipecah per ±1900 char; lampiran ikut di pesan terakhir agar urut.
+     * Return true bila semua pesan terkirim (false juga bila event nonaktif/URL kosong).
+     */
+    async sendLongReport(event: DiscordEvent, text: string, imagePaths: string[] = []): Promise<boolean> {
+        try {
+            const url = await this.resolveUrl(event);
+            if (!url) return false;
+            const chunks = this.chunkText(this.toDiscordMarkdown(text));
+            let ok = true;
+            for (let i = 0; i < chunks.length; i++) {
+                const isLast = i === chunks.length - 1;
+                ok = (isLast && imagePaths.length
+                    ? await this.postWithFiles(url, { content: chunks[i] }, imagePaths)
+                    : await this.post(url, { content: chunks[i] })) && ok;
+            }
+            if (chunks.length === 0 && imagePaths.length) {
+                ok = await this.postWithFiles(url, {}, imagePaths) && ok;
+            }
+            return ok;
+        } catch (e: any) {
+            this.logger.warn(`sendLongReport(${event}) error: ${e?.message || e}`);
+            return false;
+        }
+    }
+
     private toPayload(embed: DiscordEmbed) {
         return {
             embeds: [{
@@ -135,11 +224,7 @@ export class DiscordService {
      */
     async send(event: DiscordEvent, embed: DiscordEmbed): Promise<void> {
         try {
-            const cfg = await this.getConfig();
-            if (!cfg.enabled) return;
-            if (cfg.events[event] === false) return; // default ON kalau undefined
-            const channel = EVENT_CHANNEL[event];
-            const url = cfg.webhooks[channel];
+            const url = await this.resolveUrl(event);
             if (!url) return;
             await this.post(url, this.toPayload(embed));
         } catch (e: any) {
@@ -184,6 +269,19 @@ export class DiscordService {
             color: COLOR.blue,
             fields,
         });
+    }
+
+    /**
+     * Laporan tutup shift LENGKAP (teks laporan + foto bukti) ke channel #keuangan.
+     * Pengganti laporan harian WhatsApp — dipakai closeShift & resend.
+     */
+    notifyShiftReport(fullText: string, imagePaths: string[] = []): Promise<boolean> {
+        return this.sendLongReport('shiftRecap', fullText, imagePaths);
+    }
+
+    /** Surat Order (desain → kasir/operator) ke channel #produksi — pengganti grup WA desain. */
+    notifySuratOrder(caption: string, imagePaths: string[] = []): Promise<boolean> {
+        return this.sendLongReport('suratOrder', caption, imagePaths);
     }
 
     notifyNewLead(d: { name: string; phone?: string; source?: string; csName?: string; estimatedValue?: number }) {

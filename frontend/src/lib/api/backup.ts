@@ -6,9 +6,11 @@ export const previewBackupFile = async (file: File) => {
     formData.append('file', file);
     return (await api.post('/backup/preview', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
 };
-export const exportBackup = async (groups: string[], includeImages = true): Promise<Blob> => {
+export const exportBackup = async (groups: string[], includeImages = true): Promise<{ blob: Blob; filename: string }> => {
     const res = await api.post('/backup/export', { groups, includeImages }, { responseType: 'blob' });
-    return res.data;
+    const cd: string = (res.headers?.['content-disposition'] as string) || '';
+    const m = /filename="?([^"]+)"?/.exec(cd);
+    return { blob: res.data, filename: m ? m[1] : '' };
 };
 export const restoreBackup = async (file: File, mode: 'skip' | 'overwrite', tables?: string[]) => {
     const formData = new FormData();

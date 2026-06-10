@@ -42,6 +42,7 @@ async function bootstrap() {
     origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
+    exposedHeaders: ['Content-Disposition'], // agar frontend bisa baca nama file backup
   });
 
   await app.listen(process.env.PORT ?? 3001);
