@@ -488,11 +488,14 @@ model Invoice {
   discount      Decimal       @default(0) @db.Decimal(15, 2) // Diskon (Rp)
   total         Decimal       @default(0) @db.Decimal(15, 2) // Grand Total (Subtotal + PPN - Diskon)
   notes         String?       @db.Text // Syarat & Ketentuan, Garansi, dll
+  branchId      Int?          @map("branch_id") // Cabang pemilik invoice (multi-cabang). Null = warisan (di-backfill ke Pusat)
   createdAt     DateTime?     @default(now()) @map("created_at")
   updatedAt     DateTime?     @default(now()) @updatedAt @map("updated_at")
 
-  items InvoiceItem[]
+  items  InvoiceItem[]
+  branch CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
+  @@index([branchId])
   @@map("invoices")
 }
 
@@ -1346,6 +1349,7 @@ model CompanyBranch {
   ledgersTo      InterBranchLedger[] @relation("LedgerToBranch")
   leads          Lead[]
   followUps      FollowUp[]
+  invoices       Invoice[]
 
   @@map("company_branches")
 }

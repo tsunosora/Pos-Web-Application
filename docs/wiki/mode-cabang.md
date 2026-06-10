@@ -290,6 +290,16 @@ Semua endpoint backend yang menangani data operasional memakai decorator `@Curre
 
 Audit endpoint: `branch-context.decorator.ts`, `branch-where.helper.ts` — semua service yang butuh scoping pakai pola ini.
 
+### Akses by-ID juga dijaga (Jun 2026)
+
+Selain daftar/agregat, **akses transaksi per-ID** (`GET/PATCH/DELETE /transactions/:id`, add-dp, pay-off, payment-method, edit-request) kini memanggil `assertBranchAccess` — staff cabang lain tidak bisa membuka/membayar/mengedit/menghapus transaksi cabang lain dengan menebak ID. Begitu pula `/batches` (sebelumnya tanpa JWT & global → sekarang ber-JWT + scoped).
+
+### Invoice / SPH per cabang (Jun 2026)
+
+`Invoice` kini punya kolom `branchId`. Daftar, baca, edit, hapus, ubah status/tipe, dan convert-to-invoice semuanya scoped per cabang. Invoice **lama** (sebelum update ini) otomatis di-backfill ke cabang **Pusat** saat backend pertama kali start (`InvoiceService.onModuleInit`, resolve Pusat via code `PST`/`PUSAT` atau nama mengandung "pusat", fallback cabang tertua). Membuat invoice baru sebagai Owner butuh memilih cabang dulu (bukan mode "Semua Cabang").
+
+> **Catatan data bersama**: `Customer` dan `Supplier` SENGAJA tetap global (dibagikan ke semua cabang) sesuai kebutuhan bisnis. Katalog produk & kategori juga global; yang per-cabang adalah stok (`BranchStock`).
+
 ---
 
 ## 📚 Referensi Teknis

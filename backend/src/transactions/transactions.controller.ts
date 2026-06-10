@@ -109,23 +109,23 @@ export class TransactionsController {
     }
 
     @Get(':id')
-    findOne(@Param('id', ParseIntPipe) id: number) {
-        return this.transactionsService.findOne(id);
+    findOne(@Param('id', ParseIntPipe) id: number, @CurrentBranch() branchCtx: BranchContext) {
+        return this.transactionsService.findOne(id, branchCtx);
     }
 
     @Post(':id/add-dp')
-    addPartialPayment(@Param('id', ParseIntPipe) id: number, @Body() body: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }) {
-        return this.transactionsService.addPartialPayment(id, body);
+    addPartialPayment(@Param('id', ParseIntPipe) id: number, @Body() body: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }, @CurrentBranch() branchCtx: BranchContext) {
+        return this.transactionsService.addPartialPayment(id, body, branchCtx);
     }
 
     @Post(':id/pay-off')
-    payOff(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }) {
-        return this.transactionsService.payOff(id, body);
+    payOff(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }, @CurrentBranch() branchCtx: BranchContext) {
+        return this.transactionsService.payOff(id, body, branchCtx);
     }
 
     @Patch(':id/payment-method')
-    updatePaymentMethod(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod; bankAccountId?: number }) {
-        return this.transactionsService.updatePaymentMethod(id, body);
+    updatePaymentMethod(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod; bankAccountId?: number }, @CurrentBranch() branchCtx: BranchContext) {
+        return this.transactionsService.updatePaymentMethod(id, body, branchCtx);
     }
 
     @Patch(':id')
@@ -149,8 +149,9 @@ export class TransactionsController {
             customerPhone?: string;
             customerAddress?: string;
         },
+        @CurrentBranch() branchCtx: BranchContext,
     ) {
-        return this.transactionsService.editTransactionDirect(id, req.user.role, body);
+        return this.transactionsService.editTransactionDirect(id, req.user.role, body, branchCtx);
     }
 
     @Post(':id/edit-request')
@@ -175,16 +176,18 @@ export class TransactionsController {
             customerPhone?: string;
             customerAddress?: string;
         },
+        @CurrentBranch() branchCtx: BranchContext,
     ) {
         const { reason, ...editData } = body;
-        return this.transactionsService.createEditRequest(id, req.user.userId, reason, editData);
+        return this.transactionsService.createEditRequest(id, req.user.userId, reason, editData, branchCtx);
     }
 
     @Delete(':id')
     deleteTransaction(
         @Param('id', ParseIntPipe) id: number,
         @Request() req: any,
+        @CurrentBranch() branchCtx: BranchContext,
     ) {
-        return this.transactionsService.deleteTransaction(id, req.user.role);
+        return this.transactionsService.deleteTransaction(id, req.user.role, branchCtx);
     }
 }
