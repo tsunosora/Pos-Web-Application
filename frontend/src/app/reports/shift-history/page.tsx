@@ -62,7 +62,7 @@ export default function ShiftHistoryPage() {
 
     const resendMutation = useMutation({
         mutationFn: (id: number) => resendShiftReport(id),
-        onSuccess: () => alert('Laporan berhasil dikirim ulang ke WhatsApp!'),
+        onSuccess: () => alert('Laporan berhasil dikirim ulang ke Discord!'),
         onError: (err: any) => alert(`Gagal kirim ulang: ${err?.response?.data?.message || err.message}`),
     });
 
@@ -198,7 +198,7 @@ export default function ShiftHistoryPage() {
         <div className="max-w-5xl mx-auto">
             <PageHeader
                 title="Riwayat Tutup Shift"
-                description="Log semua tutup shift beserta backup pesan WhatsApp — bisa disalin atau dikirim ulang jika gagal"
+                description="Log semua tutup shift beserta backup pesan laporan — bisa disalin atau dikirim ulang ke Discord jika gagal"
                 icon={History}
                 breadcrumbs={[{ label: 'Laporan' }, { label: 'Riwayat Shift' }]}
             />
@@ -249,7 +249,7 @@ export default function ShiftHistoryPage() {
                                                 </span>
                                             )}
                                             {!hasMsgBackup && (
-                                                <span className="text-xs text-muted-foreground/50 italic">Tidak ada backup WA</span>
+                                                <span className="text-xs text-muted-foreground/50 italic">Tidak ada backup pesan</span>
                                             )}
                                         </div>
                                     </div>
@@ -273,7 +273,7 @@ export default function ShiftHistoryPage() {
                                             <>
                                                 <button
                                                     onClick={() => handleCopy(shift.whatsappMessage, shift.id)}
-                                                    title="Salin pesan WA"
+                                                    title="Salin pesan laporan"
                                                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-medium text-muted-foreground transition-colors"
                                                 >
                                                     {copiedId === shift.id
@@ -284,11 +284,11 @@ export default function ShiftHistoryPage() {
                                                 <button
                                                     onClick={() => resendMutation.mutate(shift.id)}
                                                     disabled={resendMutation.isPending && resendMutation.variables === shift.id}
-                                                    title="Kirim ulang ke WhatsApp"
-                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/30 hover:bg-[#25D366]/20 text-xs font-medium text-[#25D366] transition-colors disabled:opacity-50"
+                                                    title="Kirim ulang ke Discord"
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#5865F2]/10 border border-[#5865F2]/30 hover:bg-[#5865F2]/20 text-xs font-medium text-[#5865F2] transition-colors disabled:opacity-50"
                                                 >
                                                     <Send className="w-3.5 h-3.5" />
-                                                    {resendMutation.isPending && resendMutation.variables === shift.id ? 'Mengirim...' : 'Kirim Ulang WA'}
+                                                    {resendMutation.isPending && resendMutation.variables === shift.id ? 'Mengirim...' : 'Kirim Ulang Discord'}
                                                 </button>
                                             </>
                                         )}
@@ -318,7 +318,7 @@ export default function ShiftHistoryPage() {
                                         {/* Backup pesan WA */}
                                         {hasMsgBackup && (
                                             <div className="space-y-2">
-                                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Backup Pesan WhatsApp</p>
+                                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Backup Pesan Laporan</p>
                                                 <pre className="whitespace-pre-wrap text-xs bg-background border border-border rounded-lg p-3 max-h-64 overflow-y-auto font-mono text-foreground leading-relaxed">
                                                     {shift.whatsappMessage}
                                                 </pre>

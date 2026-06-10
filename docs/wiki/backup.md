@@ -34,6 +34,8 @@ Buka **Pengaturan → Backup & Restore** (`/settings/backup`).
    - **Nonaktif**: hanya data teks/angka dari database, ukuran file lebih kecil
 4. Klik **Export** — file ZIP langsung diunduh ke komputer Anda
 
+> **Nama file**: backup diberi nama memuat **nama toko** Anda, mis. `pospro-backup-<nama-toko>-full-2026-06-10.zip` (backup otomatis rclone: `pospro-backup-<nama-toko>-YYYYMMDD_HHMM.zip`). Nama toko diambil dari Pengaturan Toko.
+
 > **Catatan Teknis**: File ZIP di-*stream* langsung ke browser tanpa dibuffer di memori server. Ini berarti export data besar tetap efisien dan tidak membebani server.
 
 ### Grup Data yang Tersedia

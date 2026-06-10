@@ -34,7 +34,8 @@ export class BackupController {
         const dateStr = new Date().toISOString().split('T')[0];
         const label = isAll ? 'full' : groups.join('-');
         const suffix = includeImages ? '' : '-dataonly';
-        const filename = `pospro-backup-${label}${suffix}-${dateStr}.zip`;
+        const slug = await this.backupService.getStoreSlug();
+        const filename = `pospro-backup-${slug}-${label}${suffix}-${dateStr}.zip`;
 
         res.setHeader('Content-Type', 'application/zip');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

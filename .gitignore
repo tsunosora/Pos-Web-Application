@@ -51,6 +51,8 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 backend/uploads/proofs/*
 !backend/uploads/proofs/.gitkeep
+toko/uploads/*
+!toko/uploads/.gitkeep
 
 # ============================================================
 # LOG FILES - File debug/error, tidak diperlukan
@@ -69,6 +71,8 @@ output.json
 backend/check-db.js
 backend/test-cashflows.ts
 backend/test-images.ts
+diff_tx.txt
+install.cmd
 
 # ============================================================
 # WHATSAPP BOT CONFIG - Berisi group ID private, JANGAN upload!

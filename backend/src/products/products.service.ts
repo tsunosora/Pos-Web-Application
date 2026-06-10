@@ -138,7 +138,10 @@ export class ProductsService {
                 }
             }
         });
-        if (!product) throw new NotFoundException(`Product #${id} not found`);
+        // Bahan baku tidak boleh diakses publik (mis. langsung via URL)
+        if (!product || (product as any).productType === 'RAW_MATERIAL') {
+            throw new NotFoundException(`Product #${id} not found`);
+        }
         return {
             ...product,
             variants: product.variants.map(({ hpp, stock, ...rest }) => rest)
@@ -196,9 +199,12 @@ export class ProductsService {
         }));
     }
 
-    /** Daftar produk untuk publik (tanpa hpp). */
+    /** Daftar produk untuk publik (tanpa hpp, tanpa bahan baku). */
     async findAllPublicSafe() {
-        return this.sanitizePublic(await this.findAll());
+        const all = await this.findAll();
+        // Sembunyikan bahan baku (RAW_MATERIAL) — tidak untuk dijual ke umum
+        const sellable = (all as any[]).filter((p) => p.productType !== 'RAW_MATERIAL');
+        return this.sanitizePublic(sellable);
     }
 
     async update(id: number, data: any) {

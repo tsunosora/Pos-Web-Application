@@ -1,14 +1,14 @@
 # 🎨 Sales Order & Designer Portal
 
-> Sistem **Sales Order (SO)** untuk alur kerja desainer → kasir/operator. Desainer (internal atau freelance) bisa input order baru via portal sendiri tanpa akun staff penuh, lalu broadcast ke grup WA internal supaya kasir lanjutkan ke invoice.
+> Sistem **Sales Order (SO)** untuk alur kerja desainer → kasir/operator. Desainer (internal atau freelance) bisa input order baru via portal sendiri tanpa akun staff penuh, lalu broadcast ke channel Discord internal (#produksi) supaya kasir lanjutkan ke invoice.
 
 ---
 
 ## 🎯 Use Case
 
-- **Toko percetakan dengan desainer freelance** — desainer ambil order langsung dari customer (chat WA pribadi), input ke sistem, kirim ke grup WA internal supaya kasir tahu ada order baru yang harus diinvoice.
+- **Toko percetakan dengan desainer freelance** — desainer ambil order langsung dari customer (chat WA pribadi), input ke sistem, kirim ke Discord internal supaya kasir tahu ada order baru yang harus diinvoice.
 - **Workflow approval** — desainer bisa upload screenshot bukti ACC customer sebagai lampiran, lalu kasir bisa verifikasi sebelum invoice dibuat.
-- **Multi-cabang dengan satu pool desainer** — desainer dengan `branchName` bisa bikin SO untuk cabang manapun, broadcast ke grup WA cabang yang sesuai.
+- **Multi-cabang dengan satu pool desainer** — desainer dengan `branchName` bisa bikin SO untuk cabang manapun; nama cabang ikut tercantum di pesan Discord.
 
 ---
 
@@ -68,7 +68,7 @@ Saat SO disubmit:
 - Dari **Desainer Portal** — `branchName` auto = `Designer.branchName`
 - Dari **Cashier `/sales-orders/new`** — `branchName` auto = nama cabang aktif kasir (dari header `X-Branch-Id`)
 
-Branch tag dipakai untuk routing ke grup WA per cabang saat broadcast.
+Branch tag dicantumkan sebagai baris `Cabang:` di pesan Discord saat broadcast.
 
 ---
 
@@ -77,7 +77,7 @@ Branch tag dipakai untuk routing ke grup WA per cabang saat broadcast.
 ```
 DRAFT (baru dibuat, belum dibroadcast)
    ↓
-SENT (sudah broadcast ke grup WA internal)
+SENT (sudah broadcast ke Discord internal)
    ↓
 INVOICED (kasir sudah convert ke invoice/transaksi POS)
    ↓ atau
@@ -94,30 +94,25 @@ Sidebar entry "Sales Order" punya badge angka = jumlah SO yang status `SENT` (me
 
 ---
 
-## 📤 Kirim ke WA Group Internal
+## 📤 Kirim ke Discord Internal
 
-Tombol **"Kirim ke WA Group"** muncul di SO detail page (status DRAFT atau SENT).
+Tombol **"Kirim ke Discord"** muncul di SO detail page (status DRAFT atau SENT).
 
 Saat klik:
-1. Sistem resolve cabang dari `SO.branchName` (4 strategi: exact, code, substring, token-based scoring)
-2. Lookup `BranchSettings(branchId).waDesignGroupId` di per-cabang config
-3. Fallback ke `whatsapp_bot_config.json > designGroupId` (global default)
-4. Compose pesan otomatis: nomor SO, customer, item list, deadline, catatan, link detail
-5. Attach proof images (kalau ada)
-6. Kirim ke grup WA via WhatsApp bot
-7. Status SO → SENT, set `sentToWaAt = now()`
+1. Compose pesan otomatis: nomor SO, customer, desainer, **cabang**, item list, deadline, catatan
+2. Attach proof images sebagai lampiran (kalau ada)
+3. Kirim ke channel Discord **#produksi** via webhook (event `Surat Order Desain`)
+4. Status SO → SENT, set `sentToWaAt = now()` (nama kolom legacy dari era WhatsApp)
 
-Pesan WA akan muncul di grup internal cabang yang sesuai. Kasir/operator yang ada di grup itu langsung tahu ada order baru yang harus dilanjutkan.
+Pesan akan muncul di channel produksi. Kasir/operator yang ada di channel itu langsung tahu ada order baru yang harus dilanjutkan.
 
-### Setup Grup Per Cabang
+### Setup Channel
 
-1. Owner: `/settings/branch-config`
-2. Pilih cabang
-3. Card "WhatsApp Group" → field **"Design Group ID"**
-4. Format: `120363xxxxx@g.us` (dapat lewat command `!getgroupid` di grup WA)
-5. Simpan
+1. Owner: `/settings/discord`
+2. Aktifkan master switch, isi webhook URL channel **#produksi**
+3. Pastikan event **Surat Order Desain** aktif (default aktif)
 
-> Jika field per-cabang kosong, sistem fallback ke konfigurasi global. Lihat [Mode Cabang](mode-cabang.md) untuk detail lengkap WA per cabang.
+> Routing grup WA per cabang (`BranchSettings.waDesignGroupId`) tidak dipakai lagi — semua SO masuk ke satu channel produksi, dengan nama cabang tercantum di pesan. Lihat [Notifikasi Discord](discord.md).
 
 ---
 
@@ -126,7 +121,7 @@ Pesan WA akan muncul di grup internal cabang yang sesuai. Kasir/operator yang ad
 ### Untuk Desainer (`/so-designer/dashboard`)
 - List SO yang dia buat
 - Filter status: DRAFT / SENT / INVOICED / CANCELLED
-- Klik SO → detail (lihat status, kirim WA, edit kalau masih DRAFT)
+- Klik SO → detail (lihat status, kirim ke Discord, edit kalau masih DRAFT)
 
 ### Untuk Admin (`/sales-orders`)
 - List semua SO dari semua desainer (kalau Owner) atau cabang aktif (kalau staff)
@@ -163,24 +158,17 @@ Halaman: `/settings/designers` (Owner only)
 | **Branch Name** | Nama cabang asal (mis. "Voliko Cabang Sewon" atau "CAB"). Dipakai untuk auto-tag SO |
 | **Aktif** | Toggle. Non-aktif = tidak bisa login portal |
 
-### Penting: Branch Name Harus Match
+### Branch Name
 
-`Designer.branchName` dipakai untuk routing WA group saat broadcast SO. Sistem coba 4 strategi matching:
-
-1. Exact match dengan `CompanyBranch.name`
-2. Match dengan `CompanyBranch.code` (case-insensitive)
-3. Substring (mis. "Sewon" match "Voliko Cabang Sewon")
-4. Token-based scoring (mis. "Cab Sewon" match "Voliko Cabang Sewon (CAB)" karena 2 token cocok)
-
-Tetap, paling aman: copy-paste persis nama cabang dari `/settings/branches` ke field `Branch Name` desainer.
+`Designer.branchName` dipakai sebagai auto-tag cabang di SO (tercantum di pesan Discord & untuk scoping list SO per cabang). Paling aman: copy-paste persis nama cabang dari `/settings/branches` ke field `Branch Name` desainer.
 
 ---
 
-## 🔔 Bot Command untuk SO
+## 🔔 Notifikasi SO
 
-Tidak ada command WA khusus untuk SO. Broadcast manual via tombol di UI. Notif balik dari WA bot saat:
-- Pesan SO terkirim sukses (silent — hanya status SO update)
-- Gagal kirim → muncul notif Discord (kalau enabled) + alert di UI
+Broadcast manual via tombol di UI:
+- Pesan SO terkirim sukses → status SO update jadi SENT (silent)
+- Gagal kirim → error 400 dengan petunjuk setting Discord + alert di UI
 
 ---
 
@@ -190,7 +178,7 @@ Tidak ada command WA khusus untuk SO. Broadcast manual via tombol di UI. Notif b
 - `POST /sales-orders/designer` — buat SO (perlu designerId + pin)
 - `GET /sales-orders/designer/:id` — detail SO
 - `POST /sales-orders/designer/:id/proofs` — upload proof images
-- `POST /sales-orders/designer/:id/send-wa` — kirim WA broadcast
+- `POST /sales-orders/designer/:id/send-wa` — broadcast ke Discord (#produksi) — path "send-wa" legacy
 - `POST /sales-orders/designer/:id/cancel` — cancel SO
 
 ### Authenticated (Cashier/Admin)
@@ -198,7 +186,7 @@ Tidak ada command WA khusus untuk SO. Broadcast manual via tombol di UI. Notif b
 - `POST /sales-orders` — buat SO baru
 - `PATCH /sales-orders/:id` — edit (DRAFT only)
 - `POST /sales-orders/:id/proofs` — upload proof
-- `POST /sales-orders/:id/send-wa` — kirim WA
+- `POST /sales-orders/:id/send-wa` — broadcast ke Discord (#produksi) — path "send-wa" legacy
 - `POST /sales-orders/:id/cancel` — cancel
 - `GET /sales-orders/pending-invoice-count` — badge sidebar
 
@@ -209,33 +197,23 @@ Tidak ada command WA khusus untuk SO. Broadcast manual via tombol di UI. Notif b
 ### Skenario: Desainer Freelance → Kasir Cabang Sewon
 
 1. Owner: `/settings/branches` → pastikan ada cabang "Voliko Cabang Sewon" dengan code "CAB"
-2. Owner: `/settings/branch-config` → pilih Sewon → set "Design Group ID" dengan grup WA tim Sewon
+2. Owner: `/settings/discord` → aktifkan + isi webhook channel **#produksi**
 3. Owner: `/settings/designers` → tambah desainer "Mas Asad" PIN 1234, branchName "CAB"
 4. Mas Asad: buka `/so-designer` di HP → pilih nama → input PIN 1234 → masuk dashboard
 5. Klik **"+ SO Baru"** → input customer "Asita", item "Banner 3×2m × 1pcs" → ctrl+V screenshot WA chat → submit
-6. Kembali ke detail SO → klik **"Kirim ke WA Group"** → grup Sewon dapat notif dengan SO + lampiran
-7. Kasir Sewon di grup baca → buka `/pos` → klik "Buat dari SO" → pilih SO Asita → submit checkout
+6. Kembali ke detail SO → klik **"Kirim ke Discord"** → channel #produksi dapat notif SO + lampiran (cabang Sewon tercantum)
+7. Kasir Sewon baca channel → buka `/pos` → klik "Buat dari SO" → pilih SO Asita → submit checkout
 8. SO status berubah jadi INVOICED, transaksi tercatat di Sewon
 
 ---
 
 ## ⚠️ Troubleshooting
 
-### "Group WA Desain belum di-set" saat klik kirim WA
-Sistem tidak ketemu group ID. Diagnostik error message akan kasih detail:
-- `SO branchName: "..."` — apa yang disimpan di SO
-- `Cabang ter-resolve: ...` — apakah berhasil match ke CompanyBranch
-- `Cabang tersedia: ...` — list nama cabang aktif yang bisa dipilih
-
-Solusi:
-- Pastikan `Designer.branchName` match (atau mirip) salah satu nama cabang
-- Set `BranchSettings.waDesignGroupId` di `/settings/branch-config`
-- Atau set global fallback di `/settings/whatsapp` → "Group Internal Sales Order"
-
-### Bot WA tidak terhubung
-- Buka `/settings/whatsapp` → cek status QR code
-- Scan ulang kalau perlu
-- Pesan error 400 akan kasih tahu kalau bot disconnected
+### "Gagal kirim Surat Order ke Discord" saat klik kirim
+Sistem tidak bisa mengirim ke webhook. Cek di `/settings/discord`:
+- Master switch **aktif**
+- Webhook URL channel **#produksi** terisi & valid (coba tombol **Test**)
+- Event **Surat Order Desain** tidak dimatikan
 
 ### Upload gambar gagal
 - Cek folder `public/uploads/so-proofs` ada (auto-create di startup)
@@ -250,10 +228,10 @@ Solusi:
 
 ## 🔗 Halaman Terkait
 
-- [🏢 Mode Cabang](mode-cabang.md) — multi-cabang & WA per cabang
+- [🏢 Mode Cabang](mode-cabang.md) — multi-cabang
 - [📄 Invoice & SPH](invoice-sph.md) — beda Invoice vs SO
-- [🤖 WhatsApp Bot](README.md#-9-pengaturan-whatsapp-bot) — setup bot
+- [🔔 Notifikasi Discord](discord.md) — setup webhook channel
 
 ---
 
-*Terakhir diperbarui: 26 April 2026 | Designer Portal v1.0 + WA per-cabang routing*
+*Terakhir diperbarui: Juni 2026 | Designer Portal v1.1 — broadcast SO pindah ke Discord (#produksi)*

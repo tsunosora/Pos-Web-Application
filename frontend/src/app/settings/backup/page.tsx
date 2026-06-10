@@ -76,11 +76,11 @@ export default function BackupPage() {
         try {
             const isAll = allGroupKeys.length > 0 && allGroupKeys.every((k: string) => groupsToUse.has(k));
             const groupList = isAll ? ["all"] : [...groupsToUse];
-            const blob = await exportBackup(groupList, includeImages);
+            const { blob, filename: serverName } = await exportBackup(groupList, includeImages);
             const dateStr = new Date().toISOString().split("T")[0];
             const label = isAll ? "full" : [...groupsToUse].join("-");
             const suffix = includeImages ? "" : "-dataonly";
-            const filename = `pospro-backup-${label}${suffix}-${dateStr}.zip`;
+            const filename = serverName || `pospro-backup-${label}${suffix}-${dateStr}.zip`;
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;

@@ -34,7 +34,7 @@ const STATUS_BADGE: Record<SalesOrderStatus, string> = {
 
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
     DRAFT: 'Draft',
-    SENT: 'Terkirim ke Group WA',
+    SENT: 'Terkirim ke Discord',
     INVOICED: 'Sudah Dibuatkan Nota',
     CANCELLED: 'Dibatalkan',
 };
@@ -66,7 +66,7 @@ export default function SalesOrderDetailPage() {
     const sendMut = useMutation({
         mutationFn: () => sendSOWhatsapp(id, waMessage.trim() || undefined),
         onSuccess: () => { invalidate(); setError(null); },
-        onError: (e: any) => setError(e?.response?.data?.message || 'Gagal kirim WA'),
+        onError: (e: any) => setError(e?.response?.data?.message || 'Gagal kirim ke Discord'),
     });
 
     const cancelMut = useMutation({
@@ -133,7 +133,7 @@ export default function SalesOrderDetailPage() {
     const canEdit = so.status === 'DRAFT' || so.status === 'SENT';
     const canSendWa = so.status === 'DRAFT' || so.status === 'SENT';
     // Allow invoice dari DRAFT juga — flow lama (manual SO) tetap bisa pakai
-    // "Kirim ke Group WA" dulu kalau mau notif desainer, tapi tidak wajib.
+    // "Kirim ke Discord" dulu kalau mau notif tim, tapi tidak wajib.
     // Untuk SO hasil convert dari CRM lead, items sudah lengkap → bisa langsung invoice.
     const canInvoice = so.status === 'DRAFT' || so.status === 'SENT';
     const canCancel = so.status === 'DRAFT' || so.status === 'SENT';
@@ -153,7 +153,7 @@ export default function SalesOrderDetailPage() {
                     </div>
                     <p className="text-xs text-muted-foreground">
                         Dibuat {dayjs(so.createdAt).format('DD MMM YYYY HH:mm')}
-                        {so.sentToWaAt && ` • Terakhir dikirim WA ${dayjs(so.sentToWaAt).format('DD MMM HH:mm')}`}
+                        {so.sentToWaAt && ` • Terakhir dikirim ${dayjs(so.sentToWaAt).format('DD MMM HH:mm')}`}
                     </p>
                 </div>
             </div>
@@ -279,9 +279,9 @@ export default function SalesOrderDetailPage() {
                 {/* Right column — actions */}
                 <div className="space-y-4">
                     {canSendWa && (
-                        <Section title="Kirim ke Group WA Internal">
+                        <Section title="Kirim ke Discord Internal">
                             <p className="text-xs text-muted-foreground mb-2">
-                                Broadcast SO ini + gambar proof ke group WA tim (desain/kasir/operator). Bukan ke customer.
+                                Broadcast SO ini + gambar proof ke channel Discord #produksi tim (desain/kasir/operator). Bukan ke customer.
                             </p>
                             <textarea
                                 value={waMessage}
@@ -293,10 +293,10 @@ export default function SalesOrderDetailPage() {
                             <button
                                 onClick={() => sendMut.mutate()}
                                 disabled={sendMut.isPending}
-                                className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-green-600 text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+                                className="w-full mt-2 inline-flex items-center justify-center gap-2 bg-[#5865F2] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#4752C4] disabled:opacity-50"
                             >
                                 {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                {so.status === 'SENT' ? 'Kirim Ulang ke Group' : 'Kirim ke Group WA'}
+                                {so.status === 'SENT' ? 'Kirim Ulang ke Discord' : 'Kirim ke Discord'}
                             </button>
                         </Section>
                     )}

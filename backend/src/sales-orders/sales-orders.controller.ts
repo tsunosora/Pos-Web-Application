@@ -124,13 +124,13 @@ export class SalesOrdersController {
         return this.service.removeProof(id, proofId);
     }
 
+    // Route tetap "send-wa" untuk kompatibilitas frontend; isi kini kirim ke Discord #produksi
     @Post(':id/send-wa')
     sendWa(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { message?: string },
-        @CurrentBranch() ctx: BranchContext,
     ) {
-        return this.service.sendToWhatsappGroup(id, body?.message, ctx.branchId);
+        return this.service.sendToDesignChannel(id, body?.message);
     }
 
     @Post(':id/cancel')

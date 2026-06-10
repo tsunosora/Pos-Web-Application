@@ -95,6 +95,17 @@ export const BACKUP_GROUPS = {
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
 
+/** Ubah nama toko jadi slug aman untuk nama file backup (fallback 'pospro'). */
+export function storeSlug(name?: string | null): string {
+    const slug = (name || '')
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return slug || 'pospro';
+}
+
 // Urutan restore — penting untuk FK integrity
 const RESTORE_ORDER = [
     'role', 'storeSettings', 'discordConfig', 'category', 'unit', 'branch', 'competitor',
@@ -151,6 +162,16 @@ const WA_CONFIG_PATH = path.join(__dirname, '..', '..', '..', 'whatsapp_bot_conf
 @Injectable()
 export class BackupService {
     constructor(private prisma: PrismaService) {}
+
+    /** Slug nama toko untuk penamaan file backup. */
+    async getStoreSlug(): Promise<string> {
+        try {
+            const s: any = await this.prisma.storeSettings.findFirst();
+            return storeSlug(s?.storeName);
+        } catch {
+            return 'pospro';
+        }
+    }
 
     // ── Export / Backup — stream ZIP langsung ke response ──────────────────
 
