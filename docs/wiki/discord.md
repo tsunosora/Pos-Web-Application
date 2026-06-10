@@ -10,7 +10,7 @@ Buat 1 webhook Discord untuk tiap channel (di Discord: *Channel Settings › Int
 
 | Channel | Isi |
 |---|---|
-| `#penjualan` | Transaksi & deal closing |
+| `#penjualan` | Order POS baru, lead & deal closing |
 | `#produksi` | Pesanan siap diambil & Surat Order desain |
 | `#keuangan` | Laporan tutup shift lengkap + foto bukti |
 | `#stok-gudang` | Stok menipis |
@@ -23,6 +23,7 @@ Channel yang URL-nya dikosongkan akan otomatis dilewati. Gunakan tombol **Test**
 
 | Event | Channel | Pemicu |
 |---|---|---|
+| Order / Penjualan Baru | penjualan | Setiap transaksi POS dibuat — detail item, total, kasir, deadline, prioritas |
 | Laporan Tutup Shift | keuangan | Saat kasir tutup shift — embed ringkasan **+ laporan lengkap + foto bukti** |
 | Surat Order Desain | produksi | SO dikirim desainer ke kasir/operator (caption + lampiran gambar desain) |
 | Lead Baru Masuk | penjualan | Setiap lead baru dibuat (real-time) |

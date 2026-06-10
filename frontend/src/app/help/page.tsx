@@ -424,7 +424,7 @@ function SecLaporan() {
                 { title: "Panel Kanan — Aktual (Isi Kasir)", desc: "Hitung uang di laci → isi Uang Tunai. Buka aplikasi QRIS → isi total QRIS. Badge LEBIH/KURANG/BALANCE muncul otomatis." },
                 { title: "Catat Pengeluaran Shift", desc: "Klik + Tambah Item → isi keterangan, nominal, metode bayar." },
                 { title: "Saldo Rekening Bank", desc: "Buka mBanking masing-masing rekening → isi saldo aktual." },
-                { title: "Lampirkan Foto & Kirim", desc: "Upload foto bukti (laci, QRIS, mBanking) maks. 20 foto. Klik Kirim Laporan Shift ke WA." },
+                { title: "Lampirkan Foto & Kirim", desc: "Upload foto bukti (laci, QRIS, mBanking) maks. 20 foto. Klik Kirim Laporan Shift ke Discord." },
             ]} />
             <Callout type="tip">
                 Riwayat semua laporan shift bisa dilihat, disalin, atau dikirim ulang di <Code>/reports/shift-history</Code>.
@@ -668,7 +668,7 @@ function SecCRM() {
                 Designer dapat mengakses portal di <Code>/so-designer</Code> dengan PIN — tanpa perlu login ke akun kasir.
             </P>
             <Ul>
-                <li>Kasir buat Sales Order → broadcast ke grup WA designer per cabang</li>
+                <li>Kasir buat Sales Order → broadcast ke channel Discord internal (#produksi)</li>
                 <li>Designer buka portal, lihat detail order, upload proof desain (paste screenshot)</li>
                 <li>Kasir approve proof → order siap dicetak</li>
             </Ul>

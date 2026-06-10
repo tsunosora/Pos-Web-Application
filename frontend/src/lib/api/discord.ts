@@ -4,7 +4,7 @@ import api from './client';
 export type DiscordChannelKey =
     | 'sales' | 'production' | 'finance' | 'inventory' | 'leaderboard' | 'system';
 export type DiscordEventKey =
-    | 'shiftRecap' | 'newLead' | 'dealClosing' | 'jobReady' | 'lowStock' | 'backup' | 'error' | 'champion' | 'suratOrder';
+    | 'shiftRecap' | 'newLead' | 'dealClosing' | 'jobReady' | 'lowStock' | 'backup' | 'error' | 'champion' | 'suratOrder' | 'newTransaction';
 
 export interface DiscordConfig {
     enabled: boolean;

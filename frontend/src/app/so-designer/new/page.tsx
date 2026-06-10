@@ -195,7 +195,9 @@ export default function DesignerNewSOPage() {
             if (proofFiles.length > 0) {
                 await designerUploadProofs(so.id, session.id, session.pin, proofFiles);
             }
-            router.push(`/so-designer/detail/${so.id}`);
+            // Kembali ke dashboard (halaman awal) supaya alur jelas; SO baru muncul paling atas
+            alert(`SO ${so.soNumber || ''} berhasil dibuat.`);
+            router.push('/so-designer/dashboard');
         } catch (e: any) {
             setError(e?.response?.data?.message || e?.message || "Gagal menyimpan SO");
         } finally {
@@ -383,7 +385,7 @@ export default function DesignerNewSOPage() {
 
                 {/* Proof */}
                 <Card title={`Screenshot Proof Final (${proofFiles.length}/10)`}>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Upload screenshot ACC dari customer (WA pribadi). Akan dikirim ke group WA internal saat broadcast.</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Upload screenshot ACC dari customer (WA pribadi). Akan dikirim ke Discord internal saat broadcast.</p>
                     <div
                         onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
                         onDrop={e => { e.preventDefault(); addImageFiles(e.dataTransfer.files); }}

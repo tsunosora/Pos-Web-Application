@@ -30,7 +30,7 @@ const STATUS_BADGE: Record<SalesOrderStatus, string> = {
 
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
     DRAFT: 'Draft',
-    SENT: 'Terkirim WA',
+    SENT: 'Terkirim ke Discord',
     INVOICED: 'Sudah Invoice',
     CANCELLED: 'Dibatalkan',
 };
@@ -97,7 +97,7 @@ export default function SalesOrdersPage() {
                         Sales Order
                     </h1>
                     <p className="text-sm text-muted-foreground mt-0.5">
-                        Jembatan dari desainer ke kasir — upload proof, kirim ke group WA internal, lalu kasir buat nota.
+                        Jembatan dari desainer ke kasir — upload proof, kirim ke Discord internal, lalu kasir buat nota.
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
