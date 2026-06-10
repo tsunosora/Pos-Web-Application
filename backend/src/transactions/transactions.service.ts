@@ -821,11 +821,6 @@ export class TransactionsService {
     }
 
     private async notifyNewTransactionDiscord(transaction: any, data: any) {
-        const settings = await this.prisma.storeSettings.findFirst();
-        const discordUrl = (settings as any)?.discordWebhookUrl;
-        if (!discordUrl) return;
-        if ((settings as any)?.notifyNewTransaction === false) return;
-
         // Ambil nama produk dari DB
         const variantIds = data.items.map((i: any) => i.productVariantId);
         const variants = await this.prisma.productVariant.findMany({
@@ -896,8 +891,7 @@ export class TransactionsService {
             ? `\n📋 Catatan Order: _${data.productionNotes}_`
             : '';
 
-        await this.notificationsService.sendToDiscord(
-            discordUrl,
+        const message =
             `🛒 **Order Berhasil Masuk**\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `📋 Invoice: \`${invoiceNumber}\`\n` +
@@ -909,8 +903,17 @@ export class TransactionsService {
             orderNotes +
             `\n\n**🧾 Detail Item:**\n${itemLines}\n\n` +
             `━━━━━━━━━━━━━━━━━━━━━\n` +
-            `💰 Total: **Rp ${grandTotal}**  |  💳 ${paymentLabel}`,
-        );
+            `💰 Total: **Rp ${grandTotal}**  |  💳 ${paymentLabel}`;
+
+        // Sistem multi-channel baru (Settings → Discord, channel #penjualan)
+        await this.discord.sendLongReport('newTransaction', message);
+
+        // Webhook legacy (settings.discordWebhookUrl) — tetap dikirim bila masih dikonfigurasi
+        const settings = await this.prisma.storeSettings.findFirst();
+        const discordUrl = (settings as any)?.discordWebhookUrl;
+        if (discordUrl && (settings as any)?.notifyNewTransaction !== false) {
+            await this.notificationsService.sendToDiscord(discordUrl, message);
+        }
     }
 
     private async checkLowStock(variantIds: number[]) {

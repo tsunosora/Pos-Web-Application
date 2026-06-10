@@ -199,7 +199,7 @@ function POSPageContent() {
         if (!fromSOId || !soData || !products || soPrefilled) return;
         // Guard: hanya block kalau SO sudah INVOICED (nota sudah terbit) atau CANCELLED.
         // DRAFT & SENT keduanya boleh — SO dari CRM convert ada di DRAFT, SO manual
-        // ada di SENT setelah dikirim WA group.
+        // ada di SENT setelah dikirim ke Discord.
         if (soData.status === 'INVOICED' || soData.status === 'CANCELLED') {
             addNotification({ type: 'system', title: 'SO tidak valid', message: `SO ${soData.soNumber} tidak bisa dibuatkan nota (status: ${soData.status})` });
             setSoPrefilled(true);

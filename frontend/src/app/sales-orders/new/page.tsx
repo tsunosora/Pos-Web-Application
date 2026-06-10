@@ -457,7 +457,7 @@ export default function NewSalesOrderPage() {
             {/* Proof images */}
             <Section title={`Screenshot Proof Final (${proofFiles.length}/10)`}>
                 <p className="text-xs text-muted-foreground mb-2">
-                    Upload screenshot bukti ACC dari customer (WA pribadi). Gambar ini nanti dikirim ke group WA internal sebagai handoff ke kasir/operator.
+                    Upload screenshot bukti ACC dari customer (WA pribadi). Gambar ini nanti dikirim ke Discord internal sebagai handoff ke kasir/operator.
                 </p>
                 <div
                     onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}

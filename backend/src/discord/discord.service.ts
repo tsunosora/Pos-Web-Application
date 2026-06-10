@@ -7,12 +7,12 @@ import * as path from 'path';
 export type DiscordChannel =
     | 'sales' | 'production' | 'finance' | 'inventory' | 'leaderboard' | 'system';
 export type DiscordEvent =
-    | 'shiftRecap' | 'newLead' | 'dealClosing' | 'jobReady' | 'lowStock' | 'backup' | 'error' | 'champion' | 'suratOrder';
+    | 'shiftRecap' | 'newLead' | 'dealClosing' | 'jobReady' | 'lowStock' | 'backup' | 'error' | 'champion' | 'suratOrder' | 'newTransaction';
 
 export const DISCORD_CHANNELS: DiscordChannel[] =
     ['sales', 'production', 'finance', 'inventory', 'leaderboard', 'system'];
 export const DISCORD_EVENTS: DiscordEvent[] =
-    ['shiftRecap', 'newLead', 'dealClosing', 'jobReady', 'lowStock', 'backup', 'error', 'champion', 'suratOrder'];
+    ['shiftRecap', 'newLead', 'dealClosing', 'jobReady', 'lowStock', 'backup', 'error', 'champion', 'suratOrder', 'newTransaction'];
 
 // Event → channel default routing
 const EVENT_CHANNEL: Record<DiscordEvent, DiscordChannel> = {
@@ -25,6 +25,7 @@ const EVENT_CHANNEL: Record<DiscordEvent, DiscordChannel> = {
     error: 'system',
     champion: 'leaderboard',
     suratOrder: 'production',
+    newTransaction: 'sales',
 };
 
 // Warna embed (decimal) per tipe
@@ -148,9 +149,10 @@ export class DiscordService {
         }
     }
 
-    /** Konversi markdown gaya WhatsApp (*tebal*) ke gaya Discord (**tebal**). */
+    /** Konversi markdown gaya WhatsApp (*tebal*) ke gaya Discord (**tebal**).
+     *  Asterisk ganda yang sudah format Discord dibiarkan (lookaround). */
     private toDiscordMarkdown(text: string): string {
-        return (text || '').replace(/\*([^*\n]+)\*/g, '**$1**');
+        return (text || '').replace(/(?<!\*)\*([^*\n]+)\*(?!\*)/g, '**$1**');
     }
 
     /** Pecah teks panjang per baris, maks `max` char per pesan (limit konten Discord 2000). */

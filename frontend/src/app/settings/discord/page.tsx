@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 
 const CHANNELS: { key: DiscordChannelKey; label: string; hint: string }[] = [
-    { key: 'sales', label: '#penjualan', hint: 'Transaksi & deal closing' },
+    { key: 'sales', label: '#penjualan', hint: 'Order POS, lead & deal closing' },
     { key: 'production', label: '#produksi', hint: 'Pesanan siap & Surat Order' },
     { key: 'finance', label: '#keuangan', hint: 'Laporan tutup shift + bukti' },
     { key: 'inventory', label: '#stok-gudang', hint: 'Stok menipis' },
@@ -20,6 +20,7 @@ const CHANNELS: { key: DiscordChannelKey; label: string; hint: string }[] = [
 ];
 
 const EVENTS: { key: DiscordEventKey; label: string; desc: string; channel: DiscordChannelKey }[] = [
+    { key: 'newTransaction', label: 'Order / Penjualan Baru', desc: 'Setiap transaksi POS dibuat (detail item + total + kasir)', channel: 'sales' },
     { key: 'shiftRecap', label: 'Laporan Tutup Shift', desc: 'Ringkasan + laporan lengkap & foto bukti saat tutup shift', channel: 'finance' },
     { key: 'suratOrder', label: 'Surat Order Desain', desc: 'SO dari desainer ke kasir/operator (teks + lampiran desain)', channel: 'production' },
     { key: 'newLead', label: 'Lead Baru Masuk', desc: 'Setiap lead baru dibuat (real-time)', channel: 'sales' },

@@ -20,7 +20,7 @@ const STATUS_BADGE: Record<SalesOrderStatus, string> = {
 };
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
     DRAFT: "Draft",
-    SENT: "Terkirim WA",
+    SENT: "Terkirim ke Discord",
     INVOICED: "Sudah Nota",
     CANCELLED: "Dibatalkan",
 };
