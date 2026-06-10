@@ -5,7 +5,7 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { DiscordService } from '../discord/discord.service';
 import { BranchContext } from '../common/branch-context.decorator';
 import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
-import { branchWhere } from '../common/branch-where.helper';
+import { branchWhere, assertBranchAccess } from '../common/branch-where.helper';
 
 type EditItemData = {
     id?: number;           // unset = item baru
@@ -984,7 +984,23 @@ export class TransactionsService {
         });
     }
 
-    async findOne(id: number) {
+    /**
+     * Pastikan staff hanya bisa mengakses transaksi cabangnya sendiri.
+     * Owner / mode "Semua Cabang" (branchCtx undefined) dilewati.
+     * Dipanggil di semua operasi by-ID (baca/bayar/edit/hapus) agar staff
+     * cabang lain tidak bisa intip atau ubah transaksi lewat tebak ID.
+     */
+    private async assertTxBranchAccess(id: number, branchCtx?: BranchContext) {
+        if (!branchCtx) return;
+        const row = await this.prisma.transaction.findUnique({
+            where: { id },
+            select: { branchId: true } as any,
+        });
+        if (!row) throw new NotFoundException('Transaction not found');
+        assertBranchAccess(branchCtx, (row as any).branchId ?? null);
+    }
+
+    async findOne(id: number, branchCtx?: BranchContext) {
         const transaction = await this.prisma.transaction.findUnique({
             where: { id },
             include: {
@@ -997,10 +1013,12 @@ export class TransactionsService {
             } as any,
         });
         if (!transaction) throw new NotFoundException('Transaction not found');
+        assertBranchAccess(branchCtx ?? { isOwner: true, branchId: null, userBranchId: null, roleName: null }, (transaction as any).branchId ?? null);
         return transaction;
     }
 
-    async addPartialPayment(id: number, data: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }) {
+    async addPartialPayment(id: number, data: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
+        await this.assertTxBranchAccess(id, branchCtx);
         return this.prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
@@ -1074,7 +1092,8 @@ export class TransactionsService {
         });
     }
 
-    async payOff(id: number, data: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }) {
+    async payOff(id: number, data: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }, branchCtx?: BranchContext) {
+        await this.assertTxBranchAccess(id, branchCtx);
         return this.prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
@@ -1176,7 +1195,8 @@ export class TransactionsService {
         });
     }
 
-    async updatePaymentMethod(id: number, data: { paymentMethod: PaymentMethod; bankAccountId?: number }) {
+    async updatePaymentMethod(id: number, data: { paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
+        await this.assertTxBranchAccess(id, branchCtx);
         return this.prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUniqueOrThrow({ where: { id } });
 
@@ -2063,10 +2083,11 @@ export class TransactionsService {
         }
     }
 
-    async editTransactionDirect(id: number, roleId: number | null, editData: TransactionEditData) {
+    async editTransactionDirect(id: number, roleId: number | null, editData: TransactionEditData, branchCtx?: BranchContext) {
         // Transaksi PENDING (draft invoice) boleh diedit siapa saja — belum ada pembayaran
         const transaction = await this.prisma.transaction.findUnique({ where: { id } });
         if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan');
+        assertBranchAccess(branchCtx ?? { isOwner: true, branchId: null, userBranchId: null, roleName: null }, (transaction as any).branchId ?? null);
         const isPending = transaction.status === TransactionStatus.PENDING;
         if (!isPending && !(await this.isAdminOrOwner(roleId))) {
             throw new ForbiddenException('Hanya Admin/Owner yang dapat mengedit transaksi yang sudah terbayar');
@@ -2080,9 +2101,10 @@ export class TransactionsService {
         });
     }
 
-    async createEditRequest(transactionId: number, requestedById: number, reason: string, editData: TransactionEditData) {
+    async createEditRequest(transactionId: number, requestedById: number, reason: string, editData: TransactionEditData, branchCtx?: BranchContext) {
         const transaction = await this.prisma.transaction.findUnique({ where: { id: transactionId } });
         if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan');
+        assertBranchAccess(branchCtx ?? { isOwner: true, branchId: null, userBranchId: null, roleName: null }, (transaction as any).branchId ?? null);
         if (!['PAID', 'PARTIAL', 'PENDING'].includes(transaction.status)) {
             throw new BadRequestException('Hanya transaksi PAID, PARTIAL, atau PENDING yang dapat diedit');
         }
@@ -2164,10 +2186,11 @@ export class TransactionsService {
 
     // ─── Delete Transaction ──────────────────────────────────────────────────
 
-    async deleteTransaction(id: number, roleId: number | null) {
+    async deleteTransaction(id: number, roleId: number | null, branchCtx?: BranchContext) {
         if (!(await this.isAdminOrOwner(roleId))) {
             throw new ForbiddenException('Hanya Admin/Owner yang dapat menghapus transaksi');
         }
+        await this.assertTxBranchAccess(id, branchCtx);
         return this.prisma.$transaction(async (tx) => {
             const transaction = await tx.transaction.findUnique({
                 where: { id },

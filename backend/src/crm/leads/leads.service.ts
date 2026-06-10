@@ -1059,6 +1059,7 @@ export class LeadsService {
                     invoiceNumber: newNumber,
                     type: invType as any,
                     status: 'DRAFT',
+                    branchId: (lead as any).branchId ?? ctx.branchId ?? null, // ikut cabang lead
                     clientName: customer.name,
                     clientPhone: customer.phone,
                     clientAddress: customer.address,
@@ -1067,7 +1068,7 @@ export class LeadsService {
                     subtotal,
                     total: subtotal, // belum termasuk PPN/diskon — bisa diedit di /invoices
                     items: invItems.length ? { create: invItems } : undefined,
-                },
+                } as any,
             });
             invoiceId = invoice.id;
             invoiceNumber = invoice.invoiceNumber;

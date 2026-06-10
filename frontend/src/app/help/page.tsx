@@ -597,6 +597,11 @@ function SecInvoice() {
                 { title: "Tagih Pembayaran", desc: "Invoice dicetak ulang dan dikirim ke klien." },
             ]} />
 
+            <P>
+                Invoice & SPH terpisah per cabang: staff hanya melihat dokumen cabangnya. Owner pilih
+                cabang dulu sebelum membuat dokumen baru.
+            </P>
+
             <H3>Status Dokumen</H3>
             <Table
                 headers={["Status", "Invoice", "SPH"]}
@@ -725,8 +730,8 @@ function SecCabang() {
         <>
             <H2 id="multi-cabang">Multi-Cabang</H2>
             <P>
-                Kelola banyak cabang dalam satu sistem — stok, kas, dan shift masing-masing terpisah.
-                Konfigurasi di <Code>/settings/branches</Code>.
+                Kelola banyak cabang dalam satu sistem — transaksi, stok, kas, shift, dan invoice
+                masing-masing terpisah per cabang. Konfigurasi di <Code>/settings/branches</Code>.
             </P>
 
             <H3>Role dalam Multi-Cabang</H3>
@@ -737,6 +742,24 @@ function SecCabang() {
                     ["Staff/Kasir", "Hanya akses satu cabang (cabang yang ditugaskan)"],
                 ]}
             />
+
+            <H3>Data yang Terpisah per Cabang</H3>
+            <P>Staff hanya bisa melihat & mengubah data cabangnya sendiri — termasuk saat membuka langsung lewat link/ID.</P>
+            <Table
+                headers={["Terpisah per cabang", "Dibagikan ke semua cabang"]}
+                rows={[
+                    ["Transaksi / penjualan & piutang", "Pelanggan (Customer)"],
+                    ["Kas (Cashflow) & tutup shift", "Supplier"],
+                    ["Stok, opname, pembelian, transfer", "Katalog produk & kategori"],
+                    ["Invoice & SPH", "—"],
+                    ["Antrian produksi & rekening bank", "—"],
+                ]}
+            />
+            <P>
+                Catatan: <strong>Invoice/SPH lama</strong> (sebelum fitur pemisahan ini) otomatis
+                ditandai milik cabang <strong>Pusat</strong>. Owner perlu memilih cabang dulu sebelum
+                membuat invoice baru (tidak bisa dari mode "Semua Cabang").
+            </P>
 
             <H3>Titip Cetak Antar Cabang</H3>
             <P>Kasir cabang A bisa membuat nota yang dicetak di cabang B (pelaksana).</P>
