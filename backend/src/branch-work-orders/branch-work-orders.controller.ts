@@ -9,6 +9,7 @@ import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BranchWorkOrdersService } from './branch-work-orders.service';
 import type { CreateBranchWODto } from './branch-work-orders.service';
+import { compressImage } from '../common/utils/compress-image.util';
 
 const proofStorage = diskStorage({
     destination: (_req, _file, cb) => {
@@ -65,11 +66,12 @@ export class BranchWorkOrdersController {
 
     @Post(':id/proof')
     @UseInterceptors(FileInterceptor('file', { storage: proofStorage }))
-    uploadProof(
+    async uploadProof(
         @Param('id', ParseIntPipe) id: number,
         @UploadedFile() file: Express.Multer.File,
     ) {
         if (!file) throw new Error('File tidak ditemukan');
+        await compressImage(file.path);
         const relativePath = `/uploads/branch-proofs/${file.filename}`;
         return this.service.setProof(id, relativePath);
     }

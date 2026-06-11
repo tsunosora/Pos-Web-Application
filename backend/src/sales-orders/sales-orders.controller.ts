@@ -11,6 +11,7 @@ import { SalesOrdersService } from './sales-orders.service';
 import type { CreateSalesOrderDto, SalesOrderStatus, UpdateSalesOrderDto } from './sales-orders.service';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { compressImages } from '../common/utils/compress-image.util';
 
 // Pastikan folder upload ada — multer tidak auto-create
 const PROOF_DIR = './public/uploads/so-proofs';
@@ -119,6 +120,7 @@ export class SalesOrdersController {
         else if (typeof captionsRaw === 'string') {
             try { captions = JSON.parse(captionsRaw); } catch { captions = [captionsRaw]; }
         }
+        await compressImages((files || []).map(f => f.path));
         return this.service.addProofs(id, files || [], captions);
     }
 

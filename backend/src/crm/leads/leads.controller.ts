@@ -14,6 +14,7 @@ import { LeadsService } from './leads.service';
 import {
     CloseLostDto, ConvertLeadDto, CreateActivityDto, CreateLeadDto, UpdateLeadDto,
 } from './leads.dto';
+import { compressImage } from '../../common/utils/compress-image.util';
 
 const LEAD_IMG_DIR = './public/uploads';
 try { fs.mkdirSync(LEAD_IMG_DIR, { recursive: true }); } catch { /* ignore */ }
@@ -147,6 +148,7 @@ export class LeadsController {
     }))
     async uploadImage(@UploadedFile() file: Express.Multer.File) {
         if (!file) throw new BadRequestException('File foto wajib diisi');
+        await compressImage(file.path);
         return { url: `/uploads/${file.filename}` };
     }
 }

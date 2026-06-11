@@ -101,6 +101,7 @@ export class ProductionController {
         @Req() req: any,
     ) {
         if (!file) throw new BadRequestException('File foto wajib diisi');
+        await compressImage(file.path);
         const url = `/uploads/${file.filename}`;
         const actorName = req?.user?.name || req?.user?.email || 'Admin';
         const proof = await this.productionService.addProof(id, url, { name: actorName, role: 'ADMIN' });
@@ -198,6 +199,7 @@ export class ProductionController {
         if (!body.operatorName?.trim()) {
             throw new BadRequestException('Nama operator wajib diisi');
         }
+        await compressImage(file.path);
         const url = `/uploads/${file.filename}`;
         const proof = await this.productionService.addProof(id, url, { name: body.operatorName.trim(), role: 'OPERATOR' });
         await this.productionService.updatePipelineStage(id, { proofImageUrl: url });
