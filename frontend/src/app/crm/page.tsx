@@ -622,6 +622,11 @@ function ProductTrendChart({
                 </div>
             </div>
 
+            <p className="text-[11px] text-gray-400 -mt-1 mb-3">
+                Dari <strong>semua transaksi POS</strong> di periode (termasuk walk-in tanpa lead), berdasarkan <strong>tanggal transaksi</strong>.
+                Item add-on (kerah/lengan/rib) tidak dihitung sebagai pcs.
+            </p>
+
             {/* Pisahan sumber: dari lead vs dari walk-in (saat filter CS aktif) */}
             {effectiveCsId !== "ALL" && data?.sourceSplit && (
                 <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
@@ -835,6 +840,11 @@ function SourceBreakdownChart({
                     </div>
                 </div>
             </div>
+
+            <p className="text-[11px] text-gray-400 -mt-1 mb-3">
+                Hanya dari <strong>lead</strong> (sesuai filter status), berdasarkan <strong>tanggal lead masuk</strong> — pcs diambil dari nota hasil closing.
+                Order walk-in tanpa lead tidak dihitung di sini, jadi total pcs wajar lebih kecil dari Tren Produk.
+            </p>
 
             {/* Filter status */}
             <div className="flex items-center gap-1.5 flex-wrap mb-3">

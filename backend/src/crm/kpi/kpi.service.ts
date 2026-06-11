@@ -107,6 +107,28 @@ export class KpiService {
     private get tx(): any { return (this.prisma as any).transaction; }
 
     /**
+     * Nama/kode cabang aktif untuk filter SO (SalesOrder simpan `branchName` string,
+     * tidak punya FK cabang). null = mode semua cabang (tanpa filter).
+     */
+    private async soBranchNames(ctx: BranchContext): Promise<string[] | null> {
+        if (ctx.branchId == null) return null;
+        try {
+            const b = await (this.prisma as any).companyBranch.findUnique({
+                where: { id: ctx.branchId }, select: { name: true, code: true },
+            });
+            return b ? [b.name, b.code].filter(Boolean) : [];
+        } catch { return []; }
+    }
+
+    /** Cocokkan SO.branchName dengan cabang aktif (logika sama dgn SalesOrdersService). */
+    private soMatchesBranch(soBranchName: string | null | undefined, names: string[] | null): boolean {
+        if (names == null) return true;          // semua cabang
+        if (names.length === 0) return false;    // cabang tak dikenal → jangan bocorkan
+        const s = (soBranchName || '').toLowerCase();
+        return names.some(n => s === n.toLowerCase() || s.includes(n.toLowerCase()));
+    }
+
+    /**
      * Hitung total pcs per transaksi — KECUALI item dari kategori add-on
      * (kerah, lengan, rib, dll) yang merupakan komponen produk utama, bukan
      * barang terpisah. Item custom tanpa varian katalog tetap dihitung.
@@ -210,7 +232,7 @@ export class KpiService {
                                 product: {
                                     select: {
                                         name: true,
-                                        category: { select: { name: true } },
+                                        category: { select: { name: true, countsAsPcs: true } },
                                     },
                                 },
                             },
@@ -235,6 +257,12 @@ export class KpiService {
             for (const it of tx.items) {
                 const qty = Number(it.quantity) || 0;
                 if (qty <= 0) continue;
+                // Aturan pcs SAMA dengan computeTxPcsMap: item kategori add-on
+                // (countsAsPcs=false / 'Additional' — kerah, lengan, rib) adalah
+                // komponen produk utama, bukan barang terpisah → tidak dihitung.
+                // Tanpa ini, total pcs Tren Produk lebih besar dari panel lain.
+                const cat = it.productVariant?.product?.category;
+                if (cat && (cat.countsAsPcs === false || cat.name === 'Additional')) continue;
                 const prodName = it.productVariant?.product?.name
                     || it.productVariant?.variantName
                     || it.customName
@@ -519,11 +547,13 @@ export class KpiService {
         // SO Dibuat: jumlah Sales Order (kecuali CANCELLED) yang dibuat designer di periode.
         // Menutup celah designer yang kerjanya tidak menghasilkan production job (mis. produk
         // non-AREA_BASED). Kolom terpisah dari assignment → tidak dobel hitung.
-        // Catatan: SalesOrder tidak punya branchId, jadi tidak di-scope per cabang.
-        const sos: any[] = await (this.prisma as any).salesOrder.findMany({
+        // SO di-scope per cabang via branchName (SalesOrder tidak punya FK cabang).
+        const soBranches = await this.soBranchNames(ctx);
+        const sosRaw: any[] = await (this.prisma as any).salesOrder.findMany({
             where: { createdAt: { gte: start, lte: end }, status: { not: 'CANCELLED' } },
-            select: { designerName: true },
+            select: { designerName: true, branchName: true },
         });
+        const sos = sosRaw.filter(so => this.soMatchesBranch(so.branchName, soBranches));
         const soByDesigner = new Map<string, number>();
         for (const so of sos) {
             const name = (so.designerName || '').trim();
@@ -532,15 +562,20 @@ export class KpiService {
         }
 
         // SO yang JADI NOTA di periode (invoicedAt) → omzet & pcs per designer.
-        // Sumber kebenaran: SalesOrder.transactionId → transaction.grandTotal + items.
+        // Sumber kebenaran: SalesOrder.transactionId → transaction.grandTotal.
         // Satu nota dihitung sekali di sini (dedup natural: 1 SO = 1 transaksi).
-        const invoicedSos: any[] = await (this.prisma as any).salesOrder.findMany({
+        const invoicedSosRaw: any[] = await (this.prisma as any).salesOrder.findMany({
             where: { invoicedAt: { gte: start, lte: end }, status: 'INVOICED', transactionId: { not: null } },
             select: {
                 designerName: true,
-                transaction: { select: { grandTotal: true, items: { select: { quantity: true } } } },
+                branchName: true,
+                transactionId: true,
+                transaction: { select: { grandTotal: true } },
             },
         });
+        const invoicedSos = invoicedSosRaw.filter(so => this.soMatchesBranch(so.branchName, soBranches));
+        // pcs konsisten dgn panel lain: kategori add-on (countsAsPcs=false) dikecualikan
+        const soTxPcsMap = await this.computeTxPcsMap(invoicedSos.map(so => Number(so.transactionId)));
         type SoStat = { invoiced: number; omzet: number; pcs: number };
         const soNotaByDesigner = new Map<string, SoStat>();
         for (const so of invoicedSos) {
@@ -549,7 +584,7 @@ export class KpiService {
             const st = soNotaByDesigner.get(name) || { invoiced: 0, omzet: 0, pcs: 0 };
             st.invoiced++;
             st.omzet += Number(so.transaction?.grandTotal || 0);
-            st.pcs += (so.transaction?.items || []).reduce((s: number, it: any) => s + (Number(it.quantity) || 0), 0);
+            st.pcs += soTxPcsMap.get(Number(so.transactionId)) ?? 0;
             soNotaByDesigner.set(name, st);
         }
 
@@ -751,11 +786,13 @@ export class KpiService {
             if (j.isExpress) add('express', bk, person, 1);
         }
 
-        // SO Dibuat per bucket (kecuali CANCELLED) — SalesOrder tidak punya branchId
-        const sos: any[] = await (this.prisma as any).salesOrder.findMany({
+        // SO Dibuat per bucket (kecuali CANCELLED) — scope cabang via branchName
+        const soBranches = await this.soBranchNames(ctx);
+        const sosRaw: any[] = await (this.prisma as any).salesOrder.findMany({
             where: { createdAt: { gte: start, lte: end }, status: { not: 'CANCELLED' } },
-            select: { designerName: true, createdAt: true },
+            select: { designerName: true, createdAt: true, branchName: true },
         });
+        const sos = sosRaw.filter(so => this.soMatchesBranch(so.branchName, soBranches));
         for (const so of sos) {
             const person = (so.designerName || '').trim();
             if (!person) continue;
