@@ -36,6 +36,15 @@ export class TransactionsService {
     ) { }
 
     // Helper: buat StockMovement dengan balanceAfter otomatis dari stok variant saat ini (post-update)
+    /** Kode cabang untuk prefix penomoran (SO-/SC-) — '' kalau cabang/kode kosong. */
+    private async branchCodeFor(tx: any, branchId?: number | null): Promise<string> {
+        if (branchId == null) return '';
+        const b = await tx.companyBranch.findUnique({
+            where: { id: branchId }, select: { code: true },
+        });
+        return ((b as any)?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    }
+
     private async logMovement(tx: any, variantId: number, type: string, quantity: number, reason: string, referenceId?: string, branchId?: number | null) {
         const v = await tx.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } });
         await tx.stockMovement.create({
@@ -227,7 +236,10 @@ export class TransactionsService {
             const _m = String(_effectiveDateForInvoice.getMonth() + 1).padStart(2, '0');
             const _d = String(_effectiveDateForInvoice.getDate()).padStart(2, '0');
             const _dateStr = `${_y}${_m}${_d}`;
-            const _prefix = `SO-${_dateStr}-`;
+            // Kode cabang di nomor nota → tiap cabang punya urutan harian sendiri
+            // (SO-{KODE}-{YYYYMMDD}-{NNNN}); tanpa cabang/kode → format lama.
+            const _branchCode = await this.branchCodeFor(tx, branchId);
+            const _prefix = _branchCode ? `SO-${_branchCode}-${_dateStr}-` : `SO-${_dateStr}-`;
             // Cek nomor terakhir dari TRANSACTION yang masih ada
             const _lastToday = await tx.transaction.findFirst({
                 where: { invoiceNumber: { startsWith: _prefix } },
@@ -507,7 +519,7 @@ export class TransactionsService {
             // Generate SC number jika transaksi langsung PAID (bayar lunas di kasir)
             let checkoutNumber: string | null = null;
             if (status === TransactionStatus.PAID) {
-                const scPrefix = `SC-${dateStr}-`;
+                const scPrefix = _branchCode ? `SC-${_branchCode}-${dateStr}-` : `SC-${dateStr}-`;
                 const lastSC = await tx.transaction.findFirst({
                     where: { checkoutNumber: { startsWith: scPrefix } },
                     orderBy: { checkoutNumber: 'desc' },
@@ -1074,12 +1086,13 @@ export class TransactionsService {
             });
 
             if (willBePaid) {
-                // Promosi ke PAID — generate SC number
+                // Promosi ke PAID — generate SC number (per cabang, ikut cabang transaksi)
                 const now = new Date();
                 const cy = now.getFullYear();
                 const cm = String(now.getMonth() + 1).padStart(2, '0');
                 const cd = String(now.getDate()).padStart(2, '0');
-                const scPrefix = `SC-${cy}${cm}${cd}-`;
+                const scCode = await this.branchCodeFor(tx, (transaction as any).branchId ?? null);
+                const scPrefix = scCode ? `SC-${scCode}-${cy}${cm}${cd}-` : `SC-${cy}${cm}${cd}-`;
                 const lastSC = await tx.transaction.findFirst({
                     where: { checkoutNumber: { startsWith: scPrefix } },
                     orderBy: { checkoutNumber: 'desc' },

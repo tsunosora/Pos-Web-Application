@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: { name: string; parentId?: number | null }) {
+  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean }) {
     // Cek nama duplikat dalam parent yang sama
     const existing = await (this.prisma as any).category.findFirst({
       where: { name: data.name, parentId: data.parentId ?? null },
@@ -13,7 +13,11 @@ export class CategoriesService {
     if (existing) throw new BadRequestException('Nama kategori sudah ada dalam grup yang sama');
 
     return (this.prisma as any).category.create({
-      data: { name: data.name, parentId: data.parentId ?? null },
+      data: {
+        name: data.name,
+        parentId: data.parentId ?? null,
+        countsAsPcs: data.countsAsPcs ?? true,
+      },
       include: { parent: true, children: true },
     });
   }
@@ -23,7 +27,7 @@ export class CategoriesService {
     return (this.prisma as any).category.findMany({
       include: {
         parent: { select: { id: true, name: true } },
-        children: { orderBy: { name: 'asc' }, select: { id: true, name: true, parentId: true } },
+        children: { orderBy: { name: 'asc' }, select: { id: true, name: true, parentId: true, countsAsPcs: true } },
       },
       orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
     });
@@ -38,7 +42,7 @@ export class CategoriesService {
     return category;
   }
 
-  async update(id: number, data: { name: string; parentId?: number | null }) {
+  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean }) {
     await this.findOne(id);
 
     // Cegah circular reference
@@ -54,7 +58,11 @@ export class CategoriesService {
 
     return (this.prisma as any).category.update({
       where: { id },
-      data: { name: data.name, parentId: data.parentId ?? null },
+      data: {
+        name: data.name,
+        parentId: data.parentId ?? null,
+        ...(data.countsAsPcs !== undefined ? { countsAsPcs: !!data.countsAsPcs } : {}),
+      },
       include: { parent: true, children: true },
     });
   }

@@ -9,6 +9,7 @@ import {
     Banknote, Building2, CheckCircle, AlertCircle, Info,
     TrendingDown, Sparkles, Store,
 } from "lucide-react";
+import { usePagination, PaginationBar } from "@/components/ui/pagination";
 
 // ─── Helper UI ────────────────────────────────────────────────────────────────
 
@@ -178,7 +179,7 @@ function SecPengantar() {
                 { title: "Rekening Bank — /settings/bank-accounts", desc: "Daftarkan rekening bank untuk menerima transfer. Masing-masing muncul sebagai pilihan di kasir." },
                 { title: "Produk & Inventori — /inventory", desc: "Buat kategori produk, input semua produk (biasa atau Area Based untuk cetak). Set HPP setiap varian agar laporan laba akurat." },
                 { title: "Supplier — /inventory/suppliers (opsional)", desc: "Input data supplier dan harga beli per varian produk." },
-                { title: "WhatsApp Bot — /settings/whatsapp", desc: "Scan QR Code untuk menghubungkan bot. Setup grup penerima laporan shift." },
+                { title: "Notifikasi Discord — /settings/discord", desc: "Isi webhook URL per channel untuk tiap cabang (penjualan, produksi, keuangan, dll) — laporan shift, lead, SO, dan stok terkirim otomatis ke Discord." },
             ]} />
 
             <H2 id="login">Login & Dashboard</H2>
@@ -730,7 +731,26 @@ function SecCRM() {
 function SecWhatsApp() {
     return (
         <>
-            <H2 id="whatsapp">WhatsApp Bot</H2>
+            <H2 id="whatsapp">Notifikasi: Discord & WhatsApp Bot</H2>
+
+            <H3>Discord (utama)</H3>
+            <P>
+                Notifikasi PosPro kini dikirim via <strong>Discord webhook per cabang</strong> — lead baru,
+                deal closing, Surat Order + gambar desain, pesanan siap diambil, stok menipis, tutup shift,
+                transaksi baru, backup, dan error sistem.
+            </P>
+            <Steps steps={[
+                { title: "Buka Pengaturan → Discord", desc: "Aktifkan master toggle notifikasi." },
+                { title: "Isi webhook URL per channel untuk tiap cabang", desc: "Channel: penjualan, produksi, keuangan, inventory, leaderboard, system. Buat webhook dari Discord: Server Settings → Integrations → Webhooks." },
+                { title: "Klik Test per channel", desc: "Pastikan pesan test masuk ke channel yang benar. Event cabang hanya terkirim ke webhook cabang itu." },
+            ]} />
+
+            <H3>WhatsApp Bot (opsional — nonaktif default)</H3>
+            <Callout type="warning" title="Bot WA dinonaktifkan secara default">
+                Sejak notifikasi pindah ke Discord, bot WhatsApp tidak dijalankan otomatis. Untuk
+                mengaktifkan kembali: set <Code>WHATSAPP_ENABLED=true</Code> di file <Code>.env</Code> backend
+                lalu restart server.
+            </Callout>
             <P>Bot WhatsApp berjalan langsung di server PosPro — tidak perlu aplikasi atau layanan pihak ketiga.</P>
 
             <H3>Cara Menghubungkan</H3>
@@ -859,10 +879,10 @@ function SecPengaturan() {
 
             <H3>Backup & Restore — /settings/backup</H3>
             <Steps steps={[
-                { title: "Klik Export Backup", desc: "Sistem generate file ZIP berisi dump database MySQL — download otomatis." },
+                { title: "Pilih grup data → klik Export Backup", desc: "Sistem generate file ZIP berisi dump database MySQL + foto (proof SO, gambar lead, dll) — download otomatis. Grup data bisa dipilih sebagian (mis. hanya transaksi & CRM)." },
                 { title: "Simpan file ZIP di tempat aman", desc: "Bisa di cloud, USB, atau storage eksternal." },
-                { title: "Auto-backup via Rclone (opsional)", desc: "Konfigurasi di Settings → Backup — backup otomatis ke Google Drive atau cloud storage lainnya." },
-                { title: "Restore", desc: "Hubungi administrator untuk prosedur restore dari file backup." },
+                { title: "Auto-Backup Server via Rclone", desc: "Konfigurasi di bagian bawah halaman Backup — jadwal cron, jumlah file yang disimpan, dan remote tujuan (Google Drive dll). Status & daftar file backup lokal tampil di halaman yang sama, plus notifikasi hasil backup ke Discord." },
+                { title: "Restore mandiri dari halaman yang sama", desc: "Upload/drag file backup (.zip/.sql) → sistem tampilkan preview isi per tabel → pilih tabel yang mau direstore → pilih mode Skip Existing (aman) atau Overwrite (hapus & tulis ulang) → konfirmasi. Foto & konfigurasi ikut dipulihkan dari file ZIP." },
             ]} />
 
             <H3>Kalkulator HPP — /reports/hpp</H3>
@@ -895,8 +915,16 @@ function SecFAQ() {
         { q: "PIN operator lupa — bagaimana?", a: "Admin ubah PIN di Pengaturan → Umum, lalu beritahu operator PIN baru." },
         { q: "Kenapa stok komponen rakitan tidak terpotong saat cetak?", a: "Disengaja. Stok bahan cetak (roll) dipotong saat Mulai Cetak. Stok komponen rakitan dipotong saat Mulai Pasang — memastikan stok hanya berkurang saat bahan benar-benar dipakai." },
         { q: "Ada fitur laporan pajak?", a: "PosPro mendukung PPN di Invoice & SPH. Untuk laporan pajak formal, gunakan export Excel dan olah di aplikasi akuntansi." },
-        { q: "Bot WhatsApp terputus — apa yang dilakukan?", a: "Pengaturan → WhatsApp Bot → klik Logout & Restart Bot → scan QR Code ulang." },
-        { q: "Cara backup data?", a: "Pengaturan → Backup → klik Export Backup. File ZIP didownload otomatis. Disarankan backup berkala dan simpan di cloud storage." },
+        { q: "Bot WhatsApp terputus / tidak jalan?", a: "Bot WhatsApp kini NONAKTIF secara default — notifikasi sudah pindah ke Discord (Pengaturan → Discord). Kalau masih ingin memakai bot WA, set WHATSAPP_ENABLED=true di file .env backend lalu restart server, kemudian scan ulang QR di Pengaturan → WhatsApp Bot." },
+        { q: "Cara backup data?", a: "Pengaturan → Backup → pilih grup data → klik Export Backup (file ZIP berisi database + foto terdownload otomatis). Aktifkan juga Auto-Backup Server (rclone) supaya backup terjadwal otomatis ke cloud storage." },
+        { q: "Cara restore data dari backup?", a: "Pengaturan → Backup → bagian Restore → upload/drag file backup (.zip/.sql). Sistem menampilkan preview isi per tabel — pilih tabel yang mau direstore, pilih mode Skip Existing (aman, hanya isi data yang belum ada) atau Overwrite (hapus & tulis ulang), lalu konfirmasi." },
+        { q: "Bagaimana setting notifikasi Discord per cabang?", a: "Pengaturan → Discord → aktifkan master toggle → isi webhook URL per channel (penjualan, produksi, keuangan, inventory, dll) untuk TIAP cabang → klik Test per channel. Event cabang hanya terkirim ke webhook cabang itu." },
+        { q: "Lead Order desainer itu apa?", a: "Dari portal desainer, setelah membuat SO desainer bisa menekan tombol 'Lead Order (CS)'. Sistem otomatis membuat lead CRM tertaut, menyalin gambar desain ke galeri lead, dan mengirim notifikasi + gambar ke Discord CS (#penjualan) dan #produksi. Kalau SO direvisi lalu Lead Order ditekan lagi, data & gambar lead ikut tersinkron dan Discord mendapat notif revisi." },
+        { q: "Kenapa sebelum 'Buat Nota di POS' dari lead diminta isi CS & sumber lead?", a: "Supaya KPI CS dan laporan sumber lead akurat. Lead bikinan desainer hanya tahu 'SO Desainer' — sumber sebenarnya (WA, IG, walk-in, dll) hanya diketahui CS. Isi kedua field di modal, lalu sistem lanjut ke POS di tab yang sama." },
+        { q: "Harga di lead/SO kok beda dengan harga di nota?", a: "Sudah tidak lagi — harga tier varian (harga bertingkat di Manajemen Stok) kini dipakai konsisten di item lead CRM, estimasi SO desainer, dan nota POS. Harga hasil nego yang diketik manual oleh CS tetap dihormati dan tidak ditimpa." },
+        { q: "Kenapa nomor nota sekarang ada kode cabangnya (SO-PST-...)?", a: "Penomoran nota, SO, dan nomor checkout kini per cabang: SO-{KODE}-{TANGGAL}-{URUT}. Tiap cabang punya urutan harian sendiri sehingga nomor antar cabang tidak bercampur. Pastikan setiap cabang punya Kode di Pengaturan → Cabang." },
+        { q: "Kenapa jumlah pcs di CRM tidak menghitung kerah/lengan?", a: "Item dari kategori add-on (komponen yang menempel ke produk utama) sengaja tidak dihitung di metrik pcs — supaya 1 jersey + kerah + lengan terhitung 1 pcs, bukan 3. Atur lewat Inventori → Kategori → centang/matikan 'hitung pcs' per kategori." },
+        { q: "Bagaimana memfilter CRM Dashboard per cabang/staff/waktu?", a: "Di bagian atas CRM Dashboard ada filter waktu (Hari Ini / 7 Hari / Bulan Ini / Custom), filter Cabang (khusus Owner), dan filter Staff. Ketiganya berlaku untuk semua metrik, chart, dan leaderboard di halaman itu." },
         { q: "Laporan Cashflow tidak sesuai?", a: "Periksa entry dengan userId = null (entry otomatis dari kasir). Jangan hapus entry otomatis tersebut — itu adalah record transaksi penjualan." },
         { q: "Produk Area Based tidak muncul di kasir?", a: "Pastikan tipe produk adalah 'Produk Jual' (SELLABLE), bukan 'Bahan Baku'. Bahan Baku tidak muncul di kasir." },
         { q: "Bagaimana mencatat potongan Shopee/Tokopedia?", a: "Di POS, gulir ke bawah form checkout → klik + Tambah Potongan → isi nama platform dan nominal. Bisa lebih dari satu baris. Cashflow otomatis split: INCOME (nett diterima) + EXPENSE Biaya Platform. Jika lupa diisi saat transaksi, bisa diisi saat pelunasan di menu DP & Piutang." },
@@ -904,13 +932,16 @@ function SecFAQ() {
         { q: "Filter di Pipeline Produksi tidak berfungsi?", a: "Filter bekerja di sisi client — data sudah dimuat saat halaman dibuka. Klik Reset filter untuk memastikan semua filter bersih. Jika data tidak update, tunggu 60 detik (auto-refresh) atau reload halaman." },
     ];
 
+    // Paginasi — aktif saat FAQ melebihi 20 item
+    const pg = usePagination(faqs, 20);
+
     return (
         <>
             <H2 id="faq">FAQ & Troubleshooting</H2>
             <div className="space-y-3">
-                {faqs.map((faq, i) => (
+                {pg.pageItems.map((faq, i) => (
                     <details
-                        key={i}
+                        key={`${pg.page}-${i}`}
                         className="group border border-gray-200 rounded-lg overflow-hidden"
                     >
                         <summary className="flex items-center justify-between cursor-pointer px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors list-none">
@@ -926,6 +957,7 @@ function SecFAQ() {
                     </details>
                 ))}
             </div>
+            <PaginationBar {...pg} />
         </>
     );
 }
@@ -1264,7 +1296,7 @@ const NAV_GROUPS = [
     {
         label: "Komunikasi",
         icon: <MessageSquare size={14} />,
-        items: [{ id: "whatsapp", label: "WhatsApp Bot" }],
+        items: [{ id: "whatsapp", label: "Notifikasi (Discord & WA)" }],
     },
     {
         label: "Multi-Cabang",

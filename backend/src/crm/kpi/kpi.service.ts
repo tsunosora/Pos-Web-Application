@@ -106,9 +106,35 @@ export class KpiService {
     private get fu(): any { return (this.prisma as any).followUp; }
     private get tx(): any { return (this.prisma as any).transaction; }
 
-    async report(ctx: BranchContext, params: KpiParams) {
+    /**
+     * Hitung total pcs per transaksi — KECUALI item dari kategori add-on
+     * (kerah, lengan, rib, dll) yang merupakan komponen produk utama, bukan
+     * barang terpisah. Item custom tanpa varian katalog tetap dihitung.
+     * Penentu add-on: flag Category.countsAsPcs=false (di-set dari halaman
+     * Manajemen Kategori). Nama 'Additional' tetap dikecualikan sebagai
+     * fallback untuk DB yang belum sempat toggle flag-nya.
+     */
+    private async computeTxPcsMap(txIds: number[]): Promise<Map<number, number>> {
+        const map = new Map<number, number>();
+        if (txIds.length === 0) return map;
+        const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
+            by: ['transactionId'],
+            where: {
+                transactionId: { in: txIds },
+                OR: [
+                    { productVariantId: null },
+                    { productVariant: { product: { category: { countsAsPcs: true, name: { not: 'Additional' } } } } },
+                ],
+            },
+            _sum: { quantity: true },
+        });
+        for (const g of groups) map.set(g.transactionId, Number(g._sum?.quantity) || 0);
+        return map;
+    }
+
+    async report(ctx: BranchContext, params: KpiParams, csId?: number) {
         try {
-            return await this._report(ctx, params);
+            return await this._report(ctx, params, csId);
         } catch (err: any) {
             // eslint-disable-next-line no-console
             console.error('[kpi.report] failed:', err?.message, err?.stack);
@@ -343,15 +369,7 @@ export class KpiService {
         const wonTxIds = statusSet.has('CLOSED_WON')
             ? leads.filter(l => l.status === 'CLOSED_WON' && l.convertedTransactionId).map(l => Number(l.convertedTransactionId))
             : [];
-        const txPcsMap = new Map<number, number>();
-        if (wonTxIds.length > 0) {
-            const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
-                by: ['transactionId'],
-                where: { transactionId: { in: wonTxIds } },
-                _sum: { quantity: true },
-            });
-            for (const g of groups) txPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
-        }
+        const txPcsMap = await this.computeTxPcsMap(wonTxIds);
 
         // Key sumber: pakai sourceDetail untuk MARKETPLACE/CUSTOM/OTHER (mis. Shopee, Lazada),
         // selain itu pakai enum source (mis. WHATSAPP, REPEAT_ORDER).
@@ -641,13 +659,7 @@ export class KpiService {
         const nameOf = new Map(users.map(u => [u.id, u.name || u.email || `User #${u.id}`]));
 
         const wonTxIds = leads.filter(l => l.status === 'CLOSED_WON' && l.convertedTransactionId).map(l => Number(l.convertedTransactionId));
-        const txPcsMap = new Map<number, number>();
-        if (wonTxIds.length > 0) {
-            const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
-                by: ['transactionId'], where: { transactionId: { in: wonTxIds } }, _sum: { quantity: true },
-            });
-            for (const g of groups) txPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
-        }
+        const txPcsMap = await this.computeTxPcsMap(wonTxIds);
 
         const SUM_METRICS = ['leads', 'closing', 'pcs', 'lost', 'invalid', 'wonValue', 'lostValue'];
         const acc: Record<string, Map<string, Map<string, number>>> = {};
@@ -757,16 +769,19 @@ export class KpiService {
         return { period: { start: start.toISOString(), end: end.toISOString() }, bucketBy, persons, metrics };
     }
 
-    private async _report(ctx: BranchContext, params: KpiParams) {
+    private async _report(ctx: BranchContext, params: KpiParams, csId?: number) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);
+        // Filter staff (CS): batasi lead & FU ke assignedToId tsb; walk-in
+        // dibatasi ke transaksi yang ditangani user tsb (match cashierName).
+        const csScope: any = csId ? { assignedToId: csId } : {};
 
         // ── Response time avg ──────────────────────────────────────────────
         // Ambil leads in period + first non-FIRST_CONTACT activity per lead.
         // Tanpa `distinct` (kadang flaky di MySQL pakai Prisma) — kita pakai
         // sort + ambil first di JS.
         const leadsInPeriod: any[] = await this.lead.findMany({
-            where: { ...branchScope, createdAt: { gte: start, lte: end } },
+            where: { ...branchScope, ...csScope, createdAt: { gte: start, lte: end } },
             select: { id: true, createdAt: true, status: true, source: true, sourceDetail: true, assignedToId: true, estimatedValue: true, convertedTransactionId: true },
         });
         const leadIds = leadsInPeriod.map(l => l.id);
@@ -831,18 +846,8 @@ export class KpiService {
         }
 
         // Total pcs (jumlah barang) per transaksi — sumber tracking jumlah orderan
-        // (jersey maupun produk lain). Dijumlahkan dari quantity tiap TransactionItem.
-        const txPcsMap = new Map<number, number>(); // txId → total pcs
-        if (convertedTxIds.length > 0) {
-            const itemGroups: any[] = await (this.prisma as any).transactionItem.groupBy({
-                by: ['transactionId'],
-                where: { transactionId: { in: convertedTxIds } },
-                _sum: { quantity: true },
-            });
-            for (const g of itemGroups) {
-                txPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
-            }
-        }
+        // (jersey maupun produk lain). Item kategori "Additional" dikecualikan.
+        const txPcsMap = await this.computeTxPcsMap(convertedTxIds); // txId → total pcs
 
         // Peta lead → saldo pending (0 kalau sudah lunas / tidak punya tx)
         const leadPendingMap = new Map<number, number>();
@@ -857,7 +862,7 @@ export class KpiService {
         // FU due in period: total = pending+done+skipped that dueDate in period.
         // compliance = done where doneAt <= dueDate + 1 day / total
         const fusInPeriod: any[] = await this.fu.findMany({
-            where: { ...branchScope, dueDate: { gte: start, lte: end } },
+            where: { ...branchScope, ...csScope, dueDate: { gte: start, lte: end } },
             select: { id: true, status: true, dueDate: true, doneAt: true },
         });
         const totalFu = fusInPeriod.length;
@@ -972,16 +977,8 @@ export class KpiService {
         });
         const walkinTxs = walkinTxsRaw.filter(t => !leadTxSet.has(t.id) && (t.cashierName || '').trim());
 
-        // pcs per transaksi walk-in (jumlah quantity item)
-        const walkinPcsMap = new Map<number, number>();
-        if (walkinTxs.length > 0) {
-            const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
-                by: ['transactionId'],
-                where: { transactionId: { in: walkinTxs.map(t => t.id) } },
-                _sum: { quantity: true },
-            });
-            for (const g of groups) walkinPcsMap.set(g.transactionId, Number(g._sum?.quantity) || 0);
-        }
+        // pcs per transaksi walk-in (jumlah quantity item, tanpa kategori "Additional")
+        const walkinPcsMap = await this.computeTxPcsMap(walkinTxs.map(t => t.id));
 
         // Semua user — untuk match cashierName→userId & resolve nama leaderboard
         // (CS yang hanya punya walk-in tanpa lead tetap muncul di leaderboard).
@@ -997,6 +994,7 @@ export class KpiService {
         for (const t of walkinTxs) {
             const u = nameToUser.get((t.cashierName || '').trim().toLowerCase());
             if (!u) continue; // cashierName tak cocok user mana pun → abaikan
+            if (csId && u.id !== csId) continue; // filter staff aktif → hanya CS tsb
             const entry = byAssignee.get(u.id) || zeroStat();
             entry.walkinTx++;
             entry.walkinPcs += walkinPcsMap.get(t.id) ?? 0;

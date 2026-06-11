@@ -11,6 +11,7 @@ import {
 import Link from "next/link";
 import { getBackupGroups, exportBackup, previewBackupFile, restoreBackup,
     getRcloneStatus, saveRcloneSettings, triggerRcloneBackup } from "@/lib/api";
+import { usePagination, PaginationBar } from "@/components/ui/pagination";
 
 const ICON_MAP: Record<string, string> = {
     master: "🏷️", branches: "🏢", users: "👤", products: "📦", suppliers: "🚚",
@@ -174,6 +175,10 @@ export default function BackupPage() {
     const [rcloneSaving, setRcloneSaving] = useState(false);
     const [rcloneTriggering, setRcloneTriggering] = useState(false);
     const [rcloneTriggerMsg, setRcloneTriggerMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+    // Paginasi daftar panjang (aktif saat > 20 item)
+    const restoreTablePg = usePagination<any>(restorePreview?.preview ?? [], 20);
+    const localBackupPg = usePagination<any>(rcloneStatus?.localBackups ?? [], 20);
 
     useEffect(() => {
         if (rcloneStatus) {
@@ -476,18 +481,21 @@ export default function BackupPage() {
                                             )}
                                         </div>
                                         {showTableDetail && (
-                                            <div className="max-h-44 overflow-y-auto space-y-1 pr-1 border border-border rounded-lg p-2">
-                                                {restorePreview.preview.map((item: any) => (
-                                                    <label key={item.table} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30 cursor-pointer text-xs">
-                                                        <input type="checkbox" checked={selectedRestoreTables.has(item.table)}
-                                                            onChange={() => toggleRestoreTable(item.table)}
-                                                            className="w-3.5 h-3.5 accent-primary" />
-                                                        <span className="flex-1 font-mono text-foreground/80">{item.table}</span>
-                                                        <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${item.count > 0 ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
-                                                            {item.count} baris
-                                                        </span>
-                                                    </label>
-                                                ))}
+                                            <div className="border border-border rounded-lg p-2">
+                                                <div className="max-h-72 overflow-y-auto space-y-1 pr-1">
+                                                    {restoreTablePg.pageItems.map((item: any) => (
+                                                        <label key={item.table} className="flex items-center gap-2 p-2 rounded-lg hover:bg-muted/30 cursor-pointer text-xs">
+                                                            <input type="checkbox" checked={selectedRestoreTables.has(item.table)}
+                                                                onChange={() => toggleRestoreTable(item.table)}
+                                                                className="w-3.5 h-3.5 accent-primary" />
+                                                            <span className="flex-1 font-mono text-foreground/80">{item.table}</span>
+                                                            <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${item.count > 0 ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400" : "bg-muted text-muted-foreground"}`}>
+                                                                {item.count} baris
+                                                            </span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                <PaginationBar {...restoreTablePg} />
                                             </div>
                                         )}
                                     </div>
@@ -742,14 +750,15 @@ export default function BackupPage() {
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                                 <HardDrive className="w-3.5 h-3.5" /> File Backup Lokal ({rcloneStatus.localBackups.length})
                             </p>
-                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                                {rcloneStatus.localBackups.map((f: any, i: number) => (
-                                    <div key={f.name} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs border ${i === 0 ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border'}`}>
+                            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                                {localBackupPg.pageItems.map((f: any, i: number) => (
+                                    <div key={f.name} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs border ${localBackupPg.page === 1 && i === 0 ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border'}`}>
                                         <span className="font-mono text-foreground truncate">{f.name}</span>
                                         <span className="text-muted-foreground shrink-0 ml-2">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
                                     </div>
                                 ))}
                             </div>
+                            <PaginationBar {...localBackupPg} />
                         </div>
                     )}
                 </div>

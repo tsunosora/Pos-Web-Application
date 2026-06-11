@@ -179,6 +179,8 @@ export class PrintQueueService {
         this.discord.notifyJobReady({
             jobNumber: updated.jobNumber,
             customerName: tx?.customerName ?? undefined,
+            customerPhone: tx?.customerPhone ?? null,
+            invoiceNumber: tx?.invoiceNumber ?? null,
             branchLabel,
             branchId: tx?.branchId ?? updated.branchId ?? null,
         });
