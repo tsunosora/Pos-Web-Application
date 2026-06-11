@@ -807,6 +807,23 @@ export class LeadsService {
                 const paymentMode = data.paymentMode || 'NONE';
                 const rawMethod = data.paymentMethod || 'CASH';
                 const paymentMethod = (rawMethod === 'TRANSFER' ? 'BANK_TRANSFER' : rawMethod) as any;
+
+                // Harga dasar + tier varian — dipakai untuk mendeteksi item yang harganya
+                // belum disesuaikan CS (masih harga dasar): item itu JANGAN dikirim sebagai
+                // customPrice supaya transactions.service yang me-resolve harga tier per qty.
+                const variantIds = txItems
+                    .map((it: any) => Number(it.productVariantId))
+                    .filter((id: number) => Number.isFinite(id) && id > 0);
+                const tierVariants: any[] = variantIds.length
+                    ? await (this.prisma as any).productVariant.findMany({
+                        where: { id: { in: variantIds } },
+                        select: {
+                            id: true, price: true,
+                            priceTiers: { select: { minQty: true, maxQty: true, price: true } },
+                        },
+                    })
+                    : [];
+                const tierVariantById = new Map(tierVariants.map(v => [v.id, v]));
                 const txPayload: any = {
                     items: txItems.map((it: any) => {
                         const w = Number(it.widthCm) || 0;
@@ -829,6 +846,12 @@ export class LeadsService {
                             } else {
                                 // UNIT item (catalog/custom): service akan × qty otomatis.
                                 customPrice = uPrice;
+                                // Harga masih = harga dasar varian & varian punya tier →
+                                // lepas override, biar transactions.service resolve tier-nya
+                                const v = it.productVariantId ? tierVariantById.get(Number(it.productVariantId)) : null;
+                                if (v && (v.priceTiers || []).length > 0 && Number(v.price) === uPrice) {
+                                    customPrice = undefined;
+                                }
                             }
                         }
 
