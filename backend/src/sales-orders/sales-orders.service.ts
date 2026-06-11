@@ -46,6 +46,10 @@ export class SalesOrdersService {
                             sku: true,
                             variantName: true,
                             price: true,
+                            priceTiers: {
+                                orderBy: { minQty: 'asc' as const },
+                                select: { minQty: true, maxQty: true, price: true },
+                            },
                             product: { select: { id: true, name: true, pricingMode: true } },
                         },
                     },
@@ -389,8 +393,15 @@ export class SalesOrdersService {
         // Estimasi nilai order dari item SO (kasar, untuk kolom estimatedValue lead)
         let estimate = 0;
         for (const it of so.items || []) {
-            const price = Number(it.customPrice ?? it.productVariant?.price ?? 0);
             const qty = Number(it.quantity) || 1;
+            let price = Number(it.customPrice ?? it.productVariant?.price ?? 0);
+            // Harga tier (mode UNIT, sama dengan resolusi di transactions.service):
+            // customPrice tetap menang; tanpa customPrice, cocokkan qty ke tier varian
+            if (it.customPrice == null && it.productVariant?.product?.pricingMode !== 'AREA_BASED') {
+                const tiers: any[] = it.productVariant?.priceTiers || [];
+                const hit = tiers.find((t: any) => qty >= t.minQty && (t.maxQty == null || qty <= t.maxQty));
+                if (hit) price = Number(hit.price);
+            }
             const pcs = Number(it.pcs) > 1 ? Number(it.pcs) : 1;
             let units = 1;
             if (it.widthCm && it.heightCm) {

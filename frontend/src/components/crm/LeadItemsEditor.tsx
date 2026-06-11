@@ -28,6 +28,8 @@ interface Props {
     onChange: (items: LeadItem[]) => void;
 }
 
+interface PriceTier { minQty: number; maxQty: number | null; price: number }
+
 interface VariantOption {
     id: number;
     sku: string;
@@ -35,6 +37,13 @@ interface VariantOption {
     price: number;
     productName: string;
     pricingMode: string;
+    priceTiers: PriceTier[];
+}
+
+/** Harga satuan sesuai tier qty (mode UNIT, sama dengan POS/manajemen stok) — fallback harga dasar. */
+function tierPrice(qty: number, basePrice: number, tiers: PriceTier[]): number {
+    const hit = (tiers || []).find(t => qty >= t.minQty && (t.maxQty == null || qty <= t.maxQty));
+    return hit ? hit.price : basePrice;
 }
 
 export function LeadItemsEditor({ items, onChange }: Props) {
@@ -63,6 +72,11 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                     price: Number(v.price),
                     productName: p.name,
                     pricingMode: p.pricingMode,
+                    priceTiers: (v.priceTiers || []).map((t: any) => ({
+                        minQty: Number(t.minQty),
+                        maxQty: t.maxQty != null ? Number(t.maxQty) : null,
+                        price: Number(t.price),
+                    })),
                 });
             }
         }
@@ -79,6 +93,12 @@ export function LeadItemsEditor({ items, onChange }: Props) {
         ).slice(0, 30);
     }, [variantOptions, search]);
 
+    // Lookup varian per id — untuk resolve harga tier saat qty item berubah
+    const variantById = useMemo(
+        () => new Map(variantOptions.map(v => [v.id, v])),
+        [variantOptions],
+    );
+
     const addVariant = (v: VariantOption) => {
         const desc = v.variantName ? `${v.productName} - ${v.variantName}` : v.productName;
         onChange([
@@ -87,7 +107,7 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                 productVariantId: v.id,
                 description: desc,
                 quantity: 1,
-                unitPrice: v.price,
+                unitPrice: v.pricingMode === "AREA_BASED" ? v.price : tierPrice(1, v.price, v.priceTiers),
                 productVariant: {
                     id: v.id, sku: v.sku, variantName: v.variantName, price: v.price,
                     product: { id: 0, name: v.productName, pricingMode: v.pricingMode },
@@ -124,6 +144,22 @@ export function LeadItemsEditor({ items, onChange }: Props) {
         onChange(next);
     };
 
+    /** Ubah qty + ikuti harga tier otomatis (mode UNIT), selama harga belum diedit manual. */
+    const handleQtyChange = (idx: number, qty: number) => {
+        const it = items[idx];
+        const patch: Partial<LeadItem> = { quantity: qty };
+        const v = it.productVariantId ? variantById.get(it.productVariantId) : undefined;
+        if (v && v.pricingMode !== "AREA_BASED" && v.priceTiers.length > 0) {
+            // Harga saat ini masih harga otomatis utk qty lama → resolve ulang utk qty baru.
+            // Kalau CS sudah ketik harga manual (beda dari auto), jangan ditimpa.
+            const autoPrev = tierPrice(Number(it.quantity) || 1, v.price, v.priceTiers);
+            if (Number(it.unitPrice) === autoPrev) {
+                patch.unitPrice = tierPrice(qty, v.price, v.priceTiers);
+            }
+        }
+        updateItem(idx, patch);
+    };
+
     const removeItem = (idx: number) => {
         onChange(items.filter((_, i) => i !== idx));
     };
@@ -157,6 +193,11 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                         const isCustom = !it.productVariantId;
                         const isArea = (Number(it.widthCm) || 0) > 0 && (Number(it.heightCm) || 0) > 0;
                         const areaM2 = isArea ? (Number(it.widthCm) * Number(it.heightCm)) / 10000 : 0;
+                        // Tandai kalau harga item mengikuti tier varian (bukan harga dasar/manual)
+                        const tv = it.productVariantId ? variantById.get(it.productVariantId) : undefined;
+                        const autoNow = tv && tv.pricingMode !== "AREA_BASED" && tv.priceTiers.length > 0
+                            ? tierPrice(Number(it.quantity) || 1, tv.price, tv.priceTiers) : null;
+                        const tierApplied = autoNow != null && Number(it.unitPrice) === autoNow && autoNow !== tv!.price;
                         return (
                             <div key={idx} className="bg-white border border-gray-200 rounded p-2 text-xs">
                                 <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -177,12 +218,13 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                                     <div>
                                         <label className="text-[10px] text-gray-500">Qty</label>
                                         <input type="number" min={1} value={it.quantity || ""}
-                                            onChange={(e) => updateItem(idx, { quantity: +e.target.value || 1 })}
+                                            onChange={(e) => handleQtyChange(idx, +e.target.value || 1)}
                                             className="w-full border border-gray-300 rounded px-2 py-1 text-xs font-mono" />
                                     </div>
                                     <div>
                                         <label className="text-[10px] text-gray-500">
                                             {isArea ? "Harga / m² (Rp)" : "Harga Satuan (Rp)"}
+                                            {tierApplied && <span className="text-emerald-600 font-semibold"> · tier</span>}
                                         </label>
                                         <input type="number" min={0} value={it.unitPrice || ""}
                                             onChange={(e) => updateItem(idx, { unitPrice: +e.target.value || 0 })}
