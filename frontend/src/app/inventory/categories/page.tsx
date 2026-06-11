@@ -11,8 +11,22 @@ interface Category {
     id: number;
     name: string;
     parentId: number | null;
+    // false = item kategori ini tidak dihitung di metrik pcs CRM (add-on/komponen)
+    countsAsPcs: boolean;
     parent: { id: number; name: string } | null;
-    children: { id: number; name: string; parentId: number }[];
+    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean }[];
+}
+
+/** Badge penanda kategori add-on (tidak dihitung pcs di laporan CRM) */
+function AddonBadge() {
+    return (
+        <span
+            className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold whitespace-nowrap"
+            title='Item kategori ini tidak dihitung di metrik pcs (komponen/add-on seperti kerah, lengan)'
+        >
+            ⛔ tidak dihitung pcs
+        </span>
+    );
 }
 
 export default function CategoriesPage() {
@@ -21,11 +35,13 @@ export default function CategoriesPage() {
     // Form tambah baru
     const [newName, setNewName] = useState('');
     const [newParentId, setNewParentId] = useState<string>('');
+    const [newCountsAsPcs, setNewCountsAsPcs] = useState(true);
 
     // Edit state
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
     const [editingParentId, setEditingParentId] = useState<string>('');
+    const [editingCountsAsPcs, setEditingCountsAsPcs] = useState(true);
 
     // Expand/collapse parent rows
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -50,7 +66,7 @@ export default function CategoriesPage() {
 
     const createMutation = useMutation({
         mutationFn: createCategory,
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); }
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); }
     });
 
     const createSubMutation = useMutation({
@@ -64,7 +80,7 @@ export default function CategoriesPage() {
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null } }) => updateCategory(id, data),
+        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean } }) => updateCategory(id, data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setEditingId(null); }
     });
 
@@ -76,7 +92,11 @@ export default function CategoriesPage() {
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newName.trim()) return;
-        createMutation.mutate({ name: newName.trim(), parentId: newParentId ? Number(newParentId) : null });
+        createMutation.mutate({
+            name: newName.trim(),
+            parentId: newParentId ? Number(newParentId) : null,
+            countsAsPcs: newCountsAsPcs,
+        });
     };
 
     const handleCreateSub = (e: React.FormEvent, parentId: number) => {
@@ -85,10 +105,11 @@ export default function CategoriesPage() {
         createSubMutation.mutate({ name: subName.trim(), parentId });
     };
 
-    const startEdit = (cat: Category) => {
+    const startEdit = (cat: Category | { id: number; name: string; parentId: number | null; countsAsPcs?: boolean }) => {
         setEditingId(cat.id);
         setEditingName(cat.name);
         setEditingParentId(cat.parentId ? String(cat.parentId) : '');
+        setEditingCountsAsPcs(cat.countsAsPcs ?? true);
         setDeletingId(null);
     };
 
@@ -96,7 +117,11 @@ export default function CategoriesPage() {
         if (!editingId || !editingName.trim()) return;
         updateMutation.mutate({
             id: editingId,
-            data: { name: editingName.trim(), parentId: editingParentId ? Number(editingParentId) : null }
+            data: {
+                name: editingName.trim(),
+                parentId: editingParentId ? Number(editingParentId) : null,
+                countsAsPcs: editingCountsAsPcs,
+            }
         });
     };
 
@@ -158,6 +183,21 @@ export default function CategoriesPage() {
                         Akan dibuat sebagai sub-kategori dari <strong>{parentOptions.find(p => String(p.id) === newParentId)?.name}</strong>
                     </p>
                 )}
+                {/* Toggle: dihitung sebagai produk (pcs) atau tidak */}
+                <label className="flex items-start gap-2 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={newCountsAsPcs}
+                        onChange={e => setNewCountsAsPcs(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 accent-primary"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                        <span className="font-semibold text-foreground">Hitung sebagai produk (pcs) di laporan CRM</span>
+                        <br />
+                        Matikan untuk kategori add-on/komponen (mis. kerah, lengan, rib) yang menempel ke
+                        produk utama — supaya 1 jersey + kerah + lengan tetap terhitung 1 pcs, bukan 3.
+                    </span>
+                </label>
             </form>
 
             {/* Daftar Kategori — Tree View */}
@@ -197,10 +237,10 @@ export default function CategoriesPage() {
                                         {/* Nama / Edit input */}
                                         <div className="flex-1 min-w-0">
                                             {isEditing ? (
-                                                <div className="flex gap-2">
+                                                <div className="flex gap-2 items-center flex-wrap">
                                                     <input autoFocus value={editingName} onChange={e => setEditingName(e.target.value)}
                                                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
-                                                        className="flex-1 px-2 py-1 bg-background border border-primary rounded-md text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+                                                        className="flex-1 min-w-[120px] px-2 py-1 bg-background border border-primary rounded-md text-sm outline-none focus:ring-2 focus:ring-primary/30" />
                                                     <select value={editingParentId} onChange={e => setEditingParentId(e.target.value)}
                                                         className="px-2 py-1 bg-background border border-border rounded-md text-xs outline-none">
                                                         <option value="">Kategori Utama</option>
@@ -208,10 +248,18 @@ export default function CategoriesPage() {
                                                             <option key={p.id} value={p.id}>{p.name}</option>
                                                         ))}
                                                     </select>
+                                                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground whitespace-nowrap cursor-pointer select-none"
+                                                        title="Centang = item kategori ini dihitung di metrik pcs CRM. Matikan untuk add-on (kerah, lengan, dll).">
+                                                        <input type="checkbox" checked={editingCountsAsPcs}
+                                                            onChange={e => setEditingCountsAsPcs(e.target.checked)}
+                                                            className="h-3.5 w-3.5 accent-primary" />
+                                                        hitung pcs
+                                                    </label>
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-semibold text-foreground">{cat.name}</span>
+                                                    {cat.countsAsPcs === false && <AddonBadge />}
                                                     {children.length > 0 && (
                                                         <button type="button" onClick={() => toggleExpand(cat.id)}
                                                             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors">
@@ -301,10 +349,10 @@ export default function CategoriesPage() {
                                                         <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
                                                         <div className="flex-1 min-w-0">
                                                             {isEditingChild ? (
-                                                                <div className="flex gap-2">
+                                                                <div className="flex gap-2 items-center flex-wrap">
                                                                     <input autoFocus value={editingName} onChange={e => setEditingName(e.target.value)}
                                                                         onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null); }}
-                                                                        className="flex-1 px-2 py-1 bg-background border border-primary rounded-md text-sm outline-none focus:ring-2 focus:ring-primary/30" />
+                                                                        className="flex-1 min-w-[120px] px-2 py-1 bg-background border border-primary rounded-md text-sm outline-none focus:ring-2 focus:ring-primary/30" />
                                                                     <select value={editingParentId} onChange={e => setEditingParentId(e.target.value)}
                                                                         className="px-2 py-1 bg-background border border-border rounded-md text-xs outline-none">
                                                                         <option value="">Jadikan Kategori Utama</option>
@@ -312,9 +360,19 @@ export default function CategoriesPage() {
                                                                             <option key={p.id} value={p.id}>{p.name}</option>
                                                                         ))}
                                                                     </select>
+                                                                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground whitespace-nowrap cursor-pointer select-none"
+                                                                        title="Centang = item kategori ini dihitung di metrik pcs CRM. Matikan untuk add-on (kerah, lengan, dll).">
+                                                                        <input type="checkbox" checked={editingCountsAsPcs}
+                                                                            onChange={e => setEditingCountsAsPcs(e.target.checked)}
+                                                                            className="h-3.5 w-3.5 accent-primary" />
+                                                                        hitung pcs
+                                                                    </label>
                                                                 </div>
                                                             ) : (
-                                                                <span className="text-sm text-foreground">{child.name}</span>
+                                                                <span className="text-sm text-foreground flex items-center gap-2">
+                                                                    {child.name}
+                                                                    {child.countsAsPcs === false && <AddonBadge />}
+                                                                </span>
                                                             )}
                                                         </div>
                                                         <div className="flex items-center gap-1 shrink-0">

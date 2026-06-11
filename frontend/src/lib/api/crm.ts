@@ -497,6 +497,8 @@ export const getKpiReport = async (params: {
     period: KpiPeriod;
     start?: string;
     end?: string;
+    branchId?: number | 'all';
+    csId?: number;
 }): Promise<KpiReport> =>
     (await api.get('/crm/kpi', { params })).data;
 
@@ -521,6 +523,7 @@ export const getProductTrend = async (params: {
     start?: string;
     end?: string;
     csId?: number;
+    branchId?: number | 'all';
 }): Promise<ProductTrendReport> =>
     (await api.get('/crm/kpi/product-trend', { params })).data;
 
@@ -542,6 +545,7 @@ export const getSourceBreakdown = async (params: {
     end?: string;
     csId?: number;
     status?: string;   // comma-separated: CLOSED_WON,CLOSED_LOST,INVALID
+    branchId?: number | 'all';
 }): Promise<SourceBreakdownReport> =>
     (await api.get('/crm/kpi/source-breakdown', { params })).data;
 
@@ -574,6 +578,7 @@ export const getDesignerLeaderboard = async (params: {
     period: KpiPeriod;
     start?: string;
     end?: string;
+    branchId?: number | 'all';
 }): Promise<DesignerLeaderboardReport> =>
     (await api.get('/crm/kpi/designer-leaderboard', { params })).data;
 
@@ -586,11 +591,11 @@ export interface LeaderboardTrendReport {
 }
 
 export const getCsTrend = async (params: {
-    period: KpiPeriod; start?: string; end?: string;
+    period: KpiPeriod; start?: string; end?: string; branchId?: number | 'all';
 }): Promise<LeaderboardTrendReport> =>
     (await api.get('/crm/kpi/cs-trend', { params })).data;
 
 export const getDesignerTrend = async (params: {
-    period: KpiPeriod; start?: string; end?: string;
+    period: KpiPeriod; start?: string; end?: string; branchId?: number | 'all';
 }): Promise<LeaderboardTrendReport> =>
     (await api.get('/crm/kpi/designer-trend', { params })).data;

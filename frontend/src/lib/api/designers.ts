@@ -89,13 +89,14 @@ export const designerUpdateSO = async (
 
 /**
  * "Lead Order" (public) — buat Lead CRM tertaut dari SO ini, CS yang follow-up.
- * Idempoten: kalau lead untuk SO ini sudah ada, return { existing: true }.
+ * Idempoten: kalau lead untuk SO ini sudah ada & masih aktif, data lead
+ * disinkronkan dari SO terbaru dan return { existing: true, revised: true }.
  */
 export const designerCreateLeadFromSO = async (
     soId: number,
     designerId: number,
     pin: string,
-): Promise<{ lead: { id: number; name: string; status: string }; existing: boolean }> =>
+): Promise<{ lead: { id: number; name: string; status: string }; existing: boolean; revised?: boolean }> =>
     (await axios.post(`${BASE}/sales-orders/designer/${soId}/create-lead`, { designerId, pin })).data;
 
 /** Upload proof gambar (public) */

@@ -24,13 +24,21 @@ export class LeadsService {
         private readonly discord: DiscordService,
     ) {}
 
-    private async generateSoNumber(): Promise<string> {
-        // Pattern existing: SO-YYYYMMDD-XXX (lihat sales-orders.service kalau ada — fallback simple)
+    private async generateSoNumber(branchId?: number | null): Promise<string> {
+        // Pattern sama dengan sales-orders.service: SO-{KODE}-{YYYYMMDD}-{NNN}
+        // per cabang (urutan tiap cabang terpisah); tanpa cabang → SO-{YYYYMMDD}-{NNN}.
         const today = new Date();
         const yyyymmdd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-        const prefix = `SO-${yyyymmdd}`;
+        let code = '';
+        if (branchId != null) {
+            const b: any = await (this.prisma as any).companyBranch.findUnique({
+                where: { id: branchId }, select: { code: true },
+            });
+            code = (b?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        }
+        const prefix = code ? `SO-${code}-${yyyymmdd}` : `SO-${yyyymmdd}`;
         const last = await this.prisma.salesOrder.findFirst({
-            where: { soNumber: { startsWith: prefix } },
+            where: { soNumber: { startsWith: `${prefix}-` } },
             orderBy: { soNumber: 'desc' },
         });
         let n = 1;
@@ -565,6 +573,9 @@ export class LeadsService {
             source: data.sourceDetail?.trim() || data.source || undefined,
             csName,
             estimatedValue: finalEstimated != null ? Number(finalEstimated) : undefined,
+            level: data.level || undefined,
+            needs: data.needs || undefined,
+            deadline: data.deliveryDeadline ?? null,
             branchId: (lead as any).branchId ?? null,
         });
 
@@ -979,7 +990,7 @@ export class LeadsService {
         let soProofsCopied = 0;
         if (data.createSalesOrderDraft) {
             const designerName = (data.designerName || '').trim() || 'TBD';
-            const soNumber = await this.generateSoNumber();
+            const soNumber = await this.generateSoNumber((lead as any).branchId ?? ctx.branchId ?? null);
             const so = await this.prisma.salesOrder.create({
                 data: {
                     soNumber,
@@ -1137,6 +1148,8 @@ export class LeadsService {
             customerName: customer.name ?? lead.name ?? undefined,
             value: Number(lead.estimatedValue) || 0,
             pcs: leadItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0) || undefined,
+            itemsCount: leadItems.length || undefined,
+            invoiceNumber: invoiceNumber || undefined,
             source: (lead as any).sourceDetail?.trim() || lead.source || undefined,
             branchId: (lead as any).branchId ?? ctx.branchId ?? null,
         });

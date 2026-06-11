@@ -307,24 +307,46 @@ export class DiscordService implements OnModuleInit {
 
     // ── Helper per-event (dipanggil dari service lain) ──────────────────────
 
+    /** Nomor HP → link klik-langsung-chat WA (markdown). Null kalau kosong/invalid. */
+    private waLink(phone?: string | null): string | null {
+        if (!phone) return null;
+        let s = phone.replace(/\D/g, '');
+        if (!s) return null;
+        if (s.startsWith('0')) s = '62' + s.slice(1);
+        else if (!s.startsWith('62')) s = '62' + s;
+        return `[${phone}](https://wa.me/${s})`;
+    }
+
+    /** Tanggal → "Sen, 15 Jun 2026" (null kalau tidak valid). */
+    private fmtDate(d?: Date | string | null): string | null {
+        if (!d) return null;
+        const dt = new Date(d);
+        if (isNaN(dt.getTime())) return null;
+        return dt.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
     notifyShiftRecap(d: {
         cashierName?: string; branchLabel?: string; branchId?: number | null; shiftName?: string;
         omzet: number; txCount?: number;
         cash?: number; qris?: number; transfer?: number; notes?: string;
     }) {
         const fields: DiscordEmbedField[] = [
-            { name: 'Total Penerimaan', value: rupiah(d.omzet), inline: true },
+            { name: '💰 Total Penerimaan', value: rupiah(d.omzet), inline: true },
         ];
-        if (d.txCount != null) fields.push({ name: 'Transaksi', value: `${d.txCount}`, inline: true });
+        if (d.txCount != null) fields.push({ name: '🧾 Jumlah Transaksi', value: `${d.txCount}`, inline: true });
         if (d.cash != null) fields.push({ name: 'Tunai', value: rupiah(d.cash), inline: true });
         if (d.qris != null) fields.push({ name: 'QRIS', value: rupiah(d.qris), inline: true });
         if (d.transfer != null) fields.push({ name: 'Transfer', value: rupiah(d.transfer), inline: true });
+        const descLines: string[] = [];
+        if (d.cashierName) descLines.push(`👤 Kasir: **${d.cashierName}**`);
+        if (d.branchLabel) descLines.push(`🏬 ${d.branchLabel}`);
+        if (d.notes) descLines.push(`📝 Catatan: _${d.notes}_`);
         return this.send('shiftRecap', {
             title: `🧾 Tutup Shift${d.shiftName ? ` — ${d.shiftName}` : ''}`,
-            description: [d.branchLabel, d.cashierName ? `Kasir: ${d.cashierName}` : null, d.notes ? `📝 ${d.notes}` : null]
-                .filter(Boolean).join(' · ') || undefined,
+            description: descLines.join('\n') || undefined,
             color: COLOR.blue,
             fields,
+            footer: 'PosPro · Keuangan — laporan lengkap + foto bukti menyusul di bawah',
         }, d.branchId);
     }
 
@@ -343,71 +365,135 @@ export class DiscordService implements OnModuleInit {
 
     notifyNewLead(d: {
         name: string; phone?: string; source?: string; csName?: string; estimatedValue?: number;
-        soNumber?: string; branchId?: number | null; imagePaths?: string[];
+        soNumber?: string; level?: string; needs?: string | null; deadline?: Date | string | null;
+        branchLabel?: string; branchId?: number | null; imagePaths?: string[];
     }) {
+        const descLines = [`👤 **${d.name}**`];
+        const wa = this.waLink(d.phone);
+        if (wa) descLines.push(`📱 ${wa} _(klik untuk chat WA)_`);
+        if (d.needs?.trim()) descLines.push(`🎯 Kebutuhan: ${d.needs.trim()}`);
+
+        const LEVEL_LABEL: Record<string, string> = { HOT: '🔥 Hot', WARM: '🌤️ Warm', COLD: '❄️ Cold' };
         const fields: DiscordEmbedField[] = [];
         if (d.source) fields.push({ name: 'Sumber', value: d.source, inline: true });
-        if (d.csName) fields.push({ name: 'CS', value: d.csName, inline: true });
-        if (d.estimatedValue != null) fields.push({ name: 'Estimasi', value: rupiah(d.estimatedValue), inline: true });
+        if (d.level && LEVEL_LABEL[d.level]) fields.push({ name: 'Level', value: LEVEL_LABEL[d.level], inline: true });
+        if (d.csName) fields.push({ name: 'CS yang Menangani', value: d.csName, inline: true });
+        if (d.estimatedValue != null) fields.push({ name: 'Estimasi Nilai', value: rupiah(d.estimatedValue), inline: true });
         if (d.soNumber) fields.push({ name: 'Surat Order', value: `\`${d.soNumber}\``, inline: true });
+        const dl = this.fmtDate(d.deadline);
+        if (dl) fields.push({ name: 'Deadline', value: dl, inline: true });
+        if (d.branchLabel) fields.push({ name: 'Cabang', value: d.branchLabel, inline: true });
+
         return this.send('newLead', {
-            title: '🆕 Lead Baru',
-            description: `**${d.name}**${d.phone ? ` (${d.phone})` : ''}`,
+            title: '🆕 Lead Baru Masuk',
+            description: descLines.join('\n'),
             color: COLOR.blue,
             fields: fields.length ? fields : undefined,
+            footer: 'PosPro · CRM — follow-up via menu CRM → Leads',
         }, d.branchId, d.imagePaths ?? []);
     }
 
-    notifyDealClosing(d: { csName?: string; customerName?: string; value: number; pcs?: number; source?: string; branchId?: number | null }) {
-        const fields: DiscordEmbedField[] = [{ name: 'Nilai', value: rupiah(d.value), inline: true }];
-        if (d.pcs != null) fields.push({ name: 'Pcs', value: `${d.pcs}`, inline: true });
-        if (d.source) fields.push({ name: 'Sumber', value: d.source, inline: true });
+    /** SO desainer direvisi → lead tertaut ikut disinkronkan. Tampilan dibedakan
+     *  dari notif lead baru (kuning + judul revisi) supaya CS tidak salah paham. */
+    notifyLeadOrderRevised(d: {
+        name: string; soNumber?: string; designerName?: string; estimatedValue?: number;
+        needs?: string | null; deadline?: Date | string | null;
+        branchLabel?: string; branchId?: number | null; imagePaths?: string[];
+    }) {
+        const descLines = [
+            `Surat Order${d.soNumber ? ` \`${d.soNumber}\`` : ''} milik **${d.name}** direvisi${d.designerName ? ` oleh desainer **${d.designerName}**` : ''}.`,
+            'Data & gambar lead di CRM sudah diperbarui otomatis — gambar terbaru terlampir.',
+        ];
+        if (d.needs?.trim()) descLines.push(`🎯 Kebutuhan (baru): ${d.needs.trim()}`);
+        const fields: DiscordEmbedField[] = [];
+        if (d.estimatedValue != null) fields.push({ name: 'Estimasi Nilai (Baru)', value: rupiah(d.estimatedValue), inline: true });
+        const dl = this.fmtDate(d.deadline);
+        if (dl) fields.push({ name: 'Deadline', value: dl, inline: true });
+        if (d.branchLabel) fields.push({ name: 'Cabang', value: d.branchLabel, inline: true });
+        return this.send('newLead', {
+            title: '✏️ Lead Order Direvisi',
+            description: descLines.join('\n'),
+            color: COLOR.amber,
+            fields: fields.length ? fields : undefined,
+            footer: 'PosPro · CRM — abaikan versi sebelumnya, cek detail di CRM → Leads',
+        }, d.branchId, d.imagePaths ?? []);
+    }
+
+    notifyDealClosing(d: {
+        csName?: string; customerName?: string; value: number; pcs?: number; source?: string;
+        invoiceNumber?: string | null; itemsCount?: number; branchLabel?: string; branchId?: number | null;
+    }) {
+        const fields: DiscordEmbedField[] = [{ name: 'Nilai Deal', value: rupiah(d.value), inline: true }];
+        if (d.invoiceNumber) fields.push({ name: 'Nota', value: `\`${d.invoiceNumber}\``, inline: true });
+        if (d.itemsCount != null) fields.push({ name: 'Jumlah Item', value: `${d.itemsCount} item${d.pcs != null ? ` (${d.pcs} pcs)` : ''}`, inline: true });
+        else if (d.pcs != null) fields.push({ name: 'Pcs', value: `${d.pcs}`, inline: true });
+        if (d.source) fields.push({ name: 'Sumber Lead', value: d.source, inline: true });
+        if (d.branchLabel) fields.push({ name: 'Cabang', value: d.branchLabel, inline: true });
         return this.send('dealClosing', {
-            title: '🎉 Closing Baru!',
-            description: [d.csName ? `**${d.csName}**` : 'CS', 'closing', d.customerName ? `**${d.customerName}**` : 'customer'].join(' '),
+            title: '🎉 Deal Closing!',
+            description: `**${d.csName || 'CS'}** berhasil closing customer **${d.customerName || '-'}** — nota & antrian produksi otomatis dibuat.`,
             color: COLOR.green,
             fields,
+            footer: 'PosPro · CRM — lead pindah ke status Closing',
         }, d.branchId);
     }
 
-    notifyJobReady(d: { jobNumber?: string; customerName?: string; branchLabel?: string; branchId?: number | null; isExpress?: boolean }) {
+    notifyJobReady(d: {
+        jobNumber?: string; customerName?: string; customerPhone?: string | null; invoiceNumber?: string | null;
+        branchLabel?: string; branchId?: number | null; isExpress?: boolean;
+    }) {
+        const descLines = [`Pesanan${d.customerName ? ` atas nama **${d.customerName}**` : ''} sudah selesai dicetak dan siap diambil.`];
+        const wa = this.waLink(d.customerPhone);
+        if (wa) descLines.push(`📱 Kabari customer: ${wa}`);
+
+        const fields: DiscordEmbedField[] = [];
+        if (d.jobNumber) fields.push({ name: 'No. Job', value: `\`${d.jobNumber}\``, inline: true });
+        if (d.invoiceNumber) fields.push({ name: 'Nota', value: `\`${d.invoiceNumber}\``, inline: true });
+        if (d.branchLabel) fields.push({ name: 'Cabang', value: d.branchLabel, inline: true });
+
         return this.send('jobReady', {
-            title: `${d.isExpress ? '⚡ ' : '📦 '}Pesanan Siap Diambil`,
-            description: [
-                d.jobNumber ? `\`${d.jobNumber}\`` : null,
-                d.customerName ? `— ${d.customerName}` : null,
-                d.branchLabel ? `\n${d.branchLabel}` : null,
-            ].filter(Boolean).join(' '),
+            title: `${d.isExpress ? '⚡ EXPRESS — ' : '📦 '}Pesanan Siap Diambil`,
+            description: descLines.join('\n'),
             color: COLOR.green,
+            fields: fields.length ? fields : undefined,
+            footer: 'PosPro · Produksi — segera infokan ke customer',
         }, d.branchId);
     }
 
     notifyLowStock(d: { name: string; sku?: string; stock: number; threshold: number; branchLabel?: string; branchId?: number | null }) {
+        const habis = d.stock <= 0;
         return this.send('lowStock', {
-            title: '⚠️ Stok Menipis',
-            description: `**${d.name}**${d.sku ? ` (\`${d.sku}\`)` : ''}`,
-            color: COLOR.amber,
+            title: habis ? '🚨 Stok HABIS' : '⚠️ Stok Menipis',
+            description: `**${d.name}**${d.sku ? ` (\`${d.sku}\`)` : ''}\n${habis
+                ? 'Stok sudah habis — produk tidak bisa dijual sampai di-restock.'
+                : 'Stok sudah di bawah batas minimum — segera rencanakan restock.'}`,
+            color: habis ? COLOR.red : COLOR.amber,
             fields: [
-                { name: 'Sisa', value: `${d.stock}`, inline: true },
-                { name: 'Minimum', value: `${d.threshold}`, inline: true },
+                { name: 'Sisa Stok', value: `${d.stock}`, inline: true },
+                { name: 'Batas Minimum', value: `${d.threshold}`, inline: true },
                 ...(d.branchLabel ? [{ name: 'Cabang', value: d.branchLabel, inline: true }] : []),
             ],
+            footer: 'PosPro · Inventory — restock via menu Manajemen Stok',
         }, d.branchId);
     }
 
     notifyBackup(d: { ok: boolean; detail?: string }) {
         return this.send('backup', {
-            title: d.ok ? '💾 Backup Berhasil' : '❌ Backup Gagal',
+            title: d.ok ? '💾 Backup Berhasil' : '❌ Backup GAGAL — Perlu Dicek!',
             description: d.detail || undefined,
             color: d.ok ? COLOR.green : COLOR.red,
+            footer: d.ok
+                ? 'PosPro · Backup — data aman tersimpan'
+                : 'PosPro · Backup — cek Settings → Backup, lalu jalankan backup manual',
         });
     }
 
     notifyError(d: { context: string; message: string }) {
         return this.send('error', {
             title: '🚨 Error Sistem',
-            description: `**${d.context}**\n\`\`\`${(d.message || '').slice(0, 1500)}\`\`\``,
+            description: `Terjadi error di: **${d.context}**\n\`\`\`${(d.message || '').slice(0, 1500)}\`\`\``,
             color: COLOR.red,
+            footer: 'PosPro · System — teruskan ke developer bila berulang',
         });
     }
 

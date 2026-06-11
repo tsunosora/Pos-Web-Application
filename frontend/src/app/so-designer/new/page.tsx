@@ -274,7 +274,9 @@ function DesignerNewSOContent() {
                 // Buat Lead CRM tertaut — CS follow-up, nota dibuat dari SO nanti
                 const res = await designerCreateLeadFromSO(so.id, session.id, session.pin);
                 alert(res.existing
-                    ? `SO ${so.soNumber || ''} disimpan. Lead untuk SO ini sudah ada di CRM — CS tinggal lanjut follow-up.`
+                    ? (res.revised
+                        ? `SO ${so.soNumber || ''} direvisi — data & gambar lead di CRM ikut diperbarui, dan notif revisi terkirim ke Discord (CS + Produksi).`
+                        : `SO ${so.soNumber || ''} disimpan. Lead untuk SO ini sudah selesai (closing/lost) — data lead tidak diubah.`)
                     : `SO ${so.soNumber || ''} disimpan & masuk ke CS sebagai Lead Order — gambar desain tersimpan di lead & terkirim ke Discord (CS + Produksi). CS akan follow-up; nota dibuat dari SO ini nanti.`);
             } else {
                 alert(`SO ${so.soNumber || ''} ${isEdit ? 'diperbarui' : 'disimpan sebagai draft'}.`);

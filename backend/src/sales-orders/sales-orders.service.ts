@@ -71,10 +71,23 @@ export class SalesOrdersService {
         };
     }
 
-    async generateSoNumber(): Promise<string> {
+    /**
+     * Nomor SO per cabang: SO-{KODE}-{YYYYMMDD}-{NNNN}. Tiap cabang punya urutan
+     * harian sendiri (prefix beda → sequence beda), jadi nomor antar cabang tidak
+     * bercampur. Tanpa cabang / kode cabang kosong → format lama SO-{YYYYMMDD}-{NNNN}.
+     */
+    async generateSoNumber(branchName?: string | null): Promise<string> {
         const today = new Date();
         const yyyymmdd = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
-        const prefix = `SO-${yyyymmdd}-`;
+        let code = '';
+        const branchId = await this.resolveBranchId(branchName);
+        if (branchId != null) {
+            const b = await (this.prisma as any).companyBranch.findUnique({
+                where: { id: branchId }, select: { code: true },
+            });
+            code = (b?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        }
+        const prefix = code ? `SO-${code}-${yyyymmdd}-` : `SO-${yyyymmdd}-`;
         const last = await (this.prisma as any).salesOrder.findFirst({
             where: { soNumber: { startsWith: prefix } },
             orderBy: { soNumber: 'desc' },
@@ -226,7 +239,7 @@ export class SalesOrdersService {
             } catch { /* abaikan */ }
         }
 
-        const soNumber = await this.generateSoNumber();
+        const soNumber = await this.generateSoNumber(branchName);
         const so = await (this.prisma as any).salesOrder.create({
             data: {
                 soNumber,
@@ -384,12 +397,6 @@ export class SalesOrdersService {
             throw new BadRequestException('SO yang sudah jadi nota / dibatalkan tidak bisa dijadikan lead');
         }
 
-        const existing = await (this.prisma as any).lead.findFirst({
-            where: { convertedSalesOrderId: id },
-            select: { id: true, name: true, status: true },
-        });
-        if (existing) return { lead: existing, existing: true };
-
         // Estimasi nilai order dari item SO (kasar, untuk kolom estimatedValue lead)
         let estimate = 0;
         for (const it of so.items || []) {
@@ -425,6 +432,62 @@ export class SalesOrdersService {
             phoneNormalized = s || null;
         }
 
+        const imagePaths = (so.proofs || []).map((p: any) => p.filename);
+
+        const existing = await (this.prisma as any).lead.findFirst({
+            where: { convertedSalesOrderId: id },
+        });
+
+        // ── SO direvisi desainer: sinkronkan lead yang sudah ada ──────────────
+        // Lead yang sudah closing/lost/invalid tidak disentuh. Data yang diisi CS
+        // (sumber, CS yang menangani, status, level) juga tidak ditimpa.
+        if (existing) {
+            if (['CLOSED_WON', 'CLOSED_LOST', 'INVALID'].includes(existing.status)) {
+                return { lead: existing, existing: true };
+            }
+            const lead = await (this.prisma as any).lead.update({
+                where: { id: existing.id },
+                data: {
+                    name: so.customerName,
+                    phone,
+                    phoneNormalized,
+                    needs: so.notes ?? null,
+                    estimatedValue: estimate > 0 ? estimate : null,
+                },
+            });
+            await this.syncLeadImagesFromSO(so, existing.id);
+            await (this.prisma as any).leadActivity.create({
+                data: {
+                    leadId: existing.id,
+                    kind: 'NOTE',
+                    text: `SO ${so.soNumber} direvisi oleh desainer ${so.designerName} — data & gambar lead disinkronkan (Lead Order)`,
+                    meta: { salesOrderId: so.id, revised: true } as any,
+                    createdById: null,
+                },
+            });
+
+            // Notif revisi — embed kuning, beda dari notif lead baru
+            this.discord.notifyLeadOrderRevised({
+                name: so.customerName,
+                soNumber: so.soNumber || undefined,
+                designerName: so.designerName || undefined,
+                estimatedValue: estimate > 0 ? estimate : undefined,
+                needs: so.notes ?? undefined,
+                deadline: so.deadline ?? null,
+                branchLabel: (so as any).branchName || undefined,
+                branchId,
+                imagePaths,
+            });
+            // Kabari #produksi juga bahwa versi sebelumnya tidak berlaku
+            const revCaption = this.buildCaption(
+                so, undefined,
+                '_⚠️ REVISI Lead Order — abaikan versi sebelumnya; CS masih follow-up._',
+            );
+            this.discord.notifySuratOrder(revCaption, imagePaths, branchId);
+
+            return { lead, existing: true, revised: true };
+        }
+
         const lead = await (this.prisma as any).lead.create({
             data: {
                 name: so.customerName,
@@ -451,8 +514,61 @@ export class SalesOrdersService {
             },
         });
 
-        // Salin gambar proof SO ke galeri lead. File di-COPY (bukan referensi)
-        // karena removeProof menghapus file fisik — galeri lead harus tetap utuh.
+        // Salin gambar proof SO ke galeri lead (lihat syncLeadImagesFromSO)
+        await this.syncLeadImagesFromSO(so, lead.id);
+
+        // Beritahu CS via Discord (#penjualan cabang) — gambar desain SO ikut
+        // dilampirkan supaya desainer tidak perlu kirim manual lagi
+        this.discord.notifyNewLead({
+            name: so.customerName,
+            phone: phone || undefined,
+            source: `SO Desainer (${so.designerName})`,
+            estimatedValue: estimate > 0 ? estimate : undefined,
+            soNumber: so.soNumber || undefined,
+            level: 'HOT',
+            needs: so.notes ?? undefined,
+            deadline: so.deadline ?? null,
+            branchLabel: (so as any).branchName || undefined,
+            branchId,
+            imagePaths,
+        });
+
+        // Broadcast SO + gambar ke #produksi cabang juga, dengan footer khusus
+        // lead (nota belum dibuat — masih tahap follow-up CS)
+        const caption = this.buildCaption(
+            so, undefined,
+            '_Lead Order — CS sedang follow-up; nota dibuat dari SO ini setelah deal._',
+        );
+        this.discord.notifySuratOrder(caption, imagePaths, branchId);
+
+        return { lead, existing: false };
+    }
+
+    /**
+     * Salin gambar proof SO → galeri lead. File di-COPY (bukan referensi) karena
+     * removeProof menghapus file fisik — galeri lead harus tetap utuh.
+     * Saat sinkron ulang (SO direvisi), salinan lama dari SO yang sama (prefix
+     * `lead-so{id}-`) dibuang dulu; gambar yang di-upload CS sendiri tidak disentuh.
+     */
+    private async syncLeadImagesFromSO(so: any, leadId: number) {
+        const prefix = `/uploads/lead-so${so.id}-`;
+        // Buang salinan lama dari SO ini (row + file fisik, best-effort)
+        try {
+            const olds: any[] = await (this.prisma as any).leadImage.findMany({
+                where: { leadId, filename: { startsWith: prefix } },
+                select: { filename: true },
+            });
+            for (const img of olds) {
+                try {
+                    const abs = path.join(process.cwd(), 'public', img.filename.replace(/^\//, ''));
+                    if (fs.existsSync(abs)) fs.unlinkSync(abs);
+                } catch { /* ignore */ }
+            }
+            await (this.prisma as any).leadImage.deleteMany({
+                where: { leadId, filename: { startsWith: prefix } },
+            });
+        } catch { /* ignore — gagal bersih-bersih tidak menggagalkan sync */ }
+
         const proofs: any[] = so.proofs || [];
         const leadImages: { url: string; caption: string | null }[] = [];
         try { fs.mkdirSync(path.join(process.cwd(), 'public/uploads'), { recursive: true }); } catch { /* ignore */ }
@@ -467,39 +583,24 @@ export class SalesOrdersService {
             } catch { /* best-effort — gambar gagal disalin tidak menggagalkan lead */ }
         }
         if (leadImages.length) {
+            // Posisi lanjut setelah gambar lain yang masih ada (mis. upload CS)
+            const maxPos = await (this.prisma as any).leadImage.aggregate({
+                where: { leadId }, _max: { position: true },
+            });
+            const base = (maxPos?._max?.position ?? -1) + 1;
             await (this.prisma as any).leadImage.createMany({
                 data: leadImages.map((img, i) => ({
-                    leadId: lead.id, filename: img.url, position: i, caption: img.caption,
+                    leadId, filename: img.url, position: base + i, caption: img.caption,
                 })),
             });
-            // Backward compat: Lead.imageUrl = gambar pertama (legacy single field)
-            await (this.prisma as any).lead.update({
-                where: { id: lead.id }, data: { imageUrl: leadImages[0].url } as any,
-            });
         }
-
-        // Beritahu CS via Discord (#penjualan cabang) — gambar desain SO ikut
-        // dilampirkan supaya desainer tidak perlu kirim manual lagi
-        const imagePaths = proofs.map((p: any) => p.filename);
-        this.discord.notifyNewLead({
-            name: so.customerName,
-            phone: phone || undefined,
-            source: `SO Desainer (${so.designerName})`,
-            estimatedValue: estimate > 0 ? estimate : undefined,
-            soNumber: so.soNumber || undefined,
-            branchId,
-            imagePaths,
+        // Backward compat: Lead.imageUrl = gambar pertama di galeri saat ini
+        const first = await (this.prisma as any).leadImage.findFirst({
+            where: { leadId }, orderBy: { position: 'asc' }, select: { filename: true },
         });
-
-        // Broadcast SO + gambar ke #produksi cabang juga, dengan footer khusus
-        // lead (nota belum dibuat — masih tahap follow-up CS)
-        const caption = this.buildCaption(
-            so, undefined,
-            '_Lead Order — CS sedang follow-up; nota dibuat dari SO ini setelah deal._',
-        );
-        this.discord.notifySuratOrder(caption, imagePaths, branchId);
-
-        return { lead, existing: false };
+        await (this.prisma as any).lead.update({
+            where: { id: leadId }, data: { imageUrl: first?.filename ?? null } as any,
+        });
     }
 
     /** Resolve nama cabang (teks di SO) → branchId, untuk routing webhook Discord per cabang. */

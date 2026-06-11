@@ -4,6 +4,23 @@ import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { KpiPeriod, KpiService } from './kpi.service';
 
+/**
+ * Override cabang dari query (?branchId=) — HANYA untuk Owner/SuperAdmin;
+ * staff tetap terkunci di cabang miliknya (query diabaikan).
+ * `branchId=all` → mode semua cabang.
+ */
+function scopeBranch(ctx: BranchContext, branchId?: string): BranchContext {
+    if (!ctx.isOwner || branchId === undefined || branchId === '') return ctx;
+    if (branchId.toLowerCase() === 'all') return { ...ctx, branchId: null };
+    const n = parseInt(branchId, 10);
+    return Number.isFinite(n) ? { ...ctx, branchId: n } : ctx;
+}
+
+function parseId(raw?: string): number | undefined {
+    const n = raw ? parseInt(raw, 10) : undefined;
+    return Number.isFinite(n) ? n : undefined;
+}
+
 @UseGuards(JwtAuthGuard)
 @Controller('crm/kpi')
 export class KpiController {
@@ -15,12 +32,14 @@ export class KpiController {
         @Query('period') period?: string,
         @Query('start') start?: string,
         @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
+        @Query('csId') csId?: string,
     ) {
-        return this.kpi.report(ctx, {
+        return this.kpi.report(scopeBranch(ctx, branchId), {
             period: (period as KpiPeriod) || 'month',
             start,
             end,
-        });
+        }, parseId(csId));
     }
 
     @Get('product-trend')
@@ -30,12 +49,12 @@ export class KpiController {
         @Query('start') start?: string,
         @Query('end') end?: string,
         @Query('csId') csId?: string,
+        @Query('branchId') branchId?: string,
     ) {
-        const parsedCsId = csId ? parseInt(csId, 10) : undefined;
         return this.kpi.productTrend(
-            ctx,
+            scopeBranch(ctx, branchId),
             { period: (period as KpiPeriod) || 'month', start, end },
-            Number.isFinite(parsedCsId) ? parsedCsId : undefined,
+            parseId(csId),
         );
     }
 
@@ -45,8 +64,9 @@ export class KpiController {
         @Query('period') period?: string,
         @Query('start') start?: string,
         @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
     ) {
-        return this.kpi.designerLeaderboard(ctx, {
+        return this.kpi.designerLeaderboard(scopeBranch(ctx, branchId), {
             period: (period as KpiPeriod) || 'month',
             start,
             end,
@@ -59,8 +79,9 @@ export class KpiController {
         @Query('period') period?: string,
         @Query('start') start?: string,
         @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
     ) {
-        return this.kpi.csTrend(ctx, { period: (period as KpiPeriod) || 'month', start, end });
+        return this.kpi.csTrend(scopeBranch(ctx, branchId), { period: (period as KpiPeriod) || 'month', start, end });
     }
 
     @Get('designer-trend')
@@ -69,8 +90,9 @@ export class KpiController {
         @Query('period') period?: string,
         @Query('start') start?: string,
         @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
     ) {
-        return this.kpi.designerTrend(ctx, { period: (period as KpiPeriod) || 'month', start, end });
+        return this.kpi.designerTrend(scopeBranch(ctx, branchId), { period: (period as KpiPeriod) || 'month', start, end });
     }
 
     /** Kirim pengumuman juara leaderboard ke Discord (manual / dipanggil terjadwal). */
@@ -96,14 +118,14 @@ export class KpiController {
         @Query('end') end?: string,
         @Query('csId') csId?: string,
         @Query('status') status?: string,
+        @Query('branchId') branchId?: string,
     ) {
-        const parsedCsId = csId ? parseInt(csId, 10) : undefined;
         const statuses = status ? status.split(',').map(s => s.trim()).filter(Boolean) : undefined;
         return this.kpi.sourceBreakdown(
-            ctx,
+            scopeBranch(ctx, branchId),
             { period: (period as KpiPeriod) || 'month', start, end },
             {
-                csId: Number.isFinite(parsedCsId) ? parsedCsId : undefined,
+                csId: parseId(csId),
                 statuses,
             },
         );

@@ -2,8 +2,8 @@ import api from './client';
 
 // Categories
 export const getCategories = async () => (await api.get('/categories')).data;
-export const createCategory = async (data: { name: string; parentId?: number | null }) => (await api.post('/categories', data)).data;
-export const updateCategory = async (id: number, data: { name: string; parentId?: number | null }) => (await api.patch(`/categories/${id}`, data)).data;
+export const createCategory = async (data: { name: string; parentId?: number | null; countsAsPcs?: boolean }) => (await api.post('/categories', data)).data;
+export const updateCategory = async (id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean }) => (await api.patch(`/categories/${id}`, data)).data;
 export const deleteCategory = async (id: number) => (await api.delete(`/categories/${id}`)).data;
 
 // Units

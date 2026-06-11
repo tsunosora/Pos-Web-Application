@@ -8,7 +8,7 @@ export class CategoriesController {
     constructor(private readonly categoriesService: CategoriesService) { }
 
     @Post()
-    create(@Body() body: { name: string; parentId?: number | null }) {
+    create(@Body() body: { name: string; parentId?: number | null; countsAsPcs?: boolean }) {
         return this.categoriesService.create(body);
     }
 
@@ -23,7 +23,7 @@ export class CategoriesController {
     }
 
     @Patch(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name: string; parentId?: number | null }) {
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name: string; parentId?: number | null; countsAsPcs?: boolean }) {
         return this.categoriesService.update(id, body);
     }
 

@@ -83,6 +83,9 @@ model Category {
   id             Int                  @id @default(autoincrement())
   name           String               @db.VarChar(100)
   parentId       Int?                 @map("parent_id")
+  // false = item kategori ini TIDAK dihitung di metrik pcs (add-on/komponen
+  // seperti kerah/lengan yang menempel ke produk utama, bukan barang terpisah)
+  countsAsPcs    Boolean              @default(true) @map("counts_as_pcs")
   products       Product[]
   opnameSessions StockOpnameSession[]
   createdAt      DateTime?            @default(now()) @map("created_at")

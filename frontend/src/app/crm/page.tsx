@@ -10,6 +10,8 @@ import {
 import {
     Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown, Hourglass, Package, Palette, BarChart3, X,
 } from "lucide-react";
+import api from "@/lib/api/client";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -45,16 +47,38 @@ const SOURCE_COLOR: Record<string, string> = {
 };
 
 export default function CrmDashboardPage() {
+    const { isOwner } = useCurrentUser();
     const [period, setPeriod] = useState<KpiPeriod>("month");
     const [customStart, setCustomStart] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
     const [customEnd, setCustomEnd] = useState(dayjs().format("YYYY-MM-DD"));
 
+    // Filter global: cabang (owner only — staff terkunci di cabangnya) & staff/CS
+    const [branchSel, setBranchSel] = useState<number | "ALL">("ALL");
+    const [csSel, setCsSel] = useState<number | "ALL">("ALL");
+    // 'all' eksplisit supaya pilihan dashboard menang atas pilihan cabang di topbar
+    const branchParam: number | "all" | undefined = isOwner ? (branchSel === "ALL" ? "all" : branchSel) : undefined;
+    const csParam = csSel === "ALL" ? undefined : csSel;
+
+    const { data: branches } = useQuery({
+        queryKey: ["active-branches"],
+        queryFn: async () => (await api.get("/company-branches/active")).data as { id: number; name: string; code?: string | null }[],
+        staleTime: 5 * 60_000,
+        enabled: isOwner,
+    });
+    const { data: staffUsers } = useQuery({
+        queryKey: ["users-for-kpi-filter"],
+        queryFn: async () => (await api.get("/users")).data as { id: number; name: string | null; email: string }[],
+        staleTime: 5 * 60_000,
+    });
+
     const { data, isLoading } = useQuery({
-        queryKey: ["crm-kpi", period, customStart, customEnd],
+        queryKey: ["crm-kpi", period, customStart, customEnd, branchParam, csParam],
         queryFn: () => getKpiReport({
             period,
             start: period === "custom" ? customStart : undefined,
             end: period === "custom" ? customEnd : undefined,
+            branchId: branchParam,
+            csId: csParam,
         }),
         staleTime: 60_000,
     });
@@ -115,6 +139,31 @@ export default function CrmDashboardPage() {
                             className="border border-gray-300 rounded px-2 py-1" />
                     </div>
                 )}
+                {/* Filter cabang (owner) & staff — berlaku untuk semua metrik di halaman ini */}
+                {isOwner && (
+                    <select
+                        value={branchSel}
+                        onChange={(e) => setBranchSel(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
+                        className="text-sm font-medium border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
+                        title="Filter cabang"
+                    >
+                        <option value="ALL">🏬 Semua Cabang</option>
+                        {(branches ?? []).map(b => (
+                            <option key={b.id} value={b.id}>{b.code ? `[${b.code}] ` : ""}{b.name}</option>
+                        ))}
+                    </select>
+                )}
+                <select
+                    value={csSel}
+                    onChange={(e) => setCsSel(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
+                    className="text-sm font-medium border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
+                    title="Filter staff/CS"
+                >
+                    <option value="ALL">👥 Semua Staff</option>
+                    {(staffUsers ?? []).map(u => (
+                        <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                    ))}
+                </select>
                 {data && (
                     <div className="text-xs text-gray-500 ml-auto flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
@@ -247,6 +296,8 @@ export default function CrmDashboardPage() {
                         period={period}
                         customStart={customStart}
                         customEnd={customEnd}
+                        branchId={branchParam}
+                        globalCsId={csSel}
                         csOptions={(data?.leaderboard ?? []).map(r => ({ id: r.userId, name: r.name }))}
                     />
 
@@ -255,6 +306,8 @@ export default function CrmDashboardPage() {
                         period={period}
                         customStart={customStart}
                         customEnd={customEnd}
+                        branchId={branchParam}
+                        globalCsId={csSel}
                         csOptions={(data?.leaderboard ?? []).map(r => ({ id: r.userId, name: r.name }))}
                     />
 
@@ -443,6 +496,7 @@ export default function CrmDashboardPage() {
                             period={period}
                             customStart={customStart}
                             customEnd={customEnd}
+                            branchId={branchParam}
                             onClose={() => setShowCsChart(false)}
                         />
                     )}
@@ -452,6 +506,7 @@ export default function CrmDashboardPage() {
                         period={period}
                         customStart={customStart}
                         customEnd={customEnd}
+                        branchId={branchParam}
                     />
                 </>
             )}
@@ -486,27 +541,32 @@ const TREND_COLORS = [
 ];
 
 function ProductTrendChart({
-    period, customStart, customEnd, csOptions,
+    period, customStart, customEnd, csOptions, branchId, globalCsId,
 }: {
     period: KpiPeriod;
     customStart: string;
     customEnd: string;
     csOptions: { id: number; name: string }[];
+    branchId?: number | "all";
+    globalCsId: number | "ALL";
 }) {
     const [mode, setMode] = useState<"category" | "product">("category");
     const [csId, setCsId] = useState<number | "ALL">("ALL");
 
+    // Filter staff global (header halaman) menang atas pilihan lokal
+    const globalActive = globalCsId !== "ALL";
     // Kalau CS terpilih tidak lagi ada di periode baru, reset ke Semua
     const csValid = csId === "ALL" || csOptions.some(c => c.id === csId);
-    const effectiveCsId = csValid ? csId : "ALL";
+    const effectiveCsId = globalActive ? globalCsId : (csValid ? csId : "ALL");
 
     const { data, isLoading } = useQuery({
-        queryKey: ["crm-product-trend", period, customStart, customEnd, effectiveCsId],
+        queryKey: ["crm-product-trend", period, customStart, customEnd, effectiveCsId, branchId],
         queryFn: () => getProductTrend({
             period,
             start: period === "custom" ? customStart : undefined,
             end: period === "custom" ? customEnd : undefined,
             csId: effectiveCsId === "ALL" ? undefined : effectiveCsId,
+            branchId,
         }),
         staleTime: 60_000,
     });
@@ -528,16 +588,21 @@ function ProductTrendChart({
                     )}
                 </h2>
                 <div className="flex items-center gap-2 flex-wrap">
-                    {/* Filter CS */}
+                    {/* Filter CS (nonaktif saat filter staff global dipakai) */}
                     <select
                         value={effectiveCsId}
                         onChange={(e) => setCsId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
-                        className="text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
+                        disabled={globalActive}
+                        title={globalActive ? "Mengikuti filter staff di atas halaman" : undefined}
+                        className="text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-100 disabled:text-gray-400"
                     >
                         <option value="ALL">Semua CS</option>
                         {csOptions.map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
+                        {globalActive && !csOptions.some(c => c.id === globalCsId) && (
+                            <option value={globalCsId}>Staff #{globalCsId}</option>
+                        )}
                     </select>
                     {/* Toggle Kategori / Produk */}
                     <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs font-semibold">
@@ -649,29 +714,34 @@ function fmtRpShort(n: number): string {
 }
 
 function SourceBreakdownChart({
-    period, customStart, customEnd, csOptions,
+    period, customStart, customEnd, csOptions, branchId, globalCsId,
 }: {
     period: KpiPeriod;
     customStart: string;
     customEnd: string;
     csOptions: { id: number; name: string }[];
+    branchId?: number | "all";
+    globalCsId: number | "ALL";
 }) {
     const [csId, setCsId] = useState<number | "ALL">("ALL");
     const [statuses, setStatuses] = useState<string[]>(["CLOSED_WON"]);
     const [metric, setMetric] = useState<"pcs" | "value">("pcs");
     const [activeSources, setActiveSources] = useState<string[]>([]);
 
+    // Filter staff global (header halaman) menang atas pilihan lokal
+    const globalActive = globalCsId !== "ALL";
     const csValid = csId === "ALL" || csOptions.some(c => c.id === csId);
-    const effectiveCsId = csValid ? csId : "ALL";
+    const effectiveCsId = globalActive ? globalCsId : (csValid ? csId : "ALL");
 
     const { data, isLoading } = useQuery({
-        queryKey: ["crm-source-breakdown", period, customStart, customEnd, effectiveCsId, statuses],
+        queryKey: ["crm-source-breakdown", period, customStart, customEnd, effectiveCsId, statuses, branchId],
         queryFn: () => getSourceBreakdown({
             period,
             start: period === "custom" ? customStart : undefined,
             end: period === "custom" ? customEnd : undefined,
             csId: effectiveCsId === "ALL" ? undefined : effectiveCsId,
             status: statuses.join(","),
+            branchId,
         }),
         staleTime: 60_000,
     });
@@ -732,16 +802,21 @@ function SourceBreakdownChart({
                     )}
                 </h2>
                 <div className="flex items-center gap-2 flex-wrap">
-                    {/* Filter CS */}
+                    {/* Filter CS (nonaktif saat filter staff global dipakai) */}
                     <select
                         value={effectiveCsId}
                         onChange={(e) => setCsId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
-                        className="text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-rose-300"
+                        disabled={globalActive}
+                        title={globalActive ? "Mengikuti filter staff di atas halaman" : undefined}
+                        className="text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-rose-300 disabled:bg-gray-100 disabled:text-gray-400"
                     >
                         <option value="ALL">Semua CS</option>
                         {csOptions.map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
+                        {globalActive && !csOptions.some(c => c.id === globalCsId) && (
+                            <option value={globalCsId}>Staff #{globalCsId}</option>
+                        )}
                     </select>
                     {/* Toggle metrik */}
                     <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs font-semibold">
@@ -898,21 +973,23 @@ const DESIGNER_CHAMP: Record<string, { icon: string; label: string }> = {
 };
 
 function DesignerLeaderboard({
-    period, customStart, customEnd,
+    period, customStart, customEnd, branchId,
 }: {
     period: KpiPeriod;
     customStart: string;
     customEnd: string;
+    branchId?: number | "all";
 }) {
     const [sort, setSort] = useState<"designer" | "omzet" | "assignment" | "acc" | "selesai">("omzet");
     const [showChart, setShowChart] = useState(false);
 
     const { data, isLoading } = useQuery({
-        queryKey: ["crm-designer-leaderboard", period, customStart, customEnd],
+        queryKey: ["crm-designer-leaderboard", period, customStart, customEnd, branchId],
         queryFn: () => getDesignerLeaderboard({
             period,
             start: period === "custom" ? customStart : undefined,
             end: period === "custom" ? customEnd : undefined,
+            branchId,
         }),
         staleTime: 60_000,
     });
@@ -977,6 +1054,7 @@ function DesignerLeaderboard({
                     period={period}
                     customStart={customStart}
                     customEnd={customEnd}
+                    branchId={branchId}
                     onClose={() => setShowChart(false)}
                 />
             )}
@@ -1105,15 +1183,16 @@ const DESIGNER_CHART_METRICS: ChartMetric[] = [
 
 // Modal grafik TREN waktu (garis naik-turun per hari/minggu) — tiap orang satu garis.
 function LeaderboardChartModal({
-    title, fetcher, queryKey, metrics, period, customStart, customEnd, onClose,
+    title, fetcher, queryKey, metrics, period, customStart, customEnd, branchId, onClose,
 }: {
     title: string;
-    fetcher: (p: { period: KpiPeriod; start?: string; end?: string }) => Promise<LeaderboardTrendReport>;
+    fetcher: (p: { period: KpiPeriod; start?: string; end?: string; branchId?: number | "all" }) => Promise<LeaderboardTrendReport>;
     queryKey: string;
     metrics: ChartMetric[];
     period: KpiPeriod;
     customStart: string;
     customEnd: string;
+    branchId?: number | "all";
     onClose: () => void;
 }) {
     const [metricKey, setMetricKey] = useState(metrics[0].key);
@@ -1121,11 +1200,12 @@ function LeaderboardChartModal({
     const metric = metrics.find(m => m.key === metricKey) ?? metrics[0];
 
     const { data, isLoading } = useQuery({
-        queryKey: [queryKey, period, customStart, customEnd],
+        queryKey: [queryKey, period, customStart, customEnd, branchId],
         queryFn: () => fetcher({
             period,
             start: period === "custom" ? customStart : undefined,
             end: period === "custom" ? customEnd : undefined,
+            branchId,
         }),
         staleTime: 60_000,
     });
