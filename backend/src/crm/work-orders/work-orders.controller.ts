@@ -9,6 +9,7 @@ import { extname } from 'path';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { UpsertWorkOrderDto, WorkOrdersService } from './work-orders.service';
+import { compressImage } from '../../common/utils/compress-image.util';
 
 const WO_IMG_DIR = './public/uploads';
 try { fs.mkdirSync(WO_IMG_DIR, { recursive: true }); } catch { /* ignore */ }
@@ -36,6 +37,7 @@ export class WorkOrdersController {
     }))
     async upload(@UploadedFile() file: Express.Multer.File) {
         if (!file) throw new BadRequestException('File gambar wajib diisi');
+        await compressImage(file.path);
         return { url: `/uploads/${file.filename}` };
     }
 

@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import { SalesOrdersService } from './sales-orders.service';
 import { DesignersService } from '../designers/designers.service';
 import type { CreateSalesOrderPayload } from './sales-orders-public.types';
+import { compressImages } from '../common/utils/compress-image.util';
 
 const PROOF_DIR = './public/uploads/so-proofs';
 try { fs.mkdirSync(PROOF_DIR, { recursive: true }); } catch { /* ignore */ }
@@ -133,6 +134,7 @@ export class SalesOrdersPublicController {
         if (captionsRaw) {
             try { captions = JSON.parse(captionsRaw); } catch { captions = [captionsRaw]; }
         }
+        await compressImages((files || []).map(f => f.path));
         return this.soService.addProofs(id, files || [], captions);
     }
 
