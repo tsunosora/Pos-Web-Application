@@ -115,6 +115,16 @@ export class LeadsController {
         return this.leads.markInvalid(ctx, id, body.reason || '', req?.user?.id);
     }
 
+    /** Tautkan lead ke SO desainer yang sudah ada (Alur B — tanpa convert/nota baru). */
+    @Post(':id/link-so')
+    linkToSalesOrder(
+        @CurrentBranch() ctx: BranchContext,
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { salesOrderId: number | null },
+    ) {
+        return this.leads.linkToSalesOrder(ctx, id, body.salesOrderId);
+    }
+
     @Delete(':id')
     remove(@CurrentBranch() ctx: BranchContext, @Param('id', ParseIntPipe) id: number) {
         return this.leads.remove(ctx, id);

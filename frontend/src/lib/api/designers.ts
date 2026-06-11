@@ -63,6 +63,41 @@ export const designerCreateSO = async (
     }
 ) => (await axios.post(`${BASE}/sales-orders/designer`, { designerId, pin, ...soData })).data;
 
+/** Edit SO (public) — perbaiki customer/catatan/item selama belum invoiced/cancelled */
+export const designerUpdateSO = async (
+    soId: number,
+    designerId: number,
+    pin: string,
+    soData: {
+        customerName?: string;
+        customerPhone?: string | null;
+        customerAddress?: string | null;
+        notes?: string | null;
+        deadline?: string | null;
+        items?: {
+            productVariantId: number;
+            quantity: number;
+            widthCm?: number | null;
+            heightCm?: number | null;
+            unitType?: string | null;
+            pcs?: number | null;
+            customPrice?: number | null;
+            note?: string | null;
+        }[];
+    }
+) => (await axios.post(`${BASE}/sales-orders/designer/${soId}/update`, { designerId, pin, ...soData })).data;
+
+/**
+ * "Lead Order" (public) — buat Lead CRM tertaut dari SO ini, CS yang follow-up.
+ * Idempoten: kalau lead untuk SO ini sudah ada, return { existing: true }.
+ */
+export const designerCreateLeadFromSO = async (
+    soId: number,
+    designerId: number,
+    pin: string,
+): Promise<{ lead: { id: number; name: string; status: string }; existing: boolean }> =>
+    (await axios.post(`${BASE}/sales-orders/designer/${soId}/create-lead`, { designerId, pin })).data;
+
 /** Upload proof gambar (public) */
 export const designerUploadProofs = async (
     soId: number,

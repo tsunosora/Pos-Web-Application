@@ -891,6 +891,7 @@ function SourceBreakdownChart({
 
 // ── Leaderboard Designer ─────────────────────────────────────────────────────
 const DESIGNER_CHAMP: Record<string, { icon: string; label: string }> = {
+    omzet:      { icon: "💰", label: "Raja Omzet" },
     assignment: { icon: "💪", label: "Paling Rajin" },
     acc:        { icon: "🏆", label: "Raja ACC" },
     selesai:    { icon: "🏭", label: "Mesin Produksi" },
@@ -903,7 +904,7 @@ function DesignerLeaderboard({
     customStart: string;
     customEnd: string;
 }) {
-    const [sort, setSort] = useState<"designer" | "assignment" | "acc" | "selesai">("acc");
+    const [sort, setSort] = useState<"designer" | "omzet" | "assignment" | "acc" | "selesai">("omzet");
     const [showChart, setShowChart] = useState(false);
 
     const { data, isLoading } = useQuery({
@@ -920,6 +921,7 @@ function DesignerLeaderboard({
         const list = [...(data?.leaderboard ?? [])];
         switch (sort) {
             case "designer":   return list.sort((a, b) => a.name.localeCompare(b.name));
+            case "omzet":      return list.sort((a, b) => b.omzet - a.omzet || b.acc - a.acc);
             case "assignment": return list.sort((a, b) => b.assignment - a.assignment);
             case "acc":        return list.sort((a, b) => b.acc - a.acc || b.accRate - a.accRate);
             case "selesai":    return list.sort((a, b) => b.selesai - a.selesai);
@@ -927,7 +929,7 @@ function DesignerLeaderboard({
         }
     }, [data, sort]);
 
-    const champKey = sort === "designer" ? null : sort === "assignment" ? "assignment" : sort === "selesai" ? "selesai" : "acc";
+    const champKey = sort === "designer" ? null : sort;
 
     return (
         <div className="bg-white rounded-xl border p-5">
@@ -940,6 +942,7 @@ function DesignerLeaderboard({
                     <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">Urutkan:</span>
                     {([
                         { key: "designer",   label: "Designer" },
+                        { key: "omzet",      label: "Omzet" },
                         { key: "assignment", label: "Assignment" },
                         { key: "acc",        label: "ACC" },
                         { key: "selesai",    label: "Selesai" },
@@ -993,8 +996,12 @@ function DesignerLeaderboard({
                             <tr className="border-b text-xs text-gray-500 uppercase">
                                 <th className="text-left py-2 px-2">#</th>
                                 <th className="text-left py-2 px-2">Designer</th>
+                                <th className="text-right py-2 px-2 text-green-700">Omzet</th>
+                                <th className="text-right py-2 px-2 text-violet-600">Pcs</th>
                                 <th className="text-right py-2 px-2">Assignment</th>
                                 <th className="text-right py-2 px-2 text-cyan-600">SO Dibuat</th>
+                                <th className="text-right py-2 px-2 text-cyan-700">Jadi Nota</th>
+                                <th className="text-right py-2 px-2 text-cyan-700">Konv. SO</th>
                                 <th className="text-right py-2 px-2 text-emerald-600">ACC</th>
                                 <th className="text-right py-2 px-2">ACC Rate</th>
                                 <th className="text-right py-2 px-2 text-slate-500">Masih Desain</th>
@@ -1027,8 +1034,12 @@ function DesignerLeaderboard({
                                             )}
                                         </div>
                                     </td>
+                                    <td className="py-2 px-2 text-right font-mono text-green-700 font-semibold whitespace-nowrap">{row.omzet > 0 ? `Rp ${row.omzet.toLocaleString('id-ID')}` : <span className="text-gray-300 font-normal">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-violet-600">{row.pcs > 0 ? row.pcs.toLocaleString('id-ID') : <span className="text-gray-300">—</span>}</td>
                                     <td className="py-2 px-2 text-right font-mono text-gray-600">{row.assignment}</td>
                                     <td className="py-2 px-2 text-right font-mono text-cyan-600">{row.soCreated > 0 ? row.soCreated : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-cyan-700">{row.soInvoiced > 0 ? row.soInvoiced : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-cyan-700">{row.soCreated > 0 ? `${(row.soConvRate * 100).toFixed(0)}%` : <span className="text-gray-300">—</span>}</td>
                                     <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.acc}</td>
                                     <td className="py-2 px-2 text-right font-mono">{(row.accRate * 100).toFixed(0)}%</td>
                                     <td className="py-2 px-2 text-right font-mono text-slate-500">{row.wip > 0 ? row.wip : <span className="text-gray-300">—</span>}</td>
@@ -1044,8 +1055,12 @@ function DesignerLeaderboard({
                         <tfoot>
                             <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-xs">
                                 <td colSpan={2} className="py-2 px-2 text-gray-500">Total</td>
+                                <td className="py-2 px-2 text-right font-mono text-green-700 whitespace-nowrap">{(data?.totals.omzet ?? 0) > 0 ? `Rp ${(data?.totals.omzet ?? 0).toLocaleString('id-ID')}` : '—'}</td>
+                                <td className="py-2 px-2 text-right font-mono text-violet-600">{(data?.totals.pcs ?? 0).toLocaleString('id-ID')}</td>
                                 <td className="py-2 px-2 text-right font-mono">{data?.totals.assignment ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-cyan-600">{data?.totals.soCreated ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-cyan-700">{data?.totals.soInvoiced ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
                                 <td className="py-2 px-2 text-right font-mono text-emerald-700">{data?.totals.acc ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
                                 <td className="py-2 px-2 text-right font-mono text-slate-500">{data?.totals.wip ?? 0}</td>

@@ -180,6 +180,7 @@ export class PrintQueueService {
             jobNumber: updated.jobNumber,
             customerName: tx?.customerName ?? undefined,
             branchLabel,
+            branchId: tx?.branchId ?? updated.branchId ?? null,
         });
         return updated;
     }

@@ -430,13 +430,14 @@ export class ReportsService {
                 shiftName: dto.shiftName || undefined,
                 cashierName: dto.adminName || undefined,
                 branchLabel: (settings as any)?.storeName || undefined,
+                branchId,
                 omzet: dto.actualCash + dto.actualQris + dto.actualTransfer,
                 cash: dto.actualCash,
                 qris: dto.actualQris,
                 transfer: dto.actualTransfer,
                 notes: dto.notes || undefined,
             });
-            await this.discord.notifyShiftReport(reportMsg, proofImages);
+            await this.discord.notifyShiftReport(reportMsg, proofImages, branchId);
         })().catch((err) => {
             this.logger.error('Background Discord report send failed', err);
         });
@@ -499,7 +500,7 @@ export class ReportsService {
         if (!msg) throw new Error(`Backup pesan laporan untuk shift #${id} belum tersedia`);
 
         const images: string[] = proofImages ?? (Array.isArray(shift.proofImages) ? shift.proofImages : []);
-        const ok = await this.discord.notifyShiftReport(msg, images);
+        const ok = await this.discord.notifyShiftReport(msg, images, (shift as any).branchId ?? null);
         if (!ok) {
             throw new Error('Gagal kirim ke Discord. Pastikan notifikasi Discord aktif dan webhook channel Keuangan terisi (Settings → Discord).');
         }

@@ -19,13 +19,13 @@ export class DiscordController {
         return this.discord.updateConfig(body);
     }
 
-    /** Kirim pesan test ke salah satu channel. */
+    /** Kirim pesan test ke salah satu channel (branchId opsional di body — null = global). */
     @Post('test/:channel')
-    test(@Param('channel') channel: string) {
+    test(@Param('channel') channel: string, @Body() body?: { branchId?: number | null }) {
         const ch = (DISCORD_CHANNELS as string[]).includes(channel)
             ? (channel as DiscordChannel)
             : null;
         if (!ch) return { ok: false, message: 'Channel tidak valid.' };
-        return this.discord.sendTest(ch);
+        return this.discord.sendTest(ch, body?.branchId ?? null);
     }
 }

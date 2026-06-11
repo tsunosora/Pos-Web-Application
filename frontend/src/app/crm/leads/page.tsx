@@ -4,19 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
-    addLeadActivity, convertLead, closeLeadLost, markLeadInvalid,
+    addLeadActivity, convertLead, closeLeadLost, markLeadInvalid, linkLeadToSalesOrder,
     getMessageTemplates, renderTemplate,
     uploadLeadImage, resolveLeadImageUrl, lookupCustomerByPhone, type CustomerLookupResult,
     type Lead, type LeadItem, type LeadStatus, type LeadSource, type LeadLevel, type MessageTemplate,
     LEAD_SOURCE_LABEL, LEAD_STATUS_LABEL, LEAD_LEVEL_LABEL,
 } from "@/lib/api";
+import { findActiveSOByCustomer, type ActiveSalesOrderHit } from "@/lib/api/sales-orders";
 import api from "@/lib/api/client";
 import { LeadItemsEditor, calcItemSubtotal } from "@/components/crm/LeadItemsEditor";
 import { LeadImageCarousel } from "@/components/crm/LeadImageCarousel";
 import {
     Plus, Search, X, Phone, MessageSquare, Calendar, MapPin, Sparkles, Trash2,
     Loader2, ChevronRight, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
-    CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays,
+    CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays, Link2, Unlink,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -956,6 +957,7 @@ function LeadDetailDrawer({
     const [activityText, setActivityText] = useState("");
     const [activityKind, setActivityKind] = useState("NOTE");
     const [showConvert, setShowConvert] = useState(false);
+    const [showLinkSO, setShowLinkSO] = useState(false);
     const [showCloseLost, setShowCloseLost] = useState(false);
     const [showMarkInvalid, setShowMarkInvalid] = useState(false);
     const [invalidReason, setInvalidReason] = useState("");
@@ -1021,6 +1023,15 @@ function LeadDetailDrawer({
     const closeLostMut = useMutation({
         mutationFn: () => closeLeadLost(leadId, closeLostReason),
         onSuccess: () => { invalidate(); setShowCloseLost(false); setCloseLostReason(""); },
+    });
+
+    // Alur B: tautkan / lepas tautan lead ↔ SO desainer (tanpa bikin nota baru)
+    const linkSOMut = useMutation({
+        mutationFn: (salesOrderId: number | null) => linkLeadToSalesOrder(leadId, salesOrderId),
+        onSuccess: () => { invalidate(); setShowLinkSO(false); },
+        onError: (err: any) => {
+            alert(`Gagal: ${err?.response?.data?.message || err?.message || 'Terjadi kesalahan.'}`);
+        },
     });
 
     const markInvalidMut = useMutation({
@@ -1198,6 +1209,36 @@ function LeadDetailDrawer({
                         </div>
                     )}
 
+                    {/* Alur B: SO desainer tertaut, belum jadi nota — saat SO di-checkout di POS, lead otomatis closing */}
+                    {lead2.convertedSalesOrderId && !isWon && (
+                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm space-y-1">
+                            <div className="font-semibold text-indigo-700 flex items-center gap-1">
+                                <Link2 className="h-4 w-4" /> Tertaut ke Sales Order
+                            </div>
+                            <div className="text-indigo-800">
+                                SO: <strong>{lead2.convertedSO?.soNumber || `#${lead2.convertedSalesOrderId}`}</strong>
+                                <span className="text-indigo-600"> — saat SO ini dibuatkan nota di POS, lead otomatis closing ke nota yang sama (tanpa nota dobel).</span>
+                            </div>
+                            <div className="flex items-center gap-3 pt-1.5 border-t border-indigo-200">
+                                <a
+                                    href={`/pos?fromSO=${lead2.convertedSalesOrderId}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-indigo-700 inline-flex items-center gap-1"
+                                >
+                                    🧾 Buat Nota di POS
+                                </a>
+                                <button
+                                    onClick={() => { if (confirm("Lepas tautan SO dari lead ini?")) linkSOMut.mutate(null); }}
+                                    disabled={linkSOMut.isPending}
+                                    className="text-xs text-red-600 hover:underline flex items-center gap-1"
+                                >
+                                    <Unlink className="h-3 w-3" /> Lepas tautan
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {lead2.convertedCustomer && (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm space-y-1">
                             <div className="font-semibold text-emerald-700 flex items-center gap-1">
@@ -1277,6 +1318,16 @@ function LeadDetailDrawer({
                                     {isWon ? "Re-convert (Owner)" : "Convert (Closing)"}
                                 </button>
                             )
+                        )}
+                        {/* Tautkan SO desainer (Alur B) — hanya kalau belum terminal */}
+                        {!isWon && !isLost && !isInvalid && (
+                            <button
+                                onClick={() => setShowLinkSO(true)}
+                                className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 flex items-center gap-1"
+                                title="Customer sudah dibuatkan SO oleh desainer? Tautkan ke lead ini — tanpa bikin nota baru."
+                            >
+                                <Link2 className="h-4 w-4" /> {lead2.convertedSalesOrderId ? "Ganti SO Tertaut" : "Tautkan SO"}
+                            </button>
                         )}
                         {/* Close Lost — hanya kalau belum terminal */}
                         {!isWon && !isLost && !isInvalid && (
@@ -1371,6 +1422,15 @@ function LeadDetailDrawer({
                         onClose={() => setShowConvert(false)}
                         onSubmit={(data) => convertMut.mutate(data)}
                         submitting={convertMut.isPending}
+                    />
+                )}
+
+                {showLinkSO && (
+                    <LinkSOModal
+                        lead={lead2}
+                        onClose={() => setShowLinkSO(false)}
+                        onSelect={(soId) => linkSOMut.mutate(soId)}
+                        submitting={linkSOMut.isPending}
                     />
                 )}
 
@@ -1498,6 +1558,101 @@ function ActivityItem({ activity }: { activity: any }) {
     );
 }
 
+// ─── Link SO Modal (Alur B) ─────────────────────────────────────────────────
+// Cari SO aktif (DRAFT/SENT) milik customer lalu tautkan ke lead — tanpa convert.
+
+const SO_STATUS_BADGE: Record<string, string> = {
+    DRAFT: "bg-gray-100 text-gray-600",
+    SENT: "bg-blue-100 text-blue-700",
+};
+
+function LinkSOModal({
+    lead, onClose, onSelect, submitting,
+}: {
+    lead: Lead;
+    onClose: () => void;
+    onSelect: (soId: number) => void;
+    submitting: boolean;
+}) {
+    const [q, setQ] = useState(lead.phone || lead.name || "");
+    const [debouncedQ, setDebouncedQ] = useState(q);
+
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedQ(q), 350);
+        return () => clearTimeout(t);
+    }, [q]);
+
+    const { data: hits, isFetching } = useQuery({
+        queryKey: ["so-active-by-customer", debouncedQ],
+        queryFn: () => findActiveSOByCustomer(debouncedQ),
+        enabled: debouncedQ.trim().length >= 2,
+        staleTime: 30_000,
+    });
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
+                    <Link2 className="h-5 w-5 text-indigo-600" /> Tautkan ke Sales Order
+                </h3>
+                <p className="text-sm text-gray-600 mb-3">
+                    Customer ini sudah dibuatkan SO oleh desainer? Tautkan ke lead — <strong>tanpa bikin nota baru</strong>.
+                    Saat SO itu di-checkout di POS, lead otomatis closing ke nota yang sama.
+                </p>
+                <div className="relative mb-3">
+                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input
+                        type="text"
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Cari nama / nomor HP customer..."
+                        className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm"
+                        autoFocus
+                    />
+                </div>
+
+                {isFetching && <p className="text-xs text-gray-400 text-center py-3">Mencari SO aktif...</p>}
+                {!isFetching && debouncedQ.trim().length >= 2 && (hits ?? []).length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                        Tidak ada SO aktif (Draft/Terkirim) yang cocok. SO yang sudah jadi nota atau dibatalkan tidak muncul di sini.
+                    </p>
+                )}
+
+                <div className="space-y-2">
+                    {(hits ?? []).map((so) => (
+                        <button
+                            key={so.id}
+                            onClick={() => onSelect(so.id)}
+                            disabled={submitting}
+                            className={`w-full text-left border rounded-lg p-3 hover:border-indigo-400 hover:bg-indigo-50 transition-colors disabled:opacity-50 ${lead.convertedSalesOrderId === so.id ? "border-indigo-400 bg-indigo-50" : "border-gray-200"}`}
+                        >
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="font-semibold text-sm text-indigo-700">{so.soNumber}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${SO_STATUS_BADGE[so.status] || "bg-gray-100 text-gray-600"}`}>
+                                    {so.status === "SENT" ? "TERKIRIM" : so.status}
+                                </span>
+                            </div>
+                            <div className="text-sm text-gray-700 mt-0.5">
+                                {so.customerName}{so.customerPhone ? ` · ${so.customerPhone}` : ""}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                                Desainer: {so.designerName} · {dayjs(so.createdAt).format("DD MMM YYYY, HH:mm")}
+                                {lead.convertedSalesOrderId === so.id && <span className="text-indigo-600 font-semibold"> · tertaut saat ini</span>}
+                            </div>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex justify-end mt-4">
+                    <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Convert Modal ──────────────────────────────────────────────────────────
 
 function ConvertModal({
@@ -1578,6 +1733,16 @@ function ConvertModal({
     const bankInvalid = needsBankAccount && !bankAccountId;
     const paymentInvalid = dpInvalid || bankInvalid;
 
+    // Peringatan cegah nota dobel: cek SO aktif (DRAFT/SENT) milik customer ini.
+    // Kalau ada, sebaiknya nota dibuat dari SO itu di POS (atau lead ditautkan via Alur B).
+    const soQuery = (lead.phone || lead.name || "").trim();
+    const { data: activeSOs } = useQuery({
+        queryKey: ["so-active-by-customer", soQuery],
+        queryFn: () => findActiveSOByCustomer(soQuery),
+        enabled: soQuery.length >= 2,
+        staleTime: 30_000,
+    });
+
     return (
         <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
             <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
@@ -1585,6 +1750,22 @@ function ConvertModal({
                 {lead.status === 'CLOSED_WON' && (
                     <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800 font-medium">
                         Peringatan: lead ini sudah pernah di-convert. Re-convert akan membuat nota & job baru lagi.
+                    </div>
+                )}
+                {lead.convertedSalesOrderId ? (
+                    <div className="mb-3 px-3 py-2 bg-red-50 border border-red-300 rounded-lg text-xs text-red-800 font-medium">
+                        ⚠ Lead ini <strong>sudah ditautkan ke SO desainer</strong>. Nota sebaiknya dibuat dari SO itu di POS
+                        (lead otomatis closing). Convert di sini akan membuat <strong>nota dobel</strong>.
+                    </div>
+                ) : (activeSOs ?? []).length > 0 && (
+                    <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+                        <div className="font-semibold mb-1">⚠ Customer ini punya SO desainer yang masih aktif:</div>
+                        <ul className="space-y-0.5 mb-1">
+                            {(activeSOs ?? []).slice(0, 3).map(so => (
+                                <li key={so.id}>• <strong>{so.soNumber}</strong> ({so.status === 'SENT' ? 'Terkirim' : 'Draft'}) — {so.customerName}, desainer {so.designerName}</li>
+                            ))}
+                        </ul>
+                        Kalau order-nya sama, <strong>jangan convert</strong> — tutup modal ini lalu pakai tombol <strong>Tautkan SO</strong> (nota dibuat dari SO di POS, tanpa dobel).
                     </div>
                 )}
                 <p className="text-sm text-gray-600 mb-4">

@@ -52,6 +52,26 @@ Search produk → pilih dari catalog. Untuk produk **AREA_BASED**: muncul field 
 
 Catatan per item bebas (mis. "warna full color, finishing laminating doff").
 
+### Tiga tombol simpan: Draft / Lead Order / Buat Nota (Jun 2026)
+
+Saat membuat SO, desainer punya **tiga pilihan** sesuai kepastian order:
+
+| Tombol | Kapan dipakai | Yang terjadi |
+|---|---|---|
+| **Simpan Draft** | Masih dikerjakan, belum final | SO tersimpan DRAFT, belum di-broadcast. Bisa diedit/dikirim nanti. |
+| **Lead Order (CS)** | Order **belum pasti** / customer masih nego | SO tersimpan + **Lead CRM otomatis dibuat & tertaut** (status Negosiasi, level HOT, estimasi nilai dari item). CS dapat notif Discord #penjualan lalu follow-up dari `/crm/leads`. Nota tetap dibuat dari SO ini — saat di-checkout di POS, lead otomatis closing. |
+| **Buat Nota (Kirim)** | Order **sudah pasti** | SO di-broadcast ke Discord #produksi cabang (status SENT) — kasir tinggal buatkan nota dari SO di POS. |
+
+Lead Order bersifat idempoten: kalau SO ini sudah punya lead, tidak dibuat dobel. Setelah simpan, desainer kembali ke dashboard portal.
+
+### Edit SO tanpa bikin ulang (Jun 2026)
+
+Salah input bahan, qty, nama, atau catatan? Buka detail SO → tombol **Edit** (muncul selama status DRAFT atau SENT, belum jadi nota). Form yang sama terbuka dengan data ter-prefill; ubah lalu **Simpan** atau **Simpan & Kirim** ulang. Item boleh diubah selama SO **belum di-invoice/dibatalkan**. Setelah jadi nota (INVOICED) atau dibatalkan, SO terkunci.
+
+### Catatan order tampil di nota (Jun 2026)
+
+Field **Catatan / Instruksi Cetak** di SO ikut terbawa ke POS saat SO dibuatkan nota (`productionNotes`) dan **dicetak di nota/struk** (kotak "Catatan Order" di atas tabel item, juga di share WhatsApp). Catatan per-item tetap tampil di bawah nama item masing-masing.
+
 ### Upload Screenshot Proof
 
 Field opsional tapi rekomended. Bisa input pakai 3 cara:
@@ -178,6 +198,8 @@ Broadcast manual via tombol di UI:
 - `POST /sales-orders/designer` — buat SO (perlu designerId + pin)
 - `GET /sales-orders/designer/:id` — detail SO
 - `POST /sales-orders/designer/:id/proofs` — upload proof images
+- `POST /sales-orders/designer/:id/update` — edit SO (PIN; customer/catatan/item selama belum invoiced)
+- `POST /sales-orders/designer/:id/create-lead` — "Lead Order": buat Lead CRM tertaut dari SO (PIN; idempoten)
 - `POST /sales-orders/designer/:id/send-wa` — broadcast ke Discord (#produksi) — path "send-wa" legacy
 - `POST /sales-orders/designer/:id/cancel` — cancel SO
 

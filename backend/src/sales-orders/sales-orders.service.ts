@@ -168,6 +168,30 @@ export class SalesOrdersService {
         return so;
     }
 
+    /**
+     * Cari SO yang masih aktif (DRAFT/SENT, belum jadi nota) milik customer tertentu.
+     * Dipakai untuk memperingatkan CS saat mau convert lead/buat nota: kalau sudah ada
+     * SO, sebaiknya "Buat dari SO" itu — bukan nota baru (cegah nota dobel).
+     */
+    async findActiveByCustomer(query: string, branchId?: number | null) {
+        const q = (query || '').trim();
+        if (!q) return [];
+        const branchWhereClause = await this.branchFilter(branchId ?? null);
+        const digits = q.replace(/\D/g, '');
+        const or: any[] = [{ customerName: { contains: q } }];
+        if (digits.length >= 4) or.push({ customerPhone: { contains: digits } });
+        const list = await (this.prisma as any).salesOrder.findMany({
+            where: { AND: [branchWhereClause, { status: { in: ['DRAFT', 'SENT'] } }, { OR: or }] },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: {
+                id: true, soNumber: true, status: true, customerName: true,
+                customerPhone: true, designerName: true, createdAt: true,
+            },
+        });
+        return list;
+    }
+
     async pendingInvoiceCount(branchId?: number | null) {
         const where: any = await this.branchFilter(branchId ?? null);
         where.status = 'SENT';
@@ -244,8 +268,10 @@ export class SalesOrdersService {
         if (data.notes !== undefined) updateData.notes = data.notes;
         if (data.deadline !== undefined) updateData.deadline = data.deadline ? new Date(data.deadline) : null;
 
-        // Ganti items hanya jika masih DRAFT (bukan SENT) — setelah SENT, hanya notes/customer/proofs boleh
-        if (data.items && existing.status === 'DRAFT') {
+        // Ganti items selama SO belum di-invoice/dibatalkan (DRAFT atau SENT).
+        // Guard INVOICED/CANCELLED sudah di atas. Ini supaya salah input bahan/qty
+        // bisa diperbaiki tanpa bikin SO baru, meski sudah terkirim ke Discord.
+        if (data.items) {
             await (this.prisma as any).salesOrderItem.deleteMany({ where: { salesOrderId: id } });
             updateData.items = {
                 create: data.items.map((it) => ({
@@ -342,7 +368,106 @@ export class SalesOrdersService {
         return lines.join('\n');
     }
 
-    /** Kirim Surat Order ke Discord channel #produksi (pengganti grup WA desain). */
+    /**
+     * "Lead Order" dari portal desainer: buat Lead CRM dari SO ini, langsung TERTAUT
+     * (convertedSalesOrderId) — alur designer-first. CS tinggal follow-up/nego; saat SO
+     * di-checkout di POS, lead otomatis CLOSED_WON ke nota yang sama (hook transactions).
+     * Idempoten: kalau sudah ada lead tertaut ke SO ini, kembalikan yang lama.
+     */
+    async createLeadFromSO(id: number) {
+        const so = await this.findOne(id);
+        if (so.status === 'INVOICED' || so.status === 'CANCELLED') {
+            throw new BadRequestException('SO yang sudah jadi nota / dibatalkan tidak bisa dijadikan lead');
+        }
+
+        const existing = await (this.prisma as any).lead.findFirst({
+            where: { convertedSalesOrderId: id },
+            select: { id: true, name: true, status: true },
+        });
+        if (existing) return { lead: existing, existing: true };
+
+        // Estimasi nilai order dari item SO (kasar, untuk kolom estimatedValue lead)
+        let estimate = 0;
+        for (const it of so.items || []) {
+            const price = Number(it.customPrice ?? it.productVariant?.price ?? 0);
+            const qty = Number(it.quantity) || 1;
+            const pcs = Number(it.pcs) > 1 ? Number(it.pcs) : 1;
+            let units = 1;
+            if (it.widthCm && it.heightCm) {
+                units = it.unitType === 'cm'
+                    ? (Number(it.widthCm) * Number(it.heightCm)) / 10000
+                    : Number(it.widthCm) * Number(it.heightCm);
+            } else if (it.unitType === 'menit' && it.widthCm) {
+                units = Number(it.widthCm);
+            }
+            estimate += Math.round(price * units * qty * pcs);
+        }
+
+        const branchId = await this.resolveBranchId((so as any).branchName);
+        const phone: string | null = so.customerPhone ?? null;
+        // Normalisasi sama dengan leads.service: strip non-digit, drop leading 62/0
+        let phoneNormalized: string | null = null;
+        if (phone) {
+            let s = phone.replace(/\D/g, '');
+            if (s.startsWith('62')) s = s.slice(2);
+            if (s.startsWith('0')) s = s.slice(1);
+            phoneNormalized = s || null;
+        }
+
+        const lead = await (this.prisma as any).lead.create({
+            data: {
+                name: so.customerName,
+                phone,
+                phoneNormalized,
+                source: 'OTHER',
+                sourceDetail: 'SO Desainer',
+                status: 'NEGOTIATION', // sudah ada SO = harga/desain sedang dibahas
+                level: 'HOT',
+                needs: so.notes ?? null,
+                estimatedValue: estimate > 0 ? estimate : null,
+                branchId,
+                intakeAt: new Date(),
+                convertedSalesOrderId: so.id,
+            },
+        });
+        await (this.prisma as any).leadActivity.create({
+            data: {
+                leadId: lead.id,
+                kind: 'NOTE',
+                text: `Lead dibuat dari Surat Order ${so.soNumber} oleh desainer ${so.designerName} (Lead Order)`,
+                meta: { salesOrderId: so.id } as any,
+                createdById: null,
+            },
+        });
+
+        // Beritahu CS via Discord (#penjualan cabang)
+        this.discord.notifyNewLead({
+            name: so.customerName,
+            phone: phone || undefined,
+            source: `SO Desainer (${so.designerName})`,
+            estimatedValue: estimate > 0 ? estimate : undefined,
+            branchId,
+        });
+
+        return { lead, existing: false };
+    }
+
+    /** Resolve nama cabang (teks di SO) → branchId, untuk routing webhook Discord per cabang. */
+    private async resolveBranchId(branchName?: string | null): Promise<number | null> {
+        if (!branchName?.trim()) return null;
+        try {
+            const branches: any[] = await (this.prisma as any).companyBranch.findMany({
+                where: { isActive: true }, select: { id: true, name: true, code: true },
+            });
+            const q = branchName.toLowerCase().trim();
+            const hit = branches.find(b => b.name?.toLowerCase().trim() === q)
+                || branches.find(b => (b.code || '').toLowerCase() === q)
+                || branches.find(b => b.name?.toLowerCase().includes(q) || q.includes((b.name || '').toLowerCase()));
+            return hit?.id ?? null;
+        } catch { return null; }
+    }
+
+    /** Kirim Surat Order ke Discord channel #produksi cabang (pengganti grup WA desain). */
     async sendToDesignChannel(id: number, customMessage?: string) {
         const so = await this.findOne(id);
         if (so.status === 'INVOICED' || so.status === 'CANCELLED') {
@@ -351,8 +476,9 @@ export class SalesOrdersService {
 
         const caption = this.buildCaption(so, customMessage);
         const imagePaths = (so.proofs || []).map((p: any) => p.filename);
+        const branchId = await this.resolveBranchId((so as any).branchName);
 
-        const ok = await this.discord.notifySuratOrder(caption, imagePaths);
+        const ok = await this.discord.notifySuratOrder(caption, imagePaths, branchId);
         if (!ok) {
             throw new BadRequestException(
                 'Gagal kirim Surat Order ke Discord. Pastikan notifikasi Discord aktif, event "Surat Order" menyala, ' +

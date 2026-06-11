@@ -426,6 +426,7 @@ export class LeadsService {
             phone: dto.phone || undefined,
             source: 'Website (Order Online)',
             estimatedValue: itemsTotal > 0 ? itemsTotal : undefined,
+            branchId: (lead as any).branchId ?? null, // null = order website → webhook global
         });
 
         return { ok: true, leadId: lead.id, total: itemsTotal };
@@ -564,6 +565,7 @@ export class LeadsService {
             source: data.sourceDetail?.trim() || data.source || undefined,
             csName,
             estimatedValue: finalEstimated != null ? Number(finalEstimated) : undefined,
+            branchId: (lead as any).branchId ?? null,
         });
 
         return this.detail(ctx, lead.id);
@@ -1113,6 +1115,7 @@ export class LeadsService {
             value: Number(lead.estimatedValue) || 0,
             pcs: leadItems.reduce((s, it) => s + (Number(it.quantity) || 0), 0) || undefined,
             source: (lead as any).sourceDetail?.trim() || lead.source || undefined,
+            branchId: (lead as any).branchId ?? ctx.branchId ?? null,
         });
 
         // Return detail + sertakan info dokumen yang baru dibuat untuk UI
@@ -1175,6 +1178,44 @@ export class LeadsService {
                 text: `Lead ditandai invalid${reason ? `: ${reason}` : ''}`,
                 meta: { reason },
                 createdById: userId ?? null,
+            },
+        });
+        return this.detail(ctx, updated.id);
+    }
+
+    /**
+     * Tautkan lead ke SO desainer yang sudah ada (Alur B). TIDAK membuat nota/convert —
+     * hanya set `convertedSalesOrderId` & pindah status ke NEGOTIATION (kalau masih NEW/FU).
+     * Saat SO di-checkout jadi nota, hook di transactions.service akan otomatis menutup
+     * lead ini jadi CLOSED_WON menunjuk nota yang sama (cegah nota dobel).
+     * Kirim salesOrderId = null untuk melepas tautan.
+     */
+    async linkToSalesOrder(ctx: BranchContext, leadId: number, salesOrderId: number | null) {
+        await this.detail(ctx, leadId);
+        if (salesOrderId != null) {
+            const so = await (this.prisma as any).salesOrder.findUnique({
+                where: { id: salesOrderId },
+                select: { id: true, soNumber: true, status: true },
+            });
+            if (!so) throw new NotFoundException('Sales Order tidak ditemukan');
+            if (so.status === 'CANCELLED') throw new BadRequestException('SO sudah dibatalkan, tidak bisa ditautkan');
+        }
+        const current: any = await (this.prisma as any).lead.findUnique({ where: { id: leadId }, select: { status: true } });
+        const bumpStatus = salesOrderId != null && ['NEW', 'FOLLOW_UP'].includes(current?.status);
+        const updated = await (this.prisma as any).lead.update({
+            where: { id: leadId },
+            data: {
+                convertedSalesOrderId: salesOrderId,
+                ...(bumpStatus ? { status: 'NEGOTIATION' } : {}),
+            },
+        });
+        await this.prisma.leadActivity.create({
+            data: {
+                leadId,
+                kind: 'NOTE',
+                text: salesOrderId != null ? `Lead ditautkan ke Sales Order #${salesOrderId}` : 'Tautan Sales Order dilepas',
+                meta: { salesOrderId } as any,
+                createdById: null,
             },
         });
         return this.detail(ctx, updated.id);

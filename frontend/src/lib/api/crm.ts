@@ -264,6 +264,14 @@ export const convertLead = async (leadId: number, data: ConvertLeadInput): Promi
 export const closeLeadLost = async (leadId: number, reason: string): Promise<Lead> =>
     (await api.post(`/crm/leads/${leadId}/close-lost`, { reason })).data;
 
+/**
+ * Alur B: tautkan lead ke SO desainer yang sudah ada (tanpa convert/nota baru).
+ * Saat SO itu di-checkout di POS, lead otomatis CLOSED_WON menunjuk nota yang sama.
+ * salesOrderId = null untuk melepas tautan.
+ */
+export const linkLeadToSalesOrder = async (leadId: number, salesOrderId: number | null): Promise<Lead> =>
+    (await api.post(`/crm/leads/${leadId}/link-so`, { salesOrderId })).data;
+
 export const markLeadInvalid = async (leadId: number, reason?: string): Promise<Lead> =>
     (await api.post(`/crm/leads/${leadId}/mark-invalid`, { reason })).data;
 
@@ -549,13 +557,17 @@ export interface DesignerLeaderboardEntry {
     batal: number;
     express: number;
     soCreated: number;
+    soInvoiced: number;   // SO yang jadi nota di periode
+    soConvRate: number;   // rasio SO dibuat → jadi nota (0..1)
+    omzet: number;        // omzet nota dari SO designer ini
+    pcs: number;          // total pcs dari nota tsb
     avgDesignHrs: number | null;
 }
 
 export interface DesignerLeaderboardReport {
     period: { start: string; end: string };
     leaderboard: DesignerLeaderboardEntry[];
-    totals: { assignment: number; acc: number; wip: number; retur: number; selesai: number; batal: number; express: number; soCreated: number };
+    totals: { assignment: number; acc: number; wip: number; retur: number; selesai: number; batal: number; express: number; soCreated: number; soInvoiced: number; omzet: number; pcs: number };
 }
 
 export const getDesignerLeaderboard = async (params: {

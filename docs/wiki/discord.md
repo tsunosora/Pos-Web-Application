@@ -19,6 +19,16 @@ Buat 1 webhook Discord untuk tiap channel (di Discord: *Channel Settings › Int
 
 Channel yang URL-nya dikosongkan akan otomatis dilewati. Gunakan tombol **Test** di tiap channel untuk memverifikasi.
 
+## Webhook per Cabang (Jun 2026)
+
+Webhook **terpisah penuh per cabang** — tiap cabang punya channel Discord-nya sendiri. Di `Pengaturan › Discord` ada **selector cabang** (tab "Global / Sistem" + satu tab per cabang). Hanya **Owner** yang bisa mengatur.
+
+- **Tab cabang**: isi webhook #penjualan/#produksi/#keuangan/#stok-gudang untuk cabang itu. Event milik cabang (order POS, tutup shift, surat order, pesanan siap, stok menipis, lead/closing) dikirim ke webhook cabang terkait.
+- **Tab Global / Sistem**: webhook untuk event **lintas-cabang** — `#leaderboard` (juara), `#sistem` (backup & error). Juga dipakai sebagai tujuan untuk data **tanpa cabang** (mis. order masuk via website).
+- **Tanpa fallback**: kalau channel sebuah cabang dikosongkan, event cabang itu **tidak terkirim** (bukan dialihkan ke global). Pastikan tiap cabang aktif diisi.
+- **Migrasi otomatis**: saat pertama kali fitur ini aktif, webhook global yang lama disalin ke semua cabang aktif (`DiscordService.onModuleInit`), supaya notifikasi tidak putus. Owner tinggal mengarahkan ulang tiap cabang ke server/channel masing-masing.
+- Master switch & toggle event tetap **global** (berlaku semua cabang).
+
 ## Event (Tier 1 + Juara)
 
 | Event | Channel | Pemicu |

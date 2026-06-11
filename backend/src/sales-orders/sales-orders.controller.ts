@@ -79,6 +79,12 @@ export class SalesOrdersController {
         return this.service.pendingInvoiceCount(ctx.branchId);
     }
 
+    /** Cari SO aktif (DRAFT/SENT) milik customer — untuk peringatan cegah nota dobel. */
+    @Get('active-by-customer')
+    activeByCustomer(@CurrentBranch() ctx: BranchContext, @Query('q') q?: string) {
+        return this.service.findActiveByCustomer(q || '', ctx.branchId);
+    }
+
     @Get(':id')
     findOne(@Param('id', ParseIntPipe) id: number, @CurrentBranch() ctx: BranchContext) {
         return this.service.findOne(id, ctx.branchId);

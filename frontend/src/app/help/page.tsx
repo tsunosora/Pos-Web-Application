@@ -648,7 +648,48 @@ function SecCRM() {
                 ]}
             />
 
-            <H3>Convert Lead ke Customer</H3>
+            <H3 id="alur-order">Alur Order: 3 Jalur (CS & Desainer)</H3>
+            <P>
+                Semua order berakhir di titik yang sama — <strong>nota dibuat di POS</strong>.
+                Bedanya cuma siapa yang pertama pegang customer:
+            </P>
+            <Table
+                headers={["Jalur", "Kapan terjadi", "Langkahnya", "Kredit"]}
+                rows={[
+                    [
+                        <strong key="a">A. Lewat CS</strong>,
+                        "Customer chat WA/IG ke CS, belum ada SO",
+                        <>CS catat lead → follow-up → deal → klik <strong>Convert</strong> (otomatis bikin customer + nota + produksi)</>,
+                        "CS",
+                    ],
+                    [
+                        <strong key="d">B. Lewat Desainer</strong>,
+                        "Customer langsung ke desainer, order sudah pasti",
+                        <>Desainer buat SO → tombol <strong>Buat Nota (Kirim)</strong> → kasir buka POS &quot;Buat dari SO&quot; → checkout</>,
+                        "Desainer",
+                    ],
+                    [
+                        <strong key="b">C. Gabungan (Lead Order)</strong>,
+                        "Order lewat desainer tapi masih nego / belum pasti",
+                        <>Desainer buat SO → tombol <strong>Lead Order (CS)</strong> → lead otomatis dibuat & tertaut → CS follow-up → klik <strong>🧾 Buat Nota di POS</strong> → checkout → lead otomatis closing</>,
+                        "CS + Desainer (1 nota yang sama)",
+                    ],
+                ]}
+            />
+            <Callout type="warning" title="Aturan anti nota dobel">
+                Kalau customer <strong>sudah punya SO</strong> dari desainer, CS <strong>jangan klik Convert</strong> —
+                pakai tombol <strong>Tautkan SO</strong> di detail lead (atau biarkan, kalau lead-nya lahir dari tombol Lead Order desainer — sudah tertaut otomatis).
+                Modal Convert akan memunculkan peringatan otomatis kalau mendeteksi SO aktif milik customer yang sama.
+            </Callout>
+            <H3>Langkah CS di jalur C (Lead Order)</H3>
+            <Steps steps={[
+                { title: "Lead muncul otomatis di /crm/leads", desc: "Desainer menekan Lead Order — lead langsung berstatus Negosiasi, level HOT, estimasi harga terisi dari item SO. Notif masuk ke Discord #penjualan." },
+                { title: "CS follow-up seperti biasa", desc: "Chat customer, catat aktivitas, naik-turunkan status. Kotak ungu “Tertaut ke Sales Order” tampil di detail lead." },
+                { title: "Deal → klik “🧾 Buat Nota di POS”", desc: "POS terbuka dengan cart ter-prefill dari SO. Checkout seperti transaksi biasa." },
+                { title: "Selesai otomatis", desc: "Lead jadi CLOSED_WON menunjuk nota itu, SO jadi INVOICED. CS dapat closing, desainer dapat omzet — tanpa nota dobel." },
+            ]} />
+
+            <H3>Convert Lead ke Customer (jalur A — lead tanpa SO)</H3>
             <P>Saat lead mencapai status <strong>CLOSED_WON</strong>, klik <strong>Convert</strong>. Sistem otomatis membuat:</P>
             <Ul>
                 <li>Record <strong>Customer</strong> baru (atau link ke yang sudah ada)</li>
@@ -670,13 +711,18 @@ function SecCRM() {
             <H3>Sales Order & Designer Portal</H3>
             <P>
                 Sales Order (<Code>/sales-orders</Code>) adalah SPK (Surat Perintah Kerja) untuk order yang memerlukan proses desain.
-                Designer dapat mengakses portal di <Code>/so-designer</Code> dengan PIN — tanpa perlu login ke akun kasir.
+                Designer mengakses portal di <Code>/so-designer</Code> dengan PIN — tanpa perlu login ke akun kasir —
+                dan bisa membuat SO sendiri (upload proof ACC, paste screenshot, edit selama belum jadi nota).
             </P>
-            <Ul>
-                <li>Kasir buat Sales Order → broadcast ke channel Discord internal (#produksi)</li>
-                <li>Designer buka portal, lihat detail order, upload proof desain (paste screenshot)</li>
-                <li>Kasir approve proof → order siap dicetak</li>
-            </Ul>
+            <P>Saat menyimpan SO, desainer memilih <strong>satu dari tiga tombol</strong> sesuai kepastian order:</P>
+            <Table
+                headers={["Tombol", "Kapan dipakai", "Yang terjadi"]}
+                rows={[
+                    [<strong key="d">Simpan Draft</strong>, "Masih dikerjakan, belum final", "SO tersimpan DRAFT — bisa diedit / dikirim nanti dari detail"],
+                    [<strong key="l">Lead Order (CS)</strong>, "Order belum pasti / customer masih nego", "Lead CRM otomatis dibuat & tertaut ke SO — CS yang lanjut follow-up (jalur C di atas)"],
+                    [<strong key="n">Buat Nota (Kirim)</strong>, "Order sudah pasti", "SO di-broadcast ke Discord #produksi — kasir tinggal buka POS “Buat dari SO” lalu checkout"],
+                ]}
+            />
         </>
     );
 }
@@ -942,7 +988,7 @@ function SecAlurSistem() {
         {
             emoji: "📞",
             title: "CS Follow-Up & Negosiasi",
-            desc: "Lead dicatat, CS di-assign, follow-up dijadwalkan. Status: Baru → Follow Up → Negosiasi",
+            desc: "Lead dicatat (manual oleh CS, atau otomatis dari tombol Lead Order desainer), CS di-assign, follow-up dijadwalkan. Status: Baru → Follow Up → Negosiasi",
             tag: "CRM → Pipeline Lead",
             tagColor: "bg-pink-100 text-pink-700",
             card: "from-pink-50 to-rose-50 border-pink-200",
@@ -951,7 +997,7 @@ function SecAlurSistem() {
         {
             emoji: "🛒",
             title: "Deal! Kasir Input Transaksi",
-            desc: "Lead di-convert → transaksi terbuat otomatis. Atau kasir input manual di POS. Pilih produk, ukuran, harga, metode bayar.",
+            desc: "Lead di-convert → transaksi terbuat otomatis. Atau nota dibuat dari SO desainer (POS → Buat dari SO; lead yang tertaut otomatis closing). Atau kasir input manual di POS.",
             tag: "Kasir POS",
             tagColor: "bg-blue-100 text-blue-700",
             card: "from-blue-50 to-indigo-50 border-blue-200",
@@ -1212,6 +1258,7 @@ const NAV_GROUPS = [
         items: [
             { id: "invoice", label: "Invoice & SPH" },
             { id: "crm", label: "CRM & Lead Pipeline" },
+            { id: "alur-order", label: "Alur Order CS & Desainer" },
         ],
     },
     {
