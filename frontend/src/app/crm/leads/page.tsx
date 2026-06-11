@@ -958,6 +958,7 @@ function LeadDetailDrawer({
     const [activityKind, setActivityKind] = useState("NOTE");
     const [showConvert, setShowConvert] = useState(false);
     const [showLinkSO, setShowLinkSO] = useState(false);
+    const [showPreNota, setShowPreNota] = useState(false);
     const [showCloseLost, setShowCloseLost] = useState(false);
     const [showMarkInvalid, setShowMarkInvalid] = useState(false);
     const [invalidReason, setInvalidReason] = useState("");
@@ -1031,6 +1032,21 @@ function LeadDetailDrawer({
         onSuccess: () => { invalidate(); setShowLinkSO(false); },
         onError: (err: any) => {
             alert(`Gagal: ${err?.response?.data?.message || err?.message || 'Terjadi kesalahan.'}`);
+        },
+    });
+
+    // Pra-nota (Alur B): lengkapi CS & sumber lead dulu, baru lanjut ke POS
+    // di TAB YANG SAMA (window.location, bukan tab baru — anti multitab)
+    const preNotaMut = useMutation({
+        mutationFn: (data: { assignedToId: number; source: LeadSource; sourceDetail: string | null; soId: number }) =>
+            // sourceDetail "" → backend simpan null (hapus placeholder 'SO Desainer')
+            updateLead(leadId, { assignedToId: data.assignedToId, source: data.source, sourceDetail: data.sourceDetail ?? "" }),
+        onSuccess: (_res, vars) => {
+            invalidate();
+            window.location.href = `/pos?fromSO=${vars.soId}`;
+        },
+        onError: (err: any) => {
+            alert(`Gagal menyimpan data CS/sumber: ${err?.response?.data?.message || err?.message || 'Terjadi kesalahan.'}`);
         },
     });
 
@@ -1220,14 +1236,12 @@ function LeadDetailDrawer({
                                 <span className="text-indigo-600"> — saat SO ini dibuatkan nota di POS, lead otomatis closing ke nota yang sama (tanpa nota dobel).</span>
                             </div>
                             <div className="flex items-center gap-3 pt-1.5 border-t border-indigo-200">
-                                <a
-                                    href={`/pos?fromSO=${lead2.convertedSalesOrderId}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <button
+                                    onClick={() => setShowPreNota(true)}
                                     className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-indigo-700 inline-flex items-center gap-1"
                                 >
                                     🧾 Buat Nota di POS
-                                </a>
+                                </button>
                                 <button
                                     onClick={() => { if (confirm("Lepas tautan SO dari lead ini?")) linkSOMut.mutate(null); }}
                                     disabled={linkSOMut.isPending}
@@ -1434,6 +1448,15 @@ function LeadDetailDrawer({
                     />
                 )}
 
+                {showPreNota && lead2.convertedSalesOrderId && (
+                    <PreNotaModal
+                        lead={lead2}
+                        onClose={() => setShowPreNota(false)}
+                        onSubmit={(data) => preNotaMut.mutate({ ...data, soId: lead2.convertedSalesOrderId! })}
+                        submitting={preNotaMut.isPending}
+                    />
+                )}
+
                 {showCloseLost && (
                     <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
                         <div className="bg-white rounded-xl p-5 max-w-md w-full">
@@ -1565,6 +1588,102 @@ const SO_STATUS_BADGE: Record<string, string> = {
     DRAFT: "bg-gray-100 text-gray-600",
     SENT: "bg-blue-100 text-blue-700",
 };
+
+/**
+ * Modal pra-nota (Alur B): sebelum lanjut ke POS, CS wajib mengisi siapa CS
+ * yang menangani & sumber lead sebenarnya — lead bikinan desainer hanya tahu
+ * "SO Desainer", sumber asli cuma diketahui CS/admin. Setelah simpan, navigasi
+ * ke POS di tab yang sama (bukan tab baru).
+ */
+function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
+    lead: Lead;
+    onClose: () => void;
+    onSubmit: (data: { assignedToId: number; source: LeadSource; sourceDetail: string | null }) => void;
+    submitting: boolean;
+}) {
+    // source=OTHER + detail 'SO Desainer' adalah placeholder dari Lead Order —
+    // kosongkan supaya CS dipaksa memilih sumber sebenarnya
+    const isPlaceholderSource = lead.source === "OTHER"
+        && (lead.sourceDetail || "").toLowerCase().includes("so desainer");
+    const [assignedToId, setAssignedToId] = useState<string>(lead.assignedToId ? String(lead.assignedToId) : "");
+    const [source, setSource] = useState<string>(isPlaceholderSource ? "" : lead.source);
+    const [sourceDetail, setSourceDetail] = useState<string>(isPlaceholderSource ? "" : (lead.sourceDetail || ""));
+
+    const { data: users } = useQuery({
+        queryKey: ["users-for-cs-assign"],
+        queryFn: async () => (await api.get("/users")).data as { id: number; name: string | null; email: string }[],
+        staleTime: 5 * 60_000,
+    });
+
+    const canSubmit = !!assignedToId && !!source && (source !== "CUSTOM" || sourceDetail.trim().length > 0);
+
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-white rounded-xl p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
+                <h3 className="font-bold text-lg mb-1">Lengkapi Data Lead</h3>
+                <p className="text-sm text-gray-600 mb-3">
+                    Sebelum buat nota di POS, isi dulu CS yang menangani & sumber lead — penting untuk KPI CS & laporan CRM.
+                </p>
+                <div className="space-y-3">
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            CS yang menangani <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={assignedToId}
+                            onChange={(e) => setAssignedToId(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        >
+                            <option value="">— pilih CS / admin —</option>
+                            {(users || []).map((u) => (
+                                <option key={u.id} value={u.id}>{u.name || u.email}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            Sumber lead <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                            value={source}
+                            onChange={(e) => setSource(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        >
+                            <option value="">— customer ini tahu dari mana? —</option>
+                            {SOURCE_OPTIONS.map((s) => (
+                                <option key={s} value={s}>
+                                    {s === "CUSTOM" ? "Lainnya (isi sendiri)" : LEAD_SOURCE_LABEL[s]}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                    {source === "CUSTOM" && (
+                        <input
+                            value={sourceDetail}
+                            onChange={(e) => setSourceDetail(e.target.value)}
+                            placeholder="Tulis sumber lead, mis. pameran, rekomendasi toko"
+                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                        />
+                    )}
+                </div>
+                <div className="flex gap-2 mt-4">
+                    <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                    <button
+                        onClick={() => onSubmit({
+                            assignedToId: Number(assignedToId),
+                            source: source as LeadSource,
+                            sourceDetail: source === "CUSTOM" ? sourceDetail.trim() : (sourceDetail.trim() || null),
+                        })}
+                        disabled={!canSubmit || submitting}
+                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                    >
+                        {submitting ? "Menyimpan..." : "Simpan & Buat Nota →"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 function LinkSOModal({
     lead, onClose, onSelect, submitting,

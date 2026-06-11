@@ -329,7 +329,7 @@ export class SalesOrdersService {
         return { success: true };
     }
 
-    private buildCaption(so: any, customMessage?: string): string {
+    private buildCaption(so: any, customMessage?: string, footer = '_Silakan kasir segera dibuatkan nota._'): string {
         const lines: string[] = [];
         lines.push(`*SURAT ORDER ${so.soNumber}*`);
         lines.push('');
@@ -364,7 +364,7 @@ export class SalesOrdersService {
             lines.push(customMessage.trim());
         }
         lines.push('');
-        lines.push('_Silakan kasir segera dibuatkan nota._');
+        lines.push(footer);
         return lines.join('\n');
     }
 
@@ -440,14 +440,53 @@ export class SalesOrdersService {
             },
         });
 
-        // Beritahu CS via Discord (#penjualan cabang)
+        // Salin gambar proof SO ke galeri lead. File di-COPY (bukan referensi)
+        // karena removeProof menghapus file fisik — galeri lead harus tetap utuh.
+        const proofs: any[] = so.proofs || [];
+        const leadImages: { url: string; caption: string | null }[] = [];
+        try { fs.mkdirSync(path.join(process.cwd(), 'public/uploads'), { recursive: true }); } catch { /* ignore */ }
+        for (let i = 0; i < proofs.length; i++) {
+            try {
+                const src = path.join(process.cwd(), proofs[i].filename);
+                if (!fs.existsSync(src)) continue;
+                const ext = path.extname(proofs[i].filename) || '.png';
+                const name = `lead-so${so.id}-${Date.now()}-${i}${ext}`;
+                fs.copyFileSync(src, path.join(process.cwd(), 'public/uploads', name));
+                leadImages.push({ url: `/uploads/${name}`, caption: proofs[i].caption ?? null });
+            } catch { /* best-effort — gambar gagal disalin tidak menggagalkan lead */ }
+        }
+        if (leadImages.length) {
+            await (this.prisma as any).leadImage.createMany({
+                data: leadImages.map((img, i) => ({
+                    leadId: lead.id, filename: img.url, position: i, caption: img.caption,
+                })),
+            });
+            // Backward compat: Lead.imageUrl = gambar pertama (legacy single field)
+            await (this.prisma as any).lead.update({
+                where: { id: lead.id }, data: { imageUrl: leadImages[0].url } as any,
+            });
+        }
+
+        // Beritahu CS via Discord (#penjualan cabang) — gambar desain SO ikut
+        // dilampirkan supaya desainer tidak perlu kirim manual lagi
+        const imagePaths = proofs.map((p: any) => p.filename);
         this.discord.notifyNewLead({
             name: so.customerName,
             phone: phone || undefined,
             source: `SO Desainer (${so.designerName})`,
             estimatedValue: estimate > 0 ? estimate : undefined,
+            soNumber: so.soNumber || undefined,
             branchId,
+            imagePaths,
         });
+
+        // Broadcast SO + gambar ke #produksi cabang juga, dengan footer khusus
+        // lead (nota belum dibuat — masih tahap follow-up CS)
+        const caption = this.buildCaption(
+            so, undefined,
+            '_Lead Order — CS sedang follow-up; nota dibuat dari SO ini setelah deal._',
+        );
+        this.discord.notifySuratOrder(caption, imagePaths, branchId);
 
         return { lead, existing: false };
     }

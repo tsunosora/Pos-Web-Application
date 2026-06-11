@@ -38,7 +38,18 @@ export class WhatsappService implements OnModuleInit {
         designGroupId: null,
     };
 
+    /** Bot WA nonaktif secara default — notifikasi sudah pindah ke Discord.
+     *  Set WHATSAPP_ENABLED=true di .env untuk menghidupkan kembali. */
+    private get enabled(): boolean {
+        return (process.env.WHATSAPP_ENABLED || '').toLowerCase() === 'true';
+    }
+
     onModuleInit() {
+        if (!this.enabled) {
+            this.connectionStatus = 'DISCONNECTED';
+            this.logger.log('WhatsApp bot nonaktif (WHATSAPP_ENABLED != true) — notifikasi memakai Discord.');
+            return;
+        }
         this.loadConfig();
         this.initializeClient();
     }
@@ -65,6 +76,7 @@ export class WhatsappService implements OnModuleInit {
     }
 
     private initializeClient() {
+        if (!this.enabled) return; // jangan start browser saat bot dimatikan
         this.logger.log('Initializing WhatsApp Client...');
         this.connectionStatus = 'INITIALIZING';
         this.qrCodeUrl = null;
@@ -265,6 +277,10 @@ export class WhatsappService implements OnModuleInit {
     }
 
     async logout() {
+        if (!this.enabled) {
+            this.logger.log('WhatsApp bot nonaktif — logout/restart diabaikan.');
+            return;
+        }
         this.logger.log('Manual restart/logout requested...');
         try {
             if (this.connectionStatus === 'CONNECTED' || this.connectionStatus === 'AUTHENTICATED') {

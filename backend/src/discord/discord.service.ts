@@ -271,11 +271,13 @@ export class DiscordService implements OnModuleInit {
      * Kirim embed untuk sebuah event bila: master enabled, toggle event != false,
      * dan channel tujuan punya webhook URL. Dipanggil fire-and-forget oleh service lain.
      */
-    async send(event: DiscordEvent, embed: DiscordEmbed, branchId?: number | null): Promise<void> {
+    async send(event: DiscordEvent, embed: DiscordEmbed, branchId?: number | null, imagePaths: string[] = []): Promise<void> {
         try {
             const url = await this.resolveUrl(event, branchId);
             if (!url) return;
-            await this.post(url, this.toPayload(embed));
+            const payload = this.toPayload(embed);
+            if (imagePaths.length) await this.postWithFiles(url, payload, imagePaths);
+            else await this.post(url, payload);
         } catch (e: any) {
             this.logger.warn(`send(${event}) error: ${e?.message || e}`);
         }
@@ -339,17 +341,21 @@ export class DiscordService implements OnModuleInit {
         return this.sendLongReport('suratOrder', caption, imagePaths, branchId);
     }
 
-    notifyNewLead(d: { name: string; phone?: string; source?: string; csName?: string; estimatedValue?: number; branchId?: number | null }) {
+    notifyNewLead(d: {
+        name: string; phone?: string; source?: string; csName?: string; estimatedValue?: number;
+        soNumber?: string; branchId?: number | null; imagePaths?: string[];
+    }) {
         const fields: DiscordEmbedField[] = [];
         if (d.source) fields.push({ name: 'Sumber', value: d.source, inline: true });
         if (d.csName) fields.push({ name: 'CS', value: d.csName, inline: true });
         if (d.estimatedValue != null) fields.push({ name: 'Estimasi', value: rupiah(d.estimatedValue), inline: true });
+        if (d.soNumber) fields.push({ name: 'Surat Order', value: `\`${d.soNumber}\``, inline: true });
         return this.send('newLead', {
             title: '🆕 Lead Baru',
             description: `**${d.name}**${d.phone ? ` (${d.phone})` : ''}`,
             color: COLOR.blue,
             fields: fields.length ? fields : undefined,
-        }, d.branchId);
+        }, d.branchId, d.imagePaths ?? []);
     }
 
     notifyDealClosing(d: { csName?: string; customerName?: string; value: number; pcs?: number; source?: string; branchId?: number | null }) {
