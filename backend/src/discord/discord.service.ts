@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -28,6 +28,9 @@ const EVENT_CHANNEL: Record<DiscordEvent, DiscordChannel> = {
     newTransaction: 'sales',
 };
 
+// Event lintas-cabang: SELALU pakai webhook global/sistem (tidak per cabang).
+const SYSTEM_EVENTS: DiscordEvent[] = ['champion', 'backup', 'error'];
+
 // Warna embed (decimal) per tipe
 const COLOR = {
     green: 0x22c55e,
@@ -47,16 +50,18 @@ export interface DiscordEmbed {
     footer?: string;
 }
 
+export type BranchWebhooks = Partial<Record<DiscordChannel, string>>;
 export interface DiscordConfigShape {
     enabled: boolean;
-    webhooks: Partial<Record<DiscordChannel, string>>;
+    webhooks: BranchWebhooks; // global/sistem
     events: Partial<Record<DiscordEvent, boolean>>;
+    branchConfigs: Record<string, { webhooks: BranchWebhooks }>; // keyed by branchId (string)
 }
 
 const rupiah = (n: number) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 
 @Injectable()
-export class DiscordService {
+export class DiscordService implements OnModuleInit {
     private readonly logger = new Logger('DiscordService');
     constructor(private readonly prisma: PrismaService) {}
 
@@ -66,11 +71,39 @@ export class DiscordService {
     private cache: { data: DiscordConfigShape; at: number } | null = null;
     private readonly CACHE_TTL = 5_000;
 
+    /**
+     * Migrasi sekali jalan: kalau webhook per-cabang belum ada tapi webhook global
+     * sudah diisi, salin global → semua cabang aktif supaya notifikasi tidak putus
+     * setelah pindah ke mode per-cabang. Owner lalu bisa re-arahkan tiap cabang.
+     */
+    async onModuleInit() {
+        try {
+            const row = await this.model.findFirst({ orderBy: { id: 'asc' } });
+            if (!row) return;
+            const cfg = this.normalize(row);
+            const hasGlobal = Object.values(cfg.webhooks).some(Boolean);
+            const hasBranch = Object.keys(cfg.branchConfigs).length > 0;
+            if (!hasGlobal || hasBranch) return; // tidak ada yg disalin / sudah pernah di-set
+            const branches: any[] = await (this.prisma as any).companyBranch.findMany({
+                where: { isActive: true }, select: { id: true },
+            });
+            if (!branches.length) return;
+            const branchConfigs: Record<string, { webhooks: BranchWebhooks }> = {};
+            for (const b of branches) branchConfigs[String(b.id)] = { webhooks: { ...cfg.webhooks } };
+            await this.model.update({ where: { id: row.id }, data: { branchConfigs } });
+            this.cache = null;
+            this.logger.log(`Migrasi webhook Discord: global disalin ke ${branches.length} cabang.`);
+        } catch (e: any) {
+            this.logger.warn(`Migrasi webhook per-cabang dilewati: ${e?.message || e}`);
+        }
+    }
+
     private normalize(row: any): DiscordConfigShape {
         return {
             enabled: !!row?.enabled,
             webhooks: (row?.webhooks as any) ?? {},
             events: (row?.events as any) ?? {},
+            branchConfigs: (row?.branchConfigs as any) ?? {},
         };
     }
 
@@ -79,7 +112,7 @@ export class DiscordService {
         if (this.cache && Date.now() - this.cache.at < this.CACHE_TTL) return this.cache.data;
         let row = await this.model.findFirst({ orderBy: { id: 'asc' } });
         if (!row) {
-            row = await this.model.create({ data: { enabled: false, webhooks: {}, events: {} } });
+            row = await this.model.create({ data: { enabled: false, webhooks: {}, events: {}, branchConfigs: {} } });
         }
         const data = this.normalize(row);
         this.cache = { data, at: Date.now() };
@@ -92,9 +125,10 @@ export class DiscordService {
         if (patch.enabled !== undefined) data.enabled = !!patch.enabled;
         if (patch.webhooks !== undefined) data.webhooks = patch.webhooks;
         if (patch.events !== undefined) data.events = patch.events;
+        if (patch.branchConfigs !== undefined) data.branchConfigs = patch.branchConfigs;
         row = row
             ? await this.model.update({ where: { id: row.id }, data })
-            : await this.model.create({ data: { enabled: false, webhooks: {}, events: {}, ...data } });
+            : await this.model.create({ data: { enabled: false, webhooks: {}, events: {}, branchConfigs: {}, ...data } });
         this.cache = null; // invalidate
         return this.normalize(row);
     }
@@ -172,12 +206,25 @@ export class DiscordService {
         return chunks;
     }
 
-    /** Webhook URL untuk sebuah event — null kalau master off / event off / URL kosong. */
-    private async resolveUrl(event: DiscordEvent): Promise<string | null> {
+    /**
+     * Webhook URL untuk sebuah event — null kalau master off / event off / URL kosong.
+     * Routing per cabang:
+     *  - Event sistem (champion/backup/error): selalu webhook global.
+     *  - Event cabang DENGAN branchId: pakai webhook cabang itu. TANPA fallback global
+     *    (kalau cabang belum di-set → tidak terkirim).
+     *  - Event cabang TANPA branchId (data tak punya cabang, mis. order WEBSITE):
+     *    pakai webhook global sebagai sistem default.
+     */
+    private async resolveUrl(event: DiscordEvent, branchId?: number | null): Promise<string | null> {
         const cfg = await this.getConfig();
         if (!cfg.enabled) return null;
         if (cfg.events[event] === false) return null; // default ON kalau undefined
-        return cfg.webhooks[EVENT_CHANNEL[event]] || null;
+        const channel = EVENT_CHANNEL[event];
+        if (SYSTEM_EVENTS.includes(event)) return cfg.webhooks[channel] || null;
+        if (branchId != null) {
+            return cfg.branchConfigs[String(branchId)]?.webhooks?.[channel] || null;
+        }
+        return cfg.webhooks[channel] || null;
     }
 
     /**
@@ -185,9 +232,9 @@ export class DiscordService {
      * Teks dipecah per ±1900 char; lampiran ikut di pesan terakhir agar urut.
      * Return true bila semua pesan terkirim (false juga bila event nonaktif/URL kosong).
      */
-    async sendLongReport(event: DiscordEvent, text: string, imagePaths: string[] = []): Promise<boolean> {
+    async sendLongReport(event: DiscordEvent, text: string, imagePaths: string[] = [], branchId?: number | null): Promise<boolean> {
         try {
-            const url = await this.resolveUrl(event);
+            const url = await this.resolveUrl(event, branchId);
             if (!url) return false;
             const chunks = this.chunkText(this.toDiscordMarkdown(text));
             let ok = true;
@@ -224,9 +271,9 @@ export class DiscordService {
      * Kirim embed untuk sebuah event bila: master enabled, toggle event != false,
      * dan channel tujuan punya webhook URL. Dipanggil fire-and-forget oleh service lain.
      */
-    async send(event: DiscordEvent, embed: DiscordEmbed): Promise<void> {
+    async send(event: DiscordEvent, embed: DiscordEmbed, branchId?: number | null): Promise<void> {
         try {
-            const url = await this.resolveUrl(event);
+            const url = await this.resolveUrl(event, branchId);
             if (!url) return;
             await this.post(url, this.toPayload(embed));
         } catch (e: any) {
@@ -234,14 +281,20 @@ export class DiscordService {
         }
     }
 
-    /** Test kirim ke salah satu channel (dipakai tombol Test di Settings). */
-    async sendTest(channel: DiscordChannel): Promise<{ ok: boolean; message: string }> {
+    /**
+     * Test kirim ke salah satu channel (tombol Test di Settings).
+     * `branchId` null/undefined → uji webhook global; angka → uji webhook cabang itu.
+     */
+    async sendTest(channel: DiscordChannel, branchId?: number | null): Promise<{ ok: boolean; message: string }> {
         const cfg = await this.getConfig();
-        const url = cfg.webhooks[channel];
-        if (!url) return { ok: false, message: `Webhook channel "${channel}" belum diisi.` };
+        const url = branchId != null
+            ? cfg.branchConfigs[String(branchId)]?.webhooks?.[channel]
+            : cfg.webhooks[channel];
+        const scope = branchId != null ? `cabang #${branchId}` : 'global';
+        if (!url) return { ok: false, message: `Webhook channel "${channel}" (${scope}) belum diisi.` };
         const ok = await this.post(url, this.toPayload({
             title: '✅ Test Notifikasi PosPro',
-            description: `Webhook channel **${channel}** berhasil terhubung.`,
+            description: `Webhook channel **${channel}** (${scope}) berhasil terhubung.`,
             color: COLOR.green,
             footer: 'PosPro · Discord Integration',
         }));
@@ -253,7 +306,7 @@ export class DiscordService {
     // ── Helper per-event (dipanggil dari service lain) ──────────────────────
 
     notifyShiftRecap(d: {
-        cashierName?: string; branchLabel?: string; shiftName?: string;
+        cashierName?: string; branchLabel?: string; branchId?: number | null; shiftName?: string;
         omzet: number; txCount?: number;
         cash?: number; qris?: number; transfer?: number; notes?: string;
     }) {
@@ -270,23 +323,23 @@ export class DiscordService {
                 .filter(Boolean).join(' · ') || undefined,
             color: COLOR.blue,
             fields,
-        });
+        }, d.branchId);
     }
 
     /**
-     * Laporan tutup shift LENGKAP (teks laporan + foto bukti) ke channel #keuangan.
+     * Laporan tutup shift LENGKAP (teks laporan + foto bukti) ke channel #keuangan cabang.
      * Pengganti laporan harian WhatsApp — dipakai closeShift & resend.
      */
-    notifyShiftReport(fullText: string, imagePaths: string[] = []): Promise<boolean> {
-        return this.sendLongReport('shiftRecap', fullText, imagePaths);
+    notifyShiftReport(fullText: string, imagePaths: string[] = [], branchId?: number | null): Promise<boolean> {
+        return this.sendLongReport('shiftRecap', fullText, imagePaths, branchId);
     }
 
-    /** Surat Order (desain → kasir/operator) ke channel #produksi — pengganti grup WA desain. */
-    notifySuratOrder(caption: string, imagePaths: string[] = []): Promise<boolean> {
-        return this.sendLongReport('suratOrder', caption, imagePaths);
+    /** Surat Order (desain → kasir/operator) ke channel #produksi cabang. */
+    notifySuratOrder(caption: string, imagePaths: string[] = [], branchId?: number | null): Promise<boolean> {
+        return this.sendLongReport('suratOrder', caption, imagePaths, branchId);
     }
 
-    notifyNewLead(d: { name: string; phone?: string; source?: string; csName?: string; estimatedValue?: number }) {
+    notifyNewLead(d: { name: string; phone?: string; source?: string; csName?: string; estimatedValue?: number; branchId?: number | null }) {
         const fields: DiscordEmbedField[] = [];
         if (d.source) fields.push({ name: 'Sumber', value: d.source, inline: true });
         if (d.csName) fields.push({ name: 'CS', value: d.csName, inline: true });
@@ -296,10 +349,10 @@ export class DiscordService {
             description: `**${d.name}**${d.phone ? ` (${d.phone})` : ''}`,
             color: COLOR.blue,
             fields: fields.length ? fields : undefined,
-        });
+        }, d.branchId);
     }
 
-    notifyDealClosing(d: { csName?: string; customerName?: string; value: number; pcs?: number; source?: string }) {
+    notifyDealClosing(d: { csName?: string; customerName?: string; value: number; pcs?: number; source?: string; branchId?: number | null }) {
         const fields: DiscordEmbedField[] = [{ name: 'Nilai', value: rupiah(d.value), inline: true }];
         if (d.pcs != null) fields.push({ name: 'Pcs', value: `${d.pcs}`, inline: true });
         if (d.source) fields.push({ name: 'Sumber', value: d.source, inline: true });
@@ -308,10 +361,10 @@ export class DiscordService {
             description: [d.csName ? `**${d.csName}**` : 'CS', 'closing', d.customerName ? `**${d.customerName}**` : 'customer'].join(' '),
             color: COLOR.green,
             fields,
-        });
+        }, d.branchId);
     }
 
-    notifyJobReady(d: { jobNumber?: string; customerName?: string; branchLabel?: string; isExpress?: boolean }) {
+    notifyJobReady(d: { jobNumber?: string; customerName?: string; branchLabel?: string; branchId?: number | null; isExpress?: boolean }) {
         return this.send('jobReady', {
             title: `${d.isExpress ? '⚡ ' : '📦 '}Pesanan Siap Diambil`,
             description: [
@@ -320,10 +373,10 @@ export class DiscordService {
                 d.branchLabel ? `\n${d.branchLabel}` : null,
             ].filter(Boolean).join(' '),
             color: COLOR.green,
-        });
+        }, d.branchId);
     }
 
-    notifyLowStock(d: { name: string; sku?: string; stock: number; threshold: number; branchLabel?: string }) {
+    notifyLowStock(d: { name: string; sku?: string; stock: number; threshold: number; branchLabel?: string; branchId?: number | null }) {
         return this.send('lowStock', {
             title: '⚠️ Stok Menipis',
             description: `**${d.name}**${d.sku ? ` (\`${d.sku}\`)` : ''}`,
@@ -333,7 +386,7 @@ export class DiscordService {
                 { name: 'Minimum', value: `${d.threshold}`, inline: true },
                 ...(d.branchLabel ? [{ name: 'Cabang', value: d.branchLabel, inline: true }] : []),
             ],
-        });
+        }, d.branchId);
     }
 
     notifyBackup(d: { ok: boolean; detail?: string }) {

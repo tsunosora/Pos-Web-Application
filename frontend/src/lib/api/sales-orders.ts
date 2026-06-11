@@ -97,6 +97,21 @@ export const getSalesOrder = async (id: number): Promise<SalesOrder> =>
 export const getPendingInvoiceCount = async (): Promise<{ count: number }> =>
     (await api.get(`/sales-orders/pending-invoice-count`)).data;
 
+/** Ringkasan SO aktif (DRAFT/SENT) milik customer — untuk peringatan cegah nota dobel. */
+export interface ActiveSalesOrderHit {
+    id: number;
+    soNumber: string;
+    status: SalesOrderStatus;
+    customerName: string;
+    customerPhone: string | null;
+    designerName: string;
+    createdAt: string;
+}
+
+/** Cari SO aktif by nama/HP customer (q minimal 1 karakter; HP cocok dari 4 digit). */
+export const findActiveSOByCustomer = async (q: string): Promise<ActiveSalesOrderHit[]> =>
+    (await api.get(`/sales-orders/active-by-customer`, { params: { q } })).data;
+
 export const createSalesOrder = async (
     data: CreateSalesOrderPayload,
 ): Promise<SalesOrder> => (await api.post(`/sales-orders`, data)).data;

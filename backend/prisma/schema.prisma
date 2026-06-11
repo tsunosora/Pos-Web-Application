@@ -608,11 +608,12 @@ model StoreSettings {
 // events  : map event→bool  { shiftRecap, dealClosing, jobReady, lowStock, backup, error, champion }
 // Terpisah dari StoreSettings.discordWebhookUrl (yang khusus notif GitHub commit).
 model DiscordConfig {
-  id        Int      @id @default(autoincrement())
-  enabled   Boolean  @default(false)
-  webhooks  Json?
-  events    Json?
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            Int      @id @default(autoincrement())
+  enabled       Boolean  @default(false)
+  webhooks      Json?    // Webhook GLOBAL/SISTEM (event lintas-cabang: champion/backup/error + event tanpa cabang)
+  events        Json?    // Toggle per-event (global, berlaku semua cabang)
+  branchConfigs Json?    @map("branch_configs") // { [branchId]: { webhooks: { channel: url } } } — webhook per cabang
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("discord_config")
 }

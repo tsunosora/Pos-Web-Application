@@ -88,6 +88,30 @@ export class SalesOrdersPublicController {
         });
     }
 
+    /**
+     * "Lead Order" — buat Lead CRM tertaut dari SO ini (designer-first).
+     * CS follow-up dari /crm/leads; nota dibuat dari SO di POS → lead auto-closing.
+     */
+    @Post(':id/create-lead')
+    async createLead(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { designerId: number; pin: string },
+    ) {
+        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        return this.soService.createLeadFromSO(id);
+    }
+
+    /** Edit SO (perbaiki customer/catatan/item — selama belum di-invoice/dibatalkan) */
+    @Post(':id/update')
+    async update(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { designerId: number; pin: string } & Partial<CreateSalesOrderPayload>,
+    ) {
+        const { designerId, pin, ...soData } = body;
+        await verifyDesigner(this.designersService, Number(designerId), pin);
+        return this.soService.update(id, soData);
+    }
+
     /** Upload proof gambar */
     @Post(':id/proofs')
     @UseInterceptors(

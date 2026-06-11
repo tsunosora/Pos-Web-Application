@@ -75,6 +75,24 @@ Klik tombol **"Convert"** di detail lead → 3 checkbox:
 - Gambar lead di-copy ke SO Proof Gambar (desainer langsung lihat referensi)
 - Lead status berubah ke CLOSED_WON, link ke customer + SO + invoice ter-record
 
+### Alur B: Tautkan Lead ke SO Desainer (Jun 2026)
+
+Kasus umum: customer chat CS (jadi lead), lalu desainer **sudah keburu bikin SO** dari portal desainer. Kalau CS convert lead seperti biasa, hasilnya **nota dobel** (1 dari convert, 1 dari SO saat di-checkout di POS).
+
+Solusinya tombol **🔗 Tautkan SO** di detail lead:
+
+1. Buka detail lead → klik **Tautkan SO** → cari nama / HP customer.
+2. Pilih SO aktif (Draft/Terkirim) yang cocok → lead tertaut, status naik ke **Negosiasi** (kalau masih Baru/FU). **Tidak ada nota/customer baru yang dibuat.**
+3. Saat kasir membuat nota dari SO itu di POS, lead otomatis **CLOSED_WON** menunjuk nota yang sama — CS & desainer dua-duanya dapat kredit, tanpa nota dobel.
+
+Pengaman tambahan:
+- Modal **Convert** otomatis menampilkan **peringatan** kalau customer (nama/HP sama) punya SO aktif — saran pakai Tautkan SO, bukan convert.
+- Kalau lead sudah tertaut SO, peringatannya merah: convert akan bikin nota dobel.
+- Tautan bisa dilepas / diganti kapan saja selama lead belum closing.
+- Kotak "Tertaut ke Sales Order" di detail lead punya tombol **🧾 Buat Nota di POS** — buka POS dengan cart ter-prefill dari SO (`/pos?fromSO=<id>`), checkout → lead otomatis closing.
+
+**Arah sebaliknya (designer-first)**: desainer juga bisa **memulai** alur ini dari portalnya. Saat menyimpan SO ada tombol **Lead Order (CS)** — SO tersimpan + lead otomatis dibuat & tertaut (CS dapat notif Discord #penjualan), tanpa CS perlu input lead manual. Lihat [Sales Order › Tiga tombol simpan](sales-orders.md).
+
 ---
 
 ## 2. Halaman `/crm/follow-ups` — Daily Worklist CS ⭐
@@ -165,6 +183,20 @@ sama dengan nama user CS. Transaksi yang berasal dari konversi lead **tidak** di
 lagi sebagai walk-in (anti dobel). Sisa piutang transaksi PENDING/DP walk-in ikut
 masuk ke kolom **Nilai Akan Datang**. CS yang hanya punya penjualan POS (tanpa lead)
 tetap muncul di leaderboard.
+
+### Leaderboard Designer: Omzet & Konversi SO (Jun 2026)
+
+Leaderboard designer kini menghitung **uang**, bukan cuma jumlah job:
+
+| Kolom | Arti |
+|---|---|
+| **Omzet** | Total nilai nota dari SO milik designer yang **jadi nota** (invoiced) di periode |
+| **Pcs** | Total pcs item dari nota-nota tersebut |
+| **SO Dibuat** | Jumlah SO yang dibuat designer di periode |
+| **Jadi Nota** | Berapa SO yang berhasil di-checkout jadi nota |
+| **Konv. SO** | Rasio SO Dibuat → Jadi Nota (%) |
+
+Sumber omzet: `SalesOrder.invoicedAt` di periode + `transaction.grandTotal` (1 SO = 1 nota, dedup natural). Urutan default leaderboard sekarang **Omzet** (badge 💰 Raja Omzet); bisa diganti sort ke Assignment/ACC/Selesai seperti sebelumnya.
 
 ---
 

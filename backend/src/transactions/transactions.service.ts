@@ -735,9 +735,29 @@ export class TransactionsService {
                             },
                         });
                     }
+                    // Tutup Lead yang TERTAUT ke SO ini (Alur B: CS bikin lead lalu tautkan ke SO).
+                    // Lead otomatis CLOSED_WON menunjuk nota yang SAMA → CS & desainer dapat kredit,
+                    // tanpa nota dobel. Hanya lead yang belum closed yang disentuh.
+                    const linkedLeads = await (tx as any).lead.findMany({
+                        where: {
+                            convertedSalesOrderId: data.salesOrderId,
+                            status: { notIn: ['CLOSED_WON', 'CLOSED_LOST'] },
+                        },
+                        select: { id: true },
+                    });
+                    for (const ld of linkedLeads) {
+                        await (tx as any).lead.update({
+                            where: { id: ld.id },
+                            data: {
+                                status: 'CLOSED_WON',
+                                convertedTransactionId: transaction.id,
+                                closedAt: new Date(),
+                            },
+                        });
+                    }
                 } catch (e) {
                     // Fail silently — transaksi sudah sukses, SO link bisa diperbaiki manual
-                    console.error('Failed to mark SO as INVOICED', e);
+                    console.error('Failed to mark SO as INVOICED / close linked lead', e);
                 }
             }
 
@@ -905,8 +925,9 @@ export class TransactionsService {
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `💰 Total: **Rp ${grandTotal}**  |  💳 ${paymentLabel}`;
 
-        // Sistem multi-channel baru (Settings → Discord, channel #penjualan)
-        await this.discord.sendLongReport('newTransaction', message);
+        // Sistem multi-channel baru (Settings → Discord, channel #penjualan cabang)
+        const txBranchId = (transaction as any).branchId ?? (data as any).branchId ?? null;
+        await this.discord.sendLongReport('newTransaction', message, [], txBranchId);
 
         // Webhook legacy (settings.discordWebhookUrl) — tetap dikirim bila masih dikonfigurasi
         const settings = await this.prisma.storeSettings.findFirst();

@@ -209,6 +209,8 @@ function POSPageContent() {
         setCustomerName(soData.customerName || '');
         setCustomerPhone(soData.customerPhone || '');
         setCustomerAddress(soData.customerAddress || '');
+        // Catatan/instruksi dari SO desainer → masuk ke catatan order (tampil di nota)
+        if (soData.notes) setProductionNotes(soData.notes);
         setSalesOrderId(soData.id);
 
         // Add each SO item to cart
@@ -290,6 +292,7 @@ function POSPageContent() {
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
+        orderNotes: productionNotes.trim() || undefined,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         downPayment: downPayment !== '' ? Number(downPayment) : undefined,
         cashierName: cashierName.trim() || undefined,
@@ -431,6 +434,7 @@ function POSPageContent() {
             customerName: customerName.trim() || undefined,
             customerPhone: customerPhone.trim() || undefined,
             customerAddress: customerAddress.trim() || undefined,
+            orderNotes: productionNotes.trim() || undefined,
             dueDate: dueDate ? new Date(dueDate) : undefined,
             downPayment: paymentMethod === 'BAYAR_NANTI'
                 ? (dpBayarNanti !== '' && Number(dpBayarNanti) > 0 ? Number(dpBayarNanti) : 0)
@@ -933,7 +937,7 @@ function POSPageContent() {
                                                         {item.unitType === 'menit'
                                                             ? `${item.widthCm} unit`
                                                             : item.unitType === 'cm'
-                                                            ? `${item.widthCm}×${item.heightCm} cm = ${Math.round(item.areaM2 || 0).toLocaleString('id-ID')} cm²`
+                                                            ? `${item.widthCm}×${item.heightCm} cm = ${(item.areaM2 || 0).toLocaleString('id-ID', { maximumFractionDigits: 4 })} m²`
                                                             : `${item.widthCm}×${item.heightCm} m = ${item.areaM2?.toLocaleString('id-ID')} m²`}
                                                     </div>
                                                     {item.pcs && item.pcs > 1 && (

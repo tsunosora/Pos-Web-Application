@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X } from "lucide-react";
+import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X, Send, UserPlus } from "lucide-react";
 import { useDesignerSession } from "../useDesignerSession";
-import { designerCreateSO, designerUploadProofs, getPublicCustomers } from "@/lib/api/designers";
+import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, getPublicCustomers } from "@/lib/api/designers";
 import axios from "axios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+
+/** URL gambar proof dari path tersimpan (strip prefix `public/`). */
+function proofUrl(filename: string) {
+    const rel = filename.replace(/^public[\\/]/i, "/").replace(/\\/g, "/");
+    return `${API_BASE}${rel.startsWith("/") ? rel : "/" + rel}`;
+}
 
 interface CustomerHint { id: number; name: string; phone: string | null; address: string | null; }
 
@@ -33,8 +39,11 @@ interface FlatVariant {
     sku: string;
 }
 
-export default function DesignerNewSOPage() {
+function DesignerNewSOContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const editId = searchParams.get('id');
+    const isEdit = !!editId;
     const session = useDesignerSession();
 
     const [customerName, setCustomerName] = useState("");
@@ -46,11 +55,15 @@ export default function DesignerNewSOPage() {
     const [deadline, setDeadline] = useState("");
     const [items, setItems] = useState<DraftItem[]>([]);
     const [proofFiles, setProofFiles] = useState<File[]>([]);
+    const [existingProofs, setExistingProofs] = useState<{ id: number; filename: string }[]>([]); // proof yang sudah tersimpan (mode edit)
+    const [deletingProof, setDeletingProof] = useState<number | null>(null);
     const [variantSearch, setVariantSearch] = useState("");
     const [products, setProducts] = useState<any[]>([]);
     const [productsLoaded, setProductsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    const [sending, setSending] = useState(false);
+    const [leading, setLeading] = useState(false); // busy state tombol "Lead Order"
 
     // Load customers sekali saat komponen mount
     useMemo(() => {
@@ -137,6 +150,21 @@ export default function DesignerNewSOPage() {
         e.target.value = "";
     }
 
+    // Hapus proof yang sudah tersimpan (mode edit) — eksplisit, hanya saat user klik
+    async function removeExistingProof(proofId: number) {
+        if (!session || !editId) return;
+        if (!confirm("Hapus gambar ini dari SO?")) return;
+        setDeletingProof(proofId);
+        try {
+            await designerDeleteProof(Number(editId), proofId, session.id, session.pin);
+            setExistingProofs(p => p.filter(x => x.id !== proofId));
+        } catch (e: any) {
+            setError(e?.response?.data?.message || "Gagal hapus gambar");
+        } finally {
+            setDeletingProof(null);
+        }
+    }
+
     // Paste handler global — Ctrl+V untuk paste screenshot dari clipboard
     useEffect(() => {
         function onPaste(e: ClipboardEvent) {
@@ -167,15 +195,55 @@ export default function DesignerNewSOPage() {
         return () => window.removeEventListener('paste', onPaste);
     }, []);
 
-    async function handleSave() {
+    // Mode edit: muat SO yang ada lalu prefill form
+    useEffect(() => {
+        if (!isEdit || !editId) return;
+        designerGetSO(Number(editId)).then((so: any) => {
+            if (!so) return;
+            setCustomerName(so.customerName || "");
+            setCustomerPhone(so.customerPhone || "");
+            setCustomerAddress(so.customerAddress || "");
+            setNotes(so.notes || "");
+            if (so.deadline) {
+                // ISO → input datetime-local (buang detik/zona)
+                const d = new Date(so.deadline);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                setDeadline(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+            }
+            setExistingProofs((so.proofs || []).map((p: any) => ({ id: p.id, filename: p.filename })));
+            setItems((so.items || []).map((it: any, i: number) => {
+                const mode: "UNIT" | "AREA_BASED" = it.productVariant?.product?.pricingMode === 'AREA_BASED' ? 'AREA_BASED' : 'UNIT';
+                const vn = it.productVariant?.variantName ? ` — ${it.productVariant.variantName}` : '';
+                return {
+                    key: `${it.productVariantId}-${i}-${Date.now()}`,
+                    productVariantId: it.productVariantId,
+                    productLabel: `${it.productVariant?.product?.name ?? 'Produk'}${vn}`,
+                    pricingMode: mode,
+                    quantity: Number(it.quantity) || 1,
+                    widthCm: it.widthCm ?? undefined,
+                    heightCm: it.heightCm ?? undefined,
+                    unitType: it.unitType ?? (mode === 'AREA_BASED' ? 'cm' : undefined),
+                    pcs: it.pcs ?? (mode === 'AREA_BASED' ? 1 : undefined),
+                    customPrice: it.customPrice ?? null,
+                    note: it.note ?? undefined,
+                };
+            }));
+        }).catch(() => setError("Gagal memuat SO untuk diedit"));
+    }, [isEdit, editId]);
+
+    // mode 'save'  = simpan draft saja
+    // mode 'send'  = "Buat Nota" — simpan lalu kirim ke Discord #produksi (kasir buatkan nota)
+    // mode 'lead'  = "Lead Order" — simpan lalu buat Lead CRM tertaut (CS yang follow-up)
+    async function handleSave(mode: 'save' | 'send' | 'lead') {
         if (!session) return;
         setError(null);
         if (!customerName.trim()) { setError("Nama customer wajib diisi"); return; }
         if (items.length === 0) { setError("Tambahkan minimal 1 item"); return; }
 
-        setSaving(true);
+        const busy = mode === 'send' ? setSending : mode === 'lead' ? setLeading : setSaving;
+        busy(true);
         try {
-            const so = await designerCreateSO(session.id, session.pin, {
+            const payload = {
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim() || null,
                 customerAddress: customerAddress.trim() || null,
@@ -191,17 +259,32 @@ export default function DesignerNewSOPage() {
                     customPrice: it.customPrice ?? null,
                     note: it.note?.trim() || null,
                 })),
-            });
+            };
+            const so = isEdit
+                ? await designerUpdateSO(Number(editId), session.id, session.pin, payload)
+                : await designerCreateSO(session.id, session.pin, payload);
             if (proofFiles.length > 0) {
                 await designerUploadProofs(so.id, session.id, session.pin, proofFiles);
             }
-            // Kembali ke dashboard (halaman awal) supaya alur jelas; SO baru muncul paling atas
-            alert(`SO ${so.soNumber || ''} berhasil dibuat.`);
+            if (mode === 'send') {
+                // Langsung broadcast ke channel Discord #produksi cabang
+                await designerSendWA(so.id, session.id, session.pin);
+                alert(`SO ${so.soNumber || ''} ${isEdit ? 'diperbarui' : 'dibuat'} & dikirim — kasir tinggal buatkan nota.`);
+            } else if (mode === 'lead') {
+                // Buat Lead CRM tertaut — CS follow-up, nota dibuat dari SO nanti
+                const res = await designerCreateLeadFromSO(so.id, session.id, session.pin);
+                alert(res.existing
+                    ? `SO ${so.soNumber || ''} disimpan. Lead untuk SO ini sudah ada di CRM — CS tinggal lanjut follow-up.`
+                    : `SO ${so.soNumber || ''} disimpan & masuk ke CS sebagai Lead Order. CS akan follow-up; nota dibuat dari SO ini nanti.`);
+            } else {
+                alert(`SO ${so.soNumber || ''} ${isEdit ? 'diperbarui' : 'disimpan sebagai draft'}.`);
+            }
+            // Kembali ke dashboard (halaman awal); SO baru muncul paling atas
             router.push('/so-designer/dashboard');
         } catch (e: any) {
             setError(e?.response?.data?.message || e?.message || "Gagal menyimpan SO");
         } finally {
-            setSaving(false);
+            busy(false);
         }
     }
 
@@ -215,7 +298,7 @@ export default function DesignerNewSOPage() {
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
                 <div className="min-w-0">
-                    <div className="font-semibold leading-tight truncate">Buat Sales Order Baru</div>
+                    <div className="font-semibold leading-tight truncate">{isEdit ? 'Edit Sales Order' : 'Buat Sales Order Baru'}</div>
                     <div className="text-xs text-indigo-100 truncate">
                         {session.name}
                         {session.branchName && <> · <span className="text-yellow-300 font-semibold">{session.branchName}</span></>}
@@ -384,8 +467,25 @@ export default function DesignerNewSOPage() {
                 </Card>
 
                 {/* Proof */}
-                <Card title={`Screenshot Proof Final (${proofFiles.length}/10)`}>
+                <Card title={`Screenshot Proof Final (${existingProofs.length + proofFiles.length}/10)`}>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Upload screenshot ACC dari customer (WA pribadi). Akan dikirim ke Discord internal saat broadcast.</p>
+                    {existingProofs.length > 0 && (
+                        <div className="mb-3">
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Gambar tersimpan</p>
+                            <div className="grid grid-cols-3 gap-2">
+                                {existingProofs.map(p => (
+                                    <div key={p.id} className="relative group">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={proofUrl(p.filename)} alt="proof" className="w-full h-24 object-cover rounded-lg border border-slate-200 dark:border-slate-700" />
+                                        <button onClick={() => removeExistingProof(p.id)} disabled={deletingProof === p.id}
+                                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-100">
+                                            {deletingProof === p.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                     <div
                         onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
                         onDrop={e => { e.preventDefault(); addImageFiles(e.dataTransfer.files); }}
@@ -419,18 +519,42 @@ export default function DesignerNewSOPage() {
 
             {/* Sticky footer */}
             <div className="fixed bottom-0 inset-x-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-4 shadow-lg">
-                <div className="flex gap-2 max-w-2xl mx-auto">
-                    <Link href="/so-designer/dashboard" className="flex-1 text-center py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors">
-                        Batal
-                    </Link>
-                    <button onClick={handleSave} disabled={saving}
-                        className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        Simpan SO
-                    </button>
+                <div className="max-w-2xl mx-auto space-y-2">
+                    <div className="flex gap-2">
+                        <Link href="/so-designer/dashboard" className="text-center py-2 px-4 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 transition-colors">
+                            Batal
+                        </Link>
+                        <button onClick={() => handleSave('save')} disabled={saving || sending || leading}
+                            className="flex-1 inline-flex items-center justify-center gap-2 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 py-2 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            Simpan Draft
+                        </button>
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => handleSave('lead')} disabled={saving || sending || leading}
+                            title="Order belum pasti / perlu nego — masuk ke CS sebagai lead, nota dibuat dari SO ini nanti"
+                            className="flex-1 inline-flex items-center justify-center gap-2 border border-amber-400 dark:border-amber-700 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            {leading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                            Lead Order (CS)
+                        </button>
+                        <button onClick={() => handleSave('send')} disabled={saving || sending || leading}
+                            title="Order sudah pasti — kirim ke kasir untuk dibuatkan nota"
+                            className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                            Buat Nota (Kirim)
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
+    );
+}
+
+export default function DesignerNewSOPage() {
+    return (
+        <Suspense fallback={null}>
+            <DesignerNewSOContent />
+        </Suspense>
     );
 }
 

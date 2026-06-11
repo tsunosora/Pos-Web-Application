@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send, XCircle, Upload, Trash2, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Send, XCircle, Upload, Trash2, Loader2, CheckCircle2, Pencil } from "lucide-react";
 import { designerGetSO, designerSendWA, designerCancelSO, designerUploadProofs, designerDeleteProof } from "@/lib/api/designers";
 import { useDesignerSession } from "../../useDesignerSession";
 import type { SalesOrder, SalesOrderStatus } from "@/lib/api/sales-orders";
@@ -163,6 +163,12 @@ export default function DesignerSODetailPage() {
                     </div>
                     <div className="text-xs text-indigo-100 truncate">{so.customerName}</div>
                 </div>
+                {canEdit && (
+                    <Link href={`/so-designer/new?id=${so.id}`}
+                        className="shrink-0 inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
+                        <Pencil className="h-3.5 w-3.5" /> Edit
+                    </Link>
+                )}
             </div>
 
             <div className="max-w-2xl mx-auto p-4 space-y-4">

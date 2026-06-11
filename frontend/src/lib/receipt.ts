@@ -26,6 +26,7 @@ export interface ReceiptSnapshot {
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;
+  orderNotes?: string; // Catatan / instruksi order (dari SO / productionNotes) — tampil di nota
   dueDate?: Date;
   downPayment?: number;
   status?: string;
@@ -68,7 +69,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
       const u = item.unitType || 'm';
       let dimStr = '';
       if (u === 'menit') dimStr = `${item.widthCm} menit`;
-      else dimStr = `${item.widthCm}x${item.heightCm} ${u} = ${item.areaM2?.toLocaleString('id-ID')} unit`;
+      else dimStr = `${item.widthCm}x${item.heightCm} ${u} = ${item.areaM2?.toLocaleString('id-ID', { maximumFractionDigits: 4 })} m²`;
       line += `\n  Jml: ${item.qty} | Dimensi: ${dimStr}`;
       if (item.pcs && item.pcs > 1) line += `\n  PCS/Kopi: ×${item.pcs}`;
       line += `\n  Harga dasar: Rp ${item.pricePerUnit.toLocaleString('id-ID')}`;
@@ -91,6 +92,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     snap.customerAddress ? `Alamat: ${snap.customerAddress}` : '',
     snap.notaHeader ? `\n${snap.notaHeader}` : '',
     snap.productionBranchLabel ? `*Dicetak & diambil di: ${snap.productionBranchLabel}*` : '',
+    snap.orderNotes ? `Catatan: ${snap.orderNotes}` : '',
     ``,
     itemLines,
     ``,
@@ -252,6 +254,8 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
     </div>
   </div>
 
+  ${snap.orderNotes ? `<div style="border:1px solid #000; padding:6px 8px; margin-bottom:10px; font-size:11px; white-space:pre-wrap;"><strong>Catatan Order:</strong> ${snap.orderNotes.replace(/</g, '&lt;')}</div>` : ''}
+
   <table>
     <thead><tr>
       <th style="text-align:right; width:30px;">No.</th>
@@ -371,6 +375,7 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
     customerName: trx.customerName || undefined,
     customerPhone: trx.customerPhone || undefined,
     customerAddress: trx.customerAddress || undefined,
+    orderNotes: trx.productionNotes || undefined,
     dueDate: trx.dueDate ? new Date(trx.dueDate) : undefined,
     downPayment: Number(trx.downPayment),
     status: trx.status,

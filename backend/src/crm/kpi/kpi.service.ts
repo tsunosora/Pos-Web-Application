@@ -513,13 +513,38 @@ export class KpiService {
             soByDesigner.set(name, (soByDesigner.get(name) || 0) + 1);
         }
 
+        // SO yang JADI NOTA di periode (invoicedAt) → omzet & pcs per designer.
+        // Sumber kebenaran: SalesOrder.transactionId → transaction.grandTotal + items.
+        // Satu nota dihitung sekali di sini (dedup natural: 1 SO = 1 transaksi).
+        const invoicedSos: any[] = await (this.prisma as any).salesOrder.findMany({
+            where: { invoicedAt: { gte: start, lte: end }, status: 'INVOICED', transactionId: { not: null } },
+            select: {
+                designerName: true,
+                transaction: { select: { grandTotal: true, items: { select: { quantity: true } } } },
+            },
+        });
+        type SoStat = { invoiced: number; omzet: number; pcs: number };
+        const soNotaByDesigner = new Map<string, SoStat>();
+        for (const so of invoicedSos) {
+            const name = (so.designerName || '').trim();
+            if (!name) continue;
+            const st = soNotaByDesigner.get(name) || { invoiced: 0, omzet: 0, pcs: 0 };
+            st.invoiced++;
+            st.omzet += Number(so.transaction?.grandTotal || 0);
+            st.pcs += (so.transaction?.items || []).reduce((s: number, it: any) => s + (Number(it.quantity) || 0), 0);
+            soNotaByDesigner.set(name, st);
+        }
+
         // Union nama: designer dari production job + designer yang hanya punya SO
-        const allNames = new Set<string>([...byDesigner.keys(), ...soByDesigner.keys()]);
+        const allNames = new Set<string>([...byDesigner.keys(), ...soByDesigner.keys(), ...soNotaByDesigner.keys()]);
         const ZERO: Stat = { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, designSumMs: 0, designCount: 0 };
+        const ZSO: SoStat = { invoiced: 0, omzet: 0, pcs: 0 };
 
         const leaderboard = Array.from(allNames)
             .map((name) => {
                 const s = byDesigner.get(name) || ZERO;
+                const so = soNotaByDesigner.get(name) || ZSO;
+                const soCreated = soByDesigner.get(name) || 0;
                 const denom = s.assignment - s.batal;
                 return {
                     name,
@@ -531,11 +556,15 @@ export class KpiService {
                     selesai: s.selesai,
                     batal: s.batal,
                     express: s.express,
-                    soCreated: soByDesigner.get(name) || 0,
+                    soCreated,
+                    soInvoiced: so.invoiced,                                   // SO yang jadi nota
+                    soConvRate: soCreated > 0 ? so.invoiced / soCreated : 0,   // rasio SO → nota
+                    omzet: so.omzet,                                           // omzet dari SO yang jadi nota
+                    pcs: so.pcs,
                     avgDesignHrs: s.designCount > 0 ? s.designSumMs / s.designCount / 3_600_000 : null,
                 };
             })
-            .sort((a, b) => b.acc - a.acc || b.assignment - a.assignment || b.soCreated - a.soCreated);
+            .sort((a, b) => b.omzet - a.omzet || b.acc - a.acc || b.soCreated - a.soCreated);
 
         const totals = leaderboard.reduce((t, r) => ({
             assignment: t.assignment + r.assignment,
@@ -546,7 +575,10 @@ export class KpiService {
             batal: t.batal + r.batal,
             express: t.express + r.express,
             soCreated: t.soCreated + r.soCreated,
-        }), { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, soCreated: 0 });
+            soInvoiced: t.soInvoiced + r.soInvoiced,
+            omzet: t.omzet + r.omzet,
+            pcs: t.pcs + r.pcs,
+        }), { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, soCreated: 0, soInvoiced: 0, omzet: 0, pcs: 0 });
 
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
