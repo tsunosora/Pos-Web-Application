@@ -29,8 +29,12 @@ jobs:
           server: ${{ secrets.HOSTINGER_FTP_HOST }}
           username: ${{ secrets.HOSTINGER_FTP_USER }}
           password: ${{ secrets.HOSTINGER_FTP_PASS }}
-          # Ganti ke "ftp" kalau server tidak mendukung FTPS
-          protocol: ftps
+          # Ganti ke "ftps" kalau mau pakai TLS (lebih aman). "ftp" dipakai
+          # karena FTPS sering timeout dari runner GitHub Actions.
+          protocol: ftp
+          port: 21
+          # Perpanjang timeout connect (default 30 dtk) supaya tak gampang putus
+          timeout: 60000
           local-dir: ./toko/
           server-dir: ${{ secrets.HOSTINGER_FTP_DIR }}
           # Jangan sentuh file milik server & jangan deploy skrip utilitas dev
