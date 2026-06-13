@@ -3,7 +3,8 @@ export interface ReceiptItem {
   sku: string;
   qty: number;
   price: number; // total line price
-  pricePerUnit: number;
+  pricePerUnit: number; // harga per unit/m² yang ditampilkan (sudah tier/custom)
+  basePrice?: number; // harga dasar/default (opsional) — untuk badge "tier" di layar
   pricingMode: string;
   note?: string;
   unitType?: string;

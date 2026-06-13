@@ -50,7 +50,34 @@ const emptyAreaModal = (): AreaModalState => ({
     open: false, mode: 'add', product: null, variant: null, unitType: 'cm', widthCm: '', heightCm: '', note: '', pcs: '1'
 });
 
-import { ReceiptSnapshot, handlePrintSnap, handleShareWA } from '@/lib/receipt';
+import { ReceiptSnapshot, ReceiptItem, handlePrintSnap, handleShareWA } from '@/lib/receipt';
+
+// Petakan item keranjang → item nota dengan semantik harga yang konsisten dgn
+// mapTransactionToReceipt (nota dari transaksi tersimpan):
+//   - pricePerUnit = harga per unit yg DITAMPILKAN di kolom "Harga" nota.
+//     Untuk UNIT, cart `price` sudah harga per unit efektif (tier/custom sudah
+//     diterapkan — lihat cart-store subtotal() & updateCustomPrice), jadi pakai
+//     itu, BUKAN `pricePerUnit` (yang harga dasar/default).
+//   - price = total baris. UNIT: price×qty. AREA: cart `price` sudah total baris.
+const cartToReceiptItems = (items: CartItem[]): ReceiptItem[] =>
+    items.map(item => {
+        const isArea = item.pricingMode === 'AREA_BASED';
+        return {
+            name: item.name,
+            sku: item.sku,
+            qty: item.qty,
+            price: isArea ? item.price : item.price * item.qty,
+            pricePerUnit: isArea ? item.pricePerUnit : item.price,
+            basePrice: item.pricePerUnit, // harga dasar utk badge "tier" di layar
+            pricingMode: item.pricingMode,
+            note: item.note,
+            unitType: item.unitType,
+            widthCm: item.widthCm,
+            heightCm: item.heightCm,
+            areaM2: item.areaM2,
+            pcs: item.pcs,
+        };
+    });
 import { Suspense } from 'react';
 
 function POSPageContent() {
@@ -268,21 +295,7 @@ function POSPageContent() {
 
     // ---- Pre-payment invoice helpers (from current cart, before transaction) ----
     const buildCurrentSnap = (): ReceiptSnapshot => ({
-        items: cart.map(item => ({
-            name: item.name,
-            sku: item.sku,
-            qty: item.qty,
-            price: item.price,
-            pricePerUnit: item.pricePerUnit,
-            pricingMode: item.pricingMode,
-            note: item.note,
-            unitType: item.unitType,
-            widthCm: item.widthCm,
-            heightCm: item.heightCm,
-            areaM2: item.areaM2,
-            customPrice: item.customPrice,
-            pcs: item.pcs,
-        })),
+        items: cartToReceiptItems(cart),
         subtotal,
         discount: discountNum > 0 ? discountNum : undefined,
         taxAmount,
@@ -424,7 +437,7 @@ function POSPageContent() {
 
         // Snapshot cart BEFORE clearing (needed for receipt display)
         const snap: ReceiptSnapshot = {
-            items: [...cart],
+            items: cartToReceiptItems(cart),
             subtotal,
             discount: discountNum > 0 ? discountNum : undefined,
             taxAmount,
@@ -1911,10 +1924,10 @@ function POSPageContent() {
                                             <p className="text-sm font-medium truncate">{item.name}</p>
                                             {item.pricingMode === 'AREA_BASED'
                                                 ? <p className="text-xs text-muted-foreground">{item.unitType === 'menit' ? `${item.widthCm} unit` : `${item.widthCm}×${item.heightCm} ${item.unitType || 'm'} = ${item.areaM2?.toFixed(4)} ${item.unitType === 'm' || item.unitType === 'cm' ? 'm²' : 'unit'}`}{item.note ? ` • ${item.note}` : ''}</p>
-                                                : <p className="text-xs text-muted-foreground">×{item.qty} @ Rp {item.price.toLocaleString('id-ID')}{item.price !== item.pricePerUnit ? <span className="ml-1 text-orange-500 font-semibold">tier</span> : null}</p>
+                                                : <p className="text-xs text-muted-foreground">×{item.qty} @ Rp {item.pricePerUnit.toLocaleString('id-ID')}{item.basePrice != null && item.pricePerUnit !== item.basePrice ? <span className="ml-1 text-orange-500 font-semibold">tier</span> : null}</p>
                                             }
                                         </div>
-                                        <p className="text-sm font-semibold shrink-0">Rp {(item.price * item.qty).toLocaleString('id-ID')}</p>
+                                        <p className="text-sm font-semibold shrink-0">Rp {item.price.toLocaleString('id-ID')}</p>
                                     </div>
                                 ))}
                             </div>
