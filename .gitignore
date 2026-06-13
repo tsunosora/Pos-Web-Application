@@ -122,3 +122,8 @@ google-service-account.json
 
 # Toko - konfigurasi per-server (jangan ikut repo/deploy)
 toko/config.local.php
+
+# Artefak migrasi toko (dump DB & zip uploads) — jangan pernah di-commit
+toko/toko_export.sql
+toko/uploads.zip
+toko/dumperr.txt

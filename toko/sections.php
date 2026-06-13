@@ -489,15 +489,17 @@ function sec_order(): void {
                             <label class="co-label">Kebutuhan</label>
                             <textarea name="note" rows="3" required class="co-input" placeholder="Contoh: banner 3×1 m, dibutuhkan Jumat pagi"></textarea>
                         </div>
-                        <?php if (count($branches) > 1): ?>
+                        <?php $poBranches = pospro_branches(); ?>
+                        <?php if (count($poBranches) > 1): ?>
                             <div>
-                                <label class="co-label">Cabang</label>
-                                <select name="branch" class="co-input">
-                                    <?php foreach ($branches as $br): ?><option value="<?= h($br) ?>"><?= h($br) ?></option><?php endforeach; ?>
+                                <label class="co-label">Cetak di cabang</label>
+                                <select name="branchId" required class="co-input">
+                                    <option value="">— Pilih lokasi cetak —</option>
+                                    <?php foreach ($poBranches as $b): ?><option value="<?= (int)$b['id'] ?>"><?= h($b['name']) ?></option><?php endforeach; ?>
                                 </select>
                             </div>
-                        <?php elseif ($branches): ?>
-                            <input type="hidden" name="branch" value="<?= h($branches[0]) ?>">
+                        <?php elseif (count($poBranches) === 1): ?>
+                            <input type="hidden" name="branchId" value="<?= (int)$poBranches[0]['id'] ?>">
                         <?php endif; ?>
                         <button type="submit" class="co-btn co-btn--dark w-full justify-center text-sm">
                             Kirim &amp; Minta Penawaran
@@ -642,10 +644,10 @@ function sec_kontak(): void {
             </div>
             <!-- Peta lokasi aktif -->
             <div class="bg-slate-50 relative min-h-[320px] lg:min-h-0">
-                <?php $adaPeta = false; foreach ($locs as $i => $l): if (empty($l['mapsEmbed'])) continue; $adaPeta = true; ?>
-                    <iframe data-loc-map="<?= $i ?>" src="<?= h($l['mapsEmbed']) ?>" class="absolute inset-0 w-full h-full <?= $i === 0 ? '' : 'hidden' ?>" style="border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Peta <?= h($l['name'] ?? '') ?>"></iframe>
+                <?php $adaPeta = false; foreach ($locs as $i => $l): $mu = maps_embed_src($l['mapsEmbed'] ?? ''); if ($mu === '') continue; $adaPeta = true; ?>
+                    <iframe data-loc-map="<?= $i ?>" src="<?= h($mu) ?>" class="absolute inset-0 w-full h-full <?= $i === 0 ? '' : 'hidden' ?>" style="border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Peta <?= h($l['name'] ?? '') ?>"></iframe>
                 <?php endforeach; ?>
-                <div data-loc-map="none" class="absolute inset-0 grid place-items-center text-slate-300 <?= !empty($locs[0]['mapsEmbed']) ? 'hidden' : '' ?>">
+                <div data-loc-map="none" class="absolute inset-0 grid place-items-center text-slate-300 <?= maps_embed_src($locs[0]['mapsEmbed'] ?? '') !== '' ? 'hidden' : '' ?>">
                     <div class="text-center">
                         <svg class="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
                         <?php if (is_admin()): ?><p class="text-xs mt-2 text-slate-400">Isi "URL embed Maps" cabang ini di Dashboard &rarr; Konten &rarr; Kontak</p><?php endif; ?>

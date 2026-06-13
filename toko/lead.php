@@ -21,24 +21,26 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $last = (int)($_SESSION['lead_last_submit'] ?? 0);
 if (time() - $last < 60) { $go('?lead=err'); exit; }
 
-$name   = trim($_POST['name'] ?? '');
-$phone  = trim($_POST['phone'] ?? '');
-$note   = trim($_POST['note'] ?? '');
-$branch = trim($_POST['branch'] ?? '');
+$name     = trim($_POST['name'] ?? '');
+$phone    = trim($_POST['phone'] ?? '');
+$note     = trim($_POST['note'] ?? '');
+$branchId = (int)($_POST['branchId'] ?? 0);
 
 if ($name === '' || $note === '') { $go('?lead=err'); exit; }
 if (mb_strlen($name) > 120) $name = mb_substr($name, 0, 120);
 if (mb_strlen($note) > 2000) $note = mb_substr($note, 0, 2000);
 
-$noteParts = ['[Order Cepat — form website]'];
-if ($branch !== '') $noteParts[] = 'Cabang: ' . $branch;
-$noteParts[] = $note;
+$noteParts = ['[Order Cepat — form website]', $note];
 
-$res = api_post('/orders/public', [
+$payload = [
     'name'  => $name,
     'phone' => $phone,
     'note'  => implode("\n", $noteParts),
-]);
+];
+// Cabang/lokasi cetak pilihan customer (divalidasi ulang di backend)
+if ($branchId > 0) $payload['branchId'] = $branchId;
+
+$res = api_post('/orders/public', $payload);
 
 if ($res && !empty($res['ok'])) {
     $_SESSION['lead_last_submit'] = time();
