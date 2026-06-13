@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <defs>
+    <linearGradient id="b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".96"/><stop offset="1" stop-color="#FDE3EA"/>
+    </linearGradient>
+    <linearGradient id="s" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="c"><rect x="8" y="8" width="104" height="104" rx="32"/></clipPath>
+  </defs>
+  <style>@media (prefers-reduced-motion: reduce){ .sh{display:none} }</style>
+  <rect x="12" y="16" width="96" height="98" rx="30" fill="#0E0E10" opacity=".09"/>
+  <rect x="8" y="8" width="104" height="104" rx="32" fill="url(#b)"/>
+  <rect x="9" y="9" width="102" height="102" rx="31" fill="none" stroke="#fff" stroke-opacity=".8" stroke-width="2"/>
+  <path d="M8 50c30-9 74-9 104 0V40c0-18-14-32-32-32H40C22 8 8 22 8 40z" fill="#fff" opacity=".4"/>
+  <g fill="none" stroke="#E7194C" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M50 38l-15 9 6 10 7-4v27h24V53l7 4 6-10-15-9a10 10 0 01-20 0z"/>
+    <path d="M54 62l4 4 8-8"/>
+  </g>
+  <g clip-path="url(#c)" opacity=".6">
+    <g transform="rotate(18 60 60)">
+      <rect class="sh" x="-30" y="-40" width="24" height="200" fill="url(#s)">
+        <animateTransform attributeName="transform" type="translate" values="-50 0; 180 0" dur="4.9s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+</svg>

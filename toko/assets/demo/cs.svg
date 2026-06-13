@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 700">
+  <defs>
+    <linearGradient id="cb" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F0537F"/><stop offset="1" stop-color="#E7194C"/>
+    </linearGradient>
+  </defs>
+  <rect width="700" height="700" fill="url(#cb)"/>
+  <circle cx="120" cy="120" r="110" fill="#fff" opacity=".08"/>
+  <circle cx="600" cy="600" r="150" fill="#0E0E10" opacity=".12"/>
+  <!-- siluet CS menunjuk -->
+  <circle cx="350" cy="270" r="86" fill="#B5123C"/>
+  <path d="M196 700c0-120 68-196 154-196s154 76 154 196z" fill="#B5123C"/>
+  <path d="M470 430c40-18 96-28 132-22l-16 56c-34-4-78 2-104 14z" fill="#B5123C"/>
+  <circle cx="614" cy="426" r="30" fill="#E7B020"/>
+  <!-- headset -->
+  <path d="M286 250a64 64 0 01128 0" fill="none" stroke="#E7B020" stroke-width="14" stroke-linecap="round"/>
+  <rect x="270" y="246" width="22" height="40" rx="11" fill="#E7B020"/>
+  <rect x="408" y="246" width="22" height="40" rx="11" fill="#E7B020"/>
+  <text x="350" y="668" text-anchor="middle" font-family="Arial, sans-serif" font-size="20" fill="#F9C9D6">Contoh — ganti dengan foto CS asli</text>
+</svg>

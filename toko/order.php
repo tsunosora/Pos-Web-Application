@@ -16,7 +16,7 @@ if (!$o || empty($o['id'])) {
 }
 $items = $o['items'] ?? [];
 $totalItem = 0;
-foreach ($items as $it) $totalItem += (float)($it['unitPrice'] ?? 0) * (int)($it['quantity'] ?? 0);
+foreach ($items as $it) $totalItem += cart_item_subtotal($it); // sadar item area (widthCm×heightCm)
 $wa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $o['phone'] ?? ''));
 ?>
 
@@ -56,11 +56,14 @@ $wa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $o['phone'] ?? ''));
                     <th class="px-6 py-2.5 font-semibold text-right">Subtotal</th>
                 </tr></thead>
                 <tbody class="divide-y divide-slate-100">
-                    <?php foreach ($items as $it): $sub = (float)($it['unitPrice'] ?? 0) * (int)($it['quantity'] ?? 0); ?>
+                    <?php foreach ($items as $it): $sub = cart_item_subtotal($it); $isAreaItem = !empty($it['widthCm']) && !empty($it['heightCm']); ?>
                         <tr>
-                            <td class="px-6 py-3 text-slate-800"><?= h($it['description'] ?? ($it['productVariant']['product']['name'] ?? '-')) ?></td>
+                            <td class="px-6 py-3 text-slate-800">
+                                <?= h($it['description'] ?? ($it['productVariant']['product']['name'] ?? '-')) ?>
+                                <?php if ($isAreaItem): ?><span class="block text-xs text-slate-400"><?= h($it['widthCm']) ?>&times;<?= h($it['heightCm']) ?> cm (<?= h(rtrim(rtrim(number_format(((float)$it['widthCm'] * (float)$it['heightCm']) / 10000, 2, ',', '.'), '0'), ',')) ?> m²)</span><?php endif; ?>
+                            </td>
                             <td class="px-6 py-3 text-center text-slate-600"><?= (int)($it['quantity'] ?? 0) ?></td>
-                            <td class="px-6 py-3 text-right text-slate-600"><?= rupiah($it['unitPrice'] ?? 0) ?></td>
+                            <td class="px-6 py-3 text-right text-slate-600"><?= rupiah($it['unitPrice'] ?? 0) ?><?= $isAreaItem ? '<span class="text-xs text-slate-400">/m²</span>' : '' ?></td>
                             <td class="px-6 py-3 text-right font-semibold text-slate-800"><?= rupiah($sub) ?></td>
                         </tr>
                     <?php endforeach; ?>

@@ -395,7 +395,8 @@ export class LeadsService {
     }) {
         if (!dto?.name?.trim()) throw new BadRequestException('Nama wajib diisi');
         const items = Array.isArray(dto.items) ? dto.items.filter(i => i && i.description) : [];
-        const itemsTotal = items.reduce((s, it) => s + (Number(it.unitPrice) || 0) * (Number(it.quantity) || 0), 0);
+        // sumItemsTotal sadar item area: qty × (w×h/10000) × harga/m²
+        const itemsTotal = this.sumItemsTotal(items);
 
         const needsParts: string[] = [];
         if (dto.note?.trim()) needsParts.push(dto.note.trim());

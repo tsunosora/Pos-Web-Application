@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 700">
+<rect width="900" height="700" fill="#141418"/>
+<line x1="60" y1="84" x2="840" y2="84" stroke="#8B8B92" stroke-width="1" opacity=".45"/>
+<text x="60" y="64" font-family="Georgia,'Times New Roman',serif" font-size="22" letter-spacing="6" fill="#8B8B92">VOLIKO PRINT</text>
+<text x="840" y="64" text-anchor="end" font-family="Arial,Helvetica,sans-serif" font-size="18" letter-spacing="4" fill="#8B8B92">PORTOFOLIO</text>
+<text x="60" y="495" font-family="Georgia,'Times New Roman',serif" font-size="300" fill="#F5F4F1" opacity=".92">08</text>
+<line x1="60" y1="540" x2="220" y2="540" stroke="#C8C7C2" stroke-width="2"/>
+<text x="60" y="588" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="bold" letter-spacing="3" fill="#F5F4F1">KEMASAN PREMIUM</text>
+<text x="60" y="628" font-family="Arial,Helvetica,sans-serif" font-size="20" letter-spacing="5" fill="#8B8B92">BUTIK FASHION</text>
+<text x="60" y="666" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="2" fill="#8B8B92" opacity=".7">PLACEHOLDER — GANTI DENGAN FOTO ASLI</text>
+</svg>

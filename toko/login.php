@@ -8,10 +8,14 @@ if (is_admin()) { header('Location: dashboard.php'); exit; }
 
 $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $email = trim($_POST['email'] ?? '');
     $pass  = $_POST['password'] ?? '';
+    $wait  = login_throttled($email);
     if ($email === '' || $pass === '') {
         $error = 'Email dan password wajib diisi.';
+    } elseif ($wait > 0) {
+        $error = 'Terlalu banyak percobaan gagal. Coba lagi dalam ' . (int)ceil($wait / 60) . ' menit.';
     } elseif (admin_login($email, $pass)) {
         header('Location: dashboard.php');
         exit;
@@ -63,6 +67,7 @@ $st = settings();
             <?php endif; ?>
 
             <form method="post" class="mt-6 space-y-4">
+                <?= csrf_field() ?>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email</label>
                     <input type="email" name="email" required autofocus value="<?= h($_POST['email'] ?? '') ?>"

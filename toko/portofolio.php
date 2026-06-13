@@ -1,22 +1,19 @@
 <?php
 require_once __DIR__ . '/lib.php';
-require_once __DIR__ . '/home_blocks.php';
+require_once __DIR__ . '/sections.php';
 
 $st = settings();
 $seo_title = 'Portofolio — ' . ($st['storeName'] ?? 'Toko');
-$seo_desc  = meta_desc('Lihat portofolio & galeri hasil karya ' . ($st['storeName'] ?? 'kami') . ': label, buku, souvenir, merchandise, dan cetakan lainnya. Bukti kualitas, bukan sekadar janji.');
+$seo_desc  = meta_desc('Lihat portofolio & galeri hasil karya ' . ($st['storeName'] ?? 'kami') . ': label, banner, signage, merchandise, dan cetakan lainnya. Bukti kualitas, bukan sekadar janji.');
 include __DIR__ . '/header.php';
 
-$products = public_products();
-$cats = [];
-foreach ($products as $p) {
-    $c = $p['category'] ?? null;
-    if ($c && !isset($cats[$c['id']])) $cats[$c['id']] = $c['name'];
-}
-$ctx = ['products' => $products, 'cats' => $cats, 'st' => $st];
+$c = site_content('portofolio_page');
 
-foreach (page_layout('portofolio') as $block) {
-    echo render_home_block($block, $ctx);
-}
-?>
-<?php include __DIR__ . '/footer.php'; ?>
+sec_page_hero('Portofolio', $c['heroTitle'] ?? '', $c['heroAccent'] ?? '', $c['heroSubtitle'] ?? '');
+sec_portofolio(['force' => true, 'noMore' => true]); // galeri penuh, tanpa batas
+sec_statistik();
+sec_klien();
+sec_testimoni();
+sec_cta();
+
+include __DIR__ . '/footer.php';

@@ -7,7 +7,7 @@ header('Content-Type: application/json');
 
 // Proteksi opsional: kalau setelan `cron_key` diisi, wajib cocok.
 $key = cfg('cron_key', '');
-if ($key !== '' && ($_GET['key'] ?? '') !== $key) {
+if ($key !== '' && !hash_equals($key, (string)($_GET['key'] ?? ''))) {
     http_response_code(403);
     echo json_encode(['error' => 'forbidden']);
     exit;

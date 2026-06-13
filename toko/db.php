@@ -62,6 +62,24 @@ function secret_decrypt(?string $enc): string {
 function secret_set(string $key, string $plain): void { cfg_set($key, $plain === '' ? '' : secret_encrypt($plain)); }
 function secret_get(string $key): string { return secret_decrypt(cfg($key)); }
 
+// ── Migrasi ringan: tabel keamanan (rate-limit login) ────────────────────────
+function ensure_security_tables(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS login_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ip VARCHAR(64) NOT NULL,
+            email VARCHAR(190) NOT NULL DEFAULT '',
+            ok TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_ip_time (ip, created_at),
+            KEY idx_email_time (email, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) { /* DB belum siap — biarkan, login tetap jalan tanpa throttle */ }
+}
+
 // ── Migrasi ringan: pastikan kolom SEO ada (untuk DB lama) ───────────────────
 function ensure_article_columns(): void {
     static $done = false;
@@ -98,6 +116,12 @@ function publish_due_articles(): int {
 function uploads_dir(): string {
     $dir = __DIR__ . '/uploads';
     if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    // Defense-in-depth (Apache): folder upload hanya boleh file statis —
+    // tolak eksekusi skrip walau ada file aneh yang lolos masuk.
+    $ht = $dir . '/.htaccess';
+    if (!is_file($ht)) {
+        @file_put_contents($ht, "<FilesMatch \"\\.(php|phar|phtml|php[0-9]|pl|py|cgi|sh)$\">\nRequire all denied\n</FilesMatch>\n");
+    }
     return $dir;
 }
 
@@ -111,8 +135,67 @@ function save_upload(array $file): ?string {
     if ($info === false) return null; // bukan gambar valid
     $ext = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'][$info['mime']] ?? null;
     if (!$ext) return null;
-    if (($file['size'] ?? 0) > 8 * 1024 * 1024) return null; // maks 8MB
+    if (($file['size'] ?? 0) > 40 * 1024 * 1024) return null; // maks 40MB (foto HP modern; dikompres setelahnya)
     $name = 'img_' . bin2hex(random_bytes(12)) . '.' . $ext;
-    if (!move_uploaded_file($file['tmp_name'], uploads_dir() . '/' . $name)) return null;
+    $dest = uploads_dir() . '/' . $name;
+    if (!move_uploaded_file($file['tmp_name'], $dest)) return null;
+    compress_uploaded_image($dest, $info['mime']);
     return 'uploads/' . $name; // relatif terhadap root aplikasi toko (/toko/)
+}
+
+/**
+ * Kompres gambar in-place via GD: sisi terpanjang maks 1920px, JPEG/WebP q82,
+ * PNG level 9 (transparansi dipertahankan). GIF dilewati (bisa beranimasi).
+ * Gagal kompres = file asli tetap dipakai (tidak fatal).
+ */
+function compress_uploaded_image(string $path, string $mime, int $maxDim = 1920, int $quality = 82): void {
+    if ($mime === 'image/gif' || !function_exists('imagecreatetruecolor')) return;
+    try {
+        // Foto HP modern bisa 100-200MP — GD butuh ±5 byte/piksel saat dekode.
+        // Naikkan memory_limit seperlunya; di atas ~3GB lewati (file asli dipakai).
+        $dim = @getimagesize($path);
+        if ($dim) {
+            $need = (int)($dim[0] * $dim[1] * 5 * 1.6) + 96 * 1024 * 1024;
+            if ($need > 3 * 1024 * 1024 * 1024) return;
+            $cur = trim((string)ini_get('memory_limit'));
+            $unit = strtoupper(substr($cur, -1));
+            $curBytes = $cur === '-1' ? PHP_INT_MAX
+                : (float)$cur * ($unit === 'G' ? 1073741824 : ($unit === 'M' ? 1048576 : ($unit === 'K' ? 1024 : 1)));
+            if ($need > $curBytes) @ini_set('memory_limit', (string)(int)ceil($need / 1048576) . 'M');
+        }
+        $src = match ($mime) {
+            'image/jpeg' => @imagecreatefromjpeg($path),
+            'image/png'  => @imagecreatefrompng($path),
+            'image/webp' => @imagecreatefromwebp($path),
+            default      => null,
+        };
+        if (!$src) return;
+        $w = imagesx($src); $h = imagesy($src);
+        $scale = min(1, $maxDim / max($w, $h));
+        $nw = max(1, (int)round($w * $scale)); $nh = max(1, (int)round($h * $scale));
+        if ($scale < 1) {
+            $dst = imagecreatetruecolor($nw, $nh);
+            if ($mime === 'image/png' || $mime === 'image/webp') {
+                imagealphablending($dst, false);
+                imagesavealpha($dst, true);
+            }
+            imagecopyresampled($dst, $src, 0, 0, 0, 0, $nw, $nh, $w, $h);
+            imagedestroy($src);
+            $src = $dst;
+        }
+        $tmp = $path . '.tmp';
+        $ok = match ($mime) {
+            'image/jpeg' => imagejpeg($src, $tmp, $quality),
+            'image/png'  => imagepng($src, $tmp, 9),
+            'image/webp' => imagewebp($src, $tmp, $quality),
+            default      => false,
+        };
+        imagedestroy($src);
+        // pakai hasil kompres hanya bila valid DAN lebih kecil dari aslinya
+        if ($ok && filesize($tmp) > 0 && filesize($tmp) < filesize($path)) {
+            @rename($tmp, $path);
+        } else {
+            @unlink($tmp);
+        }
+    } catch (Throwable $e) { /* biarkan file asli */ }
 }

@@ -8,6 +8,7 @@ $msg = $_GET['msg'] ?? null;
 
 // Aksi: hapus / ubah status
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $action = $_POST['action'] ?? '';
     $id = (int)($_POST['id'] ?? 0);
     if ($action === 'delete' && $id) {
@@ -104,12 +105,14 @@ function seo_badge(int $s): string {
                             <a href="artikel.php?slug=<?= h($a['slug']) ?>" target="_blank" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200" title="Lihat">Lihat</a>
                         <?php endif; ?>
                         <form method="post" class="contents">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
                             <button name="action" value="toggle" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200" title="<?= $a['status'] === 'PUBLISHED' ? 'Jadikan draf' : 'Terbitkan' ?>">
                                 <?= $a['status'] === 'PUBLISHED' ? 'Tarik' : 'Terbit' ?>
                             </button>
                         </form>
                         <form method="post" class="contents" onsubmit="return confirm('Hapus artikel ini?')">
+                            <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= (int)$a['id'] ?>">
                             <button name="action" value="delete" class="p-2 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50" title="Hapus">
                                 <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>

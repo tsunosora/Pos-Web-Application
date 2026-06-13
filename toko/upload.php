@@ -4,6 +4,7 @@ require_once __DIR__ . '/lib.php';
 header('Content-Type: application/json');
 
 if (!is_admin()) { http_response_code(401); echo json_encode(['error' => 'unauthorized']); exit; }
+require_csrf(); // token via header X-CSRF-Token (dikirim editor artikel)
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_FILES['image'])) {
     http_response_code(400); echo json_encode(['error' => 'no file']); exit;
 }

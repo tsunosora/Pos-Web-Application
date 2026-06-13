@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib.php';
 require_admin();
+require_csrf();
 
 $msg = $_GET['msg'] ?? null;
 $err = null;
@@ -116,6 +117,7 @@ include __DIR__ . '/admin_header.php';
         <div class="mt-4 flex items-center justify-between gap-3 flex-wrap">
             <p class="text-xs text-slate-400">Nama file: <code class="text-slate-600">backup-<?= h(store_slug()) ?>-<?= date('Ymd-His') ?>.<?= $hasZip ? 'zip' : 'sql' ?></code></p>
             <form method="post">
+                <?= csrf_field() ?>
                 <button name="action" value="export" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:opacity-90 transition">
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
                     Unduh Backup
@@ -139,6 +141,7 @@ include __DIR__ . '/admin_header.php';
             Perhatian: restore akan <b>menimpa</b> seluruh data toko saat ini (artikel, akun, setelan). Pastikan sudah punya backup terbaru.
         </div>
         <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3" onsubmit="return confirm('Yakin restore? Data saat ini akan ditimpa.')">
+            <?= csrf_field() ?>
             <input type="hidden" name="action" value="restore">
             <input type="file" name="backup" accept=".zip,.sql" required
                    class="block w-full text-sm text-slate-500 file:mr-3 file:px-4 file:py-2 file:rounded-lg file:border-0 file:bg-slate-200 file:text-slate-700 file:font-semibold file:cursor-pointer">
