@@ -18,11 +18,12 @@ $leadId = null;
 // Checkout → kirim order ke PosPro (tercatat sebagai Lead WEBSITE)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'checkout') {
     require_csrf();
-    $name    = trim($_POST['name'] ?? '');
-    $phone   = trim($_POST['phone'] ?? '');
-    $address = trim($_POST['address'] ?? '');
-    $note    = trim($_POST['note'] ?? '');
-    $items   = cart();
+    $name     = trim($_POST['name'] ?? '');
+    $phone    = trim($_POST['phone'] ?? '');
+    $address  = trim($_POST['address'] ?? '');
+    $note     = trim($_POST['note'] ?? '');
+    $branchId = (int)($_POST['branchId'] ?? 0);
+    $items    = cart();
 
     if ($name === '') {
         $error = 'Nama wajib diisi.';
@@ -34,6 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
             'phone'   => $phone,
             'address' => $address,
             'note'    => $note,
+            // Cabang/lokasi cetak pilihan customer (divalidasi ulang di backend)
+            'branchId' => $branchId > 0 ? $branchId : null,
             'items'   => array_map(function ($it) {
                 $row = [
                     'productVariantId' => $it['productVariantId'],
@@ -139,6 +142,18 @@ $total = cart_total();
                     <label class="block text-sm font-semibold text-slate-700 mb-1.5">Catatan</label>
                     <textarea name="note" rows="2" placeholder="Warna, ukuran, dll" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50"></textarea>
                 </div>
+                <?php $poBranches = pospro_branches(); ?>
+                <?php if (count($poBranches) > 1): ?>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Cetak di cabang <span class="text-rose-500">*</span></label>
+                        <select name="branchId" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                            <option value="">— Pilih lokasi cetak —</option>
+                            <?php foreach ($poBranches as $b): ?><option value="<?= (int)$b['id'] ?>"><?= h($b['name']) ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php elseif (count($poBranches) === 1): ?>
+                    <input type="hidden" name="branchId" value="<?= (int)$poBranches[0]['id'] ?>">
+                <?php endif; ?>
                 <button type="submit" class="w-full px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Kirim Order</button>
             </form>
         </div>

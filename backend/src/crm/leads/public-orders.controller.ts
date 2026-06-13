@@ -8,6 +8,7 @@ interface PublicOrderDto {
     address?: string;
     note?: string;
     items?: LeadItemDto[];
+    branchId?: number; // Cabang/lokasi cetak yang dipilih customer di website (opsional)
 }
 
 /** Endpoint publik (tanpa auth) untuk order online dari website customer. */

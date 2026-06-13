@@ -950,8 +950,8 @@ function render_home_block(array $b, array $ctx): string {
                         <?php if (!empty($b['email'])): ?><div class="flex items-center gap-3"><svg class="w-5 h-5 text-brand shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg><a href="mailto:<?= h($b['email']) ?>" class="text-slate-600 text-sm hover:text-brand"><?= h($b['email']) ?></a></div><?php endif; ?>
                         <?php if ($wa): ?><a href="https://wa.me/<?= h($wa) ?>" target="_blank" class="btn-pill btn-pill--accent !py-2.5 text-sm mt-2">Chat WhatsApp</a><?php endif; ?>
                     </div>
-                    <?php if (!empty($b['mapsEmbed'])): ?>
-                        <div class="rounded-[24px] overflow-hidden border border-slate-200 min-h-[260px]" data-reveal-item><iframe src="<?= h($b['mapsEmbed']) ?>" class="w-full h-full min-h-[260px]" style="border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+                    <?php $mu = maps_embed_src($b['mapsEmbed'] ?? ''); if ($mu !== ''): ?>
+                        <div class="rounded-[24px] overflow-hidden border border-slate-200 min-h-[260px]" data-reveal-item><iframe src="<?= h($mu) ?>" class="w-full h-full min-h-[260px]" style="border:0" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
                     <?php endif; ?>
                 </div>
             </section>

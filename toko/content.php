@@ -137,7 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $locs[] = [
                     'name' => $nm, 'address' => $ad,
                     'phone' => $f("loc{$i}_phone"), 'whatsapp' => $f("loc{$i}_whatsapp"),
-                    'hours' => $f("loc{$i}_hours"), 'mapsEmbed' => $f("loc{$i}_maps"),
+                    'hours' => $f("loc{$i}_hours"), 'mapsEmbed' => maps_embed_src($f("loc{$i}_maps")),
                 ];
             }
             $data['locations'] = $locs;

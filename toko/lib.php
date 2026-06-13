@@ -20,6 +20,29 @@ function send_security_headers(): void {
 }
 
 /**
+ * Normalisasi nilai "URL embed Google Maps". Pengguna kerap menempel SELURUH
+ * tag <iframe ...> alih-alih hanya URL di dalam src="..." → kalau dirender apa
+ * adanya, src jadi tag iframe ter-encode dan browser memperlakukannya sebagai
+ * path relatif (mis. /%3Ciframe...%3E → 404). Fungsi ini:
+ *  - menarik isi src="..." bila yang ditempel tag <iframe>,
+ *  - men-decode entitas HTML (&amp; → &),
+ *  - hanya menerima URL embed Google Maps (selain itu dikosongkan → cegah
+ *    injeksi iframe dengan src sembarang).
+ * Dipakai saat menyimpan DAN saat merender, jadi data lama yang terlanjur
+ * salah ikut sembuh otomatis.
+ */
+function maps_embed_src(?string $raw): string {
+    $v = trim((string)$raw);
+    if ($v === '') return '';
+    if (stripos($v, '<iframe') !== false && preg_match('~src\s*=\s*["\']([^"\']+)["\']~i', $v, $m)) {
+        $v = $m[1];
+    }
+    $v = trim(html_entity_decode($v, ENT_QUOTES, 'UTF-8'));
+    if (!preg_match('~^https://(www\.)?google\.com/maps/embed\?~i', $v)) return '';
+    return $v;
+}
+
+/**
  * Guard CSRF terpusat: semua POST harus berasal dari situs ini sendiri.
  * Cek header Origin (fallback Referer) vs Host. Tanpa keduanya → loloskan
  * (klien non-browser); lapisan SameSite cookie + token tetap berlaku.
@@ -148,6 +171,20 @@ function api_get(string $path) {
 function api_post(string $path, array $data) {
     $r = http_json('POST', pospro_base() . $path, $data);
     return $r['data'];
+}
+
+/**
+ * Daftar cabang aktif PosPro untuk pilihan "lokasi cetak" saat order.
+ * Endpoint publik (tanpa auth). Tiap item: { id, name, code, phone }.
+ * Hasil di-cache per-request. Kosong = tidak ditampilkan (lead jadi tanpa cabang).
+ */
+function pospro_branches(): array {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+    try { $r = api_get('/company-branches/public-active'); }
+    catch (Throwable $e) { $r = null; }
+    if (!is_array($r)) return $cache = [];
+    return $cache = array_values(array_filter($r, fn($b) => !empty($b['id']) && !empty($b['name'])));
 }
 
 /** Warna brand efektif: setting DB 'brand_color' (di-set lewat preset Tampilan) > BRAND_COLOR (env/konstanta). */

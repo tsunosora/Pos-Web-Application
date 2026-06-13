@@ -391,12 +391,23 @@ export class LeadsService {
      */
     async createPublicOrder(dto: {
         name: string; phone?: string; address?: string; note?: string;
-        items?: LeadItemDto[];
+        items?: LeadItemDto[]; branchId?: number;
     }) {
         if (!dto?.name?.trim()) throw new BadRequestException('Nama wajib diisi');
         const items = Array.isArray(dto.items) ? dto.items.filter(i => i && i.description) : [];
         // sumItemsTotal sadar item area: qty × (w×h/10000) × harga/m²
         const itemsTotal = this.sumItemsTotal(items);
+
+        // Lokasi cetak pilihan customer: validasi harus CompanyBranch yang AKTIF.
+        // Kalau tidak dipilih / tidak valid → null (tampil di mode "Semua Cabang").
+        let branchId: number | null = null;
+        if (dto.branchId != null && Number(dto.branchId) > 0) {
+            const b = await (this.prisma as any).companyBranch.findFirst({
+                where: { id: Number(dto.branchId), isActive: true },
+                select: { id: true },
+            });
+            branchId = b?.id ?? null;
+        }
 
         const needsParts: string[] = [];
         if (dto.note?.trim()) needsParts.push(dto.note.trim());
@@ -413,7 +424,7 @@ export class LeadsService {
                 needs: needsParts.join('\n') || null,
                 estimatedValue: itemsTotal > 0 ? itemsTotal : null,
                 intakeAt: new Date(),
-                branchId: null,
+                branchId,
                 createdById: null,
             } as any,
         });
