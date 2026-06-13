@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/home_blocks.php';
+require_once __DIR__ . '/content_store.php';
 
 $st   = settings();
 $shop = $st['storeName'] ?? 'Toko';
@@ -56,53 +57,96 @@ $seo_jsonld = json_encode(['@context' => 'https://schema.org', '@type' => 'Bread
 include __DIR__ . '/header.php';
 ?>
 
-<!-- Header katalog -->
-<div class="rounded-3xl bg-gradient-to-br from-brand to-sky-600 text-white p-6 sm:p-8 mb-6 relative overflow-hidden">
-    <div class="absolute -top-12 -right-8 w-56 h-56 rounded-full bg-white/10 blur-2xl"></div>
-    <nav class="relative text-xs text-white/70 mb-2"><a href="index.php" class="hover:text-white">Beranda</a> <span class="mx-1">/</span> <span class="text-white">Produk</span><?php if ($catName): ?> <span class="mx-1">/</span> <span class="text-white"><?= h($catName) ?></span><?php endif; ?></nav>
-    <h1 class="relative text-2xl sm:text-3xl font-extrabold">
-        <?php if ($q !== ''): ?>Pencarian "<?= h($q) ?>"<?php elseif ($catName): ?><?= h($catName) ?><?php else: ?>Semua Produk<?php endif; ?>
-    </h1>
-    <p class="relative text-white/85 text-sm mt-1"><?= count($list) ?> produk siap dipesan di <?= h($shop) ?></p>
-</div>
+<?php
+$kat = site_content('katalog');
+$isDefault = ($q === '' && $cat === '');
+$promoSlides = array_values(array_filter($kat['slides'] ?? [], fn($s) => trim($s['title'] ?? '') !== '' || trim($s['image'] ?? '') !== ''));
+// Judul kontekstual untuk header ringkas
+if ($q !== '')      { $hTitle = 'Hasil pencarian "' . $q . '"'; $hSub = $totalCount . ' produk ditemukan'; }
+elseif ($catName)   { $hTitle = $catName; $hSub = ($catCount[$cat] ?? count($list)) . ' produk dalam kategori ini'; }
+else                { $hTitle = 'Semua Produk'; $hSub = count($list) . ' produk siap dipesan di ' . $shop; }
+?>
 
-<div class="grid lg:grid-cols-[230px_1fr] gap-6 items-start">
+<!-- Atas katalog: teks kategori (kiri) + kartu slider promo (kanan) -->
+<?php $hasPromo = !empty($kat['enabled']) && $promoSlides; ?>
+<div class="pk-cattop <?= $hasPromo ? 'pk-cattop--promo' : '' ?>" data-reveal>
+    <div class="pk-cattop-head">
+        <nav class="pk-cathead-bc">
+            <a href="index.php">Beranda</a><span>/</span>
+            <?php if ($q !== '' || $catName): ?><a href="produk.php">Produk</a><?php if ($catName): ?><span>/</span><span><?= h($catName) ?></span><?php endif; ?><?php else: ?><span>Produk</span><?php endif; ?>
+        </nav>
+        <h1 class="pk-cathead-title"><?= h($hTitle) ?></h1>
+        <p class="pk-cathead-count"><?= $hSub ?></p>
+    </div>
+
+    <?php if ($hasPromo): ?>
+    <div class="pk-cattop-promo">
+        <div class="hero-swiper swiper" data-hero-swiper>
+            <div class="swiper-wrapper">
+                <?php foreach ($promoSlides as $s): $img = trim($s['image'] ?? '');
+                    $pStyle = $img ? 'background-image:linear-gradient(180deg, rgba(13,20,70,.15), rgba(13,20,70,.82)), url(' . h($img) . ');' : ''; ?>
+                    <div class="swiper-slide !h-auto">
+                        <div class="pk-pcard <?= $img ? 'pk-pcard--img' : 'glass' ?>" style="<?= $pStyle ?>">
+                            <?php if (!empty($s['badge'])): ?><span class="pk-pcard-badge"><i class="fa-solid fa-bolt"></i> <?= h($s['badge']) ?></span><?php endif; ?>
+                            <div class="pk-pcard-body">
+                                <h3 class="pk-pcard-title"><?= h($s['title']) ?></h3>
+                                <?php if (!empty($s['subtitle'])): ?><p class="pk-pcard-sub"><?= h($s['subtitle']) ?></p><?php endif; ?>
+                                <?php if (!empty($s['btnText'])): ?><a href="<?= h($s['btnLink'] ?: '#') ?>" class="pk-pcard-btn"><?= h($s['btnText']) ?> <i class="fa-solid fa-arrow-right" style="font-size:.75em"></i></a><?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <?php if (count($promoSlides) > 1): ?>
+                <div class="pk-pcard-nav">
+                    <button type="button" class="hero2-prev pk-arrow pk-arrow--sm" aria-label="Promo sebelumnya"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
+                    <button type="button" class="hero2-next pk-arrow pk-arrow--sm" aria-label="Promo berikutnya"><svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.6"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+</div>
+<div class="pk-cattop-line"></div>
+
+<div class="grid lg:grid-cols-[220px_1fr] gap-8 lg:gap-12 items-start">
     <!-- Sidebar kategori (desktop) -->
-    <aside class="hidden lg:block sticky top-20 bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div class="px-4 py-3 border-b border-slate-100 font-bold text-slate-900 text-sm">Kategori</div>
-        <ul class="p-2">
+    <aside class="hidden lg:block sticky top-20">
+        <div class="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-4 pb-3 border-b border-slate-200">Kategori</div>
+        <ul class="space-y-0.5">
             <li>
-                <a href="<?= h($qs(['cat' => ''])) ?>" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm <?= $cat === '' ? 'bg-brand/10 text-brand font-semibold' : 'text-slate-600 hover:bg-slate-50' ?>">
-                    <span>Semua Produk</span><span class="text-xs <?= $cat === '' ? 'text-brand' : 'text-slate-400' ?>"><?= $totalCount ?></span>
+                <a href="<?= h($qs(['cat' => ''])) ?>" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm transition <?= $cat === '' ? 'bg-brand text-white font-semibold' : 'text-slate-600 hover:bg-slate-100' ?>">
+                    <span>Semua Produk</span><span class="text-xs <?= $cat === '' ? 'text-white/60' : 'text-slate-400' ?>"><?= $totalCount ?></span>
                 </a>
             </li>
             <?php foreach ($cats as $id => $name): $cnt = $catCount[$id] ?? 0; ?>
                 <li>
-                    <a href="<?= h($qs(['cat' => $id])) ?>" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm <?= (string)$cat === (string)$id ? 'bg-brand/10 text-brand font-semibold' : 'text-slate-600 hover:bg-slate-50' ?>">
-                        <span class="truncate pr-2"><?= h($name) ?></span><span class="text-xs <?= (string)$cat === (string)$id ? 'text-brand' : 'text-slate-400' ?>"><?= $cnt ?></span>
+                    <a href="<?= h($qs(['cat' => $id])) ?>" class="flex items-center justify-between px-3 py-2 rounded-lg text-sm transition <?= (string)$cat === (string)$id ? 'bg-brand text-white font-semibold' : 'text-slate-600 hover:bg-slate-100' ?>">
+                        <span class="truncate pr-2"><?= h($name) ?></span><span class="text-xs <?= (string)$cat === (string)$id ? 'text-white/60' : 'text-slate-400' ?>"><?= $cnt ?></span>
                     </a>
-                <?php endforeach; ?>
+                </li>
+            <?php endforeach; ?>
         </ul>
     </aside>
 
     <!-- Konten -->
     <div>
         <!-- Kategori chips (mobile) -->
-        <div class="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-3 -mx-1 px-1">
-            <a href="<?= h($qs(['cat' => ''])) ?>" class="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium <?= $cat === '' ? 'bg-brand text-white' : 'bg-white border border-slate-200 text-slate-600' ?>">Semua (<?= $totalCount ?>)</a>
+        <div class="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
+            <a href="<?= h($qs(['cat' => ''])) ?>" class="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition <?= $cat === '' ? 'bg-brand text-white' : 'bg-white border border-slate-200 text-slate-600' ?>">Semua (<?= $totalCount ?>)</a>
             <?php foreach ($cats as $id => $name): ?>
-                <a href="<?= h($qs(['cat' => $id])) ?>" class="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium <?= (string)$cat === (string)$id ? 'bg-brand text-white' : 'bg-white border border-slate-200 text-slate-600' ?>"><?= h($name) ?></a>
+                <a href="<?= h($qs(['cat' => $id])) ?>" class="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition <?= (string)$cat === (string)$id ? 'bg-brand text-white' : 'bg-white border border-slate-200 text-slate-600' ?>"><?= h($name) ?></a>
             <?php endforeach; ?>
         </div>
 
         <!-- Toolbar -->
-        <div class="flex items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 px-4 py-2.5 mb-5">
-            <span class="text-sm text-slate-500">Menampilkan <b class="text-slate-800"><?= $fromItem ?>&ndash;<?= $toItem ?></b> dari <b class="text-slate-800"><?= $totalItems ?></b> produk</span>
+        <div class="flex items-center justify-between gap-3 border-b border-slate-200 pb-3 mb-7">
+            <span class="text-sm text-slate-500">Menampilkan <b class="text-slate-900 font-semibold"><?= $fromItem ?>&ndash;<?= $toItem ?></b> dari <b class="text-slate-900 font-semibold"><?= $totalItems ?></b> produk</span>
             <form method="get" class="flex items-center gap-2">
                 <?php if ($q !== ''): ?><input type="hidden" name="q" value="<?= h($q) ?>"><?php endif; ?>
                 <?php if ($cat !== ''): ?><input type="hidden" name="cat" value="<?= h($cat) ?>"><?php endif; ?>
-                <label class="text-sm text-slate-400 hidden sm:inline">Urutkan</label>
-                <select name="sort" onchange="this.form.submit()" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <label class="text-xs font-semibold uppercase tracking-wide text-slate-400 hidden sm:inline">Urutkan</label>
+                <select name="sort" onchange="this.form.submit()" class="px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/30">
                     <option value="">Unggulan</option>
                     <option value="murah" <?= $sort === 'murah' ? 'selected' : '' ?>>Harga termurah</option>
                     <option value="mahal" <?= $sort === 'mahal' ? 'selected' : '' ?>>Harga tertinggi</option>
@@ -113,23 +157,23 @@ include __DIR__ . '/header.php';
 
         <!-- Active filter -->
         <?php if ($q !== '' || $cat !== ''): ?>
-            <div class="flex items-center flex-wrap gap-2 mb-4 text-sm">
+            <div class="flex items-center flex-wrap gap-2 mb-5 text-sm">
                 <span class="text-slate-400">Filter aktif:</span>
-                <?php if ($q !== ''): ?><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">"<?= h($q) ?>"</span><?php endif; ?>
-                <?php if ($catName): ?><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-600"><?= h($catName) ?></span><?php endif; ?>
-                <a href="produk.php" class="text-brand font-medium hover:underline">Hapus semua</a>
+                <?php if ($q !== ''): ?><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-200 text-slate-600">&ldquo;<?= h($q) ?>&rdquo;</span><?php endif; ?>
+                <?php if ($catName): ?><span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border border-slate-200 text-slate-600"><?= h($catName) ?></span><?php endif; ?>
+                <a href="produk.php" class="text-slate-900 font-medium underline underline-offset-4 decoration-slate-300 hover:decoration-slate-900">Hapus semua</a>
             </div>
         <?php endif; ?>
 
         <!-- Grid / kosong -->
         <?php if (!count($list)): ?>
-            <div class="text-center py-20 bg-white rounded-2xl border border-slate-200">
-                <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-100 grid place-items-center text-slate-300 mb-3">
-                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 17a6 6 0 100-12 6 6 0 000 12z"/></svg>
+            <div class="text-center py-20 border border-slate-200 rounded-2xl">
+                <div class="w-14 h-14 mx-auto rounded-full border border-slate-200 grid place-items-center text-slate-300 mb-4">
+                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M11 17a6 6 0 100-12 6 6 0 000 12z"/></svg>
                 </div>
-                <p class="text-slate-600 font-medium">Produk tidak ditemukan</p>
+                <p class="font-head font-bold text-slate-900">Produk tidak ditemukan</p>
                 <p class="text-sm text-slate-400 mt-1">Coba kata kunci lain atau lihat semua produk.</p>
-                <a href="produk.php" class="inline-block mt-4 px-5 py-2.5 rounded-xl bg-brand text-white text-sm font-semibold hover:opacity-90">Lihat semua produk</a>
+                <a href="produk.php" class="co-btn co-btn--dark mt-5 text-sm">Lihat semua produk</a>
             </div>
         <?php else: ?>
             <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -137,17 +181,17 @@ include __DIR__ . '/header.php';
             </div>
 
             <?php if ($totalPages > 1): ?>
-                <nav class="mt-8 flex items-center justify-center gap-1.5 flex-wrap" aria-label="Halaman">
+                <nav class="mt-10 flex items-center justify-center gap-1.5 flex-wrap" aria-label="Halaman">
                     <?php if ($pageNum > 1): ?>
-                        <a href="<?= h($qs(['page' => $pageNum - 1])) ?>" class="h-10 px-3 inline-flex items-center rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-600 hover:border-brand hover:text-brand transition">&larr; Sebelumnya</a>
+                        <a href="<?= h($qs(['page' => $pageNum - 1])) ?>" class="h-10 px-3 inline-flex items-center rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:border-brand hover:text-brand transition">&larr; Sebelumnya</a>
                     <?php endif; ?>
                     <?php $dots = false; for ($pp = 1; $pp <= $totalPages; $pp++):
                         if ($pp !== 1 && $pp !== $totalPages && abs($pp - $pageNum) > 2) { if (!$dots) { echo '<span class="px-1 text-slate-400">…</span>'; $dots = true; } continue; }
                         $dots = false; ?>
-                        <a href="<?= h($qs(['page' => $pp])) ?>" class="h-10 w-10 inline-flex items-center justify-center rounded-xl text-sm font-semibold transition <?= $pp === $pageNum ? 'bg-brand text-white' : 'bg-white border border-slate-200 text-slate-600 hover:border-brand hover:text-brand' ?>"><?= $pp ?></a>
+                        <a href="<?= h($qs(['page' => $pp])) ?>" class="h-10 w-10 inline-flex items-center justify-center rounded-lg text-sm font-semibold transition <?= $pp === $pageNum ? 'bg-brand text-white' : 'border border-slate-200 text-slate-600 hover:border-brand hover:text-brand' ?>"><?= $pp ?></a>
                     <?php endfor; ?>
                     <?php if ($pageNum < $totalPages): ?>
-                        <a href="<?= h($qs(['page' => $pageNum + 1])) ?>" class="h-10 px-3 inline-flex items-center rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-600 hover:border-brand hover:text-brand transition">Berikutnya &rarr;</a>
+                        <a href="<?= h($qs(['page' => $pageNum + 1])) ?>" class="h-10 px-3 inline-flex items-center rounded-lg border border-slate-200 text-sm font-medium text-slate-600 hover:border-brand hover:text-brand transition">Berikutnya &rarr;</a>
                     <?php endif; ?>
                 </nav>
             <?php endif; ?>

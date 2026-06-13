@@ -19,8 +19,8 @@ if ($dbOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($name === '' || $email === '' || $pass === '') {
         $error = 'Semua field wajib diisi.';
-    } elseif (strlen($pass) < 6) {
-        $error = 'Password minimal 6 karakter.';
+    } elseif (strlen($pass) < 8) {
+        $error = 'Password minimal 8 karakter.';
     } else {
         try {
             // Jalankan skema (multi-statement)
@@ -82,8 +82,8 @@ if ($dbOk && $_SERVER['REQUEST_METHOD'] === 'POST') {
                            class="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-brand text-white">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-300 mb-1.5">Password <span class="text-slate-500">(min 6)</span></label>
-                    <input type="password" name="password" required minlength="6"
+                    <label class="block text-sm font-semibold text-slate-300 mb-1.5">Password <span class="text-slate-500">(min 8)</span></label>
+                    <input type="password" name="password" required minlength="8"
                            class="w-full px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-brand text-white">
                 </div>
                 <button type="submit" class="w-full px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Pasang & Buat Admin</button>

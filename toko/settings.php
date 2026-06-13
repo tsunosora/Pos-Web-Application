@@ -5,6 +5,7 @@ require_admin();
 $msg = null; $msgType = 'ok'; $testResult = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $action = $_POST['action'] ?? 'save';
 
     // Simpan kategori yang disembunyikan dari toko
@@ -16,7 +17,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Simpan nilai API (berlaku untuk Simpan maupun Tes)
-    cfg_set('pospro_api', rtrim(trim($_POST['pospro_api'] ?? ''), '/'));
+    $apiIn = rtrim(trim($_POST['pospro_api'] ?? ''), '/');
+    if ($apiIn !== '' && (!preg_match('#^https?://#i', $apiIn) || !filter_var($apiIn, FILTER_VALIDATE_URL))) {
+        header('Location: settings.php?badurl=1'); // tolak URL non-http(s), nilai lama dipertahankan
+        exit;
+    }
+    cfg_set('pospro_api', $apiIn);
     cfg_set('pospro_email', trim($_POST['pospro_email'] ?? ''));
     $pw = $_POST['pospro_password'] ?? '';
     if ($pw !== '') secret_set('pospro_password', $pw);  // hanya update kalau diisi
@@ -37,8 +43,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $testResult = ['ok' => false, 'text' => 'Gagal login ke PosPro. Periksa URL, email, dan password.'];
     }
 }
-if (isset($_GET['saved'])) { $msg = 'Setelan tersimpan.'; }
-if (isset($_GET['cats']))  { $msg = 'Kategori toko diperbarui.'; }
+if (isset($_GET['saved']))  { $msg = 'Setelan tersimpan.'; }
+if (isset($_GET['cats']))   { $msg = 'Kategori toko diperbarui.'; }
+if (isset($_GET['badurl'])) { $msg = 'URL API tidak valid — harus diawali http:// atau https://. Setelan tidak diubah.'; $msgType = 'err'; }
 
 $apiUrl   = cfg('pospro_api', API_BASE);
 $apiEmail = cfg('pospro_email', '');
@@ -60,7 +67,12 @@ include __DIR__ . '/admin_header.php';
 
 <div class="max-w-2xl space-y-6">
     <?php if ($msg): ?>
-        <div class="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm"><?= h($msg) ?></div>
+        <div class="px-4 py-3 rounded-xl text-sm <?= $msgType === 'err' ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700' ?>"><?= h($msg) ?></div>
+    <?php endif; ?>
+    <?php if (APP_KEY === 'ganti-kunci-ini-saat-produksi'): ?>
+        <div class="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+            <b>Peringatan keamanan:</b> kunci aplikasi masih bawaan. Set environment variable <code>TOKO_APP_KEY</code> dengan string acak panjang (dipakai mengenkripsi password service PosPro), lalu isi ulang password service di bawah.
+        </div>
     <?php endif; ?>
     <?php if ($testResult): ?>
         <div class="px-4 py-3 rounded-xl text-sm <?= $testResult['ok'] ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700' ?>"><?= h($testResult['text']) ?></div>
@@ -80,6 +92,7 @@ include __DIR__ . '/admin_header.php';
         </div>
 
         <form method="post" class="mt-5 space-y-4">
+            <?= csrf_field() ?>
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1.5">URL API PosPro</label>
                 <input type="url" name="pospro_api" required value="<?= h($apiUrl) ?>" placeholder="https://api.tokokamu.com"
@@ -119,6 +132,7 @@ include __DIR__ . '/admin_header.php';
             <p class="mt-4 text-sm text-slate-400">Belum ada kategori (atau API PosPro belum terhubung).</p>
         <?php else: ?>
             <form method="post" class="mt-4">
+                <?= csrf_field() ?>
                 <input type="hidden" name="action" value="cats">
                 <div class="grid sm:grid-cols-2 gap-2">
                     <?php foreach ($allCats as $id => $name): $isHidden = isset($hidden[$id]); ?>

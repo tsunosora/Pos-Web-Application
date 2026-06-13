@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 760">
+<rect width="900" height="760" fill="#F1EFEA"/>
+<line x1="60" y1="84" x2="840" y2="84" stroke="#8E8D88" stroke-width="1" opacity=".45"/>
+<text x="60" y="64" font-family="Georgia,'Times New Roman',serif" font-size="22" letter-spacing="6" fill="#8E8D88">VOLIKO PRINT</text>
+<text x="840" y="64" text-anchor="end" font-family="Arial,Helvetica,sans-serif" font-size="18" letter-spacing="4" fill="#8E8D88">PORTOFOLIO</text>
+<text x="60" y="555" font-family="Georgia,'Times New Roman',serif" font-size="300" fill="#15151A" opacity=".92">02</text>
+<line x1="60" y1="600" x2="220" y2="600" stroke="#15151A" stroke-width="2"/>
+<text x="60" y="648" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="bold" letter-spacing="3" fill="#15151A">BACKDROP EVENT</text>
+<text x="60" y="688" font-family="Arial,Helvetica,sans-serif" font-size="20" letter-spacing="5" fill="#8E8D88">KONFERENSI KORPORAT</text>
+<text x="60" y="726" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="2" fill="#8E8D88" opacity=".7">PLACEHOLDER — GANTI DENGAN FOTO ASLI</text>
+</svg>

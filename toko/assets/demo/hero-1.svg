@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 500">
+<rect width="600" height="500" rx="36" fill="#101013"/>
+<line x1="48" y1="78" x2="552" y2="78" stroke="#8B8B92" stroke-width="1" opacity=".4"/>
+<text x="48" y="58" font-family="Georgia,'Times New Roman',serif" font-size="17" letter-spacing="5" fill="#8B8B92">VOLIKO PRINT</text>
+<text x="552" y="58" text-anchor="end" font-family="Arial,Helvetica,sans-serif" font-size="13" letter-spacing="3" fill="#8B8B92">EST. IMOGIRI</text>
+<text x="48" y="250" font-family="Georgia,'Times New Roman',serif" font-size="64" fill="#F5F4F1">Produksi</text>
+<text x="48" y="330" font-family="Georgia,'Times New Roman',serif" font-size="64" fill="#F5F4F1">Cetak Presisi</text>
+<line x1="48" y1="368" x2="190" y2="368" stroke="#F5F4F1" stroke-width="2" opacity=".8"/>
+<text x="48" y="412" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="3" fill="#8B8B92">LINI BANNER · UV ROLL · DTF · LASER</text>
+<text x="48" y="462" font-family="Arial,Helvetica,sans-serif" font-size="11" letter-spacing="2" fill="#8B8B92" opacity=".6">PLACEHOLDER — GANTI DENGAN FOTO ASLI</text>
+</svg>
