@@ -271,6 +271,34 @@ function pospro_branches(): array {
     return $cache = array_values(array_filter($r, fn($b) => !empty($b['id']) && !empty($b['name'])));
 }
 
+// ── Cloudflare Turnstile (CAPTCHA tak terlihat untuk checkout) ───────────────
+/** Site key publik (untuk widget di frontend). Kosong = fitur nonaktif. */
+function turnstile_site_key(): string {
+    try { return (string)cfg('turnstile_site_key', ''); } catch (Throwable $e) { return ''; }
+}
+/** True kalau kedua kunci sudah diisi di Setelan → verifikasi diaktifkan. */
+function turnstile_enabled(): bool {
+    try { return turnstile_site_key() !== '' && secret_get('turnstile_secret') !== ''; }
+    catch (Throwable $e) { return false; }
+}
+/**
+ * Verifikasi token Turnstile ke Cloudflare. Belum dikonfigurasi → true (jangan
+ * blokir order). Konfigurasi ada tapi token kosong/invalid → false.
+ */
+function turnstile_verify(?string $token): bool {
+    if (!turnstile_enabled()) return true;
+    $token = trim((string)$token);
+    if ($token === '') return false;
+    try {
+        $r = http_json('POST', 'https://challenges.cloudflare.com/turnstile/v0/siteverify', [
+            'secret'   => secret_get('turnstile_secret'),
+            'response' => $token,
+            'remoteip' => client_ip(),
+        ]);
+    } catch (Throwable $e) { return false; }
+    return ($r['status'] ?? 0) === 200 && !empty($r['data']['success']);
+}
+
 /** Warna brand efektif: setting DB 'brand_color' (di-set lewat preset Tampilan) > BRAND_COLOR (env/konstanta). */
 function brand_color(): string {
     try { $c = cfg('brand_color'); } catch (Throwable $e) { $c = null; }
