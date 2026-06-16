@@ -14,6 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $wait  = login_throttled($email);
     if ($email === '' || $pass === '') {
         $error = 'Email dan password wajib diisi.';
+    } elseif (!turnstile_verify($_POST['cf-turnstile-response'] ?? '')) {
+        $error = 'Verifikasi anti-bot gagal. Muat ulang halaman lalu coba lagi.';
     } elseif ($wait > 0) {
         $error = 'Terlalu banyak percobaan gagal. Coba lagi dalam ' . (int)ceil($wait / 60) . ' menit.';
     } elseif (admin_login($email, $pass)) {
@@ -78,6 +80,10 @@ $st = settings();
                     <input type="password" name="password" required
                            class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand/50">
                 </div>
+                <?php if (turnstile_enabled()): ?>
+                    <div class="cf-turnstile" data-sitekey="<?= h(turnstile_site_key()) ?>"></div>
+                    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                <?php endif; ?>
                 <button type="submit" class="w-full px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Masuk</button>
             </form>
         </div>
