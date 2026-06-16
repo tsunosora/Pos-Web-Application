@@ -16,6 +16,46 @@ function normalizePhone(raw: string | null | undefined): string | null {
     return s || null;
 }
 
+/**
+ * Throttle notifikasi Discord untuk order website: maks 8 notif/menit.
+ * Mencegah burst order (sah maupun jahil) membanjiri channel tim. Lead tetap
+ * tersimpan; hanya notifikasinya yang ditahan saat melebihi ambang.
+ */
+let _webNotifTimes: number[] = [];
+function allowWebsiteNotif(): boolean {
+    const now = Date.now();
+    _webNotifTimes = _webNotifTimes.filter((t) => now - t < 60_000);
+    if (_webNotifTimes.length >= 8) return false;
+    _webNotifTimes.push(now);
+    return true;
+}
+
+/**
+ * Deteksi order spam (judol / promosi link) yang dikirim bot ke form publik.
+ * Sinyal sangat tinggi (hampir mustahil ada di order cetak sah):
+ *  - kata kunci judi online, ATAU
+ *  - ada URL/domain pada field NAMA (nama tidak pernah berisi tautan).
+ * Catatan terpisah (note/address) boleh berisi URL referensi yang sah, jadi di
+ * sana hanya kata kunci judol yang ditolak.
+ */
+const JUDOL_KEYWORDS = [
+    'slot', 'gacor', 'maxwin', 'judi', 'togel', 'toto', 'jackpot', 'jackpot',
+    'pragmatic', 'pgsoft', 'sbobet', 'parlay', 'rungkad', 'scatter', 'zeus',
+    'olympus', 'starlight', 'jp paus', 'rtp live', 'mahjong ways', 'situs slot',
+    'link alternatif', 'bonus new member', 'deposit pulsa', 'anti rungkad', 'cuan88',
+];
+const URL_RE = /(https?:\/\/|www\.|\b[a-z0-9-]{2,}\.(?:com|net|org|xyz|info|online|site|club|vip|link|live|bet|win|top|asia|cc|me|id|co|biz|store|shop|fun|icu|pro)\b)/i;
+
+function looksLikeJudol(text: string): boolean {
+    const t = (text || '').toLowerCase();
+    return JUDOL_KEYWORDS.some((k) => t.includes(k));
+}
+function isSpammyOrder(name: string, note: string, address: string): boolean {
+    if (looksLikeJudol(`${name} ${note} ${address}`)) return true;
+    if (URL_RE.test(name)) return true; // tautan di field nama → spam
+    return false;
+}
+
 @Injectable()
 export class LeadsService {
     constructor(
@@ -393,10 +433,42 @@ export class LeadsService {
         name: string; phone?: string; address?: string; note?: string;
         items?: LeadItemDto[]; branchId?: number;
     }) {
-        if (!dto?.name?.trim()) throw new BadRequestException('Nama wajib diisi');
-        const items = Array.isArray(dto.items) ? dto.items.filter(i => i && i.description) : [];
+        // Batasi panjang/jumlah input (anti payload abusive & DB bloat).
+        const name = (dto?.name ?? '').trim().slice(0, 120);
+        if (!name) throw new BadRequestException('Nama wajib diisi');
+        const phone = (dto.phone ?? '').trim().slice(0, 30) || null;
+        const note = (dto.note ?? '').trim().slice(0, 2000);
+        const address = (dto.address ?? '').trim().slice(0, 2000);
+        let items = Array.isArray(dto.items) ? dto.items.filter(i => i && i.description) : [];
+        if (items.length > 50) items = items.slice(0, 50); // maks 50 baris item/order
+        // Clamp qty per baris agar tidak ada nilai absurd (estimasi nilai membengkak).
+        items = items.map(i => ({
+            ...i,
+            quantity: Math.min(Math.max(Math.floor(Number(i.quantity) || 1), 1), 100_000),
+        }));
+        // Filter spam judol/link: diam-diam buang (pura-pura sukses) agar bot
+        // tidak beradaptasi/mengulang. Tidak membuat lead & tidak notif.
+        if (isSpammyOrder(name, note, address)) {
+            return { ok: true, leadId: null, total: 0 };
+        }
+
         // sumItemsTotal sadar item area: qty × (w×h/10000) × harga/m²
         const itemsTotal = this.sumItemsTotal(items);
+
+        // Dedup: order identik (nama+HP sama) dari website dalam 5 menit terakhir
+        // dianggap submit ganda → kembalikan lead yang sudah ada, jangan buat baru.
+        const phoneNorm = normalizePhone(phone);
+        const recent = await this.prisma.lead.findFirst({
+            where: {
+                source: 'WEBSITE' as any,
+                name,
+                ...(phoneNorm ? { phoneNormalized: phoneNorm } : {}),
+                createdAt: { gte: new Date(Date.now() - 5 * 60_000) },
+            },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true },
+        });
+        if (recent) return { ok: true, leadId: recent.id, total: itemsTotal, dedup: true };
 
         // Lokasi cetak pilihan customer: validasi harus CompanyBranch yang AKTIF.
         // Kalau tidak dipilih / tidak valid → null (tampil di mode "Semua Cabang").
@@ -410,14 +482,14 @@ export class LeadsService {
         }
 
         const needsParts: string[] = [];
-        if (dto.note?.trim()) needsParts.push(dto.note.trim());
-        if (dto.address?.trim()) needsParts.push(`Alamat: ${dto.address.trim()}`);
+        if (note) needsParts.push(note);
+        if (address) needsParts.push(`Alamat: ${address}`);
 
         const lead = await this.prisma.lead.create({
             data: {
-                name: dto.name.trim(),
-                phone: dto.phone || null,
-                phoneNormalized: normalizePhone(dto.phone),
+                name,
+                phone,
+                phoneNormalized: phoneNorm,
                 source: 'WEBSITE' as any,
                 status: 'NEW' as any,
                 level: 'WARM' as any,
@@ -441,13 +513,16 @@ export class LeadsService {
             },
         });
 
-        this.discord.notifyNewLead({
-            name: dto.name,
-            phone: dto.phone || undefined,
-            source: 'Website (Order Online)',
-            estimatedValue: itemsTotal > 0 ? itemsTotal : undefined,
-            branchId: (lead as any).branchId ?? null, // null = order website → webhook global
-        });
+        // Notifikasi Discord di-throttle agar burst order tidak membanjiri channel.
+        if (allowWebsiteNotif()) {
+            this.discord.notifyNewLead({
+                name,
+                phone: phone || undefined,
+                source: 'Website (Order Online)',
+                estimatedValue: itemsTotal > 0 ? itemsTotal : undefined,
+                branchId: (lead as any).branchId ?? null, // null = order website → webhook global
+            });
+        }
 
         return { ok: true, leadId: lead.id, total: itemsTotal };
     }
