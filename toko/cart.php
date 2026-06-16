@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
         // Honeypot terisi / konten spam judol → bot. Pura-pura sukses tanpa kirim.
         $sent = true;
         $_SESSION['cart'] = [];
+    } elseif (!turnstile_verify($_POST['cf-turnstile-response'] ?? '')) {
+        $error = 'Verifikasi anti-bot gagal. Muat ulang halaman lalu kirim ulang order.';
     } elseif (order_throttled() > 0) {
         $error = 'Terlalu banyak order beruntun dari perangkat ini. Coba lagi beberapa saat lagi atau hubungi kami via WhatsApp.';
     } elseif ($name === '') {
@@ -162,6 +164,10 @@ $total = cart_total();
                     </div>
                 <?php elseif (count($poBranches) === 1): ?>
                     <input type="hidden" name="branchId" value="<?= (int)$poBranches[0]['id'] ?>">
+                <?php endif; ?>
+                <?php if (turnstile_enabled()): ?>
+                    <div class="cf-turnstile" data-sitekey="<?= h(turnstile_site_key()) ?>"></div>
+                    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
                 <?php endif; ?>
                 <button type="submit" class="w-full px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Kirim Order</button>
             </form>
