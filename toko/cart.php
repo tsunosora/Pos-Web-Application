@@ -25,7 +25,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
     $branchId = (int)($_POST['branchId'] ?? 0);
     $items    = cart();
 
-    if ($name === '') {
+    if (trim($_POST['website'] ?? '') !== '' || looks_like_spam($name, $note, $address)) {
+        // Honeypot terisi / konten spam judol → bot. Pura-pura sukses tanpa kirim.
+        $sent = true;
+        $_SESSION['cart'] = [];
+    } elseif (order_throttled() > 0) {
+        $error = 'Terlalu banyak order beruntun dari perangkat ini. Coba lagi beberapa saat lagi atau hubungi kami via WhatsApp.';
+    } elseif ($name === '') {
         $error = 'Nama wajib diisi.';
     } elseif (!count($items)) {
         $error = 'Keranjang masih kosong.';
@@ -57,6 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
         if ($res && !empty($res['ok'])) {
             $sent = true;
             $leadId = $res['leadId'] ?? null;
+            record_order_attempt();
             $_SESSION['cart'] = [];
         } else {
             $error = 'Gagal mengirim order. Coba lagi atau hubungi kami.';
@@ -125,6 +132,8 @@ $total = cart_total();
             <form method="post" class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="checkout">
+                <!-- Honeypot anti-bot: harus tetap kosong; disembunyikan dari manusia -->
+                <input type="text" name="website" value="" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
                 <h2 class="font-bold text-slate-900">Data Pemesan</h2>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nama <span class="text-rose-500">*</span></label>

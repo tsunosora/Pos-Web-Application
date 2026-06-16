@@ -1,5 +1,6 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { LeadsService } from './leads.service';
+import { PublicOrderThrottleGuard } from '../../common/public-order-throttle.guard';
 import type { LeadItemDto } from './leads.dto';
 
 interface PublicOrderDto {
@@ -17,6 +18,7 @@ export class PublicOrdersController {
     constructor(private readonly leads: LeadsService) {}
 
     @Post()
+    @UseGuards(PublicOrderThrottleGuard)
     create(@Body() body: PublicOrderDto) {
         return this.leads.createPublicOrder(body);
     }

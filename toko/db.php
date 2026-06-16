@@ -62,6 +62,55 @@ function secret_decrypt(?string $enc): string {
 function secret_set(string $key, string $plain): void { cfg_set($key, $plain === '' ? '' : secret_encrypt($plain)); }
 function secret_get(string $key): string { return secret_decrypt(cfg($key)); }
 
+// ── Cache fallback API PosPro (agar toko tetap jalan saat PosPro down) ───────
+// Tiap respons GET publik yang sukses disalin ke tabel api_cache. Kalau PosPro
+// mati/timeout, storefront memakai salinan terakhir alih-alih tampil kosong.
+function ensure_api_cache_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS api_cache (
+            k VARCHAR(190) NOT NULL PRIMARY KEY,
+            v LONGTEXT NOT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_updated (updated_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) { /* DB belum siap — api_get jalan tanpa fallback */ }
+}
+
+/** Baca cache mentah (string JSON) untuk path tertentu, atau null bila belum ada. */
+function api_cache_read(string $key): ?string {
+    ensure_api_cache_table();
+    try {
+        $st = db()->prepare('SELECT v FROM api_cache WHERE k = ? LIMIT 1');
+        $st->execute([$key]);
+        $v = $st->fetchColumn();
+    } catch (Throwable $e) { return null; }
+    return $v === false ? null : (string)$v;
+}
+
+/** Simpan/replace cache untuk path tertentu (upsert). */
+function api_cache_write(string $key, string $json): void {
+    ensure_api_cache_table();
+    try {
+        db()->prepare('INSERT INTO api_cache (k, v, updated_at) VALUES (?,?,NOW())
+                       ON DUPLICATE KEY UPDATE v = VALUES(v), updated_at = NOW()')
+            ->execute([mb_substr($key, 0, 190), $json]);
+    } catch (Throwable $e) { /* gagal cache tidak fatal */ }
+}
+
+/** Waktu (UNIX) cache terakhir diperbarui untuk path, atau 0 bila belum ada. */
+function api_cache_time(string $key): int {
+    ensure_api_cache_table();
+    try {
+        $st = db()->prepare('SELECT UNIX_TIMESTAMP(updated_at) FROM api_cache WHERE k = ? LIMIT 1');
+        $st->execute([$key]);
+        $t = $st->fetchColumn();
+    } catch (Throwable $e) { return 0; }
+    return $t === false ? 0 : (int)$t;
+}
+
 // ── Migrasi ringan: tabel keamanan (rate-limit login) ────────────────────────
 function ensure_security_tables(): void {
     static $done = false;
@@ -78,6 +127,21 @@ function ensure_security_tables(): void {
             KEY idx_email_time (email, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Throwable $e) { /* DB belum siap — biarkan, login tetap jalan tanpa throttle */ }
+}
+
+// ── Migrasi ringan: tabel rate-limit order publik (anti boom order) ──────────
+function ensure_order_attempts_table(): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS order_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            ip VARCHAR(64) NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            KEY idx_ip_time (ip, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) { /* tanpa DB, throttle order dilewati */ }
 }
 
 // ── Migrasi ringan: pastikan kolom SEO ada (untuk DB lama) ───────────────────

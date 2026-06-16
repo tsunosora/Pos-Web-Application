@@ -21,12 +21,17 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $last = (int)($_SESSION['lead_last_submit'] ?? 0);
 if (time() - $last < 60) { $go('?lead=err'); exit; }
 
+// Rate limit per-IP (lintas sesi, tahan bot yang tak bawa cookie): 3/menit, 12/jam, 30/hari
+if (order_throttled() > 0) { $go('?lead=err'); exit; }
+
 $name     = trim($_POST['name'] ?? '');
 $phone    = trim($_POST['phone'] ?? '');
 $note     = trim($_POST['note'] ?? '');
 $branchId = (int)($_POST['branchId'] ?? 0);
 
 if ($name === '' || $note === '') { $go('?lead=err'); exit; }
+// Konten spam judol/link → pura-pura sukses, tidak dikirim ke CRM.
+if (looks_like_spam($name, $note)) { $go('?lead=ok'); exit; }
 if (mb_strlen($name) > 120) $name = mb_substr($name, 0, 120);
 if (mb_strlen($note) > 2000) $note = mb_substr($note, 0, 2000);
 
@@ -44,6 +49,7 @@ $res = api_post('/orders/public', $payload);
 
 if ($res && !empty($res['ok'])) {
     $_SESSION['lead_last_submit'] = time();
+    record_order_attempt();
     $go('?lead=ok&n=' . rawurlencode(mb_substr($name, 0, 40)));
 } else {
     $go('?lead=err');
