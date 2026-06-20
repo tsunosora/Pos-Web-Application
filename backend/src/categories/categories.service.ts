@@ -70,15 +70,35 @@ export class CategoriesService {
   async remove(id: number) {
     const cat = await this.findOne(id);
 
-    // Jika ada anak, pindahkan anak ke parent-nya (atau root) sebelum hapus
-    if ((cat as any).children?.length > 0) {
-      const parentId = (cat as any).parentId ?? null;
-      await (this.prisma as any).category.updateMany({
-        where: { parentId: id },
-        data: { parentId },
-      });
+    // Produk WAJIB punya kategori (categoryId NOT NULL) — tidak bisa dilepas.
+    // Cegah hapus & beri pesan jelas agar asosiasi produk tidak hilang/error FK.
+    const productCount = await (this.prisma as any).product.count({
+      where: { categoryId: id },
+    });
+    if (productCount > 0) {
+      throw new BadRequestException(
+        `Kategori tidak bisa dihapus karena masih dipakai ${productCount} produk. Pindahkan produk ke kategori lain dulu.`,
+      );
     }
 
-    return this.prisma.category.delete({ where: { id } });
+    const parentId = (cat as any).parentId ?? null;
+
+    return (this.prisma as any).$transaction(async (tx: any) => {
+      // Pindahkan sub-kategori ke parent-nya (atau root) sebelum hapus
+      if ((cat as any).children?.length > 0) {
+        await tx.category.updateMany({
+          where: { parentId: id },
+          data: { parentId },
+        });
+      }
+
+      // Sesi stok opname boleh kehilangan referensi kategori (categoryId nullable)
+      await tx.stockOpnameSession.updateMany({
+        where: { categoryId: id },
+        data: { categoryId: null },
+      });
+
+      return tx.category.delete({ where: { id } });
+    });
   }
 }
