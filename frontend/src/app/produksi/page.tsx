@@ -597,7 +597,7 @@ export default function ProduksiPage() {
 
             {/* ── Process Modal ─────────────────────────────────────────────────────── */}
             {processModal.open && processModal.job && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/60 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/82 backdrop-blur-3xl p-4">
                     <div className="w-full max-w-lg bg-card rounded-2xl border border-border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-4 border-b border-border flex items-center justify-between">
                             <div>
@@ -759,7 +759,7 @@ export default function ProduksiPage() {
 
             {/* ── Batch Modal ───────────────────────────────────────────────────────── */}
             {batchModal && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/60 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/82 backdrop-blur-3xl p-4">
                     <div className="w-full max-w-lg bg-card rounded-2xl border border-border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-4 border-b border-border flex items-center justify-between">
                             <div>
@@ -875,7 +875,7 @@ export default function ProduksiPage() {
 
             {/* ── Assembly Modal ─────────────────────────────────────────────────────── */}
             {assemblyModal.open && assemblyModal.job && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/60 backdrop-blur-sm p-4">
+                <div className="fixed inset-0 z-50 flex items-end justify-center bg-background/82 backdrop-blur-3xl p-4">
                     <div className="w-full max-w-lg bg-card rounded-2xl border border-border shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                         <div className="p-4 border-b border-border flex items-center justify-between">
                             <div>
@@ -948,7 +948,7 @@ export default function ProduksiPage() {
             )}
             {/* ── Invoice Detail Modal ──────────────────────────────────────────────── */}
             {detailJob && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-3xl p-4"
                     onClick={() => setDetailJob(null)}>
                     <div className="bg-card rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
                         onClick={e => e.stopPropagation()}>

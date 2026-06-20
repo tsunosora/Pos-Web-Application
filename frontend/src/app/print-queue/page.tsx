@@ -25,7 +25,7 @@ function fmt(s: string | null) {
 
 function StatusChip({ s }: { s: PrintJobStatus }) {
     const map: Record<PrintJobStatus, string> = {
-        ANTRIAN: 'bg-gray-100 text-gray-700 border-gray-300',
+        ANTRIAN: 'bg-muted text-foreground border-border',
         PROSES: 'bg-indigo-100 text-indigo-800 border-indigo-300',
         SELESAI: 'bg-green-100 text-green-800 border-green-300',
         DIAMBIL: 'bg-sky-100 text-sky-800 border-sky-300',
@@ -38,7 +38,7 @@ function PayBadge({ s }: { s: 'PENDING' | 'PARTIAL' | 'PAID' | 'FAILED' }) {
         PAID: 'bg-green-100 text-green-800 border-green-300',
         PARTIAL: 'bg-amber-100 text-amber-800 border-amber-300',
         PENDING: 'bg-red-100 text-red-800 border-red-300',
-        FAILED: 'bg-gray-100 text-gray-600 border-gray-300',
+        FAILED: 'bg-muted text-muted-foreground border-border',
     };
     const label = s === 'PAID' ? 'LUNAS' : s === 'PARTIAL' ? 'DP' : s === 'PENDING' ? 'BELUM LUNAS' : s;
     return <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${map[s]}`}>{label}</span>;
@@ -106,7 +106,7 @@ export default function PrintQueueAdminPage() {
                     >
                         <ExternalLink className="w-3.5 h-3.5" /> Buka Halaman Operator
                     </Link>
-                    <button onClick={load} disabled={loading} className="text-sm bg-white border px-3 py-1.5 rounded-lg hover:bg-gray-50 flex items-center gap-1">
+                    <button onClick={load} disabled={loading} className="text-sm bg-card border px-3 py-1.5 rounded-lg hover:bg-muted flex items-center gap-1">
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
                     </button>
                 </div>
@@ -114,13 +114,13 @@ export default function PrintQueueAdminPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 {([
-                    { label: 'Antrian', val: stats.antrian, color: 'text-gray-700' },
+                    { label: 'Antrian', val: stats.antrian, color: 'text-foreground' },
                     { label: 'Proses', val: stats.proses, color: 'text-indigo-700' },
                     { label: 'Siap Diambil', val: stats.selesai, color: 'text-green-700' },
                     { label: 'Diambil', val: stats.diambil, color: 'text-sky-700' },
                 ]).map(c => (
-                    <div key={c.label} className="bg-white border rounded-xl p-4 shadow-sm">
-                        <p className="text-xs text-gray-500">{c.label}</p>
+                    <div key={c.label} className="bg-card border rounded-xl p-4 shadow-sm">
+                        <p className="text-xs text-muted-foreground">{c.label}</p>
                         <p className={`text-2xl font-bold ${c.color}`}>{c.val}</p>
                     </div>
                 ))}
@@ -129,7 +129,7 @@ export default function PrintQueueAdminPage() {
             <div className="flex flex-wrap items-center gap-2 mb-3">
                 <div className="flex gap-1 overflow-x-auto">
                     {STATUSES.map(s => (
-                        <button key={s.key} onClick={() => setFilter(s.key)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filter === s.key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>{s.label}</button>
+                        <button key={s.key} onClick={() => setFilter(s.key)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filter === s.key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-card border-border hover:bg-muted'}`}>{s.label}</button>
                     ))}
                 </div>
                 <input
@@ -137,14 +137,14 @@ export default function PrintQueueAdminPage() {
                     value={search}
                     onChange={e => setSearch(e.target.value)}
                     placeholder="Cari no. job / invoice / pelanggan..."
-                    className="border rounded-lg px-3 py-1.5 text-sm bg-white ml-auto w-full sm:w-72"
+                    className="border rounded-lg px-3 py-1.5 text-sm bg-card ml-auto w-full sm:w-72"
                 />
             </div>
 
-            <div className="bg-white border rounded-xl overflow-hidden">
+            <div className="bg-card border rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="min-w-full text-sm">
-                        <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+                        <thead className="bg-muted text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="px-3 py-2 text-left">No. Job</th>
                                 <th className="px-3 py-2 text-left">Invoice / SC</th>
@@ -161,9 +161,9 @@ export default function PrintQueueAdminPage() {
                         </thead>
                         <tbody>
                             {jobs.length === 0 ? (
-                                <tr><td colSpan={11} className="px-3 py-10 text-center text-gray-500">Tidak ada job.</td></tr>
+                                <tr><td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">Tidak ada job.</td></tr>
                             ) : jobs.map(j => (
-                                <tr key={j.id} className="border-t hover:bg-gray-50">
+                                <tr key={j.id} className="border-t hover:bg-muted">
                                     <td className="px-3 py-2 font-mono text-xs text-indigo-700 font-bold">
                                         {j.jobNumber}
                                         {(() => {
@@ -191,7 +191,7 @@ export default function PrintQueueAdminPage() {
                                     <td className="px-3 py-2">
                                         <Link href={`/transactions/${j.transaction.id}`} className="font-mono text-xs text-indigo-700 hover:underline">{j.transaction.invoiceNumber}</Link>
                                         {j.transaction.checkoutNumber && (
-                                            <div className="font-mono text-[10px] text-gray-500">{j.transaction.checkoutNumber}</div>
+                                            <div className="font-mono text-[10px] text-muted-foreground">{j.transaction.checkoutNumber}</div>
                                         )}
                                     </td>
                                     <td className="px-3 py-2">{j.transaction.customerName || '—'}</td>
@@ -202,7 +202,7 @@ export default function PrintQueueAdminPage() {
                                                 ?? 'Item Custom'}
                                         </div>
                                         {j.transactionItem?.productVariant?.variantName && (
-                                            <div className="text-xs text-gray-500">{j.transactionItem.productVariant.variantName}</div>
+                                            <div className="text-xs text-muted-foreground">{j.transactionItem.productVariant.variantName}</div>
                                         )}
                                     </td>
                                     <td className="px-3 py-2 text-right font-semibold">{j.quantity}</td>

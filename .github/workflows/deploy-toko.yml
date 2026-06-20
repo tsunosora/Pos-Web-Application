@@ -1,0 +1,50 @@
+# Auto-deploy folder toko/ (website PHP) ke hosting Hostinger via FTP.
+# Jalan otomatis tiap push ke main yang menyentuh toko/**, atau manual
+# lewat tab Actions → "Deploy Toko ke Hostinger" → Run workflow.
+#
+# Secrets yang harus diisi di GitHub (Settings → Secrets and variables → Actions):
+#   HOSTINGER_FTP_HOST  → host FTP dari hPanel (mis. ftp.domainkamu.com / IP server)
+#   HOSTINGER_FTP_USER  → username FTP (mis. u123456789.tokodeploy)
+#   HOSTINGER_FTP_PASS  → password FTP
+#   HOSTINGER_FTP_DIR   → folder tujuan, mis. "public_html/" atau
+#                         "domains/domainkamu.com/public_html/" (akhiri dengan /)
+name: Deploy Toko ke Hostinger
+
+on:
+  push:
+    branches: [main]
+    paths: ['toko/**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Upload toko/ via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.HOSTINGER_FTP_HOST }}
+          username: ${{ secrets.HOSTINGER_FTP_USER }}
+          password: ${{ secrets.HOSTINGER_FTP_PASS }}
+          # Ganti ke "ftps" kalau mau pakai TLS (lebih aman). "ftp" dipakai
+          # karena FTPS sering timeout dari runner GitHub Actions.
+          protocol: ftp
+          port: 21
+          # Perpanjang timeout connect (default 30 dtk) supaya tak gampang putus
+          timeout: 60000
+          local-dir: ./toko/
+          server-dir: ${{ secrets.HOSTINGER_FTP_DIR }}
+          # Jangan sentuh file milik server & jangan deploy skrip utilitas dev
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/uploads/**
+            config.local.php
+            config.local.example.php
+            seed_articles_seo.php
+            expand_articles_seo.php
+            compress_old_images.php
+            README.md

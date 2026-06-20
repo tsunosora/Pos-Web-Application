@@ -25,6 +25,7 @@ if ($id) {
 
 $error = null;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $title   = trim($_POST['title'] ?? '');
     $slugIn  = trim($_POST['slug'] ?? '');
     $content = $_POST['content'] ?? '';
@@ -102,6 +103,7 @@ include __DIR__ . '/admin_header.php';
 ?>
 
 <form method="post" enctype="multipart/form-data" id="artForm">
+<?= csrf_field() ?>
 <?php $schedVal = !empty($a['scheduled_at']) ? date('Y-m-d\TH:i', strtotime($a['scheduled_at'])) : ''; ?>
 <div class="sticky top-20 z-20 mb-6 bg-white/90 backdrop-blur rounded-2xl border border-slate-200 shadow-sm px-4 py-3">
     <div class="flex items-center justify-between gap-3 flex-wrap">
@@ -376,7 +378,7 @@ function imageHandler() {
         const file = input.files[0]; if (!file) return;
         const fd = new FormData(); fd.append('image', file);
         try {
-            const res = await fetch('upload.php', { method: 'POST', body: fd });
+            const res = await fetch('upload.php', { method: 'POST', body: fd, headers: { 'X-CSRF-Token': '<?= h(csrf_token()) ?>' } });
             const data = await res.json();
             if (data.url) {
                 const range = quill.getSelection(true);

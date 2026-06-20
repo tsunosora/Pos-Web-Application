@@ -82,7 +82,7 @@ export default function LandingPageAdmin() {
             {/* Status & aksi */}
             <div className="bg-card border border-border rounded-xl p-5 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${published ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${published ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
                         {published ? '● Terbit' : '○ Draft (belum terbit)'}
                     </span>
                     {msg && <span className="text-xs text-muted-foreground">{msg}</span>}

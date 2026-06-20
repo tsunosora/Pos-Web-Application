@@ -30,8 +30,42 @@ const CHAMP_TITLE: Record<string, { icon: string; label: string }> = {
     rate: { icon: "🎯", label: "Sniper Closing" },
 };
 const MEDAL = ["🥇", "🥈", "🥉"];
-const PODIUM_TINT = ["bg-amber-50", "bg-slate-50", "bg-orange-50/60"];
 const PODIUM_ACCENT = ["border-l-amber-400", "border-l-slate-400", "border-l-orange-400"];
+
+// Palet warna chart konsisten (warna -500, kontras di light & dark)
+const CHART_COLORS = ["#6366f1", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#84cc16"];
+
+// Style tooltip recharts dark-aware (dipakai di semua chart)
+const CHART_TOOLTIP_STYLE = {
+    background: "var(--card)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+    color: "var(--foreground)",
+    boxShadow: "0 8px 24px -8px rgb(0 0 0 / 0.25)",
+    fontSize: 12,
+} as const;
+const CHART_LABEL_STYLE = { color: "var(--foreground)", fontWeight: 600 } as const;
+const CHART_ITEM_STYLE = { color: "var(--muted-foreground)" } as const;
+const CHART_AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 12 } as const;
+const CHART_LEGEND_STYLE = { fontSize: 12, color: "var(--muted-foreground)" } as const;
+
+// Palet aksen avatar inisial leaderboard (diturunkan dari index)
+const AVATAR_ACCENTS = [
+    "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300",
+    "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+    "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+    "bg-cyan-500/15 text-cyan-600 dark:text-cyan-300",
+    "bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300",
+    "bg-lime-500/15 text-lime-600 dark:text-lime-300",
+];
+function initials(name: string): string {
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 const SOURCE_COLOR: Record<string, string> = {
     WHATSAPP: "#25D366",
@@ -107,14 +141,16 @@ export default function CrmDashboardPage() {
 
     return (
         <div className="space-y-4">
-            <div>
-                <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <Sparkles className="h-6 w-6 text-indigo-600" />
-                    CRM Dashboard
-                </h1>
-                <p className="text-sm text-gray-500">
-                    Metrik performa CRM: response time, closing rate, follow-up compliance, repeat order rate, & leaderboard CS
-                </p>
+            <div className="flex items-start gap-3 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                <div className="h-11 w-11 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 shadow-sm shrink-0">
+                    <Sparkles className="h-6 w-6" />
+                </div>
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">CRM Dashboard</h1>
+                    <p className="text-sm text-muted-foreground">
+                        Metrik performa CRM: response time, closing rate, follow-up compliance, repeat order rate, &amp; leaderboard CS
+                    </p>
+                </div>
             </div>
 
             {/* Period filter */}
@@ -123,8 +159,8 @@ export default function CrmDashboardPage() {
                     <button
                         key={p.value}
                         onClick={() => setPeriod(p.value)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium ${
-                            period === p.value ? "bg-indigo-600 text-white shadow" : "bg-gray-100 hover:bg-gray-200"
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                            period === p.value ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-accent"
                         }`}
                     >
                         {p.label}
@@ -133,10 +169,10 @@ export default function CrmDashboardPage() {
                 {period === "custom" && (
                     <div className="flex gap-2 items-center text-sm">
                         <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)}
-                            className="border border-gray-300 rounded px-2 py-1" />
+                            className="border border-border rounded px-2 py-1" />
                         <span>—</span>
                         <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)}
-                            className="border border-gray-300 rounded px-2 py-1" />
+                            className="border border-border rounded px-2 py-1" />
                     </div>
                 )}
                 {/* Filter cabang (owner) & staff — berlaku untuk semua metrik di halaman ini */}
@@ -144,7 +180,7 @@ export default function CrmDashboardPage() {
                     <select
                         value={branchSel}
                         onChange={(e) => setBranchSel(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
-                        className="text-sm font-medium border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
+                        className="text-sm font-medium border border-border rounded-lg px-2.5 py-1.5 bg-card outline-none focus:ring-2 focus:ring-indigo-300"
                         title="Filter cabang"
                     >
                         <option value="ALL">🏬 Semua Cabang</option>
@@ -156,7 +192,7 @@ export default function CrmDashboardPage() {
                 <select
                     value={csSel}
                     onChange={(e) => setCsSel(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
-                    className="text-sm font-medium border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300"
+                    className="text-sm font-medium border border-border rounded-lg px-2.5 py-1.5 bg-card outline-none focus:ring-2 focus:ring-indigo-300"
                     title="Filter staff/CS"
                 >
                     <option value="ALL">👥 Semua Staff</option>
@@ -165,7 +201,7 @@ export default function CrmDashboardPage() {
                     ))}
                 </select>
                 {data && (
-                    <div className="text-xs text-gray-500 ml-auto flex items-center gap-1">
+                    <div className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {dayjs(data.period.start).format("DD MMM YY")} — {dayjs(data.period.end).format("DD MMM YY")}
                     </div>
@@ -173,11 +209,11 @@ export default function CrmDashboardPage() {
             </div>
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-12 text-gray-500">
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Memuat...
                 </div>
             ) : !data ? (
-                <div className="bg-white border rounded-xl p-8 text-center text-gray-500">
+                <div className="bg-card border rounded-xl p-8 text-center text-muted-foreground">
                     Tidak ada data
                 </div>
             ) : (
@@ -189,28 +225,32 @@ export default function CrmDashboardPage() {
                             label="Avg Response Time"
                             value={`${data.metrics.responseTimeAvgHrs} jam`}
                             sub={`dari ${data.totals.totalLeads} lead`}
-                            color="bg-blue-50 border-blue-200 text-blue-700"
+                            accent="bg-blue-500/10 text-blue-600 dark:text-blue-300"
+                            delay={0}
                         />
                         <MetricCard
                             icon={<Target className="h-5 w-5" />}
                             label="Closing Rate"
                             value={`${(data.metrics.closingRate * 100).toFixed(1)}%`}
                             sub={`${data.totals.closedWon} closing, ${data.totals.closedLost} lost`}
-                            color="bg-emerald-50 border-emerald-200 text-emerald-700"
+                            accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                            delay={50}
                         />
                         <MetricCard
                             icon={<ClipboardCheck className="h-5 w-5" />}
                             label="FU Compliance"
                             value={`${(data.metrics.fuComplianceRate * 100).toFixed(1)}%`}
                             sub={`${data.totals.compliant}/${data.totals.totalFu} FU on-time`}
-                            color="bg-amber-50 border-amber-200 text-amber-700"
+                            accent="bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                            delay={100}
                         />
                         <MetricCard
                             icon={<RotateCcw className="h-5 w-5" />}
                             label="Repeat Order Rate"
                             value={`${(data.metrics.repeatOrderRate * 100).toFixed(1)}%`}
                             sub={`${data.totals.customersRepeat}/${data.totals.customersWithOrder} customer`}
-                            color="bg-purple-50 border-purple-200 text-purple-700"
+                            accent="bg-violet-500/10 text-violet-600 dark:text-violet-300"
+                            delay={150}
                         />
                         <MetricCard
                             icon={<TrendingUp className="h-5 w-5" />}
@@ -219,7 +259,8 @@ export default function CrmDashboardPage() {
                                 ? `Rp ${(data.totals.wonValue / 1_000_000).toFixed(1)}jt`
                                 : "Rp 0"}
                             sub={`dari ${data.totals.closedWon} deal closing`}
-                            color="bg-emerald-50 border-emerald-200 text-emerald-700"
+                            accent="bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+                            delay={200}
                         />
                         <MetricCard
                             icon={<TrendingDown className="h-5 w-5" />}
@@ -228,7 +269,8 @@ export default function CrmDashboardPage() {
                                 ? `Rp ${(data.totals.lostValue / 1_000_000).toFixed(1)}jt`
                                 : "Rp 0"}
                             sub={`dari ${data.totals.closedLost} lead gagal`}
-                            color="bg-red-50 border-red-200 text-red-700"
+                            accent="bg-red-500/10 text-red-600 dark:text-red-300"
+                            delay={250}
                         />
                         <MetricCard
                             icon={<Hourglass className="h-5 w-5" />}
@@ -237,16 +279,22 @@ export default function CrmDashboardPage() {
                                 ? `Rp ${(data.totals.pendingValue / 1_000_000).toFixed(1)}jt`
                                 : "Rp 0"}
                             sub="Saldo piutang belum lunas (PENDING + DP)"
-                            color="bg-amber-50 border-amber-200 text-amber-700"
+                            accent="bg-amber-500/10 text-amber-600 dark:text-amber-300"
+                            delay={300}
                         />
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {/* Leads by Source */}
-                        <div className="bg-white rounded-xl border p-5">
-                            <h2 className="font-bold text-base mb-3">Lead Per Sumber</h2>
+                        <div className="bg-card rounded-2xl border border-border shadow-sm p-4 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <h2 className="font-bold text-base mb-3 flex items-center gap-2">
+                                <span className="h-7 w-7 rounded-lg flex items-center justify-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
+                                    <Target className="h-4 w-4" />
+                                </span>
+                                Lead Per Sumber
+                            </h2>
                             {sourceChartData.length === 0 ? (
-                                <p className="text-sm text-gray-500 text-center py-8">Belum ada lead di periode ini.</p>
+                                <p className="text-sm text-muted-foreground text-center py-8">Belum ada lead di periode ini.</p>
                             ) : (
                                 <ResponsiveContainer width="100%" height={280}>
                                     <PieChart>
@@ -256,33 +304,44 @@ export default function CrmDashboardPage() {
                                             nameKey="name"
                                             cx="50%"
                                             cy="50%"
+                                            innerRadius={55}
                                             outerRadius={90}
+                                            paddingAngle={2}
+                                            cornerRadius={4}
+                                            stroke="var(--card)"
+                                            strokeWidth={2}
                                             label={(entry: any) => `${entry.name} (${entry.value})`}
                                         >
                                             {sourceChartData.map((entry, i) => (
-                                                <Cell key={i} fill={SOURCE_COLOR[entry.source] || "#999"} />
+                                                <Cell key={i} fill={SOURCE_COLOR[entry.source] || CHART_COLORS[i % CHART_COLORS.length]} />
                                             ))}
                                         </Pie>
-                                        <Tooltip />
+                                        <Tooltip contentStyle={CHART_TOOLTIP_STYLE} labelStyle={CHART_LABEL_STYLE} itemStyle={CHART_ITEM_STYLE} />
+                                        <Legend wrapperStyle={CHART_LEGEND_STYLE} />
                                     </PieChart>
                                 </ResponsiveContainer>
                             )}
                         </div>
 
                         {/* Leads by Source — Bar fallback */}
-                        <div className="bg-white rounded-xl border p-5">
-                            <h2 className="font-bold text-base mb-3">Distribusi (Bar)</h2>
+                        <div className="bg-card rounded-2xl border border-border shadow-sm p-4 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ animationDelay: "80ms" }}>
+                            <h2 className="font-bold text-base mb-3 flex items-center gap-2">
+                                <span className="h-7 w-7 rounded-lg flex items-center justify-center bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                                    <BarChart3 className="h-4 w-4" />
+                                </span>
+                                Distribusi (Bar)
+                            </h2>
                             {sourceChartData.length === 0 ? (
-                                <p className="text-sm text-gray-500 text-center py-8">—</p>
+                                <p className="text-sm text-muted-foreground text-center py-8">—</p>
                             ) : (
                                 <ResponsiveContainer width="100%" height={280}>
                                     <BarChart data={sourceChartData} margin={{ top: 20, right: 10, left: -10, bottom: 5 }}>
-                                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                                        <Tooltip />
-                                        <Bar dataKey="value">
+                                        <XAxis dataKey="name" tick={CHART_AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
+                                        <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
+                                        <Tooltip cursor={{ fill: "var(--muted)", opacity: 0.4 }} contentStyle={CHART_TOOLTIP_STYLE} labelStyle={CHART_LABEL_STYLE} itemStyle={CHART_ITEM_STYLE} />
+                                        <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                                             {sourceChartData.map((entry, i) => (
-                                                <Cell key={i} fill={SOURCE_COLOR[entry.source] || "#999"} />
+                                                <Cell key={i} fill={SOURCE_COLOR[entry.source] || CHART_COLORS[i % CHART_COLORS.length]} />
                                             ))}
                                         </Bar>
                                     </BarChart>
@@ -312,15 +371,17 @@ export default function CrmDashboardPage() {
                     />
 
                     {/* Leaderboard */}
-                    <div className="bg-white rounded-xl border p-5">
+                    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                             <h2 className="font-bold text-base flex items-center gap-2">
-                                <Trophy className="h-5 w-5 text-amber-500" />
+                                <span className="h-8 w-8 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                                    <Trophy className="h-5 w-5" />
+                                </span>
                                 Leaderboard CS
                             </h2>
                             {/* Urutkan berdasarkan + tombol grafik */}
                             <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">Urutkan:</span>
+                                <span className="text-[10px] text-muted-foreground font-semibold uppercase mr-1">Urutkan:</span>
                                 {([
                                     { key: "cs",   label: "CS" },
                                     { key: "lead", label: "Lead" },
@@ -330,10 +391,10 @@ export default function CrmDashboardPage() {
                                     <button
                                         key={key}
                                         onClick={() => setLeaderboardSort(key)}
-                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                                             leaderboardSort === key
-                                                ? "bg-amber-500 text-white border-amber-500"
-                                                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                                ? "bg-primary text-primary-foreground"
+                                                : "bg-muted text-muted-foreground hover:bg-accent"
                                         }`}
                                     >
                                         {label}
@@ -341,21 +402,21 @@ export default function CrmDashboardPage() {
                                 ))}
                                 <button
                                     onClick={() => setShowCsChart(true)}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors ml-1"
+                                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors ml-1"
                                 >
                                     <BarChart3 className="h-3.5 w-3.5" /> Grafik CS
                                 </button>
                             </div>
                         </div>
                         {data.leaderboard.length === 0 ? (
-                            <p className="text-sm text-gray-500 text-center py-6">
+                            <p className="text-sm text-muted-foreground text-center py-6">
                                 Belum ada lead ter-assign maupun transaksi POS yang ditangani CS di periode ini.
                             </p>
                         ) : (
                             <div className="overflow-x-auto">
                                 <table className="w-full text-sm">
                                     <thead>
-                                        <tr className="border-b text-xs text-gray-500 uppercase">
+                                        <tr className="border-b text-xs text-muted-foreground uppercase">
                                             <th className="text-left py-2 px-2">#</th>
                                             <th className="text-left py-2 px-2">Nama CS</th>
                                             <th className="text-right py-2 px-2">Leads</th>
@@ -374,43 +435,73 @@ export default function CrmDashboardPage() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {sortedLeaderboard.map((row, i) => {
+                                        {(() => {
+                                            // Nilai metrik aktif untuk progress bar relatif terhadap #1
+                                            const metricVal = (r: typeof sortedLeaderboard[number]) =>
+                                                leaderboardSort === "lead" ? r.leadsHandled
+                                                : leaderboardSort === "rate" ? r.closingRate
+                                                : leaderboardSort === "uang" ? r.wonValue + r.walkinValue
+                                                : 0;
+                                            const topVal = Math.max(1, ...sortedLeaderboard.map(metricVal));
+                                            return sortedLeaderboard.map((row, i) => {
                                             const isPodium = leaderboardSort !== "cs" && i < 3;
                                             const champ = i === 0 && leaderboardSort !== "cs" ? CHAMP_TITLE[leaderboardSort] : null;
+                                            const isChampion = i === 0 && leaderboardSort !== "cs";
+                                            const pct = leaderboardSort !== "cs" ? Math.round((metricVal(row) / topVal) * 100) : 0;
                                             return (
                                             <tr
                                                 key={row.userId}
-                                                className={`border-t hover:bg-gray-50 ${isPodium ? `${PODIUM_TINT[i]} border-l-4 ${PODIUM_ACCENT[i]}` : ""}`}
+                                                className={`border-t transition-colors hover:bg-accent/50 animate-in fade-in slide-in-from-bottom-1 ${
+                                                    isChampion
+                                                        ? "ring-1 ring-amber-500/30 bg-gradient-to-r from-amber-500/10 to-transparent"
+                                                        : isPodium ? "bg-muted/40 border-l-4 " + PODIUM_ACCENT[i] : ""
+                                                }`}
+                                                style={{ animationDelay: `${i * 30}ms` }}
                                             >
                                                 <td className="py-2 px-2 text-center">
                                                     {isPodium
                                                         ? <span className="text-lg">{MEDAL[i]}</span>
-                                                        : <span className="text-gray-400">{i + 1}</span>}
+                                                        : <span className="text-muted-foreground font-mono text-xs">{i + 1}</span>}
                                                 </td>
                                                 <td className="py-2 px-2">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span className={`font-semibold ${i === 0 && isPodium ? "text-amber-700" : ""}`}>{row.name}</span>
-                                                        {champ && (
-                                                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 text-[9px] font-bold whitespace-nowrap">
-                                                                {champ.icon} {champ.label}
-                                                            </span>
-                                                        )}
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${AVATAR_ACCENTS[i % AVATAR_ACCENTS.length]}`}>
+                                                            {initials(row.name)}
+                                                        </span>
+                                                        <div className="min-w-[120px]">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className={`font-semibold ${isChampion ? "text-amber-700 dark:text-amber-300" : ""}`}>{row.name}</span>
+                                                                {champ && (
+                                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[9px] font-bold whitespace-nowrap">
+                                                                        {champ.icon} {champ.label}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            {leaderboardSort !== "cs" && (
+                                                                <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full rounded-full transition-[width] duration-500 ${isChampion ? "bg-amber-500" : "bg-primary/70"}`}
+                                                                        style={{ width: `${pct}%` }}
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="py-2 px-2 text-right font-mono text-gray-600">{row.leadsHandled}</td>
+                                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">{row.leadsHandled}</td>
                                                 <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.dealsClosed}</td>
                                                 <td className="py-2 px-2 text-right font-mono text-blue-600 font-semibold">
-                                                    {row.pcsOrdered > 0 ? `${row.pcsOrdered.toLocaleString('id-ID')} pcs` : <span className="text-gray-300">—</span>}
+                                                    {row.pcsOrdered > 0 ? `${row.pcsOrdered.toLocaleString('id-ID')} pcs` : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-amber-600 font-semibold">
-                                                    {row.walkinPcs > 0 ? `${row.walkinPcs.toLocaleString('id-ID')} pcs` : <span className="text-gray-300">—</span>}
+                                                    {row.walkinPcs > 0 ? `${row.walkinPcs.toLocaleString('id-ID')} pcs` : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-amber-600">
-                                                    {row.walkinTx > 0 ? row.walkinTx.toLocaleString('id-ID') : <span className="text-gray-300">—</span>}
+                                                    {row.walkinTx > 0 ? row.walkinTx.toLocaleString('id-ID') : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-red-600">{row.dealsLost}</td>
                                                 <td className="py-2 px-2 text-right font-mono text-orange-600">
-                                                    {row.invalidLeads > 0 ? row.invalidLeads : <span className="text-gray-300">—</span>}
+                                                    {row.invalidLeads > 0 ? row.invalidLeads : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono">
                                                     {(row.closingRate * 100).toFixed(0)}%
@@ -418,38 +509,39 @@ export default function CrmDashboardPage() {
                                                 <td className="py-2 px-2 text-right font-mono text-emerald-700">
                                                     {row.wonValue > 0
                                                         ? `Rp ${row.wonValue.toLocaleString('id-ID')}`
-                                                        : <span className="text-gray-300">—</span>}
+                                                        : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-amber-600 font-semibold">
                                                     {row.walkinValue > 0
                                                         ? `Rp ${row.walkinValue.toLocaleString('id-ID')}`
-                                                        : <span className="text-gray-300">—</span>}
+                                                        : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-amber-600">
                                                     {row.pendingValue > 0 ? (
                                                         <span title="Saldo piutang dari transaksi PENDING/DP belum lunas">
                                                             Rp {row.pendingValue.toLocaleString('id-ID')}
                                                         </span>
-                                                    ) : <span className="text-gray-300">—</span>}
+                                                    ) : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
                                                 <td className="py-2 px-2 text-right font-mono text-red-600">
                                                     {row.lostValue > 0
                                                         ? `Rp ${row.lostValue.toLocaleString('id-ID')}`
-                                                        : <span className="text-gray-300">—</span>}
+                                                        : <span className="text-muted-foreground/40">—</span>}
                                                 </td>
-                                                <td className="py-2 px-2 text-right font-mono text-gray-500">
+                                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">
                                                     {row.avgResponseHrs != null
                                                         ? `${row.avgResponseHrs.toFixed(1)}h`
-                                                        : <span className="text-gray-400">—</span>}
+                                                        : <span className="text-muted-foreground">—</span>}
                                                 </td>
                                             </tr>
                                             );
-                                        })}
+                                        });
+                                        })()}
                                     </tbody>
                                     {/* Footer: total row */}
                                     <tfoot>
-                                        <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-xs">
-                                            <td colSpan={2} className="py-2 px-2 text-gray-500">Total</td>
+                                        <tr className="border-t-2 border-border bg-muted font-semibold text-xs">
+                                            <td colSpan={2} className="py-2 px-2 text-muted-foreground">Total</td>
                                             <td className="py-2 px-2 text-right font-mono">{data.totals.totalLeads}</td>
                                             <td className="py-2 px-2 text-right font-mono text-emerald-700">{data.totals.closedWon}</td>
                                             <td className="py-2 px-2 text-right font-mono text-blue-600">
@@ -475,7 +567,7 @@ export default function CrmDashboardPage() {
                                                     ? `Rp ${data.totals.lostValue.toLocaleString('id-ID')}`
                                                     : '—'}
                                             </td>
-                                            <td className="py-2 px-2 text-right font-mono text-gray-500">
+                                            <td className="py-2 px-2 text-right font-mono text-muted-foreground">
                                                 {data.metrics.responseTimeAvgHrs > 0
                                                     ? `${data.metrics.responseTimeAvgHrs.toFixed(1)}h`
                                                     : '—'}
@@ -515,21 +607,28 @@ export default function CrmDashboardPage() {
 }
 
 function MetricCard({
-    icon, label, value, sub, color,
+    icon, label, value, sub, accent, delay = 0,
 }: {
     icon: React.ReactNode;
     label: string;
     value: string;
     sub: string;
-    color: string;
+    accent: string;
+    delay?: number;
 }) {
     return (
-        <div className={`border rounded-xl p-4 ${color}`}>
-            <div className="flex items-center gap-2 mb-1 text-xs font-bold uppercase">
-                {icon} {label}
+        <div
+            className="bg-card rounded-2xl border border-border shadow-sm p-4 transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40 animate-in fade-in slide-in-from-bottom-2 duration-500"
+            style={{ animationDelay: `${delay}ms` }}
+        >
+            <div className="flex items-center gap-2.5 mb-2">
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${accent}`}>
+                    {icon}
+                </div>
+                <div className="text-xs text-muted-foreground font-medium leading-tight uppercase tracking-wide">{label}</div>
             </div>
-            <div className="text-2xl font-bold font-mono">{value}</div>
-            <div className="text-xs opacity-70 mt-1">{sub}</div>
+            <div className="text-2xl font-bold font-mono text-foreground">{value}</div>
+            <div className="text-xs text-muted-foreground mt-1">{sub}</div>
         </div>
     );
 }
@@ -576,13 +675,15 @@ function ProductTrendChart({
     const grandTotal = group?.totals.reduce((s, t) => s + t.pcs, 0) ?? 0;
 
     return (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <h2 className="font-bold text-base flex items-center gap-2">
-                    <Package className="h-5 w-5 text-indigo-500" />
+                    <span className="h-8 w-8 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
+                        <Package className="h-5 w-5" />
+                    </span>
                     Tren Produk Diorder
                     {data && (
-                        <span className="text-xs font-normal text-gray-400">
+                        <span className="text-xs font-normal text-muted-foreground">
                             ({data.bucketBy === "week" ? "per minggu" : "per hari"})
                         </span>
                     )}
@@ -594,7 +695,7 @@ function ProductTrendChart({
                         onChange={(e) => setCsId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
                         disabled={globalActive}
                         title={globalActive ? "Mengikuti filter staff di atas halaman" : undefined}
-                        className="text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-gray-100 disabled:text-gray-400"
+                        className="text-xs font-semibold border border-border rounded-lg px-2.5 py-1.5 bg-card outline-none focus:ring-2 focus:ring-indigo-300 disabled:bg-muted disabled:text-muted-foreground"
                     >
                         <option value="ALL">Semua CS</option>
                         {csOptions.map(c => (
@@ -605,16 +706,16 @@ function ProductTrendChart({
                         )}
                     </select>
                     {/* Toggle Kategori / Produk */}
-                    <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs font-semibold">
+                    <div className="flex bg-muted rounded-lg p-0.5 text-xs font-semibold">
                         <button
                             onClick={() => setMode("category")}
-                            className={`px-3 py-1 rounded-md transition-colors ${mode === "category" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                            className={`px-3 py-1 rounded-md transition-colors ${mode === "category" ? "bg-card text-indigo-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                         >
                             Kategori
                         </button>
                         <button
                             onClick={() => setMode("product")}
-                            className={`px-3 py-1 rounded-md transition-colors ${mode === "product" ? "bg-white text-indigo-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                            className={`px-3 py-1 rounded-md transition-colors ${mode === "product" ? "bg-card text-indigo-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                         >
                             Produk
                         </button>
@@ -622,11 +723,16 @@ function ProductTrendChart({
                 </div>
             </div>
 
+            <p className="text-[11px] text-muted-foreground -mt-1 mb-3">
+                Dari <strong>semua transaksi POS</strong> di periode (termasuk walk-in tanpa lead), berdasarkan <strong>tanggal transaksi</strong>.
+                Item add-on (kerah/lengan/rib) tidak dihitung sebagai pcs.
+            </p>
+
             {/* Pisahan sumber: dari lead vs dari walk-in (saat filter CS aktif) */}
             {effectiveCsId !== "ALL" && data?.sourceSplit && (
                 <div className="flex flex-wrap items-center gap-2 mb-3 text-xs">
-                    <span className="text-gray-500">
-                        Order <strong className="text-gray-700">{csOptions.find(c => c.id === effectiveCsId)?.name}</strong>:
+                    <span className="text-muted-foreground">
+                        Order <strong className="text-foreground">{csOptions.find(c => c.id === effectiveCsId)?.name}</strong>:
                     </span>
                     <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-full px-2.5 py-1">
                         <span className="font-medium text-indigo-700">Dari Lead</span>
@@ -636,7 +742,7 @@ function ProductTrendChart({
                         <span className="font-medium text-amber-700">Dari Walk-in</span>
                         <span className="font-mono text-amber-600">{data.sourceSplit.walkin.toLocaleString("id-ID")} pcs</span>
                     </div>
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-[11px] text-muted-foreground">
                         (walk-in dicocokkan dari Kasir/Staff)
                     </span>
                 </div>
@@ -647,20 +753,21 @@ function ProductTrendChart({
                     <Loader2 className="h-6 w-6 animate-spin text-indigo-500" />
                 </div>
             ) : !hasData ? (
-                <p className="text-sm text-gray-500 text-center py-12">
+                <p className="text-sm text-muted-foreground text-center py-12">
                     Belum ada order di periode ini.
                 </p>
             ) : (
                 <>
                     <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={group!.data} margin={{ top: 10, right: 20, left: -10, bottom: 5 }}>
-                            <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                            <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
+                            <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
                             <Tooltip
                                 formatter={(value: any, name: any) => [`${value} pcs`, name]}
-                                contentStyle={{ fontSize: 12 }}
+                                contentStyle={CHART_TOOLTIP_STYLE} labelStyle={CHART_LABEL_STYLE} itemStyle={CHART_ITEM_STYLE}
+                                cursor={{ stroke: "var(--border)" }}
                             />
-                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            <Legend wrapperStyle={CHART_LEGEND_STYLE} />
                             {group!.series.map((s, i) => (
                                 <Line
                                     key={s}
@@ -680,13 +787,13 @@ function ProductTrendChart({
                         {group!.totals
                             .filter(t => t.pcs > 0)
                             .map((t, i) => (
-                                <div key={t.name} className="flex items-center gap-1.5 text-xs bg-gray-50 border rounded-full px-2.5 py-1">
+                                <div key={t.name} className="flex items-center gap-1.5 text-xs bg-muted border rounded-full px-2.5 py-1">
                                     <span
                                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                                         style={{ backgroundColor: TREND_COLORS[group!.series.indexOf(t.name) % TREND_COLORS.length] }}
                                     />
-                                    <span className="font-medium text-gray-700">{t.name}</span>
-                                    <span className="font-mono text-gray-500">{t.pcs.toLocaleString("id-ID")} pcs</span>
+                                    <span className="font-medium text-foreground">{t.name}</span>
+                                    <span className="font-mono text-muted-foreground">{t.pcs.toLocaleString("id-ID")} pcs</span>
                                 </div>
                             ))}
                         <div className="flex items-center gap-1.5 text-xs bg-indigo-50 border border-indigo-200 rounded-full px-2.5 py-1 ml-auto">
@@ -790,13 +897,15 @@ function SourceBreakdownChart({
         }));
 
     return (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <h2 className="font-bold text-base flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-rose-500" />
+                    <span className="h-8 w-8 rounded-xl flex items-center justify-center bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                        <TrendingUp className="h-5 w-5" />
+                    </span>
                     Breakdown per Sumber
                     {data && (
-                        <span className="text-xs font-normal text-gray-400">
+                        <span className="text-xs font-normal text-muted-foreground">
                             ({data.bucketBy === "week" ? "per minggu" : "per hari"})
                         </span>
                     )}
@@ -808,7 +917,7 @@ function SourceBreakdownChart({
                         onChange={(e) => setCsId(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
                         disabled={globalActive}
                         title={globalActive ? "Mengikuti filter staff di atas halaman" : undefined}
-                        className="text-xs font-semibold border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white outline-none focus:ring-2 focus:ring-rose-300 disabled:bg-gray-100 disabled:text-gray-400"
+                        className="text-xs font-semibold border border-border rounded-lg px-2.5 py-1.5 bg-card outline-none focus:ring-2 focus:ring-rose-300 disabled:bg-muted disabled:text-muted-foreground"
                     >
                         <option value="ALL">Semua CS</option>
                         {csOptions.map(c => (
@@ -819,16 +928,16 @@ function SourceBreakdownChart({
                         )}
                     </select>
                     {/* Toggle metrik */}
-                    <div className="flex bg-gray-100 rounded-lg p-0.5 text-xs font-semibold">
+                    <div className="flex bg-muted rounded-lg p-0.5 text-xs font-semibold">
                         <button
                             onClick={() => setMetric("pcs")}
-                            className={`px-3 py-1 rounded-md transition-colors ${metric === "pcs" ? "bg-white text-rose-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                            className={`px-3 py-1 rounded-md transition-colors ${metric === "pcs" ? "bg-card text-rose-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                         >
                             Pcs
                         </button>
                         <button
                             onClick={() => setMetric("value")}
-                            className={`px-3 py-1 rounded-md transition-colors ${metric === "value" ? "bg-white text-rose-600 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                            className={`px-3 py-1 rounded-md transition-colors ${metric === "value" ? "bg-card text-rose-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                         >
                             Nilai Rp
                         </button>
@@ -836,9 +945,14 @@ function SourceBreakdownChart({
                 </div>
             </div>
 
+            <p className="text-[11px] text-muted-foreground -mt-1 mb-3">
+                Hanya dari <strong>lead</strong> (sesuai filter status), berdasarkan <strong>tanggal lead masuk</strong> — pcs diambil dari nota hasil closing.
+                Order walk-in tanpa lead tidak dihitung di sini, jadi total pcs wajar lebih kecil dari Tren Produk.
+            </p>
+
             {/* Filter status */}
             <div className="flex items-center gap-1.5 flex-wrap mb-3">
-                <span className="text-[11px] text-gray-400 font-semibold uppercase mr-1">Status:</span>
+                <span className="text-[11px] text-muted-foreground font-semibold uppercase mr-1">Status:</span>
                 {BREAKDOWN_STATUS.map(s => (
                     <button
                         key={s.value}
@@ -849,7 +963,7 @@ function SourceBreakdownChart({
                     </button>
                 ))}
                 {metric === "pcs" && statuses.some(s => s !== "CLOSED_WON") && (
-                    <span className="text-[10px] text-gray-400 italic ml-1">
+                    <span className="text-[10px] text-muted-foreground italic ml-1">
                         Pcs hanya dari Closing — Lost/Invalid belum jadi order
                     </span>
                 )}
@@ -860,7 +974,7 @@ function SourceBreakdownChart({
                     <Loader2 className="h-6 w-6 animate-spin text-rose-500" />
                 </div>
             ) : !hasSources ? (
-                <p className="text-sm text-gray-500 text-center py-12">
+                <p className="text-sm text-muted-foreground text-center py-12">
                     Belum ada data di periode & filter ini.
                 </p>
             ) : (
@@ -874,17 +988,17 @@ function SourceBreakdownChart({
                                 <button
                                     key={s.key}
                                     onClick={() => toggleSource(s.key)}
-                                    className={`text-left rounded-lg border-2 p-2.5 transition-all ${active ? "bg-white shadow-sm" : "bg-gray-50 border-gray-200 opacity-60 hover:opacity-100"}`}
+                                    className={`text-left rounded-lg border-2 p-2.5 transition-all ${active ? "bg-card shadow-sm" : "bg-muted border-border opacity-60 hover:opacity-100"}`}
                                     style={active ? { borderColor: color } : undefined}
                                 >
                                     <div className="flex items-center gap-1.5 mb-1">
                                         <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: active ? color : "#cbd5e1" }} />
-                                        <span className="text-xs font-semibold text-gray-700 truncate">{srcLabel(s.key)}</span>
+                                        <span className="text-xs font-semibold text-foreground truncate">{srcLabel(s.key)}</span>
                                     </div>
-                                    <div className="font-mono font-bold text-sm text-gray-800">
+                                    <div className="font-mono font-bold text-sm text-foreground">
                                         {metric === "pcs" ? `${s.pcs.toLocaleString("id-ID")} pcs` : `Rp ${s.value.toLocaleString("id-ID")}`}
                                     </div>
-                                    <div className="font-mono text-[10px] text-gray-400">
+                                    <div className="font-mono text-[10px] text-muted-foreground">
                                         {metric === "pcs" ? `Rp ${fmtRpShort(s.value)}` : `${s.pcs.toLocaleString("id-ID")} pcs`}
                                     </div>
                                 </button>
@@ -894,16 +1008,17 @@ function SourceBreakdownChart({
 
                     {/* Chart perbandingan */}
                     {activeSources.length === 0 ? (
-                        <p className="text-sm text-gray-400 text-center py-12">
+                        <p className="text-sm text-muted-foreground text-center py-12">
                             Klik kotak sumber di atas untuk menampilkan grafik perbandingan.
                         </p>
                     ) : (
                         <ResponsiveContainer width="100%" height={300}>
                             <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                                <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
                                 <YAxis
-                                    tick={{ fontSize: 11 }}
+                                    tick={CHART_AXIS_TICK}
                                     allowDecimals={false}
+                                    axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }}
                                     tickFormatter={(v: any) => metric === "value" ? fmtRpShort(Number(v)) : `${v}`}
                                 />
                                 <Tooltip
@@ -911,9 +1026,10 @@ function SourceBreakdownChart({
                                         metric === "value" ? `Rp ${Number(value).toLocaleString("id-ID")}` : `${value} pcs`,
                                         srcLabel(String(name)),
                                     ]}
-                                    contentStyle={{ fontSize: 12 }}
+                                    contentStyle={CHART_TOOLTIP_STYLE} labelStyle={CHART_LABEL_STYLE} itemStyle={CHART_ITEM_STYLE}
+                                    cursor={{ stroke: "var(--border)" }}
                                 />
-                                <Legend wrapperStyle={{ fontSize: 11 }} formatter={(v: any) => srcLabel(String(v))} />
+                                <Legend wrapperStyle={CHART_LEGEND_STYLE} formatter={(v: any) => srcLabel(String(v))} />
                                 {activeSources.map(key => (
                                     <Line
                                         key={key}
@@ -933,25 +1049,26 @@ function SourceBreakdownChart({
                     {rateData.length > 0 && (
                         <div className="mt-5 pt-4 border-t">
                             <div className="flex items-center justify-between flex-wrap gap-1 mb-2">
-                                <h3 className="text-sm font-bold text-gray-700">Closing Rate per Sumber</h3>
-                                <span className="text-[10px] text-gray-400 italic">
+                                <h3 className="text-sm font-bold text-foreground">Closing Rate per Sumber</h3>
+                                <span className="text-[10px] text-muted-foreground italic">
                                     Dari semua lead di periode ini (lepas filter status di atas; Invalid tidak dihitung)
                                 </span>
                             </div>
                             <ResponsiveContainer width="100%" height={Math.max(140, rateData.length * 36)}>
                                 <BarChart data={rateData} layout="vertical" margin={{ top: 5, right: 40, left: 10, bottom: 5 }}>
-                                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v: any) => `${v}%`} tick={{ fontSize: 11 }} />
-                                    <YAxis type="category" dataKey="name" width={95} tick={{ fontSize: 11 }} />
+                                    <XAxis type="number" domain={[0, 100]} tickFormatter={(v: any) => `${v}%`} tick={CHART_AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
+                                    <YAxis type="category" dataKey="name" width={95} tick={CHART_AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
                                     <Tooltip
+                                        cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                                         formatter={(value: any, _n: any, p: any) => [
                                             `${value}%  (${p.payload.won}/${p.payload.valid} lead)`,
                                             "Closing rate",
                                         ]}
-                                        contentStyle={{ fontSize: 12 }}
+                                        contentStyle={CHART_TOOLTIP_STYLE} labelStyle={CHART_LABEL_STYLE} itemStyle={CHART_ITEM_STYLE}
                                     />
-                                    <Bar dataKey="rate" radius={[0, 4, 4, 0]} label={{ position: "right", formatter: (v: any) => `${v}%`, fontSize: 11, fill: "#6b7280" }}>
+                                    <Bar dataKey="rate" radius={[0, 6, 6, 0]} label={{ position: "right", formatter: (v: any) => `${v}%`, fontSize: 11, fill: "var(--muted-foreground)" }}>
                                         {rateData.map((_e, i) => (
-                                            <Cell key={i} fill={TREND_COLORS[i % TREND_COLORS.length]} />
+                                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                                         ))}
                                     </Bar>
                                 </BarChart>
@@ -1009,14 +1126,16 @@ function DesignerLeaderboard({
     const champKey = sort === "designer" ? null : sort;
 
     return (
-        <div className="bg-white rounded-xl border p-5">
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-5 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500">
             <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
                 <h2 className="font-bold text-base flex items-center gap-2">
-                    <Palette className="h-5 w-5 text-fuchsia-500" />
+                    <span className="h-8 w-8 rounded-xl flex items-center justify-center bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300">
+                        <Palette className="h-5 w-5" />
+                    </span>
                     Leaderboard Designer
                 </h2>
                 <div className="flex items-center gap-1 flex-wrap">
-                    <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1">Urutkan:</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase mr-1">Urutkan:</span>
                     {([
                         { key: "designer",   label: "Designer" },
                         { key: "omzet",      label: "Omzet" },
@@ -1027,10 +1146,10 @@ function DesignerLeaderboard({
                         <button
                             key={key}
                             onClick={() => setSort(key)}
-                            className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                                 sort === key
-                                    ? "bg-fuchsia-500 text-white border-fuchsia-500"
-                                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-accent"
                             }`}
                         >
                             {label}
@@ -1038,7 +1157,7 @@ function DesignerLeaderboard({
                     ))}
                     <button
                         onClick={() => setShowChart(true)}
-                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors ml-1"
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors ml-1"
                     >
                         <BarChart3 className="h-3.5 w-3.5" /> Grafik Desainer
                     </button>
@@ -1064,14 +1183,14 @@ function DesignerLeaderboard({
                     <Loader2 className="h-6 w-6 animate-spin text-fuchsia-500" />
                 </div>
             ) : rows.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-6">
+                <p className="text-sm text-muted-foreground text-center py-6">
                     Belum ada job desain yang ter-assign ke designer di periode ini.
                 </p>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b text-xs text-gray-500 uppercase">
+                            <tr className="border-b text-xs text-muted-foreground uppercase">
                                 <th className="text-left py-2 px-2">#</th>
                                 <th className="text-left py-2 px-2">Designer</th>
                                 <th className="text-right py-2 px-2 text-green-700">Omzet</th>
@@ -1082,7 +1201,7 @@ function DesignerLeaderboard({
                                 <th className="text-right py-2 px-2 text-cyan-700">Konv. SO</th>
                                 <th className="text-right py-2 px-2 text-emerald-600">ACC</th>
                                 <th className="text-right py-2 px-2">ACC Rate</th>
-                                <th className="text-right py-2 px-2 text-slate-500">Masih Desain</th>
+                                <th className="text-right py-2 px-2 text-muted-foreground">Masih Desain</th>
                                 <th className="text-right py-2 px-2 text-red-600">Retur</th>
                                 <th className="text-right py-2 px-2">Selesai</th>
                                 <th className="text-right py-2 px-2 text-amber-600">Batal</th>
@@ -1091,62 +1210,93 @@ function DesignerLeaderboard({
                             </tr>
                         </thead>
                         <tbody>
-                            {rows.map((row, i) => {
+                            {(() => {
+                                const metricVal = (r: typeof rows[number]) =>
+                                    sort === "omzet" ? r.omzet
+                                    : sort === "assignment" ? r.assignment
+                                    : sort === "acc" ? r.acc
+                                    : sort === "selesai" ? r.selesai
+                                    : 0;
+                                const topVal = Math.max(1, ...rows.map(metricVal));
+                                return rows.map((row, i) => {
                                 const isPodium = sort !== "designer" && i < 3;
                                 const champ = i === 0 && champKey ? DESIGNER_CHAMP[champKey] : null;
+                                const isChampion = i === 0 && sort !== "designer";
+                                const pct = sort !== "designer" ? Math.round((metricVal(row) / topVal) * 100) : 0;
                                 return (
                                 <tr
                                     key={row.name}
-                                    className={`border-t hover:bg-gray-50 ${isPodium ? `${PODIUM_TINT[i]} border-l-4 ${PODIUM_ACCENT[i]}` : ""}`}
+                                    className={`border-t transition-colors hover:bg-accent/50 animate-in fade-in slide-in-from-bottom-1 ${
+                                        isChampion
+                                            ? "ring-1 ring-fuchsia-500/30 bg-gradient-to-r from-fuchsia-500/10 to-transparent"
+                                            : isPodium ? "bg-muted/40 border-l-4 " + PODIUM_ACCENT[i] : ""
+                                    }`}
+                                    style={{ animationDelay: `${i * 30}ms` }}
                                 >
                                     <td className="py-2 px-2 text-center">
-                                        {isPodium ? <span className="text-lg">{MEDAL[i]}</span> : <span className="text-gray-400">{i + 1}</span>}
+                                        {isPodium ? <span className="text-lg">{MEDAL[i]}</span> : <span className="text-muted-foreground font-mono text-xs">{i + 1}</span>}
                                     </td>
                                     <td className="py-2 px-2">
-                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className={`font-semibold ${i === 0 && isPodium ? "text-fuchsia-700" : ""}`}>{row.name}</span>
-                                            {champ && (
-                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-300 text-[9px] font-bold whitespace-nowrap">
-                                                    {champ.icon} {champ.label}
-                                                </span>
-                                            )}
+                                        <div className="flex items-center gap-2">
+                                            <span className={`h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${AVATAR_ACCENTS[i % AVATAR_ACCENTS.length]}`}>
+                                                {initials(row.name)}
+                                            </span>
+                                            <div className="min-w-[120px]">
+                                                <div className="flex items-center gap-1.5 flex-wrap">
+                                                    <span className={`font-semibold ${isChampion ? "text-fuchsia-700 dark:text-fuchsia-300" : ""}`}>{row.name}</span>
+                                                    {champ && (
+                                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/30 text-[9px] font-bold whitespace-nowrap">
+                                                            {champ.icon} {champ.label}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {sort !== "designer" && (
+                                                    <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                                                        <div
+                                                            className={`h-full rounded-full transition-[width] duration-500 ${isChampion ? "bg-fuchsia-500" : "bg-primary/70"}`}
+                                                            style={{ width: `${pct}%` }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="py-2 px-2 text-right font-mono text-green-700 font-semibold whitespace-nowrap">{row.omzet > 0 ? `Rp ${row.omzet.toLocaleString('id-ID')}` : <span className="text-gray-300 font-normal">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-violet-600">{row.pcs > 0 ? row.pcs.toLocaleString('id-ID') : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-gray-600">{row.assignment}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-cyan-600">{row.soCreated > 0 ? row.soCreated : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-cyan-700">{row.soInvoiced > 0 ? row.soInvoiced : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-cyan-700">{row.soCreated > 0 ? `${(row.soConvRate * 100).toFixed(0)}%` : <span className="text-gray-300">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-green-700 font-semibold whitespace-nowrap">{row.omzet > 0 ? `Rp ${row.omzet.toLocaleString('id-ID')}` : <span className="text-muted-foreground/40 font-normal">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-violet-600">{row.pcs > 0 ? row.pcs.toLocaleString('id-ID') : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-muted-foreground">{row.assignment}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-cyan-600">{row.soCreated > 0 ? row.soCreated : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-cyan-700">{row.soInvoiced > 0 ? row.soInvoiced : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-cyan-700">{row.soCreated > 0 ? `${(row.soConvRate * 100).toFixed(0)}%` : <span className="text-muted-foreground/40">—</span>}</td>
                                     <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.acc}</td>
                                     <td className="py-2 px-2 text-right font-mono">{(row.accRate * 100).toFixed(0)}%</td>
-                                    <td className="py-2 px-2 text-right font-mono text-slate-500">{row.wip > 0 ? row.wip : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-red-600">{row.retur > 0 ? row.retur : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-gray-700">{row.selesai}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-amber-600">{row.batal > 0 ? row.batal : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-orange-500">{row.express > 0 ? row.express : <span className="text-gray-300">—</span>}</td>
-                                    <td className="py-2 px-2 text-right font-mono text-gray-500">{row.avgDesignHrs != null ? `${row.avgDesignHrs.toFixed(1)}h` : <span className="text-gray-400">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-muted-foreground">{row.wip > 0 ? row.wip : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-red-600">{row.retur > 0 ? row.retur : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-foreground">{row.selesai}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-amber-600">{row.batal > 0 ? row.batal : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-orange-500">{row.express > 0 ? row.express : <span className="text-muted-foreground/40">—</span>}</td>
+                                    <td className="py-2 px-2 text-right font-mono text-muted-foreground">{row.avgDesignHrs != null ? `${row.avgDesignHrs.toFixed(1)}h` : <span className="text-muted-foreground">—</span>}</td>
                                 </tr>
                                 );
-                            })}
+                                });
+                            })()}
                         </tbody>
                         <tfoot>
-                            <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-xs">
-                                <td colSpan={2} className="py-2 px-2 text-gray-500">Total</td>
+                            <tr className="border-t-2 border-border bg-muted font-semibold text-xs">
+                                <td colSpan={2} className="py-2 px-2 text-muted-foreground">Total</td>
                                 <td className="py-2 px-2 text-right font-mono text-green-700 whitespace-nowrap">{(data?.totals.omzet ?? 0) > 0 ? `Rp ${(data?.totals.omzet ?? 0).toLocaleString('id-ID')}` : '—'}</td>
                                 <td className="py-2 px-2 text-right font-mono text-violet-600">{(data?.totals.pcs ?? 0).toLocaleString('id-ID')}</td>
                                 <td className="py-2 px-2 text-right font-mono">{data?.totals.assignment ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-cyan-600">{data?.totals.soCreated ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-cyan-700">{data?.totals.soInvoiced ?? 0}</td>
-                                <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
+                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">—</td>
                                 <td className="py-2 px-2 text-right font-mono text-emerald-700">{data?.totals.acc ?? 0}</td>
-                                <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
-                                <td className="py-2 px-2 text-right font-mono text-slate-500">{data?.totals.wip ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">—</td>
+                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">{data?.totals.wip ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-red-600">{data?.totals.retur ?? 0}</td>
-                                <td className="py-2 px-2 text-right font-mono text-gray-700">{data?.totals.selesai ?? 0}</td>
+                                <td className="py-2 px-2 text-right font-mono text-foreground">{data?.totals.selesai ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-amber-600">{data?.totals.batal ?? 0}</td>
                                 <td className="py-2 px-2 text-right font-mono text-orange-500">{data?.totals.express ?? 0}</td>
-                                <td className="py-2 px-2 text-right font-mono text-gray-400">—</td>
+                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">—</td>
                             </tr>
                         </tfoot>
                     </table>
@@ -1234,29 +1384,32 @@ function LeaderboardChartModal({
     const chartData = data ? data.metrics[metric.key] ?? [] : [];
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4" onClick={onClose}>
-            <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between p-4 border-b">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200" onClick={onClose}>
+            <div className="glass-strong bg-card rounded-2xl border border-border shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-300" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between p-4 border-b border-border">
                     <h3 className="font-bold text-base flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5 text-indigo-500" /> {title}
-                        {data && <span className="text-xs font-normal text-gray-400">({data.bucketBy === "week" ? "per minggu" : "per hari"})</span>}
+                        <span className="h-8 w-8 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-300">
+                            <BarChart3 className="h-5 w-5" />
+                        </span>
+                        {title}
+                        {data && <span className="text-xs font-normal text-muted-foreground">({data.bucketBy === "week" ? "per minggu" : "per hari"})</span>}
                     </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                    <button onClick={onClose} className="p-1.5 hover:bg-accent rounded-lg transition-colors">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
                 <div className="p-4 overflow-y-auto">
                     {/* Filter metrik */}
                     <div className="flex flex-wrap gap-1.5 mb-3">
-                        <span className="text-[10px] text-gray-400 font-semibold uppercase mr-1 self-center">Metrik:</span>
+                        <span className="text-[10px] text-muted-foreground font-semibold uppercase mr-1 self-center">Metrik:</span>
                         {metrics.map(m => (
                             <button
                                 key={m.key}
                                 onClick={() => setMetricKey(m.key)}
-                                className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
                                     metricKey === m.key
-                                        ? "bg-indigo-600 text-white border-indigo-600"
-                                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted text-muted-foreground hover:bg-accent"
                                 }`}
                             >
                                 {m.label}
@@ -1267,7 +1420,7 @@ function LeaderboardChartModal({
                     {isLoading ? (
                         <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-indigo-500" /></div>
                     ) : persons.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-12">Belum ada data di periode ini.</p>
+                        <p className="text-sm text-muted-foreground text-center py-12">Belum ada data di periode ini.</p>
                     ) : (
                         <>
                             {/* Toggle orang (klik untuk tampil/sembunyi garis) */}
@@ -1278,7 +1431,7 @@ function LeaderboardChartModal({
                                         <button
                                             key={p}
                                             onClick={() => setActivePersons(prev => prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p])}
-                                            className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-all ${on ? "bg-white" : "bg-gray-50 text-gray-400 opacity-60"}`}
+                                            className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] font-medium transition-all ${on ? "bg-card" : "bg-muted text-muted-foreground opacity-60"}`}
                                             style={on ? { borderColor: colorOf(p) } : undefined}
                                         >
                                             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: on ? colorOf(p) : "#cbd5e1" }} />
@@ -1289,14 +1442,14 @@ function LeaderboardChartModal({
                             </div>
 
                             {activePersons.length === 0 ? (
-                                <p className="text-sm text-gray-400 text-center py-12">Pilih minimal satu nama di atas untuk menampilkan garis.</p>
+                                <p className="text-sm text-muted-foreground text-center py-12">Pilih minimal satu nama di atas untuk menampilkan garis.</p>
                             ) : (
                                 <ResponsiveContainer width="100%" height={320}>
                                     <LineChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-                                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} tickFormatter={(v: any) => fmtAxis(Number(v))} />
-                                        <Tooltip formatter={(v: any, n: any) => [fmtFull(Number(v)), n]} contentStyle={{ fontSize: 12 }} />
-                                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                                        <XAxis dataKey="label" tick={CHART_AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} />
+                                        <YAxis tick={CHART_AXIS_TICK} allowDecimals={false} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} tickFormatter={(v: any) => fmtAxis(Number(v))} />
+                                        <Tooltip formatter={(v: any, n: any) => [fmtFull(Number(v)), n]} contentStyle={CHART_TOOLTIP_STYLE} labelStyle={CHART_LABEL_STYLE} itemStyle={CHART_ITEM_STYLE} cursor={{ stroke: "var(--border)" }} />
+                                        <Legend wrapperStyle={CHART_LEGEND_STYLE} />
                                         {activePersons.map(p => (
                                             <Line key={p} type="monotone" dataKey={p} stroke={colorOf(p)} strokeWidth={2} dot={{ r: 2 }} activeDot={{ r: 5 }} />
                                         ))}

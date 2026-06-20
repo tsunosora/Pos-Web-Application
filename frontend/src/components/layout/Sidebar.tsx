@@ -3,149 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import {
-    LayoutDashboard,
-    ShoppingCart,
-    BarChart3,
-    Package,
-    Wallet,
-    FileText,
-    MapPin,
-    Calculator,
-    Settings,
-    Banknote,
-    Users,
-    X,
-    Store,
-    ClipboardList,
-    Printer,
-    Truck,
-    ClipboardEdit,
-    TrendingDown,
-    MousePointerClick,
-    FileSignature,
-    Building2,
-    ChevronDown,
-    ArrowLeftRight,
-    History,
-    Inbox,
-    BookOpen,
-    Sparkles,
-    MessageSquare,
-    Workflow,
-} from "lucide-react";
-import { useUIStore, SidebarSectionKey } from "@/store/ui-store";
+import { LayoutDashboard, Settings, Store, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { useUIStore } from "@/store/ui-store";
 import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { getTransactionEditRequests } from "@/lib/api/transactions";
-import { getPendingInvoiceCount } from "@/lib/api/sales-orders";
-import { getBranchInboxUnread } from "@/lib/api/branch-inbox";
-import { getBranchLedgerSummary } from "@/lib/api/branch-ledger";
-import { getProductionStats } from "@/lib/api/production";
-import { getPrintQueueStats } from "@/lib/api/print-queue";
-import { getLeadStatusSummary, getFollowUpBadgeCount } from "@/lib/api/crm";
-import { useBranchStore } from "@/store/branch-store";
-import type { LucideIcon } from "lucide-react";
+import { useNavBadges } from "@/hooks/useNavBadges";
+import { SECTIONS, TOP_LINK, isItemActive, getActiveSection, firstItemHref, type NavSection } from "./nav-config";
 
-// ── Tipe & data navigasi ─────────────────────────────────────────────────────
-interface NavItem {
-    name: string;
-    href: string;
-    icon: LucideIcon;
-    badgeKey?: 'pendingInvoice' | 'pendingEdit' | 'branchInbox' | 'ledgerOutstanding' | 'productionReady' | 'printReady' | 'crmLeadsNew' | 'crmFuPending';
-    managerOnly?: boolean;
-}
-interface NavSection {
-    key: SidebarSectionKey;
-    label: string;
-    items: NavItem[];
-}
-
-const TOP_LINK: NavItem = { name: "Dashboard", href: "/", icon: LayoutDashboard };
-
-const SECTIONS: NavSection[] = [
-    {
-        key: 'sales',
-        label: 'Penjualan & Keuangan',
-        items: [
-            { name: "Kasir POS", href: "/pos", icon: ShoppingCart },
-            { name: "Rekap Penjualan", href: "/reports/sales", icon: BarChart3 },
-            { name: "Laporan Laba Kotor", href: "/reports/profit", icon: BarChart3 },
-            { name: "Riwayat Tutup Shift", href: "/reports/shift-history", icon: History },
-            { name: "DP / Piutang", href: "/transactions/dp", icon: Wallet },
-            { name: "Cashflow Bisnis", href: "/cashflow", icon: Banknote },
-        ],
-    },
-    {
-        key: 'inventory',
-        label: 'Inventori & Stok',
-        items: [
-            { name: "Manajemen Stok", href: "/inventory", icon: Package },
-            { name: "Laporan Stok", href: "/reports/stock", icon: TrendingDown },
-            { name: "Laporan Bahan Titipan", href: "/reports/inter-branch-usage", icon: ArrowLeftRight },
-            { name: "Stok Opname", href: "/inventory/opname", icon: ClipboardList },
-            { name: "Transfer Stok Cabang", href: "/inventory/transfer", icon: ArrowLeftRight },
-            { name: "Data Supplier", href: "/inventory/suppliers", icon: Truck },
-        ],
-    },
-    {
-        key: 'production',
-        label: 'Produksi & Cetak',
-        items: [
-            { name: "Titipan Masuk", href: "/titipan-masuk", icon: Inbox, badgeKey: 'branchInbox' },
-            { name: "Titipan Keluar", href: "/titipan-keluar", icon: Inbox },
-            { name: "Buku Titipan", href: "/branch-ledger", icon: BookOpen, badgeKey: 'ledgerOutstanding' },
-            { name: "Antrian Produksi", href: "/produksi", icon: Printer, badgeKey: 'productionReady' },
-            { name: "Pipeline Produksi", href: "/produksi/pipeline", icon: Workflow },
-            { name: "Antrian Cetak Paper", href: "/print-queue", icon: Printer, badgeKey: 'printReady' },
-            { name: "Klik Mesin Cetak", href: "/click-counting", icon: MousePointerClick },
-        ],
-    },
-    {
-        key: 'customers',
-        label: 'Pelanggan & Order',
-        items: [
-            { name: "CRM Dashboard", href: "/crm", icon: BarChart3 },
-            { name: "Data Pelanggan", href: "/customers", icon: Users },
-            { name: "Leads CRM", href: "/crm/leads", icon: Sparkles, badgeKey: 'crmLeadsNew' },
-            { name: "Tugas Follow-up", href: "/crm/follow-ups", icon: ClipboardList, badgeKey: 'crmFuPending' },
-            { name: "Template Pesan", href: "/crm/templates", icon: MessageSquare },
-            { name: "Invoice & Penawaran", href: "/invoices", icon: FileText },
-            { name: "Sales Order", href: "/sales-orders", icon: FileSignature, badgeKey: 'pendingInvoice' },
-            { name: "Order Cabang", href: "/branch-orders", icon: Building2 },
-            { name: "Permintaan Edit", href: "/transactions/edit-requests", icon: ClipboardEdit, badgeKey: 'pendingEdit', managerOnly: true },
-        ],
-    },
-    {
-        key: 'landing',
-        label: 'Landing Page',
-        items: [
-            { name: "Landing Page", href: "/landing-page", icon: Store },
-            { name: "Artikel", href: "/articles", icon: FileText },
-        ],
-    },
-    {
-        key: 'others',
-        label: 'Analisa & Kalkulator',
-        items: [
-            { name: "Peta Cuan Lokasi", href: "/maps", icon: MapPin },
-            { name: "Kalkulator HPP", href: "/reports/hpp", icon: Calculator },
-        ],
-    },
-];
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function isItemActive(pathname: string, href: string): boolean {
-    if (href === '/') return pathname === '/';
-    return pathname === href || pathname.startsWith(href + '/');
-}
-
-// ── Komponen ─────────────────────────────────────────────────────────────────
 export function Sidebar() {
     const pathname = usePathname();
-    const { isSidebarOpen, closeSidebar, collapsedSections, toggleSection } = useUIStore();
+    const { isSidebarOpen, closeSidebar, sidebarCollapsed: collapsed, toggleSidebarCollapsed } = useUIStore();
     const { isManager } = useCurrentUser();
+    const { getSectionBadge, getBadge } = useNavBadges();
 
     const { data: settings } = useQuery({
         queryKey: ['store-settings'],
@@ -153,158 +23,56 @@ export function Sidebar() {
         staleTime: 5 * 60 * 1000,
     });
 
-    // Common config untuk badge polling — kurangi noise:
-    //   - refetchOnWindowFocus: false   → tab switch tidak trigger refetch
-    //   - refetchOnReconnect: 'always'  → tetap update saat balik online
-    //   - retry: false                   → kalau fail (mis. 403/500), jangan loop
-    const BADGE_POLL_LONG = 120_000;   // 2 menit — non-urgent (invoice, edit request, CRM)
-    const BADGE_POLL_MED  = 60_000;    // 1 menit — moderately urgent (production/print, inbox)
-    const BADGE_POLL_SLOW = 180_000;   // 3 menit — slowest (ledger summary)
-
-    const { data: pendingEditRequests } = useQuery({
-        queryKey: ['transaction-edit-requests', 'PENDING'],
-        queryFn: () => getTransactionEditRequests('PENDING'),
-        enabled: isManager,
-        staleTime: BADGE_POLL_LONG,
-        refetchInterval: BADGE_POLL_LONG,
-        refetchOnWindowFocus: false,
-        retry: false,
-    });
-    const pendingEditCount = pendingEditRequests?.length ?? 0;
-
-    const { data: pendingInvoiceData } = useQuery({
-        queryKey: ['so-pending-invoice-count'],
-        queryFn: getPendingInvoiceCount,
-        staleTime: BADGE_POLL_LONG,
-        refetchInterval: BADGE_POLL_LONG,
-        refetchOnWindowFocus: false,
-        retry: false,
-    });
-    const pendingInvoiceCount = pendingInvoiceData?.count ?? 0;
-
-    const { data: branchInboxData } = useQuery({
-        queryKey: ['branch-inbox-unread'],
-        queryFn: getBranchInboxUnread,
-        // Share queryKey dengan BranchInboxPopup → 1 fetch per interval.
-        staleTime: BADGE_POLL_MED - 5_000,
-        refetchInterval: BADGE_POLL_MED,
-        refetchOnWindowFocus: false,
-        retry: false,
-    });
-    const branchInboxCount = branchInboxData?.count ?? 0;
-
-    const { data: ledgerSummary } = useQuery({
-        queryKey: ['branch-ledger-summary-sidebar'],
-        queryFn: getBranchLedgerSummary,
-        staleTime: BADGE_POLL_SLOW,
-        refetchInterval: BADGE_POLL_SLOW,
-        refetchOnWindowFocus: false,
-        retry: false,
-    });
-    const ledgerOutstandingCount =
-        ledgerSummary && ledgerSummary.mode === 'single'
-            ? (ledgerSummary.outgoing.count + ledgerSummary.incoming.count > 0 ? 1 : 0)
-            : 0;
-
-    // Sidebar badge untuk Antrian Produksi & Antrian Cetak Paper —
-    // tampilkan jumlah job SELESAI (siap diambil customer) di cabang aktif.
-    // Resolve cabang: staff pakai user.branchId, owner pakai store.activeBranchId.
-    const { branchId: userBranchId, isOwner } = useCurrentUser();
-    const ownerActiveBranch = useBranchStore(s => s.activeBranchId);
-    const sidebarBranchId = isOwner ? ownerActiveBranch : userBranchId;
-
-    const { data: productionStats } = useQuery({
-        queryKey: ['production-stats-sidebar', sidebarBranchId ?? 'all'],
-        queryFn: () => getProductionStats(sidebarBranchId ?? undefined),
-        staleTime: BADGE_POLL_MED,
-        refetchInterval: BADGE_POLL_MED,
-        refetchOnWindowFocus: false,
-        retry: false,
-        enabled: isOwner ? true : userBranchId != null,
-    });
-    const productionReadyCount = productionStats?.selesai ?? 0;
-
-    const { data: printStats } = useQuery({
-        queryKey: ['print-queue-stats-sidebar', sidebarBranchId ?? 'all'],
-        queryFn: () => getPrintQueueStats(sidebarBranchId ?? undefined),
-        staleTime: BADGE_POLL_MED,
-        refetchInterval: BADGE_POLL_MED,
-        refetchOnWindowFocus: false,
-        retry: false,
-        enabled: isOwner ? true : userBranchId != null,
-    });
-    const printReadyCount = printStats?.selesai ?? 0;
-
-    const { data: crmSummary } = useQuery({
-        queryKey: ['crm-leads-summary-sidebar', sidebarBranchId ?? 'all'],
-        queryFn: getLeadStatusSummary,
-        staleTime: BADGE_POLL_LONG,
-        refetchInterval: BADGE_POLL_LONG,
-        refetchOnWindowFocus: false,
-        retry: false,
-        enabled: isOwner ? true : userBranchId != null,
-    });
-    const crmLeadsNewCount = crmSummary?.NEW ?? 0;
-
-    const { data: crmFuBadge } = useQuery({
-        queryKey: ['crm-fu-badge', sidebarBranchId ?? 'all'],
-        queryFn: () => getFollowUpBadgeCount(true),
-        staleTime: BADGE_POLL_LONG,
-        refetchInterval: BADGE_POLL_LONG,
-        refetchOnWindowFocus: false,
-        retry: false,
-        enabled: isOwner ? true : userBranchId != null,
-    });
-    const crmFuPendingCount = crmFuBadge?.count ?? 0;
-
     const storeName = settings?.storeName || 'PosPro';
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     const logoUrl = settings?.logoImageUrl ? `${API_URL}${settings.logoImageUrl}` : null;
 
+    const activeSection = getActiveSection(pathname);
     const handleLinkClick = () => {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) closeSidebar();
     };
 
-    function getBadge(item: NavItem): number {
-        if (item.badgeKey === 'pendingInvoice') return pendingInvoiceCount;
-        if (item.badgeKey === 'pendingEdit') return pendingEditCount;
-        if (item.badgeKey === 'branchInbox') return branchInboxCount;
-        if (item.badgeKey === 'ledgerOutstanding') return ledgerOutstandingCount;
-        if (item.badgeKey === 'productionReady') return productionReadyCount;
-        if (item.badgeKey === 'printReady') return printReadyCount;
-        if (item.badgeKey === 'crmLeadsNew') return crmLeadsNewCount;
-        if (item.badgeKey === 'crmFuPending') return crmFuPendingCount;
-        return 0;
-    }
+    const visibleSections = SECTIONS.filter(s => s.items.some(it => !it.managerOnly || isManager));
 
-    function NavLink({ item }: { item: NavItem }) {
-        const active = isItemActive(pathname, item.href);
-        const badge = getBadge(item);
+    // Class link nav — saat collapsed (lg+) jadi ikon terpusat.
+    const navLinkCls = (active: boolean) =>
+        cn(
+            "group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            collapsed && "lg:justify-center lg:px-2",
+            active
+                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-md ring-1 ring-sidebar-border/50"
+                : "text-sidebar-foreground/85 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground hover:shadow-sm",
+            !collapsed && !active && "hover:translate-x-0.5",
+        );
+
+    function CategoryLink({ section }: { section: NavSection }) {
+        const active = activeSection?.key === section.key;
+        const badge = getSectionBadge(section);
         return (
             <Link
-                href={item.href}
+                href={firstItemHref(section, isManager)}
                 onClick={handleLinkClick}
-                className={cn(
-                    "group flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-all",
-                    active
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                        : "text-sidebar-foreground/85 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
-                )}
+                title={section.label}
+                className={navLinkCls(active)}
                 aria-current={active ? 'page' : undefined}
             >
-                <item.icon
+                <section.icon
                     className={cn(
-                        "mr-2.5 h-4.5 w-4.5 flex-shrink-0 transition-colors",
+                        "mr-2.5 h-[18px] w-[18px] shrink-0 transition-colors",
+                        collapsed && "lg:mr-0",
                         active ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-accent-foreground",
                     )}
-                    style={{ width: 18, height: 18 }}
                     aria-hidden="true"
                 />
-                <span className="truncate">{item.name}</span>
+                <span className={cn("truncate", collapsed && "lg:hidden")}>{section.label}</span>
                 {badge > 0 && (
-                    <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-[18px] flex items-center justify-center px-1.5">
-                        {badge > 99 ? '99+' : badge}
-                    </span>
+                    <span
+                        className={cn(
+                            "h-2 w-2 rounded-full bg-red-500 ring-2 ring-sidebar/60",
+                            collapsed ? "ml-auto lg:absolute lg:top-1.5 lg:right-1.5 lg:ml-0" : "ml-auto",
+                        )}
+                        title="Ada item perlu perhatian"
+                    />
                 )}
             </Link>
         );
@@ -315,29 +83,38 @@ export function Sidebar() {
             {/* Mobile backdrop */}
             {isSidebarOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-background/70 backdrop-blur-sm lg:hidden"
+                    className="fixed inset-0 z-40 bg-background/85 backdrop-blur-3xl lg:hidden"
                     onClick={closeSidebar}
                     aria-hidden="true"
                 />
             )}
 
-            {/* Sidebar shell */}
+            {/* Sidebar shell — kategori utama saja (sub-menu pindah ke header) */}
             <aside
                 className={cn(
-                    "fixed inset-y-0 left-0 z-50 flex h-full w-72 flex-col bg-sidebar text-sidebar-foreground",
-                    "border-r border-sidebar-border shadow-xl lg:shadow-none",
-                    "transition-transform duration-300 ease-in-out",
-                    "lg:static lg:translate-x-0 lg:w-64",
+                    "fixed inset-y-0 left-0 z-50 flex h-full w-72 flex-col overflow-hidden bg-sidebar text-sidebar-foreground",
+                    "border-r border-sidebar-border shadow-xl",
+                    "transition-[transform,width] duration-300 ease-in-out",
+                    "lg:static lg:translate-x-0",
+                    collapsed ? "lg:w-[4.75rem]" : "lg:w-64",
+                    // Desktop: panel kaca "mengambang" — frosted (blur+saturate) + tepi kaca
+                    "lg:m-3 lg:h-[calc(100vh-1.5rem)] lg:rounded-3xl lg:border lg:border-white/15",
+                    "lg:bg-sidebar/40 lg:backdrop-blur-2xl lg:backdrop-saturate-150",
+                    "lg:shadow-[0_8px_40px_-8px_rgb(0_0_0/0.28),inset_0_1px_0_0_rgb(255_255_255/0.30)]",
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full",
                 )}
                 aria-label="Navigasi utama"
             >
                 {/* Brand header */}
-                <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-4 bg-sidebar-accent/30 border-b border-sidebar-border/60">
+                <div className={cn(
+                    "flex h-16 shrink-0 items-center justify-between gap-2 px-4 bg-sidebar-accent/30 border-b border-sidebar-border/60",
+                    collapsed && "lg:px-0 lg:justify-center",
+                )}>
                     <Link
                         href="/"
                         onClick={handleLinkClick}
-                        className="flex items-center gap-2.5 min-w-0 flex-1 group"
+                        title={storeName}
+                        className={cn("flex items-center gap-2.5 min-w-0 flex-1 group", collapsed && "lg:flex-none lg:justify-center")}
                     >
                         <div className="h-9 w-9 rounded-xl bg-sidebar-primary flex items-center justify-center shrink-0 overflow-hidden ring-1 ring-sidebar-border/40 group-hover:ring-sidebar-primary/40 transition">
                             {logoUrl ? (
@@ -347,7 +124,7 @@ export function Sidebar() {
                                 <Store className="h-5 w-5 text-sidebar-primary-foreground" />
                             )}
                         </div>
-                        <span className="text-base font-bold tracking-tight truncate" title={storeName}>
+                        <span className={cn("text-base font-bold tracking-tight truncate", collapsed && "lg:hidden")} title={storeName}>
                             {storeName}
                         </span>
                     </Link>
@@ -362,67 +139,92 @@ export function Sidebar() {
                     </button>
                 </div>
 
-                {/* Nav scroll area */}
-                <nav className="flex-1 overflow-y-auto px-3 py-4">
-                    {/* Top-level: Dashboard */}
-                    <div className="mb-3">
-                        <NavLink item={TOP_LINK} />
-                    </div>
+                {/* Nav — Dashboard + kategori utama */}
+                <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+                    <Link
+                        href={TOP_LINK.href}
+                        onClick={handleLinkClick}
+                        title="Dashboard"
+                        className={navLinkCls(isItemActive(pathname, '/'))}
+                        aria-current={isItemActive(pathname, '/') ? 'page' : undefined}
+                    >
+                        <LayoutDashboard className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", isItemActive(pathname, '/') ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-accent-foreground")} />
+                        <span className={cn("truncate", collapsed && "lg:hidden")}>Dashboard</span>
+                    </Link>
 
-                    {/* Sections */}
-                    <div className="space-y-3">
-                        {SECTIONS.map((section) => {
-                            const visibleItems = section.items.filter(it => !it.managerOnly || isManager);
-                            if (visibleItems.length === 0) return null;
+                    <div className="my-2 h-px bg-sidebar-border/50" />
 
-                            const collapsed = collapsedSections[section.key];
-                            // Auto-expand kalau ada item aktif di section ini
-                            const hasActive = visibleItems.some(it => isItemActive(pathname, it.href));
-                            const open = hasActive ? true : !collapsed;
-
-                            return (
-                                <div key={section.key}>
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleSection(section.key)}
-                                        className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/55 hover:text-sidebar-foreground/80 transition-colors rounded-md"
-                                        aria-expanded={open}
-                                    >
-                                        <span>{section.label}</span>
-                                        <ChevronDown
-                                            className={cn(
-                                                "h-3.5 w-3.5 transition-transform duration-200",
-                                                open ? "rotate-0" : "-rotate-90",
-                                            )}
-                                        />
-                                    </button>
-                                    {open && (
-                                        <div className="mt-1 space-y-0.5">
-                                            {visibleItems.map(item => (
-                                                <NavLink key={item.href} item={item} />
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
+                    {visibleSections.map((section) => {
+                        const isActiveSection = activeSection?.key === section.key;
+                        const subItems = section.items.filter(it => !it.managerOnly || isManager);
+                        const subActiveHref = subItems
+                            .filter(it => isItemActive(pathname, it.href))
+                            .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+                        return (
+                            <div key={section.key}>
+                                <CategoryLink section={section} />
+                                {/* Sub-item kategori aktif — hanya di drawer mobile;
+                                    di desktop sub-menu tampil inline di header. */}
+                                {isActiveSection && (
+                                    <div className="md:hidden mt-0.5 ml-3.5 space-y-0.5 border-l border-sidebar-border/50 pl-2.5">
+                                        {subItems.map((item) => {
+                                            const active = item.href === subActiveHref;
+                                            const badge = getBadge(item);
+                                            return (
+                                                <Link
+                                                    key={item.href}
+                                                    href={item.href}
+                                                    onClick={handleLinkClick}
+                                                    className={cn(
+                                                        "group flex items-center rounded-lg px-2.5 py-2 text-[13px] font-medium transition-all",
+                                                        active
+                                                            ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                                                            : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                                                    )}
+                                                    aria-current={active ? 'page' : undefined}
+                                                >
+                                                    <item.icon className="mr-2 h-4 w-4 shrink-0 opacity-70" />
+                                                    <span className="truncate">{item.name}</span>
+                                                    {badge > 0 && (
+                                                        <span className="ml-auto inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                                                            {badge > 99 ? '99+' : badge}
+                                                        </span>
+                                                    )}
+                                                </Link>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </nav>
 
-                {/* Footer: Settings */}
-                <div className="shrink-0 border-t border-sidebar-border/60 p-3 bg-sidebar-accent/20">
+                {/* Footer: tombol ciutkan (desktop) + Settings */}
+                <div className="shrink-0 border-t border-sidebar-border/60 p-3 bg-sidebar-accent/20 space-y-1">
+                    <button
+                        type="button"
+                        onClick={toggleSidebarCollapsed}
+                        title={collapsed ? "Lebarkan menu" : "Ciutkan menu"}
+                        className={cn(
+                            "hidden lg:flex w-full items-center rounded-xl px-3 py-2.5 text-sm font-medium text-sidebar-foreground/85 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground transition-all duration-200",
+                            collapsed && "lg:justify-center lg:px-2",
+                        )}
+                    >
+                        {collapsed
+                            ? <PanelLeftOpen className="h-[18px] w-[18px] shrink-0 text-sidebar-foreground/60" />
+                            : <PanelLeftClose className="mr-2.5 h-[18px] w-[18px] shrink-0 text-sidebar-foreground/60" />}
+                        <span className={cn("truncate", collapsed && "lg:hidden")}>Ciutkan</span>
+                    </button>
+
                     <Link
                         href="/settings"
                         onClick={handleLinkClick}
-                        className={cn(
-                            "group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                            isItemActive(pathname, '/settings')
-                                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
-                                : "text-sidebar-foreground/85 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                        )}
+                        title="Pengaturan"
+                        className={navLinkCls(isItemActive(pathname, '/settings'))}
                     >
-                        <Settings className="mr-2.5 h-[18px] w-[18px] text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors" />
-                        Pengaturan
+                        <Settings className={cn("mr-2.5 h-[18px] w-[18px] shrink-0 text-sidebar-foreground/60 group-hover:text-sidebar-foreground transition-colors", collapsed && "lg:mr-0")} />
+                        <span className={cn("truncate", collapsed && "lg:hidden")}>Pengaturan</span>
                     </Link>
                 </div>
             </aside>

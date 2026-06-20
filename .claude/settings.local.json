@@ -113,7 +113,9 @@
       "Bash(cmd //c \"tasklist | findstr /I node\")",
       "Bash(cd /d/FAISAL/appdev/comprehensive-pos-web-application/frontend && grep -rn \"productVariant\\\\.product\\\\|productVariant\\\\.variantName\" src/app/print-queue/ 2>/dev/null | grep -v \"?\\\\.\" | head)",
       "Bash(cmd //c \"curl -s -X POST http://localhost:3001/work-orders -H \\\\\"Content-Type: application/json\\\\\" -d \\\\\"{\\\\\\\\\\\\\"productionJobId\\\\\\\\\\\\\":999999}\\\\\"\")",
-      "Bash(cd /d/FAISAL/appdev/comprehensive-pos-web-application && grep -n \"import { useEffect\" frontend/src/components/produksi/WorkOrderModal.tsx)"
+      "Bash(cd /d/FAISAL/appdev/comprehensive-pos-web-application && grep -n \"import { useEffect\" frontend/src/components/produksi/WorkOrderModal.tsx)",
+      "PowerShell(Get-CimInstance *)",
+      "Read(//c/Users/awokawok/AppData/Local/Temp/claude/D--FAISAL-appdev-comprehensive-pos-web-application/ecf50acf-0539-4127-9c6b-0f1d62615aa5/tasks/**)"
     ]
   }
 }

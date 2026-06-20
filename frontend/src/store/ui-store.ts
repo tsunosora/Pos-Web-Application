@@ -10,12 +10,19 @@ interface UIState {
     toggleSidebar: () => void;
     closeSidebar: () => void;
     openSidebar: () => void;
+    // Desktop: sidebar ciut ke mode ikon (rail) — persisted
+    sidebarCollapsed: boolean;
+    toggleSidebarCollapsed: () => void;
     // Collapsible sidebar groups — persisted ke localStorage
     collapsedSections: Record<SidebarSectionKey, boolean>;
     toggleSection: (key: SidebarSectionKey) => void;
     // Inventory view preference — persisted
     inventoryViewMode: InventoryViewMode;
     setInventoryViewMode: (mode: InventoryViewMode) => void;
+    // Runtime: SubNav inline di header kehabisan ruang (terpotong) → pindah ke
+    // dock mengambang di bawah, tanpa slide di header.
+    subnavOverflow: boolean;
+    setSubnavOverflow: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -25,6 +32,8 @@ export const useUIStore = create<UIState>()(
             toggleSidebar: () => set((state) => ({ isSidebarOpen: !state.isSidebarOpen })),
             closeSidebar: () => set({ isSidebarOpen: false }),
             openSidebar: () => set({ isSidebarOpen: true }),
+            sidebarCollapsed: false,
+            toggleSidebarCollapsed: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
             collapsedSections: {
                 sales: false,
                 inventory: false,
@@ -42,6 +51,8 @@ export const useUIStore = create<UIState>()(
                 })),
             inventoryViewMode: 'table',
             setInventoryViewMode: (mode) => set({ inventoryViewMode: mode }),
+            subnavOverflow: false,
+            setSubnavOverflow: (v) => set((state) => (state.subnavOverflow === v ? state : { subnavOverflow: v })),
         }),
         {
             name: 'pospro-ui',
@@ -49,6 +60,7 @@ export const useUIStore = create<UIState>()(
             partialize: (state) => ({
                 collapsedSections: state.collapsedSections,
                 inventoryViewMode: state.inventoryViewMode,
+                sidebarCollapsed: state.sidebarCollapsed,
             }),
         },
     ),

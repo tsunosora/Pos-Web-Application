@@ -34,13 +34,13 @@ const COLUMN_STYLE: Record<PipelineStage, { color: string; bg: string }> = {
     QC_PACKING:    { color: "text-amber-700",   bg: "bg-amber-50 border-amber-200" },
     KIRIM:         { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
     RETUR:         { color: "text-red-700",     bg: "bg-red-50 border-red-200" },
-    SELESAI:       { color: "text-gray-700",    bg: "bg-gray-50 border-gray-200" },
+    SELESAI:       { color: "text-foreground",    bg: "bg-muted border-border" },
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
     URGENT: "bg-red-100 text-red-700 border-red-200",
     HIGH: "bg-orange-100 text-orange-700 border-orange-200",
-    NORMAL: "bg-gray-100 text-gray-600 border-gray-200",
+    NORMAL: "bg-muted text-muted-foreground border-border",
     LOW: "bg-sky-100 text-sky-700 border-sky-200",
 };
 
@@ -267,8 +267,8 @@ export default function ProduksiPipelinePage() {
         <div className="p-2 sm:p-4 space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
-                    <h1 className="text-lg sm:text-xl font-bold text-gray-800">Pipeline Produksi</h1>
-                    <p className="text-[10px] sm:text-xs text-gray-500">
+                    <h1 className="text-lg sm:text-xl font-bold text-foreground">Pipeline Produksi</h1>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">
                         Drag &amp; drop card antar kolom. Tap-hold di mobile.
                         {isFiltering && (
                             <span className="ml-1.5 text-indigo-600 font-semibold">
@@ -298,16 +298,16 @@ export default function ProduksiPipelinePage() {
             <div className="space-y-2">
                 {/* Baris 1: Search */}
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                     <input
                         type="text"
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
                         placeholder="Cari pelanggan, no. invoice, no. job..."
-                        className="w-full pl-8 pr-8 py-1.5 bg-white border border-gray-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-300 shadow-sm"
+                        className="w-full pl-8 pr-8 py-1.5 bg-card border border-border rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-300 shadow-sm"
                     />
                     {searchQuery && (
-                        <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                        <button onClick={() => setSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-muted-foreground">
                             <X className="w-3.5 h-3.5" />
                         </button>
                     )}
@@ -317,7 +317,7 @@ export default function ProduksiPipelinePage() {
                 <div className="flex flex-wrap gap-2 items-center">
                     {/* Filter Tanggal */}
                     <div className="flex items-center gap-1 flex-wrap">
-                        <Calendar className="w-3 h-3 text-gray-400 shrink-0" />
+                        <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
                         {([
                             { key: "ALL",        label: "Semua" },
                             { key: "TODAY",      label: "Hari Ini" },
@@ -335,7 +335,7 @@ export default function ProduksiPipelinePage() {
                                             : "bg-indigo-600 text-white border-indigo-600"
                                         : key === "OVERDUE"
                                             ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
-                                            : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                            : "bg-card text-muted-foreground border-border hover:bg-muted"
                                 }`}
                             >
                                 {label}
@@ -362,8 +362,8 @@ export default function ProduksiPipelinePage() {
                                         : p === "URGENT" ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
                                         : p === "HIGH" ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
                                         : p === "LOW" ? "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100"
-                                        : p === "NORMAL" ? "bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200"
-                                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                        : p === "NORMAL" ? "bg-muted text-muted-foreground border-border hover:bg-gray-200"
+                                        : "bg-card text-muted-foreground border-border hover:bg-muted"
                                 }`}
                             >
                                 {p === "ALL" ? "Semua" : p}
@@ -376,13 +376,13 @@ export default function ProduksiPipelinePage() {
 
                     {/* Filter Designer */}
                     <div className="flex items-center gap-1 flex-wrap">
-                        <Pen className="w-3 h-3 text-gray-400 shrink-0" />
+                        <Pen className="w-3 h-3 text-muted-foreground shrink-0" />
                         <button
                             onClick={() => setFilterDesigner("ALL")}
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
                                 filterDesigner === "ALL"
                                     ? "bg-indigo-600 text-white border-indigo-600"
-                                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                    : "bg-card text-muted-foreground border-border hover:bg-muted"
                             }`}
                         >
                             Semua
@@ -392,7 +392,7 @@ export default function ProduksiPipelinePage() {
                             className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
                                 filterDesigner === "__UNASSIGNED__"
                                     ? "bg-gray-600 text-white border-gray-600"
-                                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+                                    : "bg-card text-muted-foreground border-border hover:bg-muted"
                             }`}
                         >
                             Belum Assign
@@ -415,7 +415,7 @@ export default function ProduksiPipelinePage() {
                     {isFiltering && (
                         <button
                             onClick={() => { setSearchQuery(""); setFilterPriority("ALL"); setFilterDate("ALL"); setFilterDesigner("ALL"); }}
-                            className="text-[11px] text-gray-500 hover:text-gray-700 underline whitespace-nowrap ml-auto"
+                            className="text-[11px] text-muted-foreground hover:text-foreground underline whitespace-nowrap ml-auto"
                         >
                             Reset filter
                         </button>
@@ -565,28 +565,28 @@ function SharePopover({ onClose }: { onClose: () => void }) {
         <>
             {/* overlay untuk close klik luar */}
             <div className="fixed inset-0 z-[40]" onClick={onClose} />
-            <div className="absolute right-0 top-full mt-2 z-[50] w-80 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 space-y-3">
+            <div className="absolute right-0 top-full mt-2 z-[50] w-80 bg-card rounded-xl shadow-2xl border border-border p-4 space-y-3">
                 <div className="flex items-center justify-between mb-1">
-                    <p className="font-semibold text-sm text-gray-800">Bagikan ke Operator / Desainer</p>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="h-4 w-4" /></button>
+                    <p className="font-semibold text-sm text-foreground">Bagikan ke Operator / Desainer</p>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-muted-foreground"><X className="h-4 w-4" /></button>
                 </div>
-                <p className="text-[11px] text-gray-500">Halaman berikut bisa diakses tanpa login — cukup masukkan PIN operator.</p>
+                <p className="text-[11px] text-muted-foreground">Halaman berikut bisa diakses tanpa login — cukup masukkan PIN operator.</p>
                 {links.map(({ label, desc, path }) => {
                     const url = `${origin}${path}`;
                     const isCopied = copied === url;
                     return (
-                        <div key={path} className="rounded-lg border border-gray-200 p-3 space-y-1.5">
+                        <div key={path} className="rounded-lg border border-border p-3 space-y-1.5">
                             <div>
-                                <p className="text-xs font-semibold text-gray-800">{label}</p>
-                                <p className="text-[10px] text-gray-500">{desc}</p>
+                                <p className="text-xs font-semibold text-foreground">{label}</p>
+                                <p className="text-[10px] text-muted-foreground">{desc}</p>
                             </div>
-                            <div className="flex items-center gap-1 bg-gray-50 rounded px-2 py-1 border border-gray-200">
-                                <span className="text-[10px] text-gray-600 font-mono truncate flex-1">{url}</span>
+                            <div className="flex items-center gap-1 bg-muted rounded px-2 py-1 border border-border">
+                                <span className="text-[10px] text-muted-foreground font-mono truncate flex-1">{url}</span>
                             </div>
                             <div className="flex gap-1.5">
                                 <button
                                     onClick={() => copy(url)}
-                                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-semibold transition-colors ${isCopied ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 hover:bg-gray-200 text-gray-700"}`}
+                                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-semibold transition-colors ${isCopied ? "bg-emerald-100 text-emerald-700" : "bg-muted hover:bg-gray-200 text-foreground"}`}
                                 >
                                     {isCopied ? <><Check className="h-3 w-3" /> Tersalin!</> : <><Copy className="h-3 w-3" /> Salin Link</>}
                                 </button>
@@ -635,7 +635,7 @@ const Column = memo(function Column({
             </div>
             <div className="p-1.5 sm:p-2 space-y-1.5 sm:space-y-2 flex-1 overflow-y-auto max-h-[60vh] sm:max-h-[72vh]">
                 {jobs.length === 0 ? (
-                    <p className="text-[10px] sm:text-xs text-gray-400 text-center py-6 italic">— kosong —</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-6 italic">— kosong —</p>
                 ) : (
                     jobs.map((job) => (
                         <KanbanCard
@@ -718,7 +718,7 @@ const URGENCY_STRIP: Record<UrgencyLevel, string> = {
 };
 
 const URGENCY_UPLOAD_BTN: Record<UrgencyLevel, string> = {
-    aman:   "border-gray-300 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600",
+    aman:   "border-border hover:border-emerald-400 hover:bg-emerald-50 text-muted-foreground hover:text-emerald-600",
     normal: "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100",
     urgent: "border-red-400 bg-red-50 text-red-700 hover:bg-red-100 animate-pulse",
 };
@@ -770,10 +770,10 @@ const KanbanCardInner = memo(function KanbanCardInner({
 
     return (
         <div
-            className={`bg-white rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs cursor-grab active:cursor-grabbing select-none ${isActive ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : job.isExpress ? "border-orange-400" : "border-gray-200"}`}
+            className={`bg-card rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs cursor-grab active:cursor-grabbing select-none ${isActive ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : job.isExpress ? "border-orange-400" : "border-border"}`}
         >
             <div className="flex items-start justify-between gap-1 mb-1">
-                <span className="font-mono font-bold text-[9px] sm:text-[10px] text-gray-600 truncate">{job.jobNumber}</span>
+                <span className="font-mono font-bold text-[9px] sm:text-[10px] text-muted-foreground truncate">{job.jobNumber}</span>
                 <div className="flex items-center gap-1 flex-shrink-0">
                     {confirmDelete ? (
                         <>
@@ -787,7 +787,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
                                 onPointerDown={(e) => e.stopPropagation()}
-                                className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-gray-700 rounded"
+                                className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-foreground rounded"
                             >Batal</button>
                         </>
                     ) : (
@@ -812,7 +812,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                             </button>
                         </>
                     )}
-                    <GripVertical className="h-3.5 w-3.5 text-gray-400" />
+                    <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
                 </div>
             </div>
 
@@ -835,27 +835,27 @@ const KanbanCardInner = memo(function KanbanCardInner({
                     className={`ml-auto text-[9px] flex items-center gap-0.5 px-1.5 py-0.5 rounded border transition-colors ${
                         job.isExpress
                             ? "border-orange-300 text-orange-600 hover:bg-orange-100"
-                            : "border-gray-200 text-gray-400 hover:text-orange-500 hover:border-orange-300"
+                            : "border-border text-muted-foreground hover:text-orange-500 hover:border-orange-300"
                     }`}
                 >
                     <Zap className="h-2.5 w-2.5" />
                 </button>
             </div>
 
-            <div className="font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">
+            <div className="font-semibold text-foreground line-clamp-2 leading-tight mb-1">
                 {productName}
             </div>
 
-            <div className="text-gray-600 space-y-0.5">
+            <div className="text-muted-foreground space-y-0.5">
                 <div className="flex items-center gap-1">
-                    <User className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                    <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{customerName}</span>
                 </div>
                 <DesignerInlineEdit
                     designerName={job.designerName}
                     onSave={(name) => onUpdateDesigner(job.id, name)}
                 />
-                <div className="text-gray-500">
+                <div className="text-muted-foreground">
                     {qty} pcs{dim && ` · ${dim}`}
                 </div>
                 {job.transaction?.id && (
@@ -877,7 +877,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                     </div>
                 )}
                 {job.deadline && !deadlineLate && (
-                    <div className="flex items-center gap-1 text-gray-500">
+                    <div className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="h-3 w-3" /> {dayjs(job.deadline).format("DD MMM")}
                     </div>
                 )}
@@ -942,7 +942,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
             ) : null}
 
             {job.pipelineStage === "JAHIT" && (job.penjahitName || job.jahitEstimate) && (
-                <div className={`mt-1.5 pt-1.5 border-t text-[10px] ${jahitLate ? "border-red-200 text-red-700 font-semibold" : "border-gray-100 text-gray-600"}`}>
+                <div className={`mt-1.5 pt-1.5 border-t text-[10px] ${jahitLate ? "border-red-200 text-red-700 font-semibold" : "border-border/60 text-muted-foreground"}`}>
                     {job.penjahitName && <div className="truncate">👔 {job.penjahitName}</div>}
                     {job.jahitEstimate && (
                         <div className="flex items-center gap-1">
@@ -1021,7 +1021,7 @@ function DesignerInlineEdit({
                     defaultValue={designerName || ""}
                     onChange={handleChange}
                     onBlur={cancel}
-                    className="flex-1 min-w-0 text-[10px] px-1 py-0.5 border border-indigo-300 rounded outline-none focus:ring-1 focus:ring-indigo-400 bg-white"
+                    className="flex-1 min-w-0 text-[10px] px-1 py-0.5 border border-indigo-300 rounded outline-none focus:ring-1 focus:ring-indigo-400 bg-card"
                 >
                     <option value="">— Kosongkan —</option>
                     {activeDesigners.map(d => (
@@ -1031,7 +1031,7 @@ function DesignerInlineEdit({
                 <button
                     type="button"
                     onMouseDown={(e) => { e.preventDefault(); cancel(); }}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-muted-foreground hover:text-muted-foreground"
                 >
                     <X className="h-3 w-3" />
                 </button>
@@ -1045,14 +1045,14 @@ function DesignerInlineEdit({
             {designerName ? (
                 <span className="truncate text-indigo-700 font-medium text-[11px]">{designerName}</span>
             ) : (
-                <span className="text-gray-400 italic text-[10px]">Belum assign</span>
+                <span className="text-muted-foreground italic text-[10px]">Belum assign</span>
             )}
             <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); open(); }}
                 onMouseDown={(e) => e.preventDefault()}
                 title="Ubah designer"
-                className="ml-auto opacity-0 group-hover/designer:opacity-100 transition-opacity text-gray-400 hover:text-indigo-600"
+                className="ml-auto opacity-0 group-hover/designer:opacity-100 transition-opacity text-muted-foreground hover:text-indigo-600"
             >
                 <Pen className="h-2.5 w-2.5" />
             </button>
@@ -1069,12 +1069,12 @@ function DragPreview({ job }: { job: PipelineJob }) {
         // will-change + translateZ: hint ke browser supaya layer ini di-composite di GPU
         // → transform animasi tidak blokir main thread → gerakan smooth
         <div
-            className="bg-white rounded-lg shadow-2xl border-2 border-indigo-400 p-2 text-xs w-56 rotate-2 cursor-grabbing"
+            className="bg-card rounded-lg shadow-2xl border-2 border-indigo-400 p-2 text-xs w-56 rotate-2 cursor-grabbing"
             style={{ willChange: "transform", transform: "translateZ(0)" }}
         >
-            <div className="font-mono font-bold text-[10px] text-gray-600 mb-1">{job.jobNumber}</div>
-            <div className="font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">{productName}</div>
-            <div className="text-gray-500 text-[11px] truncate">{customerName}</div>
+            <div className="font-mono font-bold text-[10px] text-muted-foreground mb-1">{job.jobNumber}</div>
+            <div className="font-semibold text-foreground line-clamp-2 leading-tight mb-1">{productName}</div>
+            <div className="text-muted-foreground text-[11px] truncate">{customerName}</div>
         </div>
     );
 }
@@ -1205,47 +1205,47 @@ function JahitModal({
     const canSubmit = penjahitName.trim().length > 0 && jahitInDate && jahitEstimate;
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg">Kirim ke Jahit</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                    <button onClick={onClose} className="p-1 hover:bg-muted rounded">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                     Job <span className="font-mono font-semibold">{job.jobNumber}</span> akan masuk antrian jahit.
                     Lewat estimasi → card berubah warna merah.
                 </p>
 
                 <div className="space-y-3">
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Penjahit *</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Nama Penjahit *</label>
                         <input
                             value={penjahitName}
                             onChange={(e) => setPenjahitName(e.target.value)}
                             placeholder="mis. Bu Yuni / Penjahit Sumber Rejeki"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             autoFocus
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal Masuk</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Tanggal Masuk</label>
                             <input
                                 type="date"
                                 value={jahitInDate}
                                 onChange={(e) => setJahitInDate(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Estimasi Jadi</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Estimasi Jadi</label>
                             <input
                                 type="date"
                                 value={jahitEstimate}
                                 onChange={(e) => setJahitEstimate(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
@@ -1278,24 +1278,24 @@ function ReturModal({
 }) {
     const [reason, setReason] = useState(job.returnReason || "");
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg text-red-700">Tandai Retur</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                    <button onClick={onClose} className="p-1 hover:bg-muted rounded">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-muted-foreground mb-3">
                     Job <span className="font-mono font-semibold">{job.jobNumber}</span> akan ditandai sebagai retur.
                 </p>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Alasan Retur</label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Alasan Retur</label>
                 <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     rows={3}
                     placeholder="mis. Salah ukuran, warna tidak sesuai, dll"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                     autoFocus
                 />
                 <div className="flex gap-2 mt-5">
@@ -1325,27 +1325,27 @@ function CancelModal({
 }) {
     const [reason, setReason] = useState("");
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg text-amber-700 flex items-center gap-1.5">
                         <Ban className="h-5 w-5" /> Tandai Batal
                     </h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                    <button onClick={onClose} className="p-1 hover:bg-muted rounded">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-muted-foreground mb-3">
                     Job <span className="font-mono font-semibold">{job.jobNumber}</span> ditandai batal (klien tidak jadi order).
                     Kartu hilang dari kanban, tapi tetap tercatat di leaderboard designer.
                 </p>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Alasan Batal <span className="font-normal text-gray-400">(opsional)</span></label>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Alasan Batal <span className="font-normal text-muted-foreground">(opsional)</span></label>
                 <textarea
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     rows={3}
                     placeholder="mis. Klien mundur, pindah ke kompetitor, harga tidak deal, dll"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                     autoFocus
                 />
                 <div className="flex gap-2 mt-5">

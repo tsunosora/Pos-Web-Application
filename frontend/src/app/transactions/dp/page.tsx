@@ -191,18 +191,18 @@ export default function DPTransactionsPage() {
 
             {/* Table */}
             <div className="glass rounded-xl border border-border overflow-hidden">
-                <div className="overflow-x-auto">
+                <div className="hidden lg:block overflow-x-auto">
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/50">
                             <tr>
-                                <th scope="col" className="px-6 py-4 text-left text-xs font-semibold text-muted-foreground uppercase">Pelanggan & Invoice</th>
-                                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase">Total Belanja</th>
-                                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase">DP Masuk</th>
-                                <th scope="col" className="px-6 py-4 text-right text-xs font-semibold text-muted-foreground uppercase">Sisa Tagihan</th>
-                                <th scope="col" className="px-6 py-4 text-center text-xs font-semibold text-muted-foreground uppercase">Aksi</th>
+                                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground uppercase">Pelanggan & Invoice</th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase">Total Belanja</th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase">DP Masuk</th>
+                                <th scope="col" className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase">Sisa Tagihan</th>
+                                <th scope="col" className="px-4 py-3 text-center text-xs font-semibold text-muted-foreground uppercase">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-card divide-y divide-border">
+                        <tbody className="divide-y divide-border">
                             {visibleTransactions.map((trx: any) => {
                                 const grandTotal = Number(trx.grandTotal);
                                 const dp = Number(trx.downPayment);
@@ -212,7 +212,7 @@ export default function DPTransactionsPage() {
                                 const isOverdue = trx.dueDate && dayjs(trx.dueDate).isBefore(dayjs(), 'day');
                                 return (
                                     <tr key={trx.id} className="hover:bg-muted/30 transition-colors">
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-4 py-3 whitespace-nowrap">
                                             <p className="font-semibold text-foreground">{trx.customerName || 'Pelanggan Umum'}</p>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="text-sm text-primary font-mono">{trx.invoiceNumber}</span>
@@ -231,20 +231,20 @@ export default function DPTransactionsPage() {
                                                 </p>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground text-right border-l border-border/50">
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-foreground text-right border-l border-border/50">
                                             Rp {grandTotal.toLocaleString('id-ID')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right">
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
                                             {isPending
                                                 ? <span className="text-sky-500 font-semibold text-xs">Belum Bayar</span>
                                                 : <span className="text-emerald-600">Rp {dp.toLocaleString('id-ID')}</span>
                                             }
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-orange-600 text-right bg-orange-500/5">
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-orange-600 text-right bg-orange-500/5">
                                             Rp {balance.toLocaleString('id-ID')}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center justify-center gap-2">
+                                        <td className="px-4 py-3 whitespace-nowrap">
+                                            <div className="flex items-center justify-center gap-1.5">
                                                 <button
                                                     onClick={() => handlePrintSnap(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)}
                                                     title="Cetak Struk DP"
@@ -295,6 +295,81 @@ export default function DPTransactionsPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Mobile: daftar kartu (tabel disembunyikan di < md) */}
+                <div className="lg:hidden divide-y divide-border">
+                    {visibleTransactions.map((trx: any) => {
+                        const grandTotal = Number(trx.grandTotal);
+                        const dp = Number(trx.downPayment);
+                        const isPending = trx.status === 'PENDING';
+                        const balance = isPending ? grandTotal : grandTotal - dp;
+                        const isKredit = !isPending && dp === 0;
+                        const isOverdue = trx.dueDate && dayjs(trx.dueDate).isBefore(dayjs(), 'day');
+                        return (
+                            <div key={trx.id} className="p-4 space-y-3">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <p className="font-semibold text-foreground truncate">{trx.customerName || 'Pelanggan Umum'}</p>
+                                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                            <span className="text-xs text-primary font-mono">{trx.invoiceNumber}</span>
+                                            {isPending
+                                                ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 border border-sky-500/20">BAYAR NANTI</span>
+                                                : isKredit
+                                                ? <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/20">KREDIT</span>
+                                                : <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 border border-amber-500/20">DP</span>}
+                                        </div>
+                                        {trx.dueDate && (
+                                            <p className={`text-[11px] mt-0.5 font-medium ${isOverdue ? 'text-red-500' : 'text-muted-foreground'}`}>
+                                                {isOverdue ? '⚠ Lewat jatuh tempo: ' : 'Jatuh tempo: '}{dayjs(trx.dueDate).format('DD MMM YYYY')}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                        <p className="text-[11px] text-muted-foreground">Sisa Tagihan</p>
+                                        <p className="text-base font-bold text-orange-600">Rp {balance.toLocaleString('id-ID')}</p>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                    <div className="rounded-lg bg-muted/40 px-2.5 py-1.5">
+                                        <span className="text-muted-foreground">Total Belanja</span>
+                                        <div className="font-semibold text-foreground">Rp {grandTotal.toLocaleString('id-ID')}</div>
+                                    </div>
+                                    <div className="rounded-lg bg-muted/40 px-2.5 py-1.5">
+                                        <span className="text-muted-foreground">DP Masuk</span>
+                                        <div className={`font-semibold ${isPending ? 'text-sky-500' : 'text-emerald-600'}`}>{isPending ? 'Belum Bayar' : `Rp ${dp.toLocaleString('id-ID')}`}</div>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => openModal(trx)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-semibold transition-colors">
+                                        <Wallet className="w-4 h-4" /> Bayar
+                                    </button>
+                                    <button onClick={() => handlePrintSnap(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)} title="Cetak" className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-lg transition-colors">
+                                        <Printer className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)} title="Kirim WA" className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-[#25D366]/10 hover:text-[#25D366] rounded-lg transition-colors">
+                                        <MessageCircle className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => setEditTrx(trx)} title={isManager ? 'Edit' : 'Ajukan Perubahan'} className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600 rounded-lg transition-colors">
+                                        <PenSquare className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {visibleTransactions.length === 0 && (
+                        <div className="px-6 py-12 text-center">
+                            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3 opacity-20" />
+                            <p className="text-base font-medium text-foreground">Tidak ada piutang aktif</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                {q ? `Tidak ada hasil untuk "${search}".`
+                                    : activeTab === 'Kredit' ? 'Belum ada nota kredit.'
+                                    : activeTab === 'DP' ? 'Belum ada DP aktif.'
+                                    : activeTab === 'Bayar Nanti' ? 'Belum ada invoice bayar nanti.'
+                                    : 'Semua transaksi sudah lunas.'}
+                            </p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Edit Modal */}
@@ -316,8 +391,8 @@ export default function DPTransactionsPage() {
 
             {/* PayOff Modal */}
             {selectedTrx && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/25 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="glass-strong w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[92vh]">
                         <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/30 shrink-0">
                             <div>
                                 <h3 className="font-semibold text-foreground">Pembayaran Tagihan</h3>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+<rect width="1280" height="720" fill="#0E0E11"/>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#1C1C22"/><stop offset="1" stop-color="#0A0A0C"/></linearGradient></defs>
+<rect x="0" y="0" width="1280" height="720" fill="url(#g)" opacity=".55"/>
+<line x1="80" y1="120" x2="1200" y2="120" stroke="#3A3A42" stroke-width="1"/>
+<line x1="80" y1="600" x2="1200" y2="600" stroke="#3A3A42" stroke-width="1"/>
+<text x="80" y="96" font-family="Georgia,serif" font-size="26" letter-spacing="8" fill="#8B8B92">VOLIKO PRINT</text>
+<text x="1200" y="96" text-anchor="end" font-family="Arial,sans-serif" font-size="20" letter-spacing="5" fill="#8B8B92">EST. IMOGIRI</text>
+<text x="80" y="340" font-family="Georgia,'Times New Roman',serif" font-size="92" fill="#F5F4F1">Fasilitas &amp; Proses</text>
+<text x="80" y="450" font-family="Georgia,'Times New Roman',serif" font-size="92" fill="#F5F4F1">Produksi</text>
+<line x1="80" y1="500" x2="300" y2="500" stroke="#C8C7C2" stroke-width="2"/>
+<text x="80" y="560" font-family="Arial,sans-serif" font-size="24" letter-spacing="4" fill="#8B8B92">DUA FASILITAS — IMOGIRI &amp; SEWON, BANTUL</text>
+<text x="80" y="650" font-family="Arial,sans-serif" font-size="16" letter-spacing="2" fill="#5A5A62">PLACEHOLDER — GANTI DENGAN FOTO RUANG PRODUKSI</text>
+</svg>

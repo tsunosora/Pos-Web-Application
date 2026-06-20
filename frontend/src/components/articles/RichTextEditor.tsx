@@ -36,7 +36,7 @@ function Btn({ active, onClick, children, title }: { active?: boolean; onClick: 
         <button
             type="button" title={title}
             onMouseDown={(e) => { e.preventDefault(); onClick(); }}
-            className={`px-2.5 py-1 rounded text-sm border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"}`}
+            className={`px-2.5 py-1 rounded text-sm border transition-colors ${active ? "bg-accent text-foreground border-border" : "bg-card text-muted-foreground border-border hover:bg-accent"}`}
         >
             {children}
         </button>
@@ -66,38 +66,38 @@ function Toolbar({ editor }: { editor: Editor }) {
     const setImgAlign = (a: string) => editor.chain().focus().updateAttributes("image", { align: a }).run();
 
     return (
-        <div className="flex flex-wrap gap-1 p-2 border-b border-gray-200 bg-gray-50 sticky top-0 z-10">
+        <div className="flex flex-wrap gap-1 p-2 border-b border-border bg-muted sticky top-0 z-10">
             <Btn title="Bold" active={editor.isActive("bold")} onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></Btn>
             <Btn title="Italic" active={editor.isActive("italic")} onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></Btn>
-            <span className="w-px bg-gray-300 mx-1" />
+            <span className="w-px bg-border mx-1" />
             <Btn title="Judul H2" active={editor.isActive("heading", { level: 2 })} onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Btn>
             <Btn title="Judul H3" active={editor.isActive("heading", { level: 3 })} onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}>H3</Btn>
-            <span className="w-px bg-gray-300 mx-1" />
+            <span className="w-px bg-border mx-1" />
             {/* Perataan teks */}
             <Btn title="Rata kiri" active={editor.isActive({ textAlign: "left" })} onClick={() => editor.chain().focus().setTextAlign("left").run()}>⬅</Btn>
             <Btn title="Rata tengah" active={editor.isActive({ textAlign: "center" })} onClick={() => editor.chain().focus().setTextAlign("center").run()}>⬌</Btn>
             <Btn title="Rata kanan" active={editor.isActive({ textAlign: "right" })} onClick={() => editor.chain().focus().setTextAlign("right").run()}>➡</Btn>
             <Btn title="Rata kiri-kanan (justify)" active={editor.isActive({ textAlign: "justify" })} onClick={() => editor.chain().focus().setTextAlign("justify").run()}>☰</Btn>
-            <span className="w-px bg-gray-300 mx-1" />
+            <span className="w-px bg-border mx-1" />
             <Btn title="Bullet list" active={editor.isActive("bulletList")} onClick={() => editor.chain().focus().toggleBulletList().run()}>• List</Btn>
             <Btn title="Numbered list" active={editor.isActive("orderedList")} onClick={() => editor.chain().focus().toggleOrderedList().run()}>1. List</Btn>
             <Btn title="Quote" active={editor.isActive("blockquote")} onClick={() => editor.chain().focus().toggleBlockquote().run()}>❝</Btn>
-            <span className="w-px bg-gray-300 mx-1" />
+            <span className="w-px bg-border mx-1" />
             <Btn title="Link" active={editor.isActive("link")} onClick={setLink}>🔗</Btn>
             <Btn title="Gambar" onClick={() => fileRef.current?.click()}>🖼️</Btn>
             <input ref={fileRef} type="file" accept="image/*" onChange={addImage} className="hidden" />
             {/* Posisi gambar (muncul saat gambar dipilih) */}
             {imgActive && (
                 <>
-                    <span className="w-px bg-gray-300 mx-1" />
-                    <span className="text-[11px] text-gray-400 self-center mr-1">Gambar:</span>
+                    <span className="w-px bg-border mx-1" />
+                    <span className="text-[11px] text-muted-foreground self-center mr-1">Gambar:</span>
                     <Btn title="Gambar kiri (teks di kanan)" active={imgAlign === "left"} onClick={() => setImgAlign("left")}>⇤</Btn>
                     <Btn title="Gambar tengah" active={imgAlign === "center"} onClick={() => setImgAlign("center")}>⇆</Btn>
                     <Btn title="Gambar kanan (teks di kiri)" active={imgAlign === "right"} onClick={() => setImgAlign("right")}>⇥</Btn>
                     <Btn title="Gambar normal (lebar penuh)" active={!imgAlign || imgAlign === "none"} onClick={() => setImgAlign("none")}>▭</Btn>
                 </>
             )}
-            <span className="w-px bg-gray-300 mx-1" />
+            <span className="w-px bg-border mx-1" />
             <Btn title="Undo" onClick={() => editor.chain().focus().undo().run()}>↶</Btn>
             <Btn title="Redo" onClick={() => editor.chain().focus().redo().run()}>↷</Btn>
         </div>
@@ -125,9 +125,9 @@ export function RichTextEditor({ value, onChange }: { value: string; onChange: (
     }, [value, editor]);
 
     return (
-        <div className="border border-gray-200 rounded-lg overflow-hidden bg-white">
+        <div className="border border-border rounded-lg overflow-hidden bg-background text-foreground">
             <style>{`
-.article-prose{min-height:320px;padding:16px 20px;outline:none;line-height:1.7;color:#1f2937}
+.article-prose{min-height:320px;padding:16px 20px;outline:none;line-height:1.7;color:var(--foreground)}
 .article-prose:after{content:"";display:block;clear:both}
 .article-prose:focus{outline:none}
 .article-prose h2{font-size:1.5rem;font-weight:700;margin:1.2em 0 .4em}
@@ -135,11 +135,11 @@ export function RichTextEditor({ value, onChange }: { value: string; onChange: (
 .article-prose p{margin:.6em 0}
 .article-prose ul{list-style:disc;padding-left:1.4em;margin:.6em 0}
 .article-prose ol{list-style:decimal;padding-left:1.4em;margin:.6em 0}
-.article-prose blockquote{border-left:3px solid #cbd5e1;padding-left:1em;color:#64748b;margin:.8em 0}
+.article-prose blockquote{border-left:3px solid var(--border);padding-left:1em;color:var(--muted-foreground);margin:.8em 0}
 .article-prose img{max-width:100%;border-radius:10px;margin:.6em 0}
 .article-prose img.ProseMirror-selectednode{outline:2px solid #4f46e5}
 .article-prose a{color:#4f46e5;text-decoration:underline}
-.article-prose:empty:before{content:"Tulis isi artikel di sini…";color:#94a3b8}
+.article-prose:empty:before{content:"Tulis isi artikel di sini…";color:var(--muted-foreground)}
 `}</style>
             {editor && <Toolbar editor={editor} />}
             <EditorContent editor={editor} />

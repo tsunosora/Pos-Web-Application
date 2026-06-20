@@ -201,8 +201,32 @@
 }
 
 @layer utilities {
+  /* Glassmorphism: frosted (blur+saturate) + tepi kaca (inner top highlight) */
   .glass {
-    @apply bg-card/70 backdrop-blur-md border border-border/50 shadow-sm;
+    @apply bg-card/55 backdrop-blur-2xl backdrop-saturate-150 border border-border/40;
+    box-shadow: 0 8px 32px -10px rgb(0 0 0 / 0.20), inset 0 1px 0 0 rgb(255 255 255 / 0.22);
+  }
+  /* Panel modal: buram tinggi agar warna latar (mis. ungu ambient) tidak menembus.
+     TANPA backdrop-filter sendiri — overlay modal sudah mem-blur latar; kalau panel
+     ikut backdrop-blur, terjadi nested backdrop-filter yang bikin panel ke-render
+     transparan/hitam di Chromium (layar tampak blank abu-abu). */
+  .glass-strong {
+    @apply bg-card;
+  }
+  /* Panel HALAMAN frosted (bukan modal) — aman pakai backdrop-blur karena tidak
+     berada di dalam overlay ber-backdrop-filter. Buram + blur untuk kesan kaca
+     yang tetap terbaca (mis. panel produk & keranjang di POS). */
+  .glass-panel {
+    @apply bg-card/80 backdrop-blur-2xl backdrop-saturate-150;
+  }
+  /* Kartu kaca interaktif: hover terangkat + highlight lebih jelas (Apple-style) */
+  .glass-card {
+    @apply bg-card/55 backdrop-blur-2xl backdrop-saturate-150 border border-border/40 transition-all duration-200;
+    box-shadow: 0 8px 32px -10px rgb(0 0 0 / 0.20), inset 0 1px 0 0 rgb(255 255 255 / 0.22);
+  }
+  .glass-card:hover {
+    @apply -translate-y-0.5 border-primary/40;
+    box-shadow: 0 16px 44px -10px rgb(0 0 0 / 0.30), inset 0 1px 0 0 rgb(255 255 255 / 0.34);
   }
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -230,4 +254,51 @@
 @keyframes banner-in {
   from { opacity: 0; transform: scale(0.9) translateY(16px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Enter animations (pola tailwindcss-animate, native Tailwind v4) ──────────
+   Mengaktifkan class `animate-in fade-in zoom-in-* slide-in-from-*` yang sudah
+   dipakai di seluruh app (modal, dropdown, dashboard) tapi sebelumnya no-op. */
+@keyframes enter {
+  from {
+    opacity: var(--tw-enter-opacity, 1);
+    transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+      scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), 1)
+      rotate(var(--tw-enter-rotate, 0));
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation-name: enter;
+    animation-duration: var(--tw-duration, 250ms);
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+    animation-fill-mode: both;
+    /* reset agar custom property tidak ter-inherit dari parent yang beranimasi */
+    --tw-enter-opacity: initial;
+    --tw-enter-scale: initial;
+    --tw-enter-rotate: initial;
+    --tw-enter-translate-x: initial;
+    --tw-enter-translate-y: initial;
+  }
+
+  .fade-in,
+  .fade-in-0 { --tw-enter-opacity: 0; }
+
+  .zoom-in-95 { --tw-enter-scale: 0.95; }
+  .zoom-in-90 { --tw-enter-scale: 0.90; }
+
+  .slide-in-from-top-1 { --tw-enter-translate-y: -0.25rem; }
+  .slide-in-from-top-2 { --tw-enter-translate-y: -0.5rem; }
+  .slide-in-from-bottom-1 { --tw-enter-translate-y: 0.25rem; }
+  .slide-in-from-bottom-2 { --tw-enter-translate-y: 0.5rem; }
+  .slide-in-from-bottom-4 { --tw-enter-translate-y: 1rem; }
+  .slide-in-from-left-2 { --tw-enter-translate-x: -0.5rem; }
+  .slide-in-from-left-4 { --tw-enter-translate-x: -1rem; }
+  .slide-in-from-right-2 { --tw-enter-translate-x: 0.5rem; }
+  .slide-in-from-right-4 { --tw-enter-translate-x: 1rem; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-in { animation: none; }
+  }
 }

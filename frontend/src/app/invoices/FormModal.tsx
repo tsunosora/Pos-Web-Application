@@ -211,8 +211,8 @@ export function FormModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-3xl rounded-xl border border-border shadow-lg flex flex-col max-h-[95vh]">
+        <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+            <div className="glass-strong w-full max-w-3xl rounded-xl border border-border shadow-lg flex flex-col max-h-[95vh]">
                 <div className="px-6 py-4 border-b border-border flex justify-between items-center shrink-0">
                     <h3 className="font-semibold text-foreground">
                         {mode === "create" ? "Buat" : "Edit"} {isQuotation ? "Penawaran Harga (SPH)" : "Invoice"}

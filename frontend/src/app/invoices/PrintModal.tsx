@@ -43,8 +43,8 @@ export function PrintModal({ doc, settings, onClose }: { doc: Invoice; settings:
     };
 
     return (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-4xl rounded-xl border border-border shadow-lg flex flex-col max-h-[95vh]">
+        <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+            <div className="glass-strong w-full max-w-4xl rounded-xl border border-border shadow-lg flex flex-col max-h-[95vh]">
                 <div className="px-6 py-4 border-b border-border flex justify-between items-center shrink-0">
                     <h3 className="font-semibold text-foreground">Preview {isQuotation ? "Penawaran Harga" : "Invoice"}</h3>
                     <div className="flex gap-2">

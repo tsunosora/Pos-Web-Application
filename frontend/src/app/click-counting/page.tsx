@@ -56,7 +56,7 @@ function PhotoUpload({
 
     return (
         <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1 flex items-center gap-1">
+            <label className="block text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
                 <Camera className="w-3 h-3" /> {label}
             </label>
             {value ? (
@@ -76,7 +76,7 @@ function PhotoUpload({
                     >×</button>
                 </div>
             ) : (
-                <label className={`flex items-center gap-2 border-2 border-dashed rounded-lg px-3 py-2.5 cursor-pointer hover:bg-gray-50 text-sm text-gray-500 ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
+                <label className={`flex items-center gap-2 border-2 border-dashed rounded-lg px-3 py-2.5 cursor-pointer hover:bg-muted text-sm text-muted-foreground ${uploading ? "opacity-60 pointer-events-none" : ""}`}>
                     {uploading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> Mengupload...</>
                     ) : (
@@ -130,15 +130,15 @@ export default function ClickCountingPage() {
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Klik Mesin Cetak</h1>
-                    <p className="text-sm text-gray-500 mt-0.5">Pantau pemakaian mesin & biaya klik per bulan</p>
+                    <h1 className="text-2xl font-bold text-foreground">Klik Mesin Cetak</h1>
+                    <p className="text-sm text-muted-foreground mt-0.5">Pantau pemakaian mesin & biaya klik per bulan</p>
                 </div>
                 {/* Period picker */}
                 <div className="flex items-center gap-2">
                     <select
                         value={month}
                         onChange={e => setMonth(+e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        className="border border-border rounded-lg px-3 py-2 text-sm bg-card"
                     >
                         {Array.from({ length: 12 }, (_, i) => (
                             <option key={i + 1} value={i + 1}>
@@ -149,7 +149,7 @@ export default function ClickCountingPage() {
                     <select
                         value={year}
                         onChange={e => setYear(+e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                        className="border border-border rounded-lg px-3 py-2 text-sm bg-card"
                     >
                         {yearOptions.map(y => (
                             <option key={y} value={y}>{y}</option>
@@ -159,7 +159,7 @@ export default function ClickCountingPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+            <div className="flex gap-1 bg-muted rounded-xl p-1">
                 {([
                     { key: "dashboard", label: "Dashboard", icon: BarChart3 },
                     { key: "logs", label: "Log Klik", icon: ClipboardList },
@@ -171,8 +171,8 @@ export default function ClickCountingPage() {
                         onClick={() => setTab(key)}
                         className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
                             tab === key
-                                ? "bg-white text-indigo-600 shadow-sm"
-                                : "text-gray-500 hover:text-gray-700"
+                                ? "bg-card text-indigo-600 shadow-sm"
+                                : "text-muted-foreground hover:text-foreground"
                         }`}
                     >
                         <Icon className="w-4 h-4" />
@@ -215,27 +215,27 @@ function DashboardTab({ month, year }: { month: number; year: number }) {
 
             {/* Meter info (pembacaan terakhir dalam periode) */}
             {data.meterReading && (
-                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="bg-card rounded-xl border border-border p-4">
                     <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-gray-700">Pembacaan Counter Terakhir</p>
-                        <span className="text-xs text-gray-500">{dayjs(data.meterReading.readingDate).format("DD MMM YYYY")}</span>
+                        <p className="text-sm font-medium text-foreground">Pembacaan Counter Terakhir</p>
+                        <span className="text-xs text-muted-foreground">{dayjs(data.meterReading.readingDate).format("DD MMM YYYY")}</span>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                         <div>
-                            <p className="text-gray-500 text-xs">Total</p>
-                            <p className="font-bold text-gray-800">{data.meterReading.totalCount.toLocaleString("id-ID")}</p>
+                            <p className="text-muted-foreground text-xs">Total</p>
+                            <p className="font-bold text-foreground">{data.meterReading.totalCount.toLocaleString("id-ID")}</p>
                         </div>
                         <div>
-                            <p className="text-gray-500 text-xs">Full Color</p>
+                            <p className="text-muted-foreground text-xs">Full Color</p>
                             <p className="font-bold text-indigo-700">{data.meterReading.fullColorCount.toLocaleString("id-ID")}</p>
                         </div>
                         <div>
-                            <p className="text-gray-500 text-xs">Black</p>
-                            <p className="font-bold text-gray-800">{data.meterReading.blackCount.toLocaleString("id-ID")}</p>
+                            <p className="text-muted-foreground text-xs">Black</p>
+                            <p className="font-bold text-foreground">{data.meterReading.blackCount.toLocaleString("id-ID")}</p>
                         </div>
                         <div>
-                            <p className="text-gray-500 text-xs">Single Color</p>
-                            <p className="font-bold text-gray-600">{data.meterReading.singleColorCount.toLocaleString("id-ID")}</p>
+                            <p className="text-muted-foreground text-xs">Single Color</p>
+                            <p className="font-bold text-muted-foreground">{data.meterReading.singleColorCount.toLocaleString("id-ID")}</p>
                         </div>
                     </div>
                 </div>
@@ -243,8 +243,8 @@ function DashboardTab({ month, year }: { month: number; year: number }) {
 
             {/* Chart */}
             {data.byRate.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 p-5">
-                    <p className="text-sm font-semibold text-gray-700 mb-4">Klik per Jenis Cetak</p>
+                <div className="bg-card rounded-xl border border-border p-5">
+                    <p className="text-sm font-semibold text-foreground mb-4">Klik per Jenis Cetak</p>
                     <ResponsiveContainer width="100%" height={240}>
                         <BarChart data={data.byRate} margin={{ left: 0, right: 8 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -263,21 +263,21 @@ function DashboardTab({ month, year }: { month: number; year: number }) {
 
             {/* Breakdown table */}
             {data.byRate.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-card rounded-xl border border-border overflow-hidden">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-muted">
                             <tr>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Jenis Cetak</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Klik</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Total Biaya</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Jenis Cetak</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Klik</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Total Biaya</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {data.byRate.map((r, i) => (
-                                <tr key={i} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 font-medium text-gray-800">{r.name}</td>
-                                    <td className="px-4 py-3 text-right text-gray-700">{r.quantity.toLocaleString("id-ID")}</td>
-                                    <td className="px-4 py-3 text-right text-gray-700">{formatRp(r.totalCost)}</td>
+                                <tr key={i} className="hover:bg-muted">
+                                    <td className="px-4 py-3 font-medium text-foreground">{r.name}</td>
+                                    <td className="px-4 py-3 text-right text-foreground">{r.quantity.toLocaleString("id-ID")}</td>
+                                    <td className="px-4 py-3 text-right text-foreground">{formatRp(r.totalCost)}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -345,7 +345,7 @@ function LogsTab({ month, year }: { month: number; year: number }) {
         <div className="space-y-4">
             {/* Add button */}
             <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-500">{logs.length} entri bulan ini</p>
+                <p className="text-sm text-muted-foreground">{logs.length} entri bulan ini</p>
                 <button
                     onClick={() => setShowForm(!showForm)}
                     className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700"
@@ -357,16 +357,16 @@ function LogsTab({ month, year }: { month: number; year: number }) {
 
             {/* Form */}
             {showForm && (
-                <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-indigo-200 p-4 space-y-4">
-                    <p className="font-semibold text-gray-800">Tambah Log Klik Baru</p>
+                <form onSubmit={handleSubmit} className="bg-card rounded-xl border border-indigo-200 p-4 space-y-4">
+                    <p className="font-semibold text-foreground">Tambah Log Klik Baru</p>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="sm:col-span-1">
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Jenis Cetak</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Jenis Cetak</label>
                             <select
                                 value={form.clickRateId}
                                 onChange={e => setForm(f => ({ ...f, clickRateId: +e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             >
                                 <option value={0}>-- Pilih --</option>
                                 {activeRates.map(r => (
@@ -377,24 +377,24 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Jumlah Klik</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Jumlah Klik</label>
                             <input
                                 type="number"
                                 min={1}
                                 value={form.quantity}
                                 onChange={e => setForm(f => ({ ...f, quantity: +e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Tanggal</label>
                             <input
                                 type="date"
                                 value={form.date}
                                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
@@ -415,7 +415,7 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                         <button
                             type="button"
                             onClick={() => setShowForm(false)}
-                            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50"
+                            className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground border border-border hover:bg-muted"
                         >
                             Batal
                         </button>
@@ -425,17 +425,17 @@ function LogsTab({ month, year }: { month: number; year: number }) {
 
             {/* Table */}
             {logs.length > 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-card rounded-xl border border-border overflow-hidden">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-muted">
                             <tr>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tanggal</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Invoice</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Pelanggan</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Jenis</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Klik</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Harga/Klik</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Total</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Tanggal</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Invoice</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Pelanggan</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Jenis</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Klik</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Harga/Klik</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Total</th>
                                 <th className="px-4 py-3" />
                             </tr>
                         </thead>
@@ -443,8 +443,8 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                             {logs.map(log => {
                                 const trx = log.transactionItem?.transaction;
                                 return (
-                                    <tr key={log.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 text-gray-700">{dayjs(log.date).format("DD MMM YYYY")}</td>
+                                    <tr key={log.id} className="hover:bg-muted">
+                                        <td className="px-4 py-3 text-foreground">{dayjs(log.date).format("DD MMM YYYY")}</td>
                                         <td className="px-4 py-3 text-xs">
                                             {trx ? (
                                                 <a
@@ -457,18 +457,18 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                                                 <span className="text-gray-300 italic">manual</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-gray-700 text-xs">
+                                        <td className="px-4 py-3 text-foreground text-xs">
                                             {trx?.customerName || <span className="text-gray-300">—</span>}
                                         </td>
-                                        <td className="px-4 py-3 font-medium text-gray-800">
+                                        <td className="px-4 py-3 font-medium text-foreground">
                                             {log.clickRate.name}
                                             {log.transactionItemId && (
                                                 <span className="ml-2 text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded-full">auto</span>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-right text-gray-700">{log.quantity.toLocaleString("id-ID")}</td>
-                                        <td className="px-4 py-3 text-right text-gray-600">{formatRp(Number(log.pricePerClick))}</td>
-                                        <td className="px-4 py-3 text-right font-medium text-gray-800">{formatRp(Number(log.totalCost))}</td>
+                                        <td className="px-4 py-3 text-right text-foreground">{log.quantity.toLocaleString("id-ID")}</td>
+                                        <td className="px-4 py-3 text-right text-muted-foreground">{formatRp(Number(log.pricePerClick))}</td>
+                                        <td className="px-4 py-3 text-right font-medium text-foreground">{formatRp(Number(log.totalCost))}</td>
                                         <td className="px-4 py-3 text-right">
                                             <button
                                                 onClick={() => window.confirm("Hapus log ini?") && deleteMut.mutate(log.id)}
@@ -481,10 +481,10 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                                 );
                             })}
                         </tbody>
-                        <tfoot className="bg-gray-50">
+                        <tfoot className="bg-muted">
                             <tr>
-                                <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700">Total</td>
-                                <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                                <td colSpan={4} className="px-4 py-3 font-semibold text-foreground">Total</td>
+                                <td className="px-4 py-3 text-right font-semibold text-foreground">
                                     {logs.reduce((s, l) => s + l.quantity, 0).toLocaleString("id-ID")}
                                 </td>
                                 <td />
@@ -532,19 +532,19 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
     });
 
     return (
-        <div className="bg-white rounded-xl border border-gray-200">
+        <div className="bg-card rounded-xl border border-border">
             <button
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted"
             >
                 <span className="flex items-center gap-2"><Settings2 className="w-4 h-4" /> Pengaturan Tarif Klik</span>
                 <ChevronDown className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
             {open && (
-                <div className="border-t border-gray-100 p-4 space-y-3">
+                <div className="border-t border-border/60 p-4 space-y-3">
                     {rates.length === 0 && (
                         <div className="flex items-center gap-3">
-                            <p className="text-sm text-gray-500">Belum ada tarif. Muat tarif default?</p>
+                            <p className="text-sm text-muted-foreground">Belum ada tarif. Muat tarif default?</p>
                             <button
                                 onClick={() => seedMut.mutate()}
                                 disabled={seedMut.isPending}
@@ -568,7 +568,7 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
                             </div>
                             <table className="w-full text-sm">
                                 <thead>
-                                    <tr className="text-xs text-gray-500">
+                                    <tr className="text-xs text-muted-foreground">
                                         <th className="text-left pb-2">Nama</th>
                                         <th className="text-right pb-2">Harga/Klik</th>
                                         <th className="text-center pb-2">Aktif</th>
@@ -577,8 +577,8 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {rates.map(r => (
-                                        <tr key={r.id} className="hover:bg-gray-50">
-                                            <td className="py-2 font-medium text-gray-800">{r.name}</td>
+                                        <tr key={r.id} className="hover:bg-muted">
+                                            <td className="py-2 font-medium text-foreground">{r.name}</td>
                                             <td className="py-2 text-right">
                                                 {editingId === r.id ? (
                                                     <input
@@ -589,7 +589,7 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
                                                         autoFocus
                                                     />
                                                 ) : (
-                                                    <span className="text-gray-700">{formatRp(Number(r.pricePerClick))}</span>
+                                                    <span className="text-foreground">{formatRp(Number(r.pricePerClick))}</span>
                                                 )}
                                             </td>
                                             <td className="py-2 text-center">
@@ -597,7 +597,7 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
                                                     onClick={() => updateMut.mutate({ id: r.id, data: { isActive: !r.isActive } })}
                                                     className={`w-8 h-4 rounded-full transition-colors ${r.isActive ? "bg-indigo-500" : "bg-gray-300"}`}
                                                 >
-                                                    <span className={`block w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${r.isActive ? "translate-x-4" : ""}`} />
+                                                    <span className={`block w-3 h-3 rounded-full bg-card shadow transition-transform mx-0.5 ${r.isActive ? "translate-x-4" : ""}`} />
                                                 </button>
                                             </td>
                                             <td className="py-2 pl-2">
@@ -609,14 +609,14 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
                                                         >
                                                             <Check className="w-4 h-4" />
                                                         </button>
-                                                        <button onClick={() => setEditingId(null)} className="text-gray-400 hover:text-gray-600">
+                                                        <button onClick={() => setEditingId(null)} className="text-muted-foreground hover:text-muted-foreground">
                                                             <X className="w-4 h-4" />
                                                         </button>
                                                     </div>
                                                 ) : (
                                                     <button
                                                         onClick={() => { setEditingId(r.id); setEditPrice(String(r.pricePerClick)); }}
-                                                        className="text-gray-400 hover:text-indigo-600 text-xs"
+                                                        className="text-muted-foreground hover:text-indigo-600 text-xs"
                                                     >
                                                         Edit
                                                     </button>
@@ -713,7 +713,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <p className="text-sm text-gray-500">{rejects.length} entri reject bulan ini</p>
+                <p className="text-sm text-muted-foreground">{rejects.length} entri reject bulan ini</p>
                 <button
                     onClick={() => setShowForm(!showForm)}
                     className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700"
@@ -724,12 +724,12 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
             </div>
 
             {showForm && (
-                <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-red-200 p-4 space-y-4">
-                    <p className="font-semibold text-gray-800">Tambah Reject Mesin</p>
+                <form onSubmit={handleSubmit} className="bg-card rounded-xl border border-red-200 p-4 space-y-4">
+                    <p className="font-semibold text-foreground">Tambah Reject Mesin</p>
 
                     {/* Penyebab — radio */}
                     <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-2">Penyebab</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-2">Penyebab</label>
                         <div className="flex flex-col sm:flex-row gap-2">
                             {(["MACHINE", "HUMAN"] as RejectCause[]).map(c => (
                                 <label
@@ -739,7 +739,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                                             ? c === "HUMAN"
                                                 ? "bg-amber-50 border-amber-400 text-amber-800"
                                                 : "bg-indigo-50 border-indigo-400 text-indigo-800"
-                                            : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                                            : "border-border text-muted-foreground hover:bg-muted"
                                     }`}
                                 >
                                     <input
@@ -768,7 +768,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Counter</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Counter</label>
                             <select
                                 value={form.counterType}
                                 onChange={e => {
@@ -777,7 +777,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                                     const defaultPrice = ct === "BLACK" ? 500 : 1000;
                                     setForm(f => ({ ...f, counterType: ct, pricePerClick: defaultPrice }));
                                 }}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             >
                                 {(Object.keys(COUNTER_TYPE_LABELS) as CounterType[]).map(k => (
                                     <option key={k} value={k}>{COUNTER_TYPE_LABELS[k]}</option>
@@ -785,12 +785,12 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Jenis Reject</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Jenis Reject</label>
                             <select
                                 value={form.rejectType}
                                 onChange={e => setForm(f => ({ ...f, rejectType: e.target.value }))}
                                 disabled={form.cause === "HUMAN"}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm disabled:bg-gray-100"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm disabled:bg-muted"
                             >
                                 {Object.entries(REJECT_TYPE_LABELS)
                                     .filter(([k]) => form.cause === "HUMAN" ? k === "HUMAN_ERROR" : k !== "HUMAN_ERROR")
@@ -800,37 +800,37 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Jumlah Klik</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Jumlah Klik</label>
                             <input
                                 type="number"
                                 min={1}
                                 value={form.quantity}
                                 onChange={e => setForm(f => ({ ...f, quantity: +e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Harga/Klik (Rp)</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Harga/Klik (Rp)</label>
                             <input
                                 type="number"
                                 min={0}
                                 value={form.pricePerClick}
                                 onChange={e => setForm(f => ({ ...f, pricePerClick: +e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Tanggal</label>
                             <input
                                 type="date"
                                 value={form.date}
                                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
@@ -842,13 +842,13 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Catatan (opsional)</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Catatan (opsional)</label>
                         <input
                             type="text"
                             value={form.notes}
                             onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                             placeholder="Misal: kertas macet saat kalibrasi"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                         />
                     </div>
                     <p className="text-sm text-red-700 font-medium">Estimasi potongan: {formatRp(estimatedCost)}</p>
@@ -861,7 +861,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                             {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                             Simpan
                         </button>
-                        <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 border border-gray-300 hover:bg-gray-50">
+                        <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground border border-border hover:bg-muted">
                             Batal
                         </button>
                     </div>
@@ -869,25 +869,25 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
             )}
 
             {rejects.length > 0 ? (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div className="bg-card rounded-xl border border-border overflow-hidden">
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-muted">
                             <tr>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tanggal</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Penyebab</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Counter</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Jenis</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Klik</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Harga/Klik</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Total</th>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Catatan</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Tanggal</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Penyebab</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Counter</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Jenis</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Klik</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Harga/Klik</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Total</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Catatan</th>
                                 <th className="px-4 py-3" />
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {rejects.map(r => (
-                                <tr key={r.id} className="hover:bg-gray-50">
-                                    <td className="px-4 py-3 text-gray-700">{dayjs(r.date).format("DD MMM YYYY")}</td>
+                                <tr key={r.id} className="hover:bg-muted">
+                                    <td className="px-4 py-3 text-foreground">{dayjs(r.date).format("DD MMM YYYY")}</td>
                                     <td className="px-4 py-3">
                                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                                             r.cause === "HUMAN"
@@ -897,16 +897,16 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                                             {r.cause === "HUMAN" ? "Human" : "Mesin"}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-gray-700 text-xs">{COUNTER_TYPE_LABELS[r.counterType] || r.counterType}</td>
+                                    <td className="px-4 py-3 text-foreground text-xs">{COUNTER_TYPE_LABELS[r.counterType] || r.counterType}</td>
                                     <td className="px-4 py-3">
                                         <span className="bg-red-100 text-red-700 text-xs font-medium px-2 py-0.5 rounded-full">
                                             {REJECT_TYPE_LABELS[r.rejectType] || r.rejectType}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-right text-gray-700">{r.quantity.toLocaleString("id-ID")}</td>
-                                    <td className="px-4 py-3 text-right text-gray-600">{formatRp(Number(r.pricePerClick))}</td>
+                                    <td className="px-4 py-3 text-right text-foreground">{r.quantity.toLocaleString("id-ID")}</td>
+                                    <td className="px-4 py-3 text-right text-muted-foreground">{formatRp(Number(r.pricePerClick))}</td>
                                     <td className="px-4 py-3 text-right font-medium text-red-700">{formatRp(Number(r.totalCost))}</td>
-                                    <td className="px-4 py-3 text-gray-500 text-xs">
+                                    <td className="px-4 py-3 text-muted-foreground text-xs">
                                         {r.notes || "—"}
                                         {r.photoUrl && (
                                             <a href={`${API_URL}${r.photoUrl}`} target="_blank" rel="noreferrer" className="block mt-1">
@@ -926,10 +926,10 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                                 </tr>
                             ))}
                         </tbody>
-                        <tfoot className="bg-gray-50">
+                        <tfoot className="bg-muted">
                             <tr>
-                                <td colSpan={4} className="px-4 py-3 font-semibold text-gray-700">Total</td>
-                                <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                                <td colSpan={4} className="px-4 py-3 font-semibold text-foreground">Total</td>
+                                <td className="px-4 py-3 text-right font-semibold text-foreground">
                                     {rejects.reduce((s, r) => s + r.quantity, 0).toLocaleString("id-ID")}
                                 </td>
                                 <td />
@@ -1042,35 +1042,35 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
     return (
         <div className="space-y-6">
             {/* ─── Section A: Form Pembacaan Harian ─── */}
-            <div className="bg-white rounded-xl border border-indigo-200 p-5">
+            <div className="bg-card rounded-xl border border-indigo-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
                     <Calendar className="w-5 h-5 text-indigo-600" />
-                    <p className="font-semibold text-gray-800">Pembacaan Counter Harian</p>
+                    <p className="font-semibold text-foreground">Pembacaan Counter Harian</p>
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                     Input pembacaan counter dari foto operator. Satu pembacaan per tanggal (upsert).
                 </p>
                 <form onSubmit={handleMeterSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Tanggal</label>
                             <input
                                 type="date"
                                 value={meterForm.readingDate}
                                 onChange={e => setMeterForm(f => ({ ...f, readingDate: e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Total Counter</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Total Counter</label>
                             <input
                                 type="number"
                                 min={0}
                                 value={meterForm.totalCount || ""}
                                 onChange={e => setMeterForm(f => ({ ...f, totalCount: +e.target.value }))}
                                 required
-                                className={`w-full border rounded-lg px-3 py-2 text-sm ${sumMismatch ? "border-red-400 bg-red-50" : "border-gray-300"}`}
+                                className={`w-full border rounded-lg px-3 py-2 text-sm ${sumMismatch ? "border-red-400 bg-red-50" : "border-border"}`}
                             />
                         </div>
                         <div>
@@ -1081,28 +1081,28 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                                 value={meterForm.fullColorCount || ""}
                                 onChange={e => setMeterForm(f => ({ ...f, fullColorCount: +e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-700 mb-1">Black (BW)</label>
+                            <label className="block text-xs font-medium text-foreground mb-1">Black (BW)</label>
                             <input
                                 type="number"
                                 min={0}
                                 value={meterForm.blackCount || ""}
                                 onChange={e => setMeterForm(f => ({ ...f, blackCount: +e.target.value }))}
                                 required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-500 mb-1">Single Color</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Single Color</label>
                             <input
                                 type="number"
                                 min={0}
                                 value={meterForm.singleColorCount || ""}
                                 onChange={e => setMeterForm(f => ({ ...f, singleColorCount: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
@@ -1124,12 +1124,12 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Catatan (opsional)</label>
+                            <label className="block text-xs font-medium text-muted-foreground mb-1">Catatan (opsional)</label>
                             <input
                                 type="text"
                                 value={meterForm.notes}
                                 onChange={e => setMeterForm(f => ({ ...f, notes: e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
@@ -1145,11 +1145,11 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
             </div>
 
             {/* ─── Section B: Riwayat Pembacaan ─── */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-100">
-                    <ClipboardList className="w-5 h-5 text-gray-600" />
-                    <p className="font-semibold text-gray-800">Riwayat Pembacaan</p>
-                    <span className="text-xs text-gray-500 ml-auto">
+            <div className="bg-card rounded-xl border border-border overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-border/60">
+                    <ClipboardList className="w-5 h-5 text-muted-foreground" />
+                    <p className="font-semibold text-foreground">Riwayat Pembacaan</p>
+                    <span className="text-xs text-muted-foreground ml-auto">
                         {dayjs(histStart).format("DD MMM")} — {dayjs(histEnd).format("DD MMM YYYY")}
                     </span>
                 </div>
@@ -1157,19 +1157,19 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                     <LoadingState />
                 ) : sortedReadings.length === 0 ? (
                     <div className="py-12 text-center">
-                        <p className="text-gray-400 text-sm">Belum ada pembacaan counter</p>
+                        <p className="text-muted-foreground text-sm">Belum ada pembacaan counter</p>
                     </div>
                 ) : (
                     <table className="w-full text-sm">
-                        <thead className="bg-gray-50">
+                        <thead className="bg-muted">
                             <tr>
-                                <th className="text-left px-4 py-3 text-gray-600 font-medium">Tanggal</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Total</th>
+                                <th className="text-left px-4 py-3 text-muted-foreground font-medium">Tanggal</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Total</th>
                                 <th className="text-right px-4 py-3 text-indigo-700 font-medium">FC</th>
-                                <th className="text-right px-4 py-3 text-gray-700 font-medium">Black</th>
-                                <th className="text-right px-4 py-3 text-gray-500 font-medium">SC</th>
-                                <th className="text-right px-4 py-3 text-gray-600 font-medium">Δ Total</th>
-                                <th className="text-center px-4 py-3 text-gray-600 font-medium">Check</th>
+                                <th className="text-right px-4 py-3 text-foreground font-medium">Black</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">SC</th>
+                                <th className="text-right px-4 py-3 text-muted-foreground font-medium">Δ Total</th>
+                                <th className="text-center px-4 py-3 text-muted-foreground font-medium">Check</th>
                                 <th className="px-4 py-3" />
                             </tr>
                         </thead>
@@ -1183,8 +1183,8 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                                 const deltaSumMismatch = prev && dTotal !== null && dTotal !== (dFC + dB + dSC);
                                 const ownSumMismatch = r.totalCount !== (r.fullColorCount + r.blackCount + r.singleColorCount);
                                 return (
-                                    <tr key={r.id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3 text-gray-700 font-medium">
+                                    <tr key={r.id} className="hover:bg-muted">
+                                        <td className="px-4 py-3 text-foreground font-medium">
                                             <div>{dayjs(r.readingDate).format("DD MMM YYYY")}</div>
                                             {r.photoUrl && (
                                                 <a href={`${API_URL}${r.photoUrl}`} target="_blank" rel="noreferrer" className="block mt-1">
@@ -1193,10 +1193,10 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                                                 </a>
                                             )}
                                         </td>
-                                        <td className="px-4 py-3 text-right text-gray-800">{r.totalCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-4 py-3 text-right text-foreground">{r.totalCount.toLocaleString("id-ID")}</td>
                                         <td className="px-4 py-3 text-right text-indigo-700">{r.fullColorCount.toLocaleString("id-ID")}</td>
-                                        <td className="px-4 py-3 text-right text-gray-800">{r.blackCount.toLocaleString("id-ID")}</td>
-                                        <td className="px-4 py-3 text-right text-gray-500">{r.singleColorCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-4 py-3 text-right text-foreground">{r.blackCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-4 py-3 text-right text-muted-foreground">{r.singleColorCount.toLocaleString("id-ID")}</td>
                                         <td className="px-4 py-3 text-right">
                                             {dTotal !== null ? (
                                                 <span className={dTotal >= 0 ? "text-emerald-600" : "text-red-600"}>
@@ -1241,32 +1241,32 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
             </div>
 
             {/* ─── Section C: Panel Tagihan Vendor ─── */}
-            <div className="bg-white rounded-xl border border-purple-200 p-5">
+            <div className="bg-card rounded-xl border border-purple-200 p-5">
                 <div className="flex items-center gap-2 mb-4">
                     <Receipt className="w-5 h-5 text-purple-600" />
-                    <p className="font-semibold text-gray-800">Tagihan Vendor</p>
+                    <p className="font-semibold text-foreground">Tagihan Vendor</p>
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                     Hitung tagihan berdasarkan selisih counter mesin dikurangi reject penyebab mesin.
                     Pastikan ada pembacaan counter di atau sebelum kedua tanggal.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 items-end">
                     <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal Awal</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Tanggal Awal</label>
                         <input
                             type="date"
                             value={billRange.start}
                             onChange={e => setBillRange(r => ({ ...r, start: e.target.value }))}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                         />
                     </div>
                     <div className="flex-1">
-                        <label className="block text-xs font-medium text-gray-600 mb-1">Tanggal Akhir</label>
+                        <label className="block text-xs font-medium text-muted-foreground mb-1">Tanggal Akhir</label>
                         <input
                             type="date"
                             value={billRange.end}
                             onChange={e => setBillRange(r => ({ ...r, end: e.target.value }))}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                         />
                     </div>
                     <button
@@ -1290,15 +1290,15 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                     <div className="mt-5 space-y-4">
                         {/* Period summary */}
                         <div className="grid grid-cols-2 gap-3 text-xs">
-                            <div className="bg-gray-50 rounded-lg px-3 py-2">
-                                <p className="text-gray-500">Meter Awal ({dayjs(vendorBill.period.actualStart).format("DD MMM YYYY")})</p>
-                                <p className="font-mono text-gray-800">
+                            <div className="bg-muted rounded-lg px-3 py-2">
+                                <p className="text-muted-foreground">Meter Awal ({dayjs(vendorBill.period.actualStart).format("DD MMM YYYY")})</p>
+                                <p className="font-mono text-foreground">
                                     Total {vendorBill.meterStart.totalCount.toLocaleString("id-ID")} · FC {vendorBill.meterStart.fullColorCount.toLocaleString("id-ID")} · B {vendorBill.meterStart.blackCount.toLocaleString("id-ID")}
                                 </p>
                             </div>
-                            <div className="bg-gray-50 rounded-lg px-3 py-2">
-                                <p className="text-gray-500">Meter Akhir ({dayjs(vendorBill.period.actualEnd).format("DD MMM YYYY")})</p>
-                                <p className="font-mono text-gray-800">
+                            <div className="bg-muted rounded-lg px-3 py-2">
+                                <p className="text-muted-foreground">Meter Akhir ({dayjs(vendorBill.period.actualEnd).format("DD MMM YYYY")})</p>
+                                <p className="font-mono text-foreground">
                                     Total {vendorBill.meterEnd.totalCount.toLocaleString("id-ID")} · FC {vendorBill.meterEnd.fullColorCount.toLocaleString("id-ID")} · B {vendorBill.meterEnd.blackCount.toLocaleString("id-ID")}
                                 </p>
                             </div>
@@ -1318,40 +1318,40 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                         {/* Breakdown table */}
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
-                                <thead className="bg-gray-50 text-xs">
+                                <thead className="bg-muted text-xs">
                                     <tr>
-                                        <th className="text-left px-3 py-2 text-gray-600 font-medium">Type</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Meter Awal</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Meter Akhir</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Δ Counter</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Reject Mesin</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Billable</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Tarif</th>
-                                        <th className="text-right px-3 py-2 text-gray-600 font-medium">Total</th>
+                                        <th className="text-left px-3 py-2 text-muted-foreground font-medium">Type</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Meter Awal</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Meter Akhir</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Δ Counter</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Reject Mesin</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Billable</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Tarif</th>
+                                        <th className="text-right px-3 py-2 text-muted-foreground font-medium">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     <tr>
                                         <td className="px-3 py-2 font-medium text-indigo-700">Full Color</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{vendorBill.meterStart.fullColorCount.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{vendorBill.meterEnd.fullColorCount.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right text-gray-800">+{vendorBill.deltas.fullColor.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{vendorBill.meterStart.fullColorCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{vendorBill.meterEnd.fullColorCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-foreground">+{vendorBill.deltas.fullColor.toLocaleString("id-ID")}</td>
                                         <td className="px-3 py-2 text-right text-red-600">−{vendorBill.machineRejects.fullColor.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right font-medium text-gray-800">{vendorBill.billableClicks.fullColor.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{formatRp(vendorBill.rates.fullColor)}</td>
+                                        <td className="px-3 py-2 text-right font-medium text-foreground">{vendorBill.billableClicks.fullColor.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{formatRp(vendorBill.rates.fullColor)}</td>
                                         <td className="px-3 py-2 text-right font-semibold text-indigo-700">{formatRp(vendorBill.costs.fullColor)}</td>
                                     </tr>
                                     <tr>
-                                        <td className="px-3 py-2 font-medium text-gray-800">Black (BW)</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{vendorBill.meterStart.blackCount.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{vendorBill.meterEnd.blackCount.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right text-gray-800">+{vendorBill.deltas.black.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 font-medium text-foreground">Black (BW)</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{vendorBill.meterStart.blackCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{vendorBill.meterEnd.blackCount.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-foreground">+{vendorBill.deltas.black.toLocaleString("id-ID")}</td>
                                         <td className="px-3 py-2 text-right text-red-600">−{vendorBill.machineRejects.black.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right font-medium text-gray-800">{vendorBill.billableClicks.black.toLocaleString("id-ID")}</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{formatRp(vendorBill.rates.black)}</td>
-                                        <td className="px-3 py-2 text-right font-semibold text-gray-800">{formatRp(vendorBill.costs.black)}</td>
+                                        <td className="px-3 py-2 text-right font-medium text-foreground">{vendorBill.billableClicks.black.toLocaleString("id-ID")}</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{formatRp(vendorBill.rates.black)}</td>
+                                        <td className="px-3 py-2 text-right font-semibold text-foreground">{formatRp(vendorBill.costs.black)}</td>
                                     </tr>
-                                    <tr className="bg-gray-50 text-gray-500">
+                                    <tr className="bg-muted text-muted-foreground">
                                         <td className="px-3 py-2 font-medium italic">Single Color (info)</td>
                                         <td className="px-3 py-2 text-right">{vendorBill.meterStart.singleColorCount.toLocaleString("id-ID")}</td>
                                         <td className="px-3 py-2 text-right">{vendorBill.meterEnd.singleColorCount.toLocaleString("id-ID")}</td>
@@ -1361,7 +1361,7 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                                 </tbody>
                                 <tfoot className="bg-purple-50">
                                     <tr>
-                                        <td colSpan={7} className="px-3 py-3 font-bold text-gray-800 text-right">Grand Total Tagihan</td>
+                                        <td colSpan={7} className="px-3 py-3 font-bold text-foreground text-right">Grand Total Tagihan</td>
                                         <td className="px-3 py-3 text-right font-bold text-purple-700 text-lg">{formatRp(vendorBill.costs.grandTotal)}</td>
                                     </tr>
                                 </tfoot>
@@ -1397,7 +1397,7 @@ function StatCard({ label, value, sub, color }: { label: string; value: string; 
         emerald: "bg-emerald-50 text-emerald-700",
     };
     return (
-        <div className={`rounded-xl p-4 ${colorMap[color] || "bg-gray-50 text-gray-700"}`}>
+        <div className={`rounded-xl p-4 ${colorMap[color] || "bg-muted text-foreground"}`}>
             <p className="text-xs font-medium opacity-75 mb-1">{label}</p>
             <p className="text-xl font-bold leading-tight">
                 {value}
@@ -1417,8 +1417,8 @@ function LoadingState() {
 
 function EmptyState({ message }: { message: string }) {
     return (
-        <div className="bg-white rounded-xl border border-dashed border-gray-300 py-12 text-center">
-            <p className="text-gray-400 text-sm">{message}</p>
+        <div className="bg-card rounded-xl border border-dashed border-border py-12 text-center">
+            <p className="text-muted-foreground text-sm">{message}</p>
         </div>
     );
 }

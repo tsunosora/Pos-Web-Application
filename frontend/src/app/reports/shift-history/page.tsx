@@ -220,7 +220,7 @@ export default function ShiftHistoryPage() {
                         const totalPenerimaan = Number(shift.actualCash) + Number(shift.actualQris) + Number(shift.actualTransfer);
 
                         return (
-                            <div key={shift.id} className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                            <div key={shift.id} className="rounded-xl glass shadow-sm overflow-hidden">
                                 {/* Header baris */}
                                 <div
                                     className="flex items-center gap-4 px-5 py-4 cursor-pointer hover:bg-muted/30 transition-colors"
@@ -377,9 +377,9 @@ export default function ShiftHistoryPage() {
 
             {/* Modal Koreksi Laporan — Full Screen */}
             {amendId !== null && amendShift && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm overflow-y-auto">
+                <div className="fixed inset-0 z-50 bg-background/25 backdrop-blur-md overflow-y-auto">
                     <div className="min-h-full flex items-start justify-center p-4 py-8">
-                        <div className="w-full max-w-2xl bg-background rounded-2xl border border-border shadow-2xl flex flex-col">
+                        <div className="w-full max-w-2xl glass-strong rounded-2xl border border-border shadow-2xl flex flex-col">
                             {/* Header */}
                             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
                                 <div>

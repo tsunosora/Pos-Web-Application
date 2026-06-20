@@ -15,14 +15,14 @@ dayjs.locale("id");
 
 const TABS: { key: 'ALL' | SalesOrderStatus; label: string; color: string }[] = [
     { key: 'ALL', label: 'Semua', color: 'bg-slate-100 text-slate-700' },
-    { key: 'DRAFT', label: 'Draft', color: 'bg-gray-100 text-gray-700' },
+    { key: 'DRAFT', label: 'Draft', color: 'bg-muted text-foreground' },
     { key: 'SENT', label: 'Terkirim', color: 'bg-blue-100 text-blue-700' },
     { key: 'INVOICED', label: 'Invoiced', color: 'bg-emerald-100 text-emerald-700' },
     { key: 'CANCELLED', label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
 ];
 
 const STATUS_BADGE: Record<SalesOrderStatus, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700 border-gray-200',
+    DRAFT: 'bg-muted text-foreground border-border',
     SENT: 'bg-blue-100 text-blue-700 border-blue-200',
     INVOICED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
     CANCELLED: 'bg-red-100 text-red-700 border-red-200',
@@ -130,7 +130,7 @@ export default function SalesOrdersPage() {
             {/* Summary strip */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatCard label="Total SO" value={summary.total} />
-                <StatCard label="Draft" value={summary.draft} accent="text-gray-700" />
+                <StatCard label="Draft" value={summary.draft} accent="text-foreground" />
                 <StatCard label="Menunggu Nota" value={summary.sent} accent="text-blue-600" />
                 <StatCard label="Sudah Invoice" value={summary.invoiced} accent="text-emerald-600" />
             </div>

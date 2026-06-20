@@ -1,27 +1,30 @@
 <?php
 require_once __DIR__ . '/lib.php';
-require_once __DIR__ . '/home_blocks.php';
+require_once __DIR__ . '/sections.php';
 
 $st = settings();
-$seo_title = ($st['storeName'] ?? 'Toko') . ' — Percetakan & Sablon, Pesan Online';
-$seo_desc  = meta_desc('Cetak label, buku, souvenir & merchandise berkualitas. Tanpa minimal order, respon cepat, desain gratis. Pesan online di ' . ($st['storeName'] ?? 'toko kami') . '.');
+$seo_title = ($st['storeName'] ?? 'Toko') . ' — Percetakan Digital Bantul, Yogyakarta: Banner, Stiker, DTF & Cutting Laser';
+$seo_desc  = meta_desc('Percetakan digital terpercaya di Bantul, Yogyakarta. Cetak banner, stiker meteran, UV roll, sablon DTF & cutting laser — kualitas konsisten, tepat waktu, bisa satuan. 2 cabang: Imogiri & Sewon.');
 $seo_canonical = base_url();
 include __DIR__ . '/header.php';
 
 $products = public_products();
 
-// Kumpulkan kategori unik (untuk blok produk/kategori)
-$cats = [];
-foreach ($products as $p) {
-    $c = $p['category'] ?? null;
-    if ($c && !isset($cats[$c['id']])) $cats[$c['id']] = $c['name'];
-}
+// Beranda gaya "PrintKreatif" (glass + biru) menampilkan SELURUH konten yang
+// sudah diisi di DB (logo klien, testimoni, portofolio, artikel, dll).
+// Isi tiap section diatur lewat Dashboard → Konten.
+sec_hero();                    // hero kaca (foto + statistik)
+sec_categories($products);     // grid kategori (kartu kaca + ikon gradient)
+sec_products_grid($products);  // grid produk (harga biru + tombol Keranjang)
+sec_services();                // 3 kartu keunggulan
+sec_tentang();                 // tentang kami (band kaca)
+sec_portofolio(['limit' => 8]);// karya kami (galeri + lightbox)
+sec_statistik();               // angka pencapaian
+sec_testimoni();               // testimoni pelanggan
+sec_klien();                   // logo klien (marquee)
+sec_order();                   // form konsultasi → CRM (anchor #order-cepat)
+sec_artikel();                 // wawasan & panduan (blog)
+sec_cta();                     // ajakan penutup
+sec_popup();                   // popup promo (jika aktif)
 
-$ctx = ['products' => $products, 'cats' => $cats, 'st' => settings()];
-
-// Render beranda sesuai susunan blok yang diatur di dashboard (Tampilan)
-foreach (home_layout() as $block) {
-    echo render_home_block($block, $ctx);
-}
-?>
-<?php include __DIR__ . '/footer.php'; ?>
+include __DIR__ . '/footer.php';

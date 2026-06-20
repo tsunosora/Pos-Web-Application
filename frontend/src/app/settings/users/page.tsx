@@ -168,7 +168,7 @@ export default function UserManagementSettings() {
                         </button>
                     </div>
 
-                    <div className="rounded-xl border border-border bg-background/50 overflow-hidden">
+                    <div className="rounded-xl border border-border bg-background/50 overflow-x-auto">
                         <table className="min-w-full divide-y divide-border">
                             <thead className="bg-muted/50">
                                 <tr>
@@ -284,8 +284,8 @@ export default function UserManagementSettings() {
 
             {/* --- MODAL ROLE --- */}
             {roleModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b border-border">
                             <h3 className="font-bold">{roleModal.mode === 'add' ? 'Tambah Role Baru' : 'Edit Role'}</h3>
                             <button onClick={() => setRoleModal({ ...roleModal, isOpen: false })} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -307,8 +307,8 @@ export default function UserManagementSettings() {
 
             {/* --- MODAL USER --- */}
             {userModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden">
                         <div className="flex justify-between items-center p-4 border-b border-border">
                             <h3 className="font-bold flex items-center gap-2">
                                 {userModal.mode === 'add' ? <Plus className="w-5 h-5 text-primary" /> : <Edit className="w-5 h-5 text-primary" />}

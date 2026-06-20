@@ -218,7 +218,7 @@ export default function SalesReportPage() {
             <div className="space-y-6">
 
             {/* Period filter */}
-            <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
+            <div className="rounded-xl glass shadow-sm p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                     <CalendarDays className="h-4 w-4" />
                     Filter Periode
@@ -296,16 +296,16 @@ export default function SalesReportPage() {
                             <p className="text-xs text-muted-foreground mt-1">Uang masuk aktual (cash basis)</p>
                         </div>
                         {/* Invoice Lunas — accrual, total grandTotal invoice PAID */}
-                        <div className="p-6 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center">
+                        <div className="p-6 rounded-xl glass shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Invoice Lunas</p>
                             <h2 className="text-3xl font-bold text-foreground">Rp {Number(summary?.totalRevenue || 0).toLocaleString('id-ID')}</h2>
                             <p className="text-xs text-muted-foreground mt-1">Total invoice PAID (accrual)</p>
                         </div>
-                        <div className="p-6 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center">
+                        <div className="p-6 rounded-xl glass shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Volume Transaksi</p>
                             <h2 className="text-3xl font-bold text-foreground">{summary?.totalTransactions || 0}<span className="text-lg text-muted-foreground font-normal ml-1">struk</span></h2>
                         </div>
-                        <div className="p-6 rounded-xl border border-border bg-card shadow-sm flex flex-col justify-center">
+                        <div className="p-6 rounded-xl glass shadow-sm flex flex-col justify-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Rata-rata Order (Basket Size)</p>
                             <h2 className="text-3xl font-bold text-foreground">Rp {Math.round(summary?.averageTransactionValue || 0).toLocaleString('id-ID')}<span className="text-lg text-muted-foreground font-normal ml-1">/trx</span></h2>
                         </div>
@@ -313,7 +313,7 @@ export default function SalesReportPage() {
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Produk Terlaris - compact top 5 */}
-                        <div className="rounded-xl border border-border bg-card shadow-sm p-6 flex flex-col">
+                        <div className="rounded-xl glass shadow-sm p-6 flex flex-col">
                             <div className="flex items-center gap-3 mb-4">
                                 <BarChart2 className="h-5 w-5 text-primary" />
                                 <h3 className="text-lg font-semibold text-foreground">Top 5 Produk Terlaris</h3>
@@ -340,7 +340,7 @@ export default function SalesReportPage() {
                         </div>
 
                         {/* Metode Pembayaran */}
-                        <div className="rounded-xl border border-border bg-card shadow-sm p-6 flex flex-col">
+                        <div className="rounded-xl glass shadow-sm p-6 flex flex-col">
                             <h3 className="text-lg font-semibold text-foreground mb-4">Metode Pembayaran (Distribusi)</h3>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border/50">
@@ -393,7 +393,7 @@ export default function SalesReportPage() {
 
             {/* Tab: Trend Produk */}
             {activeTab === 'trend' && (
-                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                <div className="rounded-xl glass shadow-sm overflow-hidden">
                     <div className="px-6 py-4 border-b border-border bg-card/50 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <TrendingUp className="h-5 w-5 text-primary" />
@@ -489,7 +489,7 @@ export default function SalesReportPage() {
 
             {/* Tab: Histori Log */}
             {activeTab === 'histori' && (
-                <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden pb-10">
+                <div className="rounded-xl glass shadow-sm overflow-hidden pb-10">
                     <div className="px-6 py-4 border-b border-border bg-card/50 space-y-3">
                         <div className="flex items-center justify-between">
                             <h3 className="text-base font-semibold text-foreground">
@@ -582,7 +582,7 @@ export default function SalesReportPage() {
                                     <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-card divide-y divide-border">
+                            <tbody className="divide-y divide-border">
                                 {isLoadingTxs ? (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-8 text-center text-sm text-muted-foreground">Memuat transaksi...</td>
@@ -679,8 +679,8 @@ export default function SalesReportPage() {
 
             {/* Transaction Detail Modal */}
             {selectedTransaction && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="bg-card w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/25 backdrop-blur-md animate-in fade-in duration-200">
+                    <div className="glass-strong w-full max-w-md rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
                         <div className="px-6 py-4 border-b border-border flex justify-between items-center bg-muted/30">
                             <div className="flex items-center gap-2">
                                 <Receipt className="w-5 h-5 text-primary" />

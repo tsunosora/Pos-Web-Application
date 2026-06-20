@@ -5,6 +5,7 @@ require_admin();
 $msg = null; $msgType = 'ok'; $testResult = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $action = $_POST['action'] ?? 'save';
 
     // Simpan kategori yang disembunyikan dari toko
@@ -15,8 +16,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Simpan kunci Cloudflare Turnstile (anti-bot checkout)
+    if ($action === 'turnstile') {
+        cfg_set('turnstile_site_key', trim($_POST['turnstile_site_key'] ?? ''));
+        $sec = $_POST['turnstile_secret'] ?? '';
+        if ($sec !== '') secret_set('turnstile_secret', $sec); // hanya update kalau diisi
+        header('Location: settings.php?saved=1');
+        exit;
+    }
+
     // Simpan nilai API (berlaku untuk Simpan maupun Tes)
-    cfg_set('pospro_api', rtrim(trim($_POST['pospro_api'] ?? ''), '/'));
+    $apiIn = rtrim(trim($_POST['pospro_api'] ?? ''), '/');
+    if ($apiIn !== '' && (!preg_match('#^https?://#i', $apiIn) || !filter_var($apiIn, FILTER_VALIDATE_URL))) {
+        header('Location: settings.php?badurl=1'); // tolak URL non-http(s), nilai lama dipertahankan
+        exit;
+    }
+    cfg_set('pospro_api', $apiIn);
     cfg_set('pospro_email', trim($_POST['pospro_email'] ?? ''));
     $pw = $_POST['pospro_password'] ?? '';
     if ($pw !== '') secret_set('pospro_password', $pw);  // hanya update kalau diisi
@@ -37,12 +52,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $testResult = ['ok' => false, 'text' => 'Gagal login ke PosPro. Periksa URL, email, dan password.'];
     }
 }
-if (isset($_GET['saved'])) { $msg = 'Setelan tersimpan.'; }
-if (isset($_GET['cats']))  { $msg = 'Kategori toko diperbarui.'; }
+if (isset($_GET['saved']))  { $msg = 'Setelan tersimpan.'; }
+if (isset($_GET['cats']))   { $msg = 'Kategori toko diperbarui.'; }
+if (isset($_GET['badurl'])) { $msg = 'URL API tidak valid — harus diawali http:// atau https://. Setelan tidak diubah.'; $msgType = 'err'; }
 
 $apiUrl   = cfg('pospro_api', API_BASE);
 $apiEmail = cfg('pospro_email', '');
 $hasPass  = (cfg('pospro_password') ?? '') !== '';
+$tsSiteKey  = turnstile_site_key();
+$tsHasSecret = secret_get('turnstile_secret') !== '';
 
 // Kategori dari katalog (untuk pilih mana yang disembunyikan)
 $rawProducts = api_get('/products/public') ?: [];
@@ -60,7 +78,12 @@ include __DIR__ . '/admin_header.php';
 
 <div class="max-w-2xl space-y-6">
     <?php if ($msg): ?>
-        <div class="px-4 py-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm"><?= h($msg) ?></div>
+        <div class="px-4 py-3 rounded-xl text-sm <?= $msgType === 'err' ? 'bg-rose-50 border border-rose-200 text-rose-700' : 'bg-emerald-50 border border-emerald-200 text-emerald-700' ?>"><?= h($msg) ?></div>
+    <?php endif; ?>
+    <?php if (APP_KEY === 'ganti-kunci-ini-saat-produksi'): ?>
+        <div class="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+            <b>Peringatan keamanan:</b> kunci aplikasi masih bawaan. Set environment variable <code>TOKO_APP_KEY</code> dengan string acak panjang (dipakai mengenkripsi password service PosPro), lalu isi ulang password service di bawah.
+        </div>
     <?php endif; ?>
     <?php if ($testResult): ?>
         <div class="px-4 py-3 rounded-xl text-sm <?= $testResult['ok'] ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' : 'bg-rose-50 border border-rose-200 text-rose-700' ?>"><?= h($testResult['text']) ?></div>
@@ -80,6 +103,7 @@ include __DIR__ . '/admin_header.php';
         </div>
 
         <form method="post" class="mt-5 space-y-4">
+            <?= csrf_field() ?>
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-1.5">URL API PosPro</label>
                 <input type="url" name="pospro_api" required value="<?= h($apiUrl) ?>" placeholder="https://api.tokokamu.com"
@@ -104,6 +128,37 @@ include __DIR__ . '/admin_header.php';
         </form>
     </div>
 
+    <!-- Anti-bot checkout (Cloudflare Turnstile) -->
+    <div class="bg-white rounded-3xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-1">
+            <span class="h-10 w-10 rounded-2xl bg-brand/10 text-brand grid place-items-center">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            </span>
+            <div>
+                <h3 class="font-bold text-slate-900">Anti-Bot Checkout (Turnstile)</h3>
+                <p class="text-xs text-slate-400">CAPTCHA tak terlihat dari Cloudflare untuk mencegah order spam (judol/bot) di keranjang.</p>
+            </div>
+            <span class="ml-auto px-2.5 py-1 rounded-full text-xs font-semibold <?= turnstile_enabled() ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' ?>"><?= turnstile_enabled() ? 'Aktif' : 'Nonaktif' ?></span>
+        </div>
+
+        <form method="post" class="mt-5 space-y-4">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="turnstile">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Site Key</label>
+                <input type="text" name="turnstile_site_key" value="<?= h($tsSiteKey) ?>" placeholder="0x4AAAAAAA..."
+                       class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Secret Key</label>
+                <input type="password" name="turnstile_secret" placeholder="<?= $tsHasSecret ? '•••••••• (biarkan kosong jika tidak diubah)' : 'masukkan secret key' ?>"
+                       class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <p class="mt-1 text-xs text-slate-400">Disimpan terenkripsi. Ambil keduanya di Cloudflare dashboard → Turnstile → Add site (tambahkan domain toko ini). Kosongkan keduanya untuk menonaktifkan.</p>
+            </div>
+            <button type="submit" class="px-5 py-2.5 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Simpan</button>
+        </form>
+    </div>
+
     <!-- Kategori tampil di toko -->
     <div class="bg-white rounded-3xl border border-slate-200 p-6">
         <div class="flex items-center gap-3 mb-1">
@@ -119,6 +174,7 @@ include __DIR__ . '/admin_header.php';
             <p class="mt-4 text-sm text-slate-400">Belum ada kategori (atau API PosPro belum terhubung).</p>
         <?php else: ?>
             <form method="post" class="mt-4">
+                <?= csrf_field() ?>
                 <input type="hidden" name="action" value="cats">
                 <div class="grid sm:grid-cols-2 gap-2">
                     <?php foreach ($allCats as $id => $name): $isHidden = isset($hidden[$id]); ?>

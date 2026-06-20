@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { PackageCheck } from 'lucide-react';
 import { useReadyJobs } from '@/hooks/useReadyJobs';
+import { getActiveSection } from './nav-config';
+import { useUIStore } from '@/store/ui-store';
 
 interface Props {
     onClick: () => void;
@@ -39,6 +42,11 @@ const ATTENTION_MS = 5000;       // animasi heavy (ping rings + glow + badge pop
 
 export function ReadyJobsFab({ onClick }: Props) {
     const { data: jobs = [] } = useReadyJobs();
+    const pathname = usePathname();
+    const subnavOverflow = useUIStore((s) => s.subnavOverflow);
+    // Dock SubNav mengambang di bawah → naikkan FAB agar tidak menutupinya:
+    // di mobile saat ada kategori aktif, di desktop saat header SubNav overflow.
+    const lifted = !!getActiveSection(pathname);
     const [wiggle, setWiggle] = useState(false);
     const [bubbleVisible, setBubbleVisible] = useState(false);
     const [bubbleText, setBubbleText] = useState('');
@@ -184,8 +192,12 @@ export function ReadyJobsFab({ onClick }: Props) {
 
             <div
                 // FAB selalu di kanan-bawah. z-[310] supaya tampil di atas cart sidebar POS (z-[300]).
-                className="fixed bottom-6 right-6 md:bottom-8 md:right-8 z-[310] print:hidden flex items-center gap-3"
-                style={{ bottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))' }}
+                // Saat dock SubNav aktif (mobile), FAB dinaikkan di atas dock; md+ kembali normal.
+                className={`fixed right-6 md:right-8 z-[310] print:hidden flex items-center gap-3 ${
+                    lifted
+                        ? 'bottom-[calc(6.5rem_+_env(safe-area-inset-bottom))]'
+                        : 'bottom-[max(1.5rem,env(safe-area-inset-bottom))]'
+                } ${subnavOverflow ? 'md:bottom-[calc(6.5rem_+_env(safe-area-inset-bottom))]' : 'md:bottom-8'}`}
             >
                 {/* Bubble teks — muncul beberapa detik saat ada job baru */}
                 {bubbleVisible && (

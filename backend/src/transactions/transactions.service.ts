@@ -1199,11 +1199,12 @@ export class TransactionsService {
                 }
             }
 
-            // Generate nomor SC berdasarkan tanggal checkout
+            // Generate nomor SC berdasarkan tanggal checkout (per cabang, ikut cabang transaksi)
             const cy = checkoutDate.getFullYear();
             const cm = String(checkoutDate.getMonth() + 1).padStart(2, '0');
             const cd = String(checkoutDate.getDate()).padStart(2, '0');
-            const scPrefix = `SC-${cy}${cm}${cd}-`;
+            const scCode = await this.branchCodeFor(tx, (transaction as any).branchId ?? null);
+            const scPrefix = scCode ? `SC-${scCode}-${cy}${cm}${cd}-` : `SC-${cy}${cm}${cd}-`;
 
             const lastSC = await tx.transaction.findFirst({
                 where: { checkoutNumber: { startsWith: scPrefix } },

@@ -493,7 +493,7 @@ export default function CustomersPage() {
 
             {/* Form Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl">
                     <div className="bg-background rounded-2xl border border-border shadow-xl w-full max-w-md p-6 relative">
                         <button onClick={closeModal} className="absolute top-4 right-4 p-2 text-muted-foreground hover:bg-muted rounded-lg transition-colors">
                             <X className="w-5 h-5" />

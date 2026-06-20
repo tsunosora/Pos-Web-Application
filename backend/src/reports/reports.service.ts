@@ -40,7 +40,8 @@ export class ReportsService {
                             include: {
                                 product: {
                                     include: {
-                                        unit: true
+                                        unit: true,
+                                        category: true
                                     }
                                 }
                             }
@@ -92,6 +93,10 @@ export class ReportsService {
                         productVariantId: item.productVariantId,
                         sku: pv?.sku || 'Unknown',
                         name: pv?.variantName ? `${p?.name} - ${pv?.variantName}` : (p?.name || 'Unknown Product'),
+                        // Kategori produk = "mesin" (Cetak A3+, Outdoor, dll) untuk
+                        // pengelompokan laba per mesin. Produk tanpa kategori → "Tanpa Kategori".
+                        categoryId: p?.categoryId ?? null,
+                        categoryName: p?.category?.name || 'Tanpa Kategori',
                         qty: 0,           // jumlah unit terjual (UNIT) atau jumlah pesanan (AREA)
                         totalAreaM2: 0,  // total luas dalam m² (AREA_BASED saja)
                         isAreaBased: isArea,
@@ -126,13 +131,40 @@ export class ReportsService {
         // Sort items by highest revenue
         items.sort((a, b) => b.revenue - a.revenue);
 
+        // Agregasi laba per "mesin" (kategori produk). Owner bisa lihat tiap
+        // mesin (Cetak A3+, Outdoor, dll) sudah menghasilkan berapa.
+        const catMap: Record<string, any> = {};
+        for (const it of items) {
+            const key = String(it.categoryId ?? 'none');
+            if (!catMap[key]) {
+                catMap[key] = {
+                    categoryId: it.categoryId ?? null,
+                    categoryName: it.categoryName,
+                    productCount: 0,
+                    revenue: 0,
+                    totalHpp: 0,
+                    grossProfit: 0,
+                };
+            }
+            catMap[key].productCount += 1;
+            catMap[key].revenue += it.revenue;
+            catMap[key].totalHpp += it.totalHpp;
+            catMap[key].grossProfit += it.grossProfit;
+        }
+        const categories = Object.values(catMap).map((c: any) => ({
+            ...c,
+            profitMargin: c.revenue > 0 ? Number(((c.grossProfit / c.revenue) * 100).toFixed(2)) : 0,
+        }));
+        categories.sort((a, b) => b.grossProfit - a.grossProfit);
+
         return {
             totalRevenue,
             totalHpp,
             grossProfit,
             profitMargin: Number(profitMargin.toFixed(2)),
             transactionCount: transactions.length,
-            items
+            items,
+            categories
         };
     }
 

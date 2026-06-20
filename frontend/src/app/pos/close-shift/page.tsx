@@ -234,9 +234,9 @@ export default function CloseShiftPage() {
     const diff = (actual: number, expected: number) => actual - expected;
 
     const renderBadge = (d: number) => {
-        if (d === 0) return <span className="text-green-700 bg-green-50 px-2 py-1 rounded text-xs font-bold border border-green-200">✅ BALANCE</span>;
-        if (d > 0) return <span className="text-emerald-700 bg-emerald-50 px-2 py-1 rounded text-xs font-bold border border-emerald-200">🟢 LEBIH {formatCurrency(d)}</span>;
-        return <span className="text-red-700 bg-red-50 px-2 py-1 rounded text-xs font-bold border border-red-200">🔴 KURANG {formatCurrency(Math.abs(d))}</span>;
+        if (d === 0) return <span className="text-green-600 dark:text-green-300 bg-green-500/10 px-2 py-1 rounded text-xs font-bold border border-green-500/20">✅ BALANCE</span>;
+        if (d > 0) return <span className="text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 px-2 py-1 rounded text-xs font-bold border border-emerald-500/20">🟢 LEBIH {formatCurrency(d)}</span>;
+        return <span className="text-red-600 dark:text-red-300 bg-red-500/10 px-2 py-1 rounded text-xs font-bold border border-red-500/20">🔴 KURANG {formatCurrency(Math.abs(d))}</span>;
     };
 
     // ─── Submit ──────────────────────────────────────────────────────────
@@ -298,12 +298,12 @@ export default function CloseShiftPage() {
     // ─── Guard: Owner harus pilih cabang dulu ────────────────────────────
     if (needsBranchPick) return (
         <div className="p-8 max-w-xl mx-auto">
-            <Card className="border-amber-200 bg-amber-50">
+            <Card className="border-amber-500/20 bg-amber-500/10">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-amber-800">
+                    <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-300">
                         <AlertTriangle className="w-5 h-5" /> Pilih Cabang Dulu
                     </CardTitle>
-                    <CardDescription className="text-amber-700">
+                    <CardDescription className="text-amber-600/90 dark:text-amber-300/80">
                         Anda sedang dalam mode &quot;Semua Cabang&quot;. Tutup shift harus dilakukan per cabang. Pilih cabang aktif lewat dropdown di atas (header).
                     </CardDescription>
                 </CardHeader>
@@ -313,13 +313,13 @@ export default function CloseShiftPage() {
 
     // ─── Loading / Error States ──────────────────────────────────────────
     if (isLoading) return (
-        <div className="p-8 text-center text-slate-500 animate-pulse flex flex-col items-center gap-3">
+        <div className="p-8 text-center text-muted-foreground animate-pulse flex flex-col items-center gap-3">
             <Calculator className="w-12 h-12 opacity-40" />
             <p>Memuat data shift...</p>
         </div>
     );
     if (isError) return (
-        <div className="p-8 text-center text-red-500 flex flex-col items-center gap-3">
+        <div className="p-8 text-center text-red-600 dark:text-red-300 flex flex-col items-center gap-3">
             <AlertTriangle className="w-12 h-12" />
             <p>Gagal memuat data shift. Pastikan server berjalan.</p>
         </div>
@@ -362,9 +362,9 @@ export default function CloseShiftPage() {
     ];
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="min-h-screen bg-background">
             {/* Header */}
-            <header className="bg-white border-b sticky top-0 z-10 shadow-sm">
+            <header className="bg-card border-b border-border sticky top-0 z-10 shadow-sm">
                 <div className="container mx-auto px-4 h-16 flex items-center gap-4">
                     <Link href="/pos">
                         <Button variant="ghost" size="icon" className="rounded-full">
@@ -372,8 +372,8 @@ export default function CloseShiftPage() {
                         </Button>
                     </Link>
                     <div>
-                        <h1 className="text-xl font-bold text-slate-800">Laporan Tutup Shift</h1>
-                        <p className="text-xs text-slate-500">POS System • Notifikasi Discord</p>
+                        <h1 className="text-xl font-bold text-foreground">Laporan Tutup Shift</h1>
+                        <p className="text-xs text-muted-foreground">POS System • Notifikasi Discord</p>
                     </div>
                 </div>
             </header>
@@ -383,43 +383,43 @@ export default function CloseShiftPage() {
 
                     {/* ══════════ PANEL KIRI: DATA SISTEM (READ-ONLY) ══════════ */}
                     <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-24">
-                        <Card className="border-indigo-100 shadow-md bg-gradient-to-b from-white to-slate-50/50">
-                            <CardHeader className="pb-4 border-b border-indigo-50">
-                                <CardTitle className="text-base flex items-center gap-2 text-slate-800">
+                        <Card className="border-border bg-card shadow-sm rounded-xl transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
+                            <CardHeader className="pb-4 border-b border-border/60">
+                                <CardTitle className="text-base flex items-center gap-2 text-foreground">
                                     <Calculator className="w-5 h-5 text-indigo-500" />
                                     Data Sistem (Otomatis)
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="pt-4 space-y-4 text-sm">
-                                <div className="p-3 bg-indigo-50 rounded-lg flex justify-between items-center border border-indigo-100">
-                                    <span className="font-semibold text-indigo-900">Total Gross Shift</span>
-                                    <span className="font-extrabold text-indigo-900">{formatCurrency(grossAll)}</span>
+                                <div className="p-3 bg-indigo-500/10 rounded-lg flex justify-between items-center border border-indigo-500/20">
+                                    <span className="font-semibold text-indigo-600 dark:text-indigo-300">Total Gross Shift</span>
+                                    <span className="font-extrabold text-indigo-600 dark:text-indigo-300">{formatCurrency(grossAll)}</span>
                                 </div>
 
                                 {/* Pendapatan per Metode */}
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pendapatan Shift Ini</p>
-                                    <div className="flex justify-between py-1 border-b">
-                                        <span className="text-slate-600">💵 Cash</span>
-                                        <span className="font-semibold">{formatCurrency(shiftData?.grossCash || 0)}</span>
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pendapatan Shift Ini</p>
+                                    <div className="flex justify-between py-1 border-b border-border/60">
+                                        <span className="text-muted-foreground">💵 Cash</span>
+                                        <span className="font-semibold text-foreground">{formatCurrency(shiftData?.grossCash || 0)}</span>
                                     </div>
                                     {Object.entries(shiftData?.grossBankIncomes || {}).map(([bank, val]: [string, any]) => (
-                                        <div key={bank} className="flex justify-between py-1 border-b">
-                                            <span className="text-slate-600">💳 {bank}</span>
-                                            <span className="font-semibold">{formatCurrency(val)}</span>
+                                        <div key={bank} className="flex justify-between py-1 border-b border-border/60">
+                                            <span className="text-muted-foreground">💳 {bank}</span>
+                                            <span className="font-semibold text-foreground">{formatCurrency(val)}</span>
                                         </div>
                                     ))}
-                                    <div className="flex justify-between py-1 border-b">
-                                        <span className="text-slate-600">📱 QRIS</span>
-                                        <span className="font-semibold">{formatCurrency(shiftData?.grossQris || 0)}</span>
+                                    <div className="flex justify-between py-1 border-b border-border/60">
+                                        <span className="text-muted-foreground">📱 QRIS</span>
+                                        <span className="font-semibold text-foreground">{formatCurrency(shiftData?.grossQris || 0)}</span>
                                     </div>
                                 </div>
 
                                 {/* Target Saldo Kasir — real-time */}
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
                                         Target Saldo
-                                        <span className="text-indigo-400 font-normal normal-case">(live)</span>
+                                        <span className="text-indigo-500/70 font-normal normal-case">(live)</span>
                                     </p>
 
                                     {/* Cash */}
@@ -427,12 +427,12 @@ export default function CloseShiftPage() {
                                         const base = shiftData?.expectedCash || 0;
                                         const d = adjustedExpectedCash - base;
                                         return (
-                                            <div className="flex justify-between items-center py-1 border-b gap-2">
-                                                <span className="text-slate-600">💵 Tunai di laci</span>
+                                            <div className="flex justify-between items-center py-1 border-b border-border/60 gap-2">
+                                                <span className="text-muted-foreground">💵 Tunai di laci</span>
                                                 <div className="text-right">
-                                                    <span className="font-semibold text-slate-800">{formatCurrency(adjustedExpectedCash)}</span>
+                                                    <span className="font-semibold text-foreground">{formatCurrency(adjustedExpectedCash)}</span>
                                                     {d !== 0 && (
-                                                        <p className={`text-xs ${d > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                        <p className={`text-xs ${d > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                                                             {d > 0 ? '+' : ''}{formatCurrency(d)}
                                                         </p>
                                                     )}
@@ -445,12 +445,12 @@ export default function CloseShiftPage() {
                                     {(() => {
                                         const d = adjustedExpectedQris - expectedQris;
                                         return (
-                                            <div className="flex justify-between items-center py-1 border-b gap-2">
-                                                <span className="text-slate-600">📱 QRIS</span>
+                                            <div className="flex justify-between items-center py-1 border-b border-border/60 gap-2">
+                                                <span className="text-muted-foreground">📱 QRIS</span>
                                                 <div className="text-right">
-                                                    <span className="font-semibold text-slate-800">{formatCurrency(adjustedExpectedQris)}</span>
+                                                    <span className="font-semibold text-foreground">{formatCurrency(adjustedExpectedQris)}</span>
                                                     {d !== 0 && (
-                                                        <p className={`text-xs ${d > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                        <p className={`text-xs ${d > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                                                             {d > 0 ? '+' : ''}{formatCurrency(d)}
                                                         </p>
                                                     )}
@@ -463,17 +463,17 @@ export default function CloseShiftPage() {
                                 {/* Target Bank — real-time */}
                                 {shiftData?.systemBankBalances && Object.keys(shiftData.systemBankBalances).length > 0 && (
                                     <div className="space-y-1">
-                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Target Bank</p>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Target Bank</p>
                                         {Object.entries(shiftData.systemBankBalances).map(([bank, sysval]: [string, any]) => {
                                             const adjusted = getAdjustedExpectedBank(bank);
                                             const d = adjusted - sysval;
                                             return (
-                                                <div key={bank} className="flex justify-between items-center bg-white p-2 border rounded gap-2">
-                                                    <span className="text-slate-600 text-sm">💳 {bank}</span>
+                                                <div key={bank} className="flex justify-between items-center bg-muted p-2 border border-border rounded gap-2">
+                                                    <span className="text-muted-foreground text-sm">💳 {bank}</span>
                                                     <div className="text-right">
-                                                        <span className="font-bold text-slate-800">{formatCurrency(adjusted)}</span>
+                                                        <span className="font-bold text-foreground">{formatCurrency(adjusted)}</span>
                                                         {d !== 0 && (
-                                                            <p className={`text-xs ${d > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                                            <p className={`text-xs ${d > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                                                                 {d > 0 ? '+' : ''}{formatCurrency(d)}
                                                             </p>
                                                         )}
@@ -486,19 +486,19 @@ export default function CloseShiftPage() {
 
                                 {/* Non-system payment methods (Dana, GoPay, OVO, dll) — hanya jika ada pertukaran */}
                                 {Object.keys(nonSystemExchangeEffects).length > 0 && (
-                                    <div className="space-y-1 pt-1 border-t border-indigo-100">
-                                        <p className="text-xs font-semibold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
+                                    <div className="space-y-1 pt-1 border-t border-indigo-500/20">
+                                        <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1">
                                             <ArrowRightLeft className="w-3 h-3" /> Pertukaran Aktif
                                         </p>
                                         {Object.entries(nonSystemExchangeEffects).map(([method, effect]) => (
-                                            <div key={method} className="flex justify-between items-center bg-indigo-50 p-2 border border-indigo-100 rounded gap-2">
-                                                <span className="text-slate-700 text-sm font-medium">💳 {method}</span>
-                                                <span className={`font-bold text-sm ${effect > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                                            <div key={method} className="flex justify-between items-center bg-indigo-500/10 p-2 border border-indigo-500/20 rounded gap-2">
+                                                <span className="text-foreground text-sm font-medium">💳 {method}</span>
+                                                <span className={`font-bold text-sm ${effect > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
                                                     {effect > 0 ? '+' : ''}{formatCurrency(effect)}
                                                 </span>
                                             </div>
                                         ))}
-                                        <p className="text-xs text-indigo-400 italic">Net perubahan dari pertukaran shift ini.</p>
+                                        <p className="text-xs text-indigo-500/70 italic">Net perubahan dari pertukaran shift ini.</p>
                                     </div>
                                 )}
                             </CardContent>
@@ -509,7 +509,7 @@ export default function CloseShiftPage() {
                     <div className="lg:col-span-8 space-y-6">
 
                         {/* ── Kartu 1: Data Personel ── */}
-                        <Card className="border-slate-200">
+                        <Card className="border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <Users className="w-4 h-4 text-blue-500" />
@@ -520,7 +520,7 @@ export default function CloseShiftPage() {
                                 <div className="grid grid-cols-2 gap-4">
                                     {/* Dropdown Nama Kasir */}
                                     <div className="space-y-2">
-                                        <Label className="text-slate-700 font-semibold">Nama Kasir / CS</Label>
+                                        <Label className="text-foreground font-semibold">Nama Kasir / CS</Label>
                                         <select
                                             required
                                             className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -536,7 +536,7 @@ export default function CloseShiftPage() {
 
                                     {/* Pilihan Shift */}
                                     <div className="space-y-2">
-                                        <Label className="text-slate-700 font-semibold">
+                                        <Label className="text-foreground font-semibold">
                                             <Clock className="w-4 h-4 inline mr-1" />
                                             Shift Kerja
                                         </Label>
@@ -555,10 +555,10 @@ export default function CloseShiftPage() {
 
                                 {/* Tanggal & Jam Tutup Shift */}
                                 <div className="space-y-2 mt-4">
-                                    <Label className="text-slate-700 font-semibold">Tanggal & Jam Tutup Shift</Label>
+                                    <Label className="text-foreground font-semibold">Tanggal & Jam Tutup Shift</Label>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1">
-                                            <p className="text-xs text-slate-500">Tanggal</p>
+                                            <p className="text-xs text-muted-foreground">Tanggal</p>
                                             <input
                                                 type="date"
                                                 required
@@ -569,7 +569,7 @@ export default function CloseShiftPage() {
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <p className="text-xs text-slate-500">Jam Tutup</p>
+                                            <p className="text-xs text-muted-foreground">Jam Tutup</p>
                                             <input
                                                 type="time"
                                                 required
@@ -580,9 +580,9 @@ export default function CloseShiftPage() {
                                         </div>
                                     </div>
                                     {reportDate !== new Date().toISOString().slice(0, 10) && (
-                                        <div className="flex items-start gap-2 p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-                                            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                                            <p className="text-xs text-amber-700">
+                                        <div className="flex items-start gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                                            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                            <p className="text-xs text-amber-600 dark:text-amber-300">
                                                 Laporan akan dicatat pada tanggal <strong>{reportDate}</strong> jam <strong>{closeTime}</strong>. Semua cashflow shift ini akan menggunakan tanggal tersebut.
                                             </p>
                                         </div>
@@ -592,18 +592,18 @@ export default function CloseShiftPage() {
                         </Card>
 
                         {/* ── Kartu 2: Kas Aktual (Cash + QRIS) ── */}
-                        <Card className="border-t-4 border-t-blue-500 border-slate-200">
+                        <Card className="border-t-4 border-t-blue-500 border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">2. Kas Aktual</CardTitle>
                                 <CardDescription>Input saldo fisik yang kamu hitung / lihat di layar EDC.</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 {/* Cash di Laci */}
-                                <div className="p-4 border rounded-xl bg-white">
+                                <div className="p-4 border border-border rounded-xl bg-background">
                                     <div className="flex justify-between gap-4 items-center">
-                                        <Label className="font-bold text-slate-800">💵 Uang Tunai di Laci</Label>
+                                        <Label className="font-bold text-foreground">💵 Uang Tunai di Laci</Label>
                                         <div className="relative w-48">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
                                             <Input
                                                 type="number" min="0" required
                                                 className="pl-9 text-right font-bold"
@@ -619,11 +619,11 @@ export default function CloseShiftPage() {
                                 </div>
 
                                 {/* QRIS */}
-                                <div className="p-4 border rounded-xl bg-white">
+                                <div className="p-4 border border-border rounded-xl bg-background">
                                     <div className="flex justify-between gap-4 items-center">
-                                        <Label className="font-bold text-slate-800">📱 Total Mutasi Masuk QRIS</Label>
+                                        <Label className="font-bold text-foreground">📱 Total Mutasi Masuk QRIS</Label>
                                         <div className="relative w-48">
-                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
                                             <Input
                                                 type="number" min="0" required
                                                 className="pl-9 text-right font-bold"
@@ -641,7 +641,7 @@ export default function CloseShiftPage() {
                         </Card>
 
                         {/* ── Kartu 3: Pengeluaran Terstruktur ── */}
-                        <Card className="border-t-4 border-t-orange-500 border-slate-200">
+                        <Card className="border-t-4 border-t-orange-500 border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">3. Pengeluaran Shift Ini</CardTitle>
                                 <CardDescription>Catat semua pengeluaran kas/bank yang terjadi di shift ini.</CardDescription>
@@ -650,7 +650,7 @@ export default function CloseShiftPage() {
                                 {expenseMethods.map(method => (
                                     <div key={method} className="space-y-2">
                                         <div className="flex items-center justify-between">
-                                            <p className="font-semibold text-slate-700 text-sm">
+                                            <p className="font-semibold text-foreground text-sm">
                                                 {method === 'CASH' ? '💵' : method === 'QRIS' ? '📱' : '💳'} Pengeluaran {method}
                                             </p>
                                             <Button
@@ -663,12 +663,12 @@ export default function CloseShiftPage() {
                                         </div>
 
                                         {(structuredExpenses[method] || []).length === 0 && (
-                                            <p className="text-xs text-slate-400 italic pl-1">Belum ada pengeluaran</p>
+                                            <p className="text-xs text-muted-foreground italic pl-1">Belum ada pengeluaran</p>
                                         )}
 
                                         {(structuredExpenses[method] || []).map((item, idx) => (
                                             <div key={idx} className="flex gap-2 items-center">
-                                                <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
+                                                <span className="text-muted-foreground text-sm w-5 text-right">{idx + 1}.</span>
                                                 <Input
                                                     placeholder="Keterangan pengeluaran"
                                                     className="flex-1 text-sm"
@@ -676,7 +676,7 @@ export default function CloseShiftPage() {
                                                     onChange={(e) => updateExpenseItem(method, idx, 'name', e.target.value)}
                                                 />
                                                 <div className="relative w-36">
-                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                     <Input
                                                         type="number" min="0"
                                                         className="pl-7 text-right text-sm"
@@ -687,7 +687,7 @@ export default function CloseShiftPage() {
                                                 </div>
                                                 <Button
                                                     type="button" variant="ghost" size="icon"
-                                                    className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                    className="h-9 w-9 text-red-500/70 hover:text-red-600 hover:bg-red-500/10"
                                                     onClick={() => removeExpenseItem(method, idx)}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -698,15 +698,15 @@ export default function CloseShiftPage() {
                                 ))}
 
                                 {/* Total Pengeluaran */}
-                                <div className="flex justify-between items-center pt-2 border-t font-semibold">
-                                    <span className="text-slate-700">Total Pengeluaran</span>
-                                    <span className="text-orange-600">{formatCurrency(getTotalExpenses())}</span>
+                                <div className="flex justify-between items-center pt-2 border-t border-border font-semibold">
+                                    <span className="text-foreground">Total Pengeluaran</span>
+                                    <span className="text-orange-600 dark:text-orange-400">{formatCurrency(getTotalExpenses())}</span>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* ── Kartu 3.5: Pemasukan Tambahan / Eksternal ── */}
-                        <Card className="border-t-4 border-t-green-500 border-slate-200">
+                        <Card className="border-t-4 border-t-green-500 border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">4. Pemasukan Tambahan / Eksternal</CardTitle>
                                 <CardDescription>
@@ -716,20 +716,20 @@ export default function CloseShiftPage() {
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <div className="flex items-center justify-between">
-                                    <p className="text-sm text-slate-500">Pemasukan ini akan dicatat sebagai Cashflow dan menambah target saldo rekening.</p>
+                                    <p className="text-sm text-muted-foreground">Pemasukan ini akan dicatat sebagai Cashflow dan menambah target saldo rekening.</p>
                                     <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addAdditionalIncome} disabled={bankOptions.length === 0}>
                                         <Plus className="w-3 h-3" /> Tambah
                                     </Button>
                                 </div>
                                 {bankOptions.length === 0 && (
-                                    <p className="text-xs text-slate-400 italic pl-1">Tidak ada rekening bank aktif.</p>
+                                    <p className="text-xs text-muted-foreground italic pl-1">Tidak ada rekening bank aktif.</p>
                                 )}
                                 {additionalIncomes.length === 0 && bankOptions.length > 0 && (
-                                    <p className="text-xs text-slate-400 italic pl-1">Belum ada pemasukan tambahan</p>
+                                    <p className="text-xs text-muted-foreground italic pl-1">Belum ada pemasukan tambahan</p>
                                 )}
                                 {additionalIncomes.map((item, idx) => (
                                     <div key={idx} className="flex gap-2 items-center">
-                                        <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
+                                        <span className="text-muted-foreground text-sm w-5 text-right">{idx + 1}.</span>
                                         <select
                                             className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring w-32"
                                             value={item.bankName}
@@ -744,7 +744,7 @@ export default function CloseShiftPage() {
                                             onChange={(e) => updateAdditionalIncome(idx, 'description', e.target.value)}
                                         />
                                         <div className="relative w-36">
-                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                            <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                             <Input
                                                 type="number" min="0"
                                                 className="pl-7 text-right text-sm"
@@ -754,7 +754,7 @@ export default function CloseShiftPage() {
                                             />
                                         </div>
                                         <Button type="button" variant="ghost" size="icon"
-                                            className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                            className="h-9 w-9 text-red-500/70 hover:text-red-600 hover:bg-red-500/10"
                                             onClick={() => removeAdditionalIncome(idx)}>
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
@@ -762,11 +762,11 @@ export default function CloseShiftPage() {
                                 ))}
                                 {additionalIncomes.length > 0 && (
                                     <>
-                                        <div className="flex justify-between items-center pt-2 border-t font-semibold">
-                                            <span className="text-slate-700">Total Pemasukan Tambahan</span>
-                                            <span className="text-green-600">{formatCurrency(getTotalAdditionalIncomes())}</span>
+                                        <div className="flex justify-between items-center pt-2 border-t border-border font-semibold">
+                                            <span className="text-foreground">Total Pemasukan Tambahan</span>
+                                            <span className="text-green-600 dark:text-green-400">{formatCurrency(getTotalAdditionalIncomes())}</span>
                                         </div>
-                                        <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1">
+                                        <p className="text-xs text-green-600 dark:text-green-300 bg-green-500/10 border border-green-500/20 rounded px-2 py-1">
                                             💡 Target saldo rekening tujuan otomatis bertambah sesuai pemasukan di atas.
                                         </p>
                                     </>
@@ -775,7 +775,7 @@ export default function CloseShiftPage() {
                         </Card>
 
                         {/* ── Kartu 3.5: Setor Kas & Kasbon ── */}
-                        <Card className="border-t-4 border-t-cyan-500 border-slate-200">
+                        <Card className="border-t-4 border-t-cyan-500 border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">4. Setor Kas & Kasbon</CardTitle>
                                 <CardDescription>Catat mutasi kas fisik ↔ rekening dan kasbon karyawan di shift ini.</CardDescription>
@@ -785,22 +785,22 @@ export default function CloseShiftPage() {
                                 {/* Setor Kas ke Rekening */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
-                                            <Banknote className="w-4 h-4 text-cyan-600" /> Setor Kas ke Rekening
+                                        <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                                            <Banknote className="w-4 h-4 text-cyan-600 dark:text-cyan-400" /> Setor Kas ke Rekening
                                         </p>
                                         <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addSetorKas} disabled={bankOptions.length === 0}>
                                             <Plus className="w-3 h-3" /> Tambah
                                         </Button>
                                     </div>
                                     {bankOptions.length === 0 && (
-                                        <p className="text-xs text-slate-400 italic pl-1">Tidak ada rekening bank aktif.</p>
+                                        <p className="text-xs text-muted-foreground italic pl-1">Tidak ada rekening bank aktif.</p>
                                     )}
                                     {setorKas.length === 0 && bankOptions.length > 0 && (
-                                        <p className="text-xs text-slate-400 italic pl-1">Belum ada setor kas</p>
+                                        <p className="text-xs text-muted-foreground italic pl-1">Belum ada setor kas</p>
                                     )}
                                     {setorKas.map((s, idx) => (
                                         <div key={idx} className="flex gap-2 items-center">
-                                            <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
+                                            <span className="text-muted-foreground text-sm w-5 text-right">{idx + 1}.</span>
                                             <select
                                                 className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring flex-1"
                                                 value={s.bankName}
@@ -809,16 +809,16 @@ export default function CloseShiftPage() {
                                                 {bankOptions.map(b => <option key={b} value={b}>{b}</option>)}
                                             </select>
                                             <div className="relative w-36">
-                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                 <Input type="number" min="0" className="pl-7 text-right text-sm" value={s.amount || ''} onChange={(e) => updateSetorKas(idx, 'amount', e.target.value)} placeholder="0" />
                                             </div>
-                                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeSetorKas(idx)}>
+                                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500/70 hover:text-red-600 hover:bg-red-500/10" onClick={() => removeSetorKas(idx)}>
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
                                         </div>
                                     ))}
                                     {setorKas.length > 0 && (
-                                        <p className="text-xs text-cyan-700 bg-cyan-50 border border-cyan-200 rounded px-2 py-1">
+                                        <p className="text-xs text-cyan-600 dark:text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 rounded px-2 py-1">
                                             💡 Target kas tunai otomatis berkurang {formatCurrency(getTotalSetorKas())} — target saldo rekening tujuan bertambah.
                                         </p>
                                     )}
@@ -827,19 +827,19 @@ export default function CloseShiftPage() {
                                 {/* Tarik Tunai dari Rekening */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
-                                            <Banknote className="w-4 h-4 text-emerald-600" /> Tarik Tunai dari Rekening
+                                        <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                                            <Banknote className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Tarik Tunai dari Rekening
                                         </p>
                                         <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addTarikTunai} disabled={bankOptions.length === 0}>
                                             <Plus className="w-3 h-3" /> Tambah
                                         </Button>
                                     </div>
                                     {tarikTunai.length === 0 && bankOptions.length > 0 && (
-                                        <p className="text-xs text-slate-400 italic pl-1">Belum ada tarik tunai</p>
+                                        <p className="text-xs text-muted-foreground italic pl-1">Belum ada tarik tunai</p>
                                     )}
                                     {tarikTunai.map((s, idx) => (
                                         <div key={idx} className="flex gap-2 items-center">
-                                            <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
+                                            <span className="text-muted-foreground text-sm w-5 text-right">{idx + 1}.</span>
                                             <select
                                                 className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring flex-1"
                                                 value={s.bankName}
@@ -848,16 +848,16 @@ export default function CloseShiftPage() {
                                                 {bankOptions.map(b => <option key={b} value={b}>{b}</option>)}
                                             </select>
                                             <div className="relative w-36">
-                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                 <Input type="number" min="0" className="pl-7 text-right text-sm" value={s.amount || ''} onChange={(e) => updateTarikTunai(idx, 'amount', e.target.value)} placeholder="0" />
                                             </div>
-                                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeTarikTunai(idx)}>
+                                            <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500/70 hover:text-red-600 hover:bg-red-500/10" onClick={() => removeTarikTunai(idx)}>
                                                 <Trash2 className="w-4 h-4" />
                                             </Button>
                                         </div>
                                     ))}
                                     {tarikTunai.length > 0 && (
-                                        <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1">
+                                        <p className="text-xs text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1">
                                             💡 Target kas tunai otomatis bertambah {formatCurrency(getTotalTarikTunai())} — target saldo rekening asal berkurang.
                                         </p>
                                     )}
@@ -865,12 +865,12 @@ export default function CloseShiftPage() {
 
                                 {/* Tukar Transfer ke Cash */}
                                 <div className="space-y-2">
-                                    <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
-                                        <Banknote className="w-4 h-4 text-violet-600" /> Tukar Transfer ke Cash
+                                    <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                                        <Banknote className="w-4 h-4 text-violet-600 dark:text-violet-400" /> Tukar Transfer ke Cash
                                     </p>
-                                    <p className="text-xs text-slate-500">Jumlah transfer masuk yang dikonversi menjadi uang tunai (contoh: tarik tunai dari rekening transfer).</p>
+                                    <p className="text-xs text-muted-foreground">Jumlah transfer masuk yang dikonversi menjadi uang tunai (contoh: tarik tunai dari rekening transfer).</p>
                                     <div className="flex gap-2 items-center">
-                                        <span className="text-slate-400 text-xs shrink-0">Rp</span>
+                                        <span className="text-muted-foreground text-xs shrink-0">Rp</span>
                                         <Input
                                             type="number" min="0"
                                             className="text-right text-sm"
@@ -880,7 +880,7 @@ export default function CloseShiftPage() {
                                         />
                                     </div>
                                     {tukarTransferKeCash > 0 && (
-                                        <p className="text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded px-2 py-1">
+                                        <p className="text-xs text-violet-600 dark:text-violet-300 bg-violet-500/10 border border-violet-500/20 rounded px-2 py-1">
                                             💡 Target kas tunai otomatis bertambah {formatCurrency(tukarTransferKeCash)} dari konversi transfer.
                                         </p>
                                     )}
@@ -889,18 +889,18 @@ export default function CloseShiftPage() {
                                 {/* Pertukaran Metode Pembayaran */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
-                                            <ArrowRightLeft className="w-4 h-4 text-indigo-600" /> Pertukaran Metode Pembayaran
+                                        <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                                            <ArrowRightLeft className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Pertukaran Metode Pembayaran
                                         </p>
                                         <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addPaymentExchange}>
                                             <Plus className="w-3 h-3" /> Tambah
                                         </Button>
                                     </div>
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-xs text-muted-foreground">
                                         Catat penukaran antar metode: QRIS↔Tunai, Transfer↔Tunai, atau titip transfer karyawan.
                                     </p>
                                     {paymentExchanges.length === 0 && (
-                                        <p className="text-xs text-slate-400 italic pl-1">Belum ada pertukaran</p>
+                                        <p className="text-xs text-muted-foreground italic pl-1">Belum ada pertukaran</p>
                                     )}
                                     {paymentExchanges.map((ex, idx) => {
                                         const allMethods = ['CASH', 'QRIS', ...bankOptions, 'Dana', 'GoPay', 'OVO', 'ShopeePay', 'LinkAja'];
@@ -912,9 +912,9 @@ export default function CloseShiftPage() {
                                             if (bankOptions.includes(ex.to) && ex.to !== 'CASH') impacts.push(`${ex.to} +${formatCurrency(ex.amount)}`);
                                         }
                                         return (
-                                            <div key={idx} className="p-2.5 rounded-lg border border-indigo-100 bg-indigo-50/40 space-y-2">
+                                            <div key={idx} className="p-2.5 rounded-lg border border-indigo-500/20 bg-indigo-500/5 space-y-2">
                                                 <div className="flex gap-2 items-center">
-                                                    <span className="text-slate-400 text-sm w-5 text-right shrink-0">{idx + 1}.</span>
+                                                    <span className="text-muted-foreground text-sm w-5 text-right shrink-0">{idx + 1}.</span>
                                                     <select
                                                         className="flex-1 h-9 text-sm rounded border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
                                                         value={ex.from}
@@ -922,7 +922,7 @@ export default function CloseShiftPage() {
                                                     >
                                                         {allMethods.map(m => <option key={m} value={m}>{m === 'CASH' ? '💵 CASH' : m === 'QRIS' ? '📱 QRIS' : `💳 ${m}`}</option>)}
                                                     </select>
-                                                    <ArrowRightLeft className="w-4 h-4 text-slate-400 shrink-0" />
+                                                    <ArrowRightLeft className="w-4 h-4 text-muted-foreground shrink-0" />
                                                     <select
                                                         className="flex-1 h-9 text-sm rounded border border-input bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
                                                         value={ex.to}
@@ -931,7 +931,7 @@ export default function CloseShiftPage() {
                                                         {allMethods.map(m => <option key={m} value={m}>{m === 'CASH' ? '💵 CASH' : m === 'QRIS' ? '📱 QRIS' : `💳 ${m}`}</option>)}
                                                     </select>
                                                     <div className="relative w-32 shrink-0">
-                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                         <Input
                                                             type="number" min="0"
                                                             className="pl-7 text-right text-sm"
@@ -941,7 +941,7 @@ export default function CloseShiftPage() {
                                                         />
                                                     </div>
                                                     <Button type="button" variant="ghost" size="icon"
-                                                        className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50 shrink-0"
+                                                        className="h-9 w-9 text-red-500/70 hover:text-red-600 hover:bg-red-500/10 shrink-0"
                                                         onClick={() => removePaymentExchange(idx)}>
                                                         <Trash2 className="w-4 h-4" />
                                                     </Button>
@@ -949,18 +949,18 @@ export default function CloseShiftPage() {
                                                 <div className="pl-7">
                                                     <Input
                                                         placeholder="Keterangan (nama karyawan, alasan...)"
-                                                        className="text-xs bg-white"
+                                                        className="text-xs bg-background"
                                                         value={ex.description}
                                                         onChange={(e) => updatePaymentExchange(idx, 'description', e.target.value)}
                                                     />
                                                 </div>
                                                 {impacts.length > 0 && (
-                                                    <p className="text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 rounded px-2 py-1 ml-7">
+                                                    <p className="text-xs text-indigo-600 dark:text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded px-2 py-1 ml-7">
                                                         💡 Dampak target: {impacts.join(' • ')}
                                                     </p>
                                                 )}
                                                 {ex.amount > 0 && impacts.length === 0 && (
-                                                    <p className="text-xs text-slate-400 italic ml-7">ℹ️ Dicatat di laporan, tidak mempengaruhi target saldo sistem.</p>
+                                                    <p className="text-xs text-muted-foreground italic ml-7">ℹ️ Dicatat di laporan, tidak mempengaruhi target saldo sistem.</p>
                                                 )}
                                             </div>
                                         );
@@ -970,33 +970,33 @@ export default function CloseShiftPage() {
                                 {/* Kasbon Karyawan */}
                                 <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                        <p className="font-semibold text-slate-700 text-sm flex items-center gap-1.5">
-                                            <UserCheck className="w-4 h-4 text-amber-600" /> Kasbon Karyawan
+                                        <p className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                                            <UserCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" /> Kasbon Karyawan
                                         </p>
                                         <Button type="button" variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addKasbon}>
                                             <Plus className="w-3 h-3" /> Tambah
                                         </Button>
                                     </div>
                                     {kasbon.length === 0 && (
-                                        <p className="text-xs text-slate-400 italic pl-1">Belum ada kasbon</p>
+                                        <p className="text-xs text-muted-foreground italic pl-1">Belum ada kasbon</p>
                                     )}
                                     {kasbon.map((k, idx) => (
-                                        <div key={idx} className="space-y-1.5 p-2.5 rounded-lg border border-slate-200 bg-slate-50">
+                                        <div key={idx} className="space-y-1.5 p-2.5 rounded-lg border border-border bg-muted">
                                             <div className="flex gap-2 items-center">
-                                                <span className="text-slate-400 text-sm w-5 text-right">{idx + 1}.</span>
-                                                <Input placeholder="Nama karyawan" className="flex-1 text-sm bg-white" value={k.name} onChange={(e) => updateKasbon(idx, 'name', e.target.value)} />
+                                                <span className="text-muted-foreground text-sm w-5 text-right">{idx + 1}.</span>
+                                                <Input placeholder="Nama karyawan" className="flex-1 text-sm bg-background" value={k.name} onChange={(e) => updateKasbon(idx, 'name', e.target.value)} />
                                                 <div className="relative w-36">
-                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
-                                                    <Input type="number" min="0" className="pl-7 text-right text-sm bg-white" value={k.amount || ''} onChange={(e) => updateKasbon(idx, 'amount', e.target.value)} placeholder="0" />
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
+                                                    <Input type="number" min="0" className="pl-7 text-right text-sm bg-background" value={k.amount || ''} onChange={(e) => updateKasbon(idx, 'amount', e.target.value)} placeholder="0" />
                                                 </div>
-                                                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50" onClick={() => removeKasbon(idx)}>
+                                                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-red-500/70 hover:text-red-600 hover:bg-red-500/10" onClick={() => removeKasbon(idx)}>
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>
                                             <div className="flex items-center gap-2 pl-7">
-                                                <span className="text-xs text-slate-500 shrink-0">Sumber:</span>
+                                                <span className="text-xs text-muted-foreground shrink-0">Sumber:</span>
                                                 <select
-                                                    className="flex-1 h-7 text-xs rounded border border-slate-200 bg-white px-2 focus:outline-none focus:ring-1 focus:ring-ring"
+                                                    className="flex-1 h-7 text-xs rounded border border-border bg-background px-2 focus:outline-none focus:ring-1 focus:ring-ring"
                                                     value={k.source}
                                                     onChange={(e) => updateKasbon(idx, 'source', e.target.value)}
                                                 >
@@ -1006,14 +1006,14 @@ export default function CloseShiftPage() {
                                                 </select>
                                             </div>
                                             {k.source !== 'Kas Toko' && (
-                                                <p className="text-xs text-blue-600 pl-7">ℹ️ Kasbon ini tidak mengurangi saldo kas toko.</p>
+                                                <p className="text-xs text-blue-600 dark:text-blue-400 pl-7">ℹ️ Kasbon ini tidak mengurangi saldo kas toko.</p>
                                             )}
                                         </div>
                                     ))}
                                     {kasbon.length > 0 && (
-                                        <div className="flex justify-between items-center pt-1 border-t text-sm font-semibold">
-                                            <span className="text-slate-600">Total Kasbon</span>
-                                            <span className="text-amber-600">{formatCurrency(getTotalKasbon())}</span>
+                                        <div className="flex justify-between items-center pt-1 border-t border-border text-sm font-semibold">
+                                            <span className="text-muted-foreground">Total Kasbon</span>
+                                            <span className="text-amber-600 dark:text-amber-400">{formatCurrency(getTotalKasbon())}</span>
                                         </div>
                                     )}
                                 </div>
@@ -1021,7 +1021,7 @@ export default function CloseShiftPage() {
                         </Card>
 
                         {/* ── Kartu 4: Saldo Bank (Laporan & Real) ── */}
-                        <Card className="border-t-4 border-t-purple-500 border-slate-200">
+                        <Card className="border-t-4 border-t-purple-500 border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">5. Saldo Rekening Bank</CardTitle>
                                 <CardDescription>
@@ -1036,16 +1036,16 @@ export default function CloseShiftPage() {
                                     const selisih = real - laporan;
 
                                     return (
-                                        <div key={bankName} className="p-4 border rounded-xl bg-white space-y-3">
-                                            <p className="font-bold text-slate-800">💳 {bankName}</p>
-                                            <p className="text-xs text-slate-400">Target sistem: {formatCurrency(expectedBankAbs)}</p>
+                                        <div key={bankName} className="p-4 border border-border rounded-xl bg-background space-y-3">
+                                            <p className="font-bold text-foreground">💳 {bankName}</p>
+                                            <p className="text-xs text-muted-foreground">Target sistem: {formatCurrency(expectedBankAbs)}</p>
 
                                             <div className="grid grid-cols-2 gap-3">
                                                 {/* Saldo Laporan */}
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-slate-500">Saldo di Laporan mBanking</Label>
+                                                    <Label className="text-xs text-muted-foreground">Saldo di Laporan mBanking</Label>
                                                     <div className="relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                         <Input
                                                             type="number" min="0"
                                                             className="pl-9 text-right text-sm"
@@ -1058,9 +1058,9 @@ export default function CloseShiftPage() {
 
                                                 {/* Saldo Real */}
                                                 <div className="space-y-1">
-                                                    <Label className="text-xs text-slate-500">Saldo Real di Bank</Label>
+                                                    <Label className="text-xs text-muted-foreground">Saldo Real di Bank</Label>
                                                     <div className="relative">
-                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                         <Input
                                                             type="number" min="0"
                                                             className="pl-9 text-right text-sm font-bold"
@@ -1074,11 +1074,11 @@ export default function CloseShiftPage() {
 
                                             {/* Selisih sistem vs aktual */}
                                             <div className="flex justify-between items-center text-xs pt-1">
-                                                <span className="text-slate-500">Selisih sistem vs aktual</span>
+                                                <span className="text-muted-foreground">Selisih sistem vs aktual</span>
                                                 {renderBadge(diff(real, expectedBankAbs))}
                                             </div>
                                             {selisih !== 0 && (
-                                                <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-1.5 rounded">
+                                                <p className="text-xs text-amber-600 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 p-1.5 rounded">
                                                     ⚠️ Saldo laporan vs real berbeda: {formatCurrency(Math.abs(selisih))}
                                                 </p>
                                             )}
@@ -1087,14 +1087,14 @@ export default function CloseShiftPage() {
                                 })}
 
                                 {/* QRIS sebagai rekening */}
-                                <div className="p-4 border rounded-xl bg-white space-y-3">
-                                    <p className="font-bold text-slate-800">📱 QRIS</p>
-                                    <p className="text-xs text-slate-400">Target sistem: {formatCurrency(shiftData?.expectedQris || 0)}</p>
+                                <div className="p-4 border border-border rounded-xl bg-background space-y-3">
+                                    <p className="font-bold text-foreground">📱 QRIS</p>
+                                    <p className="text-xs text-muted-foreground">Target sistem: {formatCurrency(shiftData?.expectedQris || 0)}</p>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div className="space-y-1">
-                                            <Label className="text-xs text-slate-500">Saldo di Aplikasi QRIS</Label>
+                                            <Label className="text-xs text-muted-foreground">Saldo di Aplikasi QRIS</Label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                 <Input
                                                     type="number" min="0"
                                                     className="pl-9 text-right text-sm"
@@ -1105,9 +1105,9 @@ export default function CloseShiftPage() {
                                             </div>
                                         </div>
                                         <div className="space-y-1">
-                                            <Label className="text-xs text-slate-500">Saldo Real QRIS</Label>
+                                            <Label className="text-xs text-muted-foreground">Saldo Real QRIS</Label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">Rp</span>
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">Rp</span>
                                                 <Input
                                                     type="number" min="0"
                                                     className="pl-9 text-right text-sm font-bold"
@@ -1119,18 +1119,18 @@ export default function CloseShiftPage() {
                                         </div>
                                     </div>
                                     <div className="flex justify-between items-center text-xs pt-1">
-                                        <span className="text-slate-500">Selisih sistem vs aktual</span>
+                                        <span className="text-muted-foreground">Selisih sistem vs aktual</span>
                                         {renderBadge(diff(actualQris, shiftData?.expectedQris || 0))}
                                     </div>
                                     {realQrisBalance !== actualQris && realQrisBalance > 0 && (
-                                        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-1.5 rounded">
+                                        <p className="text-xs text-amber-600 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 p-1.5 rounded">
                                             ⚠️ Saldo laporan vs real berbeda: {formatCurrency(Math.abs(realQrisBalance - actualQris))}
                                         </p>
                                     )}
                                 </div>
 
                                 {(!shiftData?.systemBankBalances || Object.keys(shiftData.systemBankBalances).length === 0) && (
-                                    <p className="text-sm text-slate-400 text-center p-4 border rounded italic">
+                                    <p className="text-sm text-muted-foreground text-center p-4 border border-border rounded italic">
                                         Tidak ada rekening bank aktif yang terdaftar.
                                     </p>
                                 )}
@@ -1138,26 +1138,26 @@ export default function CloseShiftPage() {
                         </Card>
 
                         {/* ── Kartu 5: Lampiran & Catatan ── */}
-                        <Card className="border-t-4 border-t-emerald-500 border-slate-200">
+                        <Card className="border-t-4 border-t-emerald-500 border-border bg-card rounded-xl shadow-sm transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">6. Lampiran & Catatan</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {/* Upload Foto */}
                                 <div className="space-y-2">
-                                    <Label className="font-semibold text-slate-800">Foto Bukti (Struk, Laci, EDC)</Label>
+                                    <Label className="font-semibold text-foreground">Foto Bukti (Struk, Laci, EDC)</Label>
                                     <div
-                                        className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:bg-slate-50 cursor-pointer flex flex-col items-center gap-2"
+                                        className="border-2 border-dashed border-border rounded-xl p-6 text-center hover:bg-accent cursor-pointer flex flex-col items-center gap-2"
                                         onClick={() => fileInputRef.current?.click()}
                                     >
-                                        <Camera className="w-8 h-8 text-slate-400" />
-                                        <p className="text-sm text-slate-500">Klik untuk lampirkan foto</p>
+                                        <Camera className="w-8 h-8 text-muted-foreground" />
+                                        <p className="text-sm text-muted-foreground">Klik untuk lampirkan foto</p>
                                         <Input ref={fileInputRef} type="file" className="hidden" accept="image/*" multiple onChange={(e) => e.target.files && setFiles(Array.from(e.target.files))} />
                                     </div>
                                     {files.length > 0 && (
                                         <div className="flex flex-wrap gap-2">
                                             {files.map((file, idx) => (
-                                                <div key={idx} className="bg-slate-100 text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
+                                                <div key={idx} className="bg-muted text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
                                                     <span>{file.name}</span>
                                                     <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                                                 </div>
@@ -1168,7 +1168,7 @@ export default function CloseShiftPage() {
 
                                 {/* Catatan Tambahan */}
                                 <div className="space-y-2">
-                                    <Label className="font-semibold text-slate-800">Catatan Tambahan (Opsional)</Label>
+                                    <Label className="font-semibold text-foreground">Catatan Tambahan (Opsional)</Label>
                                     <Textarea
                                         placeholder="Misal: Ada tamu yang bayar nanti, barang titipan, dll."
                                         value={notes}
@@ -1180,7 +1180,7 @@ export default function CloseShiftPage() {
                         </Card>
 
                         {/* ── Tombol Submit ── */}
-                        <div className="flex justify-end sticky bottom-0 bg-slate-50/80 backdrop-blur-md px-4 py-4 rounded-t-2xl z-20 border-t border-slate-200">
+                        <div className="flex justify-end sticky bottom-0 bg-background/80 backdrop-blur-md px-4 py-4 rounded-t-2xl z-20 border-t border-border">
                             <Button
                                 type="submit"
                                 size="lg"

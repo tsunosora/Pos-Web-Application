@@ -138,7 +138,7 @@ export default function Home() {
         description={`Ringkasan aktivitas hari ini · ${activeBranchLabel}`}
         icon={LayoutDashboard}
         actions={
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-full glass px-3 py-1.5 text-xs font-medium text-muted-foreground">
             <Building2 className="h-3.5 w-3.5 text-primary" />
             <span className="text-foreground">{activeBranchLabel}</span>
           </span>
@@ -467,7 +467,7 @@ function Section({
     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 ring-amber-500/20'
     : 'bg-primary/10 text-primary ring-primary/20';
   return (
-    <section className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm">
+    <section className="rounded-xl glass p-4 sm:p-5">
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3 min-w-0">
           {Icon && (
@@ -544,7 +544,7 @@ function MetricCard({
   };
 
   return (
-    <div className="group rounded-xl border border-border bg-card p-3 sm:p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:-translate-y-0.5">
+    <div className="group rounded-xl glass-card p-3 sm:p-5">
       <div className="flex items-start justify-between gap-2">
         <div className={cn("flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-lg ring-1", colorStyles[color])}>
           <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -597,7 +597,7 @@ function QuickActionCard({
     <Link
       href={href}
       className={cn(
-        "group flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        "group flex items-center gap-3 rounded-xl glass-card p-4",
         c.hover,
       )}
     >

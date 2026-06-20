@@ -113,7 +113,7 @@ export default function BankAccountsPage() {
 
             {/* List Rekening */}
             <div className="space-y-3">
-                {isLoading && <p className="text-slate-400 text-sm">Memuat data rekening...</p>}
+                {isLoading && <p className="text-muted-foreground text-sm">Memuat data rekening...</p>}
 
                 {banks.map((bank: BankAccount) => (
                     <Card key={bank.id} className={`border ${!bank.isActive ? 'opacity-60' : ''}`}>
@@ -122,42 +122,42 @@ export default function BankAccountsPage() {
                             {editingId !== bank.id && resetId !== bank.id && (
                                 <div className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
                                     <div className="flex items-center gap-3 flex-1">
-                                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                                        <div className="w-10 h-10 bg-blue-500/15 rounded-full flex items-center justify-center shrink-0">
                                             <Building2 className="w-5 h-5 text-blue-600" />
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2">
-                                                <p className="font-bold text-slate-800">{bank.bankName}</p>
+                                                <p className="font-bold text-foreground">{bank.bankName}</p>
                                                 {!bank.isActive && (
-                                                    <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">Nonaktif</span>
+                                                    <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Nonaktif</span>
                                                 )}
                                             </div>
-                                            <p className="text-sm text-slate-500">{bank.accountNumber} · {bank.accountOwner}</p>
+                                            <p className="text-sm text-muted-foreground">{bank.accountNumber} · {bank.accountOwner}</p>
                                         </div>
                                     </div>
 
                                     {/* Saldo */}
                                     <div className="text-right sm:min-w-[140px]">
-                                        <p className="text-xs text-slate-400 uppercase tracking-wider">Saldo Saat Ini</p>
-                                        <p className="font-bold text-xl text-slate-800">{formatRp(bank.currentBalance)}</p>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider">Saldo Saat Ini</p>
+                                        <p className="font-bold text-xl text-foreground">{formatRp(bank.currentBalance)}</p>
                                     </div>
 
                                     {/* Aksi */}
                                     <div className="flex gap-2 shrink-0">
                                         <Button
                                             variant="outline" size="sm"
-                                            className="gap-1.5 text-amber-600 border-amber-200 hover:bg-amber-50"
+                                            className="gap-1.5 text-amber-600 dark:text-amber-300 border-amber-500/20 hover:bg-amber-500/10"
                                             onClick={() => startReset(bank)}
                                         >
                                             <RotateCcw className="w-3.5 h-3.5" />
                                             Reset Saldo
                                         </Button>
                                         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => startEdit(bank)}>
-                                            <Pencil className="w-4 h-4 text-slate-500" />
+                                            <Pencil className="w-4 h-4 text-muted-foreground" />
                                         </Button>
                                         <Button
                                             variant="ghost" size="icon"
-                                            className="h-9 w-9 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                            className="h-9 w-9 text-red-500 hover:text-red-600 dark:hover:text-red-300 hover:bg-red-500/10"
                                             onClick={() => handleDelete(bank)}
                                             disabled={deleteMutation.isPending}
                                         >
@@ -169,7 +169,7 @@ export default function BankAccountsPage() {
 
                             {/* Mode Reset Saldo */}
                             {resetId === bank.id && (
-                                <div className="p-5 bg-amber-50 border border-amber-200 rounded-lg space-y-3">
+                                <div className="p-5 bg-amber-500/10 border border-amber-500/20 rounded-lg space-y-3">
                                     <p className="font-semibold text-amber-800 flex items-center gap-2">
                                         <RotateCcw className="w-4 h-4" />
                                         Reset Saldo — {bank.bankName}
@@ -182,10 +182,10 @@ export default function BankAccountsPage() {
                                         <div className="flex-1 space-y-1">
                                             <Label className="text-sm font-medium">Saldo Aktual Rekening (Rp)</Label>
                                             <div className="relative">
-                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">Rp</span>
+                                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">Rp</span>
                                                 <Input
                                                     type="number" min="0"
-                                                    className="pl-9 text-right font-bold text-lg bg-white"
+                                                    className="pl-9 text-right font-bold text-lg bg-background"
                                                     value={newBalance || ''}
                                                     onChange={(e) => setNewBalance(Number(e.target.value))}
                                                     placeholder="0"
@@ -216,7 +216,7 @@ export default function BankAccountsPage() {
 
                             {/* Mode Edit Info Rekening */}
                             {editingId === bank.id && (
-                                <div className="p-5 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                                <div className="p-5 bg-blue-500/10 border border-blue-500/20 rounded-lg space-y-3">
                                     <p className="font-semibold text-blue-800 flex items-center gap-2">
                                         <Pencil className="w-4 h-4" /> Edit Rekening — {bank.bankName}
                                     </p>
@@ -265,7 +265,7 @@ export default function BankAccountsPage() {
                 ))}
 
                 {banks.length === 0 && !isLoading && (
-                    <div className="text-center py-12 text-slate-400 border-2 border-dashed rounded-xl">
+                    <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-xl">
                         <Building2 className="w-12 h-12 mx-auto opacity-30 mb-3" />
                         <p>Belum ada rekening bank. Tambahkan rekening pertama di bawah.</p>
                     </div>
@@ -274,7 +274,7 @@ export default function BankAccountsPage() {
 
             {/* Form Tambah Rekening Baru */}
             {showAddForm ? (
-                <Card className="border-dashed border-2 border-blue-300 bg-blue-50/50">
+                <Card className="border-dashed border-2 border-blue-500/30 bg-blue-500/5">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base">Tambah Rekening Baru</CardTitle>
                         <CardDescription>Isi data rekening bank yang ingin ditambahkan.</CardDescription>
@@ -294,7 +294,7 @@ export default function BankAccountsPage() {
                                 <Input value={newBank.accountOwner} onChange={e => setNewBank(p => ({ ...p, accountOwner: e.target.value }))} placeholder="Nama di rekening" />
                             </div>
                         </div>
-                        <p className="text-xs text-slate-500">💡 Setelah ditambahkan, gunakan tombol <strong>Reset Saldo</strong> untuk mengisi saldo awal rekening.</p>
+                        <p className="text-xs text-muted-foreground">💡 Setelah ditambahkan, gunakan tombol <strong>Reset Saldo</strong> untuk mengisi saldo awal rekening.</p>
                         <div className="flex gap-2 justify-end pt-1">
                             <Button
                                 disabled={!newBank.bankName || !newBank.accountNumber || !newBank.accountOwner || createMutation.isPending}

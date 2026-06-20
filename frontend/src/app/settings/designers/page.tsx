@@ -153,7 +153,8 @@ export default function DesignersSettingsPage() {
                         Belum ada desainer terdaftar. Klik &ldquo;Tambah Desainer&rdquo; untuk memulai.
                     </div>
                 ) : (
-                    <table className="w-full text-sm">
+                    <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[560px]">
                         <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
                             <tr>
                                 <th className="px-4 py-2 text-left font-medium">Nama</th>
@@ -178,7 +179,7 @@ export default function DesignersSettingsPage() {
                                         {"•".repeat(d.pin.length)}
                                     </td>
                                     <td className="px-4 py-2 text-center">
-                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${d.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}>
+                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${d.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-muted-foreground"}`}>
                                             {d.isActive ? "Aktif" : "Nonaktif"}
                                         </span>
                                     </td>
@@ -218,6 +219,7 @@ export default function DesignersSettingsPage() {
                             ))}
                         </tbody>
                     </table>
+                    </div>
                 )}
             </div>
 

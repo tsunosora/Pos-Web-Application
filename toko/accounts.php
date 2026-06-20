@@ -4,35 +4,41 @@ require_admin();
 
 $me  = current_user();
 $msg = null; $err = null;
+$isAdminRole = ($me['role'] ?? '') === 'admin';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     $action = $_POST['action'] ?? '';
     try {
         if ($action === 'add') {
-            $name = trim($_POST['name'] ?? '');
-            $email = trim($_POST['email'] ?? '');
-            $pass = $_POST['password'] ?? '';
-            $role = ($_POST['role'] ?? 'editor') === 'admin' ? 'admin' : 'editor';
-            if ($name === '' || $email === '' || $pass === '') $err = 'Nama, email, dan password wajib diisi.';
-            elseif (strlen($pass) < 6) $err = 'Password minimal 6 karakter.';
+            if (!$isAdminRole) $err = 'Hanya admin yang boleh menambah akun.';
             else {
-                $st = db()->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)');
-                $st->execute([$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role]);
-                $msg = 'Akun ditambahkan.';
+                $name = trim($_POST['name'] ?? '');
+                $email = trim($_POST['email'] ?? '');
+                $pass = $_POST['password'] ?? '';
+                $role = ($_POST['role'] ?? 'editor') === 'admin' ? 'admin' : 'editor';
+                if ($name === '' || $email === '' || $pass === '') $err = 'Nama, email, dan password wajib diisi.';
+                elseif (strlen($pass) < 8) $err = 'Password minimal 8 karakter.';
+                else {
+                    $st = db()->prepare('INSERT INTO users (name, email, password_hash, role) VALUES (?,?,?,?)');
+                    $st->execute([$name, $email, password_hash($pass, PASSWORD_DEFAULT), $role]);
+                    $msg = 'Akun ditambahkan.';
+                }
             }
         } elseif ($action === 'delete') {
             $id = (int)($_POST['id'] ?? 0);
-            if ($id === (int)$me['id']) $err = 'Tidak bisa menghapus akun sendiri.';
+            if (!$isAdminRole) $err = 'Hanya admin yang boleh menghapus akun.';
+            elseif ($id === (int)$me['id']) $err = 'Tidak bisa menghapus akun sendiri.';
             else { db()->prepare('DELETE FROM users WHERE id=?')->execute([$id]); $msg = 'Akun dihapus.'; }
         } elseif ($action === 'passwd') {
             $cur = $_POST['current'] ?? ''; $new = $_POST['new'] ?? '';
             $row = db()->query('SELECT password_hash FROM users WHERE id=' . (int)$me['id'])->fetch();
             if (!$row || !password_verify($cur, $row['password_hash'])) $err = 'Password saat ini salah.';
-            elseif (strlen($new) < 6) $err = 'Password baru minimal 6 karakter.';
+            elseif (strlen($new) < 8) $err = 'Password baru minimal 8 karakter.';
             else { db()->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($new, PASSWORD_DEFAULT), $me['id']]); $msg = 'Password diperbarui.'; }
         }
     } catch (Throwable $e) {
-        $err = (str_contains($e->getMessage(), 'Duplicate')) ? 'Email sudah dipakai.' : 'Gagal: ' . $e->getMessage();
+        $err = (str_contains($e->getMessage(), 'Duplicate')) ? 'Email sudah dipakai.' : 'Gagal menyimpan. Coba lagi.';
     }
 }
 
@@ -62,8 +68,9 @@ include __DIR__ . '/admin_header.php';
                             <div class="text-xs text-slate-400 truncate"><?= h($usr['email']) ?></div>
                         </div>
                         <span class="px-2.5 py-1 rounded-full text-xs font-semibold <?= $usr['role'] === 'admin' ? 'bg-violet-100 text-violet-700' : 'bg-slate-100 text-slate-600' ?>"><?= h($usr['role']) ?></span>
-                        <?php if ($usr['id'] != $me['id']): ?>
+                        <?php if ($usr['id'] != $me['id'] && $isAdminRole): ?>
                             <form method="post" onsubmit="return confirm('Hapus akun ini?')">
+                                <?= csrf_field() ?>
                                 <input type="hidden" name="action" value="delete">
                                 <input type="hidden" name="id" value="<?= (int)$usr['id'] ?>">
                                 <button class="text-slate-300 hover:text-rose-500 p-1.5" title="Hapus">
@@ -79,13 +86,15 @@ include __DIR__ . '/admin_header.php';
 
     <!-- Tambah akun + ganti password -->
     <div class="space-y-6">
+        <?php if ($isAdminRole): ?>
         <div class="bg-white rounded-3xl border border-slate-200 p-6">
             <h3 class="font-bold text-slate-900 mb-4">Tambah Akun</h3>
             <form method="post" class="space-y-3">
+                <?= csrf_field() ?>
                 <input type="hidden" name="action" value="add">
                 <input type="text" name="name" placeholder="Nama" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
                 <input type="email" name="email" placeholder="Email" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
-                <input type="password" name="password" placeholder="Password (min 6)" required minlength="6" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <input type="password" name="password" placeholder="Password (min 8)" required minlength="8" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
                 <select name="role" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
                     <option value="editor">Editor</option>
                     <option value="admin">Admin</option>
@@ -93,13 +102,15 @@ include __DIR__ . '/admin_header.php';
                 <button class="w-full px-5 py-2.5 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Tambah</button>
             </form>
         </div>
+        <?php endif; ?>
 
         <div class="bg-white rounded-3xl border border-slate-200 p-6">
             <h3 class="font-bold text-slate-900 mb-4">Ubah Password Saya</h3>
             <form method="post" class="space-y-3">
+                <?= csrf_field() ?>
                 <input type="hidden" name="action" value="passwd">
                 <input type="password" name="current" placeholder="Password saat ini" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
-                <input type="password" name="new" placeholder="Password baru (min 6)" required minlength="6" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <input type="password" name="new" placeholder="Password baru (min 8)" required minlength="8" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
                 <button class="w-full px-5 py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition">Perbarui</button>
             </form>
         </div>

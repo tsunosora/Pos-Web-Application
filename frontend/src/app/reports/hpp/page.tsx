@@ -2129,8 +2129,8 @@ function HppCalculatorContent() {
             {/* Modal Convert Worksheet -> POS Menu Product */}
             {
                 showRegisterProductModal && activeWorksheetId && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                        <div className="bg-card w-full max-w-sm rounded-[16px] border border-border shadow-2xl p-5 overflow-hidden">
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl">
+                        <div className="glass-strong w-full max-w-sm rounded-[16px] border border-border shadow-2xl p-5 overflow-hidden">
                             <div className="flex justify-between items-center mb-5">
                                 <h3 className="font-bold text-lg">Pendaftaran Produk</h3>
                                 <button onClick={() => setShowRegisterProductModal(false)} className="text-muted-foreground"><X className="w-5 h-5" /></button>
@@ -2153,8 +2153,8 @@ function HppCalculatorContent() {
 
             {/* Fixed Cost Preset Modal */}
             {showPresetModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-md rounded-[16px] border border-border shadow-2xl p-5">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl">
+                    <div className="glass-strong w-full max-w-md rounded-[16px] border border-border shadow-2xl p-5">
                         <div className="flex justify-between items-center mb-5">
                             <h3 className="font-bold text-lg flex items-center gap-2"><FileText className="w-5 h-5 text-amber-600" /> Preset Biaya Tetap</h3>
                             <button onClick={() => setShowPresetModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -2196,8 +2196,8 @@ function HppCalculatorContent() {
 
             {/* Modal: Tambah Varian ke Produk yang Ada */}
             {showAddVariantModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-sm rounded-[16px] border border-border shadow-2xl p-5">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl">
+                    <div className="glass-strong w-full max-w-sm rounded-[16px] border border-border shadow-2xl p-5">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-base flex items-center gap-2"><Plus className="w-4 h-4 text-blue-500" /> Tambah Varian ke Produk yang Ada</h3>
                             <button onClick={() => setShowAddVariantModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -2245,8 +2245,8 @@ function HppCalculatorContent() {
 
             {/* Modal: Perbarui HPP Varian */}
             {showUpdateHppModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-sm rounded-[16px] border border-border shadow-2xl p-5">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl">
+                    <div className="glass-strong w-full max-w-sm rounded-[16px] border border-border shadow-2xl p-5">
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="font-bold text-base flex items-center gap-2"><Save className="w-4 h-4 text-amber-500" /> Perbarui HPP Varian</h3>
                             <button onClick={() => setShowUpdateHppModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>

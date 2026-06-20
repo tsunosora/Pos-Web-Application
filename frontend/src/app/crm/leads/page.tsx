@@ -28,13 +28,13 @@ dayjs.locale("id");
 // ─── Konstanta ──────────────────────────────────────────────────────────────
 
 const STATUS_TABS: { value: LeadStatus | "ALL"; label: string; color: string }[] = [
-    { value: "ALL", label: "Semua", color: "bg-gray-100 text-gray-700" },
-    { value: "NEW", label: "Baru", color: "bg-blue-100 text-blue-700" },
-    { value: "FOLLOW_UP", label: "Follow Up", color: "bg-amber-100 text-amber-700" },
-    { value: "NEGOTIATION", label: "Negosiasi", color: "bg-purple-100 text-purple-700" },
-    { value: "CLOSED_WON", label: "Closing", color: "bg-emerald-100 text-emerald-700" },
-    { value: "CLOSED_LOST", label: "Lost", color: "bg-red-100 text-red-700" },
-    { value: "INVALID", label: "Invalid", color: "bg-orange-100 text-orange-700" },
+    { value: "ALL", label: "Semua", color: "bg-muted text-muted-foreground hover:bg-accent" },
+    { value: "NEW", label: "Baru", color: "bg-blue-500/10 text-blue-600 dark:text-blue-300 hover:bg-blue-500/20" },
+    { value: "FOLLOW_UP", label: "Follow Up", color: "bg-amber-500/10 text-amber-600 dark:text-amber-300 hover:bg-amber-500/20" },
+    { value: "NEGOTIATION", label: "Negosiasi", color: "bg-violet-500/10 text-violet-600 dark:text-violet-300 hover:bg-violet-500/20" },
+    { value: "CLOSED_WON", label: "Closing", color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/20" },
+    { value: "CLOSED_LOST", label: "Lost", color: "bg-red-500/10 text-red-600 dark:text-red-300 hover:bg-red-500/20" },
+    { value: "INVALID", label: "Invalid", color: "bg-orange-500/10 text-orange-600 dark:text-orange-300 hover:bg-orange-500/20" },
 ];
 
 const SOURCE_OPTIONS: LeadSource[] = [
@@ -93,17 +93,35 @@ function formatResponseTime(createdAt: string, firstResponseAt: string | null): 
 }
 
 const RESP_TONE_STYLE: Record<"fast" | "ok" | "slow" | "late", string> = {
-    fast: "text-emerald-700 bg-emerald-50 border-emerald-200",
-    ok: "text-blue-700 bg-blue-50 border-blue-200",
-    slow: "text-amber-700 bg-amber-50 border-amber-200",
-    late: "text-red-700 bg-red-50 border-red-200",
+    fast: "text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 border-emerald-500/20",
+    ok: "text-blue-600 dark:text-blue-300 bg-blue-500/10 border-blue-500/20",
+    slow: "text-amber-600 dark:text-amber-300 bg-amber-500/10 border-amber-500/20",
+    late: "text-red-600 dark:text-red-300 bg-red-500/10 border-red-500/20",
 };
 
 const levelColor: Record<LeadLevel, string> = {
-    HOT: "bg-red-100 text-red-700 border-red-200",
-    WARM: "bg-amber-100 text-amber-700 border-amber-200",
-    COLD: "bg-sky-100 text-sky-700 border-sky-200",
+    HOT: "bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20",
+    WARM: "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20",
+    COLD: "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20",
 };
+
+// Warna avatar inisial deterministik berdasar nama
+const AVATAR_PALETTE = [
+    "bg-indigo-500/15 text-indigo-600 dark:text-indigo-300",
+    "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
+    "bg-amber-500/15 text-amber-600 dark:text-amber-300",
+    "bg-rose-500/15 text-rose-600 dark:text-rose-300",
+    "bg-violet-500/15 text-violet-600 dark:text-violet-300",
+    "bg-blue-500/15 text-blue-600 dark:text-blue-300",
+];
+function avatarFor(name: string): { initials: string; cls: string } {
+    const clean = (name || "?").trim();
+    const parts = clean.split(/\s+/).filter(Boolean);
+    const initials = ((parts[0]?.[0] || "") + (parts[1]?.[0] || parts[0]?.[1] || "")).toUpperCase() || "?";
+    let hash = 0;
+    for (let i = 0; i < clean.length; i++) hash = (hash * 31 + clean.charCodeAt(i)) >>> 0;
+    return { initials, cls: AVATAR_PALETTE[hash % AVATAR_PALETTE.length] };
+}
 
 // Untuk sumber CUSTOM, tampilkan sourceDetail sebagai label. Untuk yang lain pakai LEAD_SOURCE_LABEL.
 function formatSource(source: LeadSource, sourceDetail?: string | null): string {
@@ -218,18 +236,20 @@ export default function LeadsPage() {
     return (
         <div className="space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <Sparkles className="h-6 w-6 text-indigo-600" />
-                        Leads CRM
-                    </h1>
-                    <p className="text-sm text-gray-500">Pipeline pra-jual — pelacakan calon customer dari berbagai channel</p>
+            <div className="flex items-center justify-between flex-wrap gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                        <Sparkles className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-2xl font-bold leading-tight">Leads CRM</h1>
+                        <p className="text-sm text-muted-foreground">Pipeline pra-jual — pelacakan calon customer dari berbagai channel</p>
+                    </div>
                 </div>
                 <div className="flex gap-2 items-center">
                     <button
                         onClick={openCreate}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 flex items-center gap-2"
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2"
                     >
                         <Plus className="h-4 w-4" /> Lead Baru
                     </button>
@@ -237,7 +257,7 @@ export default function LeadsPage() {
             </div>
 
             {/* Status tabs */}
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {STATUS_TABS.map((t) => {
                     const count = t.value === "ALL"
                         ? Object.values(summary || {}).reduce((s, n) => s + n, 0)
@@ -247,11 +267,16 @@ export default function LeadsPage() {
                         <button
                             key={t.value}
                             onClick={() => setTabStatus(t.value)}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                                active ? "bg-indigo-600 text-white shadow" : `${t.color} hover:opacity-80`
+                            className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                active ? "bg-primary text-primary-foreground shadow-sm" : t.color
                             }`}
                         >
-                            {t.label} <span className="ml-1 opacity-70">({count})</span>
+                            {t.label}
+                            <span className={`inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full text-xs font-semibold tabular-nums ${
+                                active ? "bg-primary-foreground/20 text-primary-foreground" : "bg-background/60 text-foreground"
+                            }`}>
+                                {count}
+                            </span>
                         </button>
                     );
                 })}
@@ -262,27 +287,27 @@ export default function LeadsPage() {
                 {/* Row 1: search + filter toggle */}
                 <div className="flex gap-2 flex-wrap items-center">
                     <div className="relative flex-1 min-w-[200px]">
-                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                         <input
                             type="text"
                             placeholder="Cari nama / HP / kota / kebutuhan..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                            className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         />
                     </div>
                     <button
                         onClick={() => setShowFilters((v) => !v)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-colors ${
                             showFilters || activeFilterCount > 0
-                                ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                                : "border-gray-300 text-gray-600 hover:bg-gray-50"
+                                ? "bg-primary/10 border-primary/30 text-primary"
+                                : "bg-background border-border text-muted-foreground hover:bg-accent"
                         }`}
                     >
                         <Filter className="h-4 w-4" />
                         Filter
                         {activeFilterCount > 0 && (
-                            <span className="ml-0.5 bg-indigo-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none">
+                            <span className="ml-0.5 bg-primary text-primary-foreground text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none">
                                 {activeFilterCount}
                             </span>
                         )}
@@ -290,7 +315,7 @@ export default function LeadsPage() {
                     {activeFilterCount > 0 && (
                         <button
                             onClick={clearFilters}
-                            className="flex items-center gap-1 px-3 py-2 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors"
+                            className="flex items-center gap-1 px-3 py-2 rounded-xl border border-red-500/20 text-red-600 dark:text-red-300 text-sm hover:bg-red-500/10 transition-colors"
                         >
                             <X className="h-3.5 w-3.5" /> Reset
                         </button>
@@ -299,13 +324,13 @@ export default function LeadsPage() {
 
                 {/* Row 2: advanced filters (collapsible) */}
                 {showFilters && (
-                    <div className="flex gap-2 flex-wrap items-start p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="flex gap-2 flex-wrap items-start p-3 bg-card rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
                         {/* Date preset */}
                         <div className="relative" ref={dateDropdownRef}>
                             <button
                                 onClick={() => setShowDateDropdown((v) => !v)}
-                                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm whitespace-nowrap ${
-                                    datePreset ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "border-gray-300 text-gray-600 bg-white"
+                                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm whitespace-nowrap transition-colors ${
+                                    datePreset ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground bg-background hover:bg-accent"
                                 }`}
                             >
                                 <CalendarDays className="h-4 w-4" />
@@ -313,12 +338,12 @@ export default function LeadsPage() {
                                 <ChevronDown className="h-3.5 w-3.5 opacity-60" />
                             </button>
                             {showDateDropdown && (
-                                <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 min-w-[160px]">
+                                <div className="absolute top-full left-0 mt-1 z-30 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-150">
                                     {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((p) => (
                                         <button
                                             key={p}
                                             onClick={() => { setDatePreset(p); setShowDateDropdown(false); }}
-                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${datePreset === p ? "text-indigo-700 font-semibold" : "text-gray-700"}`}
+                                            className={`w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors ${datePreset === p ? "text-primary font-semibold" : "text-foreground"}`}
                                         >
                                             {DATE_PRESET_LABELS[p]}
                                         </button>
@@ -334,26 +359,26 @@ export default function LeadsPage() {
                                     type="date"
                                     value={customDateFrom}
                                     onChange={(e) => setCustomDateFrom(e.target.value)}
-                                    className="border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                                    className="bg-background border border-border rounded-xl px-2 py-2 text-sm"
                                 />
-                                <span className="text-gray-400 text-xs">s/d</span>
+                                <span className="text-muted-foreground text-xs">s/d</span>
                                 <input
                                     type="date"
                                     value={customDateTo}
                                     onChange={(e) => setCustomDateTo(e.target.value)}
-                                    className="border border-gray-300 rounded-lg px-2 py-2 text-sm"
+                                    className="bg-background border border-border rounded-xl px-2 py-2 text-sm"
                                 />
                             </div>
                         )}
 
                         {/* CS / assigned to */}
                         <div className="relative">
-                            <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400 pointer-events-none" />
+                            <Users className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground pointer-events-none" />
                             <select
                                 value={filterAssignedTo}
                                 onChange={(e) => setFilterAssignedTo(e.target.value ? Number(e.target.value) : "")}
-                                className={`pl-8 pr-3 py-2 border rounded-lg text-sm ${
-                                    filterAssignedTo ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "border-gray-300 text-gray-600 bg-white"
+                                className={`pl-8 pr-3 py-2 border rounded-xl text-sm transition-colors ${
+                                    filterAssignedTo ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground bg-background"
                                 }`}
                             >
                                 <option value="">Semua CS</option>
@@ -367,8 +392,8 @@ export default function LeadsPage() {
                         <select
                             value={filterSource}
                             onChange={(e) => setFilterSource(e.target.value as LeadSource | "")}
-                            className={`border rounded-lg px-3 py-2 text-sm ${
-                                filterSource ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "border-gray-300 text-gray-600 bg-white"
+                            className={`border rounded-xl px-3 py-2 text-sm transition-colors ${
+                                filterSource ? "bg-primary/10 border-primary/30 text-primary" : "border-border text-muted-foreground bg-background"
                             }`}
                         >
                             <option value="">Semua Sumber</option>
@@ -383,10 +408,10 @@ export default function LeadsPage() {
                                 <button
                                     key={l}
                                     onClick={() => setFilterLevel(filterLevel === l ? "" : l)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
                                         filterLevel === l
                                             ? levelColor[l]
-                                            : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                                            : "bg-background border-border text-muted-foreground hover:bg-accent"
                                     }`}
                                 >
                                     {LEAD_LEVEL_LABEL[l]}
@@ -399,20 +424,24 @@ export default function LeadsPage() {
 
             {/* List */}
             {isLoading ? (
-                <div className="flex items-center justify-center py-12 text-gray-500">
+                <div className="flex items-center justify-center py-16 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Memuat...
                 </div>
             ) : items.length === 0 ? (
-                <div className="bg-white border rounded-xl p-12 text-center text-gray-500">
-                    <Sparkles className="h-10 w-10 mx-auto mb-2 text-gray-300" />
-                    <p>Belum ada lead. Tambah lead baru untuk mulai tracking calon customer.</p>
+                <div className="bg-card border border-border rounded-2xl p-12 text-center animate-in fade-in zoom-in-95 duration-300">
+                    <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
+                        <Sparkles className="h-7 w-7 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-muted-foreground">Belum ada lead. Tambah lead baru untuk mulai tracking calon customer.</p>
                 </div>
             ) : (
-                <LeadKanbanBoard
-                    leads={items}
-                    onCardClick={(l) => setDetailId(l.id)}
-                    onStatusChange={(id, status) => statusMut.mutate({ id, status })}
-                />
+                <div className="animate-in fade-in duration-300">
+                    <LeadKanbanBoard
+                        leads={items}
+                        onCardClick={(l) => setDetailId(l.id)}
+                        onStatusChange={(id, status) => statusMut.mutate({ id, status })}
+                    />
+                </div>
             )}
 
             {/* Form modal */}
@@ -629,20 +658,25 @@ function LeadFormModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
-                <div className="sticky top-0 bg-white border-b px-5 py-3 flex items-center justify-between">
-                    <h2 className="font-bold text-lg">{initial ? "Edit Lead" : "Lead Baru"}</h2>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[200] flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl border border-border shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                <div className="sticky top-0 bg-card/95 backdrop-blur border-b border-border px-5 py-3 flex items-center justify-between z-10">
+                    <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
+                            <Sparkles className="h-4 w-4" />
+                        </div>
+                        <h2 className="font-bold text-lg">{initial ? "Edit Lead" : "Lead Baru"}</h2>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-accent rounded-lg transition-colors">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-5 space-y-3">
                     {/* Multi-image upload — bisa upload sampai 5 gambar, tampil sebagai slider di card */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
                             Gambar Lead
-                            <span className="text-gray-400 font-normal ml-1">
+                            <span className="text-muted-foreground font-normal ml-1">
                                 ({imageUrls.length}/{MAX_IMAGES}) — tampil sebagai slider di card kanban
                             </span>
                         </label>
@@ -650,11 +684,11 @@ function LeadFormModal({
                             {imageUrls.map((url, idx) => {
                                 const src = resolveLeadImageUrl(url) || url;
                                 return (
-                                    <div key={idx} className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-gray-200 group">
+                                    <div key={idx} className="relative aspect-square bg-muted rounded-lg overflow-hidden border-2 border-border group">
                                         {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img src={src} alt={`Lead ${idx + 1}`} className="w-full h-full object-cover" />
                                         {idx === 0 && (
-                                            <span className="absolute top-1 left-1 bg-indigo-600 text-white text-[9px] px-1.5 py-0.5 rounded font-semibold">COVER</span>
+                                            <span className="absolute top-1 left-1 bg-primary text-primary-foreground text-[9px] px-1.5 py-0.5 rounded font-semibold">COVER</span>
                                         )}
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
                                             {idx > 0 && (
@@ -672,33 +706,33 @@ function LeadFormModal({
                                 );
                             })}
                             {imageUrls.length < MAX_IMAGES && (
-                                <label className={`aspect-square rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-                                    <span className="text-2xl text-gray-400">{uploading ? "⏳" : "+"}</span>
-                                    <span className="text-[10px] text-gray-500 mt-0.5">
+                                <label className={`aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+                                    <span className="text-2xl text-muted-foreground">{uploading ? "⏳" : "+"}</span>
+                                    <span className="text-[10px] text-muted-foreground mt-0.5">
                                         {uploading ? "Upload..." : "Tambah"}
                                     </span>
                                     <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
                                 </label>
                             )}
                         </div>
-                        <p className="text-[10px] text-gray-400 mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-1">
                             Bisa upload multiple sekaligus (Ctrl+Click). Maks 10 MB per file. Gambar pertama = COVER (tampil pertama di slider).
                         </p>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Nama *</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Nama *</label>
                         <input
                             required
                             value={form.name}
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             placeholder="mis. PT Bina Sekolah / Andi futsal"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
                             Tanggal &amp; Jam Masuk Lead
                             {!initial && <span className="text-indigo-500 font-normal ml-1">(otomatis = sekarang)</span>}
                         </label>
@@ -706,29 +740,29 @@ function LeadFormModal({
                             type="datetime-local"
                             value={form.intakeAt}
                             onChange={(e) => setForm({ ...form, intakeAt: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         />
-                        <p className="text-[10px] text-gray-500 mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-1">
                             Sesuaikan jika lead ini masuk sebelumnya tapi baru diinput sekarang.
                         </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">No. HP</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">No. HP</label>
                             <input
                                 value={form.phone}
                                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                 placeholder="08123456789"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Kota</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Kota</label>
                             <input
                                 value={form.city}
                                 onChange={(e) => setForm({ ...form, city: e.target.value })}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                 placeholder="Yogyakarta"
                             />
                         </div>
@@ -738,39 +772,39 @@ function LeadFormModal({
                     {!initial && form.phone.replace(/\D/g, "").length >= 4 && (
                         <>
                             {phoneSearching && (
-                                <div className="text-xs text-gray-500 flex items-center gap-1.5">
+                                <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                                     <Loader2 className="h-3 w-3 animate-spin" /> Mencari customer dengan HP serupa...
                                 </div>
                             )}
                             {!phoneSearching && phoneMatches.length > 0 && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs">
-                                    <div className="font-semibold text-amber-800 mb-1.5 flex items-center gap-1">
+                                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs">
+                                    <div className="font-semibold text-amber-700 dark:text-amber-300 mb-1.5 flex items-center gap-1">
                                         ⚠️ Customer dengan HP serupa sudah terdaftar ({phoneMatches.length})
                                     </div>
                                     <div className="space-y-1.5">
                                         {phoneMatches.map(c => (
-                                            <div key={c.id} className="flex items-center justify-between bg-white rounded px-2 py-1.5 border border-amber-100">
+                                            <div key={c.id} className="flex items-center justify-between bg-card rounded px-2 py-1.5 border border-amber-500/20">
                                                 <div className="min-w-0 flex-1">
-                                                    <div className="font-semibold text-gray-800 truncate">{c.name}</div>
-                                                    <div className="text-gray-500">{c.phone}</div>
+                                                    <div className="font-semibold text-foreground truncate">{c.name}</div>
+                                                    <div className="text-muted-foreground">{c.phone}</div>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => useCustomerData(c)}
-                                                    className="ml-2 px-2 py-1 bg-indigo-600 text-white rounded text-[10px] font-semibold hover:bg-indigo-700"
+                                                    className="ml-2 px-2 py-1 bg-primary text-primary-foreground rounded text-[10px] font-semibold hover:opacity-90 transition-opacity"
                                                 >
                                                     Pakai Data Ini
                                                 </button>
                                             </div>
                                         ))}
                                     </div>
-                                    <p className="text-[10px] text-amber-700 mt-1.5">
+                                    <p className="text-[10px] text-amber-700 dark:text-amber-300/80 mt-1.5">
                                         Tip: pakai data customer existing untuk hindari duplikat. Saat convert, lead akan langsung ter-link ke customer ini.
                                     </p>
                                 </div>
                             )}
                             {!phoneSearching && phoneChecked && phoneMatches.length === 0 && form.phone.replace(/\D/g, "").length >= 6 && (
-                                <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1.5 flex items-center gap-1.5">
+                                <div className="text-xs text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1.5 flex items-center gap-1.5">
                                     ✓ HP ini belum terdaftar — aman dibuat sebagai lead baru
                                 </div>
                             )}
@@ -779,12 +813,12 @@ function LeadFormModal({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Sumber *</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Sumber *</label>
                             <select
                                 required
                                 value={selectSourceValue}
                                 onChange={(e) => handleSourceChange(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             >
                                 {SOURCE_OPTIONS.filter(s => s !== "CUSTOM").map((s) => (
                                     <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>
@@ -800,11 +834,11 @@ function LeadFormModal({
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Level</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Level</label>
                             <select
                                 value={form.level}
                                 onChange={(e) => setForm({ ...form, level: e.target.value as LeadLevel })}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             >
                                 {LEVEL_OPTIONS.map((l) => (
                                     <option key={l} value={l}>{LEAD_LEVEL_LABEL[l]}</option>
@@ -814,7 +848,7 @@ function LeadFormModal({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
                             {form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" ? (
                                 <>Nama Sumber Baru <span className="text-red-500">*</span></>
                             ) : "Detail Sumber"}
@@ -823,7 +857,7 @@ function LeadFormModal({
                             required={form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW"}
                             value={form.sourceDetail}
                             onChange={(e) => setForm({ ...form, sourceDetail: e.target.value })}
-                            className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-gray-300"}`}
+                            className={`w-full border rounded-lg px-3 py-2 text-sm ${form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" ? "border-indigo-400 focus:ring-2 focus:ring-indigo-300" : "border-border"}`}
                             placeholder={
                                 form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW"
                                     ? 'mis. "Shopee", "Brosur Pameran", "Event Kampus"...'
@@ -836,12 +870,12 @@ function LeadFormModal({
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Kebutuhan (catatan bebas)</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Kebutuhan (catatan bebas)</label>
                         <textarea
                             rows={2}
                             value={form.needs}
                             onChange={(e) => setForm({ ...form, needs: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             placeholder="mis. Deadline 2 minggu, ada permintaan desain khusus, dll"
                         />
                     </div>
@@ -851,7 +885,7 @@ function LeadFormModal({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">
                                 Estimasi Nilai (Rp)
                                 {itemsTotal > 0 && (
                                     <span className="ml-1 text-[10px] text-indigo-600 font-normal">
@@ -864,40 +898,40 @@ function LeadFormModal({
                                 min={0}
                                 value={form.estimatedValue}
                                 onChange={(e) => setForm({ ...form, estimatedValue: e.target.value as any })}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                 placeholder="6000000"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal FU</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Tanggal FU</label>
                             <input
                                 type="date"
                                 value={form.followUpDate}
                                 onChange={(e) => setForm({ ...form, followUpDate: e.target.value })}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal Kirim Deadline</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Tanggal Kirim Deadline</label>
                         <input
                             type="date"
                             value={form.deliveryDeadline}
                             onChange={(e) => setForm({ ...form, deliveryDeadline: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         />
-                        <p className="text-[10px] text-gray-500 mt-1">Target tanggal barang/jasa harus sudah dikirim ke customer.</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Target tanggal barang/jasa harus sudah dikirim ke customer.</p>
                     </div>
 
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
                             CS yang Pegang Lead Ini
                         </label>
                         <select
                             value={form.assignedToId}
                             onChange={(e) => setForm({ ...form, assignedToId: e.target.value })}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         >
                             <option value="">— Belum di-assign —</option>
                             {(users ?? []).map((u) => (
@@ -906,7 +940,7 @@ function LeadFormModal({
                                 </option>
                             ))}
                         </select>
-                        <p className="text-[10px] text-gray-500 mt-1">
+                        <p className="text-[10px] text-muted-foreground mt-1">
                             Daftar diambil dari Manajemen User di /settings/users. CS yang pegang akan jadi default assignee untuk follow-up.
                         </p>
                     </div>
@@ -915,12 +949,12 @@ function LeadFormModal({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                            className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors"
                         >Batal</button>
                         <button
                             type="submit"
                             disabled={submitting}
-                            className="flex-1 px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50"
+                            className="flex-1 px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-lg text-sm shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                         >
                             {submitting ? "Menyimpan..." : initial ? "Simpan Perubahan" : "Buat Lead"}
                         </button>
@@ -1057,8 +1091,8 @@ function LeadDetailDrawer({
 
     if (!leadDetail) {
         return (
-            <div className="fixed inset-0 bg-black/40 z-[200] flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-white" />
+            <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[200] flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
             </div>
         );
     }
@@ -1069,27 +1103,34 @@ function LeadDetailDrawer({
     const isInvalid = lead2.status === "INVALID";
 
     return (
-        <div className="fixed inset-0 bg-black/40 z-[200] flex justify-end" onClick={onClose}>
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[200] flex justify-end" onClick={onClose}>
             <div
-                className="bg-white w-full max-w-2xl h-full overflow-y-auto shadow-2xl"
+                className="bg-card w-full max-w-2xl h-full overflow-y-auto border-l border-border shadow-2xl animate-in slide-in-from-right-4 fade-in duration-300"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b px-5 py-3 flex items-center justify-between z-10">
-                    <div className="flex items-center gap-2">
-                        <span className={`text-[10px] px-2 py-0.5 rounded border ${levelColor[lead2.level]}`}>
-                            {LEAD_LEVEL_LABEL[lead2.level]}
-                        </span>
-                        <h2 className="font-bold text-lg">{lead2.name}</h2>
+                <div className="sticky top-0 bg-card/95 backdrop-blur border-b border-border px-5 py-3 flex items-center justify-between z-10">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                        {(() => { const a = avatarFor(lead2.name); return (
+                            <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${a.cls}`}>
+                                {a.initials}
+                            </div>
+                        ); })()}
+                        <div className="min-w-0">
+                            <h2 className="font-bold text-lg leading-tight truncate">{lead2.name}</h2>
+                            <span className={`inline-block mt-0.5 text-[10px] px-2 py-0.5 rounded-full border ${levelColor[lead2.level]}`}>
+                                {LEAD_LEVEL_LABEL[lead2.level]}
+                            </span>
+                        </div>
                     </div>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                    <button onClick={onClose} className="p-1.5 hover:bg-accent rounded-lg transition-colors shrink-0">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
                 {/* Image preview — carousel kalau >1, klik buka di tab baru */}
                 {((lead2.images && lead2.images.length > 0) || lead2.imageUrl) && (
-                    <div className="bg-gray-50 border-b">
+                    <div className="bg-muted border-b">
                         <LeadImageCarousel
                             images={lead2.images || []}
                             fallbackUrl={lead2.imageUrl}
@@ -1118,7 +1159,7 @@ function LeadDetailDrawer({
                         <Info label="Tgl Kirim Deadline" value={lead2.deliveryDeadline ? dayjs(lead2.deliveryDeadline).format("DD MMM YYYY") : "-"} />
                         <Info label="Assigned" value={lead2.assignedTo?.name || lead2.assignedTo?.email || "Belum di-assign"} />
                         <div className="col-span-2">
-                            <div className="text-[10px] uppercase tracking-wide text-gray-500 mb-1">Response Time CS</div>
+                            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Response Time CS</div>
                             {(() => {
                                 const rt = formatResponseTime(lead2.createdAt, lead2.firstResponseAt);
                                 if (rt) {
@@ -1127,14 +1168,14 @@ function LeadDetailDrawer({
                                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-semibold ${RESP_TONE_STYLE[rt.tone]}`}>
                                                 <Clock className="h-3 w-3" /> {rt.text}
                                             </span>
-                                            <span className="text-xs text-gray-500">
+                                            <span className="text-xs text-muted-foreground">
                                                 direspon {dayjs(lead2.firstResponseAt!).format("DD MMM YYYY HH:mm")}
                                             </span>
                                             <button
                                                 type="button"
                                                 onClick={() => respMut.mutate(null)}
                                                 disabled={respMut.isPending}
-                                                className="text-[11px] text-gray-500 hover:text-red-600 underline disabled:opacity-50"
+                                                className="text-[11px] text-muted-foreground hover:text-red-600 underline disabled:opacity-50"
                                             >
                                                 Reset
                                             </button>
@@ -1143,7 +1184,7 @@ function LeadDetailDrawer({
                                 }
                                 return (
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xs text-gray-500 italic">Belum direspon</span>
+                                        <span className="text-xs text-muted-foreground italic">Belum direspon</span>
                                         <button
                                             type="button"
                                             onClick={() => respMut.mutate(new Date().toISOString())}
@@ -1160,24 +1201,25 @@ function LeadDetailDrawer({
                     </div>
 
                     {lead2.needs && (
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3">
-                            <div className="text-xs font-semibold text-indigo-700 mb-1">Kebutuhan</div>
-                            <p className="text-sm text-gray-800 whitespace-pre-wrap">{lead2.needs}</p>
+                        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3">
+                            <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-300 mb-1">Kebutuhan</div>
+                            <p className="text-sm text-foreground whitespace-pre-wrap">{lead2.needs}</p>
                         </div>
                     )}
 
                     {/* Daftar produk yang akan diorder */}
                     {(lead2.items && lead2.items.length > 0) && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-3">
-                            <div className="text-xs font-semibold text-gray-700 mb-2 flex items-center justify-between">
+                        <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
+                            <div className="text-xs font-semibold text-foreground mb-2 flex items-center justify-between">
                                 <span>📦 Daftar Produk Order ({lead2.items.length} item)</span>
-                                <span className="text-indigo-700 font-bold">
+                                <span className="text-indigo-600 dark:text-indigo-300 font-bold">
                                     Total: Rp {lead2.items.reduce((s: number, it: any) => s + calcItemSubtotal(it), 0).toLocaleString("id-ID", { maximumFractionDigits: 0 })}
                                 </span>
                             </div>
-                            <table className="w-full text-xs">
+                            <div className="overflow-x-auto">
+                            <table className="w-full text-xs min-w-[560px]">
                                 <thead>
-                                    <tr className="border-b text-gray-500">
+                                    <tr className="border-b text-muted-foreground">
                                         <th className="text-left py-1.5 px-1">Produk</th>
                                         <th className="text-right py-1.5 px-1">Qty</th>
                                         <th className="text-right py-1.5 px-1">Harga</th>
@@ -1190,7 +1232,7 @@ function LeadDetailDrawer({
                                         const isCustom = !it.productVariantId;
                                         const isArea = (Number(it.widthCm) || 0) > 0 && (Number(it.heightCm) || 0) > 0;
                                         return (
-                                            <tr key={it.id} className="border-t hover:bg-gray-50">
+                                            <tr key={it.id} className="border-t hover:bg-muted">
                                                 <td className="py-1.5 px-1">
                                                     <div className="font-semibold">{it.description}</div>
                                                     {isCustom ? (
@@ -1199,22 +1241,22 @@ function LeadDetailDrawer({
                                                         <span className="text-[9px] text-emerald-600">✓ katalog · {it.productVariant?.sku}</span>
                                                     )}
                                                     {it.widthCm && it.heightCm && (
-                                                        <span className="text-[9px] text-gray-500 ml-1">· {it.widthCm}×{it.heightCm}cm</span>
+                                                        <span className="text-[9px] text-muted-foreground ml-1">· {it.widthCm}×{it.heightCm}cm</span>
                                                     )}
                                                 </td>
                                                 <td className="py-1.5 px-1 text-right font-mono">
                                                     {it.quantity}
                                                     {isArea && (
-                                                        <div className="text-[9px] text-gray-400">
+                                                        <div className="text-[9px] text-muted-foreground">
                                                             ×{((Number(it.widthCm) * Number(it.heightCm)) / 10000).toFixed(2)}m²
                                                         </div>
                                                     )}
                                                 </td>
-                                                <td className="py-1.5 px-1 text-right font-mono text-gray-600">
+                                                <td className="py-1.5 px-1 text-right font-mono text-muted-foreground">
                                                     {Number(it.unitPrice).toLocaleString("id-ID")}
-                                                    {isArea && <div className="text-[9px] text-gray-400">/m²</div>}
+                                                    {isArea && <div className="text-[9px] text-muted-foreground">/m²</div>}
                                                 </td>
-                                                <td className="py-1.5 px-1 text-right font-mono font-bold text-indigo-700">
+                                                <td className="py-1.5 px-1 text-right font-mono font-bold text-indigo-600 dark:text-indigo-300">
                                                     {sub.toLocaleString("id-ID", { maximumFractionDigits: 0 })}
                                                 </td>
                                             </tr>
@@ -1222,30 +1264,31 @@ function LeadDetailDrawer({
                                     })}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
 
                     {/* Alur B: SO desainer tertaut, belum jadi nota — saat SO di-checkout di POS, lead otomatis closing */}
                     {lead2.convertedSalesOrderId && !isWon && (
-                        <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm space-y-1">
-                            <div className="font-semibold text-indigo-700 flex items-center gap-1">
+                        <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 text-sm space-y-1">
+                            <div className="font-semibold text-indigo-600 dark:text-indigo-300 flex items-center gap-1">
                                 <Link2 className="h-4 w-4" /> Tertaut ke Sales Order
                             </div>
-                            <div className="text-indigo-800">
+                            <div className="text-foreground">
                                 SO: <strong>{lead2.convertedSO?.soNumber || `#${lead2.convertedSalesOrderId}`}</strong>
-                                <span className="text-indigo-600"> — saat SO ini dibuatkan nota di POS, lead otomatis closing ke nota yang sama (tanpa nota dobel).</span>
+                                <span className="text-muted-foreground"> — saat SO ini dibuatkan nota di POS, lead otomatis closing ke nota yang sama (tanpa nota dobel).</span>
                             </div>
-                            <div className="flex items-center gap-3 pt-1.5 border-t border-indigo-200">
+                            <div className="flex items-center gap-3 pt-1.5 border-t border-indigo-500/20">
                                 <button
                                     onClick={() => setShowPreNota(true)}
-                                    className="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg font-semibold hover:bg-indigo-700 inline-flex items-center gap-1"
+                                    className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
                                 >
                                     🧾 Buat Nota di POS
                                 </button>
                                 <button
                                     onClick={() => { if (confirm("Lepas tautan SO dari lead ini?")) linkSOMut.mutate(null); }}
                                     disabled={linkSOMut.isPending}
-                                    className="text-xs text-red-600 hover:underline flex items-center gap-1"
+                                    className="text-xs text-red-600 dark:text-red-300 hover:underline flex items-center gap-1"
                                 >
                                     <Unlink className="h-3 w-3" /> Lepas tautan
                                 </button>
@@ -1254,22 +1297,22 @@ function LeadDetailDrawer({
                     )}
 
                     {lead2.convertedCustomer && (
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm space-y-1">
-                            <div className="font-semibold text-emerald-700 flex items-center gap-1">
+                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-sm space-y-1">
+                            <div className="font-semibold text-emerald-600 dark:text-emerald-300 flex items-center gap-1">
                                 <CheckCircle2 className="h-4 w-4" /> Sudah Convert
                             </div>
-                            <div className="text-emerald-800">
+                            <div className="text-foreground">
                                 Customer: <strong>{lead2.convertedCustomer.name}</strong>
                                 {lead2.convertedSO && <span> · SO: <strong>{lead2.convertedSO.soNumber}</strong></span>}
                             </div>
                             {lead2.convertedTransactionId && (
-                                <div className="flex items-center gap-2 pt-1 border-t border-emerald-200">
-                                    <span className="text-emerald-700">🧾 Nota Produksi:</span>
+                                <div className="flex items-center gap-2 pt-1 border-t border-emerald-500/20">
+                                    <span className="text-emerald-600 dark:text-emerald-300">🧾 Nota Produksi:</span>
                                     <a
                                         href={`/transactions/${lead2.convertedTransactionId}`}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        className="text-indigo-600 hover:text-indigo-800 font-medium underline underline-offset-2"
+                                        className="text-indigo-600 dark:text-indigo-300 hover:underline font-medium underline-offset-2"
                                     >
                                         Lihat Nota #{lead2.convertedTransactionId}
                                     </a>
@@ -1279,11 +1322,11 @@ function LeadDetailDrawer({
                     )}
 
                     {lead2.status === "CLOSED_LOST" && lead2.closeLostReason && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm">
-                            <div className="font-semibold text-red-700 flex items-center gap-1">
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-sm">
+                            <div className="font-semibold text-red-600 dark:text-red-300 flex items-center gap-1">
                                 <XCircle className="h-4 w-4" /> Lead Lost
                             </div>
-                            <div className="text-red-800 mt-1">{lead2.closeLostReason}</div>
+                            <div className="text-foreground mt-1">{lead2.closeLostReason}</div>
                         </div>
                     )}
 
@@ -1295,10 +1338,10 @@ function LeadDetailDrawer({
                                     key={s}
                                     onClick={() => statusMut.mutate(s)}
                                     disabled={lead2.status === s || statusMut.isPending}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                                         lead2.status === s
-                                            ? "bg-indigo-600 text-white"
-                                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                            ? "bg-primary text-primary-foreground shadow-sm"
+                                            : "bg-muted text-muted-foreground hover:bg-accent"
                                     }`}
                                 >
                                     → {LEAD_STATUS_LABEL[s]}
@@ -1319,7 +1362,7 @@ function LeadDetailDrawer({
                         {/* Convert — tampil selama bukan Lost */}
                         {!isLost && (
                             isWon && !isOwner ? (
-                                <span className="px-3 py-2 bg-gray-100 text-gray-500 rounded-lg text-sm flex items-center gap-1 cursor-default" title="Sudah di-convert. Hanya owner yang bisa convert ulang.">
+                                <span className="px-3 py-2 bg-muted text-muted-foreground rounded-lg text-sm flex items-center gap-1 cursor-default" title="Sudah di-convert. Hanya owner yang bisa convert ulang.">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Sudah Di-convert
                                 </span>
                             ) : (
@@ -1337,7 +1380,7 @@ function LeadDetailDrawer({
                         {!isWon && !isLost && !isInvalid && (
                             <button
                                 onClick={() => setShowLinkSO(true)}
-                                className="px-3 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 flex items-center gap-1"
+                                className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-1"
                                 title="Customer sudah dibuatkan SO oleh desainer? Tautkan ke lead ini — tanpa bikin nota baru."
                             >
                                 <Link2 className="h-4 w-4" /> {lead2.convertedSalesOrderId ? "Ganti SO Tertaut" : "Tautkan SO"}
@@ -1364,7 +1407,7 @@ function LeadDetailDrawer({
                         {/* Edit — selalu tampil */}
                         <button
                             onClick={() => onEdit(lead2)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
+                            className="px-3 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors"
                         >
                             Edit
                         </button>
@@ -1377,12 +1420,12 @@ function LeadDetailDrawer({
                         </h3>
 
                         {!isLost && (
-                            <div className="bg-gray-50 rounded-lg p-3 mb-3 space-y-2">
+                            <div className="bg-muted rounded-lg p-3 mb-3 space-y-2">
                                 <div className="flex gap-2">
                                     <select
                                         value={activityKind}
                                         onChange={(e) => setActivityKind(e.target.value)}
-                                        className="border border-gray-300 rounded px-2 py-1.5 text-xs"
+                                        className="bg-background border border-border rounded-lg px-2 py-1.5 text-xs"
                                     >
                                         <option value="NOTE">📝 Catatan</option>
                                         <option value="CALL">📞 Telepon</option>
@@ -1395,13 +1438,13 @@ function LeadDetailDrawer({
                                         value={activityText}
                                         onChange={(e) => setActivityText(e.target.value)}
                                         placeholder="Tulis catatan singkat..."
-                                        className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                        className="flex-1 bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                     />
                                 </div>
                                 <button
                                     onClick={() => addActivityMut.mutate()}
                                     disabled={!activityText.trim() || addActivityMut.isPending}
-                                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                                    className="px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                                 >
                                     {addActivityMut.isPending ? "..." : "Tambah Aktivitas"}
                                 </button>
@@ -1413,7 +1456,7 @@ function LeadDetailDrawer({
                                 <ActivityItem key={act.id} activity={act} />
                             ))}
                             {(!lead2.activities || lead2.activities.length === 0) && (
-                                <p className="text-sm text-gray-500 text-center py-4">Belum ada aktivitas.</p>
+                                <p className="text-sm text-muted-foreground text-center py-4">Belum ada aktivitas.</p>
                             )}
                         </div>
                     </div>
@@ -1458,23 +1501,28 @@ function LeadDetailDrawer({
                 )}
 
                 {showCloseLost && (
-                    <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl p-5 max-w-md w-full">
-                            <h3 className="font-bold text-lg mb-2">Tutup Lead (Lost)</h3>
-                            <p className="text-sm text-gray-600 mb-3">Kenapa lead ini gagal closing?</p>
+                    <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                        <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-2.5 mb-2">
+                                <div className="h-8 w-8 rounded-lg bg-red-500/10 text-red-600 dark:text-red-300 flex items-center justify-center">
+                                    <XCircle className="h-4 w-4" />
+                                </div>
+                                <h3 className="font-bold text-lg">Tutup Lead (Lost)</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-3">Kenapa lead ini gagal closing?</p>
                             <textarea
                                 rows={3}
                                 value={closeLostReason}
                                 onChange={(e) => setCloseLostReason(e.target.value)}
                                 placeholder="mis. Customer pilih kompetitor karena harga lebih murah"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             />
                             <div className="flex gap-2">
-                                <button onClick={() => setShowCloseLost(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                                <button onClick={() => setShowCloseLost(false)} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                                 <button
                                     onClick={() => closeLostMut.mutate()}
                                     disabled={!closeLostReason.trim() || closeLostMut.isPending}
-                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
                                 >
                                     {closeLostMut.isPending ? "..." : "Tutup Lost"}
                                 </button>
@@ -1484,10 +1532,15 @@ function LeadDetailDrawer({
                 )}
 
                 {showMarkInvalid && (
-                    <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-xl p-5 max-w-md w-full">
-                            <h3 className="font-bold text-lg mb-2 text-orange-700">Tandai Lead Invalid</h3>
-                            <p className="text-sm text-gray-600 mb-3">
+                    <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                        <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-2.5 mb-2">
+                                <div className="h-8 w-8 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-300 flex items-center justify-center">
+                                    <AlertCircle className="h-4 w-4" />
+                                </div>
+                                <h3 className="font-bold text-lg text-orange-600 dark:text-orange-300">Tandai Lead Invalid</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-3">
                                 Lead ini tidak sesuai target iklan (mis. tanya jersey padahal iklan banner).
                                 Akan dicatat sebagai <strong>Invalid</strong> di leaderboard CS.
                             </p>
@@ -1496,15 +1549,15 @@ function LeadDetailDrawer({
                                 value={invalidReason}
                                 onChange={(e) => setInvalidReason(e.target.value)}
                                 placeholder="mis. Tanya harga jersey, iklan kami untuk banner (opsional)"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                 autoFocus
                             />
                             <div className="flex gap-2">
-                                <button onClick={() => setShowMarkInvalid(false)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                                <button onClick={() => setShowMarkInvalid(false)} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                                 <button
                                     onClick={() => markInvalidMut.mutate()}
                                     disabled={markInvalidMut.isPending}
-                                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                                    className="flex-1 px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50"
                                 >
                                     {markInvalidMut.isPending ? "..." : "Tandai Invalid"}
                                 </button>
@@ -1529,8 +1582,8 @@ function LeadDetailDrawer({
 function Info({ label, value }: { label: string; value: string }) {
     return (
         <div>
-            <div className="text-[10px] font-semibold text-gray-500 uppercase">{label}</div>
-            <div className="text-sm text-gray-800">{value}</div>
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase">{label}</div>
+            <div className="text-sm text-foreground">{value}</div>
         </div>
     );
 }
@@ -1556,26 +1609,26 @@ function ActivityItem({ activity }: { activity: any }) {
         : null;
 
     return (
-        <div className="border-l-2 border-indigo-200 pl-3 py-1">
+        <div className="border-l-2 border-indigo-500/30 pl-3 py-1">
             <div className="flex items-center justify-between gap-2 text-xs">
-                <div className="font-semibold text-gray-700">
+                <div className="font-semibold text-foreground">
                     {KIND_ICON[activity.kind] || "📌"} {activity.kind.replace(/_/g, " ")}
                 </div>
-                <span className="text-gray-400">{dayjs(activity.createdAt).format("DD MMM HH:mm")}</span>
+                <span className="text-muted-foreground">{dayjs(activity.createdAt).format("DD MMM HH:mm")}</span>
             </div>
-            {activity.text && <p className="text-sm text-gray-700 mt-1">{activity.text}</p>}
+            {activity.text && <p className="text-sm text-foreground mt-1">{activity.text}</p>}
             {txId && (
                 <a
                     href={`/transactions/${txId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 hover:text-indigo-800 underline underline-offset-2 mt-1"
+                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 mt-1"
                 >
                     🧾 Lihat Nota #{txId}
                 </a>
             )}
             {activity.createdBy?.name && (
-                <p className="text-[10px] text-gray-400 mt-0.5">oleh {activity.createdBy.name}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">oleh {activity.createdBy.name}</p>
             )}
         </div>
     );
@@ -1585,8 +1638,8 @@ function ActivityItem({ activity }: { activity: any }) {
 // Cari SO aktif (DRAFT/SENT) milik customer lalu tautkan ke lead — tanpa convert.
 
 const SO_STATUS_BADGE: Record<string, string> = {
-    DRAFT: "bg-gray-100 text-gray-600",
-    SENT: "bg-blue-100 text-blue-700",
+    DRAFT: "bg-muted text-muted-foreground",
+    SENT: "bg-blue-500/10 text-blue-600 dark:text-blue-300",
 };
 
 /**
@@ -1618,21 +1671,26 @@ function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
     const canSubmit = !!assignedToId && !!source && (source !== "CUSTOM" || sourceDetail.trim().length > 0);
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white rounded-xl p-5 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-                <h3 className="font-bold text-lg mb-1">Lengkapi Data Lead</h3>
-                <p className="text-sm text-gray-600 mb-3">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2.5 mb-1">
+                    <div className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
+                        <Tag className="h-4 w-4" />
+                    </div>
+                    <h3 className="font-bold text-lg">Lengkapi Data Lead</h3>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">
                     Sebelum buat nota di POS, isi dulu CS yang menangani & sumber lead — penting untuk KPI CS & laporan CRM.
                 </p>
                 <div className="space-y-3">
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
                             CS yang menangani <span className="text-red-500">*</span>
                         </label>
                         <select
                             value={assignedToId}
                             onChange={(e) => setAssignedToId(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         >
                             <option value="">— pilih CS / admin —</option>
                             {(users || []).map((u) => (
@@ -1641,13 +1699,13 @@ function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
                             Sumber lead <span className="text-red-500">*</span>
                         </label>
                         <select
                             value={source}
                             onChange={(e) => setSource(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         >
                             <option value="">— customer ini tahu dari mana? —</option>
                             {SOURCE_OPTIONS.map((s) => (
@@ -1662,12 +1720,12 @@ function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
                             value={sourceDetail}
                             onChange={(e) => setSourceDetail(e.target.value)}
                             placeholder="Tulis sumber lead, mis. pameran, rekomendasi toko"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         />
                     )}
                 </div>
                 <div className="flex gap-2 mt-4">
-                    <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                    <button onClick={onClose} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                     <button
                         onClick={() => onSubmit({
                             assignedToId: Number(assignedToId),
@@ -1675,7 +1733,7 @@ function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
                             sourceDetail: source === "CUSTOM" ? sourceDetail.trim() : (sourceDetail.trim() || null),
                         })}
                         disabled={!canSubmit || submitting}
-                        className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                        className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
                         {submitting ? "Menyimpan..." : "Simpan & Buat Nota →"}
                     </button>
@@ -1709,30 +1767,33 @@ function LinkSOModal({
     });
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <h3 className="font-bold text-lg mb-1 flex items-center gap-2">
-                    <Link2 className="h-5 w-5 text-indigo-600" /> Tautkan ke Sales Order
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full max-h-[85vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+                <h3 className="font-bold text-lg mb-1 flex items-center gap-2.5">
+                    <span className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 flex items-center justify-center">
+                        <Link2 className="h-4 w-4" />
+                    </span>
+                    Tautkan ke Sales Order
                 </h3>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-muted-foreground mb-3">
                     Customer ini sudah dibuatkan SO oleh desainer? Tautkan ke lead — <strong>tanpa bikin nota baru</strong>.
                     Saat SO itu di-checkout di POS, lead otomatis closing ke nota yang sama.
                 </p>
                 <div className="relative mb-3">
-                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                     <input
                         type="text"
                         value={q}
                         onChange={(e) => setQ(e.target.value)}
                         placeholder="Cari nama / nomor HP customer..."
-                        className="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm"
+                        className="w-full bg-background border border-border rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         autoFocus
                     />
                 </div>
 
-                {isFetching && <p className="text-xs text-gray-400 text-center py-3">Mencari SO aktif...</p>}
+                {isFetching && <p className="text-xs text-muted-foreground text-center py-3">Mencari SO aktif...</p>}
                 {!isFetching && debouncedQ.trim().length >= 2 && (hits ?? []).length === 0 && (
-                    <p className="text-sm text-gray-500 text-center py-4">
+                    <p className="text-sm text-muted-foreground text-center py-4">
                         Tidak ada SO aktif (Draft/Terkirim) yang cocok. SO yang sudah jadi nota atau dibatalkan tidak muncul di sini.
                     </p>
                 )}
@@ -1743,27 +1804,27 @@ function LinkSOModal({
                             key={so.id}
                             onClick={() => onSelect(so.id)}
                             disabled={submitting}
-                            className={`w-full text-left border rounded-lg p-3 hover:border-indigo-400 hover:bg-indigo-50 transition-colors disabled:opacity-50 ${lead.convertedSalesOrderId === so.id ? "border-indigo-400 bg-indigo-50" : "border-gray-200"}`}
+                            className={`w-full text-left border rounded-xl p-3 transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40 disabled:opacity-50 ${lead.convertedSalesOrderId === so.id ? "border-primary/40 bg-primary/5" : "border-border bg-card"}`}
                         >
                             <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-sm text-indigo-700">{so.soNumber}</span>
-                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${SO_STATUS_BADGE[so.status] || "bg-gray-100 text-gray-600"}`}>
+                                <span className="font-semibold text-sm text-indigo-600 dark:text-indigo-300">{so.soNumber}</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${SO_STATUS_BADGE[so.status] || "bg-muted text-muted-foreground"}`}>
                                     {so.status === "SENT" ? "TERKIRIM" : so.status}
                                 </span>
                             </div>
-                            <div className="text-sm text-gray-700 mt-0.5">
+                            <div className="text-sm text-foreground mt-0.5">
                                 {so.customerName}{so.customerPhone ? ` · ${so.customerPhone}` : ""}
                             </div>
-                            <div className="text-xs text-gray-500 mt-0.5">
+                            <div className="text-xs text-muted-foreground mt-0.5">
                                 Desainer: {so.designerName} · {dayjs(so.createdAt).format("DD MMM YYYY, HH:mm")}
-                                {lead.convertedSalesOrderId === so.id && <span className="text-indigo-600 font-semibold"> · tertaut saat ini</span>}
+                                {lead.convertedSalesOrderId === so.id && <span className="text-primary font-semibold"> · tertaut saat ini</span>}
                             </div>
                         </button>
                     ))}
                 </div>
 
                 <div className="flex justify-end mt-4">
-                    <button onClick={onClose} className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50">
+                    <button onClick={onClose} className="px-4 py-2 border border-border rounded-lg text-sm hover:bg-muted">
                         Tutup
                     </button>
                 </div>
@@ -1863,21 +1924,26 @@ function ConvertModal({
     });
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
-                <h3 className="font-bold text-lg mb-2">Buat Nota & Masuk Produksi</h3>
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center gap-2.5 mb-2">
+                    <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
+                        <CheckCircle2 className="h-4 w-4" />
+                    </div>
+                    <h3 className="font-bold text-lg">Buat Nota & Masuk Produksi</h3>
+                </div>
                 {lead.status === 'CLOSED_WON' && (
-                    <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800 font-medium">
+                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-700 dark:text-amber-300 font-medium">
                         Peringatan: lead ini sudah pernah di-convert. Re-convert akan membuat nota & job baru lagi.
                     </div>
                 )}
                 {lead.convertedSalesOrderId ? (
-                    <div className="mb-3 px-3 py-2 bg-red-50 border border-red-300 rounded-lg text-xs text-red-800 font-medium">
+                    <div className="mb-3 px-3 py-2 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-700 dark:text-red-300 font-medium">
                         ⚠ Lead ini <strong>sudah ditautkan ke SO desainer</strong>. Nota sebaiknya dibuat dari SO itu di POS
                         (lead otomatis closing). Convert di sini akan membuat <strong>nota dobel</strong>.
                     </div>
                 ) : (activeSOs ?? []).length > 0 && (
-                    <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+                    <div className="mb-3 px-3 py-2 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-700 dark:text-amber-300">
                         <div className="font-semibold mb-1">⚠ Customer ini punya SO desainer yang masih aktif:</div>
                         <ul className="space-y-0.5 mb-1">
                             {(activeSOs ?? []).slice(0, 3).map(so => (
@@ -1887,15 +1953,15 @@ function ConvertModal({
                         Kalau order-nya sama, <strong>jangan convert</strong> — tutup modal ini lalu pakai tombol <strong>Tautkan SO</strong> (nota dibuat dari SO di POS, tanpa dobel).
                     </div>
                 )}
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                     Tutup lead sebagai closing. Sistem otomatis bikin
-                    <strong className="text-gray-800"> Nota</strong> (masuk DP/Piutang sesuai pembayaran) dan
-                    <strong className="text-gray-800"> antrian produksi</strong> untuk semua item.
+                    <strong className="text-foreground"> Nota</strong> (masuk DP/Piutang sesuai pembayaran) dan
+                    <strong className="text-foreground"> antrian produksi</strong> untuk semua item.
                 </p>
 
                 <div className="space-y-3">
                     {/* 1. Customer */}
-                    <label className="flex items-start gap-2 text-sm cursor-pointer p-3 border rounded-lg hover:bg-gray-50">
+                    <label className="flex items-start gap-2 text-sm cursor-pointer p-3 border border-border rounded-xl hover:bg-accent transition-colors">
                         <input
                             type="checkbox"
                             checked={createCustomer}
@@ -1904,26 +1970,26 @@ function ConvertModal({
                         />
                         <div>
                             <div className="font-semibold">👤 Buat Customer Baru</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                                 Data dari lead: <strong>{lead.name}</strong>
                                 {lead.phone && ` · ${lead.phone}`}
                                 <br />
-                                <span className="text-gray-400">Kalau customer sudah ada, jangan centang — hindari duplikat.</span>
+                                <span className="text-muted-foreground">Kalau customer sudah ada, jangan centang — hindari duplikat.</span>
                             </div>
                         </div>
                     </label>
 
                     {/* Customer picker — tampil kalau createCustomer=false */}
                     {!createCustomer && (
-                        <div className="border rounded-lg p-3 bg-amber-50 border-amber-200 space-y-2">
-                            <p className="text-xs font-semibold text-amber-700">Pilih Customer Existing</p>
+                        <div className="border rounded-xl p-3 bg-amber-500/10 border-amber-500/20 space-y-2">
+                            <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Pilih Customer Existing</p>
                             {existingCustomerId ? (
-                                <div className="flex items-center justify-between bg-white rounded px-3 py-2 border border-emerald-300">
-                                    <span className="text-sm font-medium text-emerald-700">✓ {existingCustomerName}</span>
+                                <div className="flex items-center justify-between bg-card rounded-lg px-3 py-2 border border-emerald-500/30">
+                                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-300">✓ {existingCustomerName}</span>
                                     <button
                                         type="button"
                                         onClick={() => { setExistingCustomerId(null); setExistingCustomerName(""); }}
-                                        className="text-xs text-gray-400 hover:text-red-500 ml-2"
+                                        className="text-xs text-muted-foreground hover:text-red-500 ml-2"
                                     >Ganti</button>
                                 </div>
                             ) : (
@@ -1933,21 +1999,21 @@ function ConvertModal({
                                         placeholder="Cari nomor HP..."
                                         value={customerSearchPhone}
                                         onChange={(e) => setCustomerSearchPhone(e.target.value)}
-                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                     />
-                                    {customerSearching && <p className="text-xs text-gray-400">Mencari...</p>}
+                                    {customerSearching && <p className="text-xs text-muted-foreground">Mencari...</p>}
                                     {!customerSearching && customerMatches.length === 0 && customerSearchPhone.replace(/\D/g, "").length >= 4 && (
-                                        <p className="text-xs text-red-500">Customer tidak ditemukan. Centang "Buat Customer Baru" atau cari HP lain.</p>
+                                        <p className="text-xs text-red-600 dark:text-red-300">Customer tidak ditemukan. Centang "Buat Customer Baru" atau cari HP lain.</p>
                                     )}
                                     {customerMatches.map(c => (
                                         <button
                                             key={c.id}
                                             type="button"
                                             onClick={() => { setExistingCustomerId(c.id); setExistingCustomerName(c.name); setCustomerMatches([]); }}
-                                            className="w-full text-left px-3 py-2 rounded border border-gray-200 hover:border-blue-400 hover:bg-blue-50 text-sm"
+                                            className="w-full text-left px-3 py-2 rounded-lg border border-border bg-card hover:border-primary/40 hover:bg-primary/5 transition-colors text-sm"
                                         >
                                             <span className="font-medium">{c.name}</span>
-                                            {c.phone && <span className="text-gray-400 text-xs ml-2">{c.phone}</span>}
+                                            {c.phone && <span className="text-muted-foreground text-xs ml-2">{c.phone}</span>}
                                         </button>
                                     ))}
                                 </>
@@ -1956,14 +2022,14 @@ function ConvertModal({
                     )}
 
                     {/* 2. Nota + Pipeline info */}
-                    <div className={`flex items-start gap-2 text-sm p-3 rounded-lg border-2 ${totalItems > 0 ? 'border-purple-200 bg-purple-50/50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div className={`flex items-start gap-2 text-sm p-3 rounded-xl border ${totalItems > 0 ? 'border-violet-500/20 bg-violet-500/10' : 'border-border bg-muted'}`}>
                         <span className="text-base leading-none mt-0.5">🧾🏭</span>
                         <div className="flex-1">
                             <div className="font-semibold">
                                 Nota + Antrian Produksi
-                                <span className="text-[10px] text-purple-700 font-normal"> (otomatis)</span>
+                                <span className="text-[10px] text-violet-600 dark:text-violet-300 font-normal"> (otomatis)</span>
                             </div>
-                            <div className="text-xs text-gray-500 mt-0.5">
+                            <div className="text-xs text-muted-foreground mt-0.5">
                                 {totalItems > 0 ? (
                                     <>
                                         {totalItems} item
@@ -1982,26 +2048,26 @@ function ConvertModal({
 
                     {/* 3. Catatan */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (di-pass ke Nota & job produksi)</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Catatan (di-pass ke Nota & job produksi)</label>
                         <textarea
                             rows={2}
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             placeholder="Detail kebutuhan, deadline, syarat khusus..."
                         />
                     </div>
 
                     {/* 4. Desainer */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">
-                            Desainer yang Mengerjakan <span className="font-normal text-gray-400">(opsional)</span>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                            Desainer yang Mengerjakan <span className="font-normal text-muted-foreground">(opsional)</span>
                         </label>
                         {activeDesigners.length > 0 ? (
                             <select
                                 value={designerName}
                                 onChange={(e) => setDesignerName(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             >
                                 <option value="">— Belum ditentukan —</option>
                                 {activeDesigners.map(d => (
@@ -2014,7 +2080,7 @@ function ConvertModal({
                                 value={designerName}
                                 onChange={(e) => setDesignerName(e.target.value)}
                                 placeholder="Nama desainer..."
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             />
                         )}
                     </div>
@@ -2023,10 +2089,10 @@ function ConvertModal({
                     <button
                         type="button"
                         onClick={() => setIsExpress(v => !v)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border-2 transition-colors text-left ${
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border transition-colors text-left ${
                             isExpress
-                                ? "border-orange-400 bg-orange-50 text-orange-700"
-                                : "border-gray-200 bg-white text-gray-600 hover:border-orange-300"
+                                ? "border-orange-500/30 bg-orange-500/10 text-orange-600 dark:text-orange-300"
+                                : "border-border bg-card text-muted-foreground hover:border-orange-500/40"
                         }`}
                     >
                         <span className={`text-lg ${isExpress ? "" : "grayscale opacity-50"}`}>⚡</span>
@@ -2034,17 +2100,17 @@ function ConvertModal({
                             <div className="text-sm font-semibold">Order Express</div>
                             <div className="text-[11px] opacity-70">Tandai sebagai order yang harus didahulukan di pipeline desain</div>
                         </div>
-                        <div className={`ml-auto w-9 h-5 rounded-full flex items-center transition-colors ${isExpress ? "bg-orange-400" : "bg-gray-300"}`}>
-                            <div className={`w-4 h-4 rounded-full bg-white shadow transition-transform mx-0.5 ${isExpress ? "translate-x-4" : "translate-x-0"}`} />
+                        <div className={`ml-auto w-9 h-5 rounded-full flex items-center transition-colors ${isExpress ? "bg-orange-400" : "bg-muted-foreground/30"}`}>
+                            <div className={`w-4 h-4 rounded-full bg-card shadow transition-transform mx-0.5 ${isExpress ? "translate-x-4" : "translate-x-0"}`} />
                         </div>
                     </button>
 
                     {/* 6. Pembayaran */}
-                    <div className="border-2 border-blue-200 bg-blue-50/50 rounded-lg p-3 space-y-3">
+                    <div className="border border-blue-500/20 bg-blue-500/10 rounded-xl p-3 space-y-3">
                         <div>
                             <div className="font-semibold text-sm mb-0.5">💳 Pembayaran</div>
                             {itemsEstimate > 0 && (
-                                <div className="text-[11px] text-gray-500">
+                                <div className="text-[11px] text-muted-foreground">
                                     Estimasi total: <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>
                                 </div>
                             )}
@@ -2059,7 +2125,7 @@ function ConvertModal({
                                         key={mode}
                                         type="button"
                                         onClick={() => setPaymentMode(mode)}
-                                        className={`px-2 py-1.5 rounded-lg border-2 text-xs font-semibold ${active ? 'border-blue-500 bg-blue-100 text-blue-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                                        className={`px-2 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${active ? 'border-blue-500/40 bg-blue-500/15 text-blue-600 dark:text-blue-300' : 'border-border bg-card text-muted-foreground hover:bg-accent'}`}
                                     >
                                         {label}
                                     </button>
@@ -2068,7 +2134,7 @@ function ConvertModal({
                         </div>
 
                         {paymentMode === 'NONE' && (
-                            <p className="text-[11px] text-gray-500 italic">
+                            <p className="text-[11px] text-muted-foreground italic">
                                 Nota status <strong>PENDING</strong> — masuk ke daftar Piutang/DP. Bisa dilunasi nanti dari halaman Transaksi.
                             </p>
                         )}
@@ -2076,7 +2142,7 @@ function ConvertModal({
                         {paymentMode !== 'NONE' && (
                             <>
                                 <div>
-                                    <label className="block text-[11px] font-semibold text-gray-600 mb-1">Metode Pembayaran</label>
+                                    <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Metode Pembayaran</label>
                                     <div className="grid grid-cols-3 gap-1.5">
                                         {(['CASH', 'TRANSFER', 'QRIS'] as const).map((m) => {
                                             const active = paymentMethod === m;
@@ -2085,7 +2151,7 @@ function ConvertModal({
                                                     key={m}
                                                     type="button"
                                                     onClick={() => setPaymentMethod(m)}
-                                                    className={`px-2 py-1.5 rounded-lg border text-xs font-semibold ${active ? 'border-emerald-500 bg-emerald-100 text-emerald-700' : 'border-gray-200 bg-white text-gray-600'}`}
+                                                    className={`px-2 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${active ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600 dark:text-emerald-300' : 'border-border bg-card text-muted-foreground hover:bg-accent'}`}
                                                 >
                                                     {m === 'CASH' ? '💵 Cash' : m === 'TRANSFER' ? '🏦 Transfer' : '📱 QRIS'}
                                                 </button>
@@ -2096,14 +2162,14 @@ function ConvertModal({
 
                                 {paymentMode === 'DP' && (
                                     <div>
-                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Nominal DP (Rp)</label>
+                                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Nominal DP (Rp)</label>
                                         <input
                                             type="number"
                                             min={0}
                                             value={paymentAmount}
                                             onChange={(e) => setPaymentAmount(e.target.value)}
                                             placeholder="mis. 500000"
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                         />
                                         {dpInvalid && (
                                             <p className="text-[10px] text-red-600 mt-0.5">Nominal DP wajib diisi (&gt; 0).</p>
@@ -2112,12 +2178,12 @@ function ConvertModal({
                                 )}
 
                                 {paymentMode === 'LUNAS' && itemsEstimate > 0 && (
-                                    <p className="text-[11px] text-emerald-700 bg-emerald-50 rounded p-1.5">
+                                    <p className="text-[11px] text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 rounded p-1.5">
                                         Dibayar lunas <strong>Rp {itemsEstimate.toLocaleString("id-ID")}</strong>. Nota langsung PAID, cashflow INCOME tercatat otomatis.
                                     </p>
                                 )}
                                 {paymentMode === 'LUNAS' && itemsEstimate === 0 && (
-                                    <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded p-1.5">
+                                    <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded p-1.5">
                                         ⚠ Estimasi total Rp 0 — pastikan harga item sudah diisi. Nota akan PAID tapi <strong>tidak ada cashflow</strong> yang tercatat karena grandTotal = 0.
                                     </p>
                                 )}
@@ -2125,8 +2191,8 @@ function ConvertModal({
                                 {/* Potongan marketplace — muncul saat LUNAS */}
                                 {paymentMode === 'LUNAS' && (
                                     <div>
-                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">
-                                            Potongan Marketplace (Rp) <span className="text-gray-400 font-normal">— mis. fee Shopee, Tokopedia</span>
+                                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                                            Potongan Marketplace (Rp) <span className="text-muted-foreground font-normal">— mis. fee Shopee, Tokopedia</span>
                                         </label>
                                         <input
                                             type="number"
@@ -2134,10 +2200,10 @@ function ConvertModal({
                                             value={marketplaceFee}
                                             onChange={(e) => setMarketplaceFee(e.target.value)}
                                             placeholder="0 (kosongkan jika tidak ada)"
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                         />
                                         {Number(marketplaceFee) > 0 && itemsEstimate > 0 && (
-                                            <p className="text-[10px] text-emerald-700 mt-0.5">
+                                            <p className="text-[10px] text-emerald-600 dark:text-emerald-300 mt-0.5">
                                                 Diterima (nett): <strong>Rp {Math.max(0, itemsEstimate - Number(marketplaceFee)).toLocaleString("id-ID")}</strong>
                                                 {" "}· Cashflow: INCOME {Math.max(0, itemsEstimate - Number(marketplaceFee)).toLocaleString("id-ID")} + EXPENSE {Number(marketplaceFee).toLocaleString("id-ID")} (Biaya Platform)
                                             </p>
@@ -2147,11 +2213,11 @@ function ConvertModal({
 
                                 {needsBankAccount && (
                                     <div>
-                                        <label className="block text-[11px] font-semibold text-gray-600 mb-1">Rekening Tujuan *</label>
+                                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">Rekening Tujuan *</label>
                                         <select
                                             value={bankAccountId}
                                             onChange={(e) => setBankAccountId(e.target.value)}
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                                         >
                                             <option value="">— Pilih rekening —</option>
                                             {(bankAccounts as any[] | undefined)?.map((acc: any) => (
@@ -2171,7 +2237,7 @@ function ConvertModal({
                 </div>
 
                 <div className="flex gap-2 mt-5">
-                    <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                    <button onClick={onClose} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                     <button
                         onClick={() => onSubmit({
                             createCustomer,
@@ -2189,7 +2255,7 @@ function ConvertModal({
                             marketplaceFee: paymentMode === 'LUNAS' && Number(marketplaceFee) > 0 ? Number(marketplaceFee) : undefined,
                         })}
                         disabled={submitting || paymentInvalid || (!createCustomer && !existingCustomerId)}
-                        className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                        className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors disabled:opacity-50"
                     >
                         {submitting ? "Memproses..." : "✓ Buat Nota & Masuk Produksi"}
                     </button>
@@ -2259,11 +2325,16 @@ function TemplateCopyModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-5 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-2xl w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
                 <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-lg">Pilih Template WA</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
+                    <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-lg bg-green-500/10 text-green-600 dark:text-green-300 flex items-center justify-center">
+                            <MessageCircle className="h-4 w-4" />
+                        </div>
+                        <h3 className="font-bold text-lg">Pilih Template WA</h3>
+                    </div>
+                    <button onClick={onClose} className="p-1.5 hover:bg-accent rounded-lg transition-colors">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
@@ -2273,26 +2344,26 @@ function TemplateCopyModal({
                         <button
                             key={t.id}
                             onClick={() => handlePick(t)}
-                            className={`text-left p-3 border rounded-lg hover:border-indigo-300 ${
-                                selectedId === t.id ? "border-indigo-500 bg-indigo-50" : "border-gray-200"
+                            className={`text-left p-3 border rounded-xl transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40 ${
+                                selectedId === t.id ? "border-primary/50 bg-primary/5" : "border-border bg-card"
                             }`}
                         >
-                            <div className="text-xs text-indigo-600 font-semibold">{t.category}</div>
+                            <div className="text-xs text-indigo-600 dark:text-indigo-300 font-semibold">{t.category}</div>
                             <div className="font-semibold text-sm">{t.name}</div>
                         </button>
                     ))}
                     {(!templates || templates.length === 0) && (
-                        <div className="col-span-2 text-sm text-gray-500 p-4 text-center border rounded-lg">
-                            Belum ada template. Buat di <a href="/crm/templates" className="text-indigo-600 underline">/crm/templates</a> dulu.
+                        <div className="col-span-2 text-sm text-muted-foreground p-4 text-center border border-border rounded-xl">
+                            Belum ada template. Buat di <a href="/crm/templates" className="text-indigo-600 dark:text-indigo-300 underline">/crm/templates</a> dulu.
                         </div>
                     )}
                 </div>
 
                 {selectedId && (
                     <div>
-                        <div className="text-xs font-semibold text-gray-600 mb-1">Preview</div>
+                        <div className="text-xs font-semibold text-muted-foreground mb-1">Preview</div>
                         {loadingRender ? (
-                            <div className="bg-gray-100 rounded p-3 text-sm text-gray-500">
+                            <div className="bg-muted rounded p-3 text-sm text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin inline" /> Rendering...
                             </div>
                         ) : (
@@ -2300,14 +2371,14 @@ function TemplateCopyModal({
                                 rows={8}
                                 value={rendered}
                                 onChange={(e) => setRendered(e.target.value)}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             />
                         )}
                         <div className="flex gap-2 mt-3">
                             <button
                                 onClick={handleCopy}
-                                className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 ${
-                                    copied ? "bg-emerald-600 text-white" : "bg-indigo-600 text-white hover:bg-indigo-700"
+                                className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
+                                    copied ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground hover:opacity-90"
                                 }`}
                             >
                                 {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

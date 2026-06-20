@@ -116,7 +116,7 @@ export function ReadyJobsPopup({ onOpenModal }: Props) {
             {/* Audio beep singkat */}
             <audio ref={audioRef} preload="auto" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAIlYAAESsAAACABAAZGF0YQAAAAA=" />
 
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4 print:hidden">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/88 backdrop-blur-3xl p-4 print:hidden">
                 <div className="w-full max-w-lg bg-card border-2 border-amber-500 rounded-2xl shadow-2xl animate-in fade-in zoom-in-95 duration-200">
                     {/* Header */}
                     <div className="flex items-center gap-3 p-4 border-b border-border bg-gradient-to-br from-amber-500/15 to-orange-500/10 rounded-t-2xl">

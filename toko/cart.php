@@ -17,13 +17,23 @@ $leadId = null;
 
 // Checkout → kirim order ke PosPro (tercatat sebagai Lead WEBSITE)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'checkout') {
-    $name    = trim($_POST['name'] ?? '');
-    $phone   = trim($_POST['phone'] ?? '');
-    $address = trim($_POST['address'] ?? '');
-    $note    = trim($_POST['note'] ?? '');
-    $items   = cart();
+    require_csrf();
+    $name     = trim($_POST['name'] ?? '');
+    $phone    = trim($_POST['phone'] ?? '');
+    $address  = trim($_POST['address'] ?? '');
+    $note     = trim($_POST['note'] ?? '');
+    $branchId = (int)($_POST['branchId'] ?? 0);
+    $items    = cart();
 
-    if ($name === '') {
+    if (trim($_POST['website'] ?? '') !== '' || looks_like_spam($name, $note, $address)) {
+        // Honeypot terisi / konten spam judol → bot. Pura-pura sukses tanpa kirim.
+        $sent = true;
+        $_SESSION['cart'] = [];
+    } elseif (!turnstile_verify($_POST['cf-turnstile-response'] ?? '')) {
+        $error = 'Verifikasi anti-bot gagal. Muat ulang halaman lalu kirim ulang order.';
+    } elseif (order_throttled() > 0) {
+        $error = 'Terlalu banyak order beruntun dari perangkat ini. Coba lagi beberapa saat lagi atau hubungi kami via WhatsApp.';
+    } elseif ($name === '') {
         $error = 'Nama wajib diisi.';
     } elseif (!count($items)) {
         $error = 'Keranjang masih kosong.';
@@ -33,17 +43,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
             'phone'   => $phone,
             'address' => $address,
             'note'    => $note,
-            'items'   => array_map(fn($it) => [
-                'productVariantId' => $it['productVariantId'],
-                'description'      => $it['description'],
-                'quantity'        => (int)$it['quantity'],
-                'unitPrice'       => (float)$it['unitPrice'],
-            ], $items),
+            // Cabang/lokasi cetak pilihan customer (divalidasi ulang di backend)
+            'branchId' => $branchId > 0 ? $branchId : null,
+            'items'   => array_map(function ($it) {
+                $row = [
+                    'productVariantId' => $it['productVariantId'],
+                    'description'      => $it['description'],
+                    'quantity'         => (int)$it['quantity'],
+                    'unitPrice'        => (float)$it['unitPrice'],
+                ];
+                // Item per-luas: kirim ukuran supaya backend hitung subtotal area (qty × m² × harga/m²)
+                if (!empty($it['widthCm']) && !empty($it['heightCm'])) {
+                    $row['widthCm']  = (float)$it['widthCm'];
+                    $row['heightCm'] = (float)$it['heightCm'];
+                    $row['unitType'] = $it['unitType'] ?? 'cm';
+                }
+                return $row;
+            }, $items),
         ];
         $res = api_post('/orders/public', $payload);
         if ($res && !empty($res['ok'])) {
             $sent = true;
             $leadId = $res['leadId'] ?? null;
+            record_order_attempt();
             $_SESSION['cart'] = [];
         } else {
             $error = 'Gagal mengirim order. Coba lagi atau hubungi kami.';
@@ -90,9 +112,13 @@ $total = cart_total();
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-slate-800 truncate"><?= h($it['description']) ?></div>
-                            <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?> &times; <?= (int)$it['quantity'] ?></div>
+                            <?php if (!empty($it['widthCm']) && !empty($it['heightCm'])): $m2 = ((float)$it['widthCm'] * (float)$it['heightCm']) / 10000; ?>
+                                <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?>/m² &times; <?= h(rtrim(rtrim(number_format($m2, 2, ',', '.'), '0'), ',')) ?> m² &times; <?= (int)$it['quantity'] ?> pcs</div>
+                            <?php else: ?>
+                                <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?> &times; <?= (int)$it['quantity'] ?></div>
+                            <?php endif; ?>
                         </div>
-                        <div class="font-bold text-slate-900 whitespace-nowrap"><?= rupiah($it['unitPrice'] * $it['quantity']) ?></div>
+                        <div class="font-bold text-slate-900 whitespace-nowrap"><?= rupiah(cart_item_subtotal($it)) ?></div>
                         <a href="cart.php?remove=<?= $i ?>" class="text-slate-300 hover:text-rose-500 transition p-1" title="Hapus">
                             <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
                         </a>
@@ -106,7 +132,10 @@ $total = cart_total();
 
             <!-- Form pemesan -->
             <form method="post" class="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
+                <?= csrf_field() ?>
                 <input type="hidden" name="action" value="checkout">
+                <!-- Honeypot anti-bot: harus tetap kosong; disembunyikan dari manusia -->
+                <input type="text" name="website" value="" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
                 <h2 class="font-bold text-slate-900">Data Pemesan</h2>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-1.5">Nama <span class="text-rose-500">*</span></label>
@@ -124,6 +153,22 @@ $total = cart_total();
                     <label class="block text-sm font-semibold text-slate-700 mb-1.5">Catatan</label>
                     <textarea name="note" rows="2" placeholder="Warna, ukuran, dll" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50"></textarea>
                 </div>
+                <?php $poBranches = pospro_branches(); ?>
+                <?php if (count($poBranches) > 1): ?>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Cetak di cabang <span class="text-rose-500">*</span></label>
+                        <select name="branchId" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                            <option value="">— Pilih lokasi cetak —</option>
+                            <?php foreach ($poBranches as $b): ?><option value="<?= (int)$b['id'] ?>"><?= h($b['name']) ?></option><?php endforeach; ?>
+                        </select>
+                    </div>
+                <?php elseif (count($poBranches) === 1): ?>
+                    <input type="hidden" name="branchId" value="<?= (int)$poBranches[0]['id'] ?>">
+                <?php endif; ?>
+                <?php if (turnstile_enabled()): ?>
+                    <div class="cf-turnstile" data-sitekey="<?= h(turnstile_site_key()) ?>"></div>
+                    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+                <?php endif; ?>
                 <button type="submit" class="w-full px-6 py-3 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Kirim Order</button>
             </form>
         </div>

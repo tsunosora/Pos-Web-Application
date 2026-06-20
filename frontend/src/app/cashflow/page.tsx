@@ -1,17 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Plus, ArrowDownRight, ArrowUpRight, ArrowRightLeft, Loader2,
     Pencil, Trash2, TrendingUp, BarChart3, Download, Filter, X, Store,
-    Clock, CheckCircle2, XCircle, AlertTriangle, Wallet,
+    Clock, CheckCircle2, XCircle, AlertTriangle, Wallet, Landmark,
+    Package, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { PageHeader } from '@/components/ui/page-header';
+import { usePagination, PaginationBar } from '@/components/ui/pagination';
 import {
     getCashflows, createCashflow, updateCashflow, deleteCashflow,
     getCashflowMonthlyTrend, getCashflowCategoryBreakdown, getCashflowPlatformBreakdown,
-    getBankAccounts,
+    getBankAccounts, getBankAccountsSummary, type BankAccountSummary, type CashflowOrder,
+    getCategories,
     submitCashflowRequest, getPendingRequests, getMyRequests, approveRequest, rejectRequest,
     type CashflowChangeRequest,
 } from "@/lib/api";
@@ -36,6 +39,7 @@ type CashflowEntry = {
     user?: { email: string; name?: string } | null;
     paymentMethod?: string | null;
     bankAccount?: { bankName: string; accountNumber: string } | null;
+    order?: CashflowOrder | null;
 };
 
 type PeriodKey = 'today' | 'yesterday' | 'this_month' | 'last_3_months' | 'this_year' | 'all' | 'custom';
@@ -104,8 +108,8 @@ function EditModal({ entry, bankAccounts, onClose, onSave, isPending }: {
     };
 
     return (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+            <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-border flex justify-between items-center">
                     <h3 className="font-semibold text-foreground">Edit Entry Cashflow</h3>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -208,8 +212,8 @@ function SubmitRequestModal({ entry, type, bankAccounts, onClose, onSubmit, isPe
     };
 
     return (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+            <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-border flex justify-between items-center">
                     <h3 className="font-semibold text-foreground">
                         {type === 'DELETE' ? 'Kirim Permintaan Hapus' : 'Kirim Permintaan Edit'}
@@ -310,8 +314,8 @@ function ReviewModal({ request, note, setNote, onClose, onApprove, onReject, isA
     const cf = request.cashflow;
     const payload = request.payload;
     return (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+            <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                 <div className="px-6 py-4 border-b border-border flex justify-between items-center">
                     <h3 className="font-semibold text-foreground">Tinjau Permintaan</h3>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -425,10 +429,32 @@ export default function CashflowPage() {
 
     // Filter
     const [filterType, setFilterType] = useState<'ALL' | 'INCOME' | 'EXPENSE'>('ALL');
+    // Filter per "kanal uang": rekening bank / Tunai / QRIS (null = semua).
+    // selectedKey: 'bank:<id>' | 'cash' | 'qris' | null.
+    const [selectedKey, setSelectedKey] = useState<string | null>(null);
+    const accountFilter = useMemo(() => {
+        if (!selectedKey) return undefined;
+        if (selectedKey.startsWith('bank:')) return { bankAccountId: Number(selectedKey.slice(5)) };
+        if (selectedKey === 'cash') return { paymentMethod: 'CASH' };
+        if (selectedKey === 'qris') return { paymentMethod: 'QRIS' };
+        return undefined;
+    }, [selectedKey]);
+
+    // Filter per kategori produk (null = semua). Hanya berpengaruh ke histori order.
+    const [categoryFilter, setCategoryFilter] = useState<number | null>(null);
+    // Baris order yang sedang di-expand (lihat detail produk).
+    const [expandedId, setExpandedId] = useState<number | null>(null);
+    // Tab tampilan kartu histori: arus kas penuh vs khusus transaksi produk.
+    const [historyTab, setHistoryTab] = useState<'cashflow' | 'products'>('cashflow');
+
+    const { data: categories = [] } = useQuery<{ id: number; name: string }[]>({
+        queryKey: ['categories'],
+        queryFn: getCategories,
+    });
 
     const { data, isLoading } = useQuery({
-        queryKey: ['cashflows', activeBranchId, startDate, endDate],
-        queryFn: () => getCashflows(startDate, endDate),
+        queryKey: ['cashflows', activeBranchId, startDate, endDate, selectedKey, categoryFilter],
+        queryFn: () => getCashflows(startDate, endDate, accountFilter, categoryFilter),
     });
 
     const { data: trendData } = useQuery({
@@ -436,9 +462,15 @@ export default function CashflowPage() {
         queryFn: getCashflowMonthlyTrend,
     });
 
+    // Ringkasan per kanal uang (rekening + Tunai + QRIS): saldo/arus periode.
+    const { data: bankSummary = [] } = useQuery<BankAccountSummary[]>({
+        queryKey: ['cashflow-bank-summary', activeBranchId, startDate, endDate],
+        queryFn: () => getBankAccountsSummary(startDate, endDate),
+    });
+
     const { data: categoryData } = useQuery({
-        queryKey: ['cashflow-categories', activeBranchId, startDate, endDate],
-        queryFn: () => getCashflowCategoryBreakdown(startDate, endDate),
+        queryKey: ['cashflow-categories', activeBranchId, startDate, endDate, selectedKey],
+        queryFn: () => getCashflowCategoryBreakdown(startDate, endDate, accountFilter),
     });
 
     const { data: platformData } = useQuery({
@@ -451,6 +483,7 @@ export default function CashflowPage() {
         queryClient.invalidateQueries({ queryKey: ['cashflow-categories'] });
         queryClient.invalidateQueries({ queryKey: ['cashflow-trend'] });
         queryClient.invalidateQueries({ queryKey: ['cashflow-platforms'] });
+        queryClient.invalidateQueries({ queryKey: ['cashflow-bank-summary'] });
     };
 
     const { data: pendingRequests = [], refetch: refetchPending } = useQuery({
@@ -537,6 +570,20 @@ export default function CashflowPage() {
         if (filterType === 'ALL') return entries;
         return entries.filter(e => e.type === filterType);
     }, [entries, filterType]);
+
+    // Tab tampilan histori: 'cashflow' = semua arus kas; 'products' = hanya
+    // pemasukan dari order (fokus transaksi produk, detail produk selalu tampil).
+    const displayEntries = useMemo(() => {
+        if (historyTab === 'products') {
+            return entries.filter(e => e.type === 'INCOME' && e.order);
+        }
+        return filteredEntries;
+    }, [historyTab, entries, filteredEntries]);
+
+    // Paginasi client-side: render maksimal 20 baris per halaman (anti-render berat).
+    const pg = usePagination(displayEntries, 20);
+    // Reset ke halaman 1 saat konteks daftar berubah.
+    useEffect(() => { pg.setPage(1); }, [historyTab, filterType, categoryFilter, selectedKey, startDate, endDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const categoryOptions = type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -625,7 +672,7 @@ export default function CashflowPage() {
 
             {/* Summary cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="p-5 rounded-xl border border-border bg-card shadow-sm">
+                <div className="p-5 rounded-xl glass shadow-sm">
                     <div className="flex items-center gap-3 text-emerald-500 mb-2">
                         <div className="p-2 bg-emerald-500/10 rounded-lg"><ArrowUpRight className="h-5 w-5" /></div>
                         <span className="font-medium text-sm">Total Pemasukan</span>
@@ -633,7 +680,7 @@ export default function CashflowPage() {
                     <h2 className="text-2xl font-bold text-foreground">{fmt(summary.totalIncome)}</h2>
                     <p className="text-xs text-muted-foreground mt-1">{PERIODS.find(p2 => p2.key === period)?.label}</p>
                 </div>
-                <div className="p-5 rounded-xl border border-border bg-card shadow-sm">
+                <div className="p-5 rounded-xl glass shadow-sm">
                     <div className="flex items-center gap-3 text-destructive mb-2">
                         <div className="p-2 bg-destructive/10 rounded-lg"><ArrowDownRight className="h-5 w-5" /></div>
                         <span className="font-medium text-sm">Total Pengeluaran</span>
@@ -653,10 +700,70 @@ export default function CashflowPage() {
                 </div>
             </div>
 
+            {/* Saldo & mutasi per rekening bank */}
+            {bankSummary.length > 0 && (
+                <div className="glass rounded-xl shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-border bg-muted/20 flex items-center gap-2 flex-wrap">
+                        <Landmark className="h-5 w-5 text-primary" />
+                        <h3 className="font-semibold text-foreground">Saldo &amp; Mutasi per Kanal</h3>
+                        <span className="text-xs text-muted-foreground">— rekening bank, Tunai &amp; QRIS. Klik untuk memfilter riwayat di bawah</span>
+                        {selectedKey != null && (
+                            <button
+                                onClick={() => setSelectedKey(null)}
+                                className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg hover:bg-primary/20 transition-colors"
+                            >
+                                <X className="h-3.5 w-3.5" /> Tampilkan semua kanal
+                            </button>
+                        )}
+                    </div>
+                    <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                        {bankSummary.map((b) => {
+                            const isActive = selectedKey === b.key;
+                            const isBank = b.kind === 'BANK';
+                            return (
+                                <button
+                                    key={b.key}
+                                    onClick={() => setSelectedKey(isActive ? null : b.key)}
+                                    className={`text-left p-4 rounded-xl border transition-colors ${isActive
+                                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                                        : 'border-border bg-background/50 hover:bg-muted/40'
+                                        }`}
+                                >
+                                    <div className="flex items-center justify-between gap-2 mb-1">
+                                        <span className="font-semibold text-sm text-foreground truncate flex items-center gap-1.5" title={isBank ? `${b.bankName} • ${b.accountOwner}` : b.bankName}>
+                                            {isBank ? <Landmark className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <Wallet className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                                            {isBank ? b.bankName : (b.kind === 'CASH' ? 'Tunai (Cash)' : 'QRIS')}
+                                        </span>
+                                        {isBank && <span className="text-[10px] shrink-0 text-muted-foreground font-mono">{b.accountNumber}</span>}
+                                    </div>
+                                    <div className="text-[11px] text-muted-foreground mb-2">{isBank ? 'Saldo tercatat' : 'Arus bersih periode'}</div>
+                                    <div className={`text-lg font-bold ${isBank ? 'text-foreground' : (b.periodNet >= 0 ? 'text-emerald-600' : 'text-destructive')}`}>
+                                        {isBank
+                                            ? fmt(b.currentBalance ?? 0)
+                                            : `${b.periodNet < 0 ? '-' : ''}${fmt(Math.abs(b.periodNet))}`}
+                                    </div>
+                                    <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/60 text-xs">
+                                        <span className="inline-flex items-center gap-1 text-emerald-600">
+                                            <ArrowUpRight className="h-3.5 w-3.5" /> {fmtShort(b.periodIn)}
+                                        </span>
+                                        <span className="inline-flex items-center gap-1 text-destructive">
+                                            <ArrowDownRight className="h-3.5 w-3.5" /> {fmtShort(b.periodOut)}
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground">
+                                        {b.movementCount} mutasi pada periode {PERIODS.find(p2 => p2.key === period)?.label?.toLowerCase()}
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
             {/* Charts row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Monthly trend */}
-                <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                <div className="glass rounded-xl shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-4">
                         <TrendingUp className="h-4 w-4 text-primary" />
                         <h3 className="font-semibold text-foreground">Tren 6 Bulan</h3>
@@ -689,7 +796,7 @@ export default function CashflowPage() {
                 </div>
 
                 {/* Category breakdown */}
-                <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                <div className="glass rounded-xl shadow-sm p-6">
                     <div className="flex items-center gap-2 mb-4">
                         <BarChart3 className="h-4 w-4 text-primary" />
                         <h3 className="font-semibold text-foreground">Pengeluaran per Kategori</h3>
@@ -714,7 +821,7 @@ export default function CashflowPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Income category breakdown */}
                 {incomeCategories.length > 0 && (
-                    <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                    <div className="glass rounded-xl shadow-sm p-6">
                         <div className="flex items-center gap-2 mb-4">
                             <BarChart3 className="h-4 w-4 text-emerald-500" />
                             <h3 className="font-semibold text-foreground">Pemasukan per Kategori</h3>
@@ -733,7 +840,7 @@ export default function CashflowPage() {
 
                 {/* Platform breakdown */}
                 {platformData && platformData.length > 0 && (
-                    <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                    <div className="glass rounded-xl shadow-sm p-6">
                         <div className="flex items-center gap-2 mb-4">
                             <Store className="h-4 w-4 text-primary" />
                             <h3 className="font-semibold text-foreground">Pemasukan per Platform</h3>
@@ -784,7 +891,7 @@ export default function CashflowPage() {
 
             {/* Cashier: my requests status */}
             {!isManager && myRequests.length > 0 && (
-                <div className="bg-card rounded-xl border border-border shadow-sm p-5 space-y-3">
+                <div className="glass rounded-xl shadow-sm p-5 space-y-3">
                     <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
                         <h3 className="font-semibold text-foreground">Status Permintaan Saya</h3>
@@ -814,34 +921,90 @@ export default function CashflowPage() {
             )}
 
             {/* History list */}
-            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-                <div className="px-6 py-4 border-b border-border flex justify-between items-center flex-wrap gap-3">
-                    <h3 className="font-semibold text-foreground">Histori Cashflow</h3>
-                    <div className="flex gap-2">
-                        {(['ALL', 'INCOME', 'EXPENSE'] as const).map(f => (
-                            <button key={f} onClick={() => setFilterType(f)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType === f ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'}`}>
-                                {f === 'ALL' ? 'Semua' : f === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'}
+            <div className="glass rounded-xl shadow-sm overflow-hidden">
+                <div className="px-6 pt-4 border-b border-border">
+                    {/* Tab tampilan: arus kas penuh vs khusus transaksi produk */}
+                    <div className="flex items-center gap-1">
+                        {([
+                            { key: 'cashflow', label: 'Histori Cashflow', icon: ArrowRightLeft },
+                            { key: 'products', label: 'Transaksi Produk', icon: Package },
+                        ] as const).map(t => (
+                            <button
+                                key={t.key}
+                                onClick={() => setHistoryTab(t.key)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${historyTab === t.key
+                                    ? 'border-primary text-primary'
+                                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                                    }`}
+                            >
+                                <t.icon className="h-4 w-4" /> {t.label}
                             </button>
                         ))}
                     </div>
+                    <div className="py-3 flex justify-between items-center flex-wrap gap-3">
+                        <p className="text-xs text-muted-foreground">
+                            {historyTab === 'products'
+                                ? 'Hanya pemasukan dari order — rincian produk tampil di tiap baris.'
+                                : 'Semua arus kas masuk & keluar pada periode ini.'}
+                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {/* Filter per kategori produk / label */}
+                            <select
+                                value={categoryFilter ?? ''}
+                                onChange={(e) => setCategoryFilter(e.target.value ? Number(e.target.value) : null)}
+                                className="bg-background border border-input rounded-lg px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                title="Filter berdasarkan kategori produk dalam order"
+                            >
+                                <option value="">Semua kategori produk</option>
+                                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            {historyTab === 'cashflow' && (['ALL', 'INCOME', 'EXPENSE'] as const).map(f => (
+                                <button key={f} onClick={() => setFilterType(f)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${filterType === f ? 'bg-primary text-primary-foreground' : 'bg-muted/40 text-muted-foreground hover:bg-muted/70'}`}>
+                                    {f === 'ALL' ? 'Semua' : f === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
+                {categoryFilter != null && (
+                    <div className="px-6 py-2 bg-primary/5 border-b border-border text-xs text-muted-foreground flex items-center gap-2">
+                        <Filter className="h-3.5 w-3.5 text-primary" />
+                        Menampilkan hanya order yang memuat produk kategori <span className="font-medium text-foreground">{categories.find(c => c.id === categoryFilter)?.name}</span>
+                        <button onClick={() => setCategoryFilter(null)} className="ml-1 text-primary hover:underline">hapus filter</button>
+                    </div>
+                )}
                 <div className="divide-y divide-border">
                     {isLoading ? (
                         <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                    ) : filteredEntries.length === 0 ? (
-                        <div className="p-8 text-center text-muted-foreground">Belum ada catatan cashflow untuk periode ini.</div>
+                    ) : displayEntries.length === 0 ? (
+                        <div className="p-8 text-center text-muted-foreground">
+                            {historyTab === 'products'
+                                ? 'Belum ada transaksi produk pada periode/filter ini.'
+                                : 'Belum ada catatan cashflow untuk periode ini.'}
+                        </div>
                     ) : (
-                        filteredEntries.map((entry) => (
-                            <div key={entry.id} className="p-4 sm:p-6 flex items-center justify-between hover:bg-muted/30 transition-colors gap-4">
+                        pg.pageItems.map((entry) => {
+                          const order = entry.order;
+                          const isProductView = historyTab === 'products';
+                          const isExpanded = expandedId === entry.id || isProductView;
+                          return (
+                            <div key={entry.id}>
+                            <div className="p-4 sm:p-6 flex items-center justify-between hover:bg-muted/30 transition-colors gap-4">
                                 <div className="flex items-center gap-4 min-w-0">
                                     <div className={`p-3 rounded-full shrink-0 ${entry.type === 'INCOME' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-destructive/10 text-destructive'}`}>
                                         {entry.type === 'INCOME' ? <ArrowUpRight className="h-5 w-5" /> : <ArrowDownRight className="h-5 w-5" />}
                                     </div>
                                     <div className="min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <h4 className="font-medium text-foreground">{entry.category}</h4>
-                                            {!entry.userId && (
+                                            <h4 className="font-medium text-foreground">{isProductView && order ? order.invoiceNumber : entry.category}</h4>
+                                            {isProductView && order && (
+                                                <span className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">{entry.category}</span>
+                                            )}
+                                            {isProductView && order?.customerName && (
+                                                <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">👤 {order.customerName}</span>
+                                            )}
+                                            {!entry.userId && !isProductView && (
                                                 <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">Otomatis</span>
                                             )}
                                             {entry.type === 'INCOME' && entry.platformSource && (
@@ -856,7 +1019,19 @@ export default function CashflowPage() {
                                             )}
                                         </div>
                                         <p className="text-sm text-muted-foreground truncate">{dayjs(entry.date).format('DD MMM YYYY HH:mm')} &bull; {entry.note || '-'}</p>
-                                        <p className="text-xs text-muted-foreground">Oleh: {entry.user?.email ?? 'System'}</p>
+                                        <div className="flex items-center gap-3 flex-wrap">
+                                            <p className="text-xs text-muted-foreground">Oleh: {entry.user?.email ?? 'System'}</p>
+                                            {order && !isProductView && (
+                                                <button
+                                                    onClick={() => setExpandedId(expandedId === entry.id ? null : entry.id)}
+                                                    className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                                                >
+                                                    <Package className="h-3.5 w-3.5" />
+                                                    {order.items.length} produk
+                                                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
@@ -902,15 +1077,47 @@ export default function CashflowPage() {
                                     })()}
                                 </div>
                             </div>
-                        ))
+                            {/* Detail order: produk apa saja di pemasukan ini */}
+                            {order && isExpanded && (
+                                <div className="px-4 sm:px-6 pb-4 -mt-1">
+                                    <div className="rounded-lg border border-border bg-muted/20 overflow-hidden">
+                                        <div className="px-4 py-2 border-b border-border bg-muted/30 flex items-center justify-between gap-2 text-xs">
+                                            <span className="font-medium text-foreground">Order {order.invoiceNumber}</span>
+                                            {order.customerName && <span className="text-muted-foreground">Pelanggan: {order.customerName}</span>}
+                                        </div>
+                                        <div className="divide-y divide-border/60">
+                                            {order.items.map((it, i) => (
+                                                <div key={i} className="px-4 py-2 flex items-center justify-between gap-3 text-sm">
+                                                    <div className="min-w-0">
+                                                        <span className="text-foreground">{it.name}</span>
+                                                        <span className="ml-2 inline-flex items-center text-[10px] font-medium text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">{it.categoryName}</span>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <span className="text-muted-foreground">{it.areaM2 != null ? `${it.areaM2.toLocaleString('id-ID', { maximumFractionDigits: 2 })} m²` : `${it.quantity} ${it.unitType || 'pcs'}`}</span>
+                                                        <span className="ml-3 font-medium text-foreground">{fmt(it.lineTotal)}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            </div>
+                          );
+                        })
                     )}
                 </div>
+                {!isLoading && pg.totalPages > 1 && (
+                    <div className="px-6 py-3 border-t border-border">
+                        <PaginationBar {...pg} />
+                    </div>
+                )}
             </div>
 
             {/* Add entry dialog */}
             {isDialogOpen && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+                    <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="px-6 py-4 border-b border-border flex justify-between items-center">
                             <h3 className="font-semibold text-foreground">Tambah Entry Cashflow</h3>
                             <button onClick={() => setIsDialogOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -1027,8 +1234,8 @@ export default function CashflowPage() {
 
             {/* Delete confirm (manager only) */}
             {deleteId !== null && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-card w-full max-w-sm rounded-xl border border-border shadow-lg p-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+                    <div className="glass-strong w-full max-w-sm rounded-xl border border-border shadow-lg p-6 animate-in fade-in zoom-in-95 duration-200">
                         <h3 className="font-semibold text-foreground mb-2">Hapus Entry?</h3>
                         <p className="text-sm text-muted-foreground mb-6">Tindakan ini tidak dapat dibatalkan.</p>
                         <div className="flex justify-end gap-3">

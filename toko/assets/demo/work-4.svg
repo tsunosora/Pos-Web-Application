@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 680">
+<rect width="900" height="680" fill="#E9E7E1"/>
+<line x1="60" y1="84" x2="840" y2="84" stroke="#8E8D88" stroke-width="1" opacity=".45"/>
+<text x="60" y="64" font-family="Georgia,'Times New Roman',serif" font-size="22" letter-spacing="6" fill="#8E8D88">VOLIKO PRINT</text>
+<text x="840" y="64" text-anchor="end" font-family="Arial,Helvetica,sans-serif" font-size="18" letter-spacing="4" fill="#8E8D88">PORTOFOLIO</text>
+<text x="60" y="475" font-family="Georgia,'Times New Roman',serif" font-size="300" fill="#15151A" opacity=".92">04</text>
+<line x1="60" y1="520" x2="220" y2="520" stroke="#15151A" stroke-width="2"/>
+<text x="60" y="568" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="bold" letter-spacing="3" fill="#15151A">KARTU NAMA</text>
+<text x="60" y="608" font-family="Arial,Helvetica,sans-serif" font-size="20" letter-spacing="5" fill="#8E8D88">IDENTITAS KORPORAT</text>
+<text x="60" y="646" font-family="Arial,Helvetica,sans-serif" font-size="15" letter-spacing="2" fill="#8E8D88" opacity=".7">PLACEHOLDER — GANTI DENGAN FOTO ASLI</text>
+</svg>
