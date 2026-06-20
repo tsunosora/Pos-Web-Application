@@ -108,7 +108,7 @@ export function Header() {
     };
 
     return (
-        <header className="z-30 m-2 sm:m-3 flex h-16 shrink-0 items-center gap-x-4 rounded-2xl border border-border/40 bg-background/45 backdrop-blur-2xl backdrop-saturate-150 px-4 shadow-[0_10px_34px_-10px_rgb(0_0_0/0.28),inset_0_1px_0_0_rgb(255_255_255/0.28)] sm:gap-x-6 sm:px-6 lg:px-8">
+        <header className="relative z-40 m-2 sm:m-3 flex h-16 shrink-0 items-center gap-x-4 rounded-2xl border border-border/40 bg-background/45 backdrop-blur-2xl backdrop-saturate-150 px-4 shadow-[0_10px_34px_-10px_rgb(0_0_0/0.28),inset_0_1px_0_0_rgb(255_255_255/0.28)] sm:gap-x-6 sm:px-6 lg:px-8">
             {/* Hamburger mobile */}
             <button type="button" className="-m-2.5 p-2.5 text-foreground lg:hidden" onClick={toggleSidebar}>
                 <Menu className="h-6 w-6" />
