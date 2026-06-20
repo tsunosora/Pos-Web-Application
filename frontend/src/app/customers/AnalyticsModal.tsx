@@ -32,12 +32,12 @@ export function AnalyticsModal({ customerId, onClose }: { customerId: number; on
         : null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm" onClick={onClose}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl" onClick={onClose}>
             <div
                 className="bg-background rounded-2xl border border-border shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto"
                 onClick={e => e.stopPropagation()}
             >
-                <div className="sticky top-0 bg-background/95 backdrop-blur-sm flex items-center justify-between p-5 border-b border-border z-10">
+                <div className="sticky top-0 bg-background/95 backdrop-blur-3xl flex items-center justify-between p-5 border-b border-border z-10">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                             <Users className="w-5 h-5 text-primary" />

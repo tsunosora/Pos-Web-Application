@@ -30,7 +30,7 @@ const STATUS_COLORS: Record<BranchWOStatus, string> = {
     ANTRIAN: 'bg-yellow-100 text-yellow-800',
     PROSES: 'bg-blue-100 text-blue-800',
     SELESAI: 'bg-green-100 text-green-800',
-    DIBATALKAN: 'bg-gray-100 text-gray-600',
+    DIBATALKAN: 'bg-muted text-muted-foreground',
 };
 
 const STATUS_ICONS: Record<BranchWOStatus, React.ReactNode> = {
@@ -91,14 +91,14 @@ function SummaryTab() {
                 <select
                     value={year}
                     onChange={e => setYear(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="border border-border rounded-lg px-3 py-2 text-sm"
                 >
                     {years.map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
                 <select
                     value={month}
                     onChange={e => setMonth(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="border border-border rounded-lg px-3 py-2 text-sm"
                 >
                     <option value="">Seluruh Tahun</option>
                     {Array.from({ length: 12 }, (_, i) => {
@@ -113,7 +113,7 @@ function SummaryTab() {
                 <select
                     value={filterBranch}
                     onChange={e => setFilterBranch(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="border border-border rounded-lg px-3 py-2 text-sm"
                 >
                     <option value="">Semua Cabang</option>
                     {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
@@ -121,31 +121,31 @@ function SummaryTab() {
             </div>
 
             {isLoading ? (
-                <p className="text-gray-400 text-sm">Memuat rekap...</p>
+                <p className="text-muted-foreground text-sm">Memuat rekap...</p>
             ) : !summary ? null : (
                 <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
+                        <div className="bg-card border border-border rounded-xl p-4 text-center">
                             <p className="text-2xl font-bold text-blue-600">{summary.totalOrders}</p>
-                            <p className="text-xs text-gray-500 mt-1">Total Work Order</p>
+                            <p className="text-xs text-muted-foreground mt-1">Total Work Order</p>
                         </div>
-                        <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
-                            <p className="text-lg text-gray-500 font-medium">{summary.period}</p>
-                            <p className="text-xs text-gray-400 mt-1">Periode</p>
+                        <div className="bg-card border border-border rounded-xl p-4 text-center">
+                            <p className="text-lg text-muted-foreground font-medium">{summary.period}</p>
+                            <p className="text-xs text-muted-foreground mt-1">Periode</p>
                         </div>
                     </div>
 
                     {summary.byBranch.length === 0 ? (
-                        <p className="text-gray-400 text-sm text-center py-8">Tidak ada data untuk periode ini.</p>
+                        <p className="text-muted-foreground text-sm text-center py-8">Tidak ada data untuk periode ini.</p>
                     ) : (
                         <div className="space-y-3">
                             {summary.byBranch.map(b => {
                                 const pct = b.totalOrders > 0 ? Math.round((b.selesai / b.totalOrders) * 100) : 0;
                                 return (
-                                    <div key={b.branchId} className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                                    <div key={b.branchId} className="bg-card border border-border rounded-xl p-4 space-y-3">
                                         <div className="flex items-center justify-between">
-                                            <p className="font-semibold text-gray-800">{b.branchName}</p>
-                                            <span className="text-xs text-gray-400">{b.totalOrders} WO · {b.totalItems} items</span>
+                                            <p className="font-semibold text-foreground">{b.branchName}</p>
+                                            <span className="text-xs text-muted-foreground">{b.totalOrders} WO · {b.totalItems} items</span>
                                         </div>
                                         <div className="flex gap-3 text-center text-xs">
                                             <div className="flex-1 bg-green-50 rounded-lg py-2">
@@ -162,11 +162,11 @@ function SummaryTab() {
                                             </div>
                                         </div>
                                         <div>
-                                            <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                            <div className="flex justify-between text-xs text-muted-foreground mb-1">
                                                 <span>Tingkat penyelesaian</span>
                                                 <span>{pct}%</span>
                                             </div>
-                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                            <div className="h-2 bg-muted rounded-full overflow-hidden">
                                                 <div
                                                     className="h-full bg-green-500 rounded-full"
                                                     style={{ width: `${pct}%` }}
@@ -225,18 +225,18 @@ function ListTab() {
             {/* Filters */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="relative col-span-2 md:col-span-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         placeholder="Cari WO#, cabang..."
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        className="w-full pl-9 pr-3 py-2 border border-border rounded-lg text-sm"
                     />
                 </div>
                 <select
                     value={filterBranch}
                     onChange={e => setFilterBranch(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="border border-border rounded-lg px-3 py-2 text-sm"
                 >
                     <option value="">Semua Cabang</option>
                     {branches.map(b => (
@@ -246,7 +246,7 @@ function ListTab() {
                 <select
                     value={filterStatus}
                     onChange={e => setFilterStatus(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="border border-border rounded-lg px-3 py-2 text-sm"
                 >
                     <option value="">Semua Status</option>
                     <option value="ANTRIAN">Antrian</option>
@@ -257,7 +257,7 @@ function ListTab() {
                 <select
                     value={filterMonth}
                     onChange={e => setFilterMonth(e.target.value)}
-                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    className="border border-border rounded-lg px-3 py-2 text-sm"
                 >
                     <option value="">Semua Bulan</option>
                     {monthOpts.map(o => (
@@ -267,37 +267,37 @@ function ListTab() {
             </div>
 
             {isLoading ? (
-                <p className="text-gray-400 text-sm">Memuat...</p>
+                <p className="text-muted-foreground text-sm">Memuat...</p>
             ) : filtered.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
+                <div className="text-center py-16 text-muted-foreground">
                     <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-30" />
                     <p>Belum ada work order</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
+                <div className="bg-card rounded-xl border border-border overflow-x-auto">
+                    <table className="w-full text-sm min-w-[640px]">
+                        <thead className="bg-muted border-b border-border">
                             <tr>
-                                <th className="text-left px-4 py-2.5 text-gray-500 font-medium">WO#</th>
-                                <th className="text-left px-4 py-2.5 text-gray-500 font-medium">Cabang</th>
-                                <th className="text-left px-4 py-2.5 text-gray-500 font-medium hidden md:table-cell">Ref / Diterima</th>
-                                <th className="text-center px-4 py-2.5 text-gray-500 font-medium">Items</th>
-                                <th className="text-left px-4 py-2.5 text-gray-500 font-medium hidden md:table-cell">Tanggal</th>
-                                <th className="text-center px-4 py-2.5 text-gray-500 font-medium">Status</th>
+                                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">WO#</th>
+                                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium">Cabang</th>
+                                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium hidden md:table-cell">Ref / Diterima</th>
+                                <th className="text-center px-4 py-2.5 text-muted-foreground font-medium">Items</th>
+                                <th className="text-left px-4 py-2.5 text-muted-foreground font-medium hidden md:table-cell">Tanggal</th>
+                                <th className="text-center px-4 py-2.5 text-muted-foreground font-medium">Status</th>
                                 <th className="px-4 py-2.5" />
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filtered.map(wo => (
-                                <tr key={wo.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-4 py-3 font-mono text-xs text-gray-700">{wo.woNumber}</td>
-                                    <td className="px-4 py-3 font-medium text-gray-800">{wo.branch.name}</td>
-                                    <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
+                                <tr key={wo.id} className="hover:bg-muted transition-colors">
+                                    <td className="px-4 py-3 font-mono text-xs text-foreground">{wo.woNumber}</td>
+                                    <td className="px-4 py-3 font-medium text-foreground">{wo.branch.name}</td>
+                                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell">
                                         {wo.referenceNumber && <span className="block text-xs">Ref: {wo.referenceNumber}</span>}
-                                        {wo.receivedBy && <span className="block text-xs text-gray-400">Diterima: {wo.receivedBy}</span>}
+                                        {wo.receivedBy && <span className="block text-xs text-muted-foreground">Diterima: {wo.receivedBy}</span>}
                                     </td>
                                     <td className="px-4 py-3 text-center">
-                                        <span className="inline-flex items-center gap-1 text-gray-600">
+                                        <span className="inline-flex items-center gap-1 text-muted-foreground">
                                             {wo.items.length}
                                             {wo.items.filter(i => i.isDone).length > 0 && (
                                                 <span className="text-xs text-green-600">
@@ -306,7 +306,7 @@ function ListTab() {
                                             )}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-3 text-gray-400 text-xs hidden md:table-cell">
+                                    <td className="px-4 py-3 text-muted-foreground text-xs hidden md:table-cell">
                                         {formatDate(wo.createdAt)}
                                     </td>
                                     <td className="px-4 py-3 text-center">
@@ -344,7 +344,7 @@ export default function BranchOrdersPage() {
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-blue-600" />
-                    <h1 className="text-xl font-bold text-gray-800">Order Cabang</h1>
+                    <h1 className="text-xl font-bold text-foreground">Order Cabang</h1>
                 </div>
                 <Link
                     href="/branch-orders/new"
@@ -355,16 +355,16 @@ export default function BranchOrdersPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+            <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
                 <button
                     onClick={() => setTab('list')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === 'list' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === 'list' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                     <ClipboardList className="w-4 h-4" /> Daftar WO
                 </button>
                 <button
                     onClick={() => setTab('summary')}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === 'summary' ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === 'summary' ? 'bg-card shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                     <BarChart3 className="w-4 h-4" /> Rekapitulasi
                 </button>

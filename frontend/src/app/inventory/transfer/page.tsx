@@ -176,7 +176,7 @@ export default function TransferStokPage() {
                 {/* Form transfer */}
                 <form
                     onSubmit={handleSubmit}
-                    className="lg:col-span-3 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm space-y-4"
+                    className="lg:col-span-3 rounded-xl glass p-4 sm:p-5 shadow-sm space-y-4"
                 >
                     <h2 className="text-base font-semibold text-foreground">Transfer Baru</h2>
 
@@ -320,7 +320,7 @@ export default function TransferStokPage() {
                 </form>
 
                 {/* Riwayat */}
-                <div className="lg:col-span-2 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-sm">
+                <div className="lg:col-span-2 rounded-xl glass p-4 sm:p-5 shadow-sm">
                     <div className="mb-4 flex items-center gap-2">
                         <History className="h-5 w-5 text-primary" />
                         <h2 className="text-base font-semibold text-foreground">Riwayat Transfer</h2>

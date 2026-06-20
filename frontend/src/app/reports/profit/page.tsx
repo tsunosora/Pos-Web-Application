@@ -1,22 +1,87 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getProfitReport } from '@/lib/api';
 import { exportToExcel, exportToPDF } from '@/lib/export';
-import { Calendar, Download, TrendingUp, BarChart, DollarSign, ArrowUpRight, ArrowDownRight, Package, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Calendar, Download, TrendingUp, BarChart, DollarSign, ArrowUpRight, ArrowDownRight, Package, FileSpreadsheet, Loader2, Factory, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from '@/components/ui/page-header';
 import { ResponsiveTable, EmptyState } from '@/components/ui/responsive-table';
 import { useBranchStore } from '@/store/branch-store';
 
 export default function ProfitReportPage() {
     const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
+    // Filter "mesin" = kategori produk. '' = semua mesin.
+    const [machineFilter, setMachineFilter] = useState<string>('');
+    // Slider kartu kategori: scroll horizontal via tombol panah.
+    const catScrollRef = useRef<HTMLDivElement>(null);
+    const scrollCats = (dir: number) => {
+        const el = catScrollRef.current;
+        if (!el) return;
+        el.scrollBy({ left: dir * Math.max(260, el.clientWidth * 0.8), behavior: 'smooth' });
+    };
     const activeBranchId = useBranchStore((s) => s.activeBranchId);
 
     const { data: profitData, isLoading } = useQuery({
         queryKey: ['profitReport', activeBranchId, dateRange],
         queryFn: () => getProfitReport(dateRange.startDate, dateRange.endDate),
     });
+
+    // Preset tanggal cepat. Format lokal YYYY-MM-DD (hindari geser zona waktu).
+    const fmt = (d: Date) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
+    const applyPreset = (preset: 'today' | 'yesterday' | 'last7' | 'thisMonth' | 'thisYear' | 'all') => {
+        const now = new Date();
+        if (preset === 'all') { setDateRange({ startDate: '', endDate: '' }); return; }
+        let start = new Date(now);
+        let end = new Date(now);
+        if (preset === 'yesterday') { start.setDate(now.getDate() - 1); end = new Date(start); }
+        else if (preset === 'last7') { start.setDate(now.getDate() - 6); }
+        else if (preset === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1); }
+        else if (preset === 'thisYear') { start = new Date(now.getFullYear(), 0, 1); }
+        setDateRange({ startDate: fmt(start), endDate: fmt(end) });
+    };
+    // Cek preset mana yang sedang aktif (untuk highlight tombol).
+    const activePreset = (() => {
+        const { startDate, endDate } = dateRange;
+        if (!startDate && !endDate) return 'all';
+        const now = new Date();
+        const matches = (s: Date, e: Date) => startDate === fmt(s) && endDate === fmt(e);
+        const y = new Date(now); const ystart = new Date(now); ystart.setDate(now.getDate() - 1);
+        const l7 = new Date(now); l7.setDate(now.getDate() - 6);
+        if (matches(now, now)) return 'today';
+        if (matches(ystart, ystart)) return 'yesterday';
+        if (matches(l7, now)) return 'last7';
+        if (matches(new Date(now.getFullYear(), now.getMonth(), 1), now)) return 'thisMonth';
+        if (matches(new Date(now.getFullYear(), 0, 1), now)) return 'thisYear';
+        return 'custom';
+    })();
+
+    // Ringkasan laba per mesin (kategori) dari backend.
+    const categories: any[] = profitData?.categories || [];
+    // Item tabel, difilter sesuai mesin yang dipilih.
+    const visibleItems: any[] = (profitData?.items || []).filter(
+        (it: any) => !machineFilter || String(it.categoryId ?? 'none') === machineFilter
+    );
+
+    // Ringkasan atas ikut menyesuaikan saat kategori difilter (dihitung dari item
+    // yang tampil); tanpa filter pakai total periode penuh dari backend.
+    const isFiltered = !!machineFilter;
+    const filteredTotals = visibleItems.reduce(
+        (a: { revenue: number; hpp: number }, it: any) => {
+            a.revenue += Number(it.revenue || 0);
+            a.hpp += Number(it.totalHpp || 0);
+            return a;
+        }, { revenue: 0, hpp: 0 });
+    const viewRevenue = isFiltered ? filteredTotals.revenue : Number(profitData?.totalRevenue || 0);
+    const viewHpp = isFiltered ? filteredTotals.hpp : Number(profitData?.totalHpp || 0);
+    const viewGross = isFiltered ? (filteredTotals.revenue - filteredTotals.hpp) : Number(profitData?.grossProfit || 0);
+    const viewMargin = isFiltered ? (filteredTotals.revenue > 0 ? (viewGross / filteredTotals.revenue) * 100 : 0) : Number(profitData?.profitMargin || 0);
+    const filterName = isFiltered ? (categories.find((c: any) => String(c.categoryId ?? 'none') === machineFilter)?.categoryName || 'Kategori') : null;
 
     if (isLoading) {
         return (
@@ -26,14 +91,15 @@ export default function ProfitReportPage() {
         );
     }
 
-    const marginColor = (profitData?.profitMargin || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500';
-    const profitColor = (profitData?.grossProfit || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600';
+    const marginColor = viewMargin >= 0 ? 'text-emerald-500' : 'text-rose-500';
+    const profitColor = viewGross >= 0 ? 'text-emerald-600' : 'text-rose-600';
 
     const handleExportExcel = () => {
-        if (!profitData?.items?.length) return alert('Tidak ada data untuk di-export');
-        const data = profitData.items.map((item: any) => ({
+        if (!visibleItems.length) return alert('Tidak ada data untuk di-export');
+        const data = visibleItems.map((item: any) => ({
             'SKU': item.sku,
             'Nama Produk': item.name,
+            'Mesin / Kategori': item.categoryName || 'Tanpa Kategori',
             'Qty / Luas Terjual': item.isAreaBased
                 ? `${Number(item.totalAreaM2).toFixed(2)} m² (${item.qty} pesanan)`
                 : item.qty,
@@ -47,9 +113,9 @@ export default function ProfitReportPage() {
     };
 
     const handleExportPDF = () => {
-        if (!profitData?.items?.length) return alert('Tidak ada data untuk di-export');
-        const headers = ['SKU', 'Nama Produk', 'Qty', 'Pendapatan', 'Total HPP', 'Laba Kotor', 'Margin'];
-        const body = profitData.items.map((item: any) => {
+        if (!visibleItems.length) return alert('Tidak ada data untuk di-export');
+        const headers = ['SKU', 'Nama Produk', 'Mesin', 'Qty', 'Pendapatan', 'Total HPP', 'Laba Kotor', 'Margin'];
+        const body = visibleItems.map((item: any) => {
             const margin = item.revenue > 0 ? ((item.grossProfit / item.revenue) * 100).toFixed(1) + '%' : '0%';
             const qtyDisplay = item.isAreaBased
                 ? `${Number(item.totalAreaM2).toFixed(2)} m² (${item.qty} psx)`
@@ -57,6 +123,7 @@ export default function ProfitReportPage() {
             return [
                 item.sku,
                 item.name,
+                item.categoryName || 'Tanpa Kategori',
                 qtyDisplay,
                 `Rp ${Number(item.revenue).toLocaleString('id-ID')}`,
                 `Rp ${Number(item.totalHpp).toLocaleString('id-ID')}`,
@@ -112,45 +179,161 @@ export default function ProfitReportPage() {
 
             <div className="space-y-6">
 
+            {/* Preset tanggal cepat */}
+            <div className="flex items-center gap-2 flex-wrap">
+                {([
+                    { key: 'today', label: 'Hari Ini' },
+                    { key: 'yesterday', label: 'Kemarin' },
+                    { key: 'last7', label: '7 Hari' },
+                    { key: 'thisMonth', label: 'Bulan Ini' },
+                    { key: 'thisYear', label: 'Tahun Ini' },
+                    { key: 'all', label: 'Semua' },
+                ] as const).map((p) => (
+                    <button
+                        key={p.key}
+                        onClick={() => applyPreset(p.key)}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${activePreset === p.key
+                            ? 'bg-primary text-primary-foreground border-primary'
+                            : 'bg-card text-muted-foreground border-border hover:bg-muted/40'
+                            }`}
+                    >
+                        {p.label}
+                    </button>
+                ))}
+                {activePreset === 'custom' && (
+                    <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                        Rentang custom
+                    </span>
+                )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-center">
+                <div className="glass p-5 rounded-xl shadow-sm flex flex-col justify-center">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-muted-foreground">Total Pendapatan Bersih</p>
                         <div className="p-2 bg-blue-500/10 rounded-lg"><DollarSign className="w-4 h-4 text-blue-500" /></div>
                     </div>
-                    <h2 className="text-2xl font-bold text-foreground">Rp {Number(profitData?.totalRevenue || 0).toLocaleString('id-ID')}</h2>
-                    <p className="text-xs text-muted-foreground mt-2">Setelah diskon, sebelum pajak</p>
+                    <h2 className="text-2xl font-bold text-foreground">Rp {viewRevenue.toLocaleString('id-ID')}</h2>
+                    <p className="text-xs text-muted-foreground mt-2">{filterName ? `Kategori: ${filterName}` : 'Setelah diskon, sebelum pajak'}</p>
                 </div>
 
-                <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-center">
+                <div className="glass p-5 rounded-xl shadow-sm flex flex-col justify-center">
                     <div className="flex items-center justify-between mb-2">
                         <p className="text-sm font-medium text-muted-foreground">Total HPP</p>
                         <div className="p-2 bg-orange-500/10 rounded-lg"><Package className="w-4 h-4 text-orange-500" /></div>
                     </div>
-                    <h2 className="text-2xl font-bold text-foreground">Rp {Number(profitData?.totalHpp || 0).toLocaleString('id-ID')}</h2>
-                    <p className="text-xs text-muted-foreground mt-2">Modal barang yang terjual</p>
+                    <h2 className="text-2xl font-bold text-foreground">Rp {viewHpp.toLocaleString('id-ID')}</h2>
+                    <p className="text-xs text-muted-foreground mt-2">{filterName ? `Modal kategori ${filterName}` : 'Modal barang yang terjual'}</p>
                 </div>
 
-                <div className="bg-card p-5 rounded-xl border border-border shadow-sm flex flex-col justify-center lg:col-span-2 bg-gradient-to-br from-card to-muted/30">
+                <div className="glass p-5 rounded-xl shadow-sm flex flex-col justify-center lg:col-span-2 bg-gradient-to-br from-card to-muted/30">
                     <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium text-muted-foreground">Laba Kotor (Gross Profit)</p>
+                        <p className="text-sm font-medium text-muted-foreground">Laba Kotor (Gross Profit){filterName ? ` — ${filterName}` : ''}</p>
                         <div className="p-2 bg-emerald-500/10 rounded-lg"><TrendingUp className="w-4 h-4 text-emerald-500" /></div>
                     </div>
                     <div className="flex items-end justify-between">
-                        <h2 className={`text-3xl font-bold ${profitColor}`}>Rp {Number(profitData?.grossProfit || 0).toLocaleString('id-ID')}</h2>
+                        <h2 className={`text-3xl font-bold ${profitColor}`}>Rp {viewGross.toLocaleString('id-ID')}</h2>
                         <div className={`flex items-center gap-1 font-bold text-lg ${marginColor} bg-background/50 px-3 py-1 rounded-lg border border-border/50`}>
-                            {profitData?.profitMargin >= 0 ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-                            {Number(profitData?.profitMargin || 0).toFixed(1)}%
+                            {viewMargin >= 0 ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                            {viewMargin.toFixed(1)}%
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-border bg-muted/20 flex items-center justify-between">
+            {/* Ringkasan laba per mesin (kategori produk) */}
+            {categories.length > 0 && (
+                <div className="glass rounded-xl shadow-sm overflow-hidden">
+                    <div className="p-5 border-b border-border bg-muted/20 flex items-center gap-2">
+                        <Factory className="h-5 w-5 text-primary" />
+                        <h3 className="font-semibold text-foreground">Laba per Mesin / Kategori</h3>
+                        <span className="text-xs text-muted-foreground">— klik kartu untuk filter tabel di bawah</span>
+                    </div>
+                    {/* Slider horizontal: swipe di mobile, tombol panah di layar lebar */}
+                    <div className="relative">
+                        <button
+                            type="button"
+                            onClick={() => scrollCats(-1)}
+                            aria-label="Geser kiri"
+                            className="hidden sm:flex absolute left-1 top-1/2 -translate-y-1/2 z-10 items-center justify-center h-8 w-8 rounded-full bg-card/90 border border-border shadow-md hover:bg-muted transition-colors"
+                        >
+                            <ChevronLeft className="h-4 w-4 text-foreground" />
+                        </button>
+                        <div
+                            ref={catScrollRef}
+                            className="grid grid-flow-col grid-rows-1 sm:grid-rows-2 auto-cols-max gap-3 overflow-x-auto scroll-smooth snap-x snap-mandatory px-4 py-4 sm:px-12 [scrollbar-width:thin] [-webkit-overflow-scrolling:touch]"
+                        >
+                            {categories.map((cat: any) => {
+                                const key = String(cat.categoryId ?? 'none');
+                                const isActive = machineFilter === key;
+                                const isLoss = cat.grossProfit < 0;
+                                return (
+                                    <button
+                                        key={key}
+                                        onClick={() => setMachineFilter(isActive ? '' : key)}
+                                        className={`text-left p-4 rounded-xl border transition-colors snap-start w-[78vw] sm:w-[260px] ${isActive
+                                            ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                                            : 'border-border bg-background/50 hover:bg-muted/40'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between gap-2 mb-2">
+                                            <span className="font-semibold text-sm text-foreground truncate" title={cat.categoryName}>{cat.categoryName}</span>
+                                            <span className="text-[10px] shrink-0 text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{cat.productCount} produk</span>
+                                        </div>
+                                        <div className={`text-lg font-bold ${isLoss ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                            Rp {Number(cat.grossProfit).toLocaleString('id-ID')}
+                                        </div>
+                                        <div className="flex items-center justify-between mt-1 text-xs text-muted-foreground">
+                                            <span>Omzet Rp {Number(cat.revenue).toLocaleString('id-ID')}</span>
+                                            <span className={`font-medium ${isLoss ? 'text-rose-500' : 'text-emerald-500'}`}>{Number(cat.profitMargin).toFixed(1)}%</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => scrollCats(1)}
+                            aria-label="Geser kanan"
+                            className="hidden sm:flex absolute right-1 top-1/2 -translate-y-1/2 z-10 items-center justify-center h-8 w-8 rounded-full bg-card/90 border border-border shadow-md hover:bg-muted transition-colors"
+                        >
+                            <ChevronRight className="h-4 w-4 text-foreground" />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="glass rounded-xl shadow-sm overflow-hidden">
+                <div className="p-5 border-b border-border bg-muted/20 flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2">
                         <BarChart className="h-5 w-5 text-primary" />
                         <h3 className="font-semibold text-foreground">Analisis Profitabilitas per Produk</h3>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Filter per kategori / mesin (sinkron dengan klik kartu di atas) */}
+                        <div className="flex items-center gap-1.5">
+                            <Factory className="h-4 w-4 text-muted-foreground" />
+                            <select
+                                value={machineFilter}
+                                onChange={(e) => setMachineFilter(e.target.value)}
+                                className="bg-background border border-input rounded-lg px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                title="Filter berdasarkan kategori / mesin"
+                            >
+                                <option value="">Semua kategori / mesin</option>
+                                {categories.map((c: any) => {
+                                    const key = String(c.categoryId ?? 'none');
+                                    return <option key={key} value={key}>{c.categoryName}</option>;
+                                })}
+                            </select>
+                        </div>
+                        {machineFilter && (
+                            <button
+                                onClick={() => setMachineFilter('')}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-primary bg-primary/10 border border-primary/20 px-2.5 py-1 rounded-lg hover:bg-primary/20 transition-colors"
+                            >
+                                hapus filter ✕
+                            </button>
+                        )}
                     </div>
                 </div>
                 <div className="p-0 overflow-x-auto">
@@ -165,15 +348,21 @@ export default function ProfitReportPage() {
                                 <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">Margin</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-card divide-y divide-border">
-                            {profitData?.items?.length > 0 ? (
-                                profitData.items.map((item: any, idx: number) => {
+                        <tbody className="divide-y divide-border">
+                            {visibleItems.length > 0 ? (
+                                visibleItems.map((item: any, idx: number) => {
                                     const margin = item.revenue > 0 ? (item.grossProfit / item.revenue) * 100 : 0;
                                     const isLoss = item.grossProfit < 0;
                                     return (
                                         <tr key={idx} className="hover:bg-muted/30 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="font-medium text-foreground text-sm">{item.name}</div>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="font-medium text-foreground text-sm">{item.name}</span>
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded">
+                                                        <Factory className="h-3 w-3" />
+                                                        {item.categoryName || 'Tanpa Kategori'}
+                                                    </span>
+                                                </div>
                                                 <div className="text-xs text-muted-foreground mt-0.5">{item.sku}</div>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">

@@ -335,8 +335,8 @@ export default function InvoicesPage() {
 
             {/* Delete confirm */}
             {deleteId !== null && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-card w-full max-w-sm rounded-xl border border-border shadow-lg p-6 animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+                    <div className="glass-strong w-full max-w-sm rounded-xl border border-border shadow-lg p-6 animate-in fade-in zoom-in-95 duration-200">
                         <h3 className="font-semibold text-foreground mb-2">Hapus Dokumen?</h3>
                         <p className="text-sm text-muted-foreground mb-6">Data tidak dapat dipulihkan setelah dihapus.</p>
                         <div className="flex justify-end gap-3">

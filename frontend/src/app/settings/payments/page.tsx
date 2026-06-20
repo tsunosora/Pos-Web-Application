@@ -183,8 +183,8 @@ export default function PaymentSettings() {
 
             {/* Bank Form Modal */}
             {showBankForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="bg-card w-full max-w-sm rounded-xl border border-border shadow-lg overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-sm rounded-xl border border-border shadow-lg overflow-hidden">
                         <div className="p-4 border-b border-border">
                             <h3 className="font-bold">{bankForm.id ? "Edit Rekening" : "Tambah Rekening Baru"}</h3>
                         </div>

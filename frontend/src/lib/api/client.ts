@@ -48,6 +48,11 @@ api.interceptors.response.use(
             if (error?.response?.status === 401) {
                 localStorage.removeItem('token');
                 sessionStorage.removeItem('token');
+                // Hapus juga cookie token. Middleware (server) mengizinkan akses
+                // berdasarkan cookie ini; kalau cuma storage yang dibersihkan,
+                // middleware masih lihat cookie → pantul /login → / → 401 lagi →
+                // loop redirect tak henti (flicker). Format samakan dgn logout.
+                document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
                 if (!window.location.pathname.startsWith('/login')) {
                     window.location.href = '/login';
                 }

@@ -136,7 +136,7 @@ export default function StockReportPage() {
 
             <div className="space-y-4">
             {/* Filter bar */}
-            <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
+            <div className="rounded-xl glass shadow-sm p-4 space-y-3">
                 {/* Preset tabs */}
                 <div className="flex gap-1.5 flex-wrap">
                     {PRESETS.map(p => (
@@ -193,7 +193,7 @@ export default function StockReportPage() {
             {/* Summary cards */}
             {summary && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div className="rounded-xl border border-border bg-card shadow-sm p-4 text-center">
+                    <div className="rounded-xl glass shadow-sm p-4 text-center">
                         <p className="text-xs text-muted-foreground mb-1">Total Catatan</p>
                         <p className="text-2xl font-black text-foreground">{summary.count.toLocaleString('id-ID')}</p>
                     </div>
@@ -218,7 +218,7 @@ export default function StockReportPage() {
             )}
 
             {/* Table */}
-            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="rounded-xl glass shadow-sm overflow-hidden">
                 {/* Desktop table */}
                 <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm">

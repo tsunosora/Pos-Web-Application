@@ -60,7 +60,7 @@ export function ShiftReminderBanner() {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             {/* Blurred backdrop */}
             <div
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/65 backdrop-blur-3xl"
                 onClick={dismiss}
             />
 

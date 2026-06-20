@@ -145,31 +145,31 @@ export default function BranchesSettingsPage() {
             </div>
 
             {showForm && (
-                <form onSubmit={handleSubmit} className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
-                    <h3 className="font-medium text-gray-700">{editId ? 'Edit Cabang' : 'Cabang Baru'}</h3>
+                <form onSubmit={handleSubmit} className="bg-muted border border-border rounded-xl p-4 space-y-3">
+                    <h3 className="font-medium text-foreground">{editId ? 'Edit Cabang' : 'Cabang Baru'}</h3>
                     {error && <p className="text-red-600 text-sm">{error}</p>}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
-                            <label className="block text-xs text-gray-500 mb-1">Nama Cabang *</label>
+                            <label className="block text-xs text-muted-foreground mb-1">Nama Cabang *</label>
                             <input
                                 value={form.name}
                                 onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm"
+                                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm"
                                 placeholder="cth: Cabang Bantul"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-500 mb-1">Kode</label>
+                            <label className="block text-xs text-muted-foreground mb-1">Kode</label>
                             <input
                                 value={form.code}
                                 onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
                                 maxLength={20}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm uppercase"
+                                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm uppercase"
                                 placeholder="cth: BTL"
                             />
                         </div>
                     </div>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                         Setelah menyimpan, lanjutkan ke{' '}
                         <Link href="/settings/branch-config" className="underline text-blue-600">
                             Pengaturan Per Cabang
@@ -184,7 +184,7 @@ export default function BranchesSettingsPage() {
                         >
                             {isSaving ? 'Menyimpan...' : 'Simpan'}
                         </button>
-                        <button type="button" onClick={resetForm} className="text-sm text-gray-500 hover:text-gray-700">
+                        <button type="button" onClick={resetForm} className="text-sm text-muted-foreground hover:text-foreground">
                             Batal
                         </button>
                     </div>
@@ -194,17 +194,17 @@ export default function BranchesSettingsPage() {
             {error && !showForm && <p className="text-red-600 text-sm">{error}</p>}
 
             {isLoading ? (
-                <p className="text-gray-500 text-sm">Memuat...</p>
+                <p className="text-muted-foreground text-sm">Memuat...</p>
             ) : branches.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">Belum ada cabang terdaftar.</p>
+                <p className="text-muted-foreground text-sm text-center py-8">Belum ada cabang terdaftar.</p>
             ) : (
                 <div className="space-y-2">
                     {branches.map(b => (
-                        <div key={b.id} className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3">
+                        <div key={b.id} className="flex items-center justify-between bg-card border border-border rounded-xl px-4 py-3">
                             <div className="flex items-center gap-3">
                                 <div className={`w-2.5 h-2.5 rounded-full ${b.isActive ? 'bg-green-500' : 'bg-gray-300'}`} />
                                 <div>
-                                    <p className="font-medium text-gray-800 text-sm flex items-center gap-2">
+                                    <p className="font-medium text-foreground text-sm flex items-center gap-2">
                                         {b.name}
                                         {b.code && (
                                             <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-1.5 py-0.5 rounded">
@@ -212,7 +212,7 @@ export default function BranchesSettingsPage() {
                                             </span>
                                         )}
                                     </p>
-                                    <p className="text-xs text-gray-400">
+                                    <p className="text-xs text-muted-foreground">
                                         {b.isActive ? 'Aktif' : 'Nonaktif'} · ID: {b.id}
                                     </p>
                                 </div>
@@ -228,7 +228,7 @@ export default function BranchesSettingsPage() {
                                 <button
                                     onClick={() => toggleActiveMut.mutate({ id: b.id, isActive: !b.isActive })}
                                     title={b.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                                    className={`p-1.5 rounded-lg text-xs ${b.isActive ? 'text-green-600 hover:bg-green-50' : 'text-gray-400 hover:bg-gray-100'}`}
+                                    className={`p-1.5 rounded-lg text-xs ${b.isActive ? 'text-green-600 hover:bg-green-50' : 'text-muted-foreground hover:bg-accent'}`}
                                 >
                                     {b.isActive ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
                                 </button>
@@ -254,10 +254,10 @@ export default function BranchesSettingsPage() {
 
             {/* Delete confirm modal */}
             {deleteId && (
-                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full">
-                        <h3 className="font-semibold text-gray-800 mb-2">Hapus Cabang?</h3>
-                        <p className="text-sm text-gray-500 mb-4">
+                <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                    <div className="bg-card rounded-2xl shadow-xl p-6 max-w-sm w-full">
+                        <h3 className="font-semibold text-foreground mb-2">Hapus Cabang?</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
                             Cabang tidak dapat dihapus jika masih memiliki work order aktif (Antrian/Proses).
                         </p>
                         {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
@@ -271,7 +271,7 @@ export default function BranchesSettingsPage() {
                             </button>
                             <button
                                 onClick={() => { setDeleteId(null); setError(''); }}
-                                className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50"
+                                className="flex-1 border border-border text-foreground py-2 rounded-lg text-sm hover:bg-muted"
                             >
                                 Batal
                             </button>

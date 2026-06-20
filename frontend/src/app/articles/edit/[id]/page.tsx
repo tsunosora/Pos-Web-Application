@@ -68,28 +68,28 @@ export default function ArticleEditorPage() {
         } finally { setBusy(false); }
     };
 
-    if (!loaded) return <div className="py-16 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-gray-400" /></div>;
+    if (!loaded) return <div className="py-16 flex justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
 
     const coverSrc = form.coverImage ? (resolvePhotoUrl(form.coverImage) || form.coverImage) : null;
-    const lbl = "block text-xs font-semibold text-gray-600 mb-1";
-    const inp = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm";
+    const lbl = "block text-xs font-semibold text-muted-foreground mb-1";
+    const inp = "w-full border border-border rounded-lg px-3 py-2 text-sm";
 
     return (
         <div className="space-y-5 max-w-3xl">
             {/* Header */}
             <div className="flex items-center justify-between gap-3">
-                <Link href="/articles" className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800"><ArrowLeft className="h-4 w-4" /> Artikel</Link>
+                <Link href="/articles" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"><ArrowLeft className="h-4 w-4" /> Artikel</Link>
                 <div className="flex items-center gap-2">
-                    {msg && <span className="text-xs text-gray-600">{msg}</span>}
+                    {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
                     {!isNew && form.status === "PUBLISHED" && (
-                        <a href={`/artikel/${slug}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border hover:bg-gray-50"><ExternalLink className="h-4 w-4" /> Lihat</a>
+                        <a href={`/artikel/${slug}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border hover:bg-muted"><ExternalLink className="h-4 w-4" /> Lihat</a>
                     )}
-                    <button onClick={() => save("DRAFT")} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm border hover:bg-gray-50 disabled:opacity-50 flex items-center gap-1.5"><Save className="h-4 w-4" /> Draft</button>
+                    <button onClick={() => save("DRAFT")} disabled={busy} className="px-3 py-1.5 rounded-lg text-sm border hover:bg-muted disabled:opacity-50 flex items-center gap-1.5"><Save className="h-4 w-4" /> Draft</button>
                     <button onClick={() => save("PUBLISHED")} disabled={busy} className="px-4 py-1.5 rounded-lg text-sm bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5"><Rocket className="h-4 w-4" /> Terbitkan</button>
                 </div>
             </div>
 
-            <div className="bg-white border rounded-xl p-5 space-y-4">
+            <div className="bg-card border rounded-xl p-5 space-y-4">
                 <div>
                     <label className={lbl}>Judul</label>
                     <input value={form.title} onChange={(e) => set("title", e.target.value)} placeholder="Judul artikel" className={`${inp} text-lg font-semibold`} />
@@ -109,14 +109,14 @@ export default function ArticleEditorPage() {
                 <div>
                     <label className={lbl}>Gambar Sampul</label>
                     <div className="flex items-center gap-3">
-                        <div className="w-32 h-20 rounded-lg border bg-gray-50 overflow-hidden flex items-center justify-center">
+                        <div className="w-32 h-20 rounded-lg border bg-muted overflow-hidden flex items-center justify-center">
                             {coverSrc
                                 // eslint-disable-next-line @next/next/no-img-element
                                 ? <img src={coverSrc} alt="" className="w-full h-full object-cover" />
-                                : <ImageIcon className="h-5 w-5 text-gray-300" />}
+                                : <ImageIcon className="h-5 w-5 text-muted-foreground/40" />}
                         </div>
                         <input ref={coverRef} type="file" accept="image/*" onChange={uploadCover} className="hidden" />
-                        <button onClick={() => coverRef.current?.click()} className="px-3 py-1.5 rounded-lg text-sm border hover:bg-gray-50">Unggah</button>
+                        <button onClick={() => coverRef.current?.click()} className="px-3 py-1.5 rounded-lg text-sm border hover:bg-muted">Unggah</button>
                         {form.coverImage && <button onClick={() => set("coverImage", "")} className="text-xs text-red-600">Hapus</button>}
                     </div>
                 </div>
@@ -133,7 +133,7 @@ export default function ArticleEditorPage() {
             </div>
 
             {/* SEO */}
-            <div className="bg-white border rounded-xl p-5 space-y-3">
+            <div className="bg-card border rounded-xl p-5 space-y-3">
                 <h2 className="font-semibold text-sm">SEO (opsional)</h2>
                 <div>
                     <label className={lbl}>Judul SEO</label>

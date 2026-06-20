@@ -4,13 +4,17 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, logStockMovement, deleteProduct, bulkDeleteProducts, bulkImportProducts } from '@/lib/api';
 import { downloadBulkTemplate, parseBulkExcel, BulkProductInput } from '@/lib/bulk-import';
-import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator, Share2, History, MoreVertical, ShoppingCart, Loader2, Table2, LayoutGrid, Rows3, GalleryHorizontal } from 'lucide-react';
+import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator, Share2, History, MoreVertical, ShoppingCart, Loader2, Table2, LayoutGrid, Rows3, GalleryHorizontal, FolderTree, Ruler } from 'lucide-react';
 import { EmptyState } from '@/components/ui/responsive-table';
 import { useUIStore, type InventoryViewMode } from '@/store/ui-store';
 import { cn } from '@/lib/utils';
 import { ProductImageFill } from '@/components/ui/ProductImageFill';
 import StockHistoryModal from './StockHistoryModal';
 import PurchaseModal from './PurchaseModal';
+import { SmartStockModal } from './StockControls';
+import CategoryPanel from './CategoryPanel';
+import UnitPanel from './UnitPanel';
+import ChangeCategoryModal from './ChangeCategoryModal';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -56,7 +60,6 @@ export default function InventoryPage() {
     // Movement modal
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedVariant, setSelectedVariant] = useState<any>(null);
-    const [movementForm, setMovementForm] = useState({ type: 'IN', quantity: '', reason: '' });
 
     // Delete confirm
     const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
@@ -76,9 +79,16 @@ export default function InventoryPage() {
 
     // Filter panel toggle (collapsible)
     const [showFilters, setShowFilters] = useState(false);
+    // Header ringkas: tab Tipe & Kategori disembunyikan default, dibuka via chevron
+    const [headerExpanded, setHeaderExpanded] = useState(false);
 
     // Purchase modal
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+    // Panel kategori & unit (slide-over inline)
+    const [showCategoryPanel, setShowCategoryPanel] = useState(false);
+    const [showUnitPanel, setShowUnitPanel] = useState(false);
+    // Produk yang sedang diganti kategorinya (modal cepat)
+    const [categoryEditProduct, setCategoryEditProduct] = useState<any>(null);
     const [wasteForm, setWasteForm] = useState({ quantity: '', panjang: '', lebar: '', wasteType: 'Gagal Cetak', notes: '', operatorName: '' });
 
     // Expanded products (variant accordion)
@@ -185,7 +195,6 @@ export default function InventoryPage() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['products'] });
             setIsModalOpen(false);
-            setMovementForm({ type: 'IN', quantity: '', reason: '' });
         }
     });
 
@@ -206,21 +215,15 @@ export default function InventoryPage() {
         }
     });
 
-    const openMovementModal = (variant: any) => {
-        setSelectedVariant(variant);
+    const openMovementModal = (variant: any, productName?: string) => {
+        setSelectedVariant(productName ? { ...variant, productName } : variant);
         setIsModalOpen(true);
     };
 
-    const handleMovementSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!selectedVariant) return;
-        movementMutation.mutate({
-            productVariantId: selectedVariant.id,
-            type: movementForm.type as 'IN' | 'OUT' | 'ADJUST',
-            quantity: Number(movementForm.quantity),
-            reason: movementForm.reason
-        });
-    };
+    // Submit stok (dipakai quick-adjust inline & modal pintar). mutateAsync → refetch produk.
+    const adjustStock = (p: { productVariantId: number; type: 'IN' | 'OUT' | 'ADJUST'; quantity: number; reason?: string }) =>
+        movementMutation.mutateAsync(p);
+
 
     const handleWasteSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -367,13 +370,13 @@ export default function InventoryPage() {
     return (
         <div>
             {/* ── Sticky top bar ── */}
-            <div className="sticky top-0 z-20 bg-background border-b border-border px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 lg:pt-8 pb-3">
+            <div className="sticky top-0 z-20 rounded-2xl border border-border/40 bg-card/55 backdrop-blur-2xl backdrop-saturate-150 shadow-lg px-4 sm:px-6 lg:px-7 pt-4 pb-3 mb-3">
             {/* Title + Action buttons */}
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <div className="hidden sm:flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
                     <Package className="h-5 w-5" />
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-[10rem]">
                     <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground truncate">Manajemen Stok & Produk</h1>
                     <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground hidden sm:block">Kelola inventori, varian, harga, dan stok per cabang.</p>
                 </div>
@@ -405,37 +408,41 @@ export default function InventoryPage() {
                                     <Upload className="h-4 w-4 shrink-0" /> Import Bulk
                                 </button>
                                 <div className="h-px bg-border/60 my-1" />
-                                <Link href="/inventory/categories" onClick={() => setShowMobileActions(false)} className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm hover:bg-muted transition-colors">
+                                <button onClick={() => { setShowCategoryPanel(true); setShowMobileActions(false); }} className="w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 text-sm hover:bg-muted transition-colors">
                                     Kategori
-                                </Link>
-                                <Link href="/inventory/units" onClick={() => setShowMobileActions(false)} className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm hover:bg-muted transition-colors">
+                                </button>
+                                <button onClick={() => { setShowUnitPanel(true); setShowMobileActions(false); }} className="w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 text-sm hover:bg-muted transition-colors">
                                     Unit
-                                </Link>
+                                </button>
                             </div>
                         )}
                     </div>
                 </div>
-                {/* Desktop: full button row */}
-                <div className="hidden sm:flex gap-2 flex-wrap shrink-0">
-                    <Link href="/inventory/categories" className="flex items-center gap-2 bg-muted text-foreground px-4 py-2 rounded-lg font-medium hover:bg-muted/80 transition-colors border border-border text-sm">
-                        Kategori
-                    </Link>
-                    <Link href="/inventory/units" className="flex items-center gap-2 bg-muted text-foreground px-4 py-2 rounded-lg font-medium hover:bg-muted/80 transition-colors border border-border text-sm">
-                        Unit
-                    </Link>
-                    <button onClick={() => downloadBulkTemplate()} className="flex items-center gap-2 bg-muted text-foreground px-4 py-2 rounded-lg font-medium hover:bg-muted/80 transition-colors border border-border text-sm">
-                        <Download className="h-4 w-4" /> Template
+                {/* Desktop: aksi sekunder (ikon ringkas) + aksi utama (berlabel) */}
+                <div className="hidden sm:flex flex-wrap items-center justify-end gap-2 ml-auto">
+                    {/* Sekunder: tombol ikon, dikelompokkan */}
+                    <div className="flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-1">
+                        <button onClick={() => setShowCategoryPanel(true)} title="Kelola Kategori" className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground transition-colors">
+                            <FolderTree className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setShowUnitPanel(true)} title="Kelola Unit" className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground transition-colors">
+                            <Ruler className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => downloadBulkTemplate()} title="Download Template Impor" className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground transition-colors">
+                            <Download className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setShowBulkModal(true)} title="Impor Bulk" className="h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground transition-colors">
+                            <Upload className="h-4 w-4" />
+                        </button>
+                    </div>
+                    {/* Utama: berlabel */}
+                    <button onClick={() => setShowPurchaseModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-3.5 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors shadow-sm text-sm">
+                        <ShoppingCart className="h-4 w-4" /> <span className="hidden lg:inline">Pembelian</span>
                     </button>
-                    <button onClick={() => setShowBulkModal(true)} className="flex items-center gap-2 bg-muted text-foreground px-4 py-2 rounded-lg font-medium hover:bg-muted/80 transition-colors border border-border text-sm">
-                        <Upload className="h-4 w-4" /> Import Bulk
+                    <button onClick={() => { setWasteVariant(null); setShowWasteModal(true); }} className="flex items-center gap-2 bg-amber-500 text-white px-3.5 py-2 rounded-lg font-medium hover:bg-amber-600 transition-colors shadow-sm text-sm">
+                        <Trash2 className="h-4 w-4" /> <span className="hidden lg:inline">Catat Susut</span>
                     </button>
-                    <button onClick={() => setShowPurchaseModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors shadow-sm text-sm">
-                        <ShoppingCart className="h-4 w-4" /> Pembelian
-                    </button>
-                    <button onClick={() => { setWasteVariant(null); setShowWasteModal(true); }} className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg font-medium hover:bg-amber-600 transition-colors shadow-sm text-sm">
-                        <Trash2 className="h-4 w-4" /> Catat Susut
-                    </button>
-                    <Link href="/inventory/products/new" className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm text-sm">
+                    <Link href="/inventory/products/new" className="flex items-center gap-2 bg-primary text-primary-foreground px-3.5 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm text-sm">
                         <Plus className="h-4 w-4" /> Tambah Produk
                     </Link>
                 </div>
@@ -460,8 +467,23 @@ export default function InventoryPage() {
                 </div>
             )}
 
-            {/* ── Tabs Tipe Produk ── */}
-            <div className="mt-3">
+            {/* Toggle ringkas: Tipe & Kategori */}
+            <button
+                onClick={() => setHeaderExpanded(v => !v)}
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+                <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", headerExpanded && "rotate-180")} />
+                {headerExpanded ? 'Sembunyikan tipe & kategori' : 'Tipe & Kategori'}
+                {!headerExpanded && (filterType || filterCategory) && (
+                    <span className="ml-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
+                        {filterCategory || (filterType === 'SELLABLE' ? 'Siap Jual' : filterType === 'RAW_MATERIAL' ? 'Bahan Baku' : filterType === 'SERVICE' ? 'Jasa' : '')}
+                    </span>
+                )}
+            </button>
+
+            {/* ── Tabs Tipe Produk (collapsible) ── */}
+            {headerExpanded && (
+            <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
                 <div className="flex gap-1 bg-muted/50 rounded-xl p-1 border border-border overflow-x-auto scrollbar-hide">
                     {[
                         { value: '', label: 'Semua Produk' },
@@ -526,6 +548,7 @@ export default function InventoryPage() {
                     </div>
                 )}
             </div>
+            )}
 
             {/* Search + Filter toggle */}
             <div className="mt-3 space-y-2">
@@ -635,8 +658,9 @@ export default function InventoryPage() {
             </div>{/* end sticky wrapper */}
 
             <div className="px-4 sm:px-6 lg:px-8 pt-4 pb-4 sm:pb-6 lg:pb-8">
-            {/* Product list card */}
-            <div className="glass rounded-xl shadow-sm border border-border overflow-visible">
+            {/* Product list wrapper — pakai bg-background (beda dari bg-card kartu) agar
+                kartu produk menonjol jelas & tidak terlihat "transparan/menyatu". */}
+            <div className="bg-background rounded-xl shadow-sm border border-border overflow-visible">
                 {/* ── Mobile card list ── */}
                 <div className="md:hidden divide-y divide-border/50">
                     {isLoading ? (
@@ -716,12 +740,12 @@ export default function InventoryPage() {
                                                         <span className="text-sm font-bold text-primary">Rp {getEffectivePrice(variant).toLocaleString('id-ID')}</span>
                                                         {(variant.priceTiers?.length > 0) && <span className="text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded font-medium">{variant.priceTiers.length} tier</span>}
                                                         {Number(variant.hpp) > 0 && <span className="text-xs text-muted-foreground">Modal: Rp {Number(variant.hpp).toLocaleString('id-ID')}</span>}
-                                                        {isFirst && product.category?.name && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{getCategoryLabel(product.category)}</span>}
+                                                        {isFirst && product.category?.name && <button type="button" onClick={(e) => { e.stopPropagation(); setCategoryEditProduct(product); }} title="Klik untuk ganti kategori" className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">{getCategoryLabel(product.category)}</button>}
                                                         {isFirst && typeCfg && <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold ${typeCfg.className}`}>{typeCfg.label}</span>}
                                                     </div>
-                                                    <div className="flex items-center gap-1.5 mt-2.5">
-                                                        {/* Per-variant */}
-                                                        <button onClick={() => openMovementModal(variant)} className="flex items-center gap-1 text-primary text-xs border border-primary/20 bg-primary/10 px-2.5 py-1.5 rounded-lg">
+                                                    <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
+                                                        {/* Per-variant: modal pintar (Masuk/Keluar/Setel) */}
+                                                        <button onClick={() => openMovementModal(variant, product.name)} className="flex items-center gap-1 text-primary text-xs border border-primary/20 bg-primary/10 px-2.5 py-1.5 rounded-lg">
                                                             <RefreshCw className="h-3 w-3" /> Stok
                                                         </button>
                                                         <button onClick={() => setHistoryVariant({ variant, product })} className="p-1.5 rounded-lg border border-border bg-muted/50 text-muted-foreground hover:bg-muted transition-colors" title="Riwayat Stok">
@@ -794,17 +818,17 @@ export default function InventoryPage() {
                                         title="Pilih semua"
                                     />
                                 </th>
-                                <th scope="col" className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">SKU / Varian</th>
-                                <th scope="col" className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Nama Produk</th>
-                                <th scope="col" className="px-5 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Kategori</th>
-                                <th scope="col" className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Harga Jual</th>
-                                <th scope="col" className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Harga Modal</th>
-                                <th scope="col" className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Stok Awal</th>
-                                <th scope="col" className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Sisa Stok</th>
-                                <th scope="col" className="px-5 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Aksi</th>
+                                <th scope="col" className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">SKU / Varian</th>
+                                <th scope="col" className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Nama Produk</th>
+                                <th scope="col" className="px-4 py-2.5 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Kategori</th>
+                                <th scope="col" className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Harga Jual</th>
+                                <th scope="col" className="hidden xl:table-cell px-4 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Harga Modal</th>
+                                <th scope="col" className="hidden lg:table-cell px-4 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Stok Awal</th>
+                                <th scope="col" className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Sisa Stok</th>
+                                <th scope="col" className="px-4 py-2.5 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Aksi</th>
                             </tr>
                         </thead>
-                        <tbody className="bg-card divide-y divide-border/50">
+                        <tbody className="divide-y divide-border/50">
                             {isLoading ? (
                                 <tr><td colSpan={9} className="px-5 py-12 text-center text-muted-foreground">
                                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
@@ -861,7 +885,7 @@ export default function InventoryPage() {
                                                         />
                                                     )}
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap">
+                                                <td className="px-4 py-3 whitespace-nowrap">
                                                     <div className="text-sm font-medium text-foreground">{variant.sku}</div>
                                                     {variant.variantName && <div className="text-xs text-muted-foreground mt-0.5">{variant.variantName}</div>}
                                                     <div className="flex gap-1 mt-0.5">
@@ -869,7 +893,7 @@ export default function InventoryPage() {
                                                         {variant.color && <span className="text-xs text-muted-foreground border border-border rounded px-1">{variant.color}</span>}
                                                     </div>
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap text-sm text-foreground/80">
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-foreground/80">
                                                     {isFirst ? (
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-md bg-muted flex items-center justify-center overflow-hidden border border-border shrink-0">
@@ -896,17 +920,17 @@ export default function InventoryPage() {
                                                         <span className="text-muted-foreground/40 pl-13 text-xs">↳ Varian</span>
                                                     )}
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap">
-                                                    {isFirst && <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">{getCategoryLabel(product.category)}</span>}
+                                                <td className="px-4 py-3 whitespace-nowrap">
+                                                    {isFirst && <button type="button" onClick={() => setCategoryEditProduct(product)} title="Klik untuk ganti kategori" className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors">{getCategoryLabel(product.category)}</button>}
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap text-sm text-foreground/80 text-right font-medium">
+                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-foreground/80 text-right font-medium">
                                                     Rp {getEffectivePrice(variant).toLocaleString('id-ID')}
                                                     {variant.priceTiers?.length > 0 && <span className="ml-1 text-[10px] text-orange-500">({variant.priceTiers.length} tier)</span>}
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap text-sm text-muted-foreground text-right">
+                                                <td className="hidden xl:table-cell px-4 py-3 whitespace-nowrap text-sm text-muted-foreground text-right">
                                                     Rp {Number(variant.hpp || 0).toLocaleString('id-ID')}
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap text-right">
+                                                <td className="hidden lg:table-cell px-4 py-3 whitespace-nowrap text-right">
                                                     {(() => {
                                                         const initMov = variant.movements?.[0];
                                                         if (!initMov) return <span className="text-xs text-muted-foreground/40">—</span>;
@@ -914,7 +938,7 @@ export default function InventoryPage() {
                                                         return <span className="text-sm text-muted-foreground">{Number.isInteger(Number(val)) ? Number(val) : Number(val).toFixed(2)}</span>;
                                                     })()}
                                                 </td>
-                                                <td className="px-5 py-4 whitespace-nowrap text-right">
+                                                <td className="px-4 py-3 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-2">
                                                         {product.trackStock === false ? (
                                                             <span className="text-sm font-bold text-blue-500">∞</span>
@@ -926,14 +950,14 @@ export default function InventoryPage() {
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-4 py-4 whitespace-nowrap text-right">
+                                                <td className="px-4 py-3 whitespace-nowrap text-right">
                                                     <div className="flex items-center justify-end gap-0.5">
                                                         {/* Per-variant: Sesuaikan Stok */}
-                                                        <button onClick={() => openMovementModal(variant)} className="p-1.5 rounded-lg text-primary hover:bg-primary/10 transition-colors" title="Sesuaikan Stok">
+                                                        <button onClick={() => openMovementModal(variant, product.name)} className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-primary hover:bg-primary/10 transition-colors" title="Sesuaikan Stok">
                                                             <RefreshCw className="h-4 w-4" />
                                                         </button>
                                                         {/* Per-variant: Riwayat Stok */}
-                                                        <button onClick={() => setHistoryVariant({ variant, product })} className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors" title="Riwayat Stok">
+                                                        <button onClick={() => setHistoryVariant({ variant, product })} className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors" title="Riwayat Stok">
                                                             <History className="h-4 w-4" />
                                                         </button>
                                                         {/* Per-product: kebab dropdown */}
@@ -941,7 +965,7 @@ export default function InventoryPage() {
                                                             <div className="relative" data-kebab-dropdown>
                                                                 <button
                                                                     onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)}
-                                                                    className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                                                                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                                                                     title="Aksi lainnya"
                                                                 >
                                                                     <MoreVertical className="h-4 w-4" />
@@ -1053,7 +1077,7 @@ export default function InventoryPage() {
                                                     <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 truncate">
                                                         <span className="font-mono">{variant.sku}</span>
                                                         {!isFirst && variant.variantName && <span>· {variant.variantName}</span>}
-                                                        {isFirst && product.category?.name && <span>· {getCategoryLabel(product.category)}</span>}
+                                                        {isFirst && product.category?.name && <button type="button" onClick={(e) => { e.stopPropagation(); setCategoryEditProduct(product); }} title="Klik untuk ganti kategori" className="hover:text-primary transition-colors">· {getCategoryLabel(product.category)}</button>}
                                                     </div>
                                                 </div>
                                                 <div className="hidden sm:block text-right shrink-0 w-28">
@@ -1068,7 +1092,7 @@ export default function InventoryPage() {
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-0.5 shrink-0">
-                                                    <button onClick={() => openMovementModal(variant)} className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors" title="Sesuaikan Stok">
+                                                    <button onClick={() => openMovementModal(variant, product.name)} className="p-1.5 rounded-md text-primary hover:bg-primary/10 transition-colors" title="Sesuaikan Stok">
                                                         <RefreshCw className="h-3.5 w-3.5" />
                                                     </button>
                                                     <button onClick={() => setHistoryVariant({ variant, product })} className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors" title="Riwayat">
@@ -1161,7 +1185,7 @@ export default function InventoryPage() {
                                             <div className="flex-1 flex flex-col p-3">
                                                 <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug">{product.name}</p>
                                                 {product.category?.name && (
-                                                    <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{getCategoryLabel(product.category)}</p>
+                                                    <button type="button" onClick={() => setCategoryEditProduct(product)} title="Klik untuk ganti kategori" className="block max-w-full text-left text-[11px] text-muted-foreground mt-0.5 truncate hover:text-primary transition-colors">{getCategoryLabel(product.category)}</button>
                                                 )}
                                                 <div className="mt-2 flex items-baseline gap-1">
                                                     <span className="text-base font-bold text-primary">
@@ -1184,15 +1208,15 @@ export default function InventoryPage() {
                                                     )}
                                                 </div>
                                                 {/* Actions */}
-                                                <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1">
-                                                    <button onClick={() => openMovementModal(firstVariant)} className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-border bg-background px-2 py-1.5 text-xs font-medium text-foreground hover:bg-muted transition-colors">
-                                                        <RefreshCw className="h-3 w-3" /> Stok
+                                                <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap items-center gap-1">
+                                                    <button onClick={() => openMovementModal(firstVariant, product.name)} className="flex-1 h-8 inline-flex items-center justify-center gap-1 rounded-lg border border-border bg-background px-2 text-xs font-medium text-foreground hover:bg-muted transition-colors">
+                                                        <RefreshCw className="h-3.5 w-3.5" /> Stok
                                                     </button>
-                                                    <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="p-1.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Edit">
+                                                    <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Edit">
                                                         <Pencil className="h-3 w-3" />
                                                     </button>
                                                     <div className="relative" data-kebab-dropdown>
-                                                        <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="p-1.5 rounded-md border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                                        <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                                                             <MoreVertical className="h-3 w-3" />
                                                         </button>
                                                         {openDropdownId === product.id && (
@@ -1285,7 +1309,7 @@ export default function InventoryPage() {
                                                     )}
                                                 </div>
                                                 {product.category?.name && (
-                                                    <p className="text-xs text-muted-foreground mt-1">{getCategoryLabel(product.category)}</p>
+                                                    <button type="button" onClick={() => setCategoryEditProduct(product)} title="Klik untuk ganti kategori" className="block text-left text-xs text-muted-foreground mt-1 hover:text-primary transition-colors">{getCategoryLabel(product.category)}</button>
                                                 )}
                                                 {/* Variant chips */}
                                                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -1318,18 +1342,18 @@ export default function InventoryPage() {
                                                     </div>
                                                 </div>
                                                 {/* Actions */}
-                                                <div className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1.5">
-                                                    <button onClick={() => openMovementModal(firstVariant)} className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+                                                <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap items-center gap-1.5">
+                                                    <button onClick={() => openMovementModal(firstVariant, product.name)} className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary hover:bg-primary/20">
                                                         <RefreshCw className="h-3.5 w-3.5" /> Sesuaikan Stok
                                                     </button>
-                                                    <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted">
+                                                    <button onClick={() => router.push(`/inventory/products/${product.id}/edit`)} className="h-8 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-xs font-medium hover:bg-muted">
                                                         <Pencil className="h-3.5 w-3.5" /> Edit
                                                     </button>
-                                                    <button onClick={() => setHistoryVariant({ variant: firstVariant, product })} className="p-1.5 rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted" title="Riwayat">
+                                                    <button onClick={() => setHistoryVariant({ variant: firstVariant, product })} className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted" title="Riwayat">
                                                         <History className="h-3.5 w-3.5" />
                                                     </button>
                                                     <div className="relative ml-auto" data-kebab-dropdown>
-                                                        <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="p-1.5 rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted">
+                                                        <button onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)} className="h-8 w-8 shrink-0 inline-flex items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted">
                                                             <MoreVertical className="h-3.5 w-3.5" />
                                                         </button>
                                                         {openDropdownId === product.id && (
@@ -1362,7 +1386,7 @@ export default function InventoryPage() {
             {/* Bulk Delete Confirmation Modal */}
             {showBulkDeleteModal && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-background rounded-xl border border-border p-6 max-w-sm w-full shadow-xl">
+                    <div className="glass-strong rounded-xl border border-border p-6 max-w-sm w-full shadow-xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
                                 <Trash2 className="w-5 h-5 text-destructive" />
@@ -1394,7 +1418,7 @@ export default function InventoryPage() {
             {/* Delete Single Product Confirmation Modal */}
             {deletingProductId && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-background rounded-xl border border-border p-6 max-w-sm w-full shadow-xl">
+                    <div className="glass-strong rounded-xl border border-border p-6 max-w-sm w-full shadow-xl">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
                                 <Trash2 className="w-5 h-5 text-destructive" />
@@ -1428,50 +1452,20 @@ export default function InventoryPage() {
                 </div>
             )}
 
-            {/* Stock Movement Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden">
-                        <div className="flex items-center justify-between p-4 border-b border-border">
-                            <h3 className="font-semibold text-lg">Sesuaikan Stok Produk</h3>
-                            <button onClick={() => setIsModalOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
-                        </div>
-                        <form onSubmit={handleMovementSubmit} className="p-4 space-y-4">
-                            <div className="bg-muted p-3 rounded-lg border border-border/50 text-sm">
-                                <p className="text-muted-foreground">SKU terpilih:</p>
-                                <p className="font-medium text-foreground">{selectedVariant?.sku} {selectedVariant?.variantName && `— ${selectedVariant.variantName}`} <span className="opacity-50">| Sisa: {selectedVariant?.stock}</span></p>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Tipe Pergerakan *</label>
-                                <select value={movementForm.type} onChange={e => setMovementForm({ ...movementForm, type: e.target.value })} className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary">
-                                    <option value="IN">Masuk (IN)</option>
-                                    <option value="OUT">Keluar (OUT)</option>
-                                    <option value="ADJUST">Opname/Set Manual (ADJUST)</option>
-                                </select>
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Kuantitas *</label>
-                                <input required type="number" min="1" value={movementForm.quantity} onChange={e => setMovementForm({ ...movementForm, quantity: e.target.value })} className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary" />
-                            </div>
-                            <div className="space-y-2">
-                                <label className="text-sm font-medium">Catatan / Alasan (Opsional)</label>
-                                <input type="text" value={movementForm.reason} onChange={e => setMovementForm({ ...movementForm, reason: e.target.value })} placeholder="Misal: Stok awal / Barang rusak" className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none focus:border-primary" />
-                            </div>
-                            <div className="pt-4 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 rounded-lg border border-border hover:bg-muted font-medium text-sm">Batal</button>
-                                <button type="submit" disabled={movementMutation.isPending} className="px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 text-sm">
-                                    {movementMutation.isPending ? 'Memproses...' : 'Simpan Stok'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+            {/* Modal pintar input stok: tab Masuk / Keluar / Setel */}
+            {isModalOpen && selectedVariant && (
+                <SmartStockModal
+                    variant={selectedVariant}
+                    productName={selectedVariant.productName}
+                    onClose={() => setIsModalOpen(false)}
+                    onSubmit={adjustStock}
+                />
             )}
 
             {/* Waste Recording Modal */}
             {showWasteModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/88 backdrop-blur-3xl">
+                    <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden">
                         <div className="flex items-center justify-between p-4 border-b border-border">
                             <h3 className="font-semibold text-lg">Catat Susut Bahan</h3>
                             <button onClick={() => setShowWasteModal(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
@@ -1731,6 +1725,15 @@ export default function InventoryPage() {
             {/* Purchase Modal */}
             {showPurchaseModal && (
                 <PurchaseModal onClose={() => setShowPurchaseModal(false)} />
+            )}
+
+            {/* Panel kategori & unit inline (slide-over) */}
+            <CategoryPanel open={showCategoryPanel} onClose={() => setShowCategoryPanel(false)} />
+            <UnitPanel open={showUnitPanel} onClose={() => setShowUnitPanel(false)} />
+
+            {/* Modal ganti kategori cepat */}
+            {categoryEditProduct && (
+                <ChangeCategoryModal product={categoryEditProduct} onClose={() => setCategoryEditProduct(null)} />
             )}
 
             {/* Stock History Modal */}

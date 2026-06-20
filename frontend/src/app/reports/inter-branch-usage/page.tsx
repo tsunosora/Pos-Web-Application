@@ -178,7 +178,7 @@ export default function InterBranchUsageReportPage() {
             </div>
 
             {/* Filter bar */}
-            <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3 mb-4">
+            <div className="rounded-xl glass shadow-sm p-4 space-y-3 mb-4">
                 {/* Cabang produksi picker (kalau ada >1 cabang aktif) */}
                 {branches.length > 1 && (
                     <div className="flex items-center gap-2 flex-wrap">
@@ -231,11 +231,11 @@ export default function InterBranchUsageReportPage() {
             {/* Summary cards */}
             {data && (
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                    <div className="rounded-xl border border-border bg-card shadow-sm p-4">
+                    <div className="rounded-xl glass shadow-sm p-4">
                         <p className="text-xs text-muted-foreground">Cabang Produksi</p>
                         <p className="text-base font-bold text-foreground mt-1 truncate">{data.productionBranchName || '—'}</p>
                     </div>
-                    <div className="rounded-xl border border-border bg-card shadow-sm p-4">
+                    <div className="rounded-xl glass shadow-sm p-4">
                         <p className="text-xs text-muted-foreground">Total Order Titipan</p>
                         <p className="text-2xl font-black text-foreground mt-1">{data.grandTxCount.toLocaleString('id-ID')}</p>
                     </div>
@@ -254,11 +254,11 @@ export default function InterBranchUsageReportPage() {
             {/* List per cabang asal */}
             <div className="space-y-3">
                 {isLoading ? (
-                    <div className="bg-card border border-border rounded-xl p-12 flex items-center justify-center text-muted-foreground">
+                    <div className="glass rounded-xl p-12 flex items-center justify-center text-muted-foreground">
                         <Loader2 className="w-6 h-6 animate-spin mr-2" /> Memuat data…
                     </div>
                 ) : !data || data.perBranch.length === 0 ? (
-                    <div className="bg-card border border-border rounded-xl p-12 text-center text-muted-foreground text-sm">
+                    <div className="glass rounded-xl p-12 text-center text-muted-foreground text-sm">
                         <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p>Tidak ada bahan keluar untuk titipan dari cabang lain pada periode ini.</p>
                         <p className="text-xs mt-2">Bahan baru tampil di sini saat ada transaksi titipan (kasir cabang buat nota titip cetak ke cabang produksi).</p>
@@ -267,7 +267,7 @@ export default function InterBranchUsageReportPage() {
                     data.perBranch.map(branch => {
                         const isOpen = expanded.has(branch.branchId);
                         return (
-                            <div key={branch.branchId} className="bg-card border border-border rounded-xl overflow-hidden">
+                            <div key={branch.branchId} className="glass rounded-xl overflow-hidden">
                                 {/* Branch header */}
                                 <button onClick={() => toggleBranchExpand(branch.branchId)}
                                     className="w-full flex items-center justify-between gap-2 p-4 hover:bg-muted/40 transition-colors text-left">
@@ -298,8 +298,8 @@ export default function InterBranchUsageReportPage() {
 
                                 {/* Items detail */}
                                 {isOpen && (
-                                    <div className="border-t border-border bg-muted/20">
-                                        <table className="w-full text-sm">
+                                    <div className="border-t border-border bg-muted/20 overflow-x-auto">
+                                        <table className="w-full min-w-[480px] text-sm">
                                             <thead>
                                                 <tr className="border-b border-border bg-muted/40 text-xs text-muted-foreground">
                                                     <th className="text-left px-4 py-2 font-semibold">Bahan</th>

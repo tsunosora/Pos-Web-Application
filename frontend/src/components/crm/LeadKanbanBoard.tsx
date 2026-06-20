@@ -15,17 +15,17 @@ import { Phone, Calendar, MapPin, GripVertical } from "lucide-react";
 import dayjs from "dayjs";
 
 const COLUMNS: { id: LeadStatus; label: string; color: string; bg: string }[] = [
-    { id: "NEW",          label: "Baru",      color: "text-blue-700",    bg: "bg-blue-50 border-blue-200" },
-    { id: "FOLLOW_UP",    label: "Follow Up", color: "text-amber-700",   bg: "bg-amber-50 border-amber-200" },
-    { id: "NEGOTIATION",  label: "Negosiasi", color: "text-purple-700",  bg: "bg-purple-50 border-purple-200" },
-    { id: "CLOSED_WON",   label: "Closing ✓", color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
-    { id: "CLOSED_LOST",  label: "Lost ✗",    color: "text-red-700",     bg: "bg-red-50 border-red-200" },
+    { id: "NEW",          label: "Baru",      color: "text-blue-600 dark:text-blue-300",       bg: "bg-blue-500/10 border-blue-500/20" },
+    { id: "FOLLOW_UP",    label: "Follow Up", color: "text-amber-600 dark:text-amber-300",     bg: "bg-amber-500/10 border-amber-500/20" },
+    { id: "NEGOTIATION",  label: "Negosiasi", color: "text-violet-600 dark:text-violet-300",   bg: "bg-violet-500/10 border-violet-500/20" },
+    { id: "CLOSED_WON",   label: "Closing ✓", color: "text-emerald-600 dark:text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/20" },
+    { id: "CLOSED_LOST",  label: "Lost ✗",    color: "text-red-600 dark:text-red-300",         bg: "bg-red-500/10 border-red-500/20" },
 ];
 
 const levelColor: Record<LeadLevel, string> = {
-    HOT: "bg-red-100 text-red-700 border-red-200",
-    WARM: "bg-amber-100 text-amber-700 border-amber-200",
-    COLD: "bg-sky-100 text-sky-700 border-sky-200",
+    HOT: "bg-red-500/10 text-red-600 dark:text-red-300 border-red-500/20",
+    WARM: "bg-amber-500/10 text-amber-600 dark:text-amber-300 border-amber-500/20",
+    COLD: "bg-sky-500/10 text-sky-600 dark:text-sky-300 border-sky-500/20",
 };
 
 interface Props {
@@ -110,15 +110,15 @@ function Column({
     return (
         <div
             ref={setNodeRef}
-            className={`rounded-xl border-2 ${bg} ${isOver ? "ring-2 ring-indigo-400" : ""} min-h-[400px] flex flex-col`}
+            className={`rounded-xl border-2 ${bg} ${isOver ? "ring-2 ring-primary" : ""} min-h-[400px] flex flex-col`}
         >
-            <div className={`px-3 py-2 border-b font-bold text-sm ${color} flex items-center justify-between`}>
+            <div className={`px-3 py-2 border-b border-border/60 font-bold text-sm ${color} flex items-center justify-between`}>
                 <span>{label}</span>
-                <span className="text-xs bg-white/60 px-2 py-0.5 rounded-full">{leads.length}</span>
+                <span className="text-xs bg-card/60 px-2 py-0.5 rounded-full">{leads.length}</span>
             </div>
             <div className="p-2 space-y-2 flex-1 overflow-y-auto max-h-[70vh]">
                 {leads.length === 0 ? (
-                    <p className="text-xs text-gray-400 text-center py-6">Drag lead ke sini</p>
+                    <p className="text-xs text-muted-foreground text-center py-6">Drag lead ke sini</p>
                 ) : (
                     leads.map((lead) => (
                         <KanbanCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
@@ -142,7 +142,7 @@ function KanbanCard({ lead, onClick, dragging }: { lead: Lead; onClick: () => vo
         <div
             ref={setNodeRef}
             style={style}
-            className={`bg-white border rounded-lg shadow-sm overflow-hidden ${
+            className={`bg-card border border-border rounded-lg shadow-sm overflow-hidden transition-[box-shadow,border-color] ${
                 isDragging ? "opacity-30" : "hover:shadow-md"
             } ${dragging ? "shadow-2xl" : ""}`}
         >
@@ -166,7 +166,7 @@ function KanbanCard({ lead, onClick, dragging }: { lead: Lead; onClick: () => vo
                 <button
                     {...attributes}
                     {...listeners}
-                    className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 shrink-0 pt-0.5"
+                    className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0 pt-0.5"
                     aria-label="Drag"
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -175,22 +175,22 @@ function KanbanCard({ lead, onClick, dragging }: { lead: Lead; onClick: () => vo
                 <div className="flex-1 min-w-0" onClick={onClick} role="button" tabIndex={0}>
                     {!hasImage && (
                         <div className="flex items-center justify-between gap-2 mb-1">
-                            <div className="font-semibold text-sm text-gray-800 truncate">{lead.name}</div>
+                            <div className="font-semibold text-sm text-foreground truncate">{lead.name}</div>
                             <span className={`text-[9px] px-1.5 py-0.5 rounded border whitespace-nowrap ${levelColor[lead.level]}`}>
                                 {LEAD_LEVEL_LABEL[lead.level].replace(/^\S+\s/, "")}
                             </span>
                         </div>
                     )}
                     {hasImage && (
-                        <div className="font-semibold text-sm text-gray-800 truncate mb-1">{lead.name}</div>
+                        <div className="font-semibold text-sm text-foreground truncate mb-1">{lead.name}</div>
                     )}
-                    <div className="space-y-0.5 text-[11px] text-gray-600">
+                    <div className="space-y-0.5 text-[11px] text-muted-foreground">
                         {lead.phone && (
                             <div className="flex items-center gap-1">
                                 <Phone className="h-2.5 w-2.5" /> {lead.phone}
                             </div>
                         )}
-                        <div className="text-gray-500">
+                        <div className="text-muted-foreground">
                             {lead.source === 'CUSTOM' ? (lead.sourceDetail || 'Custom') : LEAD_SOURCE_LABEL[lead.source]}
                         </div>
                         {lead.city && (
@@ -199,7 +199,7 @@ function KanbanCard({ lead, onClick, dragging }: { lead: Lead; onClick: () => vo
                             </div>
                         )}
                         {lead.followUpDate && (
-                            <div className="flex items-center gap-1 text-amber-700 font-medium">
+                            <div className="flex items-center gap-1 text-amber-600 dark:text-amber-300 font-medium">
                                 <Calendar className="h-2.5 w-2.5" /> FU: {dayjs(lead.followUpDate).format("DD/MM")}
                             </div>
                         )}

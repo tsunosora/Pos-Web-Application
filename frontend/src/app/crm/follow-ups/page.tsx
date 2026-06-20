@@ -81,7 +81,7 @@ export default function FollowUpsPage() {
                     <ClipboardList className="h-6 w-6 text-indigo-600" />
                     Tugas Follow-up
                 </h1>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                     Tugas FU lead, after-sales, repeat order. Klik Mark Done setelah dihubungi.
                 </p>
             </div>
@@ -91,7 +91,7 @@ export default function FollowUpsPage() {
                 <button
                     onClick={() => setScope("mine")}
                     className={`px-4 py-1.5 rounded-lg text-sm font-medium ${
-                        scope === "mine" ? "bg-indigo-600 text-white" : "bg-gray-100 hover:bg-gray-200"
+                        scope === "mine" ? "bg-indigo-600 text-white" : "bg-muted hover:bg-accent"
                     }`}
                 >
                     👤 Tugas Saya
@@ -99,7 +99,7 @@ export default function FollowUpsPage() {
                 <button
                     onClick={() => setScope("all")}
                     className={`px-4 py-1.5 rounded-lg text-sm font-medium ${
-                        scope === "all" ? "bg-indigo-600 text-white" : "bg-gray-100 hover:bg-gray-200"
+                        scope === "all" ? "bg-indigo-600 text-white" : "bg-muted hover:bg-accent"
                     }`}
                 >
                     🌐 Semua
@@ -111,7 +111,7 @@ export default function FollowUpsPage() {
                 <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value as FollowUpStatus)}
-                    className="border border-gray-300 rounded-lg px-3 py-2"
+                    className="border border-border rounded-lg px-3 py-2"
                 >
                     <option value="PENDING">Pending</option>
                     <option value="DONE">Selesai</option>
@@ -120,7 +120,7 @@ export default function FollowUpsPage() {
                 <select
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value as FollowUpType | "")}
-                    className="border border-gray-300 rounded-lg px-3 py-2"
+                    className="border border-border rounded-lg px-3 py-2"
                 >
                     <option value="">Semua Jenis</option>
                     {(Object.keys(FOLLOW_UP_TYPE_LABEL) as FollowUpType[]).map((t) => (
@@ -139,12 +139,12 @@ export default function FollowUpsPage() {
             )}
 
             {isLoading ? (
-                <div className="flex items-center justify-center py-12 text-gray-500">
+                <div className="flex items-center justify-center py-12 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin mr-2" /> Memuat...
                 </div>
             ) : items.length === 0 ? (
-                <div className="bg-white border rounded-xl p-12 text-center text-gray-500">
-                    <Sparkles className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                <div className="bg-card border rounded-xl p-12 text-center text-muted-foreground">
+                    <Sparkles className="h-10 w-10 mx-auto mb-2 text-muted-foreground/40" />
                     <p>Tidak ada tugas {FOLLOW_UP_STATUS_LABEL[statusFilter].toLowerCase()}.</p>
                 </div>
             ) : (
@@ -173,20 +173,20 @@ export default function FollowUpsPage() {
 
             {/* Done modal */}
             {doneNotesModal && (
-                <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl p-5 max-w-md w-full">
+                <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                    <div className="bg-card rounded-xl p-5 max-w-md w-full">
                         <h3 className="font-bold text-lg mb-2">Mark FU Selesai</h3>
-                        <p className="text-sm text-gray-600 mb-3">
+                        <p className="text-sm text-muted-foreground mb-3">
                             {doneNotesModal.lead?.name || doneNotesModal.customer?.name} —{" "}
                             <span className="font-semibold">{FOLLOW_UP_TYPE_LABEL[doneNotesModal.type]}</span>
                         </p>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (opsional)</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Catatan (opsional)</label>
                         <textarea
                             rows={3}
                             value={doneNotesText}
                             onChange={(e) => setDoneNotesText(e.target.value)}
                             placeholder="mis. Sudah ditelepon, customer puas, minta repeat bulan depan"
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3"
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm mb-3"
                         />
                         <div className="flex gap-2">
                             <button onClick={() => setDoneNotesModal(null)} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
@@ -216,7 +216,7 @@ export default function FollowUpsPage() {
 function StatCard({ label, value, color, bg }: { label: string; value: number; color: string; bg: string }) {
     return (
         <div className={`border rounded-lg p-3 ${bg}`}>
-            <div className="text-[10px] uppercase font-bold text-gray-600">{label}</div>
+            <div className="text-[10px] uppercase font-bold text-muted-foreground">{label}</div>
             <div className={`text-2xl font-bold font-mono ${color}`}>{value}</div>
         </div>
     );
@@ -235,7 +235,7 @@ function Section({
 }) {
     return (
         <div>
-            <h2 className="font-bold text-sm text-gray-600 uppercase mb-2">
+            <h2 className="font-bold text-sm text-muted-foreground uppercase mb-2">
                 {title} ({items.length})
             </h2>
             <div className="space-y-2">
@@ -275,28 +275,28 @@ function FUItem({ followUp, variant, onDone, onSkip, onTemplate, onDelete }: {
     const phone = (target as any)?.phone as string | undefined;
 
     return (
-        <div className={`bg-white border rounded-xl p-4 ${isOverdue ? "border-red-300" : "border-gray-200"}`}>
+        <div className={`bg-card border rounded-xl p-4 ${isOverdue ? "border-red-300" : "border-border"}`}>
             <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className={`text-[10px] px-2 py-0.5 rounded border ${TYPE_COLOR[followUp.type]}`}>
                             {TYPE_ICON[followUp.type]} {FOLLOW_UP_TYPE_LABEL[followUp.type]}
                         </span>
-                        <span className={`text-xs font-semibold ${isOverdue ? "text-red-600" : "text-gray-600"}`}>
+                        <span className={`text-xs font-semibold ${isOverdue ? "text-red-600" : "text-muted-foreground"}`}>
                             <Calendar className="h-3 w-3 inline mr-1" />
                             {due.format("DD MMM YYYY")} ({due.fromNow()})
                         </span>
                     </div>
-                    <div className="font-bold text-gray-800">
-                        {target?.name || "(Tanpa target)"} <span className="text-xs text-gray-400">· {targetType}</span>
+                    <div className="font-bold text-foreground">
+                        {target?.name || "(Tanpa target)"} <span className="text-xs text-muted-foreground">· {targetType}</span>
                     </div>
                     {phone && (
-                        <div className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                        <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                             <Phone className="h-3 w-3" /> {phone}
                         </div>
                     )}
                     {followUp.notes && (
-                        <p className="text-sm text-gray-600 mt-1.5">{followUp.notes}</p>
+                        <p className="text-sm text-muted-foreground mt-1.5">{followUp.notes}</p>
                     )}
                     {followUp.doneNotes && (
                         <p className="text-sm text-emerald-700 mt-1.5 bg-emerald-50 px-2 py-1 rounded inline-block">
@@ -304,7 +304,7 @@ function FUItem({ followUp, variant, onDone, onSkip, onTemplate, onDelete }: {
                         </p>
                     )}
                     {followUp.assignedTo && (
-                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                             <User className="h-3 w-3" /> {followUp.assignedTo.name || followUp.assignedTo.email}
                         </p>
                     )}
@@ -328,7 +328,7 @@ function FUItem({ followUp, variant, onDone, onSkip, onTemplate, onDelete }: {
                         )}
                         <button
                             onClick={onSkip}
-                            className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-semibold hover:bg-gray-50 flex items-center gap-1"
+                            className="px-3 py-1.5 border border-border rounded-lg text-xs font-semibold hover:bg-muted flex items-center gap-1"
                         >
                             <SkipForward className="h-3 w-3" /> Skip
                         </button>
@@ -385,11 +385,11 @@ function FUTemplateModal({ followUp, onClose }: { followUp: FollowUp; onClose: (
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl p-5 max-w-xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+            <div className="bg-card rounded-xl p-5 max-w-xl w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-lg">Pilih Template WA</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="h-5 w-5" /></button>
+                    <button onClick={onClose} className="p-1 hover:bg-muted rounded"><X className="h-5 w-5" /></button>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
@@ -398,7 +398,7 @@ function FUTemplateModal({ followUp, onClose }: { followUp: FollowUp; onClose: (
                             key={t.id}
                             onClick={() => handlePick(t)}
                             className={`text-left p-2 border rounded-lg hover:border-indigo-300 ${
-                                selected?.id === t.id ? "border-indigo-500 bg-indigo-50" : "border-gray-200"
+                                selected?.id === t.id ? "border-indigo-500 bg-indigo-50" : "border-border"
                             }`}
                         >
                             <div className="text-[10px] text-indigo-600 font-semibold">{t.category}</div>
@@ -413,7 +413,7 @@ function FUTemplateModal({ followUp, onClose }: { followUp: FollowUp; onClose: (
                             rows={8}
                             value={rendered}
                             onChange={(e) => setRendered(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                            className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono"
                         />
                         <div className="flex gap-2 mt-3">
                             <button

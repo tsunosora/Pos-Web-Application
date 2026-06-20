@@ -8,6 +8,8 @@ import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { ProductImageFill } from "@/components/ui/ProductImageFill";
 import { useCartStore, CartItem } from '@/store/cart-store';
+import { useReadyJobs } from '@/hooks/useReadyJobs';
+import { useUIStore } from '@/store/ui-store';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getSalesOrder } from '@/lib/api/sales-orders';
@@ -203,6 +205,13 @@ function POSPageContent() {
     const shippingCostNum = Number(shippingCost) || 0;
     const marketplaceFeeNum = marketplaceFeeItems.reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const grandTotal = _subtotal - discountNum + taxAmount + shippingCostNum;
+
+    // Bubble "cetakan siap diambil" (FAB global) hanya muncul saat ada job siap →
+    // dipakai untuk menaikkan bubble keranjang agar bertumpuk rapi di atasnya.
+    const { data: readyJobs = [] } = useReadyJobs();
+    // Saat SubNav header overflow, dock mengambang muncul di bawah (juga desktop).
+    // POS full-height harus mengecil agar tidak menutupi dock itu.
+    const subnavOverflow = useUIStore((s) => s.subnavOverflow);
     const subtotal = _subtotal;
     const addNotification = useNotificationStore(s => s.addNotification);
 
@@ -612,12 +621,12 @@ function POSPageContent() {
     if (needsBranchPick) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-                <div className="w-full max-w-md bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                    <div className="mx-auto h-14 w-14 rounded-2xl bg-amber-100 ring-1 ring-amber-200 flex items-center justify-center mb-4">
-                        <ShoppingCart className="h-7 w-7 text-amber-700" />
+                <div className="w-full max-w-md bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 sm:p-8 shadow-sm">
+                    <div className="mx-auto h-14 w-14 rounded-2xl bg-amber-500/15 ring-1 ring-amber-500/20 flex items-center justify-center mb-4">
+                        <ShoppingCart className="h-7 w-7 text-amber-600 dark:text-amber-300" />
                     </div>
-                    <h2 className="text-lg font-bold text-amber-900 mb-2">Pilih Cabang Dulu</h2>
-                    <p className="text-sm text-amber-800/90 leading-relaxed">
+                    <h2 className="text-lg font-bold text-amber-600 dark:text-amber-200 mb-2">Pilih Cabang Dulu</h2>
+                    <p className="text-sm text-amber-600/90 dark:text-amber-300/90 leading-relaxed">
                         Anda sedang di mode <span className="font-semibold">"Semua Cabang"</span>.
                         Untuk transaksi POS, pilih cabang aktif lewat switcher di pojok kanan atas.
                     </p>
@@ -627,11 +636,14 @@ function POSPageContent() {
     }
 
     return (
-        <div className="-mx-4 -my-4 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 flex h-[calc(100vh-4rem)] flex-col md:flex-row gap-0 md:gap-4 lg:gap-6 md:p-4 lg:p-6">
+        <div className={cn(
+            "-mx-4 -my-4 sm:-mx-6 sm:-my-6 lg:-mx-8 lg:-my-8 flex flex-col md:flex-row gap-0 md:gap-4 lg:gap-6 md:p-4 lg:p-6",
+            subnavOverflow ? "h-[calc(100vh-4rem-5rem)]" : "h-[calc(100vh-4rem)]"
+        )}>
             {/* Product Grid */}
-            <div className="flex-1 min-h-0 flex flex-col bg-card md:rounded-2xl md:border md:border-border overflow-hidden shadow-sm">
+            <div className="flex-1 min-h-0 flex flex-col glass-panel md:rounded-2xl md:border md:border-border/50 overflow-hidden shadow-xl">
                 {/* Sticky search + categories */}
-                <div className="sticky top-0 z-10 bg-card/95 backdrop-blur-sm border-b border-border/70">
+                <div className="sticky top-0 z-10 bg-card/70 backdrop-blur-xl border-b border-border/60">
                     <div className="p-3 sm:p-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4.5 w-4.5 text-muted-foreground pointer-events-none" style={{ width: 18, height: 18 }} />
@@ -660,10 +672,10 @@ function POSPageContent() {
                                 key={cat}
                                 onClick={() => setSelectedCategory(cat)}
                                 className={cn(
-                                    "px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all border",
+                                    "px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap transition-all duration-200 border",
                                     cat === selectedCategory
-                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                        : "bg-background text-muted-foreground hover:bg-muted hover:text-foreground border-border"
+                                        ? "bg-primary text-primary-foreground border-primary shadow-md"
+                                        : "bg-card/50 backdrop-blur-md text-muted-foreground border-border/60 hover:bg-card/80 hover:text-foreground hover:-translate-y-px hover:shadow-sm"
                                 )}
                             >
                                 {cat}
@@ -692,7 +704,7 @@ function POSPageContent() {
                             )}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3 lg:gap-4 pb-24 md:pb-4">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-2.5 sm:gap-3 lg:gap-4 pb-24 md:pb-4">
                             {filteredProducts.map((p: any) =>
                                 p.variants.map((v: any) => {
                                     const isAreaBased = p.pricingMode === 'AREA_BASED';
@@ -705,9 +717,9 @@ function POSPageContent() {
                                     return (
                                         <div key={v.id} onClick={() => (p.trackStock === false || Number(v.stock) > 0) && handleProductClick(p, v)}
                                             className={cn(
-                                                "bg-card border rounded-xl p-2.5 sm:p-3 lg:p-4 transition-all group relative select-none",
+                                                "bg-card/75 backdrop-blur-sm border rounded-xl p-2.5 sm:p-3 lg:p-4 transition-all duration-200 group relative select-none shadow-[inset_0_1px_0_0_rgb(255_255_255/0.12)]",
                                                 (p.trackStock === false || Number(v.stock) > 0)
-                                                    ? "cursor-pointer hover:border-primary/50 hover:shadow-md active:scale-[0.97]"
+                                                    ? "cursor-pointer hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.97] active:translate-y-0"
                                                     : "opacity-50 cursor-not-allowed grayscale",
                                                 isInCart ? "border-primary/60 ring-1 ring-primary/30 shadow-sm" : "border-border"
                                             )}
@@ -745,11 +757,11 @@ function POSPageContent() {
                                                 <p className={cn(
                                                     "text-[10px] sm:text-xs font-medium shrink-0 px-1.5 py-0.5 rounded",
                                                     p.trackStock === false
-                                                        ? "text-blue-600 bg-blue-50"
+                                                        ? "text-blue-600 dark:text-blue-300 bg-blue-500/10"
                                                         : Number(v.stock) <= 0
                                                             ? "text-destructive bg-destructive/10"
                                                             : Number(v.stock) < 10
-                                                                ? "text-amber-600 bg-amber-50"
+                                                                ? "text-amber-600 dark:text-amber-300 bg-amber-500/10"
                                                                 : "text-muted-foreground bg-muted/60"
                                                 )}>
                                                     {p.trackStock === false ? '∞' : `${v.stock}${isAreaBased ? 'm²' : ''}`}
@@ -771,56 +783,48 @@ function POSPageContent() {
                 </div>
             </div>
 
-            {/* Mobile Cart Bar — sticky bottom dengan total & item count */}
-            <button
-                onClick={() => setMobileCartOpen(true)}
-                disabled={cart.length === 0}
-                className={cn(
-                    "md:hidden fixed bottom-3 inset-x-3 z-[200] rounded-2xl shadow-2xl flex items-center justify-between px-4 py-3 active:scale-[0.98] transition-all",
-                    cart.length === 0
-                        ? "bg-muted text-muted-foreground cursor-not-allowed"
-                        : "bg-primary text-primary-foreground hover:bg-primary/95"
-                )}
-                aria-label="Buka keranjang"
-            >
-                <div className="flex items-center gap-2.5">
-                    <div className="relative">
-                        <ShoppingCart className="h-5 w-5" />
-                        {cart.length > 0 && (
-                            <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] bg-destructive text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 leading-none ring-2 ring-primary">
-                                {cart.reduce((s, i) => s + i.qty, 0)}
-                            </span>
-                        )}
-                    </div>
-                    <span className="text-sm font-semibold">
-                        {cart.length === 0 ? 'Keranjang kosong' : `${cart.length} baris di keranjang`}
+            {/* Mobile Cart Bubble — tombol bulat mengambang. Ditumpuk di ATAS bubble
+                "cetakan siap diambil" (FAB global): naik saat FAB itu tampil, dan
+                tetap di atas dock SubNav. */}
+            {cart.length > 0 && !mobileCartOpen && (
+                <button
+                    onClick={() => setMobileCartOpen(true)}
+                    className={cn(
+                        "md:hidden fixed right-6 z-[260] flex flex-col items-center justify-center h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-[0_14px_34px_-6px_rgb(0_0_0/0.5)] ring-1 ring-primary-foreground/15 active:scale-95 transition-all",
+                        readyJobs.length > 0
+                            ? "bottom-[calc(11.5rem+env(safe-area-inset-bottom))]"
+                            : "bottom-[calc(6.5rem+env(safe-area-inset-bottom))]"
+                    )}
+                    aria-label={`Buka keranjang — ${cart.length} baris, Rp ${grandTotal.toLocaleString('id-ID')}`}
+                >
+                    <ShoppingCart className="h-5 w-5" />
+                    <span className="mt-0.5 text-[9px] font-bold leading-none">
+                        {grandTotal >= 1000 ? `${Math.round(grandTotal / 1000)}rb` : grandTotal}
                     </span>
-                </div>
-                {cart.length > 0 && (
-                    <span className="text-base font-bold">
-                        Rp {grandTotal.toLocaleString('id-ID')}
+                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 bg-destructive text-white text-[11px] font-bold rounded-full flex items-center justify-center px-1 leading-none ring-2 ring-background">
+                        {cart.reduce((s, i) => s + i.qty, 0)}
                     </span>
-                )}
-            </button>
+                </button>
+            )}
 
             {/* Mobile backdrop */}
             {mobileCartOpen && (
                 <div
-                    className="md:hidden fixed inset-0 z-[290] bg-background/60 backdrop-blur-sm"
+                    className="md:hidden fixed inset-0 z-[290] bg-background/25 backdrop-blur-md"
                     onClick={() => setMobileCartOpen(false)}
                 />
             )}
 
             {/* Cart — desktop sidebar / mobile bottom sheet */}
             <div className={cn(
-                "flex-col bg-card border-border overflow-hidden",
+                "flex-col glass-panel border-border/50 overflow-hidden",
                 // Desktop: normal static sidebar
-                "md:static md:flex md:w-[360px] lg:w-[400px] md:shrink-0 md:rounded-2xl md:border md:shadow-sm",
+                "md:static md:flex md:w-[360px] lg:w-[400px] md:shrink-0 md:rounded-2xl md:border md:shadow-xl",
                 // Mobile: fixed bottom sheet
                 "fixed inset-x-0 bottom-0 z-[300] rounded-t-2xl border-t shadow-2xl max-h-[88vh]",
                 mobileCartOpen ? "flex" : "hidden md:flex"
             )}>
-                <div className="px-4 py-3 bg-primary text-primary-foreground flex items-center justify-between md:rounded-t-2xl rounded-t-2xl shrink-0">
+                <div className="px-4 py-3 bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-[inset_0_1px_0_0_rgb(255_255_255/0.22)] flex items-center justify-between md:rounded-t-2xl rounded-t-2xl shrink-0">
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="h-9 w-9 rounded-xl bg-primary-foreground/15 flex items-center justify-center shrink-0">
                             <ShoppingCart className="h-5 w-5" />
@@ -855,16 +859,16 @@ function POSPageContent() {
                 </div>
 
                 {salesOrderId && soData && (
-                    <div className="shrink-0 bg-emerald-50 border-b border-emerald-200 px-3 py-2 flex items-center justify-between gap-2">
+                    <div className="shrink-0 bg-emerald-500/10 border-b border-emerald-500/20 px-3 py-2 flex items-center justify-between gap-2">
                         <div className="text-xs">
-                            <div className="font-semibold text-emerald-800">
+                            <div className="font-semibold text-emerald-600 dark:text-emerald-300">
                                 Membuat nota dari <span className="font-mono">{soData.soNumber}</span>
                             </div>
-                            <div className="text-emerald-700 truncate">Customer: {soData.customerName}</div>
+                            <div className="text-emerald-600 dark:text-emerald-300 truncate">Customer: {soData.customerName}</div>
                         </div>
                         <button
                             onClick={cancelSOMode}
-                            className="text-[11px] px-2 py-1 rounded border border-emerald-300 text-emerald-800 hover:bg-emerald-100 shrink-0"
+                            className="text-[11px] px-2 py-1 rounded border border-emerald-500/30 text-emerald-600 dark:text-emerald-300 hover:bg-emerald-500/15 shrink-0"
                         >
                             Batal SO
                         </button>
@@ -874,7 +878,7 @@ function POSPageContent() {
                 {/* Quick toggle TITIP CETAK — sticky di atas cart supaya kasir tidak perlu scroll */}
                 {otherBranches.length > 0 && (
                     <div className={`shrink-0 border-b transition-colors ${productionBranchId != null
-                        ? 'bg-amber-50 border-amber-200'
+                        ? 'bg-amber-500/10 border-amber-500/20'
                         : 'bg-muted/30 border-border'}`}>
                         <div className="px-3 py-2 flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -884,14 +888,14 @@ function POSPageContent() {
                                     <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
                                 )}
                                 <div className="min-w-0 flex-1">
-                                    <p className={`text-[11px] font-bold uppercase tracking-wider ${productionBranchId != null ? 'text-amber-700' : 'text-muted-foreground'}`}>
+                                    <p className={`text-[11px] font-bold uppercase tracking-wider ${productionBranchId != null ? 'text-amber-600 dark:text-amber-300' : 'text-muted-foreground'}`}>
                                         {productionBranchId != null ? 'TITIP CETAK ke Cabang Lain' : 'Cetak di Cabang Ini'}
                                     </p>
                                     {productionBranchId != null ? (
                                         <select
                                             value={productionBranchId}
                                             onChange={e => setProductionBranchId(Number(e.target.value))}
-                                            className="w-full mt-0.5 px-2 py-1 bg-white border border-amber-400 rounded-md text-xs font-semibold text-amber-800 outline-none focus:ring-2 focus:ring-amber-300"
+                                            className="w-full mt-0.5 px-2 py-1 bg-background border border-amber-500/40 rounded-md text-xs font-semibold text-amber-600 dark:text-amber-300 outline-none focus:ring-2 focus:ring-amber-300"
                                         >
                                             {otherBranches.map(b => (
                                                 <option key={b.id} value={b.id}>
@@ -908,14 +912,14 @@ function POSPageContent() {
                                 type="button"
                                 onClick={() => setProductionBranchId(productionBranchId != null ? null : otherBranches[0].id)}
                                 className={`shrink-0 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all border-2 ${productionBranchId != null
-                                    ? 'bg-white border-amber-500 text-amber-700 hover:bg-amber-50'
+                                    ? 'bg-background border-amber-500 text-amber-600 dark:text-amber-300 hover:bg-amber-500/10'
                                     : 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600'}`}
                             >
                                 {productionBranchId != null ? 'Batal Titip' : 'Titip Cetak'}
                             </button>
                         </div>
                         {productionBranchId != null && (
-                            <p className="px-3 pb-2 text-[10px] text-amber-700 leading-tight">
+                            <p className="px-3 pb-2 text-[10px] text-amber-600 dark:text-amber-300 leading-tight">
                                 💡 Pendapatan tetap masuk cabang ini. Stok bahan & antrian produksi tercatat di cabang tujuan. Auto-tercatat di Buku Titipan saat cetakan diserahkan.
                             </p>
                         )}
@@ -1102,7 +1106,7 @@ function POSPageContent() {
                     )}
                 </div>
 
-                <div className="p-4 bg-muted/30 border-t border-border space-y-2 shrink-0">
+                <div className="p-4 bg-muted/20 backdrop-blur-md border-t border-border/60 space-y-2 shrink-0">
                     <div className="flex justify-between text-sm text-muted-foreground">
                         <span>Subtotal</span>
                         <span className="font-medium text-foreground">Rp {subtotal.toLocaleString('id-ID')}</span>
@@ -1120,7 +1124,7 @@ function POSPageContent() {
                     <button
                         onClick={() => { setCheckoutModalOpen(true); setMobileCartOpen(false); }}
                         disabled={cart.length === 0}
-                        className="w-full mt-2 py-3.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold transition-all shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base"
+                        className="w-full mt-2 py-3.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold transition-all duration-200 shadow-lg shadow-primary/30 hover:shadow-xl hover:shadow-primary/40 hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none flex items-center justify-center gap-2 text-base"
                     >
                         <CheckCircle2 className="h-5 w-5" />
                         Proses Pembayaran
@@ -1130,8 +1134,8 @@ function POSPageContent() {
 
             {/* Area Input Modal (Add + Edit with note) */}
             {areaModal.open && (
-                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">
                         <div className="p-5 border-b border-border flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 <div className="w-8 h-8 bg-primary/10 rounded-lg flex items-center justify-center">
@@ -1267,8 +1271,8 @@ function POSPageContent() {
 
             {/* Note Input Modal (For UNIT Products) */}
             {unitNoteModal.open && (
-                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden p-5">
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden p-5">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="font-bold text-sm flex items-center gap-2">
                                 <StickyNote className="w-4 h-4 text-primary" />
@@ -1302,12 +1306,12 @@ function POSPageContent() {
 
             {/* ===== CHECKOUT MODAL (redesigned) ===== */}
             {isCheckoutModalOpen && (
-                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[92vh] relative">
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-lg rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[92vh] relative">
 
                         {/* === CONFIRM PAYMENT OVERLAY === */}
                         {showPayConfirm && (
-                            <div className="absolute inset-0 z-20 flex items-end justify-stretch bg-background/70 backdrop-blur-sm rounded-2xl">
+                            <div className="absolute inset-0 z-20 flex items-end justify-stretch bg-background/85 backdrop-blur-3xl rounded-2xl">
                                 <div className="w-full bg-card border-t-2 border-primary rounded-b-2xl p-6 space-y-4 shadow-2xl">
                                     <div className="text-center">
                                         <div className="w-12 h-12 bg-amber-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -1421,7 +1425,7 @@ function POSPageContent() {
                                                 className="w-24 text-right px-2 py-0.5 border border-border rounded text-xs bg-background outline-none focus:border-destructive text-destructive font-medium"
                                             />
                                             <button type="button" onClick={() => setMarketplaceFeeItems(prev => prev.filter((_, i) => i !== idx))}
-                                                className="text-gray-400 hover:text-red-500 text-xs px-1">✕</button>
+                                                className="text-muted-foreground hover:text-destructive text-xs px-1">✕</button>
                                         </div>
                                     ))}
                                     <div className="flex justify-between items-center">
@@ -1476,7 +1480,7 @@ function POSPageContent() {
                                                 Pelanggan <span className="text-destructive">*Wajib</span>
                                             </p>
                                             {customerPhone.trim() && (
-                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isExistingPhone ? 'bg-green-500/10 text-green-600' : 'bg-blue-500/10 text-blue-600'}`}>
+                                                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${isExistingPhone ? 'bg-green-500/10 text-green-600 dark:text-green-300' : 'bg-blue-500/10 text-blue-600 dark:text-blue-300'}`}>
                                                     {isExistingPhone ? '✓ Pelanggan lama' : '+ Pelanggan baru'}
                                                 </span>
                                             )}
@@ -1888,8 +1892,8 @@ function POSPageContent() {
 
             {/* ===== RECEIPT MODAL (after successful payment) ===== */}
             {receipt && (
-                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-                    <div className="glass bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
+                    <div className="glass-strong w-full max-w-md rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
                         {/* Success header */}
                         {(() => {
                             const isNantiNoDP = receipt.paymentMethod === 'BAYAR_NANTI' && (!receipt.downPayment || receipt.downPayment === 0);
@@ -2045,7 +2049,7 @@ function POSPageContent() {
             )}
             {/* Customer Search Sub-Modal */}
             {isCustomerModalOpen && (
-                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in">
+                <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/25 backdrop-blur-md animate-in fade-in">
                     <div className="bg-background rounded-3xl shadow-xl border border-border w-full max-w-md p-6 relative animate-in zoom-in-95 duration-200">
                         <button
                             onClick={() => { setCustomerModalOpen(false); setCustomerSearchQuery(''); }}

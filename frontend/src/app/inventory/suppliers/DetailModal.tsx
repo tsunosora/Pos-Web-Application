@@ -53,8 +53,8 @@ export function DetailModal({ supplier, products, onClose, onEditSupplier }: Det
 
   return (
     <>
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/25 backdrop-blur-md p-4">
+        <div className="glass-strong border border-border rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
           <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
             <div>
               <h2 className="text-lg font-semibold text-foreground">{latestSupplier.name}</h2>

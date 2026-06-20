@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { SubNav } from "./SubNav";
+import { getActiveSection } from "./nav-config";
 import { Footer } from "./Footer";
 import { ShiftReminderBanner } from "./ShiftReminderBanner";
 import { BranchInboxPopup } from "./BranchInboxPopup";
@@ -14,6 +16,7 @@ import { ReadyJobsFab } from "./ReadyJobsFab";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useShiftReminder } from "@/hooks/useShiftReminder";
 import { useNotificationStore } from "@/store/notification-store";
+import { useUIStore } from "@/store/ui-store";
 
 interface MainLayoutProps {
     children: React.ReactNode;
@@ -33,6 +36,8 @@ function AppInitializer() {
 
 export function MainLayout({ children }: MainLayoutProps) {
     const pathname = usePathname();
+    const showDock = !!getActiveSection(pathname);
+    const subnavOverflow = useUIStore((s) => s.subnavOverflow);
     const [readyJobsModalOpen, setReadyJobsModalOpen] = useState(false);
     const isLoginPage = pathname === "/login";
     const isOpnamePage = pathname.startsWith("/opname/");
@@ -52,7 +57,15 @@ export function MainLayout({ children }: MainLayoutProps) {
     }
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background print:block print:h-auto print:overflow-visible">
+        <div className="relative flex h-screen overflow-hidden bg-gradient-to-br from-muted/30 via-background to-background print:block print:h-auto print:overflow-visible print:bg-white">
+            {/* Ambient mesh warna di belakang permukaan kaca — wajib agar frosted
+                glassmorphism terlihat (kaca mem-blur warna ini, bukan ruang kosong). */}
+            <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden print:hidden">
+                <div className="absolute -top-40 -left-32 h-[30rem] w-[30rem] rounded-full bg-primary/15 blur-[120px]" />
+                <div className="absolute top-1/4 -right-32 h-[28rem] w-[28rem] rounded-full bg-blue-500/12 blur-[120px]" />
+                <div className="absolute -bottom-40 left-1/3 h-[28rem] w-[28rem] rounded-full bg-fuchsia-500/10 blur-[130px]" />
+                <div className="absolute top-1/2 left-[-6rem] h-80 w-80 rounded-full bg-emerald-400/10 blur-[110px]" />
+            </div>
             <AppInitializer />
             <div className="print:hidden"><ShiftReminderBanner /></div>
             <div className="print:hidden"><BranchInboxPopup /></div>
@@ -68,8 +81,13 @@ export function MainLayout({ children }: MainLayoutProps) {
                         {children}
                     </div>
                     <Footer />
+                    {/* Spacer agar konten/footer tidak tertutup dock SubNav mengambang.
+                        Di desktop hanya perlu saat header overflow (dock tampil). */}
+                    {showDock && <div aria-hidden className={subnavOverflow ? "h-24" : "md:hidden h-24"} />}
                 </main>
             </div>
+            {/* Dock SubNav kaca mengambang — hanya mobile, saat ada kategori aktif & bukan di POS. */}
+            {showDock && <SubNav mode="strip" />}
         </div>
     );
 }

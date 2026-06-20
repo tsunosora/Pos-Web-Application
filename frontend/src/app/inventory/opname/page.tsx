@@ -73,8 +73,8 @@ function StartModal({ onClose, onCreated }: { onClose: () => void; onCreated: (i
     });
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="w-full max-w-md bg-card rounded-2xl shadow-2xl border border-border p-6 space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/25 backdrop-blur-md p-4">
+            <div className="w-full max-w-md glass-strong rounded-2xl shadow-2xl border border-border p-6 space-y-5">
                 <div className="flex items-center justify-between">
                     <h2 className="text-lg font-bold">Mulai Stok Opname</h2>
                     <button onClick={onClose} className="p-1 hover:bg-muted rounded-lg"><X className="h-5 w-5" /></button>
@@ -477,7 +477,7 @@ export default function OpnamePage() {
                         <div
                             key={s.id}
                             onClick={() => setSelectedId(s.id)}
-                            className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card hover:border-primary/40 hover:bg-muted/30 cursor-pointer transition-all"
+                            className="flex items-center gap-4 p-4 rounded-xl glass-card cursor-pointer"
                         >
                             <div className="shrink-0">
                                 {s.status === 'ONGOING' && <Clock className="h-5 w-5 text-emerald-500" />}

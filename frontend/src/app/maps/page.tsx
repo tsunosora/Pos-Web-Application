@@ -106,8 +106,8 @@ function FormModal({ mode, initial, pendingLat, pendingLng, onClose, onSave, isP
     const title = mode === "branch-add" ? "Tambah Cabang" : mode === "branch-edit" ? "Edit Cabang" : mode === "competitor-add" ? "Tambah Kompetitor" : "Edit Kompetitor";
 
     return (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden">
+        <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-[500] flex items-center justify-center p-4">
+            <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg overflow-hidden">
                 <div className="px-5 py-4 border-b border-border flex justify-between items-center">
                     <h3 className="font-semibold text-foreground">{title}</h3>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
@@ -312,7 +312,7 @@ export default function MapsPage() {
                 {/* Mobile backdrop */}
                 {mobileSidebarOpen && (
                     <div
-                        className="lg:hidden absolute inset-0 z-[240] bg-background/60 backdrop-blur-sm"
+                        className="lg:hidden absolute inset-0 z-[240] bg-background/82 backdrop-blur-3xl"
                         onClick={() => setMobileSidebarOpen(false)}
                     />
                 )}
@@ -463,8 +463,8 @@ export default function MapsPage() {
 
             {/* Delete confirm */}
             {deleteTarget && (
-                <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[500] flex items-center justify-center p-4">
-                    <div className="bg-card w-full max-w-sm rounded-xl border border-border shadow-lg p-6">
+                <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-[500] flex items-center justify-center p-4">
+                    <div className="glass-strong w-full max-w-sm rounded-xl border border-border shadow-lg p-6">
                         <h3 className="font-semibold text-foreground mb-2">Hapus {deleteTarget.type === "branch" ? "Cabang" : "Kompetitor"}?</h3>
                         <p className="text-sm text-muted-foreground mb-5">Data tidak dapat dipulihkan.</p>
                         <div className="flex justify-end gap-3">

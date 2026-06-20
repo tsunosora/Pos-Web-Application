@@ -177,8 +177,8 @@ export function WorkOrderModal({ jobId, jobNumber, onClose }: Props) {
 
     if (isLoading) {
         return (
-            <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-white" />
+            <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -186,16 +186,16 @@ export function WorkOrderModal({ jobId, jobNumber, onClose }: Props) {
     // ── Empty state: belum ada WO ──
     if (!wo) {
         return (
-            <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-4">
-                <div className="bg-white rounded-xl p-6 max-w-md w-full text-center">
+            <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                <div className="glass-strong rounded-xl p-6 max-w-md w-full text-center">
                     <FileText className="h-12 w-12 mx-auto text-indigo-500 mb-3" />
                     <h3 className="font-bold text-lg mb-1">Buat Work Order</h3>
-                    <p className="text-sm text-gray-500 mb-4">
+                    <p className="text-sm text-muted-foreground mb-4">
                         Job <span className="font-mono font-semibold">{jobNumber}</span> belum punya Work Order.
                         Buat sekarang — header & data customer akan auto-terisi dari order.
                     </p>
                     <div className="flex gap-2">
-                        <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
+                        <button onClick={onClose} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent">Batal</button>
                         <button onClick={handleCreate} disabled={saving}
                             className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
                             {saving ? "Membuat..." : "📋 Buat WO"}
@@ -207,20 +207,20 @@ export function WorkOrderModal({ jobId, jobNumber, onClose }: Props) {
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-2 sm:p-4 print:bg-white print:relative print:inset-auto print:p-0 print:z-auto">
-            <div className="bg-white rounded-xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-2 sm:p-4 print:bg-white print:relative print:inset-auto print:p-0 print:z-auto">
+            <div className="glass-strong rounded-xl w-full max-w-4xl max-h-[95vh] overflow-y-auto">
                 {/* Toolbar — hidden saat print */}
-                <div className="sticky top-0 bg-white border-b px-4 py-3 flex items-center justify-between z-10 print:hidden">
+                <div className="sticky top-0 bg-card border-b border-border px-4 py-3 flex items-center justify-between z-10 print:hidden">
                     <h2 className="font-bold text-lg flex items-center gap-2">
                         <FileText className="h-5 w-5 text-indigo-600" />
                         Work Order — {form.woNumber || jobNumber}
                     </h2>
                     <div className="flex items-center gap-2">
-                        <div className="bg-gray-100 rounded-lg p-1 flex text-xs">
+                        <div className="bg-muted rounded-lg p-1 flex text-xs">
                             <button onClick={() => setMode("form")}
-                                className={`px-3 py-1 rounded font-semibold ${mode === "form" ? "bg-white shadow text-indigo-700" : "text-gray-500"}`}>Edit</button>
+                                className={`px-3 py-1 rounded font-semibold ${mode === "form" ? "bg-card shadow text-indigo-600 dark:text-indigo-300" : "text-muted-foreground"}`}>Edit</button>
                             <button onClick={() => setMode("print")}
-                                className={`px-3 py-1 rounded font-semibold ${mode === "print" ? "bg-white shadow text-indigo-700" : "text-gray-500"}`}>Preview</button>
+                                className={`px-3 py-1 rounded font-semibold ${mode === "print" ? "bg-card shadow text-indigo-600 dark:text-indigo-300" : "text-muted-foreground"}`}>Preview</button>
                         </div>
                         <button onClick={handleSave} disabled={saving}
                             className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-1">
@@ -230,7 +230,7 @@ export function WorkOrderModal({ jobId, jobNumber, onClose }: Props) {
                             className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 flex items-center gap-1">
                             <Printer className="h-4 w-4" /> Cetak
                         </button>
-                        <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="h-5 w-5" /></button>
+                        <button onClick={onClose} className="p-1 hover:bg-accent rounded"><X className="h-5 w-5" /></button>
                     </div>
                 </div>
 
@@ -268,15 +268,15 @@ function SizeTable({ title, items, setItems }: {
 }) {
     const total = items.reduce((s, it) => s + (Number(it.qty) || 0), 0);
     return (
-        <div className="border rounded-lg p-2">
-            <div className="font-semibold text-xs mb-1.5">{title} <span className="text-gray-400">({total})</span></div>
+        <div className="border border-border rounded-lg p-2">
+            <div className="font-semibold text-xs mb-1.5">{title} <span className="text-muted-foreground">({total})</span></div>
             <div className="space-y-1">
                 {items.map((it, i) => (
                     <div key={i} className="flex gap-1 items-center">
                         <input value={it.size} onChange={e => setItems(items.map((x, j) => j === i ? { ...x, size: e.target.value } : x))}
-                            placeholder="Size" className="w-16 border rounded px-1.5 py-1 text-xs" />
+                            placeholder="Size" className="w-16 border border-border bg-background rounded px-1.5 py-1 text-xs" />
                         <input type="number" min={0} value={it.qty || ""} onChange={e => setItems(items.map((x, j) => j === i ? { ...x, qty: +e.target.value || 0 } : x))}
-                            placeholder="Qty" className="w-16 border rounded px-1.5 py-1 text-xs font-mono" />
+                            placeholder="Qty" className="w-16 border border-border bg-background rounded px-1.5 py-1 text-xs font-mono" />
                         <button onClick={() => setItems(items.filter((_, j) => j !== i))} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                 ))}
@@ -320,15 +320,15 @@ function MultiImageUploadField({ label, images, onChange, max = 6 }: {
 
     return (
         <div>
-            <div className="text-[11px] font-semibold text-gray-600 mb-1">
-                {label} <span className="text-gray-400 font-normal">({images.length}/{max})</span>
+            <div className="text-[11px] font-semibold text-muted-foreground mb-1">
+                {label} <span className="text-muted-foreground/70 font-normal">({images.length}/{max})</span>
             </div>
             <input ref={inputRef} type="file" accept="image/*" multiple onChange={handleUpload} className="hidden" />
             <div className="grid grid-cols-3 gap-1.5">
                 {images.map((url, i) => {
                     const src = resolvePhotoUrl(url) || url;
                     return (
-                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-indigo-200 bg-gray-50 group">
+                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-indigo-500/20 bg-muted group">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={src} alt={`${label} ${i + 1}`} className="w-full h-full object-cover" />
                             <button type="button" onClick={() => removeAt(i)}
@@ -339,11 +339,11 @@ function MultiImageUploadField({ label, images, onChange, max = 6 }: {
                 })}
                 {images.length < max && (
                     <button type="button" onClick={pickFiles} disabled={uploading}
-                        className="flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/40 transition-colors disabled:opacity-50">
+                        className="flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-border hover:border-indigo-400 hover:bg-indigo-500/10 transition-colors disabled:opacity-50">
                         {uploading
-                            ? <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-                            : <Upload className="h-5 w-5 text-gray-400" />}
-                        <span className="text-[9px] text-gray-500 mt-0.5">{uploading ? "..." : "Tambah"}</span>
+                            ? <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+                            : <Upload className="h-5 w-5 text-muted-foreground" />}
+                        <span className="text-[9px] text-muted-foreground mt-0.5">{uploading ? "..." : "Tambah"}</span>
                     </button>
                 )}
             </div>
@@ -353,8 +353,8 @@ function MultiImageUploadField({ label, images, onChange, max = 6 }: {
 
 function WorkOrderForm({ form, setForm, mockupImages, setMockupImages, printLayoutImages, setPrintLayoutImages, shortSleeve, setShortSleeve, longSleeve, setLongSleeve, pants, setPants, patterns, setPatterns, qc, setQc }: any) {
     const set = (k: string, v: any) => setForm((f: any) => ({ ...f, [k]: v }));
-    const lbl = "block text-[11px] font-semibold text-gray-600 mb-0.5";
-    const inp = "w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm";
+    const lbl = "block text-[11px] font-semibold text-muted-foreground mb-0.5";
+    const inp = "w-full border border-border bg-background rounded-lg px-2.5 py-1.5 text-sm";
 
     // Opsi jenis kerah diambil dari variant produk "Kerah" di manajemen stok.
     const { data: products } = useQuery({
@@ -426,7 +426,7 @@ function WorkOrderForm({ form, setForm, mockupImages, setMockupImages, printLayo
                     <datalist id="wo-collar-options">
                         {collarSuggestions.map((o: string) => <option key={o} value={o} />)}
                     </datalist>
-                    <p className="text-[10px] text-gray-400 mt-0.5">Ketik bebas — nilai baru tersimpan otomatis & jadi pilihan berikutnya.</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Ketik bebas — nilai baru tersimpan otomatis & jadi pilihan berikutnya.</p>
                 </div>
                 <div>
                     <label className={lbl}>Bahan</label>
@@ -470,9 +470,9 @@ function WorkOrderForm({ form, setForm, mockupImages, setMockupImages, printLayo
                     {patterns.map((p: WoPrintPattern, i: number) => (
                         <div key={i} className="flex gap-1 items-center">
                             <input value={p.name} onChange={e => setPatterns(patterns.map((x: WoPrintPattern, j: number) => j === i ? { ...x, name: e.target.value } : x))}
-                                placeholder="Nama pola" className="flex-1 border rounded px-2 py-1 text-xs" />
+                                placeholder="Nama pola" className="flex-1 border border-border bg-background rounded px-2 py-1 text-xs" />
                             <input type="number" min={0} value={p.qty || ""} onChange={e => setPatterns(patterns.map((x: WoPrintPattern, j: number) => j === i ? { ...x, qty: +e.target.value || 0 } : x))}
-                                placeholder="Jml" className="w-16 border rounded px-1.5 py-1 text-xs font-mono" />
+                                placeholder="Jml" className="w-16 border border-border bg-background rounded px-1.5 py-1 text-xs font-mono" />
                             <button onClick={() => setPatterns(patterns.filter((_: any, j: number) => j !== i))} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                     ))}
@@ -488,11 +488,11 @@ function WorkOrderForm({ form, setForm, mockupImages, setMockupImages, printLayo
                     {qc.map((row: WoQcRow, i: number) => (
                         <div key={i} className="flex gap-1 items-center">
                             <input value={row.criteria} onChange={e => setQc(qc.map((x: WoQcRow, j: number) => j === i ? { ...x, criteria: e.target.value } : x))}
-                                placeholder="Kriteria" className="flex-1 border rounded px-2 py-1 text-xs" />
+                                placeholder="Kriteria" className="flex-1 border border-border bg-background rounded px-2 py-1 text-xs" />
                             <input value={row.note || ""} onChange={e => setQc(qc.map((x: WoQcRow, j: number) => j === i ? { ...x, note: e.target.value } : x))}
-                                placeholder="Catatan" className="w-28 border rounded px-2 py-1 text-xs" />
+                                placeholder="Catatan" className="w-28 border border-border bg-background rounded px-2 py-1 text-xs" />
                             <input value={row.inspector || ""} onChange={e => setQc(qc.map((x: WoQcRow, j: number) => j === i ? { ...x, inspector: e.target.value } : x))}
-                                placeholder="Pemeriksa" className="w-24 border rounded px-2 py-1 text-xs" />
+                                placeholder="Pemeriksa" className="w-24 border border-border bg-background rounded px-2 py-1 text-xs" />
                             <button onClick={() => setQc(qc.filter((_: any, j: number) => j !== i))} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                         </div>
                     ))}

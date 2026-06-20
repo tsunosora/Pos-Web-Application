@@ -765,7 +765,7 @@ export default function BackupPage() {
             </div>
 
             {showRestoreConfirm && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                <div className="fixed inset-0 bg-background/25 backdrop-blur-md flex items-center justify-center z-50 p-4">
                     <div className="bg-background rounded-2xl border border-border shadow-2xl p-6 max-w-md w-full space-y-4">
                         <div className="flex items-center gap-3">
                             <div className={`p-2 rounded-lg ${restoreMode === "overwrite" ? "bg-orange-100 dark:bg-orange-950/40" : "bg-green-100 dark:bg-green-950/40"}`}>

@@ -144,30 +144,30 @@ export default function BranchOrderNewPage() {
     return (
         <div className="max-w-2xl mx-auto space-y-6">
             <div className="flex items-center gap-2">
-                <Link href="/branch-orders" className="text-gray-400 hover:text-gray-600">
+                <Link href="/branch-orders" className="text-muted-foreground hover:text-foreground">
                     <ArrowLeft className="w-5 h-5" />
                 </Link>
-                <h1 className="text-xl font-bold text-gray-800">Input Order Cabang Baru</h1>
+                <h1 className="text-xl font-bold text-foreground">Input Order Cabang Baru</h1>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Header */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4">
-                    <h2 className="font-semibold text-gray-700 flex items-center gap-2">
-                        <Building2 className="w-4 h-4 text-blue-500" />
+                <div className="bg-card border border-border rounded-xl shadow-sm p-4 space-y-4">
+                    <h2 className="font-semibold text-foreground flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-primary" />
                         Informasi Order
                     </h2>
 
                     {error && (
-                        <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>
+                        <p className="text-red-600 dark:text-red-300 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{error}</p>
                     )}
 
                     <div>
-                        <label className="block text-xs text-gray-500 mb-1">Cabang *</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Cabang *</label>
                         <select
                             value={branchId}
                             onChange={e => setBranchId(e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
                         >
                             <option value="">-- Pilih Cabang --</option>
                             {branches.map(b => (
@@ -175,7 +175,7 @@ export default function BranchOrderNewPage() {
                             ))}
                         </select>
                         {branches.length === 0 && (
-                            <p className="text-xs text-amber-600 mt-1">
+                            <p className="text-xs text-amber-600 dark:text-amber-300 mt-1">
                                 Belum ada cabang aktif.{' '}
                                 <a href="/settings/branches" target="_blank" className="underline">Kelola cabang</a>
                             </p>
@@ -184,65 +184,65 @@ export default function BranchOrderNewPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs text-gray-500 mb-1">No. Referensi / Nota</label>
+                            <label className="block text-xs text-muted-foreground mb-1">No. Referensi / Nota</label>
                             <input
                                 value={referenceNumber}
                                 onChange={e => setReferenceNumber(e.target.value)}
                                 placeholder="cth: NOTA-001"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs text-gray-500 mb-1">Diterima oleh</label>
+                            <label className="block text-xs text-muted-foreground mb-1">Diterima oleh</label>
                             <input
                                 value={receivedBy}
                                 onChange={e => setReceivedBy(e.target.value)}
                                 placeholder="Nama kasir / staf"
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
 
                     <div>
-                        <label className="block text-xs text-gray-500 mb-1">Catatan</label>
+                        <label className="block text-xs text-muted-foreground mb-1">Catatan</label>
                         <textarea
                             value={notes}
                             onChange={e => setNotes(e.target.value)}
                             rows={2}
                             placeholder="Instruksi khusus, permintaan finishing, dll..."
-                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm resize-none"
                         />
                     </div>
                 </div>
 
                 {/* Items */}
-                <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                <div className="bg-card border border-border rounded-xl shadow-sm p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                        <h2 className="font-semibold text-gray-700">Items Pesanan</h2>
+                        <h2 className="font-semibold text-foreground">Items Pesanan</h2>
                         <button
                             type="button"
                             onClick={addItem}
-                            className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                            className="flex items-center gap-1 text-sm text-primary hover:text-primary/80"
                         >
                             <Plus className="w-4 h-4" /> Tambah Item
                         </button>
                     </div>
 
                     {items.length === 0 && (
-                        <p className="text-gray-400 text-sm text-center py-4">
+                        <p className="text-muted-foreground text-sm text-center py-4">
                             Belum ada item. Klik "Tambah Item".
                         </p>
                     )}
 
                     {items.map((item, idx) => (
-                        <div key={idx} className="border border-gray-100 rounded-lg p-3 space-y-2 bg-gray-50">
+                        <div key={idx} className="border border-border rounded-lg p-3 space-y-2 bg-muted">
                             <div className="flex items-start gap-2">
                                 <div className="flex-1">
-                                    <label className="block text-xs text-gray-500 mb-1">Produk / Varian *</label>
+                                    <label className="block text-xs text-muted-foreground mb-1">Produk / Varian *</label>
                                     <select
                                         value={item.productVariantId}
                                         onChange={e => updateItem(idx, 'productVariantId', e.target.value)}
-                                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                     >
                                         {allVariants.map(v => (
                                             <option key={v.id} value={v.id}>{buildVariantLabel(v)}</option>
@@ -252,7 +252,7 @@ export default function BranchOrderNewPage() {
                                 <button
                                     type="button"
                                     onClick={() => removeItem(idx)}
-                                    className="mt-5 p-1 text-red-400 hover:text-red-600"
+                                    className="mt-5 p-1 text-red-500 hover:text-red-600"
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
@@ -260,47 +260,47 @@ export default function BranchOrderNewPage() {
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                                 <div>
-                                    <label className="block text-xs text-gray-500 mb-1">Qty *</label>
+                                    <label className="block text-xs text-muted-foreground mb-1">Qty *</label>
                                     <input
                                         type="number"
                                         min="1"
                                         value={item.quantity}
                                         onChange={e => updateItem(idx, 'quantity', e.target.value)}
-                                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                     />
                                 </div>
                                 {item.pricingMode === 'AREA_BASED' && (
                                     <>
                                         <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Lebar (cm)</label>
+                                            <label className="block text-xs text-muted-foreground mb-1">Lebar (cm)</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 step="0.1"
                                                 value={item.widthCm}
                                                 onChange={e => updateItem(idx, 'widthCm', e.target.value)}
-                                                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                                 placeholder="cm"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Tinggi (cm)</label>
+                                            <label className="block text-xs text-muted-foreground mb-1">Tinggi (cm)</label>
                                             <input
                                                 type="number"
                                                 min="0"
                                                 step="0.1"
                                                 value={item.heightCm}
                                                 onChange={e => updateItem(idx, 'heightCm', e.target.value)}
-                                                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                                 placeholder="cm"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-xs text-gray-500 mb-1">Satuan</label>
+                                            <label className="block text-xs text-muted-foreground mb-1">Satuan</label>
                                             <select
                                                 value={item.unitType}
                                                 onChange={e => updateItem(idx, 'unitType', e.target.value)}
-                                                className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                                className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                             >
                                                 <option value="m2">m²</option>
                                                 <option value="cm2">cm²</option>
@@ -312,25 +312,25 @@ export default function BranchOrderNewPage() {
 
                             {item.pricingMode === 'AREA_BASED' && (
                                 <div>
-                                    <label className="block text-xs text-gray-500 mb-1">Jumlah Lembar (pcs)</label>
+                                    <label className="block text-xs text-muted-foreground mb-1">Jumlah Lembar (pcs)</label>
                                     <input
                                         type="number"
                                         min="1"
                                         value={item.pcs}
                                         onChange={e => updateItem(idx, 'pcs', e.target.value)}
-                                        className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                         placeholder="Opsional"
                                     />
                                 </div>
                             )}
 
                             <div>
-                                <label className="block text-xs text-gray-500 mb-1">Catatan Item</label>
+                                <label className="block text-xs text-muted-foreground mb-1">Catatan Item</label>
                                 <input
                                     value={item.note}
                                     onChange={e => updateItem(idx, 'note', e.target.value)}
                                     placeholder="warna, finishing, bahan, dll..."
-                                    className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm"
+                                    className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-sm"
                                 />
                             </div>
                         </div>
@@ -348,7 +348,7 @@ export default function BranchOrderNewPage() {
                     </button>
                     <Link
                         href="/branch-orders"
-                        className="px-5 py-2.5 border border-gray-300 rounded-xl text-gray-600 text-center hover:bg-gray-50"
+                        className="px-5 py-2.5 border border-border rounded-xl text-muted-foreground text-center hover:bg-accent"
                     >
                         Batal
                     </Link>

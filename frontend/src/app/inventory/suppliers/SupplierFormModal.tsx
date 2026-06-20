@@ -34,8 +34,8 @@ export function SupplierFormModal({ supplier, onClose, onSave, isSaving }: Suppl
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-card border border-border rounded-xl shadow-xl w-full max-w-lg">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/25 backdrop-blur-md p-4">
+      <div className="glass-strong border border-border rounded-xl shadow-xl w-full max-w-lg">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-lg font-semibold text-foreground">
             {supplier ? "Edit Supplier" : "Tambah Supplier"}

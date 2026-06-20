@@ -21,7 +21,7 @@ const STATUS_CHIP: Record<LedgerStatus, string> = {
     PENDING: 'bg-red-100 text-red-700 border-red-300',
     PARTIAL: 'bg-amber-100 text-amber-700 border-amber-300',
     SETTLED: 'bg-green-100 text-green-700 border-green-300',
-    CANCELLED: 'bg-gray-100 text-gray-600 border-gray-300',
+    CANCELLED: 'bg-muted text-muted-foreground border-border',
 };
 
 function rupiah(n: number) {
@@ -91,35 +91,35 @@ export default function BranchLedgerPage() {
                         Catatan hutang-piutang otomatis saat cabang saling titip cetak. Dicatat waktu cetakan diserahkan.
                     </p>
                 </div>
-                <button onClick={load} disabled={loading} className="text-sm bg-white border px-3 py-1.5 rounded-lg hover:bg-gray-50 flex items-center gap-1">
+                <button onClick={load} disabled={loading} className="text-sm bg-card border px-3 py-1.5 rounded-lg hover:bg-muted flex items-center gap-1">
                     <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
                 </button>
             </div>
 
             {summary && summary.mode === 'single' && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-                    <div className="bg-white border rounded-xl p-4 shadow-sm">
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                    <div className="bg-card border rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                             <ArrowUpRight className="w-3.5 h-3.5 text-red-500" /> Hutang Keluar
                         </div>
                         <p className="text-2xl font-bold text-red-700">{rupiah(summary.outgoing.outstanding)}</p>
-                        <p className="text-xs text-gray-500 mt-1">{summary.outgoing.count} titipan keluar</p>
+                        <p className="text-xs text-muted-foreground mt-1">{summary.outgoing.count} titipan keluar</p>
                     </div>
-                    <div className="bg-white border rounded-xl p-4 shadow-sm">
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                    <div className="bg-card border rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                             <ArrowDownLeft className="w-3.5 h-3.5 text-green-600" /> Piutang Masuk
                         </div>
                         <p className="text-2xl font-bold text-green-700">{rupiah(summary.incoming.outstanding)}</p>
-                        <p className="text-xs text-gray-500 mt-1">{summary.incoming.count} titipan masuk</p>
+                        <p className="text-xs text-muted-foreground mt-1">{summary.incoming.count} titipan masuk</p>
                     </div>
-                    <div className={`bg-white border rounded-xl p-4 shadow-sm ${summary.netPosition >= 0 ? 'border-green-200' : 'border-red-200'}`}>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                    <div className={`bg-card border rounded-xl p-4 shadow-sm ${summary.netPosition >= 0 ? 'border-green-200' : 'border-red-200'}`}>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                             <Scale className="w-3.5 h-3.5" /> Posisi Netto
                         </div>
                         <p className={`text-2xl font-bold ${summary.netPosition >= 0 ? 'text-green-700' : 'text-red-700'}`}>
                             {summary.netPosition >= 0 ? '+' : ''}{rupiah(summary.netPosition)}
                         </p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                             {summary.netPosition >= 0 ? 'Cabang lain lebih banyak hutang ke Anda' : 'Anda lebih banyak hutang ke cabang lain'}
                         </p>
                     </div>
@@ -127,11 +127,11 @@ export default function BranchLedgerPage() {
             )}
 
             {summary && summary.mode === 'all' && summary.pairs.length > 0 && (
-                <div className="bg-white border rounded-xl p-4 mb-5 shadow-sm">
+                <div className="bg-card border rounded-xl p-4 mb-5 shadow-sm">
                     <p className="text-sm font-semibold mb-3">Saldo per Pasangan Cabang</p>
                     <div className="overflow-x-auto">
                         <table className="min-w-full text-sm">
-                            <thead className="bg-gray-50 text-xs uppercase text-gray-600">
+                            <thead className="bg-muted text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th className="px-3 py-2 text-left">Pemesan (Berhutang)</th>
                                     <th className="px-3 py-2 text-left">Pelaksana (Piutang)</th>
@@ -147,7 +147,7 @@ export default function BranchLedgerPage() {
                                         <td className="px-3 py-2">{p.toBranchCode || p.toBranchName}</td>
                                         <td className="px-3 py-2 text-right">{p.totalCount}</td>
                                         <td className="px-3 py-2 text-right font-semibold text-red-700">{rupiah(p.outstanding)}</td>
-                                        <td className="px-3 py-2 text-right text-gray-600">{rupiah(p.grossTotal)}</td>
+                                        <td className="px-3 py-2 text-right text-muted-foreground">{rupiah(p.grossTotal)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -161,7 +161,7 @@ export default function BranchLedgerPage() {
                     {ROLE_TABS.map(t => (
                         <button key={t.key} onClick={() => setRole(t.key)}
                             title={t.hint}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${role === t.key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${role === t.key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-card border-border hover:bg-muted'}`}>
                             {t.label}
                         </button>
                     ))}
@@ -169,22 +169,22 @@ export default function BranchLedgerPage() {
                 <div className="flex gap-1 ml-auto">
                     {STATUS_TABS.map(s => (
                         <button key={s} onClick={() => setStatus(s)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${status === s ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${status === s ? 'bg-gray-800 text-white border-gray-800' : 'bg-card border-border hover:bg-muted'}`}>
                             {s === 'ALL' ? 'Semua Status' : STATUS_LABEL[s]}
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div className="bg-white border rounded-xl overflow-hidden">
+            <div className="bg-card border rounded-xl overflow-hidden">
                 {entries.length === 0 ? (
-                    <div className="p-10 text-center text-gray-500 text-sm">
+                    <div className="p-10 text-center text-muted-foreground text-sm">
                         Belum ada entri ledger untuk filter ini.
                     </div>
                 ) : (
                     <div className="divide-y">
                         {entries.map(e => (
-                            <div key={e.id} className="p-4 hover:bg-gray-50">
+                            <div key={e.id} className="p-4 hover:bg-muted">
                                 <div className="flex items-start justify-between gap-3 flex-wrap">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap">
@@ -192,35 +192,35 @@ export default function BranchLedgerPage() {
                                             <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${STATUS_CHIP[e.status]}`}>
                                                 {STATUS_LABEL[e.status]}
                                             </span>
-                                            <span className="text-xs text-gray-600">
+                                            <span className="text-xs text-muted-foreground">
                                                 {e.fromBranchCode || e.fromBranchName}
-                                                <span className="text-gray-400 mx-1">→</span>
+                                                <span className="text-muted-foreground mx-1">→</span>
                                                 {e.toBranchCode || e.toBranchName}
                                             </span>
                                         </div>
                                         <p className="text-sm mt-1 font-medium">{e.customerName || 'Tanpa nama'}</p>
-                                        <p className="text-xs text-gray-500">Tanggal: {fmtDate(e.createdAt)}</p>
+                                        <p className="text-xs text-muted-foreground">Tanggal: {fmtDate(e.createdAt)}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-xs text-gray-500">Outstanding</p>
+                                        <p className="text-xs text-muted-foreground">Outstanding</p>
                                         <p className="text-lg font-bold text-red-700">{rupiah(e.outstandingAmount)}</p>
-                                        <p className="text-[11px] text-gray-500">dari {rupiah(e.totalAmount)}</p>
+                                        <p className="text-[11px] text-muted-foreground">dari {rupiah(e.totalAmount)}</p>
                                     </div>
                                     <button
                                         onClick={() => toggleExpand(e.id)}
-                                        className="text-xs bg-white border px-2 py-1 rounded-lg hover:bg-gray-100 self-start flex items-center gap-1"
+                                        className="text-xs bg-card border px-2 py-1 rounded-lg hover:bg-muted self-start flex items-center gap-1"
                                     >
                                         {expanded === e.id ? <><ChevronUp className="w-3 h-3" /> Tutup</> : <><ChevronDown className="w-3 h-3" /> Detail</>}
                                     </button>
                                 </div>
 
                                 {expanded === e.id && (
-                                    <div className="mt-3 bg-gray-50 rounded-lg p-3 text-xs space-y-3">
+                                    <div className="mt-3 bg-muted rounded-lg p-3 text-xs space-y-3">
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                                            <div><p className="text-gray-500">HPP Bahan</p><p className="font-semibold">{rupiah(e.costAmount)}</p></div>
-                                            <div><p className="text-gray-500">Fee Layanan</p><p className="font-semibold">{rupiah(e.serviceFee)}</p></div>
-                                            <div><p className="text-gray-500">Total</p><p className="font-semibold">{rupiah(e.totalAmount)}</p></div>
-                                            <div><p className="text-gray-500">Sudah Dibayar</p><p className="font-semibold text-green-700">{rupiah(e.settledAmount)}</p></div>
+                                            <div><p className="text-muted-foreground">HPP Bahan</p><p className="font-semibold">{rupiah(e.costAmount)}</p></div>
+                                            <div><p className="text-muted-foreground">Fee Layanan</p><p className="font-semibold">{rupiah(e.serviceFee)}</p></div>
+                                            <div><p className="text-muted-foreground">Total</p><p className="font-semibold">{rupiah(e.totalAmount)}</p></div>
+                                            <div><p className="text-muted-foreground">Sudah Dibayar</p><p className="font-semibold text-green-700">{rupiah(e.settledAmount)}</p></div>
                                         </div>
 
                                         {details[e.id] && (
@@ -228,7 +228,7 @@ export default function BranchLedgerPage() {
                                                 <div>
                                                     <p className="font-semibold mb-1">Item Titipan</p>
                                                     <table className="w-full text-xs">
-                                                        <thead className="text-gray-500">
+                                                        <thead className="text-muted-foreground">
                                                             <tr>
                                                                 <th className="text-left py-1">Produk</th>
                                                                 <th className="text-right">Qty</th>
@@ -238,10 +238,10 @@ export default function BranchLedgerPage() {
                                                         </thead>
                                                         <tbody>
                                                             {details[e.id].items.map(it => (
-                                                                <tr key={it.id} className="border-t border-gray-200">
+                                                                <tr key={it.id} className="border-t border-border">
                                                                     <td className="py-1">
                                                                         {it.productName}
-                                                                        {it.variantName && <span className="text-gray-500"> — {it.variantName}</span>}
+                                                                        {it.variantName && <span className="text-muted-foreground"> — {it.variantName}</span>}
                                                                     </td>
                                                                     <td className="text-right">{it.quantity}</td>
                                                                     <td className="text-right">{rupiah(it.effectiveHpp)}</td>
@@ -257,7 +257,7 @@ export default function BranchLedgerPage() {
                                                         <p className="font-semibold mb-1">Riwayat Pembayaran</p>
                                                         <ul className="space-y-1">
                                                             {details[e.id].settlements.map(s => (
-                                                                <li key={s.id} className="flex justify-between border-t border-gray-200 py-1">
+                                                                <li key={s.id} className="flex justify-between border-t border-border py-1">
                                                                     <span>{s.settlementType === 'CASH' ? '💰 Tunai' : '📦 Kirim Bahan'} · {fmtDate(s.createdAt)}</span>
                                                                     <span className="font-semibold">{rupiah(s.amount)}</span>
                                                                 </li>
@@ -292,8 +292,8 @@ export default function BranchLedgerPage() {
                 )}
 
                 {entries.length > 0 && (
-                    <div className="bg-gray-50 border-t px-4 py-2 text-xs flex justify-between">
-                        <span className="text-gray-600">{entries.length} entri</span>
+                    <div className="bg-muted border-t px-4 py-2 text-xs flex justify-between">
+                        <span className="text-muted-foreground">{entries.length} entri</span>
                         <span className="font-semibold">Total Outstanding: <span className="text-red-700">{rupiah(total)}</span></span>
                     </div>
                 )}
@@ -378,24 +378,24 @@ function SettleCashModal({ ledger, onClose, onSuccess }: SettleCashModalProps) {
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-card">
                     <h2 className="font-bold text-lg flex items-center gap-2"><Wallet className="w-5 h-5" /> Bayar Tunai</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><X className="w-5 h-5" /></button>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                    <div className="bg-gray-50 border rounded-lg p-3 text-sm">
+                    <div className="bg-muted border rounded-lg p-3 text-sm">
                         <p className="font-mono text-xs text-indigo-700 font-bold">{ledger.invoiceNumber}</p>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                             <span className="font-semibold">{ledger.fromBranchCode || ledger.fromBranchName}</span>
-                            <span className="mx-1 text-gray-400">bayar ke</span>
+                            <span className="mx-1 text-muted-foreground">bayar ke</span>
                             <span className="font-semibold">{ledger.toBranchCode || ledger.toBranchName}</span>
                         </p>
                         <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                            <div><p className="text-gray-500">Total</p><p className="font-semibold">{rupiah(ledger.totalAmount)}</p></div>
-                            <div><p className="text-gray-500">Sudah Dibayar</p><p className="font-semibold text-green-700">{rupiah(ledger.settledAmount)}</p></div>
-                            <div><p className="text-gray-500">Sisa</p><p className="font-semibold text-red-700">{rupiah(ledger.outstandingAmount)}</p></div>
+                            <div><p className="text-muted-foreground">Total</p><p className="font-semibold">{rupiah(ledger.totalAmount)}</p></div>
+                            <div><p className="text-muted-foreground">Sudah Dibayar</p><p className="font-semibold text-green-700">{rupiah(ledger.settledAmount)}</p></div>
+                            <div><p className="text-muted-foreground">Sisa</p><p className="font-semibold text-red-700">{rupiah(ledger.outstandingAmount)}</p></div>
                         </div>
                     </div>
 
@@ -419,7 +419,7 @@ function SettleCashModal({ ledger, onClose, onSuccess }: SettleCashModalProps) {
                     </div>
 
                     {loading ? (
-                        <div className="text-sm text-gray-500">Memuat rekening...</div>
+                        <div className="text-sm text-muted-foreground">Memuat rekening...</div>
                     ) : banks && (
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div>
@@ -472,7 +472,7 @@ function SettleCashModal({ ledger, onClose, onSuccess }: SettleCashModalProps) {
 
                     <div className="flex gap-2 justify-end pt-2 border-t">
                         <button type="button" onClick={onClose} disabled={submitting}
-                            className="px-4 py-2 text-sm bg-white border rounded-lg hover:bg-gray-50">
+                            className="px-4 py-2 text-sm bg-card border rounded-lg hover:bg-muted">
                             Batal
                         </button>
                         <button type="submit" disabled={submitting || loading}
@@ -556,24 +556,24 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-white">
+        <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="bg-card rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-card">
                     <h2 className="font-bold text-lg flex items-center gap-2"><Package className="w-5 h-5" /> Bayar dengan Kirim Bahan</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800"><X className="w-5 h-5" /></button>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleSubmit} className="p-4 space-y-4">
-                    <div className="bg-gray-50 border rounded-lg p-3 text-sm">
+                    <div className="bg-muted border rounded-lg p-3 text-sm">
                         <p className="font-mono text-xs text-indigo-700 font-bold">{ledger.invoiceNumber}</p>
-                        <p className="text-xs text-gray-600 mt-1">
+                        <p className="text-xs text-muted-foreground mt-1">
                             Stok diambil dari <span className="font-semibold">{ledger.fromBranchCode || ledger.fromBranchName}</span>
                             <span className="mx-1">→</span>
                             masuk ke <span className="font-semibold">{ledger.toBranchCode || ledger.toBranchName}</span>
                         </p>
                         <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                            <div><p className="text-gray-500">Total</p><p className="font-semibold">{rupiah(ledger.totalAmount)}</p></div>
-                            <div><p className="text-gray-500">Sudah Dibayar</p><p className="font-semibold text-green-700">{rupiah(ledger.settledAmount)}</p></div>
-                            <div><p className="text-gray-500">Sisa</p><p className="font-semibold text-red-700">{rupiah(ledger.outstandingAmount)}</p></div>
+                            <div><p className="text-muted-foreground">Total</p><p className="font-semibold">{rupiah(ledger.totalAmount)}</p></div>
+                            <div><p className="text-muted-foreground">Sudah Dibayar</p><p className="font-semibold text-green-700">{rupiah(ledger.settledAmount)}</p></div>
+                            <div><p className="text-muted-foreground">Sisa</p><p className="font-semibold text-red-700">{rupiah(ledger.outstandingAmount)}</p></div>
                         </div>
                     </div>
 
@@ -585,7 +585,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                             className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
                         />
                         {loading ? (
-                            <div className="text-sm text-gray-500 p-4 text-center">Memuat stok cabang...</div>
+                            <div className="text-sm text-muted-foreground p-4 text-center">Memuat stok cabang...</div>
                         ) : filtered.length === 0 ? (
                             // Empty state dengan info diagnostik kenapa kosong
                             <div className="text-sm p-4 border rounded-lg bg-amber-50 border-amber-200 space-y-2">
@@ -612,7 +612,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                         </div>
                                     </>
                                 ) : (
-                                    <p className="text-gray-500 text-center">Tidak ada yang cocok dengan pencarian.</p>
+                                    <p className="text-muted-foreground text-center">Tidak ada yang cocok dengan pencarian.</p>
                                 )}
                             </div>
                         ) : (
@@ -622,7 +622,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                     const fallback = it.hppSource === 'lastPurchase';
                                     return (
                                         <label key={it.variantId}
-                                            className={`flex items-center gap-2 p-2 hover:bg-gray-50 ${
+                                            className={`flex items-center gap-2 p-2 hover:bg-muted ${
                                                 noPrice
                                                     ? 'opacity-60 cursor-not-allowed'
                                                     : `cursor-pointer ${variantId === it.variantId ? 'bg-indigo-50' : ''}`
@@ -632,9 +632,9 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                                 onChange={() => { if (!noPrice) { setVariantId(it.variantId); setQty('1'); } }} />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium truncate">{it.productName}
-                                                    {it.variantName && <span className="text-gray-500"> — {it.variantName}</span>}
+                                                    {it.variantName && <span className="text-muted-foreground"> — {it.variantName}</span>}
                                                 </p>
-                                                <p className="text-xs text-gray-500 font-mono">{it.sku}</p>
+                                                <p className="text-xs text-muted-foreground font-mono">{it.sku}</p>
                                                 {noPrice && (
                                                     <p className="text-[10px] text-amber-700 mt-0.5">⚠ Belum ada HPP & belum ada riwayat pembelian</p>
                                                 )}
@@ -644,7 +644,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                             </div>
                                             <div className="text-right text-xs">
                                                 <p>Stok: <span className="font-semibold">{it.stock}</span></p>
-                                                <p className={noPrice ? 'text-amber-700 font-semibold' : fallback ? 'text-blue-600 font-semibold' : 'text-gray-500'}>
+                                                <p className={noPrice ? 'text-amber-700 font-semibold' : fallback ? 'text-blue-600 font-semibold' : 'text-muted-foreground'}>
                                                     {noPrice ? '— Tidak ada harga' : `${fallback ? 'Beli' : 'HPP'}: ${rupiah(it.effectiveHpp)}`}
                                                 </p>
                                             </div>
@@ -694,7 +694,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
 
                     <div className="flex gap-2 justify-end pt-2 border-t">
                         <button type="button" onClick={onClose} disabled={submitting}
-                            className="px-4 py-2 text-sm bg-white border rounded-lg hover:bg-gray-50">
+                            className="px-4 py-2 text-sm bg-card border rounded-lg hover:bg-muted">
                             Batal
                         </button>
                         <button type="submit"

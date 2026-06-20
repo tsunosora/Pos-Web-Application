@@ -78,10 +78,10 @@ const formatRp = (n: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-    PAID:    { label: "Lunas",         color: "bg-emerald-100 text-emerald-700", icon: CheckCircle },
-    PARTIAL: { label: "DP / Sebagian", color: "bg-amber-100 text-amber-700",    icon: Clock },
-    PENDING: { label: "Belum Bayar",   color: "bg-gray-100 text-gray-600",      icon: Clock },
-    FAILED:  { label: "Dibatalkan",    color: "bg-red-100 text-red-700",         icon: AlertCircle },
+    PAID:    { label: "Lunas",         color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300 border border-emerald-500/20", icon: CheckCircle },
+    PARTIAL: { label: "DP / Sebagian", color: "bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/20",       icon: Clock },
+    PENDING: { label: "Belum Bayar",   color: "bg-muted text-muted-foreground border border-border",                                  icon: Clock },
+    FAILED:  { label: "Dibatalkan",    color: "bg-red-500/10 text-red-600 dark:text-red-300 border border-red-500/20",               icon: AlertCircle },
 };
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -277,7 +277,7 @@ export default function TransactionDetailPage() {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-24">
-                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
         );
     }
@@ -285,17 +285,17 @@ export default function TransactionDetailPage() {
     if (error || !trx) {
         return (
             <div className="space-y-4">
-                <button onClick={() => router.back()} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800">
+                <button onClick={() => router.back()} className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
                     <ArrowLeft className="w-4 h-4" /> Kembali
                 </button>
-                <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-                    <p className="text-red-700 font-medium">Transaksi tidak ditemukan</p>
+                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-center">
+                    <p className="text-red-600 dark:text-red-300 font-medium">Transaksi tidak ditemukan</p>
                 </div>
             </div>
         );
     }
 
-    const statusCfg = STATUS_CONFIG[trx.status] ?? { label: trx.status, color: "bg-gray-100 text-gray-600", icon: AlertCircle };
+    const statusCfg = STATUS_CONFIG[trx.status] ?? { label: trx.status, color: "bg-muted text-muted-foreground border border-border", icon: AlertCircle };
     const StatusIcon = statusCfg.icon;
     const subtotal        = Number(trx.totalAmount);
     const discount        = Number(trx.discount);
@@ -317,23 +317,23 @@ export default function TransactionDetailPage() {
                 <div>
                     <button
                         onClick={() => router.back()}
-                        className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 mb-4"
+                        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
                     >
                         <ArrowLeft className="w-4 h-4" /> Kembali
                     </button>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900 font-mono">{trx.invoiceNumber}</h1>
+                            <h1 className="text-2xl font-bold text-foreground font-mono">{trx.invoiceNumber}</h1>
                             {trx.checkoutNumber && (
-                                <p className="text-sm font-mono text-indigo-600 font-semibold mt-0.5">{trx.checkoutNumber}</p>
+                                <p className="text-sm font-mono text-primary font-semibold mt-0.5">{trx.checkoutNumber}</p>
                             )}
                             {trx.productionBranchId != null && trx.productionBranchId !== trx.branchId && (
-                                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/15 text-amber-700 border border-amber-500/30 rounded-full text-xs font-bold"
+                                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-300 border border-amber-500/20 rounded-full text-xs font-bold"
                                     title={`Titipan cetak: dari ${trx.branch?.name || '-'} → dikerjakan di ${trx.productionBranch?.name || '-'}`}>
                                     ⚑ Titipan Cetak — {trx.branch?.name || '?'} → {trx.productionBranch?.name || '?'}
                                 </div>
                             )}
-                            <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1.5">
+                            <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1.5">
                                 <Calendar className="w-3.5 h-3.5" />
                                 {dayjs(trx.createdAt).format("dddd, DD MMMM YYYY · HH:mm")}
                             </p>
@@ -345,7 +345,7 @@ export default function TransactionDetailPage() {
                             </span>
                             <button
                                 onClick={() => window.print()}
-                                className="flex items-center gap-2 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900 transition-colors"
+                                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
                             >
                                 <Printer className="w-4 h-4" />
                                 Cetak Struk
@@ -357,55 +357,56 @@ export default function TransactionDetailPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left: Items table */}
                     <div className="lg:col-span-2 space-y-4">
-                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                            <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
-                                <Package className="w-4 h-4 text-gray-500" />
-                                <p className="font-semibold text-gray-800">Item Pesanan</p>
-                                <span className="ml-auto text-xs text-gray-400">{trx.items.length} item</span>
+                        <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
+                            <div className="px-5 py-4 border-b border-border/60 flex items-center gap-2">
+                                <Package className="w-4 h-4 text-muted-foreground" />
+                                <p className="font-semibold text-foreground">Item Pesanan</p>
+                                <span className="ml-auto text-xs text-muted-foreground">{trx.items.length} item</span>
                             </div>
-                            <table className="w-full text-sm">
-                                <thead className="bg-gray-50">
+                            <div className="overflow-x-auto">
+                            <table className="w-full min-w-[480px] text-sm">
+                                <thead className="bg-muted">
                                     <tr>
-                                        <th className="text-left px-4 py-3 text-gray-600 font-medium">Produk</th>
-                                        <th className="text-right px-4 py-3 text-gray-600 font-medium">Qty</th>
-                                        <th className="text-right px-4 py-3 text-gray-600 font-medium">Harga</th>
-                                        <th className="text-right px-4 py-3 text-gray-600 font-medium">Subtotal</th>
+                                        <th className="text-left px-4 py-3 text-muted-foreground font-medium">Produk</th>
+                                        <th className="text-right px-4 py-3 text-muted-foreground font-medium">Qty</th>
+                                        <th className="text-right px-4 py-3 text-muted-foreground font-medium">Harga</th>
+                                        <th className="text-right px-4 py-3 text-muted-foreground font-medium">Subtotal</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-100">
+                                <tbody className="divide-y divide-border/60">
                                     {trx.items.map(item => {
                                         const isArea = item.productVariant.product.pricingMode === "AREA_BASED";
                                         const lineTotal = Number(item.priceAtTime) * item.quantity;
                                         return (
-                                            <tr key={item.id} className="hover:bg-gray-50">
+                                            <tr key={item.id} className="hover:bg-accent transition-colors">
                                                 <td className="px-4 py-3">
-                                                    <p className="font-medium text-gray-800">{item.productVariant.product.name}</p>
-                                                    <p className="text-xs text-gray-500">{item.productVariant.name}</p>
+                                                    <p className="font-medium text-foreground">{item.productVariant.product.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{item.productVariant.name}</p>
                                                     {isArea && item.widthCm && item.heightCm && (
-                                                        <p className="text-xs text-indigo-600">
+                                                        <p className="text-xs text-primary">
                                                             {Number(item.widthCm).toLocaleString("id-ID")} × {Number(item.heightCm).toLocaleString("id-ID")} cm
                                                             {item.pcs && item.pcs > 1 ? ` × ${item.pcs} pcs` : ""}
                                                         </p>
                                                     )}
                                                     {item.clickType && (
-                                                        <p className="text-xs text-purple-600 flex items-center gap-1">
+                                                        <p className="text-xs text-violet-600 dark:text-violet-300 flex items-center gap-1">
                                                             <Printer className="w-3 h-3" /> {item.clickType}
                                                         </p>
                                                     )}
                                                     {item.note && (
-                                                        <p className="text-xs text-gray-400 italic">"{item.note}"</p>
+                                                        <p className="text-xs text-muted-foreground italic">"{item.note}"</p>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3 text-right text-gray-700">
+                                                <td className="px-4 py-3 text-right text-foreground">
                                                     {item.quantity}
                                                     {item.unitType && (
-                                                        <span className="text-xs text-gray-400 ml-1">{item.unitType}</span>
+                                                        <span className="text-xs text-muted-foreground ml-1">{item.unitType}</span>
                                                     )}
                                                 </td>
-                                                <td className="px-4 py-3 text-right text-gray-600">
+                                                <td className="px-4 py-3 text-right text-muted-foreground">
                                                     {formatRp(Number(item.priceAtTime))}
                                                 </td>
-                                                <td className="px-4 py-3 text-right font-medium text-gray-800">
+                                                <td className="px-4 py-3 text-right font-medium text-foreground">
                                                     {formatRp(lineTotal)}
                                                 </td>
                                             </tr>
@@ -413,63 +414,64 @@ export default function TransactionDetailPage() {
                                     })}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
 
                     {/* Right: Info cards */}
                     <div className="space-y-4">
                         {/* Customer info */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                            <p className="font-semibold text-gray-800 text-sm">Info Pelanggan</p>
+                        <div className="bg-card rounded-xl border border-border shadow-sm p-4 space-y-3 transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
+                            <p className="font-semibold text-foreground text-sm">Info Pelanggan</p>
                             {trx.customerName ? (
                                 <>
                                     <div className="flex items-start gap-2 text-sm">
-                                        <User className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                                        <span className="text-gray-800 font-medium">{trx.customerName}</span>
+                                        <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                                        <span className="text-foreground font-medium">{trx.customerName}</span>
                                     </div>
                                     {trx.customerPhone && (
                                         <div className="flex items-start gap-2 text-sm">
-                                            <Phone className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                                            <span className="text-gray-600">{trx.customerPhone}</span>
+                                            <Phone className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                                            <span className="text-muted-foreground">{trx.customerPhone}</span>
                                         </div>
                                     )}
                                     {trx.customerAddress && (
                                         <div className="flex items-start gap-2 text-sm">
-                                            <MapPin className="w-4 h-4 text-gray-400 mt-0.5 shrink-0" />
-                                            <span className="text-gray-600">{trx.customerAddress}</span>
+                                            <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                                            <span className="text-muted-foreground">{trx.customerAddress}</span>
                                         </div>
                                     )}
                                 </>
                             ) : (
-                                <p className="text-sm text-gray-400 italic">Pelanggan umum</p>
+                                <p className="text-sm text-muted-foreground italic">Pelanggan umum</p>
                             )}
                         </div>
 
                         {/* Print Queue status */}
                         {trx.printJobs && trx.printJobs.length > 0 && (
-                            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+                            <div className="bg-card rounded-xl border border-border shadow-sm p-4 space-y-2 transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
                                 <div className="flex items-center gap-2">
-                                    <Printer className="w-4 h-4 text-gray-500" />
-                                    <p className="font-semibold text-gray-800 text-sm">Status Cetak Paper</p>
+                                    <Printer className="w-4 h-4 text-muted-foreground" />
+                                    <p className="font-semibold text-foreground text-sm">Status Cetak Paper</p>
                                 </div>
                                 {trx.printJobs.map(pj => {
                                     const item = trx.items.find(i => i.id === pj.transactionItemId);
                                     const statusMap: Record<string, string> = {
-                                        ANTRIAN: 'bg-gray-100 text-gray-700 border-gray-300',
-                                        PROSES: 'bg-indigo-100 text-indigo-800 border-indigo-300',
-                                        SELESAI: 'bg-green-100 text-green-800 border-green-300',
-                                        DIAMBIL: 'bg-sky-100 text-sky-800 border-sky-300',
+                                        ANTRIAN: 'bg-muted text-muted-foreground border-border',
+                                        PROSES: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-indigo-500/20',
+                                        SELESAI: 'bg-green-500/10 text-green-600 dark:text-green-300 border-green-500/20',
+                                        DIAMBIL: 'bg-blue-500/10 text-blue-600 dark:text-blue-300 border-blue-500/20',
                                     };
                                     const lastTs = pj.pickedUpAt || pj.finishedAt || pj.startedAt;
                                     return (
-                                        <div key={pj.id} className="text-xs border-t first:border-t-0 pt-2 first:pt-0">
+                                        <div key={pj.id} className="text-xs border-t border-border/60 first:border-t-0 pt-2 first:pt-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="font-mono text-[11px] text-indigo-700 font-bold">{pj.jobNumber}</span>
+                                                <span className="font-mono text-[11px] text-primary font-bold">{pj.jobNumber}</span>
                                                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${statusMap[pj.status]}`}>{pj.status}</span>
                                             </div>
-                                            <p className="text-gray-700 mt-0.5">{item?.productVariant.product.name || '—'} · Qty {pj.quantity}</p>
+                                            <p className="text-foreground mt-0.5">{item?.productVariant.product.name || '—'} · Qty {pj.quantity}</p>
                                             {lastTs && (
-                                                <p className="text-[10px] text-gray-500 mt-0.5">
+                                                <p className="text-[10px] text-muted-foreground mt-0.5">
                                                     {dayjs(lastTs).format("DD MMM HH:mm")}{pj.operatorName ? ` · ${pj.operatorName}` : ''}
                                                 </p>
                                             )}
@@ -480,50 +482,50 @@ export default function TransactionDetailPage() {
                         )}
 
                         {/* Payment info */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
-                            <p className="font-semibold text-gray-800 text-sm">Pembayaran</p>
+                        <div className="bg-card rounded-xl border border-border shadow-sm p-4 space-y-3 transition-[box-shadow,border-color] hover:shadow-md hover:border-primary/40">
+                            <p className="font-semibold text-foreground text-sm">Pembayaran</p>
                             <div className="flex items-center gap-2 text-sm">
-                                <CreditCard className="w-4 h-4 text-gray-400 shrink-0" />
-                                <span className="text-gray-700">{PAYMENT_LABELS[trx.paymentMethod] ?? trx.paymentMethod}</span>
+                                <CreditCard className="w-4 h-4 text-muted-foreground shrink-0" />
+                                <span className="text-foreground">{PAYMENT_LABELS[trx.paymentMethod] ?? trx.paymentMethod}</span>
                             </div>
                             {trx.cashierName && (
                                 <div className="flex items-center gap-2 text-sm">
-                                    <Hash className="w-4 h-4 text-gray-400 shrink-0" />
-                                    <span className="text-gray-600">Kasir: {trx.cashierName}</span>
+                                    <Hash className="w-4 h-4 text-muted-foreground shrink-0" />
+                                    <span className="text-muted-foreground">Kasir: {trx.cashierName}</span>
                                 </div>
                             )}
                             {trx.dueDate && (
                                 <div className="flex items-center gap-2 text-sm">
-                                    <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
-                                    <span className="text-gray-600">Jatuh tempo: {dayjs(trx.dueDate).format("DD MMM YYYY")}</span>
+                                    <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                                    <span className="text-muted-foreground">Jatuh tempo: {dayjs(trx.dueDate).format("DD MMM YYYY")}</span>
                                 </div>
                             )}
 
                             {/* Totals */}
-                            <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
-                                <div className="flex justify-between text-gray-600">
+                            <div className="border-t border-border/60 pt-3 space-y-1.5 text-sm">
+                                <div className="flex justify-between text-muted-foreground">
                                     <span>Subtotal</span>
                                     <span>{formatRp(subtotal)}</span>
                                 </div>
                                 {discount > 0 && (
-                                    <div className="flex justify-between text-red-600">
+                                    <div className="flex justify-between text-red-600 dark:text-red-300">
                                         <span>Diskon</span>
                                         <span>− {formatRp(discount)}</span>
                                     </div>
                                 )}
                                 {shipping > 0 && (
-                                    <div className="flex justify-between text-gray-600">
+                                    <div className="flex justify-between text-muted-foreground">
                                         <span>Ongkir</span>
                                         <span>{formatRp(shipping)}</span>
                                     </div>
                                 )}
                                 {tax > 0 && (
-                                    <div className="flex justify-between text-gray-600">
+                                    <div className="flex justify-between text-muted-foreground">
                                         <span>Pajak</span>
                                         <span>{formatRp(tax)}</span>
                                     </div>
                                 )}
-                                <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-2 text-base">
+                                <div className="flex justify-between font-bold text-foreground border-t border-border pt-2 text-base">
                                     <span>Grand Total</span>
                                     <span>{formatRp(grandTotal)}</span>
                                 </div>
@@ -533,18 +535,18 @@ export default function TransactionDetailPage() {
                                             ? trx.marketplaceFeeItems
                                             : [{ name: 'Potongan Marketplace', amount: marketplaceFee }]
                                         ).map((fi, i) => (
-                                            <div key={i} className="flex justify-between text-red-600 text-sm">
+                                            <div key={i} className="flex justify-between text-red-600 dark:text-red-300 text-sm">
                                                 <span>{fi.name}</span>
                                                 <span>− {formatRp(Number(fi.amount))}</span>
                                             </div>
                                         ))}
                                         {trx.marketplaceFeeItems && trx.marketplaceFeeItems.length > 1 && (
-                                            <div className="flex justify-between text-red-700 font-semibold text-sm border-t border-red-100 pt-1">
+                                            <div className="flex justify-between text-red-600 dark:text-red-300 font-semibold text-sm border-t border-red-500/20 pt-1">
                                                 <span>Total Potongan</span>
                                                 <span>− {formatRp(marketplaceFee)}</span>
                                             </div>
                                         )}
-                                        <div className="flex justify-between text-emerald-700 font-semibold text-sm">
+                                        <div className="flex justify-between text-emerald-600 dark:text-emerald-300 font-semibold text-sm">
                                             <span>Diterima (nett)</span>
                                             <span>{formatRp(Math.max(0, grandTotal - marketplaceFee))}</span>
                                         </div>
@@ -552,11 +554,11 @@ export default function TransactionDetailPage() {
                                 )}
                                 {dp > 0 && (
                                     <>
-                                        <div className="flex justify-between text-emerald-600">
+                                        <div className="flex justify-between text-emerald-600 dark:text-emerald-300">
                                             <span>DP Diterima</span>
                                             <span>− {formatRp(dp)}</span>
                                         </div>
-                                        <div className={`flex justify-between font-semibold ${remaining > 0 ? "text-amber-700" : "text-emerald-700"}`}>
+                                        <div className={`flex justify-between font-semibold ${remaining > 0 ? "text-amber-600 dark:text-amber-300" : "text-emerald-600 dark:text-emerald-300"}`}>
                                             <span>Sisa</span>
                                             <span>{formatRp(remaining)}</span>
                                         </div>

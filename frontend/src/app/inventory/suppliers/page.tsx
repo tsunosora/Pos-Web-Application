@@ -147,7 +147,7 @@ export default function SuppliersPage() {
       {!isLoading && filtered.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((supplier) => (
-            <div key={supplier.id} className="rounded-xl border border-border bg-card shadow-sm hover:shadow-md transition-shadow">
+            <div key={supplier.id} className="rounded-xl border border-border bg-card shadow-sm hover:shadow-md hover:border-primary/40 transition-[box-shadow,border-color] duration-200">
               <div className="p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="min-w-0">
