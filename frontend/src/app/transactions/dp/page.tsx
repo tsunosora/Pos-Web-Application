@@ -575,7 +575,7 @@ export default function DPTransactionsPage() {
                                                     <span>Diterima (nett)</span>
                                                     <span>Rp {Math.max(0, sisaTagihan - effectiveFee).toLocaleString('id-ID')}</span>
                                                 </div>
-                                                <p className="text-muted-foreground pt-0.5">Cashflow: INCOME {Math.max(0, sisaTagihan - effectiveFee).toLocaleString('id-ID')} + EXPENSE {effectiveFee.toLocaleString('id-ID')} (Biaya Platform)</p>
+                                                <p className="text-muted-foreground pt-0.5">Cashflow: INCOME {sisaTagihan.toLocaleString('id-ID')} + EXPENSE {effectiveFee.toLocaleString('id-ID')} (Biaya Platform)</p>
                                             </div>
                                         )}
                                     </div>

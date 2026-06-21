@@ -35,6 +35,15 @@ export class TransactionsService {
         private discord: DiscordService,
     ) { }
 
+    /** Rincian potongan platform untuk note cashflow, mis. " — Rincian: Fee admin: Rp 2.000, Voucher: Rp 1.000". */
+    private formatFeeDetail(items?: { name?: string; amount: number | string }[] | null): string {
+        if (!Array.isArray(items) || items.length === 0) return '';
+        const parts = items
+            .filter((f) => Number(f.amount) > 0)
+            .map((f) => `${(f.name || '').toString().trim() || 'Potongan'}: Rp ${Number(f.amount).toLocaleString('id-ID')}`);
+        return parts.length ? ` — Rincian: ${parts.join(', ')}` : '';
+    }
+
     // Helper: buat StockMovement dengan balanceAfter otomatis dari stok variant saat ini (post-update)
     /** Kode cabang untuk prefix penomoran (SO-/SC-) — '' kalau cabang/kode kosong. */
     private async branchCodeFor(tx: any, branchId?: number | null): Promise<string> {
@@ -680,11 +689,11 @@ export class TransactionsService {
             const customerInfo = data.customerName ? ` untuk Bpk/Ibu ${data.customerName}` : '';
             const branchInfo = effectiveBranchName ? ` [${effectiveBranchName}]` : '';
             if (downPayment > 0) {
-                // Untuk LUNAS dengan marketplace fee: income = nett (setelah potongan platform)
+                // Income = GROSS (jumlah dibayar penuh). Potongan platform dicatat
+                // SEKALI sebagai expense "Biaya Platform" di bawah — saldo turun
+                // tepat 1× fee, omzet kotor akurat (hindari dobel-hitung fee).
                 const isLunas = status === TransactionStatus.PAID;
-                const incomeAmount = (isLunas && marketplaceFee > 0)
-                    ? Math.max(0, downPayment - marketplaceFee)
-                    : downPayment;
+                const incomeAmount = downPayment;
                 await tx.cashflow.create({
                     data: {
                         type: CashflowType.INCOME,
@@ -700,6 +709,7 @@ export class TransactionsService {
                 });
                 // Catat potongan marketplace sebagai expense (hanya saat lunas)
                 if (isLunas && marketplaceFee > 0) {
+                    const feeDetail = this.formatFeeDetail(feeItems);
                     await tx.cashflow.create({
                         data: {
                             type: CashflowType.EXPENSE,
@@ -707,7 +717,7 @@ export class TransactionsService {
                             amount: marketplaceFee,
                             paymentMethod: data.paymentMethod,
                             bankAccountId: data.bankAccountId || null,
-                            note: `Potongan marketplace Invoice ${invoiceNumber}${customerInfo}${branchInfo}`,
+                            note: `Potongan marketplace Invoice ${invoiceNumber}${customerInfo}${branchInfo}${feeDetail}`,
                             branchName: effectiveBranchName,
                             branchId: branchId,
                             date: effectiveCashflowDate,
@@ -1166,9 +1176,10 @@ export class TransactionsService {
                 const customerInfo = transaction.customerName ? ` untuk Bpk/Ibu ${transaction.customerName}` : '';
                 const branchInfoPO = (transaction as any).branchName ? ` [${(transaction as any).branchName}]` : '';
                 const isFromPending = transaction.status === TransactionStatus.PENDING;
-                const incomeAmount = txMarketplaceFee > 0
-                    ? Math.max(0, remainingBalance - txMarketplaceFee)
-                    : remainingBalance;
+                // Income = GROSS (sisa tagihan penuh). Potongan platform dicatat
+                // SEKALI sebagai expense "Biaya Platform" di bawah — supaya saldo
+                // turun tepat 1× fee dan omzet kotor tetap akurat (bukan dobel).
+                const incomeAmount = remainingBalance;
                 await tx.cashflow.create({
                     data: {
                         type: CashflowType.INCOME,
@@ -1183,6 +1194,7 @@ export class TransactionsService {
                     } as any
                 });
                 if (txMarketplaceFee > 0) {
+                    const feeDetail = this.formatFeeDetail(effectiveFeeItems);
                     await tx.cashflow.create({
                         data: {
                             type: CashflowType.EXPENSE,
@@ -1190,7 +1202,7 @@ export class TransactionsService {
                             amount: txMarketplaceFee,
                             paymentMethod: data.paymentMethod,
                             bankAccountId: data.bankAccountId || null,
-                            note: `Potongan marketplace Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoPO}`,
+                            note: `Potongan marketplace Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoPO}${feeDetail}`,
                             branchName: (transaction as any).branchName || null,
                             branchId: (transaction as any).branchId ?? null,
                             date: checkoutDate,

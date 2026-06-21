@@ -2205,7 +2205,7 @@ function ConvertModal({
                                         {Number(marketplaceFee) > 0 && itemsEstimate > 0 && (
                                             <p className="text-[10px] text-emerald-600 dark:text-emerald-300 mt-0.5">
                                                 Diterima (nett): <strong>Rp {Math.max(0, itemsEstimate - Number(marketplaceFee)).toLocaleString("id-ID")}</strong>
-                                                {" "}· Cashflow: INCOME {Math.max(0, itemsEstimate - Number(marketplaceFee)).toLocaleString("id-ID")} + EXPENSE {Number(marketplaceFee).toLocaleString("id-ID")} (Biaya Platform)
+                                                {" "}· Cashflow: INCOME {itemsEstimate.toLocaleString("id-ID")} + EXPENSE {Number(marketplaceFee).toLocaleString("id-ID")} (Biaya Platform)
                                             </p>
                                         )}
                                     </div>
