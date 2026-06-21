@@ -886,6 +886,17 @@ export class KpiService {
         // (jersey maupun produk lain). Item kategori "Additional" dikecualikan.
         const txPcsMap = await this.computeTxPcsMap(convertedTxIds); // txId → total pcs
 
+        // Fee platform per transaksi hasil convert → untuk pendapatan BERSIH
+        // (cuan setelah dipotong biaya platform) di leaderboard CS.
+        const txFeeMap = new Map<number, number>();
+        if (convertedTxIds.length > 0) {
+            const feeTxs: any[] = await this.tx.findMany({
+                where: { id: { in: convertedTxIds } },
+                select: { id: true, marketplaceFee: true } as any,
+            });
+            for (const t of feeTxs) txFeeMap.set(t.id, Number((t as any).marketplaceFee) || 0);
+        }
+
         // Peta lead → saldo pending (0 kalau sudah lunas / tidak punya tx)
         const leadPendingMap = new Map<number, number>();
         for (const l of leadsInPeriod) {
@@ -974,7 +985,9 @@ export class KpiService {
             entry.leadsHandled++;
             if (l.status === 'CLOSED_WON') {
                 entry.dealsClosed++;
-                entry.wonValue += Number(l.estimatedValue) || 0;
+                // Pendapatan bersih: estimasi deal dikurangi biaya platform tx convert.
+                const wonFee = l.convertedTransactionId ? (txFeeMap.get(Number(l.convertedTransactionId)) || 0) : 0;
+                entry.wonValue += Math.max(0, (Number(l.estimatedValue) || 0) - wonFee);
                 entry.pendingValue += leadPendingMap.get(l.id) ?? 0;
                 if (l.convertedTransactionId) {
                     entry.pcsOrdered += txPcsMap.get(Number(l.convertedTransactionId)) ?? 0;
@@ -1010,7 +1023,7 @@ export class KpiService {
                 createdAt: { gte: start, lte: end },
                 cashierName: { not: null },
             },
-            select: { id: true, cashierName: true, grandTotal: true, downPayment: true, status: true },
+            select: { id: true, cashierName: true, grandTotal: true, downPayment: true, status: true, marketplaceFee: true } as any,
         });
         const walkinTxs = walkinTxsRaw.filter(t => !leadTxSet.has(t.id) && (t.cashierName || '').trim());
 
@@ -1035,7 +1048,8 @@ export class KpiService {
             const entry = byAssignee.get(u.id) || zeroStat();
             entry.walkinTx++;
             entry.walkinPcs += walkinPcsMap.get(t.id) ?? 0;
-            entry.walkinValue += Number(t.grandTotal) || 0;
+            // Pendapatan bersih: harga jual dikurangi biaya platform.
+            entry.walkinValue += Math.max(0, (Number(t.grandTotal) || 0) - (Number((t as any).marketplaceFee) || 0));
             // Sisa piutang tx PENDING/PARTIAL → Nilai Akan Datang (gabung dgn pending lead)
             if (t.status === 'PENDING' || t.status === 'PARTIAL') {
                 entry.pendingValue += Math.max(0, Number(t.grandTotal) - Number(t.downPayment));
