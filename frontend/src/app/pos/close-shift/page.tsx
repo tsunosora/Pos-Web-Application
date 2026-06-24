@@ -26,17 +26,35 @@ type AdditionalIncomeItem = { bankName: string; amount: number; description: str
 // Pertukaran antar metode pembayaran (QRIS↔Tunai, titip transfer, dll)
 type PaymentExchangeItem = { from: string; to: string; amount: number; description: string };
 
+// Tanggal "hari ini" dalam zona waktu lokal (YYYY-MM-DD).
+// JANGAN pakai toISOString() — itu UTC, bisa off-by-one untuk WIB.
+const localTodayStr = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 export default function CloseShiftPage() {
     const router = useRouter();
 
     // ─── State: Data Kasir & Shift ───────────────────────────────────────
     const [adminName, setAdminName] = useState('');
     const [shiftName, setShiftName] = useState('Shift Pagi');
-    const [reportDate, setReportDate] = useState(() => new Date().toISOString().slice(0, 10));
+    // `today` & default reportDate diset ulang di client (useEffect) supaya selalu
+    // mengikuti tanggal saat dibuka, bukan tanggal build/SSR (yang membuat kalender
+    // mentok di tanggal build — bug 21-23 tidak bisa dipilih).
+    const [today, setToday] = useState(localTodayStr);
+    const [reportDate, setReportDate] = useState(localTodayStr);
     const [closeTime, setCloseTime] = useState(() => {
         const now = new Date();
         return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     });
+
+    // Koreksi tanggal ke waktu client saat mount (HTML prerender bisa membawa tanggal build).
+    useEffect(() => {
+        const t = localTodayStr();
+        setToday(t);
+        setReportDate(t);
+    }, []);
 
     // ─── State: Saldo Aktual ─────────────────────────────────────────────
     const [actualCash, setActualCash] = useState<number>(0);
@@ -563,7 +581,7 @@ export default function CloseShiftPage() {
                                                 type="date"
                                                 required
                                                 value={reportDate}
-                                                max={new Date().toISOString().slice(0, 10)}
+                                                max={today}
                                                 onChange={(e) => setReportDate(e.target.value)}
                                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             />
@@ -579,7 +597,7 @@ export default function CloseShiftPage() {
                                             />
                                         </div>
                                     </div>
-                                    {reportDate !== new Date().toISOString().slice(0, 10) && (
+                                    {reportDate !== today && (
                                         <div className="flex items-start gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                                             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                             <p className="text-xs text-amber-600 dark:text-amber-300">
