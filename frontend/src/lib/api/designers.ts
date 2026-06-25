@@ -96,8 +96,9 @@ export const designerCreateLeadFromSO = async (
     soId: number,
     designerId: number,
     pin: string,
-): Promise<{ lead: { id: number; name: string; status: string }; existing: boolean; revised?: boolean }> =>
-    (await axios.post(`${BASE}/sales-orders/designer/${soId}/create-lead`, { designerId, pin })).data;
+    opts?: { targetLeadId?: number; forceNewLead?: boolean },
+): Promise<{ lead: { id: number; name: string; status: string }; existing: boolean; revised?: boolean; merged?: boolean }> =>
+    (await axios.post(`${BASE}/sales-orders/designer/${soId}/create-lead`, { designerId, pin, ...(opts || {}) })).data;
 
 /** Upload proof gambar (public) */
 export const designerUploadProofs = async (
@@ -143,6 +144,7 @@ export interface ActiveLeadPreview {
     assignedToName: string | null;
     createdByName: string | null;
     designerName: string | null;
+    branchName: string | null;
     hasSO: boolean;
     soNumber: string | null;
     itemCount: number;
@@ -157,6 +159,13 @@ export const designerLookupLeadsByPhone = async (
     phone: string,
 ): Promise<ActiveLeadPreview[]> =>
     (await axios.post(`${BASE}/sales-orders/designer/lead-by-phone`, { designerId, pin, phone })).data;
+
+/** Daftar lead aktif dari CS (belum punya SO) — kartu pilihan di halaman buat SO. */
+export const designerListActiveCsLeads = async (
+    designerId: number,
+    pin: string,
+): Promise<ActiveLeadPreview[]> =>
+    (await axios.post(`${BASE}/sales-orders/designer/cs-leads`, { designerId, pin })).data;
 
 /** Daftar SO milik desainer */
 export const designerListSOs = async (designerId: number, pin: string) =>
