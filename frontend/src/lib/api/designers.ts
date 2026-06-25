@@ -129,6 +129,35 @@ export const designerDeleteProof = async (soId: number, proofId: number, designe
 export const designerGetSO = async (soId: number) =>
     (await axios.get(`${BASE}/sales-orders/designer/detail/${soId}`)).data;
 
+/** Preview lead aktif untuk satu nomor HP (cek apakah customer sudah punya lead). */
+export interface ActiveLeadPreview {
+    id: number;
+    name: string;
+    phone: string | null;
+    status: string;
+    level: string;
+    source: string;
+    sourceDetail: string | null;
+    needs: string | null;
+    estimatedValue: number | null;
+    assignedToName: string | null;
+    createdByName: string | null;
+    designerName: string | null;
+    hasSO: boolean;
+    soNumber: string | null;
+    itemCount: number;
+    followUpDate: string | null;
+    createdAt: string;
+    origin: 'CS' | 'DESIGNER';
+}
+
+export const designerLookupLeadsByPhone = async (
+    designerId: number,
+    pin: string,
+    phone: string,
+): Promise<ActiveLeadPreview[]> =>
+    (await axios.post(`${BASE}/sales-orders/designer/lead-by-phone`, { designerId, pin, phone })).data;
+
 /** Daftar SO milik desainer */
 export const designerListSOs = async (designerId: number, pin: string) =>
     (await axios.post(`${BASE}/sales-orders/designer/my-list`, { designerId, pin })).data;

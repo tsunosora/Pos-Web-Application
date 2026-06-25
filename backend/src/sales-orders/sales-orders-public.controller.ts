@@ -77,6 +77,17 @@ export class SalesOrdersPublicController {
         return this.soService.findOne(id);
     }
 
+    /**
+     * Preview lead aktif untuk satu nomor HP — supaya desainer tahu customer ini
+     * sudah punya lead aktif (mis. dibuat CS) sebelum membuat SO. POST agar PIN
+     * di body & nomor tidak nyangkut di log URL.
+     */
+    @Post('lead-by-phone')
+    async leadByPhone(@Body() body: { designerId: number; pin: string; phone: string }) {
+        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        return this.soService.lookupActiveLeadsByPhone(body.phone || '');
+    }
+
     /** Buat SO baru */
     @Post()
     async create(@Body() body: { designerId: number; pin: string } & CreateSalesOrderPayload) {
