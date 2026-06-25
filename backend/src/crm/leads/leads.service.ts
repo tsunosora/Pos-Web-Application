@@ -723,6 +723,16 @@ export class LeadsService {
         if (data.imageUrl !== undefined) {
             (updateData as any).imageUrl = data.imageUrl || null;
         }
+        // Cek desain pra-jual (kerja tim). Set designerName → stempel designCheckedAt.
+        if (data.designerName !== undefined) {
+            const dn = (data.designerName || '').trim();
+            (updateData as any).designerName = dn || null;
+            (updateData as any).designCheckedAt = dn ? new Date() : null;
+            if (!dn) (updateData as any).designVerdict = null;
+        }
+        if (data.designVerdict !== undefined) {
+            (updateData as any).designVerdict = data.designVerdict || null;
+        }
         // Auto-recalc estimatedValue dari items kalau items di-update & estimatedValue tidak di-set manual
         if (data.items !== undefined && data.estimatedValue === undefined) {
             const total = this.sumItemsTotal(data.items);
@@ -1197,15 +1207,17 @@ export class LeadsService {
             invoiceNumber = invoice.invoiceNumber;
         }
 
-        // Update lead: CLOSED_WON + link conversion
+        // Update lead: link conversion. Tandai CLOSED_WON KECUALI markWon=false &
+        // belum ada nota (alur "Buat Nota di Kasir": SO dulu, lead closing nanti
+        // otomatis saat SO dibuatkan nota di POS — lihat transactions.service).
+        const willMarkWon = (data as any).markWon !== false || !!transactionId;
         const updated = await this.prisma.lead.update({
             where: { id: leadId },
             data: {
-                status: 'CLOSED_WON',
+                ...(willMarkWon ? { status: 'CLOSED_WON' as any, closedAt: new Date() } : {}),
                 convertedCustomerId: customerId,
                 convertedSalesOrderId: salesOrderId,
                 ...(transactionId ? { convertedTransactionId: transactionId } : {}),
-                closedAt: new Date(),
             },
         });
 

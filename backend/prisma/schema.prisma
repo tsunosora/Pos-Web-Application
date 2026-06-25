@@ -1593,6 +1593,11 @@ model Lead {
   convertedSalesOrderId Int?          @map("converted_sales_order_id")
   convertedTransactionId Int?         @map("converted_transaction_id")
   closeLostReason       String?       @map("close_lost_reason") @db.Text
+  // Cek desain pra-jual (kerja tim CS+Designer). designerName = snapshot nama
+  // designer yg mengecek; outcome lead (closing/gagal) dibagi ke CS & designer.
+  designerName          String?       @map("designer_name") @db.VarChar(100)
+  designVerdict         String?       @map("design_verdict") @db.VarChar(20)   // BISA | TIDAK_BISA | REVISI
+  designCheckedAt       DateTime?     @map("design_checked_at")
   imageUrl              String?       @map("image_url") @db.Text
   branchId              Int?          @map("branch_id")
   createdById           Int?          @map("created_by_id")
@@ -1615,6 +1620,7 @@ model Lead {
   @@index([assignedToId, status])
   @@index([branchId, status])
   @@index([phoneNormalized])
+  @@index([designerName, status])
   @@map("leads")
 }
 

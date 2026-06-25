@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type SidebarSectionKey = 'sales' | 'inventory' | 'production' | 'customers' | 'landing' | 'others';
+export type SidebarSectionKey = 'sales' | 'inventory' | 'production' | 'customers' | 'landing' | 'others' | 'team';
 
 export type InventoryViewMode = 'table' | 'grid' | 'compact' | 'gallery';
 
@@ -41,6 +41,7 @@ export const useUIStore = create<UIState>()(
                 customers: false,
                 landing: false,
                 others: false,
+                team: false,
             },
             toggleSection: (key) =>
                 set((state) => ({

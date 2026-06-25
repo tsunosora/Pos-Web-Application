@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getKpiReport, getProductTrend, getSourceBreakdown, getDesignerLeaderboard, getCsTrend, getDesignerTrend, type KpiPeriod, type LeaderboardTrendReport, LEAD_SOURCE_LABEL } from "@/lib/api";
+import Link from "next/link";
+import { getKpiReport, getProductTrend, getSourceBreakdown, getDesignerLeaderboard, getDesignOutput, getCsTrend, getDesignerTrend, type KpiPeriod, type LeaderboardTrendReport, LEAD_SOURCE_LABEL } from "@/lib/api";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, Legend, LineChart, Line,
@@ -370,236 +371,17 @@ export default function CrmDashboardPage() {
                         csOptions={(data?.leaderboard ?? []).map(r => ({ id: r.userId, name: r.name }))}
                     />
 
-                    {/* Leaderboard */}
-                    <div className="bg-card rounded-2xl border border-border shadow-sm p-5 transition-[box-shadow,border-color] hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                            <h2 className="font-bold text-base flex items-center gap-2">
-                                <span className="h-8 w-8 rounded-xl flex items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                                    <Trophy className="h-5 w-5" />
-                                </span>
-                                Leaderboard CS
-                            </h2>
-                            {/* Urutkan berdasarkan + tombol grafik */}
-                            <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-[10px] text-muted-foreground font-semibold uppercase mr-1">Urutkan:</span>
-                                {([
-                                    { key: "cs",   label: "CS" },
-                                    { key: "lead", label: "Lead" },
-                                    { key: "rate", label: "Closing Rate" },
-                                    { key: "uang", label: "Uang" },
-                                ] as const).map(({ key, label }) => (
-                                    <button
-                                        key={key}
-                                        onClick={() => setLeaderboardSort(key)}
-                                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
-                                            leaderboardSort === key
-                                                ? "bg-primary text-primary-foreground"
-                                                : "bg-muted text-muted-foreground hover:bg-accent"
-                                        }`}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
-                                <button
-                                    onClick={() => setShowCsChart(true)}
-                                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors ml-1"
-                                >
-                                    <BarChart3 className="h-3.5 w-3.5" /> Grafik CS
-                                </button>
+                    {/* Semua leaderboard dipindah ke halaman khusus */}
+                    <Link href="/leaderboard" className="block bg-gradient-to-r from-amber-500/10 to-transparent border border-amber-500/20 rounded-2xl p-4 hover:border-amber-500/40 transition-colors">
+                        <div className="flex items-center gap-3">
+                            <span className="h-11 w-11 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center shrink-0"><Trophy className="h-6 w-6" /></span>
+                            <div className="min-w-0">
+                                <div className="font-bold text-foreground">Leaderboard Tim →</div>
+                                <div className="text-xs text-muted-foreground">Semua leaderboard (CS &amp; Designer) + gelar juara, grafik &amp; cara hitung kini ada di halaman khusus.</div>
                             </div>
                         </div>
-                        {data.leaderboard.length === 0 ? (
-                            <p className="text-sm text-muted-foreground text-center py-6">
-                                Belum ada lead ter-assign maupun transaksi POS yang ditangani CS di periode ini.
-                            </p>
-                        ) : (
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                    <thead>
-                                        <tr className="border-b text-xs text-muted-foreground uppercase">
-                                            <th className="text-left py-2 px-2">#</th>
-                                            <th className="text-left py-2 px-2">Nama CS</th>
-                                            <th className="text-right py-2 px-2">Leads</th>
-                                            <th className="text-right py-2 px-2">Closing</th>
-                                            <th className="text-right py-2 px-2 text-blue-600">Pcs Lead</th>
-                                            <th className="text-right py-2 px-2 text-amber-600" title="Jumlah barang dari transaksi POS walk-in (non-lead) yang ditangani CS">Pcs WO</th>
-                                            <th className="text-right py-2 px-2 text-amber-600" title="Jumlah transaksi POS walk-in (non-lead) yang ditangani CS">Trx WO</th>
-                                            <th className="text-right py-2 px-2">Lost</th>
-                                            <th className="text-right py-2 px-2 text-orange-600">Invalid</th>
-                                            <th className="text-right py-2 px-2">Rate</th>
-                                            <th className="text-right py-2 px-2">Nilai WON</th>
-                                            <th className="text-right py-2 px-2 text-amber-600" title="Omzet (grandTotal) dari transaksi POS walk-in (non-lead) yang ditangani CS">Omzet WO</th>
-                                            <th className="text-right py-2 px-2">Nilai Akan Datang</th>
-                                            <th className="text-right py-2 px-2">Nilai Lost</th>
-                                            <th className="text-right py-2 px-2">Avg Response</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {(() => {
-                                            // Nilai metrik aktif untuk progress bar relatif terhadap #1
-                                            const metricVal = (r: typeof sortedLeaderboard[number]) =>
-                                                leaderboardSort === "lead" ? r.leadsHandled
-                                                : leaderboardSort === "rate" ? r.closingRate
-                                                : leaderboardSort === "uang" ? r.wonValue + r.walkinValue
-                                                : 0;
-                                            const topVal = Math.max(1, ...sortedLeaderboard.map(metricVal));
-                                            return sortedLeaderboard.map((row, i) => {
-                                            const isPodium = leaderboardSort !== "cs" && i < 3;
-                                            const champ = i === 0 && leaderboardSort !== "cs" ? CHAMP_TITLE[leaderboardSort] : null;
-                                            const isChampion = i === 0 && leaderboardSort !== "cs";
-                                            const pct = leaderboardSort !== "cs" ? Math.round((metricVal(row) / topVal) * 100) : 0;
-                                            return (
-                                            <tr
-                                                key={row.userId}
-                                                className={`border-t transition-colors hover:bg-accent/50 animate-in fade-in slide-in-from-bottom-1 ${
-                                                    isChampion
-                                                        ? "ring-1 ring-amber-500/30 bg-gradient-to-r from-amber-500/10 to-transparent"
-                                                        : isPodium ? "bg-muted/40 border-l-4 " + PODIUM_ACCENT[i] : ""
-                                                }`}
-                                                style={{ animationDelay: `${i * 30}ms` }}
-                                            >
-                                                <td className="py-2 px-2 text-center">
-                                                    {isPodium
-                                                        ? <span className="text-lg">{MEDAL[i]}</span>
-                                                        : <span className="text-muted-foreground font-mono text-xs">{i + 1}</span>}
-                                                </td>
-                                                <td className="py-2 px-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${AVATAR_ACCENTS[i % AVATAR_ACCENTS.length]}`}>
-                                                            {initials(row.name)}
-                                                        </span>
-                                                        <div className="min-w-[120px]">
-                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                <span className={`font-semibold ${isChampion ? "text-amber-700 dark:text-amber-300" : ""}`}>{row.name}</span>
-                                                                {champ && (
-                                                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-300 border border-amber-500/30 text-[9px] font-bold whitespace-nowrap">
-                                                                        {champ.icon} {champ.label}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            {leaderboardSort !== "cs" && (
-                                                                <div className="mt-1 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                                                                    <div
-                                                                        className={`h-full rounded-full transition-[width] duration-500 ${isChampion ? "bg-amber-500" : "bg-primary/70"}`}
-                                                                        style={{ width: `${pct}%` }}
-                                                                    />
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">{row.leadsHandled}</td>
-                                                <td className="py-2 px-2 text-right font-mono text-emerald-700 font-semibold">{row.dealsClosed}</td>
-                                                <td className="py-2 px-2 text-right font-mono text-blue-600 font-semibold">
-                                                    {row.pcsOrdered > 0 ? `${row.pcsOrdered.toLocaleString('id-ID')} pcs` : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-amber-600 font-semibold">
-                                                    {row.walkinPcs > 0 ? `${row.walkinPcs.toLocaleString('id-ID')} pcs` : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-amber-600">
-                                                    {row.walkinTx > 0 ? row.walkinTx.toLocaleString('id-ID') : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-red-600">{row.dealsLost}</td>
-                                                <td className="py-2 px-2 text-right font-mono text-orange-600">
-                                                    {row.invalidLeads > 0 ? row.invalidLeads : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono">
-                                                    {(row.closingRate * 100).toFixed(0)}%
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-emerald-700">
-                                                    {row.wonValue > 0
-                                                        ? `Rp ${row.wonValue.toLocaleString('id-ID')}`
-                                                        : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-amber-600 font-semibold">
-                                                    {row.walkinValue > 0
-                                                        ? `Rp ${row.walkinValue.toLocaleString('id-ID')}`
-                                                        : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-amber-600">
-                                                    {row.pendingValue > 0 ? (
-                                                        <span title="Saldo piutang dari transaksi PENDING/DP belum lunas">
-                                                            Rp {row.pendingValue.toLocaleString('id-ID')}
-                                                        </span>
-                                                    ) : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-red-600">
-                                                    {row.lostValue > 0
-                                                        ? `Rp ${row.lostValue.toLocaleString('id-ID')}`
-                                                        : <span className="text-muted-foreground/40">—</span>}
-                                                </td>
-                                                <td className="py-2 px-2 text-right font-mono text-muted-foreground">
-                                                    {row.avgResponseHrs != null
-                                                        ? `${row.avgResponseHrs.toFixed(1)}h`
-                                                        : <span className="text-muted-foreground">—</span>}
-                                                </td>
-                                            </tr>
-                                            );
-                                        });
-                                        })()}
-                                    </tbody>
-                                    {/* Footer: total row */}
-                                    <tfoot>
-                                        <tr className="border-t-2 border-border bg-muted font-semibold text-xs">
-                                            <td colSpan={2} className="py-2 px-2 text-muted-foreground">Total</td>
-                                            <td className="py-2 px-2 text-right font-mono">{data.totals.totalLeads}</td>
-                                            <td className="py-2 px-2 text-right font-mono text-emerald-700">{data.totals.closedWon}</td>
-                                            <td className="py-2 px-2 text-right font-mono text-blue-600">
-                                                {(data.totals.totalPcs ?? 0) > 0 ? `${data.totals.totalPcs.toLocaleString('id-ID')} pcs` : '—'}
-                                            </td>
-                                            <td className="py-2 px-2 text-right font-mono text-red-600">{data.totals.closedLost}</td>
-                                            <td className="py-2 px-2 text-right font-mono text-orange-600">{data.totals.totalInvalid ?? 0}</td>
-                                            <td className="py-2 px-2 text-right font-mono">
-                                                {(data.metrics.closingRate * 100).toFixed(0)}%
-                                            </td>
-                                            <td className="py-2 px-2 text-right font-mono text-emerald-700">
-                                                {data.totals.wonValue > 0
-                                                    ? `Rp ${data.totals.wonValue.toLocaleString('id-ID')}`
-                                                    : '—'}
-                                            </td>
-                                            <td className="py-2 px-2 text-right font-mono text-amber-600">
-                                                {data.totals.pendingValue > 0
-                                                    ? `Rp ${data.totals.pendingValue.toLocaleString('id-ID')}`
-                                                    : '—'}
-                                            </td>
-                                            <td className="py-2 px-2 text-right font-mono text-red-600">
-                                                {data.totals.lostValue > 0
-                                                    ? `Rp ${data.totals.lostValue.toLocaleString('id-ID')}`
-                                                    : '—'}
-                                            </td>
-                                            <td className="py-2 px-2 text-right font-mono text-muted-foreground">
-                                                {data.metrics.responseTimeAvgHrs > 0
-                                                    ? `${data.metrics.responseTimeAvgHrs.toFixed(1)}h`
-                                                    : '—'}
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
-                        )}
-                    </div>
+                    </Link>
 
-                    {showCsChart && (
-                        <LeaderboardChartModal
-                            title="Grafik Tren CS"
-                            fetcher={getCsTrend}
-                            queryKey="crm-cs-trend"
-                            metrics={CS_CHART_METRICS}
-                            period={period}
-                            customStart={customStart}
-                            customEnd={customEnd}
-                            branchId={branchParam}
-                            onClose={() => setShowCsChart(false)}
-                        />
-                    )}
-
-                    {/* Leaderboard Designer */}
-                    <DesignerLeaderboard
-                        period={period}
-                        customStart={customStart}
-                        customEnd={customEnd}
-                        branchId={branchParam}
-                    />
                 </>
             )}
         </div>
@@ -1460,6 +1242,80 @@ function LeaderboardChartModal({
                     )}
                 </div>
             </div>
+        </div>
+    );
+}
+
+// ── Produktivitas Jasa Desain (berapa desain dikerjakan + rincian per tier) ───
+function DesignOutputCard({
+    period, customStart, customEnd, branchId,
+}: {
+    period: KpiPeriod;
+    customStart: string;
+    customEnd: string;
+    branchId: number | 'all' | undefined;
+}) {
+    const { data, isLoading } = useQuery({
+        queryKey: ["crm-design-output", period, customStart, customEnd, branchId],
+        queryFn: () => getDesignOutput({
+            period,
+            start: period === "custom" ? customStart : undefined,
+            end: period === "custom" ? customEnd : undefined,
+            branchId,
+        }),
+    });
+    const rows = data ?? [];
+
+    return (
+        <div className="bg-card rounded-2xl border border-border shadow-sm p-4 sm:p-5 animate-in fade-in slide-in-from-bottom-2 duration-500">
+            <div className="flex items-center gap-2 mb-3">
+                <span className="h-8 w-8 rounded-xl bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300 flex items-center justify-center shrink-0">
+                    <Palette className="h-4 w-4" />
+                </span>
+                <div>
+                    <h2 className="font-bold text-base leading-tight">Produktivitas Jasa Desain</h2>
+                    <p className="text-xs text-muted-foreground">Berapa desain dikerjakan tiap designer + rincian tier. Ganti periode di atas (mis. "Hari Ini").</p>
+                </div>
+            </div>
+
+            {isLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+            ) : rows.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">Belum ada jasa desain di periode ini.</div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[560px]">
+                        <thead>
+                            <tr className="text-xs text-muted-foreground border-b border-border">
+                                <th className="py-2 px-2 text-left">Designer</th>
+                                <th className="py-2 px-2 text-right">Total Desain</th>
+                                <th className="py-2 px-2 text-left">Rincian Tier</th>
+                                <th className="py-2 px-2 text-right">Omzet Desain</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {rows.map((d, i) => (
+                                <tr key={d.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors align-top">
+                                    <td className="py-2 px-2 font-medium text-foreground">
+                                        <span className="text-muted-foreground font-mono text-xs mr-2">{i + 1}</span>{d.name}
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono font-bold text-fuchsia-600 dark:text-fuchsia-300">{d.total}</td>
+                                    <td className="py-2 px-2">
+                                        <div className="flex flex-wrap gap-1">
+                                            {d.byTier.map(t => (
+                                                <span key={t.tier} className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground">
+                                                    {t.tier}<span className="font-semibold text-muted-foreground">·{t.count}</span>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </td>
+                                    <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">Rp {d.omzet.toLocaleString('id-ID')}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
     );
 }

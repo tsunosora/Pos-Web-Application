@@ -494,6 +494,61 @@ export class KpiService {
     //  - express    : job Express yang ditangani
     //  - avgDesignHrs: rata-rata jam dari job dibuat sampai proof pertama (designEnteredAt)
     // accRate = acc / (assignment - batal). Bucket/periode pakai job.createdAt.
+    /**
+     * Produktivitas jasa desain per designer (berbasis order/ProductionJob).
+     * "Berapa desain dikerjakan" tiap designer di periode, dipecah per tier (nama
+     * varian) + omzet jasa desainnya. Deteksi item: produk bernama "Desain".
+     * Basis tanggal = job.createdAt (samakan dgn leaderboard designer omzet).
+     */
+    async designOutput(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+
+        const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+            where: {
+                ...branchScope,
+                createdAt: { gte: start, lte: end },
+                designerName: { not: null },
+                transactionItem: { productVariant: { product: { name: { contains: 'desain' } } } },
+            },
+            select: {
+                designerName: true,
+                transactionItem: {
+                    select: {
+                        quantity: true, priceAtTime: true,
+                        productVariant: { select: { variantName: true } },
+                    },
+                },
+            },
+        });
+
+        type Stat = { total: number; omzet: number; byTier: Map<string, number> };
+        const byDesigner = new Map<string, Stat>();
+        for (const j of jobs) {
+            const name = (j.designerName || '').trim();
+            const ti = j.transactionItem;
+            if (!name || !ti) continue;
+            const qty = Number(ti.quantity) || 1;
+            const tier = ((ti.productVariant?.variantName || 'Standar').trim()) || 'Standar';
+            const e = byDesigner.get(name) || { total: 0, omzet: 0, byTier: new Map<string, number>() };
+            e.total += qty;
+            e.omzet += Number(ti.priceAtTime || 0) * qty;
+            e.byTier.set(tier, (e.byTier.get(tier) || 0) + qty);
+            byDesigner.set(name, e);
+        }
+
+        return Array.from(byDesigner.entries())
+            .map(([name, s]) => ({
+                name,
+                total: s.total,
+                omzet: s.omzet,
+                byTier: Array.from(s.byTier.entries())
+                    .map(([tier, count]) => ({ tier, count }))
+                    .sort((a, b) => b.count - a.count),
+            }))
+            .sort((a, b) => b.total - a.total);
+    }
+
     async designerLeaderboard(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);
@@ -819,7 +874,7 @@ export class KpiService {
         // sort + ambil first di JS.
         const leadsInPeriod: any[] = await this.lead.findMany({
             where: { ...branchScope, ...csScope, createdAt: { gte: start, lte: end } },
-            select: { id: true, createdAt: true, status: true, source: true, sourceDetail: true, assignedToId: true, estimatedValue: true, convertedTransactionId: true },
+            select: { id: true, createdAt: true, status: true, source: true, sourceDetail: true, assignedToId: true, estimatedValue: true, convertedTransactionId: true, designerName: true, designVerdict: true } as any,
         });
         const leadIds = leadsInPeriod.map(l => l.id);
         const allActivities: any[] = leadIds.length === 0 ? [] : await this.activity.findMany({
@@ -1033,7 +1088,7 @@ export class KpiService {
         // Semua user — untuk match cashierName→userId & resolve nama leaderboard
         // (CS yang hanya punya walk-in tanpa lead tetap muncul di leaderboard).
         const allUsers: any[] = await this.prisma.user.findMany({
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true, email: true, role: { select: { name: true } } },
         });
         const userMap = new Map(allUsers.map(u => [u.id, u]));
         const nameToUser = new Map<string, any>();
@@ -1063,6 +1118,7 @@ export class KpiService {
                 return {
                     userId,
                     name: u?.name || u?.email || `User #${userId}`,
+                    roleName: u?.role?.name || null,
                     leadsHandled: stat.leadsHandled,
                     dealsClosed: stat.dealsClosed,
                     dealsLost: stat.dealsLost,
@@ -1090,6 +1146,31 @@ export class KpiService {
             { tx: 0, pcs: 0, value: 0 },
         );
 
+        // ── Leaderboard Designer (cek desain pra-jual, dari lead) ──────────
+        // Kerja tim: outcome lead (closing/gagal) dibagi ke designer yg mengecek.
+        // 'batalTeknis' = gagal yg verdict-nya TIDAK_BISA (murni soal desain).
+        type DesStat = { dicek: number; closing: number; batal: number; open: number; batalTeknis: number };
+        const byDesigner = new Map<string, DesStat>();
+        for (const l of leadsInPeriod) {
+            const name = (l.designerName || '').trim();
+            if (!name) continue;
+            const e = byDesigner.get(name) || { dicek: 0, closing: 0, batal: 0, open: 0, batalTeknis: 0 };
+            e.dicek++;
+            if (l.status === 'CLOSED_WON') e.closing++;
+            else if (l.status === 'CLOSED_LOST') {
+                e.batal++;
+                if (l.designVerdict === 'TIDAK_BISA') e.batalTeknis++;
+            } else if (l.status !== 'INVALID') e.open++;
+            byDesigner.set(name, e);
+        }
+        const designCheckLeaderboard = Array.from(byDesigner.entries())
+            .map(([name, s]) => ({
+                name, dicek: s.dicek, closing: s.closing, batal: s.batal,
+                open: s.open, batalTeknis: s.batalTeknis,
+                closingRate: s.dicek > 0 ? s.closing / s.dicek : 0,
+            }))
+            .sort((a, b) => b.dicek - a.dicek || b.closing - a.closing);
+
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
             totals: {
@@ -1116,6 +1197,7 @@ export class KpiService {
                 repeatOrderRate: Number(repeatOrderRate.toFixed(4)),
             },
             leadsBySource,
+            designCheckLeaderboard,
             leaderboard,
         };
     }

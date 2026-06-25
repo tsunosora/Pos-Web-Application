@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
@@ -17,7 +18,7 @@ import { LeadImageCarousel } from "@/components/crm/LeadImageCarousel";
 import {
     Plus, Search, X, Phone, MessageSquare, Calendar, MapPin, Sparkles, Trash2,
     Loader2, ChevronRight, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
-    CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays, Link2, Unlink,
+    CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays, Link2, Unlink, Palette,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -324,7 +325,7 @@ export default function LeadsPage() {
 
                 {/* Row 2: advanced filters (collapsible) */}
                 {showFilters && (
-                    <div className="flex gap-2 flex-wrap items-start p-3 bg-card rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                    <div className="relative z-40 flex gap-2 flex-wrap items-start p-3 bg-card rounded-xl border border-border shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
                         {/* Date preset */}
                         <div className="relative" ref={dateDropdownRef}>
                             <button
@@ -338,7 +339,7 @@ export default function LeadsPage() {
                                 <ChevronDown className="h-3.5 w-3.5 opacity-60" />
                             </button>
                             {showDateDropdown && (
-                                <div className="absolute top-full left-0 mt-1 z-30 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-150">
+                                <div className="absolute top-full left-0 mt-1 z-50 bg-card border border-border rounded-xl shadow-lg py-1 min-w-[160px] animate-in fade-in zoom-in-95 duration-150">
                                     {(Object.keys(DATE_PRESET_LABELS) as DatePreset[]).map((p) => (
                                         <button
                                             key={p}
@@ -998,6 +999,7 @@ function LeadDetailDrawer({
     const [invalidReason, setInvalidReason] = useState("");
     const [showTemplate, setShowTemplate] = useState(false);
     const [closeLostReason, setCloseLostReason] = useState("");
+    const [lostItems, setLostItems] = useState<LeadItem[]>([]);   // produk yg batal dipesan (opsional)
 
     const invalidate = () => {
         qc.invalidateQueries({ queryKey: ["crm-lead", leadId] });
@@ -1015,13 +1017,35 @@ function LeadDetailDrawer({
         onSuccess: invalidate,
     });
 
+    // Cek desain pra-jual — pilih designer & verdict (simpan instan)
+    const { data: designersList } = useQuery({
+        queryKey: ['designers-list'],
+        queryFn: async () => (await api.get('/designers')).data as { id: number; name: string; isActive: boolean }[],
+        staleTime: 5 * 60_000,
+    });
+    const activeDesigners = (designersList || []).filter(d => d.isActive);
+    const designMut = useMutation({
+        mutationFn: (d: { designerName?: string | null; designVerdict?: string | null }) => updateLead(leadId, d),
+        onSuccess: invalidate,
+    });
+
     const respMut = useMutation({
         mutationFn: (firstResponseAt: string | null) => updateLead(leadId, { firstResponseAt }),
         onSuccess: invalidate,
     });
 
     const convertMut = useMutation({
-        mutationFn: (data: any) => convertLead(leadId, data),
+        // Simpan dulu produk yang dipilih di modal ke lead (lead bisa dibuat tanpa
+        // produk), baru convert → Nota/SO/job produksi pakai item ini.
+        mutationFn: async (data: any) => {
+            const { items, ...rest } = data;
+            if (Array.isArray(items)) {
+                const valid = items.filter((it: any) => it.productVariantId || it.customName);
+                const est = valid.reduce((s: number, it: any) => s + calcItemSubtotal(it), 0);
+                await updateLead(leadId, { items: valid, estimatedValue: est || undefined });
+            }
+            return convertLead(leadId, rest);
+        },
         onSuccess: (result: any) => {
             invalidate();
             setShowConvert(false);
@@ -1055,10 +1079,25 @@ function LeadDetailDrawer({
         },
     });
 
+    // Saat Lost: kalau CS isi produk yg batal, simpan dulu ke lead (buat analisa
+    // "produk apa yang sering batal"), baru tandai Lost.
     const closeLostMut = useMutation({
-        mutationFn: () => closeLeadLost(leadId, closeLostReason),
-        onSuccess: () => { invalidate(); setShowCloseLost(false); setCloseLostReason(""); },
+        mutationFn: async () => {
+            const valid = lostItems.filter(it => (it as any).productVariantId || (it as any).customName);
+            if (valid.length > 0) {
+                const est = valid.reduce((s, it) => s + calcItemSubtotal(it), 0);
+                await updateLead(leadId, { items: valid as any, estimatedValue: est });
+            }
+            return closeLeadLost(leadId, closeLostReason);
+        },
+        onSuccess: () => { invalidate(); setShowCloseLost(false); setCloseLostReason(""); setLostItems([]); },
     });
+
+    // Prefill editor produk Lost dari item lead yang sudah ada (kalau ada)
+    useEffect(() => {
+        if (showCloseLost) setLostItems(((leadDetail as any)?.items as LeadItem[]) ?? []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [showCloseLost]);
 
     // Alur B: tautkan / lepas tautan lead ↔ SO desainer (tanpa bikin nota baru)
     const linkSOMut = useMutation({
@@ -1082,6 +1121,26 @@ function LeadDetailDrawer({
         onError: (err: any) => {
             alert(`Gagal menyimpan data CS/sumber: ${err?.response?.data?.message || err?.message || 'Terjadi kesalahan.'}`);
         },
+    });
+
+    // Buat Nota DI KASIR: buat customer + SO (TANPA transaction), lalu arahkan ke
+    // POS (?fromSO) — nota dibuat di kasir (model konsisten). Lead auto-closing
+    // saat SO itu dibuatkan nota di POS.
+    const buatNotaKasirMut = useMutation({
+        mutationFn: () => convertLead(leadId, {
+            createCustomer: true,
+            createSalesOrderDraft: true,
+            createInvoiceDraft: false,
+            createProductionTransaction: false,
+            markWon: false,   // lead closing nanti otomatis saat nota dibuat di POS
+        }),
+        onSuccess: (result: any) => {
+            invalidate();
+            const soId = result?._convertResult?.salesOrderId;
+            if (soId) window.location.href = `/pos?fromSO=${soId}`;
+            else alert("SO gagal dibuat. Coba lagi.");
+        },
+        onError: (e: any) => alert(`Gagal: ${e?.response?.data?.message || e?.message || e}`),
     });
 
     const markInvalidMut = useMutation({
@@ -1330,6 +1389,48 @@ function LeadDetailDrawer({
                         </div>
                     )}
 
+                    {/* Cek Desain pra-jual — kerja tim CS + Designer */}
+                    <div className="bg-card border border-border rounded-xl p-3 space-y-2">
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                            <Palette className="h-4 w-4 text-violet-500 dark:text-violet-300" /> Cek Desain
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                                <label className="text-xs text-muted-foreground">Designer pengecek</label>
+                                <select
+                                    value={lead2.designerName ?? ""}
+                                    onChange={(e) => designMut.mutate({ designerName: e.target.value || null })}
+                                    disabled={designMut.isPending}
+                                    className="w-full mt-0.5 bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-ring outline-none"
+                                >
+                                    <option value="">— Belum dicek —</option>
+                                    {activeDesigners.map((d) => (
+                                        <option key={d.id} value={d.name}>{d.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-xs text-muted-foreground">Hasil cek</label>
+                                <select
+                                    value={lead2.designVerdict ?? ""}
+                                    onChange={(e) => designMut.mutate({ designVerdict: e.target.value || null })}
+                                    disabled={designMut.isPending || !lead2.designerName}
+                                    className="w-full mt-0.5 bg-background border border-border rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-ring outline-none disabled:opacity-50"
+                                >
+                                    <option value="">—</option>
+                                    <option value="BISA">Bisa dicetak</option>
+                                    <option value="TIDAK_BISA">Tidak bisa dicetak</option>
+                                    <option value="REVISI">Perlu revisi</option>
+                                </select>
+                            </div>
+                        </div>
+                        {lead2.designerName && (
+                            <p className="text-[11px] text-muted-foreground">
+                                Outcome lead ini (closing/gagal) masuk KPI <strong>{lead2.designerName}</strong> & CS — kerja tim.
+                            </p>
+                        )}
+                    </div>
+
                     {/* Status quick change — tampil selama bukan Lost */}
                     {!isLost && (
                         <div className="flex gap-2 flex-wrap">
@@ -1359,21 +1460,33 @@ function LeadDetailDrawer({
                         >
                             <MessageCircle className="h-4 w-4" /> Copy Template WA
                         </button>
-                        {/* Convert — tampil selama bukan Lost */}
+                        {/* Closing — tampil selama bukan Lost */}
                         {!isLost && (
                             isWon && !isOwner ? (
                                 <span className="px-3 py-2 bg-muted text-muted-foreground rounded-lg text-sm flex items-center gap-1 cursor-default" title="Sudah di-convert. Hanya owner yang bisa convert ulang.">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Sudah Di-convert
                                 </span>
                             ) : (
-                                <button
-                                    onClick={() => setShowConvert(true)}
-                                    className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 ${isWon ? "bg-amber-500 hover:bg-amber-600 text-white" : "bg-emerald-600 hover:bg-emerald-700 text-white"}`}
-                                    title={isWon ? "Lead sudah di-convert — re-convert sebagai owner" : undefined}
-                                >
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    {isWon ? "Re-convert (Owner)" : "Convert (Closing)"}
-                                </button>
+                                <>
+                                    {/* UTAMA: buat nota lewat kasir POS (model konsisten) */}
+                                    <button
+                                        onClick={() => buatNotaKasirMut.mutate()}
+                                        disabled={buatNotaKasirMut.isPending}
+                                        className="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
+                                        title="Buat customer + SO, lalu lanjut ke kasir POS untuk membuat nota"
+                                    >
+                                        🧾 {buatNotaKasirMut.isPending ? "Menyiapkan…" : "Buat Nota di Kasir"}
+                                    </button>
+                                    {/* SEKUNDER: nota cepat langsung (tanpa kasir) — model lama */}
+                                    <button
+                                        onClick={() => setShowConvert(true)}
+                                        className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 border border-border text-muted-foreground hover:bg-accent"
+                                        title="Buat nota langsung tanpa lewat kasir (model lama)"
+                                    >
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        {isWon ? "Re-convert (Owner)" : "Nota cepat (tanpa kasir)"}
+                                    </button>
+                                </>
                             )
                         )}
                         {/* Tautkan SO desainer (Alur B) — hanya kalau belum terminal */}
@@ -1472,7 +1585,9 @@ function LeadDetailDrawer({
                     </div>
                 </div>
 
-                {/* Modals */}
+                {/* Modals — di-portal ke body agar TIDAK terjebak containing-block
+                    panel drawer (transform animate-in) → modal center di viewport. */}
+                {typeof document !== 'undefined' && createPortal(<>
                 {showConvert && (
                     <ConvertModal
                         lead={lead2}
@@ -1502,7 +1617,7 @@ function LeadDetailDrawer({
 
                 {showCloseLost && (
                     <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
-                        <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
+                        <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-lg w-full max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-200">
                             <div className="flex items-center gap-2.5 mb-2">
                                 <div className="h-8 w-8 rounded-lg bg-red-500/10 text-red-600 dark:text-red-300 flex items-center justify-center">
                                     <XCircle className="h-4 w-4" />
@@ -1517,6 +1632,18 @@ function LeadDetailDrawer({
                                 placeholder="mis. Customer pilih kompetitor karena harga lebih murah"
                                 className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             />
+
+                            {/* Produk yang batal dipesan (opsional) — buat analisa lost */}
+                            <div className="mb-3 pt-2 border-t border-dashed border-border">
+                                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Produk yang batal dipesan (opsional)</label>
+                                <p className="text-[11px] text-muted-foreground mb-1.5">Isi kalau sudah tahu tadinya mau order apa — biar terdata "produk apa yang sering batal".</p>
+                                <LeadItemsEditor items={lostItems} onChange={setLostItems} />
+                                {lostItems.length > 0 && (
+                                    <div className="text-right text-xs text-muted-foreground mt-1">
+                                        Estimasi nilai lost: <strong className="text-foreground">Rp {lostItems.reduce((s, it) => s + calcItemSubtotal(it), 0).toLocaleString("id-ID", { maximumFractionDigits: 0 })}</strong>
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex gap-2">
                                 <button onClick={() => setShowCloseLost(false)} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                                 <button
@@ -1574,6 +1701,7 @@ function LeadDetailDrawer({
                         onActivityLogged={invalidate}
                     />
                 )}
+                </>, document.body)}
             </div>
         </div>
     );
@@ -1867,9 +1995,11 @@ function ConvertModal({
         return () => clearTimeout(t);
     }, [createCustomer, customerSearchPhone]);
 
-    const totalItems = (lead.items || []).length;
-    const itemsWithVariant = (lead.items || []).filter(it => it.productVariantId);
-    const itemsCustom = (lead.items || []).filter(it => !it.productVariantId);
+    // Produk order — bisa diedit di sini (lead bisa dibuat tanpa produk dulu)
+    const [convItems, setConvItems] = useState<LeadItem[]>(lead.items ?? []);
+    const totalItems = convItems.length;
+    const itemsWithVariant = convItems.filter(it => it.productVariantId);
+    const itemsCustom = convItems.filter(it => !it.productVariantId);
 
     // ── Payment state ───────────────────────────────────────────────────────
     const [paymentMode, setPaymentMode] = useState<'NONE' | 'DP' | 'LUNAS'>('NONE');
@@ -1878,9 +2008,9 @@ function ConvertModal({
     const [bankAccountId, setBankAccountId] = useState<string>("");
     const [marketplaceFee, setMarketplaceFee] = useState<string>("");
 
-    // Estimasi total dari lead items
+    // Estimasi total dari item order (yang sedang diedit)
     const itemsEstimate = useMemo(() => {
-        return (lead.items || []).reduce((sum, it) => {
+        return convItems.reduce((sum, it) => {
             const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
             const qty = Number(it.quantity) || 1;
             const price = Number(it.unitPrice) || 0;
@@ -1890,7 +2020,7 @@ function ConvertModal({
             }
             return sum + Math.round(price * qty);
         }, 0);
-    }, [lead.items]);
+    }, [convItems]);
 
     // Designers list untuk picker
     const { data: designers } = useQuery({
@@ -2040,10 +2170,21 @@ function ConvertModal({
                                         {' '}→ Nota dibuat + job di-spawn ke <code>/produksi</code>.
                                     </>
                                 ) : (
-                                    <span className="text-amber-600">Lead belum punya item. Tambahkan item di lead agar masuk pipeline produksi.</span>
+                                    <span className="text-amber-600">Belum ada produk. Pilih di bawah ini supaya masuk Nota &amp; pipeline produksi.</span>
                                 )}
                             </div>
                         </div>
+                    </div>
+
+                    {/* 2b. Produk order — bisa input di sini kalau lead dibuat tanpa produk */}
+                    <div>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Produk yang diorder</label>
+                        <LeadItemsEditor items={convItems} onChange={setConvItems} />
+                        {convItems.length > 0 && (
+                            <div className="text-right text-xs text-muted-foreground mt-1">
+                                Estimasi: <strong className="text-foreground">Rp {itemsEstimate.toLocaleString("id-ID")}</strong>
+                            </div>
+                        )}
                     </div>
 
                     {/* 3. Catatan */}
@@ -2240,6 +2381,7 @@ function ConvertModal({
                     <button onClick={onClose} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                     <button
                         onClick={() => onSubmit({
+                            items: convItems,
                             createCustomer,
                             customerId: !createCustomer && existingCustomerId ? existingCustomerId : undefined,
                             createSalesOrderDraft: false,
