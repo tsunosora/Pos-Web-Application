@@ -501,6 +501,62 @@ export class SalesOrdersService {
             return { lead, existing: true, revised: true };
         }
 
+        // ── SATU PINTU: kalau customer (HP sama) sudah punya lead CS yang AKTIF &
+        // belum tertaut SO lain → TEMPEL SO ke lead itu, JANGAN bikin lead dobel.
+        // (CS = pemilik lead; designer-SO menempel, bukan bikin paralel.) ─────────
+        if (phoneNormalized) {
+            const csLead = await (this.prisma as any).lead.findFirst({
+                where: {
+                    phoneNormalized,
+                    status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
+                    convertedSalesOrderId: null,
+                },
+                orderBy: { createdAt: 'desc' },
+            });
+            if (csLead) {
+                const lead = await (this.prisma as any).lead.update({
+                    where: { id: csLead.id },
+                    data: {
+                        convertedSalesOrderId: so.id,
+                        status: 'NEGOTIATION',
+                        // jangan timpa data yang sudah diisi CS — hanya lengkapi yang kosong
+                        name: csLead.name || so.customerName,
+                        phone: csLead.phone ?? phone,
+                        phoneNormalized: csLead.phoneNormalized ?? phoneNormalized,
+                        needs: csLead.needs ?? (so.notes ?? null),
+                        estimatedValue: csLead.estimatedValue ?? (estimate > 0 ? estimate : null),
+                    },
+                });
+                await this.syncLeadImagesFromSO(so, csLead.id);
+                await (this.prisma as any).leadActivity.create({
+                    data: {
+                        leadId: csLead.id,
+                        kind: 'NOTE',
+                        text: `SO ${so.soNumber} dari desainer ${so.designerName} ditautkan ke lead CS ini (satu pintu — tanpa lead dobel).`,
+                        meta: { salesOrderId: so.id, merged: true } as any,
+                        createdById: null,
+                    },
+                });
+                this.discord.notifyLeadOrderRevised({
+                    name: so.customerName,
+                    soNumber: so.soNumber || undefined,
+                    designerName: so.designerName || undefined,
+                    estimatedValue: estimate > 0 ? estimate : undefined,
+                    needs: so.notes ?? undefined,
+                    deadline: so.deadline ?? null,
+                    branchLabel: (so as any).branchName || undefined,
+                    branchId,
+                    imagePaths,
+                });
+                const mergeCaption = this.buildCaption(
+                    so, undefined,
+                    '_SO ditautkan ke lead CS yang sudah ada (satu pintu) — CS follow-up; nota dari SO ini setelah deal._',
+                );
+                this.discord.notifySuratOrder(mergeCaption, imagePaths, branchId);
+                return { lead, existing: true, merged: true };
+            }
+        }
+
         const lead = await (this.prisma as any).lead.create({
             data: {
                 name: so.customerName,
