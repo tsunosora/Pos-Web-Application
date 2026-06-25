@@ -81,10 +81,21 @@ export default function CetakPage() {
     const [operatorName, setOperatorName] = useState('');
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<PrintJob[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
     const [stats, setStats] = useState({ antrian: 0, proses: 0, selesai: 0, diambil: 0 });
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [busyId, setBusyId] = useState<number | null>(null);
     const refreshRef = useRef<NodeJS.Timeout | null>(null);
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+    // Debounce search → kurangi fetch saat mengetik
+    useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+        return () => clearTimeout(t);
+    }, [search]);
 
     // Multi-cabang
     const [branches, setBranches] = useState<PublicBranch[]>([]);
@@ -108,17 +119,24 @@ export default function CetakPage() {
         if (storedOp) setOperatorName(storedOp);
     }, []);
 
+    // Reset ke halaman 1 saat tab/pencarian/cabang berubah
+    useEffect(() => { setPage(1); }, [tab, debouncedSearch, activeBranchId]);
+
     const loadData = useCallback(async () => {
         try {
             const bid = activeBranchId ?? undefined;
+            const isJobTab = tab !== 'REKONSILIASI';
             const [j, s] = await Promise.all([
-                listPrintJobs(undefined, undefined, bid),
+                isJobTab
+                    ? listPrintJobs(tab as PrintJobStatus, debouncedSearch || undefined, bid, page, PAGE_SIZE)
+                    : Promise.resolve({ rows: [] as PrintJob[], total: 0, page: 1, pageSize: PAGE_SIZE }),
                 getPrintQueueStats(bid),
             ]);
-            setJobs(j);
+            setJobs(j.rows);
+            setTotal(j.total);
             setStats(s);
         } catch (e) { console.error(e); }
-    }, [activeBranchId]);
+    }, [activeBranchId, tab, debouncedSearch, page]);
 
     useEffect(() => {
         if (!authed) return;
@@ -216,17 +234,8 @@ export default function CetakPage() {
         finally { setBusyId(null); }
     };
 
-    const filtered = jobs.filter(j => {
-        if (j.status !== tab) return false;
-        if (!search.trim()) return true;
-        const q = search.toLowerCase();
-        return (
-            j.jobNumber.toLowerCase().includes(q) ||
-            (j.transaction.invoiceNumber || '').toLowerCase().includes(q) ||
-            (j.transaction.checkoutNumber || '').toLowerCase().includes(q) ||
-            (j.transaction.customerName || '').toLowerCase().includes(q)
-        );
-    });
+    // Server sudah memfilter per-tab (status) + pencarian + paginasi → tampilkan apa adanya
+    const filtered = jobs;
 
     if (!authed) {
         const showBranchPicker = branches.length > 1;
@@ -433,6 +442,27 @@ export default function CetakPage() {
                                 </div>
                             );
                         })}
+                    </div>
+                )}
+
+                {/* Pagination (hanya tab job) */}
+                {tab !== 'REKONSILIASI' && total > PAGE_SIZE && (
+                    <div className="flex items-center justify-between gap-2 mt-4">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            ‹ Sebelumnya
+                        </button>
+                        <span className="text-xs text-gray-500 font-medium">Hal {page} / {totalPages} · {total} job</span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages}
+                            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            Berikutnya ›
+                        </button>
                     </div>
                 )}
             </div>

@@ -98,10 +98,10 @@ export function useReadyJobs() {
             const bid = branchId ?? undefined;
             const [prodRaw, printRaw] = await Promise.all([
                 getProductionJobs('SELESAI', bid).catch(() => []),
-                listPrintJobs('SELESAI', undefined, bid).catch(() => []),
+                listPrintJobs('SELESAI', undefined, bid, 1, 100).catch(() => ({ rows: [] })),
             ]);
             const prod = (prodRaw ?? []).map(normalizeProduction);
-            const print = (printRaw ?? []).map(normalizePrint);
+            const print = ((printRaw?.rows) ?? []).map(normalizePrint);
             // Sort terbaru dulu (yang baru selesai biasanya lebih relevan)
             return [...prod, ...print].sort((a, b) => {
                 const at = a.completedAt ? new Date(a.completedAt).getTime() : 0;

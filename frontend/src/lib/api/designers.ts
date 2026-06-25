@@ -167,9 +167,14 @@ export const designerListActiveCsLeads = async (
 ): Promise<ActiveLeadPreview[]> =>
     (await axios.post(`${BASE}/sales-orders/designer/cs-leads`, { designerId, pin })).data;
 
-/** Daftar SO milik desainer */
-export const designerListSOs = async (designerId: number, pin: string) =>
-    (await axios.post(`${BASE}/sales-orders/designer/my-list`, { designerId, pin })).data;
+/** Daftar SO milik desainer (paginasi) */
+export const designerListSOs = async (
+    designerId: number,
+    pin: string,
+    page = 1,
+    pageSize = 20,
+): Promise<import('./sales-orders').PagedSalesOrders> =>
+    (await axios.post(`${BASE}/sales-orders/designer/my-list`, { designerId, pin, page, pageSize })).data;
 
 /** Daftar customer terdaftar (public, nama+HP saja) */
 export const getPublicCustomers = async (): Promise<{ id: number; name: string; phone: string | null; address: string | null }[]> =>

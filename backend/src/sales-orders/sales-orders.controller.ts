@@ -64,6 +64,8 @@ export class SalesOrdersController {
         @Query('status') status?: SalesOrderStatus,
         @Query('search') search?: string,
         @Query('branchId') branchIdParam?: string,
+        @Query('page') pageParam?: string,
+        @Query('pageSize') pageSizeParam?: string,
     ) {
         // Tab cabang: kalau frontend pass `?branchId=X`, override ctx (untuk Owner switch tab).
         // Staff tetap di-lock ke ctx.branchId (header), tidak bisa override via query.
@@ -72,7 +74,9 @@ export class SalesOrdersController {
             const parsed = Number(branchIdParam);
             if (!Number.isNaN(parsed) && parsed > 0) resolvedBranchId = parsed;
         }
-        return this.service.list(status, search, undefined, resolvedBranchId);
+        const page = pageParam ? Number(pageParam) : 1;
+        const pageSize = pageSizeParam ? Number(pageSizeParam) : 20;
+        return this.service.listPaged({ status, search, branchId: resolvedBranchId, page, pageSize });
     }
 
     @Get('pending-invoice-count')

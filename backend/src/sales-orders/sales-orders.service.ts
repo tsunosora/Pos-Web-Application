@@ -139,9 +139,9 @@ export class SalesOrdersService {
         };
     }
 
-    async list(status?: SalesOrderStatus, search?: string, designerName?: string, branchId?: number | null) {
+    /** Bangun where dasar (branch + search + designer), TANPA filter status. */
+    private async buildListWhere(search?: string, designerName?: string, branchId?: number | null) {
         const where: any = await this.branchFilter(branchId ?? null);
-        if (status) where.status = status;
         if (designerName) where.designerName = designerName;
         if (search && search.trim()) {
             const q = search.trim();
@@ -160,11 +160,61 @@ export class SalesOrdersService {
                 where.OR = searchOR;
             }
         }
+        return where;
+    }
+
+    async list(status?: SalesOrderStatus, search?: string, designerName?: string, branchId?: number | null) {
+        const where = await this.buildListWhere(search, designerName, branchId);
+        if (status) where.status = status;
         return (this.prisma as any).salesOrder.findMany({
             where,
             include: this.soInclude(),
             orderBy: { createdAt: 'desc' },
         });
+    }
+
+    /**
+     * Versi paginasi untuk halaman admin — kembalikan baris satu halaman + total +
+     * counts per status (lingkup branch+search, mengabaikan tab status aktif) untuk
+     * kartu ringkasan & badge tab. Mencegah load semua SO sekaligus.
+     */
+    async listPaged(opts: {
+        status?: SalesOrderStatus;
+        search?: string;
+        designerName?: string;
+        branchId?: number | null;
+        page?: number;
+        pageSize?: number;
+    } = {}) {
+        const { status, search, designerName, branchId, page = 1, pageSize = 20 } = opts;
+        const baseWhere = await this.buildListWhere(search, designerName, branchId);
+
+        // counts per status — sekali query groupBy
+        const grouped: any[] = await (this.prisma as any).salesOrder.groupBy({
+            by: ['status'],
+            where: baseWhere,
+            _count: { _all: true },
+        });
+        const counts: Record<string, number> = { ALL: 0, DRAFT: 0, SENT: 0, INVOICED: 0, CANCELLED: 0 };
+        for (const g of grouped) {
+            counts[g.status] = g._count._all;
+            counts.ALL += g._count._all;
+        }
+
+        const where = status ? { ...baseWhere, status } : baseWhere;
+        const total = status ? (counts[status] ?? 0) : counts.ALL;
+        const take = Math.min(Math.max(Number(pageSize) || 20, 1), 100);
+        const safePage = Math.max(Number(page) || 1, 1);
+
+        const rows = await (this.prisma as any).salesOrder.findMany({
+            where,
+            include: this.soInclude(),
+            orderBy: { createdAt: 'desc' },
+            skip: (safePage - 1) * take,
+            take,
+        });
+
+        return { rows, total, page: safePage, pageSize: take, counts };
     }
 
     async findOne(id: number, branchId?: number | null) {

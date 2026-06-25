@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Eye, ExternalLink, LogOut, Loader2, FileSignature } from "lucide-react";
+import { Plus, Eye, LogOut, Loader2, FileSignature, ChevronLeft, ChevronRight } from "lucide-react";
 import { designerListSOs } from "@/lib/api/designers";
 import { useDesignerSession, clearDesignerSession } from "../useDesignerSession";
 import type { SalesOrder, SalesOrderStatus } from "@/lib/api/sales-orders";
@@ -29,16 +29,21 @@ export default function DesignerDashboardPage() {
     const router = useRouter();
     const session = useDesignerSession();
     const [sos, setSos] = useState<SalesOrder[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     useEffect(() => {
         if (!session) return;
-        designerListSOs(session.id, session.pin)
-            .then(setSos)
+        setLoading(true);
+        designerListSOs(session.id, session.pin, page, PAGE_SIZE)
+            .then(res => { setSos(res.rows); setTotal(res.total); })
             .catch(() => setError("Gagal memuat data SO"))
             .finally(() => setLoading(false));
-    }, [session]);
+    }, [session, page]);
 
     function logout() {
         clearDesignerSession();
@@ -79,8 +84,8 @@ export default function DesignerDashboardPage() {
             <div className="max-w-3xl mx-auto p-4 space-y-4">
                 <div className="flex items-baseline justify-between">
                     <h2 className="font-semibold text-slate-700 dark:text-slate-200">Sales Order Kamu</h2>
-                    {!loading && sos.length > 0 && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">{sos.length} SO</span>
+                    {total > 0 && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{total} SO</span>
                     )}
                 </div>
 
@@ -135,6 +140,27 @@ export default function DesignerDashboardPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                )}
+
+                {/* Pagination */}
+                {!loading && total > PAGE_SIZE && (
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                        <button
+                            onClick={() => setPage(p => Math.max(1, p - 1))}
+                            disabled={page <= 1}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            <ChevronLeft className="h-4 w-4" /> Sebelumnya
+                        </button>
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Hal {page} / {totalPages}</span>
+                        <button
+                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                            disabled={page >= totalPages}
+                            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                            Berikutnya <ChevronRight className="h-4 w-4" />
+                        </button>
                     </div>
                 )}
             </div>

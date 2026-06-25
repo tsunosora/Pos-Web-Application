@@ -12,8 +12,16 @@ export class PrintQueueController {
         @Query('status') status?: PrintJobStatus,
         @Query('search') search?: string,
         @Query('branchId') branchId?: string,
+        @Query('page') page?: string,
+        @Query('pageSize') pageSize?: string,
     ) {
-        return this.svc.listJobs(status, search, branchId ? parseInt(branchId) : undefined);
+        return this.svc.listJobs(
+            status,
+            search,
+            branchId ? parseInt(branchId) : undefined,
+            page ? parseInt(page) : 1,
+            pageSize ? parseInt(pageSize) : 20,
+        );
     }
 
     @Get('stats')

@@ -78,15 +78,27 @@ export interface CreateSalesOrderPayload {
     }[];
 }
 
+export interface PagedSalesOrders {
+    rows: SalesOrder[];
+    total: number;
+    page: number;
+    pageSize: number;
+    counts: { ALL: number; DRAFT: number; SENT: number; INVOICED: number; CANCELLED: number };
+}
+
 export const listSalesOrders = async (params?: {
     status?: SalesOrderStatus;
     search?: string;
     branchId?: number;
-}): Promise<SalesOrder[]> => {
+    page?: number;
+    pageSize?: number;
+}): Promise<PagedSalesOrders> => {
     const qs = new URLSearchParams();
     if (params?.status) qs.append('status', params.status);
     if (params?.search) qs.append('search', params.search);
     if (params?.branchId != null) qs.append('branchId', String(params.branchId));
+    if (params?.page != null) qs.append('page', String(params.page));
+    if (params?.pageSize != null) qs.append('pageSize', String(params.pageSize));
     const s = qs.toString();
     return (await api.get(`/sales-orders${s ? `?${s}` : ''}`)).data;
 };

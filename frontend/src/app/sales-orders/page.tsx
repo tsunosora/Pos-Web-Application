@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Eye, FileSignature, Loader2, ExternalLink, Users, Building2 } from "lucide-react";
+import { Plus, Search, Eye, FileSignature, Loader2, ExternalLink, Users, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { listSalesOrders, type SalesOrder, type SalesOrderStatus } from "@/lib/api/sales-orders";
@@ -40,6 +40,8 @@ export default function SalesOrdersPage() {
     const ownerActiveBranch = useBranchStore(s => s.activeBranchId);
     const [activeTab, setActiveTab] = useState<'ALL' | SalesOrderStatus>('ALL');
     const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
     // Tab cabang — id cabang yang sedang dipilih untuk dilihat SO-nya.
     // - Staff: locked ke userBranchId (hanya 1 tab, otomatis dipilih)
     // - Owner: bisa switch antar cabang via tab; default = ownerActiveBranch atau cabang pertama
@@ -68,25 +70,34 @@ export default function SalesOrdersPage() {
         }
     }, [isOwner, userBranchId, ownerActiveBranch, branches, activeBranchTab]);
 
+    // Reset ke halaman 1 saat filter berubah
+    useEffect(() => { setPage(1); }, [activeTab, search, activeBranchTab]);
+
     const { data, isLoading } = useQuery({
-        queryKey: ['sales-orders', activeTab, search, activeBranchTab],
+        queryKey: ['sales-orders', activeTab, search, activeBranchTab, page],
         queryFn: () => listSalesOrders({
             status: activeTab === 'ALL' ? undefined : activeTab,
             search: search.trim() || undefined,
             branchId: activeBranchTab ?? undefined,
+            page,
+            pageSize: PAGE_SIZE,
         }),
         refetchInterval: 30_000,
         enabled: activeBranchTab != null, // jangan fetch sebelum cabang dipilih
+        placeholderData: (prev) => prev,  // tahan data lama saat pindah halaman (no flicker)
     });
 
-    const sos: SalesOrder[] = data ?? [];
+    const sos: SalesOrder[] = data?.rows ?? [];
+    const counts = data?.counts;
+    const total = data?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     const summary = useMemo(() => ({
-        total: sos.length,
-        draft: sos.filter(s => s.status === 'DRAFT').length,
-        sent: sos.filter(s => s.status === 'SENT').length,
-        invoiced: sos.filter(s => s.status === 'INVOICED').length,
-    }), [sos]);
+        total: counts?.ALL ?? 0,
+        draft: counts?.DRAFT ?? 0,
+        sent: counts?.SENT ?? 0,
+        invoiced: counts?.INVOICED ?? 0,
+    }), [counts]);
 
     return (
         <div className="space-y-4">
@@ -172,6 +183,11 @@ export default function SalesOrdersPage() {
                                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${activeTab === t.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
                             >
                                 {t.label}
+                                {counts && (
+                                    <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-primary-foreground/20' : 'bg-background/70'}`}>
+                                        {counts[t.key]}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -272,6 +288,36 @@ export default function SalesOrdersPage() {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Footer pagination */}
+                {activeBranchTab != null && total > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-t border-border text-xs text-muted-foreground">
+                        <span>
+                            Menampilkan <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}</span>
+                            –<span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + sos.length}</span>
+                            {' '}dari <span className="font-medium text-foreground">{total}</span> SO
+                        </span>
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page <= 1}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft className="h-3.5 w-3.5" /> Sebelumnya
+                                </button>
+                                <span className="px-2 font-medium text-foreground">Hal {page} / {totalPages}</span>
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page >= totalPages}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

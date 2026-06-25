@@ -51,11 +51,26 @@ export interface PrintQueueStats {
     diambil: number;
 }
 
-export const listPrintJobs = async (status?: PrintJobStatus, search?: string, branchId?: number): Promise<PrintJob[]> => {
+export interface PagedPrintJobs {
+    rows: PrintJob[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
+export const listPrintJobs = async (
+    status?: PrintJobStatus,
+    search?: string,
+    branchId?: number,
+    page?: number,
+    pageSize?: number,
+): Promise<PagedPrintJobs> => {
     const params = new URLSearchParams();
     if (status) params.append('status', status);
     if (search) params.append('search', search);
     if (branchId) params.append('branchId', String(branchId));
+    if (page != null) params.append('page', String(page));
+    if (pageSize != null) params.append('pageSize', String(pageSize));
     const qs = params.toString();
     return (await api.get(`/print-queue/jobs${qs ? `?${qs}` : ''}`)).data;
 };
