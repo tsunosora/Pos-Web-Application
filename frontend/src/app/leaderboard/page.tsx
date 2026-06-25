@@ -29,8 +29,8 @@ const TOOLTIP_STYLE = { background: 'var(--card)', border: '1px solid var(--bord
 const AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 12 } as const;
 
 const fmtRp = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const initials = (name: string) => {
-    const p = name.trim().split(/\s+/);
+const initials = (name?: string | null) => {
+    const p = (name || '').trim().split(/\s+/);
     return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?';
 };
 const AVATAR = ['bg-indigo-500/15 text-indigo-600 dark:text-indigo-300', 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300', 'bg-amber-500/15 text-amber-600 dark:text-amber-300', 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300', 'bg-blue-500/15 text-blue-600 dark:text-blue-300', 'bg-rose-500/15 text-rose-600 dark:text-rose-300'];
@@ -132,24 +132,24 @@ export default function LeaderboardPage() {
     const csRows = useMemo(() => {
         let r = [...(kpi.data?.leaderboard ?? [])];
         if (roleFilter) r = r.filter(x => (x.roleName || '') === roleFilter);
-        if (kw) r = r.filter(x => x.name.toLowerCase().includes(kw));
+        if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
         const cuan = (x: KpiLeaderboardEntry) => x.wonValue + x.walkinValue;
         return r.sort((a, b) => cuan(b) - cuan(a));
     }, [kpi.data, roleFilter, kw]);
 
     const dcRows = useMemo(() => {
         let r = [...(kpi.data?.designCheckLeaderboard ?? [])];
-        if (kw) r = r.filter(x => x.name.toLowerCase().includes(kw));
+        if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
         return r;
     }, [kpi.data, kw]);
     const doRows = useMemo(() => {
         let r = [...(designOut.data ?? [])];
-        if (kw) r = r.filter(x => x.name.toLowerCase().includes(kw));
+        if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
         return r;
     }, [designOut.data, kw]);
     const dgRows = useMemo(() => {
         let r = [...(designer.data?.leaderboard ?? [])];
-        if (kw) r = r.filter(x => x.name.toLowerCase().includes(kw));
+        if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
         // Omzet dulu; kalau seri (mis. sama-sama 0) → yang banyak bikin SO di atas
         return r.sort((a, b) => b.omzet - a.omzet || b.soCreated - a.soCreated || b.assignment - a.assignment);
     }, [designer.data, kw]);

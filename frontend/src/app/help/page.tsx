@@ -649,18 +649,60 @@ function SecCRM() {
                 ]}
             />
 
-            <H3 id="alur-order">Alur Order: 3 Jalur (CS & Desainer)</H3>
+            <H3 id="alur-order">Alur Order CS &amp; Desainer (Satu Pintu)</H3>
+            <Callout type="tip" title="Prinsip Satu Pintu — CS pemilik lead">
+                Setiap calon order = <strong>1 lead</strong>, dan <strong>CS yang memegangnya</strong>. Desainer boleh ikut
+                (cek desain / bikin SO), tapi pekerjaannya <strong>menempel ke lead CS</strong> — bukan bikin data paralel.
+                Jadi <strong>tidak ada lead dobel</strong>. Semua order berakhir di titik yang sama: <strong>nota dibuat di KASIR (POS)</strong> biar formatnya seragam.
+            </Callout>
+
+            {/* ── Diagram alur visual ── */}
+            <div className="my-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm space-y-3">
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide">Alur utama (CS)</div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-300 font-medium text-gray-800">📥 Customer masuk</span>
+                    <span className="text-gray-400 font-bold">→</span>
+                    <span className="px-2.5 py-1.5 rounded-lg bg-violet-50 border border-violet-200 text-violet-800 font-medium">👤 CS buat Lead<span className="block text-[11px] font-normal">produk boleh belakangan</span></span>
+                    <span className="text-gray-400 font-bold">→</span>
+                    <span className="px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-800 font-medium">Follow-up / Nego</span>
+                </div>
+                <div className="flex flex-wrap items-start gap-2 pl-3">
+                    <span className="text-gray-400 font-bold mt-1.5">└─ FINAL →</span>
+                    <div className="flex flex-col gap-2">
+                        <span className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium">✅ DEAL → <strong>🧾 Buat Nota di Kasir</strong> → buat customer+SO → POS → nota jadi → lead <strong>CLOSED_WON</strong> otomatis</span>
+                        <span className="px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-800 font-medium">❌ BATAL → tombol <strong>Lost</strong> → isi alasan + (opsional) produk yang batal</span>
+                    </div>
+                </div>
+                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide pt-1">Sisi Desainer</div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="px-2.5 py-1.5 rounded-lg bg-fuchsia-50 border border-fuchsia-200 text-fuchsia-800 font-medium">🎨 Desainer bikin SO → &quot;SO jadi Lead&quot;</span>
+                    <span className="text-gray-400 font-bold">→</span>
+                    <span className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 font-medium">cek nomor HP</span>
+                    <span className="text-gray-400 font-bold">→</span>
+                    <div className="flex flex-col gap-1.5">
+                        <span className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800">HP sudah ada lead CS? → <strong>tempel ke lead itu</strong> (satu pintu, tanpa dobel)</span>
+                        <span className="px-2.5 py-1.5 rounded-lg bg-white border border-gray-300 text-gray-800">belum ada? → baru bikin lead (designer kontak pertama)</span>
+                    </div>
+                </div>
+            </div>
+
+            <H3>Cek Desain (pra-jual) — kerja tim CS &amp; Desainer</H3>
             <P>
-                Semua order berakhir di titik yang sama — <strong>nota dibuat di POS</strong>.
-                Bedanya cuma siapa yang pertama pegang customer:
+                Kalau customer tanya <em>&quot;ini bisa dicetak nggak?&quot;</em> sebelum deal: di detail lead, CS menunjuk
+                <strong> Desainer</strong> yang mengecek, lalu isi hasilnya — <strong>Bisa / Tidak bisa / Revisi</strong>.
+                Outcome lead (closing/batal) dihitung untuk <strong>CS dan Desainer sekaligus</strong> (kerja tim) — jadi effort
+                cek desain yang batal pun tetap tercatat di KPI desainer.
             </P>
+
+            <H3>3 Jalur Order (siapa pertama pegang customer)</H3>
+            <P>Titik akhir sama (nota di POS). Bedanya cuma awalnya:</P>
             <Table
                 headers={["Jalur", "Kapan terjadi", "Langkahnya", "Kredit"]}
                 rows={[
                     [
                         <strong key="a">A. Lewat CS</strong>,
                         "Customer chat WA/IG ke CS, belum ada SO",
-                        <>CS catat lead → follow-up → deal → klik <strong>Convert</strong> (otomatis bikin customer + nota + produksi)</>,
+                        <>CS catat lead → follow-up → deal → klik <strong>🧾 Buat Nota di Kasir</strong> → POS terbuka, finalisasi produk &amp; bayar → nota jadi. (Ada juga &quot;Nota cepat tanpa kasir&quot; untuk kasus khusus.)</>,
                         "CS",
                     ],
                     [
@@ -677,10 +719,11 @@ function SecCRM() {
                     ],
                 ]}
             />
-            <Callout type="warning" title="Aturan anti nota dobel">
-                Kalau customer <strong>sudah punya SO</strong> dari desainer, CS <strong>jangan klik Convert</strong> —
-                pakai tombol <strong>Tautkan SO</strong> di detail lead (atau biarkan, kalau lead-nya lahir dari tombol Lead Order desainer — sudah tertaut otomatis).
-                Modal Convert akan memunculkan peringatan otomatis kalau mendeteksi SO aktif milik customer yang sama.
+            <Callout type="warning" title="Anti lead/nota dobel — otomatis">
+                Saat desainer menekan <strong>&quot;SO jadi Lead&quot;</strong>, sistem <strong>cek nomor HP dulu</strong>: kalau customer
+                sudah punya lead CS yang aktif, SO <strong>otomatis ditempel</strong> ke lead itu (jadi Negosiasi) — <strong>tidak bikin lead baru</strong>.
+                Jadi tabrakan &quot;CS sudah bikin lead, lalu desainer bikin lagi&quot; sudah tertangani sendiri.
+                Untuk SO yang dibuat di tempat lain, CS juga bisa pakai tombol <strong>Tautkan SO</strong> di detail lead.
             </Callout>
             <H3>Langkah CS di jalur C (Lead Order)</H3>
             <Steps steps={[
@@ -690,8 +733,18 @@ function SecCRM() {
                 { title: "Selesai otomatis", desc: "Lead jadi CLOSED_WON menunjuk nota itu, SO jadi INVOICED. CS dapat closing, desainer dapat omzet — tanpa nota dobel." },
             ]} />
 
-            <H3>Convert Lead ke Customer (jalur A — lead tanpa SO)</H3>
-            <P>Saat lead mencapai status <strong>CLOSED_WON</strong>, klik <strong>Convert</strong>. Sistem otomatis membuat:</P>
+            <H3>Tombol closing di detail lead</H3>
+            <P>
+                Saat lead deal, ada <strong>dua tombol</strong> — utama dan cadangan:
+            </P>
+            <Table
+                headers={["Tombol", "Untuk apa", "Yang terjadi"]}
+                rows={[
+                    [<strong key="k">🧾 Buat Nota di Kasir <span className="text-emerald-600">(utama)</span></strong>, "Alur normal — nota dibuat di kasir", "Buat customer + SO → diarahkan ke POS (cart ter-prefill) → CS finalisasi & bayar → nota jadi → lead CLOSED_WON otomatis"],
+                    [<strong key="c">Nota cepat (tanpa kasir)</strong>, "Kasus khusus — butuh nota langsung", "Langsung bikin customer + nota + job produksi dari lead, tanpa lewat kasir (model lama / Convert)"],
+                ]}
+            />
+            <P>Saat pakai <strong>Nota cepat / Convert</strong>, sistem membuat:</P>
             <Ul>
                 <li>Record <strong>Customer</strong> baru (atau link ke yang sudah ada)</li>
                 <li><strong>Sales Order (SPK)</strong> dengan detail produk dari lead</li>
@@ -724,6 +777,15 @@ function SecCRM() {
                     [<strong key="n">Buat Nota (Kirim)</strong>, "Order sudah pasti", "SO di-broadcast ke Discord #produksi — kasir tinggal buka POS “Buat dari SO” lalu checkout"],
                 ]}
             />
+
+            <H3>Leaderboard Tim — lihat performa CS &amp; Desainer</H3>
+            <P>
+                Semua KPI tim ada di menu <strong>Tim &amp; Kinerja → Leaderboard</strong> (<Code>/leaderboard</Code>):
+                performa <strong>CS</strong> (leads, closing, lost, cuan bersih) dan <strong>Desainer</strong>
+                (cek desain, produktivitas jasa desain, SO dibuat, omzet) — lengkap dengan <strong>gelar juara</strong>
+                (Raja Cuan, Raja Closing, Raja SO, Raja Desain, dll), grafik, filter periode/divisi/cabang, dan
+                tombol <strong>&quot;Cara Hitung&quot;</strong> di tiap angka biar tim tahu sumber penghitungannya.
+            </P>
         </>
     );
 }
