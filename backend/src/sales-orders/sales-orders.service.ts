@@ -424,15 +424,22 @@ export class SalesOrdersService {
             },
             orderBy: { createdAt: 'desc' },
             take: 5,
-            include: {
-                assignedTo: { select: { name: true } },
-                createdBy: { select: { name: true } },
-                convertedSO: { select: { id: true, soNumber: true } },
-                items: { select: { id: true } },
-            },
+            include: this.LEAD_PREVIEW_INCLUDE,
         });
 
-        return leads.map((l: any) => ({
+        return leads.map((l: any) => this.mapLeadPreview(l));
+    }
+
+    private readonly LEAD_PREVIEW_INCLUDE = {
+        assignedTo: { select: { name: true } },
+        createdBy: { select: { name: true } },
+        convertedSO: { select: { id: true, soNumber: true } },
+        branch: { select: { name: true } },
+        items: { select: { id: true } },
+    };
+
+    private mapLeadPreview(l: any) {
+        return {
             id: l.id,
             name: l.name,
             phone: l.phone,
@@ -446,6 +453,7 @@ export class SalesOrdersService {
             assignedToName: l.assignedTo?.name ?? null,
             createdByName: l.createdBy?.name ?? null,
             designerName: l.designerName ?? null,
+            branchName: l.branch?.name ?? null,
             // sudah ada SO desainer yang tertaut?
             hasSO: !!l.convertedSalesOrderId,
             soNumber: l.convertedSO?.soNumber ?? null,
@@ -454,10 +462,34 @@ export class SalesOrdersService {
             createdAt: l.createdAt,
             // asal lead: dibuat desainer (dari SO) vs dibuat CS (manual)
             origin: l.sourceDetail === 'SO Desainer' ? 'DESIGNER' : 'CS',
-        }));
+        };
     }
 
-    async createLeadFromSO(id: number) {
+    /**
+     * Daftar lead AKTIF dari CS yang belum punya SO — ditampilkan sebagai kartu di
+     * halaman buat SO desainer. Desainer cukup klik kartu untuk mengisi data customer
+     * (dan SO otomatis ditempel ke lead itu saat "Lead Order"). Lead yang dibuat dari
+     * SO desainer sendiri dikecualikan (bukan antrian CS).
+     */
+    async listActiveCsLeads() {
+        const leads = await (this.prisma as any).lead.findMany({
+            where: {
+                status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
+                convertedSalesOrderId: null,             // belum ada SO = antrian yg butuh desainer
+                NOT: { sourceDetail: 'SO Desainer' },    // hanya lead buatan CS
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 60,
+            include: this.LEAD_PREVIEW_INCLUDE,
+        });
+        return leads.map((l: any) => this.mapLeadPreview(l));
+    }
+
+    /**
+     * @param opts.targetLeadId  Tempel SO ke lead spesifik ini (desainer pilih dari banner lead aktif).
+     * @param opts.forceNewLead  Paksa buat lead baru terpisah (repeat order yang berbeda) — lewati satu pintu.
+     */
+    async createLeadFromSO(id: number, opts?: { targetLeadId?: number; forceNewLead?: boolean }) {
         const so = await this.findOne(id);
         if (so.status === 'INVOICED' || so.status === 'CANCELLED') {
             throw new BadRequestException('SO yang sudah jadi nota / dibatalkan tidak bisa dijadikan lead');
@@ -554,18 +586,34 @@ export class SalesOrdersService {
             return { lead, existing: true, revised: true };
         }
 
-        // ── SATU PINTU: kalau customer (HP sama) sudah punya lead CS yang AKTIF &
-        // belum tertaut SO lain → TEMPEL SO ke lead itu, JANGAN bikin lead dobel.
-        // (CS = pemilik lead; designer-SO menempel, bukan bikin paralel.) ─────────
-        if (phoneNormalized) {
-            const csLead = await (this.prisma as any).lead.findFirst({
-                where: {
-                    phoneNormalized,
-                    status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
-                    convertedSalesOrderId: null,
-                },
-                orderBy: { createdAt: 'desc' },
-            });
+        // ── SATU PINTU (dengan pilihan desainer) ──────────────────────────────
+        // Default: tempel ke lead aktif HP-sama yang belum punya SO (anti lead dobel).
+        // - forceNewLead: desainer pilih "buat lead baru terpisah" (repeat order yg berbeda)
+        // - targetLeadId: desainer pilih lead spesifik untuk ditempeli SO ini
+        let csLead: any = null;
+        if (!opts?.forceNewLead && phoneNormalized) {
+            const baseWhere = {
+                phoneNormalized,
+                status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
+                convertedSalesOrderId: null,
+            };
+            if (opts?.targetLeadId) {
+                csLead = await (this.prisma as any).lead.findFirst({
+                    where: { ...baseWhere, id: opts.targetLeadId },
+                });
+                if (!csLead) {
+                    throw new BadRequestException(
+                        'Lead tujuan tidak bisa menerima SO ini (mungkin sudah closing/dibatalkan atau sudah punya SO lain). Muat ulang halaman lalu pilih lagi.',
+                    );
+                }
+            } else {
+                csLead = await (this.prisma as any).lead.findFirst({
+                    where: baseWhere,
+                    orderBy: { createdAt: 'desc' },
+                });
+            }
+        }
+        {
             if (csLead) {
                 const lead = await (this.prisma as any).lead.update({
                     where: { id: csLead.id },

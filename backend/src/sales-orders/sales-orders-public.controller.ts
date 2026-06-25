@@ -88,6 +88,16 @@ export class SalesOrdersPublicController {
         return this.soService.lookupActiveLeadsByPhone(body.phone || '');
     }
 
+    /**
+     * Daftar lead aktif dari CS (belum punya SO) — kartu pilihan di halaman buat SO.
+     * Desainer klik kartu → data customer terisi & SO ditempel ke lead itu.
+     */
+    @Post('cs-leads')
+    async csLeads(@Body() body: { designerId: number; pin: string }) {
+        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        return this.soService.listActiveCsLeads();
+    }
+
     /** Buat SO baru */
     @Post()
     async create(@Body() body: { designerId: number; pin: string } & CreateSalesOrderPayload) {
@@ -107,10 +117,13 @@ export class SalesOrdersPublicController {
     @Post(':id/create-lead')
     async createLead(
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { designerId: number; pin: string },
+        @Body() body: { designerId: number; pin: string; targetLeadId?: number; forceNewLead?: boolean },
     ) {
         await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
-        return this.soService.createLeadFromSO(id);
+        return this.soService.createLeadFromSO(id, {
+            targetLeadId: body.targetLeadId ? Number(body.targetLeadId) : undefined,
+            forceNewLead: !!body.forceNewLead,
+        });
     }
 
     /** Edit SO (perbaiki customer/catatan/item — selama belum di-invoice/dibatalkan) */
