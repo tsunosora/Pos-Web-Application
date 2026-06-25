@@ -3,9 +3,9 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X, Send, UserPlus, Users, FileText, AlertTriangle } from "lucide-react";
 import { useDesignerSession } from "../useDesignerSession";
-import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, getPublicCustomers } from "@/lib/api/designers";
+import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, getPublicCustomers, designerLookupLeadsByPhone, type ActiveLeadPreview } from "@/lib/api/designers";
 import axios from "axios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
@@ -64,6 +64,8 @@ function DesignerNewSOContent() {
     const [saving, setSaving] = useState(false);
     const [sending, setSending] = useState(false);
     const [leading, setLeading] = useState(false); // busy state tombol "Lead Order"
+    const [activeLeads, setActiveLeads] = useState<ActiveLeadPreview[]>([]); // lead aktif dgn HP sama
+    const [leadsChecking, setLeadsChecking] = useState(false);
 
     // Load customers sekali saat komponen mount
     useMemo(() => {
@@ -231,6 +233,23 @@ function DesignerNewSOContent() {
         }).catch(() => setError("Gagal memuat SO untuk diedit"));
     }, [isEdit, editId]);
 
+    // Cek lead aktif untuk nomor HP yang diketik (debounce) — supaya desainer tahu
+    // customer ini sudah punya lead aktif (mis. dari CS) sebelum buat SO.
+    useEffect(() => {
+        if (!session) return;
+        const digits = customerPhone.replace(/\D/g, "");
+        if (digits.length < 7) { setActiveLeads([]); setLeadsChecking(false); return; }
+        setLeadsChecking(true);
+        const t = setTimeout(() => {
+            designerLookupLeadsByPhone(session.id, session.pin, customerPhone)
+                .then(setActiveLeads)
+                .catch(() => setActiveLeads([]))
+                .finally(() => setLeadsChecking(false));
+        }, 450);
+        return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [customerPhone, session?.id]);
+
     // mode 'save'  = simpan draft saja
     // mode 'send'  = "Buat Nota" — simpan lalu kirim ke Discord #produksi (kasir buatkan nota)
     // mode 'lead'  = "Lead Order" — simpan lalu buat Lead CRM tertaut (CS yang follow-up)
@@ -350,7 +369,15 @@ function DesignerNewSOContent() {
                         <Field label="No. HP / WA">
                             <input value={customerPhone} onChange={e => setCustomerPhone(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" placeholder="08xx..." />
+                            {leadsChecking && (
+                                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                                    <Loader2 className="h-3 w-3 animate-spin" /> Mengecek lead aktif untuk nomor ini…
+                                </div>
+                            )}
                         </Field>
+
+                        {activeLeads.length > 0 && <ActiveLeadsPreview leads={activeLeads} />}
+
                         <Field label="Alamat">
                             <textarea value={customerAddress} onChange={e => setCustomerAddress(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" rows={2} placeholder="Opsional" />
@@ -574,6 +601,90 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
         <div>
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400 block mb-1">{label}</label>
             {children}
+        </div>
+    );
+}
+
+const STATUS_LABEL: Record<string, string> = {
+    NEW: "Baru", FOLLOW_UP: "Follow-up", NEGOTIATION: "Negosiasi",
+    CLOSED_WON: "Closing", CLOSED_LOST: "Lost", INVALID: "Tidak valid",
+};
+const STATUS_CLASS: Record<string, string> = {
+    NEW: "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+    FOLLOW_UP: "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+    NEGOTIATION: "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300",
+};
+
+function rupiah(n: number) {
+    return "Rp" + n.toLocaleString("id-ID");
+}
+
+/**
+ * Banner peringatan: nomor HP ini sudah punya lead aktif. Membantu desainer
+ * membedakan "ini lanjutan lead CS yang sudah ada" (satu pintu — Lead Order akan
+ * menempel ke lead itu) vs "order baru yang berbeda".
+ */
+function ActiveLeadsPreview({ leads }: { leads: ActiveLeadPreview[] }) {
+    return (
+        <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 p-3">
+            <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                    Nomor ini sudah punya {leads.length} lead aktif
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                {leads.map(l => {
+                    const handler = l.assignedToName || l.createdByName;
+                    const isDesigner = l.origin === "DESIGNER";
+                    return (
+                        <div key={l.id} className="rounded-lg bg-white dark:bg-slate-900 border border-amber-200/70 dark:border-amber-900/60 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <div className="font-medium text-sm text-slate-800 dark:text-slate-100 truncate">{l.name}</div>
+                                <div className="flex items-center gap-1.5">
+                                    {/* asal lead: CS vs Desainer */}
+                                    <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                                        isDesigner
+                                            ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                            : "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                    }`}>
+                                        <Users className="h-2.5 w-2.5" /> {isDesigner ? "Dibuat Desainer" : "Dibuat CS"}
+                                    </span>
+                                    {/* status lead */}
+                                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_CLASS[l.status] || "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"}`}>
+                                        {STATUS_LABEL[l.status] || l.status}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                                {handler && <span>CS: <span className="font-medium text-slate-700 dark:text-slate-300">{handler}</span></span>}
+                                {l.designerName && <span>Desainer: <span className="font-medium text-slate-700 dark:text-slate-300">{l.designerName}</span></span>}
+                                {l.sourceDetail && <span>Sumber: {l.sourceDetail}</span>}
+                                {l.estimatedValue != null && l.estimatedValue > 0 && <span>Est: <span className="font-medium text-slate-700 dark:text-slate-300">{rupiah(l.estimatedValue)}</span></span>}
+                                {l.hasSO && (
+                                    <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400">
+                                        <FileText className="h-3 w-3" /> Sudah ada SO{l.soNumber ? ` ${l.soNumber}` : ""}
+                                    </span>
+                                )}
+                            </div>
+
+                            {l.needs && (
+                                <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2">
+                                    Kebutuhan: {l.needs}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+
+            <p className="mt-2 text-[11px] leading-relaxed text-amber-700/90 dark:text-amber-300/80">
+                <span className="font-semibold">Satu pintu:</span> kalau ini lanjutan order customer yang sama, tekan
+                <span className="font-semibold"> "Lead Order (CS)"</span> — SO ini otomatis menempel ke lead di atas
+                (tanpa lead dobel). Kalau ini order yang benar-benar berbeda, lanjutkan saja; koordinasikan dengan CS bila perlu.
+            </p>
         </div>
     );
 }

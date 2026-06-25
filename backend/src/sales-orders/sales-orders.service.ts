@@ -404,6 +404,59 @@ export class SalesOrdersService {
      * di-checkout di POS, lead otomatis CLOSED_WON ke nota yang sama (hook transactions).
      * Idempoten: kalau sudah ada lead tertaut ke SO ini, kembalikan yang lama.
      */
+    /**
+     * Preview lead aktif untuk satu nomor HP — dipakai halaman buat SO desainer
+     * supaya desainer tahu customer ini sudah punya lead aktif (biasanya dari CS),
+     * sebelum memutuskan "Lead Order" (yang akan menempel ke lead itu — satu pintu)
+     * atau memang order baru yang berbeda. Read-only, ringan.
+     */
+    async lookupActiveLeadsByPhone(phone: string) {
+        if (!phone) return [];
+        let s = phone.replace(/\D/g, '');
+        if (s.startsWith('62')) s = s.slice(2);
+        if (s.startsWith('0')) s = s.slice(1);
+        if (!s || s.length < 5) return []; // butuh cukup digit agar tidak match terlalu lebar
+
+        const leads = await (this.prisma as any).lead.findMany({
+            where: {
+                phoneNormalized: s,
+                status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 5,
+            include: {
+                assignedTo: { select: { name: true } },
+                createdBy: { select: { name: true } },
+                convertedSO: { select: { id: true, soNumber: true } },
+                items: { select: { id: true } },
+            },
+        });
+
+        return leads.map((l: any) => ({
+            id: l.id,
+            name: l.name,
+            phone: l.phone,
+            status: l.status,
+            level: l.level,
+            source: l.source,
+            sourceDetail: l.sourceDetail,
+            needs: l.needs,
+            estimatedValue: l.estimatedValue != null ? Number(l.estimatedValue) : null,
+            // siapa CS yang menangani / membuat lead ini
+            assignedToName: l.assignedTo?.name ?? null,
+            createdByName: l.createdBy?.name ?? null,
+            designerName: l.designerName ?? null,
+            // sudah ada SO desainer yang tertaut?
+            hasSO: !!l.convertedSalesOrderId,
+            soNumber: l.convertedSO?.soNumber ?? null,
+            itemCount: l.items?.length ?? 0,
+            followUpDate: l.followUpDate,
+            createdAt: l.createdAt,
+            // asal lead: dibuat desainer (dari SO) vs dibuat CS (manual)
+            origin: l.sourceDetail === 'SO Desainer' ? 'DESIGNER' : 'CS',
+        }));
+    }
+
     async createLeadFromSO(id: number) {
         const so = await this.findOne(id);
         if (so.status === 'INVOICED' || so.status === 'CANCELLED') {
