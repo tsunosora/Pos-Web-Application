@@ -64,11 +64,15 @@ export class SalesOrdersPublicController {
         private readonly designersService: DesignersService,
     ) {}
 
-    /** Daftar SO milik desainer ini — POST supaya PIN bisa di body */
+    /** Daftar SO milik desainer ini — POST supaya PIN bisa di body. Paginasi opsional. */
     @Post('my-list')
-    async mySOs(@Body() body: { designerId: number; pin: string }) {
+    async mySOs(@Body() body: { designerId: number; pin: string; page?: number; pageSize?: number }) {
         const result = await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
-        return this.soService.list(undefined, undefined, result.name);
+        return this.soService.listPaged({
+            designerName: result.name,
+            page: body.page ? Number(body.page) : 1,
+            pageSize: body.pageSize ? Number(body.pageSize) : 20,
+        });
     }
 
     /** Detail SO (hanya baca, tanpa PIN) */

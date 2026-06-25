@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, Printer, RefreshCw, Building2 } from 'lucide-react';
+import { ExternalLink, Printer, RefreshCw, Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import {
     listPrintJobs, getPrintQueueStats,
     PrintJob, PrintJobStatus,
@@ -46,10 +46,14 @@ function PayBadge({ s }: { s: 'PENDING' | 'PARTIAL' | 'PAID' | 'FAILED' }) {
 
 export default function PrintQueueAdminPage() {
     const [jobs, setJobs] = useState<PrintJob[]>([]);
+    const [total, setTotal] = useState(0);
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
     const [stats, setStats] = useState({ antrian: 0, proses: 0, selesai: 0, diambil: 0 });
     const [filter, setFilter] = useState<PrintJobStatus | 'ALL'>('ALL');
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
     // Multi-cabang: scope query ke cabang aktif user.
     // - Staff: lock ke user.branchId
@@ -62,14 +66,18 @@ export default function PrintQueueAdminPage() {
         setLoading(true);
         try {
             const [j, s] = await Promise.all([
-                listPrintJobs(filter === 'ALL' ? undefined : filter, search || undefined, activeBranchId ?? undefined),
+                listPrintJobs(filter === 'ALL' ? undefined : filter, search || undefined, activeBranchId ?? undefined, page, PAGE_SIZE),
                 getPrintQueueStats(activeBranchId ?? undefined),
             ]);
-            setJobs(j);
+            setJobs(j.rows);
+            setTotal(j.total);
             setStats(s);
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
-    }, [filter, search, activeBranchId]);
+    }, [filter, search, activeBranchId, page]);
+
+    // Reset ke halaman 1 saat filter/search/cabang berubah
+    useEffect(() => { setPage(1); }, [filter, search, activeBranchId]);
 
     useEffect(() => { load(); }, [load]);
 
@@ -217,6 +225,34 @@ export default function PrintQueueAdminPage() {
                         </tbody>
                     </table>
                 </div>
+                {total > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 border-t text-xs text-muted-foreground">
+                        <span>
+                            Menampilkan <span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + 1}</span>
+                            –<span className="font-medium text-foreground">{(page - 1) * PAGE_SIZE + jobs.length}</span>
+                            {' '}dari <span className="font-medium text-foreground">{total}</span> job
+                        </span>
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page <= 1}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    <ChevronLeft className="h-3.5 w-3.5" /> Sebelumnya
+                                </button>
+                                <span className="px-2 font-medium text-foreground">Hal {page} / {totalPages}</span>
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page >= totalPages}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Berikutnya <ChevronRight className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

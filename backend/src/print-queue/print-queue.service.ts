@@ -67,7 +67,7 @@ export class PrintQueueService {
         return `${prefix}${String(nextSeq).padStart(4, '0')}`;
     }
 
-    async listJobs(status?: PrintJobStatus, search?: string, branchId?: number) {
+    async listJobs(status?: PrintJobStatus, search?: string, branchId?: number, page = 1, pageSize = 20) {
         const where: any = {};
         if (status) where.status = status;
         if (branchId) where.branchId = branchId;
@@ -81,37 +81,61 @@ export class PrintQueueService {
             ];
         }
         // Ambil scalar dulu TANPA include relasi: kalau ada job yatim (transaksi /
-        // item-nya sudah terhapus), `include` relasi wajib bikin Prisma throw
-        // ("Field transaction is required ... got null"). Relasi di-join manual
-        // di bawah supaya yatim cukup di-skip, bukan men-crash seluruh antrian.
+        // item-nya sudah terhapus), `include` relasi wajib bikin Prisma throw.
+        // Relasi di-hydrate manual HANYA untuk halaman aktif (hemat payload).
         const rows: any[] = await (this.prisma as any).printJob.findMany({
             where,
             orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
         });
 
+        // Info tx minimal untuk filter yatim + titipan-pending (tanpa hydrate berat)
+        const allTxIds = Array.from(new Set(rows.map(r => r.transactionId).filter(Boolean)));
+        const txInfo: any[] = allTxIds.length
+            ? await this.prisma.transaction.findMany({
+                where: { id: { in: allTxIds } },
+                select: { id: true, branchId: true, productionBranchId: true, handoverStatus: true },
+            })
+            : [];
+        const txInfoMap = new Map(txInfo.map(t => [t.id, t]));
+
+        // Visible = transaksi masih ada (bukan yatim) & bukan titipan yang belum di-ACK cabang tujuan
+        const visible = rows.filter(r => {
+            const t = txInfoMap.get(r.transactionId);
+            if (!t) return false;
+            const isTitipan = t.productionBranchId != null && Number(t.productionBranchId) !== Number(t.branchId);
+            const notAck = !t.handoverStatus || t.handoverStatus === 'BARU';
+            return !(isTitipan && notAck);
+        });
+
+        const total = visible.length;
+        const take = Math.min(Math.max(Number(pageSize) || 20, 1), 100);
+        const safePage = Math.max(Number(page) || 1, 1);
+        const pageRows = visible.slice((safePage - 1) * take, (safePage - 1) * take + take);
+
+        // Hydrate relasi penuh HANYA untuk baris halaman ini
         const inc = this.jobInclude();
-        const txIds = Array.from(new Set(rows.map(r => r.transactionId).filter(Boolean)));
-        const itemIds = Array.from(new Set(rows.map(r => r.transactionItemId).filter(Boolean)));
+        const pTxIds = Array.from(new Set(pageRows.map(r => r.transactionId).filter(Boolean)));
+        const pItemIds = Array.from(new Set(pageRows.map(r => r.transactionItemId).filter(Boolean)));
         const [txs, items] = await Promise.all([
-            txIds.length
-                ? this.prisma.transaction.findMany({ where: { id: { in: txIds } }, select: inc.transaction.select })
+            pTxIds.length
+                ? this.prisma.transaction.findMany({ where: { id: { in: pTxIds } }, select: inc.transaction.select })
                 : Promise.resolve([]),
-            itemIds.length
-                ? (this.prisma as any).transactionItem.findMany({ where: { id: { in: itemIds } }, select: inc.transactionItem.select })
+            pItemIds.length
+                ? (this.prisma as any).transactionItem.findMany({ where: { id: { in: pItemIds } }, select: inc.transactionItem.select })
                 : Promise.resolve([]),
         ]);
         const txMap = new Map((txs as any[]).map(t => [t.id, t]));
         const itemMap = new Map((items as any[]).map(it => [it.id, it]));
 
-        const jobs = rows
+        const jobs = pageRows
             .map(r => ({
                 ...r,
                 transaction: txMap.get(r.transactionId) ?? null,
                 transactionItem: itemMap.get(r.transactionItemId) ?? null,
             }))
-            .filter(j => j.transaction); // skip job yatim (transaksi sudah terhapus)
+            .filter(j => j.transaction);
 
-        return this.filterPendingTitipan(jobs);
+        return { rows: jobs, total, page: safePage, pageSize: take };
     }
 
     /**
