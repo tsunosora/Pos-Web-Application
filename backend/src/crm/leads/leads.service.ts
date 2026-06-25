@@ -76,17 +76,20 @@ export class LeadsService {
             });
             code = (b?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
         }
-        const prefix = code ? `SO-${code}-${yyyymmdd}` : `SO-${yyyymmdd}`;
-        const last = await this.prisma.salesOrder.findFirst({
-            where: { soNumber: { startsWith: `${prefix}-` } },
-            orderBy: { soNumber: 'desc' },
+        // Format SERAGAM dengan sales-orders.service: 4 digit + MAX NUMERIK
+        // (bukan orderBy teks). Sebelumnya 3 digit + text-sort → nomor cacat
+        // (mis. -035) yang lalu meracuni generator sisi sales-orders (duplikat).
+        const prefix = code ? `SO-${code}-${yyyymmdd}-` : `SO-${yyyymmdd}-`;
+        const rows = await this.prisma.salesOrder.findMany({
+            where: { soNumber: { startsWith: prefix } },
+            select: { soNumber: true },
         });
-        let n = 1;
-        if (last) {
-            const tail = last.soNumber.split('-').pop() || '0';
-            n = parseInt(tail, 10) + 1;
+        let maxN = 0;
+        for (const r of rows) {
+            const num = parseInt(String(r.soNumber).slice(prefix.length), 10);
+            if (Number.isFinite(num) && num > maxN) maxN = num;
         }
-        return `${prefix}-${String(n).padStart(3, '0')}`;
+        return `${prefix}${String(maxN + 1).padStart(4, '0')}`;
     }
 
     /** List + filter + search. */
