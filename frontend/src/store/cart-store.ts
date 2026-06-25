@@ -39,7 +39,7 @@ interface CartState {
     taxRate: number;
     discount: number;
 
-    addItem: (product: any, variant: any, areaDimensions?: { widthCm: number; heightCm: number; unitType: 'm' | 'cm' | 'menit'; note?: string; pcs?: number }) => void;
+    addItem: (product: any, variant: any, areaDimensions?: { widthCm: number; heightCm: number; unitType: 'm' | 'cm' | 'menit'; note?: string; pcs?: number }, opts?: { forceNewLine?: boolean }) => void;
     removeItem: (lineId: string) => void;
     updateQuantity: (lineId: string, delta: number) => void;
     setQuantityDirect: (lineId: string, qty: number) => void;
@@ -81,7 +81,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     taxRate: 0.10,
     discount: 0,
 
-    addItem: (product, variant, areaDimensions) => {
+    addItem: (product, variant, areaDimensions, opts) => {
         const pricingMode: 'UNIT' | 'AREA_BASED' = product.pricingMode || 'UNIT';
         const pricePerUnit = Number(variant.price || 0);
         const tiers: PriceTier[] = (variant.priceTiers || []).map((t: any) => ({
@@ -100,8 +100,9 @@ export const useCartStore = create<CartState>((set, get) => ({
                 const { areaM2, price: singlePrice } = computeAreaPrice(widthCm, heightCm, pricePerUnit, unitType);
                 const price = singlePrice * pcs;
 
-                // Each call ALWAYS creates a NEW line item (different sizes per job)
-                const lineId = `${variant.id}_${Date.now()}`;
+                // Each call ALWAYS creates a NEW line item (different sizes per job).
+                // Suffix acak supaya tidak tabrakan saat dipanggil beruntun (mis. prefill SO).
+                const lineId = `${variant.id}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
                 return {
                     items: [...state.items, {
                         lineId,
@@ -126,21 +127,27 @@ export const useCartStore = create<CartState>((set, get) => ({
                 };
             }
 
-            // UNIT mode — merge by productVariantId
-            const lineId = String(variant.id);
+            // UNIT mode — normalnya merge by productVariantId (klik/scan ulang nambah qty).
+            // forceNewLine: selalu baris baru — dipakai prefill SO supaya produk sama
+            // yang diinput >1x oleh desainer tetap tampil sebagai baris terpisah.
             const trackStock = product.trackStock !== false;
-            const existing = state.items.find(i => i.lineId === lineId);
-            if (existing) {
-                if (trackStock && existing.qty >= Number(variant.stock)) return state;
-                const newQty = existing.qty + 1;
-                const newPrice = existing.customPrice != null
-                    ? existing.customPrice
-                    : applyTierPrice(newQty, existing.pricePerUnit, existing.priceTiers);
-                return {
-                    items: state.items.map(i =>
-                        i.lineId === lineId ? { ...i, qty: newQty, price: newPrice } : i
-                    )
-                };
+            const lineId = opts?.forceNewLine
+                ? `${variant.id}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`
+                : String(variant.id);
+            if (!opts?.forceNewLine) {
+                const existing = state.items.find(i => i.lineId === lineId);
+                if (existing) {
+                    if (trackStock && existing.qty >= Number(variant.stock)) return state;
+                    const newQty = existing.qty + 1;
+                    const newPrice = existing.customPrice != null
+                        ? existing.customPrice
+                        : applyTierPrice(newQty, existing.pricePerUnit, existing.priceTiers);
+                    return {
+                        items: state.items.map(i =>
+                            i.lineId === lineId ? { ...i, qty: newQty, price: newPrice } : i
+                        )
+                    };
+                }
             }
             const initPrice = applyTierPrice(1, pricePerUnit, tiers);
             return {

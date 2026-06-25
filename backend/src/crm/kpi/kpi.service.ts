@@ -978,26 +978,36 @@ export class KpiService {
         const fuComplianceRate = totalFu > 0 ? compliant / totalFu : 0;
 
         // ── Repeat order rate ──────────────────────────────────────────────
-        // Customer with >=2 transactions in period / customer with >=1.
-        // Pakai raw SQL supaya tidak gagal kalau Prisma client belum re-generate
-        // pasca extension Customer (assigned_cs_id, dll).
+        // Customer dengan >=2 transaksi dalam periode / customer dengan >=1.
+        // CATATAN: tabel transactions TIDAK punya customer_id — nama & HP customer
+        // disimpan sebagai teks. Jadi identitas customer dikenali dari HP yang
+        // dinormalisasi (buang non-digit, drop awalan 62/0); kalau HP kosong,
+        // fallback ke nama. Transaksi tanpa identitas (mis. tunai walk-in tanpa
+        // nama/HP) diabaikan — tidak bisa diatribusikan sebagai repeat.
         let customersWithOrder = 0;
         let customersRepeat = 0;
         try {
-            const branchFilter = ctx.branchId != null ? `AND branch_id = ${Number(ctx.branchId)}` : '';
-            const rows: any[] = await this.prisma.$queryRawUnsafe(`
-                SELECT customer_id, COUNT(*) AS cnt
-                FROM transactions
-                WHERE customer_id IS NOT NULL
-                  AND created_at BETWEEN ? AND ?
-                  ${branchFilter}
-                GROUP BY customer_id
-            `, start, end);
-            customersWithOrder = rows.length;
-            customersRepeat = rows.filter((r: any) => Number(r.cnt) >= 2).length;
+            const txRows: any[] = await this.tx.findMany({
+                where: {
+                    createdAt: { gte: start, lte: end },
+                    ...(ctx.branchId != null ? { branchId: Number(ctx.branchId) } : {}),
+                },
+                select: { customerPhone: true, customerName: true },
+            });
+            const counts = new Map<string, number>();
+            for (const t of txRows) {
+                let phone = String(t.customerPhone || '').replace(/\D/g, '');
+                if (phone.startsWith('62')) phone = phone.slice(2);
+                if (phone.startsWith('0')) phone = phone.slice(1);
+                const name = String(t.customerName || '').trim().toLowerCase();
+                const key = phone.length >= 5 ? `p:${phone}` : (name ? `n:${name}` : '');
+                if (!key) continue;
+                counts.set(key, (counts.get(key) || 0) + 1);
+            }
+            customersWithOrder = counts.size;
+            customersRepeat = Array.from(counts.values()).filter((c) => c >= 2).length;
         } catch (e) {
-            // Tabel transactions atau kolom branch_id mungkin beda di setup user
-            // — fallback ke 0 supaya endpoint tidak crash.
+            // fallback ke 0 supaya endpoint tidak crash kalau skema beda
             // eslint-disable-next-line no-console
             console.warn('[kpi] repeat-order calc fallback:', (e as Error).message);
         }
