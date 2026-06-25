@@ -70,6 +70,7 @@ function DesignerNewSOContent() {
     const [csLeads, setCsLeads] = useState<ActiveLeadPreview[]>([]); // antrian lead CS utk kartu pilihan
     const [csLeadsLoading, setCsLeadsLoading] = useState(true);
     const [pickedLead, setPickedLead] = useState<ActiveLeadPreview | null>(null); // lead CS yg dipilih dari kartu
+    const [csPickerOpen, setCsPickerOpen] = useState(false); // modal daftar lead CS
 
     // Load customers sekali saat komponen mount
     useMemo(() => {
@@ -357,14 +358,24 @@ function DesignerNewSOContent() {
             <div className="max-w-2xl mx-auto p-4 space-y-4 pb-24">
                 {error && <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 rounded-lg px-3 py-2 text-sm">{error}</div>}
 
-                {/* Kartu antrian lead CS — klik untuk isi data customer */}
-                {!isEdit && (
-                    <CsLeadPicker
-                        leads={csLeads}
-                        loading={csLeadsLoading}
-                        pickedId={pickedLead?.id ?? null}
-                        onPick={pickLead}
-                    />
+                {/* Tombol ringkas → buka daftar lead CS (modal), form tetap di atas & bersih */}
+                {!isEdit && (csLeadsLoading || csLeads.length > 0) && (
+                    <button
+                        type="button"
+                        onClick={() => setCsPickerOpen(true)}
+                        className="w-full flex items-center justify-between gap-2 rounded-xl border border-indigo-300 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/50 px-4 py-3 transition-colors"
+                    >
+                        <span className="flex items-center gap-2 text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+                            <Users className="h-4 w-4" />
+                            Ambil data dari Lead CS
+                        </span>
+                        <span className="flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400">
+                            {csLeadsLoading
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <span className="font-semibold bg-indigo-600 text-white rounded-full px-2 py-0.5">{csLeads.length}</span>}
+                            <span className="hidden sm:inline">pilih</span>
+                        </span>
+                    </button>
                 )}
 
                 {/* Customer */}
@@ -634,6 +645,27 @@ function DesignerNewSOContent() {
                 </div>
             </div>
 
+            {/* Modal daftar lead CS — bottom-sheet, dicari & di-scroll di dalam */}
+            {csPickerOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm"
+                    onClick={() => setCsPickerOpen(false)}
+                >
+                    <div
+                        className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-t-2xl sm:rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 max-h-[80vh] flex flex-col animate-in fade-in slide-in-from-bottom-4"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <CsLeadPicker
+                            leads={csLeads}
+                            loading={csLeadsLoading}
+                            pickedId={pickedLead?.id ?? null}
+                            onPick={l => { pickLead(l); setCsPickerOpen(false); }}
+                            onClose={() => setCsPickerOpen(false)}
+                        />
+                    </div>
+                </div>
+            )}
+
             {/* Modal pilihan saat customer sudah punya lead aktif (repeat order) */}
             {leadChoiceOpen && (
                 <div
@@ -817,16 +849,18 @@ function ActiveLeadsPreview({ leads }: { leads: ActiveLeadPreview[] }) {
 }
 
 /**
- * Kartu antrian lead CS aktif (belum punya SO). Desainer klik salah satu untuk
- * mengisi data customer; SO otomatis menempel ke lead itu saat "Lead Order".
+ * Isi modal daftar lead CS aktif (belum punya SO). Header + search menetap di
+ * atas; daftar di-scroll di dalam modal supaya form di halaman tetap bersih.
+ * Klik salah satu → isi data customer & SO menempel ke lead itu saat "Lead Order".
  */
 function CsLeadPicker({
-    leads, loading, pickedId, onPick,
+    leads, loading, pickedId, onPick, onClose,
 }: {
     leads: ActiveLeadPreview[];
     loading: boolean;
     pickedId: number | null;
     onPick: (l: ActiveLeadPreview) => void;
+    onClose: () => void;
 }) {
     const [q, setQ] = useState("");
     const filtered = useMemo(() => {
@@ -836,27 +870,42 @@ function CsLeadPicker({
     }, [leads, q]);
 
     return (
-        <Card title={`Lead dari CS (${leads.length}) — klik untuk isi data customer`}>
+        <>
+            {/* Header tetap */}
+            <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
+                <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                    <h3 className="font-semibold text-slate-800 dark:text-slate-100">Lead dari CS ({leads.length})</h3>
+                </div>
+                <button type="button" onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400">
+                    <X className="h-5 w-5" />
+                </button>
+            </div>
+
+            {/* Search tetap */}
             {leads.length > 3 && (
-                <div className="relative mb-2">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cari nama / HP lead…"
-                        className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" />
+                <div className="px-4 pt-3 shrink-0">
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cari nama / HP lead…" autoFocus
+                            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" />
+                    </div>
                 </div>
             )}
 
+            {/* Daftar — area scroll */}
             {loading ? (
-                <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500 py-4 justify-center">
+                <div className="flex items-center gap-2 text-sm text-slate-400 dark:text-slate-500 py-8 justify-center">
                     <Loader2 className="h-4 w-4 animate-spin" /> Memuat lead CS…
                 </div>
             ) : leads.length === 0 ? (
-                <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-5 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
-                    Belum ada lead aktif dari CS. Isi data customer manual di bawah.
+                <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-8 px-4">
+                    Belum ada lead aktif dari CS. Tutup lalu isi data customer manual.
                 </div>
             ) : filtered.length === 0 ? (
-                <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-4">Tidak ada lead cocok.</div>
+                <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-8">Tidak ada lead cocok.</div>
             ) : (
-                <div className="space-y-2 max-h-80 overflow-y-auto pr-0.5">
+                <div className="space-y-2 overflow-y-auto flex-1 p-4 pt-3">
                     {filtered.map(l => {
                         const handler = l.assignedToName || l.createdByName;
                         const active = pickedId === l.id;
@@ -891,6 +940,6 @@ function CsLeadPicker({
                     })}
                 </div>
             )}
-        </Card>
+        </>
     );
 }
