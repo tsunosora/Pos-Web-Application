@@ -4,6 +4,7 @@ import {
     HttpException,
     HttpStatus,
     Injectable,
+    Logger,
 } from '@nestjs/common';
 
 /**
@@ -23,6 +24,7 @@ import {
  */
 @Injectable()
 export class PublicOrderThrottleGuard implements CanActivate {
+    private readonly logger = new Logger('Security');
     private readonly hits = new Map<string, number[]>();
     private global: number[] = [];
     private lastPrune = 0;
@@ -78,6 +80,9 @@ export class PublicOrderThrottleGuard implements CanActivate {
         const globalHour = this.global.filter((t) => now - t < HOUR).length;
 
         if (inMin >= limMin || inHour >= limHour || globalHour >= PublicOrderThrottleGuard.GLOBAL_HOUR) {
+            // Catat untuk monitor keamanan (deteksi abuse/flooding endpoint publik).
+            const reason = globalHour >= PublicOrderThrottleGuard.GLOBAL_HOUR ? 'global' : (inMin >= limMin ? 'per-min' : 'per-hour');
+            this.logger.warn(`[SECURITY] throttle_block key=${key} reason=${reason} inMin=${inMin} inHour=${inHour} globalHour=${globalHour}`);
             throw new HttpException(
                 { ok: false, message: 'Terlalu banyak permintaan order. Mohon coba beberapa saat lagi.' },
                 HttpStatus.TOO_MANY_REQUESTS,
