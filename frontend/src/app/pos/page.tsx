@@ -134,7 +134,9 @@ function POSPageContent() {
     const fromSOParam = searchParams?.get('fromSO');
     const fromSOId = fromSOParam ? Number(fromSOParam) : null;
     const [salesOrderId, setSalesOrderId] = useState<number | null>(null);
-    const [soPrefilled, setSoPrefilled] = useState(false);
+    // Guard prefill berbasis ID SO (bukan boolean) — supaya tidak ter-prefill ulang
+    // saat sukses/cancel sebelum URL ?fromSO sempat hilang (race re-populate keranjang).
+    const [prefilledSoId, setPrefilledSoId] = useState<number | null>(null);
 
     const { data: soData } = useQuery({
         queryKey: ['sales-order', fromSOId],
@@ -232,13 +234,13 @@ function POSPageContent() {
 
     // ---- Pre-fill cart from Sales Order (?fromSO=<id>) ----
     useEffect(() => {
-        if (!fromSOId || !soData || !products || soPrefilled) return;
+        if (!fromSOId || !soData || !products || prefilledSoId === fromSOId) return;
         // Guard: hanya block kalau SO sudah INVOICED (nota sudah terbit) atau CANCELLED.
         // DRAFT & SENT keduanya boleh — SO dari CRM convert ada di DRAFT, SO manual
         // ada di SENT setelah dikirim ke Discord.
         if (soData.status === 'INVOICED' || soData.status === 'CANCELLED') {
             addNotification({ type: 'system', title: 'SO tidak valid', message: `SO ${soData.soNumber} tidak bisa dibuatkan nota (status: ${soData.status})` });
-            setSoPrefilled(true);
+            setPrefilledSoId(fromSOId);
             return;
         }
         clearCart();
@@ -249,7 +251,11 @@ function POSPageContent() {
         if (soData.notes) setProductionNotes(soData.notes);
         setSalesOrderId(soData.id);
 
-        // Add each SO item to cart
+        // Add each SO item to cart.
+        // Produk UNIT yang sama bisa diinput desainer >1x (qty/catatan beda) — tiap
+        // kemunculan harus jadi baris sendiri. Kemunculan pertama merge normal
+        // (biar klik grid tetap nambah ke baris itu); duplikat → baris terpisah.
+        const seenUnitVariants = new Set<number>();
         for (const it of soData.items) {
             const product = (products as any[]).find((p: any) =>
                 p.variants?.some((v: any) => v.id === it.productVariantId)
@@ -267,7 +273,9 @@ function POSPageContent() {
                     pcs: it.pcs ? Number(it.pcs) : 1,
                 });
             } else {
-                addItem(product, variant);
+                const forceNewLine = seenUnitVariants.has(it.productVariantId);
+                seenUnitVariants.add(it.productVariantId);
+                addItem(product, variant, undefined, { forceNewLine });
                 // Apply qty > 1 and note for UNIT items
                 const items = useCartStore.getState().items;
                 const last = items[items.length - 1];
@@ -290,15 +298,16 @@ function POSPageContent() {
                 }
             }
         }
-        setSoPrefilled(true);
+        setPrefilledSoId(fromSOId);
         addNotification({ type: 'system', title: 'SO dibuka', message: `Cart ter-prefill dari SO ${soData.soNumber}` });
-    }, [fromSOId, soData, products, soPrefilled, addItem, clearCart, addNotification]);
+    }, [fromSOId, soData, products, prefilledSoId, addItem, clearCart, addNotification]);
 
     const cancelSOMode = useCallback(() => {
         setSalesOrderId(null);
-        setSoPrefilled(false);
         clearCart();
         setCustomerName(''); setCustomerPhone(''); setCustomerAddress('');
+        // Tidak reset prefilledSoId: begitu ?fromSO hilang, fromSOId jadi null &
+        // efek berhenti sendiri — reset ke null malah memicu prefill ulang (race).
         router.replace('/pos');
     }, [clearCart, router]);
 
@@ -526,6 +535,8 @@ function POSPageContent() {
             await saveOfflineTransaction(payload);
             clearCart(); setCheckoutModalOpen(false);
             setPaymentMethod('CASH'); setSelectedBankId('');
+            // Bersihkan mode SO juga (kalau nota offline ini dari SO)
+            if (salesOrderId) { setSalesOrderId(null); router.replace('/pos'); }
             setReceipt(snap);
         } else {
             transactionMutation.mutate(payload, {
@@ -547,10 +558,11 @@ function POSPageContent() {
                     setDueDate(''); setDownPayment('');
                     setDpBayarNanti(''); setDpMethodBayarNanti('CASH'); setDpBankBayarNanti('');
                     setTransactionDate(''); setCashflowToday(false);
-                    // Clear SO link after successful transaction
+                    // Clear SO link after successful transaction.
+                    // Jangan reset prefilledSoId — biar efek tidak prefill ulang
+                    // sebelum ?fromSO hilang (penyebab keranjang/banner tak kunjung bersih).
                     if (salesOrderId) {
                         setSalesOrderId(null);
-                        setSoPrefilled(false);
                         router.replace('/pos');
                     }
                     setReceipt(snap);
@@ -2035,7 +2047,6 @@ function POSPageContent() {
                                 setCashflowToday(false);
                                 if (salesOrderId) {
                                     setSalesOrderId(null);
-                                    setSoPrefilled(false);
                                     router.replace('/pos');
                                 }
                                 setReceipt(null);
