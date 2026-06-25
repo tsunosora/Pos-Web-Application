@@ -48,6 +48,9 @@ export class UpdateLeadDto {
     imageUrl?: string | null;
     imageUrls?: string[];  // kalau di-set, replace semua images existing
     items?: LeadItemDto[]; // kalau di-set, replace semua items existing
+    // Cek desain pra-jual (kerja tim CS+Designer)
+    designerName?: string | null;     // pilih dari daftar Designer; null = hapus
+    designVerdict?: string | null;    // BISA | TIDAK_BISA | REVISI
 }
 
 export class CreateActivityDto {
@@ -70,6 +73,9 @@ export class ConvertLeadDto {
     // production jobs. Kalau ada lead items dengan productVariantId & flag ini tidak
     // false, Transaction PENDING dibuat otomatis → production pipeline langsung jalan.
     createProductionTransaction?: boolean;
+    // false = JANGAN tandai lead CLOSED_WON (alur "Buat Nota di Kasir": buat SO
+    // dulu, lead closing otomatis saat SO dibuatkan nota di POS). Default true.
+    markWon?: boolean;
     // Tandai sebagai order express — tampil sebagai badge merah di kanban pipeline
     isExpress?: boolean;
     // Payment options saat convert. Default: NONE (Transaction PENDING tanpa pembayaran).

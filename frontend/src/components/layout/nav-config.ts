@@ -2,7 +2,7 @@ import {
     LayoutDashboard, ShoppingCart, BarChart3, Package, Wallet, FileText, MapPin,
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
-    Inbox, BookOpen, Sparkles, MessageSquare, Workflow,
+    Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -88,6 +88,12 @@ export const SECTIONS: NavSection[] = [
         items: [
             { name: "Peta Cuan Lokasi", href: "/maps", icon: MapPin },
             { name: "Kalkulator HPP", href: "/reports/hpp", icon: Calculator },
+        ],
+    },
+    {
+        key: 'team', label: 'Tim & Kinerja', icon: Trophy,
+        items: [
+            { name: "Leaderboard", href: "/leaderboard", icon: Award },
         ],
     },
 ];

@@ -90,6 +90,9 @@ export interface Lead {
     convertedSalesOrderId: number | null;
     convertedTransactionId: number | null;
     closeLostReason: string | null;
+    designerName: string | null;        // designer yg cek desain pra-jual
+    designVerdict: string | null;       // BISA | TIDAK_BISA | REVISI
+    designCheckedAt: string | null;
     imageUrl: string | null;       // DEPRECATED — first image dari images array
     images?: LeadImage[];           // multi-image (urutan = posisi slider)
     branchId: number | null;
@@ -163,6 +166,8 @@ export interface UpdateLeadInput {
     imageUrl?: string | null;
     imageUrls?: string[];
     items?: LeadItem[];
+    designerName?: string | null;       // cek desain pra-jual
+    designVerdict?: string | null;      // BISA | TIDAK_BISA | REVISI
 }
 
 export interface ConvertLeadInput {
@@ -174,6 +179,7 @@ export interface ConvertLeadInput {
     invoiceType?: 'INVOICE' | 'QUOTATION'; // default INVOICE
     notes?: string;
     createProductionTransaction?: boolean; // Auto-create Transaction PENDING → spawn production jobs (default true)
+    markWon?: boolean;                     // false = jangan tandai CLOSED_WON (alur Buat Nota di Kasir)
     // Payment options
     paymentMode?: 'NONE' | 'DP' | 'LUNAS';
     paymentMethod?: 'CASH' | 'TRANSFER' | 'QRIS';
@@ -448,6 +454,7 @@ export type KpiPeriod = 'today' | 'week' | 'month' | 'custom';
 export interface KpiLeaderboardEntry {
     userId: number;
     name: string;
+    roleName: string | null;
     leadsHandled: number;
     dealsClosed: number;
     dealsLost: number;
@@ -491,6 +498,17 @@ export interface KpiReport {
     };
     leadsBySource: { source: string; count: number }[];
     leaderboard: KpiLeaderboardEntry[];
+    designCheckLeaderboard: DesignCheckEntry[];
+}
+
+export interface DesignCheckEntry {
+    name: string;
+    dicek: number;
+    closing: number;
+    batal: number;
+    open: number;
+    batalTeknis: number;
+    closingRate: number;
 }
 
 export const getKpiReport = async (params: {
@@ -581,6 +599,22 @@ export const getDesignerLeaderboard = async (params: {
     branchId?: number | 'all';
 }): Promise<DesignerLeaderboardReport> =>
     (await api.get('/crm/kpi/designer-leaderboard', { params })).data;
+
+// ── Produktivitas Jasa Desain (berapa desain dikerjakan, per tier) ────────
+export interface DesignOutputEntry {
+    name: string;
+    total: number;       // jumlah desain dikerjakan (Σ qty item Jasa Desain)
+    omzet: number;       // omzet jasa desain (Rp)
+    byTier: { tier: string; count: number }[];   // rincian per tier (nama varian)
+}
+
+export const getDesignOutput = async (params: {
+    period: KpiPeriod;
+    start?: string;
+    end?: string;
+    branchId?: number | 'all';
+}): Promise<DesignOutputEntry[]> =>
+    (await api.get('/crm/kpi/design-output', { params })).data;
 
 // ── Tren leaderboard (time-series per orang, untuk modal grafik) ──────────
 export interface LeaderboardTrendReport {
