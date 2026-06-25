@@ -35,6 +35,15 @@ export class DiscordExceptionFilter implements ExceptionFilter {
         } catch { /* response mungkin sudah terkirim */ }
 
         // Hanya teruskan error server ke Discord
+        // Akses ditolak (401/403) → catat untuk monitor keamanan (deteksi token
+        // dicuri/expired dipakai berulang, atau probing endpoint terlindungi).
+        // /auth/* dikecualikan karena login gagal sudah dicatat terpisah.
+        if ((status === 401 || status === 403) && !String(req?.url || '').startsWith('/auth/')) {
+            const ip = String(req?.headers?.['x-forwarded-for'] || req?.ip || req?.socket?.remoteAddress || 'unknown')
+                .split(',')[0].trim();
+            this.logger.warn(`[SECURITY] access_denied status=${status} ip=${ip} path=${req?.method || ''} ${req?.url || ''}`.trim());
+        }
+
         if (status >= 500) {
             const err = exception as any;
             const msg = err?.message || String(exception);

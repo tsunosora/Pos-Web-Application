@@ -1,8 +1,14 @@
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Header keamanan (X-Frame-Options, X-Content-Type-Options, dll).
+  // CSP & COEP dimatikan: ini API JSON + ada aset/gambar lintas-origin yang
+  // di-serve ke storefront, jadi CSP ketat bisa memblokir hal yang sah.
+  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 
   // Public read-only endpoints: allow any origin, no credentials needed
   app.use((req: any, res: any, next: any) => {

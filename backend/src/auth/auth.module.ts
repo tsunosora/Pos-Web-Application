@@ -5,6 +5,8 @@ import { UsersModule } from '../users/users.module';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
+import { LoginThrottleService } from './login-throttle.service';
+import { getJwtSecret } from './jwt-secret.util';
 
 @Module({
   imports: [
@@ -12,11 +14,14 @@ import { JwtStrategy } from './jwt.strategy';
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       global: true,
-      secret: process.env.JWT_SECRET || 'super-secret',
-      signOptions: { expiresIn: '30d' },
+      secret: getJwtSecret(),
+      // Masa berlaku bisa diatur via JWT_EXPIRES; default tetap 30d (jaga UX).
+      // cast: tipe expiresIn adalah template-literal `ms`, string env perlu di-cast.
+      signOptions: { expiresIn: (process.env.JWT_EXPIRES || '30d') as any },
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, LoginThrottleService],
+  exports: [LoginThrottleService],
 })
 export class AuthModule { }
