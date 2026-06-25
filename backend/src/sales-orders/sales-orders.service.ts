@@ -88,17 +88,19 @@ export class SalesOrdersService {
             code = (b?.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
         }
         const prefix = code ? `SO-${code}-${yyyymmdd}-` : `SO-${yyyymmdd}-`;
-        const last = await (this.prisma as any).salesOrder.findFirst({
+        // Hitung urutan dari MAX NUMERIK (bukan orderBy teks) — kebal terhadap
+        // padding lama 3 digit & data campur. orderBy teks bisa salah karena
+        // "036" > "0037" secara string → menghasilkan nomor duplikat.
+        const rows = await (this.prisma as any).salesOrder.findMany({
             where: { soNumber: { startsWith: prefix } },
-            orderBy: { soNumber: 'desc' },
             select: { soNumber: true },
         });
-        let nextSeq = 1;
-        if (last?.soNumber) {
-            const n = parseInt(last.soNumber.slice(prefix.length), 10);
-            if (!Number.isNaN(n)) nextSeq = n + 1;
+        let maxN = 0;
+        for (const r of rows) {
+            const n = parseInt(String(r.soNumber).slice(prefix.length), 10);
+            if (Number.isFinite(n) && n > maxN) maxN = n;
         }
-        return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+        return `${prefix}${String(maxN + 1).padStart(4, '0')}`;
     }
 
     /**
@@ -239,34 +241,45 @@ export class SalesOrdersService {
             } catch { /* abaikan */ }
         }
 
-        const soNumber = await this.generateSoNumber(branchName);
-        const so = await (this.prisma as any).salesOrder.create({
-            data: {
-                soNumber,
-                status: 'DRAFT',
-                customerId: data.customerId ?? null,
-                customerName: data.customerName,
-                customerPhone: data.customerPhone ?? null,
-                customerAddress: data.customerAddress ?? null,
-                designerName: data.designerName,
-                branchName,
-                notes: data.notes ?? null,
-                deadline: data.deadline ? new Date(data.deadline) : null,
-                items: {
-                    create: data.items.map((it) => ({
-                        productVariantId: it.productVariantId,
-                        quantity: it.quantity,
-                        widthCm: it.widthCm ?? null,
-                        heightCm: it.heightCm ?? null,
-                        unitType: it.unitType ?? null,
-                        pcs: it.pcs ?? null,
-                        customPrice: it.customPrice ?? null,
-                        note: it.note ?? null,
-                    })),
-                },
-            },
-            include: this.soInclude(),
-        });
+        // Lapis pengaman konkurensi: kalau nomor SO keburu dipakai proses lain
+        // (P2002 unique), regenerate & ulang. generateSoNumber sudah max-numerik.
+        let so: any;
+        for (let attempt = 0; ; attempt++) {
+            const soNumber = await this.generateSoNumber(branchName);
+            try {
+                so = await (this.prisma as any).salesOrder.create({
+                    data: {
+                        soNumber,
+                        status: 'DRAFT',
+                        customerId: data.customerId ?? null,
+                        customerName: data.customerName,
+                        customerPhone: data.customerPhone ?? null,
+                        customerAddress: data.customerAddress ?? null,
+                        designerName: data.designerName,
+                        branchName,
+                        notes: data.notes ?? null,
+                        deadline: data.deadline ? new Date(data.deadline) : null,
+                        items: {
+                            create: data.items.map((it) => ({
+                                productVariantId: it.productVariantId,
+                                quantity: it.quantity,
+                                widthCm: it.widthCm ?? null,
+                                heightCm: it.heightCm ?? null,
+                                unitType: it.unitType ?? null,
+                                pcs: it.pcs ?? null,
+                                customPrice: it.customPrice ?? null,
+                                note: it.note ?? null,
+                            })),
+                        },
+                    },
+                    include: this.soInclude(),
+                });
+                break;
+            } catch (e: any) {
+                if (e?.code === 'P2002' && attempt < 5) continue;
+                throw e;
+            }
+        }
         return so;
     }
 
