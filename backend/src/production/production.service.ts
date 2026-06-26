@@ -610,7 +610,7 @@ export class ProductionService {
         return jobs;
     }
 
-    async addProof(jobId: number, filename: string, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }) {
+    async addProof(jobId: number, filename: string, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }, designerName?: string) {
         const last = await (this.prisma as any).productionJobProof.findFirst({
             where: { jobId },
             orderBy: { position: 'desc' },
@@ -629,6 +629,11 @@ export class ProductionService {
         }
         if (isFirstProof) {
             jobUpdate.designEnteredAt = new Date();
+        }
+        // Kredit desainer (dipilih saat upload) → leaderboard produksi desainer.
+        // Hanya untuk atribusi produksi; tidak menyentuh lead.designerName.
+        if (designerName && designerName.trim()) {
+            jobUpdate.designerName = designerName.trim();
         }
         if (Object.keys(jobUpdate).length > 0) {
             await (this.prisma as any).productionJob.update({

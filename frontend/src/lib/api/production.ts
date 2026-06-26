@@ -426,9 +426,10 @@ export const updatePipelineStage = async (id: number, data: {
     return res.data;
 };
 
-export const uploadPipelineProofImage = async (id: number, file: File): Promise<{ url: string; proofId: number }> => {
+export const uploadPipelineProofImage = async (id: number, file: File, designerName?: string): Promise<{ url: string; proofId: number }> => {
     const form = new FormData();
     form.append('image', file);
+    if (designerName) form.append('designerName', designerName);
     const res = await api.post(`/production/pipeline/jobs/${id}/proof-image`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -497,12 +498,14 @@ export const uploadPublicProofImage = async (
     id: number,
     session: OperatorSession,
     file: File,
+    designerName?: string,
 ): Promise<{ url: string; proofId: number }> => {
     const form = new FormData();
     form.append('image', file);
     form.append('pin', session.pin);
     form.append('branchId', String(session.branchId));
     form.append('operatorName', session.operatorName);
+    if (designerName) form.append('designerName', designerName);
     const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs/${id}/proof-image`, {
         method: 'POST',
         body: form,

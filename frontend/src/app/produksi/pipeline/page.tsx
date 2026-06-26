@@ -15,6 +15,8 @@ import {
     type PipelineJob, type PipelineStage,
     PIPELINE_STAGES, PIPELINE_STAGE_LABEL,
 } from "@/lib/api/production";
+import { getPublicDesigners } from "@/lib/api/designers";
+import { AssignDesignerModal } from "@/components/produksi/AssignDesignerModal";
 import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
@@ -60,6 +62,7 @@ export default function ProduksiPipelinePage() {
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
     const [cancelModal, setCancelModal] = useState<{ job: PipelineJob } | null>(null);
     const [proofViewer, setProofViewer] = useState<{ job: PipelineJob } | null>(null);
+    const [assignProof, setAssignProof] = useState<{ jobId: number; files: File[] } | null>(null);
     const [woModalJob, setWoModalJob] = useState<{ id: number; jobNumber: string } | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
     const [filterPriority, setFilterPriority] = useState<string>("ALL");
@@ -67,6 +70,12 @@ export default function ProduksiPipelinePage() {
     const [filterDesigner, setFilterDesigner] = useState<string>("ALL");
     const [showShare, setShowShare] = useState(false);
     const shareRef = useRef<HTMLDivElement>(null);
+
+    const { data: designers = [] } = useQuery({
+        queryKey: ["public-designers"],
+        queryFn: getPublicDesigners,
+        staleTime: 5 * 60_000,
+    });
 
     const { data: jobs = [], isLoading } = useQuery({
         queryKey: ["produksi-pipeline"],
@@ -99,7 +108,8 @@ export default function ProduksiPipelinePage() {
     });
 
     const uploadMut = useMutation({
-        mutationFn: (data: { id: number; file: File }) => uploadPipelineProofImage(data.id, data.file),
+        mutationFn: (data: { id: number; file: File; designerName?: string }) =>
+            uploadPipelineProofImage(data.id, data.file, data.designerName),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["produksi-pipeline"] }),
     });
 
@@ -145,8 +155,16 @@ export default function ProduksiPipelinePage() {
         setCancelModal({ job });
     }, []);
 
+    // Pilih file dulu → buka modal "assign desainer", upload setelah dipilih
     const handleUploadProof = useCallback((jobId: number, files: FileList) => {
-        Array.from(files).forEach((file) => uploadMut.mutate({ id: jobId, file }));
+        setAssignProof({ jobId, files: Array.from(files) });
+    }, []);
+
+    const doUploadProof = useCallback((designerName?: string) => {
+        setAssignProof(prev => {
+            if (prev) prev.files.forEach((file) => uploadMut.mutate({ id: prev.jobId, file, designerName }));
+            return null;
+        });
     }, [uploadMut]);
 
     const handleDeleteProof = useCallback((proofId: number) => {
@@ -510,6 +528,16 @@ export default function ProduksiPipelinePage() {
                     onDelete={handleDeleteProof}
                     uploading={uploadMut.isPending}
                     deleting={deleteProofMut.isPending}
+                />
+            )}
+
+            {assignProof && (
+                <AssignDesignerModal
+                    designers={designers}
+                    fileCount={assignProof.files.length}
+                    defaultName={jobs.find(j => j.id === assignProof.jobId)?.designerName || ""}
+                    onPick={(name) => doUploadProof(name || undefined)}
+                    onCancel={() => setAssignProof(null)}
                 />
             )}
 
