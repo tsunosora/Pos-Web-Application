@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { verifyMarketingPin, getPublicMarketingDashboard, addMarketingSpend, deleteMarketingSpend, type PublicLead, type AdSpend } from "@/lib/api/marketing";
-import { TrendingUp, Users, Wallet, Clock, Loader2, Lock, RefreshCw, ChevronDown, Megaphone, Package, Filter, Target, Plus, Trash2, Receipt } from "lucide-react";
+import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
+import { TrendingUp, Users, Wallet, Clock, Loader2, Lock, RefreshCw, ChevronDown, Megaphone, Package, Filter, Target, Plus, Trash2, Receipt, Building2 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -59,12 +60,14 @@ export default function MarketingDashboardPage() {
     const [pinLoading, setPinLoading] = useState(false);
 
     const [period, setPeriod] = useState("month");
+    const [branches, setBranches] = useState<PublicBranch[]>([]);
+    const [branchSel, setBranchSel] = useState<number | "ALL">("ALL");
     const [data, setData] = useState<any>(null);
     const [leads, setLeads] = useState<PublicLead[]>([]);
     const [adSpend, setAdSpend] = useState<AdSpend | null>(null);
     const [spendOpen, setSpendOpen] = useState(false);
     const [savingSpend, setSavingSpend] = useState(false);
-    const [spendForm, setSpendForm] = useState({ date: dayjs().format("YYYY-MM-DD"), source: "WHATSAPP", amount: "", note: "" });
+    const [spendForm, setSpendForm] = useState({ date: dayjs().format("YYYY-MM-DD"), source: "WHATSAPP", amount: "", note: "", branchId: "" as number | "" });
     const [loading, setLoading] = useState(false);
     const [expanded, setExpanded] = useState<number | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -77,11 +80,11 @@ export default function MarketingDashboardPage() {
 
     useEffect(() => { setPin(readSession()); }, []);
 
-    const load = useCallback(async (p: string) => {
+    const load = useCallback(async (p: string, b: number | "ALL") => {
         if (!pin) return;
         setLoading(true);
         try {
-            const res = await getPublicMarketingDashboard(pin, { period: p });
+            const res = await getPublicMarketingDashboard(pin, { period: p, branchId: b === "ALL" ? null : b });
             setData(res.report);
             setLeads(res.leads);
             setAdSpend(res.adSpend);
@@ -90,7 +93,10 @@ export default function MarketingDashboardPage() {
         } finally { setLoading(false); }
     }, [pin]);
 
-    useEffect(() => { if (pin) load(period); }, [pin, period, load]);
+    useEffect(() => { if (pin) load(period, branchSel); }, [pin, period, branchSel, load]);
+    useEffect(() => { if (pin) getPublicBranches().then(setBranches).catch(() => { }); }, [pin]);
+    // Pre-fill cabang form biaya mengikuti cabang yang sedang dilihat
+    useEffect(() => { setSpendForm(f => ({ ...f, branchId: branchSel === "ALL" ? "" : branchSel })); }, [branchSel]);
 
     const submitSpend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -99,14 +105,14 @@ export default function MarketingDashboardPage() {
         if (!Number.isFinite(amount) || amount <= 0) return;
         setSavingSpend(true);
         try {
-            await addMarketingSpend(pin, { date: spendForm.date, source: spendForm.source, amount, note: spendForm.note.trim() || undefined });
+            await addMarketingSpend(pin, { date: spendForm.date, source: spendForm.source, amount, note: spendForm.note.trim() || undefined, branchId: spendForm.branchId === "" ? null : spendForm.branchId });
             setSpendForm(f => ({ ...f, amount: "", note: "" }));
-            await load(period);
+            await load(period, branchSel);
         } catch { /* noop */ } finally { setSavingSpend(false); }
     };
     const removeSpend = async (id: number) => {
         if (!pin || !confirm("Hapus catatan biaya iklan ini?")) return;
-        try { await deleteMarketingSpend(pin, id); await load(period); } catch { /* noop */ }
+        try { await deleteMarketingSpend(pin, id); await load(period, branchSel); } catch { /* noop */ }
     };
 
     const handlePin = async (e: React.FormEvent) => {
@@ -230,11 +236,11 @@ export default function MarketingDashboardPage() {
                     <div className="rounded-lg bg-white/15 p-2"><Megaphone className="h-4 w-4" /></div>
                     <div className="min-w-0">
                         <div className="font-semibold leading-tight">Dashboard Marketing</div>
-                        <div className="text-xs text-indigo-100">Pemantauan leads — semua cabang</div>
+                        <div className="text-xs text-indigo-100">Pemantauan leads — {branchSel === "ALL" ? "semua cabang" : (branches.find(b => b.id === branchSel)?.name || "cabang")}</div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => load(period)} disabled={loading} className="p-2 hover:bg-white/15 rounded-lg" title="Muat ulang">
+                    <button onClick={() => load(period, branchSel)} disabled={loading} className="p-2 hover:bg-white/15 rounded-lg" title="Muat ulang">
                         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                     </button>
                     <button onClick={logout} className="p-2 hover:bg-white/15 rounded-lg" title="Keluar"><Lock className="h-4 w-4" /></button>
@@ -242,14 +248,29 @@ export default function MarketingDashboardPage() {
             </div>
 
             <div className="max-w-5xl mx-auto p-4 space-y-4">
-                {/* Period */}
-                <div className="flex gap-1.5">
-                    {PERIODS.map(p => (
-                        <button key={p.key} onClick={() => setPeriod(p.key)}
-                            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${period === p.key ? "bg-indigo-600 text-white" : "bg-card border border-border text-muted-foreground hover:bg-muted"}`}>
-                            {p.label}
-                        </button>
-                    ))}
+                {/* Period + Cabang */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex gap-1.5">
+                        {PERIODS.map(p => (
+                            <button key={p.key} onClick={() => setPeriod(p.key)}
+                                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${period === p.key ? "bg-indigo-600 text-white" : "bg-card border border-border text-muted-foreground hover:bg-muted"}`}>
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+                    {branches.length > 0 && (
+                        <label className="ml-auto inline-flex items-center gap-1.5 text-sm">
+                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                            <select
+                                value={branchSel}
+                                onChange={e => setBranchSel(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
+                                className="border border-border rounded-lg px-2.5 py-1.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                            >
+                                <option value="ALL">Semua Cabang</option>
+                                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                        </label>
+                    )}
                 </div>
 
                 {!data ? (
@@ -315,6 +336,12 @@ export default function MarketingDashboardPage() {
                                         <div><label className="text-[11px] text-muted-foreground block mb-0.5">Sumber</label>
                                             <select value={spendForm.source} onChange={e => setSpendForm(f => ({ ...f, source: e.target.value }))} className="border border-border rounded-lg px-2 py-1.5 text-sm bg-background text-foreground">
                                                 {Object.keys(SOURCE_LABEL).map(s => <option key={s} value={s}>{SOURCE_LABEL[s]}</option>)}
+                                            </select>
+                                        </div>
+                                        <div><label className="text-[11px] text-muted-foreground block mb-0.5">Cabang</label>
+                                            <select value={spendForm.branchId === "" ? "" : String(spendForm.branchId)} onChange={e => setSpendForm(f => ({ ...f, branchId: e.target.value === "" ? "" : Number(e.target.value) }))} className="border border-border rounded-lg px-2 py-1.5 text-sm bg-background text-foreground">
+                                                <option value="">Pusat / Semua</option>
+                                                {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                             </select>
                                         </div>
                                         <div><label className="text-[11px] text-muted-foreground block mb-0.5">Nominal (Rp)</label><input type="number" min={0} value={spendForm.amount} onChange={e => setSpendForm(f => ({ ...f, amount: e.target.value }))} placeholder="500000" className="border border-border rounded-lg px-2 py-1.5 text-sm bg-background text-foreground w-32" /></div>

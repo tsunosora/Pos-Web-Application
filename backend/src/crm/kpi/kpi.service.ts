@@ -170,14 +170,15 @@ export class KpiService {
     }
 
     /** Data dashboard publik: report KPI semua cabang + daftar lead beserta produknya. */
-    async publicDashboard(params: KpiParams) {
-        const ctx: any = { branchId: null, isOwner: true }; // semua cabang
+    async publicDashboard(params: KpiParams, branchId?: number | null) {
+        const bid = branchId != null ? Number(branchId) : null;
+        const ctx: any = { branchId: bid, isOwner: true }; // null = semua cabang
         const report = await this.report(ctx, params);
         const start = new Date(report.period.start);
         const end = new Date(report.period.end);
 
         const leadsRaw: any[] = await this.lead.findMany({
-            where: { createdAt: { gte: start, lte: end } },
+            where: { createdAt: { gte: start, lte: end }, ...(bid != null ? { branchId: bid } : {}) },
             orderBy: { createdAt: 'desc' },
             take: 800,
             select: {
@@ -264,8 +265,9 @@ export class KpiService {
         });
 
         // ── Biaya iklan dalam periode (untuk benchmark ROAS/CPL/CAC) ───────────
+        // Per cabang: hanya spend cabang itu. "Semua cabang": semua spend (termasuk pusat/null).
         const spendRows: any[] = await (this.prisma as any).marketingSpend.findMany({
-            where: { date: { gte: start, lte: end } },
+            where: { date: { gte: start, lte: end }, ...(bid != null ? { branchId: bid } : {}) },
             orderBy: { date: 'desc' },
         });
         const spendBySource: Record<string, number> = {};
@@ -279,14 +281,14 @@ export class KpiService {
             total: spendTotal,
             bySource: Object.entries(spendBySource).map(([source, amount]) => ({ source, amount })),
             entries: spendRows.map(s => ({
-                id: s.id, date: s.date, source: s.source, amount: Number(s.amount) || 0, note: s.note ?? null,
+                id: s.id, date: s.date, source: s.source, amount: Number(s.amount) || 0, note: s.note ?? null, branchId: s.branchId ?? null,
             })),
         };
 
         return { report, leads, adSpend };
     }
 
-    async addMarketingSpend(data: { date?: string; source: string; amount: number; note?: string }) {
+    async addMarketingSpend(data: { date?: string; source: string; amount: number; note?: string; branchId?: number | null }) {
         if (!data.source) throw new BadRequestException('Sumber wajib diisi');
         const amount = Number(data.amount);
         if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Nominal tidak valid');
@@ -296,6 +298,7 @@ export class KpiService {
                 source: String(data.source).trim(),
                 amount,
                 note: data.note?.trim() || null,
+                branchId: data.branchId != null ? Number(data.branchId) : null,
             },
         });
     }

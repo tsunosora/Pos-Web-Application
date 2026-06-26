@@ -32,6 +32,7 @@ export interface AdSpendEntry {
     source: string;
     amount: number;
     note: string | null;
+    branchId: number | null;
 }
 export interface AdSpend {
     total: number;
@@ -49,13 +50,13 @@ export const verifyMarketingPin = async (pin: string): Promise<{ valid: boolean 
 
 export const getPublicMarketingDashboard = async (
     pin: string,
-    params: { period?: string; start?: string; end?: string },
+    params: { period?: string; start?: string; end?: string; branchId?: number | null },
 ): Promise<PublicMarketingDashboard> =>
     (await axios.post(`${BASE}/crm/public/dashboard`, { pin, ...params })).data;
 
 export const addMarketingSpend = async (
     pin: string,
-    data: { date?: string; source: string; amount: number; note?: string },
+    data: { date?: string; source: string; amount: number; note?: string; branchId?: number | null },
 ): Promise<any> =>
     (await axios.post(`${BASE}/crm/public/spend`, { pin, ...data })).data;
 
