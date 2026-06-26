@@ -615,9 +615,11 @@ model MarketingSpend {
   source    String   @db.VarChar(40)                   // nilai LeadSource (WHATSAPP, INSTAGRAM, ...)
   amount    Decimal  @db.Decimal(14, 2)
   note      String?  @db.VarChar(255)                  // nama campaign/iklan (opsional)
+  branchId  Int?     @map("branch_id")                 // null = pusat / semua cabang
   createdAt DateTime @default(now()) @map("created_at")
 
   @@index([date])
+  @@index([branchId])
   @@map("marketing_spend")
 }
 
