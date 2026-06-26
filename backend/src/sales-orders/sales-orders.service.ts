@@ -526,7 +526,13 @@ export class SalesOrdersService {
             where: {
                 status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
                 convertedSalesOrderId: null,             // belum ada SO = antrian yg butuh desainer
-                NOT: { sourceDetail: 'SO Desainer' },    // hanya lead buatan CS
+                // hanya lead buatan CS (bukan dari SO desainer). NULL-safe: lead CS
+                // umumnya sourceDetail=NULL — `NOT { sourceDetail }` polos akan salah
+                // mengecualikan baris NULL, jadi pakai OR eksplisit.
+                OR: [
+                    { sourceDetail: null },
+                    { sourceDetail: { not: 'SO Desainer' } },
+                ],
             },
             orderBy: { createdAt: 'desc' },
             take: 60,
