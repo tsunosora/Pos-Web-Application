@@ -241,7 +241,7 @@ export default function LeaderboardPage() {
                                         <table className="w-full text-sm min-w-[720px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
-                                                <Th right>Rate</Th><Th right>Cuan (net)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
+                                                <Th right>Rate</Th><Th right>Pcs</Th><Th right>Cuan (net)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -251,6 +251,7 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.dealsClosed}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-red-600 dark:text-red-300">{r.dealsLost || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{(r.pcsOrdered + r.walkinPcs) || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{fmtRp(r.wonValue + r.walkinValue)}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
@@ -265,6 +266,7 @@ export default function LeaderboardPage() {
                             <CaraHitung>
                                 <p><b>Leads</b> = jumlah lead yang di-assign ke orang ini & dibuat dalam periode.</p>
                                 <p><b>Closing</b> = lead berstatus <b>CLOSED_WON</b>. <b>Lost</b> = <b>CLOSED_LOST</b>. <b>Rate</b> = Closing ÷ Leads.</p>
+                                <p><b>Pcs</b> = jumlah barang yang diorder — dari nota lead closing <i>+</i> transaksi POS walk-in yang ia tangani (kategori add-on tidak dihitung).</p>
                                 <p><b>Cuan (net)</b> = Nilai deal lead yang closing (estimatedValue) <i>+</i> omzet transaksi POS walk-in yang ia tangani — keduanya <b>sudah dikurangi biaya platform</b> (fee marketplace).</p>
                                 <p><b>Akan Datang</b> = sisa tagihan (piutang) transaksi yang masih PENDING/PARTIAL.</p>
                                 <p><b>Respon</b> = rata-rata jam dari lead masuk sampai aktivitas pertama CS.</p>

@@ -49,6 +49,18 @@ export class CustomersService {
         return scored.slice(0, 5).map(s => s.c);
     }
 
+    /** Cari customer berdasarkan nama (untuk auto-picker saat input data customer). */
+    async searchByName(nameRaw: string): Promise<any[]> {
+        const q = String(nameRaw || '').trim();
+        if (q.length < 2) return [];
+        return this.prisma.customer.findMany({
+            where: { name: { contains: q } },
+            select: { id: true, name: true, phone: true, address: true },
+            orderBy: { name: 'asc' },
+            take: 8,
+        });
+    }
+
     /** Normalize phone to canonical form: strip leading 62 atau 0, hanya digit. */
     private canonicalPhone(digits: string): string {
         let s = digits;
