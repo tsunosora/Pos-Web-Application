@@ -35,7 +35,7 @@ export function middleware(request: NextRequest) {
     // /produksi (operator PIN page) public, KECUALI /produksi/pipeline (admin kanban → JWT-required).
     // /produksi/board (operator pipeline view) tetap PUBLIC (PIN-protected di sisi backend).
     const isProduksiPublic = pathname.startsWith('/produksi') && !pathname.startsWith('/produksi/pipeline');
-    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname === '/artikel' || pathname.startsWith('/artikel/');
+    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname.startsWith('/marketing') || pathname === '/artikel' || pathname.startsWith('/artikel/');
 
     // If there is no token and the user is NOT on the login page (or public paths), redirect to login
     if (!token && !isLoginPage && !isPublicPage) {

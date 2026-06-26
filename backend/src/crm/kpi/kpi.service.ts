@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere } from '../../common/branch-where.helper';
 import type { BranchContext } from '../../common/branch-context.decorator';
@@ -159,6 +159,149 @@ export class KpiService {
             console.error('[kpi.report] failed:', err?.message, err?.stack);
             throw err;
         }
+    }
+
+    // ── Dashboard Marketing PUBLIK (PIN-only, semua cabang) ────────────────────
+    async verifyMarketingPin(pin: string): Promise<boolean> {
+        if (!pin) return false;
+        const s: any = await this.prisma.storeSettings.findFirst({ select: { marketingPin: true } as any });
+        const real = s?.marketingPin;
+        return !!real && String(real) === String(pin);
+    }
+
+    /** Data dashboard publik: report KPI semua cabang + daftar lead beserta produknya. */
+    async publicDashboard(params: KpiParams) {
+        const ctx: any = { branchId: null, isOwner: true }; // semua cabang
+        const report = await this.report(ctx, params);
+        const start = new Date(report.period.start);
+        const end = new Date(report.period.end);
+
+        const leadsRaw: any[] = await this.lead.findMany({
+            where: { createdAt: { gte: start, lte: end } },
+            orderBy: { createdAt: 'desc' },
+            take: 800,
+            select: {
+                id: true, name: true, phone: true, source: true, sourceDetail: true,
+                status: true, level: true, estimatedValue: true, needs: true, city: true,
+                createdAt: true, convertedTransactionId: true,
+                assignedTo: { select: { name: true } },
+                branch: { select: { name: true } },
+                items: { select: { description: true, quantity: true, unitPrice: true, widthCm: true, heightCm: true, unitType: true, note: true } },
+            },
+        });
+
+        // Transaksi hasil convert (untuk nilai nota asli & DETAIL PRODUK).
+        // Lead yang closing lewat nota/SO menyimpan produk di TransactionItem,
+        // bukan di lead.items — jadi ambil dari sana supaya detail produk muncul.
+        const convertedTxIds = Array.from(new Set(
+            leadsRaw.filter(l => l.convertedTransactionId).map(l => Number(l.convertedTransactionId)),
+        ));
+        const grossMap = new Map<number, number>();
+        const txItemsMap = new Map<number, any[]>();
+        if (convertedTxIds.length) {
+            const txs: any[] = await this.tx.findMany({
+                where: { id: { in: convertedTxIds } },
+                select: { id: true, grandTotal: true, status: true } as any,
+            });
+            for (const t of txs) {
+                if (t.status !== 'FAILED' && t.status !== 'CANCELLED') grossMap.set(t.id, Number(t.grandTotal) || 0);
+            }
+            const txItems: any[] = await (this.prisma as any).transactionItem.findMany({
+                where: { transactionId: { in: convertedTxIds } },
+                select: {
+                    transactionId: true, quantity: true, priceAtTime: true, customName: true,
+                    widthCm: true, heightCm: true, unitType: true, note: true,
+                    productVariant: { select: { variantName: true, product: { select: { name: true } } } },
+                },
+            });
+            for (const it of txItems) {
+                if (!txItemsMap.has(it.transactionId)) txItemsMap.set(it.transactionId, []);
+                const vn = it.productVariant?.variantName ? ` — ${it.productVariant.variantName}` : '';
+                const name = it.productVariant?.product?.name
+                    ? `${it.productVariant.product.name}${vn}`
+                    : (it.customName || 'Item');
+                txItemsMap.get(it.transactionId)!.push({
+                    description: name,
+                    quantity: it.quantity,
+                    unitPrice: Number(it.priceAtTime) || 0,
+                    note: it.note ?? null,
+                    dimension: it.widthCm && it.heightCm ? `${it.widthCm}×${it.heightCm} ${it.unitType || 'cm'}` : null,
+                });
+            }
+        }
+
+        const leads = leadsRaw.map(l => {
+            const txId = l.convertedTransactionId ? Number(l.convertedTransactionId) : null;
+            const hasNota = txId != null && grossMap.has(txId);
+            const value = hasNota ? grossMap.get(txId!)! : (Number(l.estimatedValue) || 0);
+            return {
+                id: l.id,
+                name: l.name,
+                phone: l.phone,
+                source: l.source,
+                sourceDetail: l.sourceDetail,
+                status: l.status,
+                level: l.level,
+                value,
+                hasNota,
+                needs: l.needs,
+                city: l.city,
+                csName: l.assignedTo?.name ?? null,
+                branchName: l.branch?.name ?? null,
+                createdAt: l.createdAt,
+                // Detail produk: utamakan item dari NOTA (transaksi) bila lead sudah
+                // jadi nota; kalau belum, pakai item yang diinput di lead.
+                items: (txId != null && (txItemsMap.get(txId)?.length))
+                    ? txItemsMap.get(txId)!
+                    : (l.items || []).map((it: any) => ({
+                        description: it.description,
+                        quantity: it.quantity,
+                        unitPrice: Number(it.unitPrice) || 0,
+                        note: it.note ?? null,
+                        dimension: it.widthCm && it.heightCm ? `${it.widthCm}×${it.heightCm} ${it.unitType || 'cm'}` : null,
+                    })),
+            };
+        });
+
+        // ── Biaya iklan dalam periode (untuk benchmark ROAS/CPL/CAC) ───────────
+        const spendRows: any[] = await (this.prisma as any).marketingSpend.findMany({
+            where: { date: { gte: start, lte: end } },
+            orderBy: { date: 'desc' },
+        });
+        const spendBySource: Record<string, number> = {};
+        let spendTotal = 0;
+        for (const s of spendRows) {
+            const amt = Number(s.amount) || 0;
+            spendBySource[s.source] = (spendBySource[s.source] || 0) + amt;
+            spendTotal += amt;
+        }
+        const adSpend = {
+            total: spendTotal,
+            bySource: Object.entries(spendBySource).map(([source, amount]) => ({ source, amount })),
+            entries: spendRows.map(s => ({
+                id: s.id, date: s.date, source: s.source, amount: Number(s.amount) || 0, note: s.note ?? null,
+            })),
+        };
+
+        return { report, leads, adSpend };
+    }
+
+    async addMarketingSpend(data: { date?: string; source: string; amount: number; note?: string }) {
+        if (!data.source) throw new BadRequestException('Sumber wajib diisi');
+        const amount = Number(data.amount);
+        if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Nominal tidak valid');
+        return (this.prisma as any).marketingSpend.create({
+            data: {
+                date: data.date ? new Date(data.date) : new Date(),
+                source: String(data.source).trim(),
+                amount,
+                note: data.note?.trim() || null,
+            },
+        });
+    }
+
+    async deleteMarketingSpend(id: number) {
+        return (this.prisma as any).marketingSpend.delete({ where: { id: Number(id) } });
     }
 
     // ── Tren Produk ─────────────────────────────────────────────────────────

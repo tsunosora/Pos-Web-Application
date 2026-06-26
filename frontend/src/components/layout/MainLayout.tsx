@@ -51,8 +51,9 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isLandingBuilder = pathname.startsWith("/landing-builder");
     const isLandingPublic = pathname === "/landing" || pathname.startsWith("/landing/");
     const isArtikelPublic = pathname === "/artikel" || pathname.startsWith("/artikel/");
+    const isMarketingPublic = pathname.startsWith("/marketing");
 
-    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic) {
+    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic) {
         return <>{children}</>;
     }
 

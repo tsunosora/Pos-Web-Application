@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { getKpiReport, getProductTrend, getSourceBreakdown, getDesignerLeaderboard, getDesignOutput, getCsTrend, getDesignerTrend, type KpiPeriod, type LeaderboardTrendReport, LEAD_SOURCE_LABEL } from "@/lib/api";
+import { getKpiReport, getProductTrend, getSourceBreakdown, getDesignerLeaderboard, getDesignOutput, getCsTrend, getDesignerTrend, getSettings, type KpiPeriod, type LeaderboardTrendReport, LEAD_SOURCE_LABEL } from "@/lib/api";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
     PieChart, Pie, Legend, LineChart, Line,
 } from "recharts";
 import {
-    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown, Hourglass, Package, Palette, BarChart3, X,
+    Clock, Target, ClipboardCheck, RotateCcw, Trophy, Sparkles, Loader2, Calendar, TrendingUp, TrendingDown, Hourglass, Package, Palette, BarChart3, X, Share2, Copy, Check, ExternalLink, Megaphone,
 } from "lucide-react";
 import api from "@/lib/api/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -82,7 +82,14 @@ const SOURCE_COLOR: Record<string, string> = {
 };
 
 export default function CrmDashboardPage() {
-    const { isOwner } = useCurrentUser();
+    const { isOwner, isManager } = useCurrentUser();
+    const [shareOpen, setShareOpen] = useState(false);
+    const { data: storeSettings } = useQuery({
+        queryKey: ["store-settings-marketing-pin"],
+        queryFn: getSettings,
+        enabled: isManager,
+        staleTime: 5 * 60_000,
+    });
     const [period, setPeriod] = useState<KpiPeriod>("month");
     const [customStart, setCustomStart] = useState(dayjs().startOf("month").format("YYYY-MM-DD"));
     const [customEnd, setCustomEnd] = useState(dayjs().format("YYYY-MM-DD"));
@@ -152,7 +159,23 @@ export default function CrmDashboardPage() {
                         Metrik performa CRM: response time, closing rate, follow-up compliance, repeat order rate, &amp; leaderboard CS
                     </p>
                 </div>
+                {isManager && (
+                    <button
+                        onClick={() => setShareOpen(true)}
+                        className="ml-auto shrink-0 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm"
+                        title="Bagikan link dashboard publik ke tim marketing"
+                    >
+                        <Share2 className="h-4 w-4" /> Bagikan Link
+                    </button>
+                )}
             </div>
+
+            {shareOpen && (
+                <ShareMarketingModal
+                    pin={(storeSettings as any)?.marketingPin || ""}
+                    onClose={() => setShareOpen(false)}
+                />
+            )}
 
             {/* Period filter */}
             <div className="flex gap-2 flex-wrap items-center">
@@ -1316,6 +1339,70 @@ function DesignOutputCard({
                     </table>
                 </div>
             )}
+        </div>
+    );
+}
+
+// ─── Modal Bagikan Link Dashboard Marketing ────────────────────────────────
+function ShareMarketingModal({ pin, onClose }: { pin: string; onClose: () => void }) {
+    const [copied, setCopied] = useState<string | null>(null);
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const link = `${origin}/marketing`;
+
+    const copy = (text: string, key: string) => {
+        navigator.clipboard?.writeText(text).then(() => {
+            setCopied(key);
+            setTimeout(() => setCopied(null), 1500);
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/40 backdrop-blur-md p-4" onClick={onClose}>
+            <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-xl p-5" onClick={e => e.stopPropagation()}>
+                <div className="flex items-start justify-between gap-2 mb-1">
+                    <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 p-2"><Megaphone className="h-5 w-5" /></div>
+                        <h3 className="font-bold text-lg">Bagikan Dashboard Marketing</h3>
+                    </div>
+                    <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted text-muted-foreground"><X className="h-5 w-5" /></button>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                    Link publik <strong>read-only</strong> untuk tim marketing memantau leads (sumber, status, pendapatan, produk). Cukup link + PIN, tanpa login.
+                </p>
+
+                <label className="text-xs font-semibold text-muted-foreground">Link</label>
+                <div className="flex gap-2 mt-1 mb-3">
+                    <input readOnly value={link} className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-muted/40 font-mono truncate" />
+                    <button onClick={() => copy(link, "link")} className="px-3 py-2 rounded-lg border border-border hover:bg-muted text-sm font-medium inline-flex items-center gap-1.5">
+                        {copied === "link" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                </div>
+
+                <label className="text-xs font-semibold text-muted-foreground">PIN</label>
+                {pin ? (
+                    <div className="flex gap-2 mt-1 mb-3">
+                        <input readOnly value={pin} className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-muted/40 font-mono tracking-widest" />
+                        <button onClick={() => copy(pin, "pin")} className="px-3 py-2 rounded-lg border border-border hover:bg-muted text-sm font-medium inline-flex items-center gap-1.5">
+                            {copied === "pin" ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="mt-1 mb-3 text-sm bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-lg px-3 py-2">
+                        PIN belum diatur. Set dulu di <Link href="/settings/general" className="font-semibold underline">Pengaturan → Umum → PIN Dashboard Marketing</Link>.
+                    </div>
+                )}
+
+                <div className="flex gap-2 mt-2">
+                    <a href={link} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-muted text-sm font-medium">
+                        <ExternalLink className="h-4 w-4" /> Buka
+                    </a>
+                    <button onClick={() => copy(pin ? `${link}\nPIN: ${pin}` : link, "both")}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+                        {copied === "both" ? <><Check className="h-4 w-4" /> Tersalin</> : <><Copy className="h-4 w-4" /> Salin Link + PIN</>}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }
