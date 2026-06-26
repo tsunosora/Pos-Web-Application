@@ -99,12 +99,13 @@ export class ProductionController {
         @Param('id', ParseIntPipe) id: number,
         @UploadedFile() file: Express.Multer.File,
         @Req() req: any,
+        @Body('designerName') designerName?: string,
     ) {
         if (!file) throw new BadRequestException('File foto wajib diisi');
         await compressImage(file.path);
         const url = `/uploads/${file.filename}`;
         const actorName = req?.user?.name || req?.user?.email || 'Admin';
-        const proof = await this.productionService.addProof(id, url, { name: actorName, role: 'ADMIN' });
+        const proof = await this.productionService.addProof(id, url, { name: actorName, role: 'ADMIN' }, designerName);
         await this.productionService.updatePipelineStage(id, { proofImageUrl: url });
         return { url, proofId: proof.id };
     }
@@ -191,7 +192,7 @@ export class ProductionController {
     async uploadPublicProofImage(
         @Param('id', ParseIntPipe) id: number,
         @UploadedFile() file: Express.Multer.File,
-        @Body() body: { pin: string; branchId?: string; operatorName: string },
+        @Body() body: { pin: string; branchId?: string; operatorName: string; designerName?: string },
     ) {
         if (!file) throw new BadRequestException('File foto wajib diisi');
         const bid = body.branchId ? parseInt(body.branchId) : undefined;
@@ -201,7 +202,7 @@ export class ProductionController {
         }
         await compressImage(file.path);
         const url = `/uploads/${file.filename}`;
-        const proof = await this.productionService.addProof(id, url, { name: body.operatorName.trim(), role: 'OPERATOR' });
+        const proof = await this.productionService.addProof(id, url, { name: body.operatorName.trim(), role: 'OPERATOR' }, body.designerName);
         await this.productionService.updatePipelineStage(id, { proofImageUrl: url });
         return { url, proofId: proof.id };
     }

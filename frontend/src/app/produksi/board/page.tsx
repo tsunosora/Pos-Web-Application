@@ -14,6 +14,8 @@ import {
     type PipelineJob, type PipelineStage, type OperatorSession,
     PIPELINE_STAGES, PIPELINE_STAGE_LABEL,
 } from "@/lib/api/production";
+import { getPublicDesigners } from "@/lib/api/designers";
+import { AssignDesignerModal } from "@/components/produksi/AssignDesignerModal";
 import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
@@ -294,6 +296,7 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
     const [jahitModal, setJahitModal] = useState<{ job: PipelineJob } | null>(null);
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
     const [proofViewer, setProofViewer] = useState<{ job: PipelineJob } | null>(null);
+    const [assignProof, setAssignProof] = useState<{ jobId: number; files: File[] } | null>(null);
 
     const opSession: OperatorSession = useMemo(() => ({
         branchId: session.branchId,
@@ -306,6 +309,13 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
         queryFn: () => getPublicPipelineJobs(opSession),
         refetchInterval: isDragging ? false : 60_000,
         refetchOnWindowFocus: false,
+    });
+
+    // Daftar desainer untuk dropdown atribusi saat upload proof
+    const { data: designers = [] } = useQuery({
+        queryKey: ["public-designers"],
+        queryFn: getPublicDesigners,
+        staleTime: 5 * 60_000,
     });
 
     const stageMut = useMutation({
@@ -327,7 +337,8 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
     });
 
     const uploadMut = useMutation({
-        mutationFn: (data: { id: number; file: File }) => uploadPublicProofImage(data.id, opSession, data.file),
+        mutationFn: (data: { id: number; file: File; designerName?: string }) =>
+            uploadPublicProofImage(data.id, opSession, data.file, data.designerName),
         onSuccess: () => qc.invalidateQueries({ queryKey: ["produksi-board"] }),
     });
 
@@ -336,8 +347,16 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
         onSuccess: () => qc.invalidateQueries({ queryKey: ["produksi-board"] }),
     });
 
-    const handleUploadProof = useCallback((jobId: number, files: FileList) => {
-        Array.from(files).forEach(file => uploadMut.mutate({ id: jobId, file }));
+    // Pilih file dulu → buka modal "assign desainer", baru upload setelah dipilih
+    const handleRequestProof = useCallback((jobId: number, files: FileList) => {
+        setAssignProof({ jobId, files: Array.from(files) });
+    }, []);
+
+    const doUploadProof = useCallback((designerName?: string) => {
+        setAssignProof(prev => {
+            if (prev) prev.files.forEach(file => uploadMut.mutate({ id: prev.jobId, file, designerName }));
+            return null;
+        });
     }, [uploadMut]);
 
     const handleDeleteProof = useCallback((proofId: number) => {
@@ -432,7 +451,7 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
                                     key={stage}
                                     stage={stage}
                                     jobs={grouped[stage]}
-                                    onUploadProof={handleUploadProof}
+                                    onRequestProof={handleRequestProof}
                                     onOpenProofViewer={handleOpenProofViewer}
                                     uploading={uploadMut.isPending}
                                 />
@@ -478,11 +497,21 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
                 />
             )}
 
+            {assignProof && (
+                <AssignDesignerModal
+                    designers={designers}
+                    fileCount={assignProof.files.length}
+                    defaultName={jobs.find(j => j.id === assignProof.jobId)?.designerName || ""}
+                    onPick={(name) => doUploadProof(name || undefined)}
+                    onCancel={() => setAssignProof(null)}
+                />
+            )}
+
             {currentProofViewerJob && proofViewer && (
                 <ProofViewer
                     job={currentProofViewerJob}
                     onClose={() => setProofViewer(null)}
-                    onUpload={handleUploadProof}
+                    onUpload={handleRequestProof}
                     onDelete={handleDeleteProof}
                     uploading={uploadMut.isPending}
                     deleting={deleteProofMut.isPending}
@@ -495,11 +524,11 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
 // ─── Column ────────────────────────────────────────────────────────────────
 
 const Column = memo(function Column({
-    stage, jobs, onUploadProof, onOpenProofViewer, uploading,
+    stage, jobs, onRequestProof, onOpenProofViewer, uploading,
 }: {
     stage: PipelineStage;
     jobs: PipelineJob[];
-    onUploadProof: (jobId: number, files: FileList) => void;
+    onRequestProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     uploading: boolean;
 }) {
@@ -522,7 +551,7 @@ const Column = memo(function Column({
                         <KanbanCard
                             key={job.id}
                             job={job}
-                            onUploadProof={onUploadProof}
+                            onRequestProof={onRequestProof}
                             onOpenProofViewer={onOpenProofViewer}
                             uploading={uploading}
                         />
@@ -537,13 +566,13 @@ const Column = memo(function Column({
 
 interface CardProps {
     job: PipelineJob;
-    onUploadProof: (jobId: number, files: FileList) => void;
+    onRequestProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     uploading: boolean;
 }
 
 const KanbanCard = memo(function KanbanCard({
-    job, onUploadProof, onOpenProofViewer, uploading,
+    job, onRequestProof, onOpenProofViewer, uploading,
 }: CardProps) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: String(job.id),
@@ -671,7 +700,7 @@ const KanbanCard = memo(function KanbanCard({
                         className="hidden"
                         onChange={(e) => {
                             const f = e.target.files;
-                            if (f && f.length > 0) onUploadProof(job.id, f);
+                            if (f && f.length > 0) onRequestProof(job.id, f);
                             e.target.value = "";
                         }}
                     />
