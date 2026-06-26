@@ -45,12 +45,21 @@ async function bootstrap() {
     next();
   });
 
-  // Enable CORS
-  const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-    : ['http://localhost:3000'];
+  // Enable CORS. Produksi: pakai ALLOWED_ORIGINS (allowlist ketat). Tanpa env
+  // (dev/homelab) izinkan localhost & 127.0.0.1 + origin LAN (mis. akses dari HP
+  // di jaringan yang sama) supaya tidak kena "Network Error" karena origin beda.
+  const explicitOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+    : ['http://localhost:3000', 'http://127.0.0.1:3000'];
+  const lanOriginRe = /^https?:\/\/(localhost|127\.0\.0\.1|(?:192\.168|10|172\.(?:1[6-9]|2\d|3[01]))\.\d+\.\d+)(?::\d+)?$/;
+  const allowLan = !process.env.ALLOWED_ORIGINS; // hanya saat allowlist tidak di-set eksplisit
   app.enableCors({
-    origin: allowedOrigins,
+    origin: (origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) => {
+      if (!origin) return cb(null, true); // curl / server-to-server / same-origin
+      if (explicitOrigins.includes(origin)) return cb(null, true);
+      if (allowLan && lanOriginRe.test(origin)) return cb(null, true);
+      return cb(null, false);
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
     credentials: true,
     exposedHeaders: ['Content-Disposition'], // agar frontend bisa baca nama file backup

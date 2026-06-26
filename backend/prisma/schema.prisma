@@ -583,6 +583,7 @@ model StoreSettings {
   themeSecondaryColor   String?   @default("#7C3AED") @map("theme_secondary_color") @db.VarChar(20)
   themeGradientDirection String?  @default("135deg") @map("theme_gradient_direction") @db.VarChar(20)
   operatorPin           String?   @map("operator_pin") @db.VarChar(10)
+  marketingPin          String?   @map("marketing_pin") @db.VarChar(10)
   notifyNewTransaction  Boolean   @default(true) @map("notify_new_transaction")
   notifyLowStock        Boolean   @default(true) @map("notify_low_stock")
   notifyOfflineSync     Boolean   @default(true) @map("notify_offline_sync")
@@ -604,6 +605,20 @@ model StoreSettings {
   updatedAt             DateTime? @default(now()) @updatedAt @map("updated_at")
 
   @@map("store_settings")
+}
+
+/// Pengeluaran iklan marketing (diinput tim marketing di /marketing) — untuk
+/// benchmark ROAS/CPL/CAC per sumber. Global (semua cabang).
+model MarketingSpend {
+  id        Int      @id @default(autoincrement())
+  date      DateTime                                   // tanggal pengeluaran
+  source    String   @db.VarChar(40)                   // nilai LeadSource (WHATSAPP, INSTAGRAM, ...)
+  amount    Decimal  @db.Decimal(14, 2)
+  note      String?  @db.VarChar(255)                  // nama campaign/iklan (opsional)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("marketing_spend")
 }
 
 // Konfigurasi notifikasi Discord (singleton, id=1).
