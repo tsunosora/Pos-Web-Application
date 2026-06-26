@@ -13,6 +13,7 @@ import { BranchOutboxReadyPopup } from "./BranchOutboxReadyPopup";
 import { ReadyJobsPopup } from "./ReadyJobsPopup";
 import { ReadyJobsModal } from "./ReadyJobsModal";
 import { ReadyJobsFab } from "./ReadyJobsFab";
+import { FloatingThemeToggle } from "./FloatingThemeToggle";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useShiftReminder } from "@/hooks/useShiftReminder";
 import { useNotificationStore } from "@/store/notification-store";
@@ -52,9 +53,18 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isLandingPublic = pathname === "/landing" || pathname.startsWith("/landing/");
     const isArtikelPublic = pathname === "/artikel" || pathname.startsWith("/artikel/");
     const isMarketingPublic = pathname.startsWith("/marketing");
+    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic;
+    // Toggle dark mode mengambang untuk halaman publik INTERNAL (staff/operator),
+    // BUKAN halaman login & bukan halaman storefront publik (landing/artikel/produk).
+    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder;
 
-    if (isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic) {
-        return <>{children}</>;
+    if (isStandalone) {
+        return (
+            <>
+                {children}
+                {showFloatingTheme && <FloatingThemeToggle />}
+            </>
+        );
     }
 
     return (
