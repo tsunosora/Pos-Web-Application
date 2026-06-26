@@ -7,7 +7,7 @@ import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
     addLeadActivity, convertLead, closeLeadLost, markLeadInvalid, linkLeadToSalesOrder,
     getMessageTemplates, renderTemplate,
-    uploadLeadImage, resolveLeadImageUrl, lookupCustomerByPhone, type CustomerLookupResult,
+    uploadLeadImage, resolveLeadImageUrl, lookupCustomerByPhone, lookupCustomerByName, type CustomerLookupResult,
     type Lead, type LeadItem, type LeadStatus, type LeadSource, type LeadLevel, type MessageTemplate,
     LEAD_SOURCE_LABEL, LEAD_STATUS_LABEL, LEAD_LEVEL_LABEL,
 } from "@/lib/api";
@@ -510,6 +510,8 @@ function LeadFormModal({
     const [phoneMatches, setPhoneMatches] = useState<CustomerLookupResult[]>([]);
     const [phoneSearching, setPhoneSearching] = useState(false);
     const [phoneChecked, setPhoneChecked] = useState(false);
+    const [nameMatches, setNameMatches] = useState<CustomerLookupResult[]>([]);
+    const [nameListOpen, setNameListOpen] = useState(false);
     const [savedCustomSources, setSavedCustomSources] = useState<string[]>([]);
 
     // Load custom sources dari localStorage, juga tambahkan sourceDetail lead yang sedang diedit
@@ -618,9 +620,22 @@ function LeadFormModal({
         });
     };
 
+    // Lookup customer by nama — debounced, hanya untuk lead baru
+    useEffect(() => {
+        if (initial) return;
+        const q = form.name.trim();
+        if (q.length < 2) { setNameMatches([]); return; }
+        const t = setTimeout(async () => {
+            try { setNameMatches(await lookupCustomerByName(q)); }
+            catch { setNameMatches([]); }
+        }, 300);
+        return () => clearTimeout(t);
+    }, [form.name, initial]);
+
     const useCustomerData = (c: CustomerLookupResult) => {
         setForm(f => ({ ...f, name: c.name, phone: c.phone || f.phone }));
         setPhoneMatches([]);
+        setNameListOpen(false);
     };
 
     const itemsTotal = items.reduce((s, it) => s + calcItemSubtotal(it), 0);
@@ -721,15 +736,41 @@ function LeadFormModal({
                         </p>
                     </div>
 
-                    <div>
+                    <div className="relative">
                         <label className="block text-xs font-semibold text-muted-foreground mb-1">Nama *</label>
                         <input
                             required
                             value={form.name}
-                            onChange={(e) => setForm({ ...form, name: e.target.value })}
+                            onChange={(e) => { setForm({ ...form, name: e.target.value }); setNameListOpen(true); }}
+                            onFocus={() => setNameListOpen(true)}
+                            onBlur={() => setTimeout(() => setNameListOpen(false), 150)}
+                            autoComplete="off"
                             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                             placeholder="mis. PT Bina Sekolah / Andi futsal"
                         />
+                        {!initial && nameListOpen && nameMatches.length > 0 && (
+                            <div className="absolute z-20 mt-1 w-full bg-card border border-border rounded-lg shadow-lg max-h-56 overflow-y-auto">
+                                <div className="px-2.5 py-1.5 text-[10px] font-semibold text-muted-foreground border-b border-border bg-muted/40">
+                                    Pelanggan tersimpan ({nameMatches.length}) — klik untuk pakai
+                                </div>
+                                {nameMatches.map(c => (
+                                    <button
+                                        key={c.id}
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => useCustomerData(c)}
+                                        className="w-full text-left px-3 py-2 hover:bg-primary/10 border-b border-border last:border-0 transition-colors"
+                                    >
+                                        <div className="font-medium text-sm text-foreground truncate">{c.name}</div>
+                                        {(c.phone || c.address) && (
+                                            <div className="text-[11px] text-muted-foreground truncate">
+                                                {c.phone}{c.phone && c.address ? " · " : ""}{c.address}
+                                            </div>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div>

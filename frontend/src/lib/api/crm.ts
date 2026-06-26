@@ -328,6 +328,10 @@ export const lookupCustomerByPhone = async (phone: string): Promise<CustomerLook
     if (!phone || phone.replace(/\D/g, '').length < 4) return [];
     return (await api.get('/customers/lookup', { params: { phone } })).data;
 };
+export const lookupCustomerByName = async (name: string): Promise<CustomerLookupResult[]> => {
+    if (!name || name.trim().length < 2) return [];
+    return (await api.get('/customers/lookup', { params: { name } })).data;
+};
 
 // ─── Template endpoints ──────────────────────────────────────────────────────
 

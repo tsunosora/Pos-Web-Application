@@ -131,10 +131,10 @@ export class KpiService {
     /**
      * Hitung total pcs per transaksi — KECUALI item dari kategori add-on
      * (kerah, lengan, rib, dll) yang merupakan komponen produk utama, bukan
-     * barang terpisah. Item custom tanpa varian katalog tetap dihitung.
-     * Penentu add-on: flag Category.countsAsPcs=false (di-set dari halaman
-     * Manajemen Kategori). Nama 'Additional' tetap dikecualikan sebagai
-     * fallback untuk DB yang belum sempat toggle flag-nya.
+     * barang terpisah. Penentu add-on: SATU-SATUNYA flag Category.countsAsPcs=false
+     * (di-toggle dari halaman Manajemen Kategori). Item custom tanpa varian, serta
+     * produk tanpa kategori, tetap dihitung. (Pakai filter negatif supaya toggle
+     * kategori — termasuk 'Additional' — sepenuhnya menentukan, tanpa hardcode.)
      */
     private async computeTxPcsMap(txIds: number[]): Promise<Map<number, number>> {
         const map = new Map<number, number>();
@@ -143,10 +143,7 @@ export class KpiService {
             by: ['transactionId'],
             where: {
                 transactionId: { in: txIds },
-                OR: [
-                    { productVariantId: null },
-                    { productVariant: { product: { category: { countsAsPcs: true, name: { not: 'Additional' } } } } },
-                ],
+                NOT: { productVariant: { product: { category: { countsAsPcs: false } } } },
             },
             _sum: { quantity: true },
         });
@@ -258,11 +255,11 @@ export class KpiService {
                 const qty = Number(it.quantity) || 0;
                 if (qty <= 0) continue;
                 // Aturan pcs SAMA dengan computeTxPcsMap: item kategori add-on
-                // (countsAsPcs=false / 'Additional' — kerah, lengan, rib) adalah
-                // komponen produk utama, bukan barang terpisah → tidak dihitung.
-                // Tanpa ini, total pcs Tren Produk lebih besar dari panel lain.
+                // (countsAsPcs=false — kerah, lengan, rib) adalah komponen produk
+                // utama, bukan barang terpisah → tidak dihitung. Penentu tunggal =
+                // flag toggle kategori (tanpa hardcode 'Additional').
                 const cat = it.productVariant?.product?.category;
-                if (cat && (cat.countsAsPcs === false || cat.name === 'Additional')) continue;
+                if (cat && cat.countsAsPcs === false) continue;
                 const prodName = it.productVariant?.product?.name
                     || it.productVariant?.variantName
                     || it.customName

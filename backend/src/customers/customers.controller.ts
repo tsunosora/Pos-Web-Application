@@ -36,7 +36,8 @@ export class CustomersController {
     }
 
     @Get('lookup')
-    lookup(@Query('phone') phone?: string) {
+    lookup(@Query('phone') phone?: string, @Query('name') name?: string) {
+        if (name && name.trim()) return this.customersService.searchByName(name);
         return this.customersService.lookupByPhone(phone || '');
     }
 
