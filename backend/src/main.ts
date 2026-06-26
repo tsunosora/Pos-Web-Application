@@ -6,9 +6,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Header keamanan (X-Frame-Options, X-Content-Type-Options, dll).
-  // CSP & COEP dimatikan: ini API JSON + ada aset/gambar lintas-origin yang
-  // di-serve ke storefront, jadi CSP ketat bisa memblokir hal yang sah.
-  app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+  // CSP & COEP dimatikan, dan CORP di-set 'cross-origin': backend menyajikan
+  // gambar/aset (/uploads) yang dimuat dari origin frontend/storefront berbeda.
+  // Default helmet (CORP same-origin) memblokirnya -> ERR_BLOCKED_BY_RESPONSE.NotSameOrigin.
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
 
   // Public read-only endpoints: allow any origin, no credentials needed
   app.use((req: any, res: any, next: any) => {
