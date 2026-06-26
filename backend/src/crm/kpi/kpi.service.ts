@@ -747,6 +747,17 @@ export class KpiService {
 
         const wonTxIds = leads.filter(l => l.status === 'CLOSED_WON' && l.convertedTransactionId).map(l => Number(l.convertedTransactionId));
         const txPcsMap = await this.computeTxPcsMap(wonTxIds);
+        // Nilai nota asli per tx (untuk wonValue, konsisten dgn leaderboard CS)
+        const txGrossMap = new Map<number, number>();
+        if (wonTxIds.length > 0) {
+            const grossTxs: any[] = await this.tx.findMany({
+                where: { id: { in: wonTxIds } },
+                select: { id: true, grandTotal: true, status: true } as any,
+            });
+            for (const t of grossTxs) {
+                if (t.status !== 'FAILED' && t.status !== 'CANCELLED') txGrossMap.set(t.id, Number(t.grandTotal) || 0);
+            }
+        }
 
         const SUM_METRICS = ['leads', 'closing', 'pcs', 'lost', 'invalid', 'wonValue', 'lostValue'];
         const acc: Record<string, Map<string, Map<string, number>>> = {};
@@ -767,8 +778,10 @@ export class KpiService {
             personTotals.set(person, (personTotals.get(person) || 0) + 1);
             if (l.status === 'CLOSED_WON') {
                 add('closing', bk, person, 1);
-                add('wonValue', bk, person, Number(l.estimatedValue) || 0);
-                if (l.convertedTransactionId) add('pcs', bk, person, txPcsMap.get(Number(l.convertedTransactionId)) ?? 0);
+                const txId = l.convertedTransactionId ? Number(l.convertedTransactionId) : null;
+                const gross = txId != null && txGrossMap.has(txId) ? txGrossMap.get(txId)! : (Number(l.estimatedValue) || 0);
+                add('wonValue', bk, person, gross);
+                if (txId != null) add('pcs', bk, person, txPcsMap.get(txId) ?? 0);
             } else if (l.status === 'CLOSED_LOST') {
                 add('lost', bk, person, 1);
                 add('lostValue', bk, person, Number(l.estimatedValue) || 0);
@@ -909,9 +922,7 @@ export class KpiService {
         const lostValue = leadsInPeriod
             .filter(l => l.status === 'CLOSED_LOST')
             .reduce((s, l) => s + (Number(l.estimatedValue) || 0), 0);
-        const wonValue = leadsInPeriod
-            .filter(l => l.status === 'CLOSED_WON')
-            .reduce((s, l) => s + (Number(l.estimatedValue) || 0), 0);
+        // wonValue (agregat) dihitung setelah txGrossMap siap — pakai nilai nota asli.
 
         // ── Nilai akan datang (saldo outstanding dari tx PENDING/PARTIAL) ──
         // Lead CLOSED_WON yang punya convertedTransactionId → cek status tx-nya.
@@ -938,15 +949,24 @@ export class KpiService {
         // (jersey maupun produk lain). Item kategori "Additional" dikecualikan.
         const txPcsMap = await this.computeTxPcsMap(convertedTxIds); // txId → total pcs
 
-        // Fee platform per transaksi hasil convert → untuk pendapatan BERSIH
-        // (cuan setelah dipotong biaya platform) di leaderboard CS.
+        // Fee platform + NILAI NOTA ASLI per transaksi hasil convert. Cuan CS dihitung
+        // dari grandTotal nota (dikurangi fee) — bukan estimatedValue lead — supaya
+        // konsisten dengan pcs & walk-in yang juga pakai nilai asli. Lead closing
+        // TANPA nota tetap pakai estimatedValue (lihat loop leaderboard).
         const txFeeMap = new Map<number, number>();
+        const txGrossMap = new Map<number, number>(); // txId → grandTotal nota asli
         if (convertedTxIds.length > 0) {
             const feeTxs: any[] = await this.tx.findMany({
                 where: { id: { in: convertedTxIds } },
-                select: { id: true, marketplaceFee: true } as any,
+                select: { id: true, marketplaceFee: true, grandTotal: true, status: true } as any,
             });
-            for (const t of feeTxs) txFeeMap.set(t.id, Number((t as any).marketplaceFee) || 0);
+            for (const t of feeTxs) {
+                txFeeMap.set(t.id, Number((t as any).marketplaceFee) || 0);
+                // Nota gagal/batal tidak dipakai → fallback ke estimatedValue
+                if (t.status !== 'FAILED' && t.status !== 'CANCELLED') {
+                    txGrossMap.set(t.id, Number((t as any).grandTotal) || 0);
+                }
+            }
         }
 
         // Peta lead → saldo pending (0 kalau sudah lunas / tidak punya tx)
@@ -957,6 +977,18 @@ export class KpiService {
             leadPendingMap.set(l.id, pending);
         }
         const totalPendingValue = Array.from(leadPendingMap.values()).reduce((s, v) => s + v, 0);
+
+        // Agregat won value (GROSS, tanpa potong fee) — pakai nilai nota asli bila ada
+        // nota, fallback estimatedValue untuk closing tanpa nota.
+        const wonValue = leadsInPeriod
+            .filter(l => l.status === 'CLOSED_WON')
+            .reduce((s, l) => {
+                const txId = l.convertedTransactionId ? Number(l.convertedTransactionId) : null;
+                const gross = txId != null && txGrossMap.has(txId)
+                    ? txGrossMap.get(txId)!
+                    : (Number(l.estimatedValue) || 0);
+                return s + gross;
+            }, 0);
 
         // ── FU compliance ──────────────────────────────────────────────────
         // FU due in period: total = pending+done+skipped that dueDate in period.
@@ -1047,12 +1079,18 @@ export class KpiService {
             entry.leadsHandled++;
             if (l.status === 'CLOSED_WON') {
                 entry.dealsClosed++;
-                // Pendapatan bersih: estimasi deal dikurangi biaya platform tx convert.
-                const wonFee = l.convertedTransactionId ? (txFeeMap.get(Number(l.convertedTransactionId)) || 0) : 0;
-                entry.wonValue += Math.max(0, (Number(l.estimatedValue) || 0) - wonFee);
+                // Pendapatan bersih: pakai NILAI NOTA ASLI (grandTotal) bila ada nota,
+                // kalau tidak (closing langsung tanpa nota) pakai estimatedValue.
+                // Lalu dikurangi biaya platform (fee marketplace).
+                const txId = l.convertedTransactionId ? Number(l.convertedTransactionId) : null;
+                const gross = txId != null && txGrossMap.has(txId)
+                    ? txGrossMap.get(txId)!
+                    : (Number(l.estimatedValue) || 0);
+                const wonFee = txId != null ? (txFeeMap.get(txId) || 0) : 0;
+                entry.wonValue += Math.max(0, gross - wonFee);
                 entry.pendingValue += leadPendingMap.get(l.id) ?? 0;
-                if (l.convertedTransactionId) {
-                    entry.pcsOrdered += txPcsMap.get(Number(l.convertedTransactionId)) ?? 0;
+                if (txId != null) {
+                    entry.pcsOrdered += txPcsMap.get(txId) ?? 0;
                 }
             }
             if (l.status === 'CLOSED_LOST') {

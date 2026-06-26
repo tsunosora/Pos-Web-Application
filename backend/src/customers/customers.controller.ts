@@ -31,8 +31,27 @@ export class CustomersController {
     }
 
     @Get('with-stats')
-    findAllWithStats() {
-        return this.customersService.findAllWithStats();
+    findAllWithStats(
+        @Query('page') page?: string,
+        @Query('pageSize') pageSize?: string,
+        @Query('search') search?: string,
+    ) {
+        return this.customersService.findAllWithStats({
+            page: page ? Number(page) : 1,
+            pageSize: pageSize ? Number(pageSize) : 20,
+            search: search || '',
+        });
+    }
+
+    @Get('summary')
+    summary() {
+        return this.customersService.summaryStats();
+    }
+
+    /** Rapikan & gabungkan customer duplikat (normalisasi nomor + merge by nomor). */
+    @Post('dedupe')
+    dedupe() {
+        return this.customersService.dedupe();
     }
 
     @Get('lookup')

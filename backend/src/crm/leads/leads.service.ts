@@ -6,6 +6,7 @@ import type { BranchContext } from '../../common/branch-context.decorator';
 import { CloseLostDto, ConvertLeadDto, CreateActivityDto, CreateLeadDto, LeadItemDto, UpdateLeadDto } from './leads.dto';
 import { TransactionsService } from '../../transactions/transactions.service';
 import { DiscordService } from '../../discord/discord.service';
+import { toWaPhone } from '../../common/utils/phone.util';
 
 /** Normalisasi nomor HP untuk dedup: strip non-digit, drop leading 62/0. */
 function normalizePhone(raw: string | null | undefined): string | null {
@@ -846,15 +847,24 @@ export class LeadsService {
         // Resolve customer
         let customerId = data.customerId ?? null;
         if (!customerId && data.createCustomer) {
-            const customer = await this.prisma.customer.create({
-                data: {
-                    name: lead.name,
-                    phone: lead.phone,
-                    leadSource: lead.source,
-                    assignedCsId: lead.assignedToId ?? null,
-                },
-            });
-            customerId = customer.id;
+            const phone = toWaPhone(lead.phone);
+            // Dedup: kalau sudah ada customer dengan nomor sama → pakai itu (anti dobel)
+            const existing = phone
+                ? await this.prisma.customer.findFirst({ where: { phone } })
+                : null;
+            if (existing) {
+                customerId = existing.id;
+            } else {
+                const customer = await this.prisma.customer.create({
+                    data: {
+                        name: lead.name,
+                        phone, // simpan 628xxx
+                        leadSource: lead.source,
+                        assignedCsId: lead.assignedToId ?? null,
+                    },
+                });
+                customerId = customer.id;
+            }
         }
         if (!customerId) {
             throw new BadRequestException('Pilih customer existing atau set createCustomer=true.');

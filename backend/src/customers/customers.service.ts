@@ -1,12 +1,32 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { toWaPhone, phoneKey } from '../common/utils/phone.util';
 
 @Injectable()
 export class CustomersService {
     constructor(private readonly prisma: PrismaService) { }
 
+    /**
+     * Buat customer — nomor HP dinormalkan ke 628xxx, dan dedup by nomor:
+     * kalau sudah ada customer dengan nomor sama, kembalikan yang itu (tidak bikin dobel).
+     */
     async create(data: { name: string; phone?: string; address?: string }) {
-        return this.prisma.customer.create({ data });
+        const phone = toWaPhone(data.phone);
+        if (phone) {
+            const existing = await this.prisma.customer.findFirst({ where: { phone } });
+            if (existing) {
+                // lengkapi field kosong dari input (nama/alamat) tanpa menimpa yang sudah ada
+                const patch: any = {};
+                if (!existing.address && data.address?.trim()) patch.address = data.address.trim();
+                if (Object.keys(patch).length) {
+                    return this.prisma.customer.update({ where: { id: existing.id }, data: patch });
+                }
+                return existing;
+            }
+        }
+        return this.prisma.customer.create({
+            data: { name: data.name, phone, address: data.address ?? null },
+        });
     }
 
     /**
@@ -73,14 +93,38 @@ export class CustomersService {
         return this.prisma.customer.findMany({ orderBy: { name: 'asc' } });
     }
 
-    async findAllWithStats() {
-        const customers = await this.prisma.customer.findMany({ orderBy: { name: 'asc' } });
+    /** Variasi format nomor untuk query transaksi yang mungkin belum dinormalkan. */
+    private phoneVariants(normalized: string | null): string[] {
+        if (!normalized) return [];
+        const local = '0' + normalized.slice(2); // 628xxx → 08xxx
+        return [normalized, local];
+    }
 
-        const phones = customers.filter(c => c.phone).map(c => c.phone!);
-        const noPhoneNames = customers.filter(c => !c.phone).map(c => c.name);
+    async findAllWithStats(opts?: { page?: number; pageSize?: number; search?: string }) {
+        const page = Math.max(Number(opts?.page) || 1, 1);
+        const take = Math.min(Math.max(Number(opts?.pageSize) || 20, 1), 100);
+        const search = (opts?.search || '').trim();
 
+        const where: any = {};
+        if (search) {
+            const digits = search.replace(/\D/g, '');
+            where.OR = [
+                { name: { contains: search } },
+                ...(digits.length >= 3 ? [{ phone: { contains: digits } }] : []),
+            ];
+        }
+
+        const [total, customers] = await Promise.all([
+            this.prisma.customer.count({ where }),
+            this.prisma.customer.findMany({ where, orderBy: { name: 'asc' }, skip: (page - 1) * take, take }),
+        ]);
+
+        // Match transaksi HANYA untuk customer di halaman ini (hemat). Cocokkan by
+        // phoneKey supaya tetap match walau format tersimpan beda (08 vs 62 vs +62).
+        const phoneVar = Array.from(new Set(customers.flatMap(c => this.phoneVariants(toWaPhone(c.phone)))));
+        const noPhoneNames = customers.filter(c => !toWaPhone(c.phone)).map(c => c.name);
         const orClause: any[] = [];
-        if (phones.length > 0) orClause.push({ customerPhone: { in: phones } });
+        if (phoneVar.length > 0) orClause.push({ customerPhone: { in: phoneVar } });
         if (noPhoneNames.length > 0) orClause.push({ customerName: { in: noPhoneNames }, customerPhone: null });
 
         const transactions = orClause.length > 0
@@ -90,10 +134,11 @@ export class CustomersService {
             })
             : [];
 
-        return customers.map(c => {
+        const rows = customers.map(c => {
+            const ckey = phoneKey(c.phone);
             const matching = transactions.filter(t =>
-                (c.phone && t.customerPhone === c.phone) ||
-                (!c.phone && t.customerName === c.name)
+                (ckey && phoneKey(t.customerPhone) === ckey) ||
+                (!ckey && !t.customerPhone && t.customerName === c.name)
             );
             const sorted = matching.sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
             return {
@@ -103,6 +148,29 @@ export class CustomersService {
                 lastOrderDate: sorted[0]?.createdAt ?? null,
             };
         });
+
+        return { rows, total, page, pageSize: take };
+    }
+
+    /** Ringkasan ringan untuk kartu atas (tanpa load semua customer). */
+    async summaryStats() {
+        const [totalCustomers, rev, activePhones] = await Promise.all([
+            this.prisma.customer.count(),
+            this.prisma.transaction.aggregate({
+                _sum: { downPayment: true },
+                where: { status: { in: ['PAID', 'PARTIAL'] } },
+            }),
+            this.prisma.transaction.findMany({
+                where: { status: { in: ['PAID', 'PARTIAL'] }, customerPhone: { not: null } },
+                select: { customerPhone: true },
+                distinct: ['customerPhone'],
+            }),
+        ]);
+        return {
+            totalCustomers,
+            totalRevenue: Number(rev._sum.downPayment || 0),
+            activeCustomers: activePhones.length,
+        };
     }
 
     async getAnalytics(id: number) {
@@ -236,8 +304,88 @@ export class CustomersService {
         assignedCsId?: number | null;
         tags?: any;
     }) {
+        const patch: any = { ...data };
+        if (data.phone !== undefined) patch.phone = toWaPhone(data.phone); // seragamkan ke 628xxx
         // assignedCsId & tags adalah field CRM yang baru — biarkan Prisma yang validate.
-        return this.prisma.customer.update({ where: { id }, data: data as any });
+        return this.prisma.customer.update({ where: { id }, data: patch });
+    }
+
+    /**
+     * Rapikan data: (1) seragamkan SEMUA nomor (customer + transaksi) ke 628xxx,
+     * (2) gabungkan customer duplikat (nomor sama) jadi satu — simpan yang paling
+     * lengkap, repoint semua referensi (SO, lead, aktivitas, follow-up, referral),
+     * lalu hapus yang dobel. Riwayat transaksi TIDAK dihapus (tidak ber-FK ke customer).
+     */
+    async dedupe() {
+        // ── 1. Normalisasi nomor customer ──────────────────────────────────────
+        const customers = await this.prisma.customer.findMany({
+            select: { id: true, name: true, phone: true, address: true, createdAt: true },
+        });
+        let customerPhonesFixed = 0;
+        for (const c of customers) {
+            const norm = toWaPhone(c.phone);
+            if (norm !== (c.phone ?? null)) {
+                await this.prisma.customer.update({ where: { id: c.id }, data: { phone: norm } });
+                customerPhonesFixed++;
+                (c as any).phone = norm;
+            }
+        }
+
+        // ── 2. Normalisasi nomor di transaksi (biar match & data seragam) ───────
+        const txs = await this.prisma.transaction.findMany({
+            where: { customerPhone: { not: null } },
+            select: { id: true, customerPhone: true },
+        });
+        let txPhonesFixed = 0;
+        for (const t of txs) {
+            const norm = toWaPhone(t.customerPhone);
+            if (norm && norm !== t.customerPhone) {
+                await this.prisma.transaction.update({ where: { id: t.id }, data: { customerPhone: norm } });
+                txPhonesFixed++;
+            }
+        }
+
+        // ── 3. Gabung customer duplikat (by nomor kanonik) ──────────────────────
+        const byPhone = new Map<string, any[]>();
+        for (const c of customers) {
+            const k = phoneKey(c.phone);
+            if (!k) continue; // tanpa nomor → tidak digabung
+            if (!byPhone.has(k)) byPhone.set(k, []);
+            byPhone.get(k)!.push(c);
+        }
+
+        let duplicateGroups = 0;
+        let customersMerged = 0;
+        for (const group of byPhone.values()) {
+            if (group.length < 2) continue;
+            duplicateGroups++;
+            // keeper = paling lengkap (punya alamat & nama), lalu paling tua
+            const keeper = [...group].sort((a, b) => {
+                const sa = (a.address ? 1 : 0) + (a.name ? 1 : 0);
+                const sb = (b.address ? 1 : 0) + (b.name ? 1 : 0);
+                if (sb !== sa) return sb - sa;
+                return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+            })[0];
+            const loserIds = group.filter(c => c.id !== keeper.id).map(c => c.id);
+
+            // Repoint semua referensi ke keeper (LeadActivity Cascade → WAJIB di-repoint)
+            await this.prisma.salesOrder.updateMany({ where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } });
+            await (this.prisma as any).lead.updateMany({ where: { convertedCustomerId: { in: loserIds } }, data: { convertedCustomerId: keeper.id } });
+            await (this.prisma as any).leadActivity.updateMany({ where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } });
+            await (this.prisma as any).followUp.updateMany({ where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } });
+            await this.prisma.customer.updateMany({ where: { referrerCustomerId: { in: loserIds } }, data: { referrerCustomerId: keeper.id } });
+
+            // Lengkapi alamat keeper kalau kosong
+            if (!keeper.address) {
+                const addr = group.find(c => c.id !== keeper.id && c.address)?.address;
+                if (addr) await this.prisma.customer.update({ where: { id: keeper.id }, data: { address: addr } });
+            }
+
+            await this.prisma.customer.deleteMany({ where: { id: { in: loserIds } } });
+            customersMerged += loserIds.length;
+        }
+
+        return { customerPhonesFixed, txPhonesFixed, duplicateGroups, customersMerged };
     }
 
     /** Timeline CRM untuk customer: activities + follow-ups + assigned CS. */
