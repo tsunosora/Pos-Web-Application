@@ -1,7 +1,38 @@
 import api from './client';
 
+export interface CustomerRow {
+    id: number;
+    name: string;
+    phone: string | null;
+    address: string | null;
+    totalOrders: number;
+    totalRevenue: number;
+    lastOrderDate: string | null;
+    [k: string]: any;
+}
+export interface PagedCustomers {
+    rows: CustomerRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
 export const getCustomers = async () => (await api.get('/customers')).data;
-export const getCustomersWithStats = async () => (await api.get('/customers/with-stats')).data;
+
+export const getCustomersWithStats = async (params?: { page?: number; pageSize?: number; search?: string }): Promise<PagedCustomers> => {
+    const qs = new URLSearchParams();
+    if (params?.page != null) qs.append('page', String(params.page));
+    if (params?.pageSize != null) qs.append('pageSize', String(params.pageSize));
+    if (params?.search) qs.append('search', params.search);
+    const s = qs.toString();
+    return (await api.get(`/customers/with-stats${s ? `?${s}` : ''}`)).data;
+};
+
+export const getCustomersSummary = async (): Promise<{ totalCustomers: number; totalRevenue: number; activeCustomers: number }> =>
+    (await api.get('/customers/summary')).data;
+
+export const dedupeCustomers = async (): Promise<{ customerPhonesFixed: number; txPhonesFixed: number; duplicateGroups: number; customersMerged: number }> =>
+    (await api.post('/customers/dedupe')).data;
 export const getCustomerAnalytics = async (id: number) => (await api.get(`/customers/${id}/analytics`)).data;
 export const getCustomersExportData = async () => (await api.get('/customers/export-data')).data;
 export const createCustomer = async (data: { name: string, phone?: string, address?: string }) =>

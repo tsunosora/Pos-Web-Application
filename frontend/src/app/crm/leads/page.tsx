@@ -1518,14 +1518,15 @@ function LeadDetailDrawer({
                                     >
                                         🧾 {buatNotaKasirMut.isPending ? "Menyiapkan…" : "Buat Nota di Kasir"}
                                     </button>
-                                    {/* SEKUNDER: nota cepat langsung (tanpa kasir) — model lama */}
+                                    {/* Convert Closing — buka modal convert (buat customer + SO/nota
+                                        langsung & tandai lead closing). Tombol asli, dikembalikan. */}
                                     <button
                                         onClick={() => setShowConvert(true)}
-                                        className="px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1 border border-border text-muted-foreground hover:bg-accent"
-                                        title="Buat nota langsung tanpa lewat kasir (model lama)"
+                                        className="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white"
+                                        title="Convert lead jadi closing — buat customer + SO/nota langsung (tanpa lewat kasir)"
                                     >
                                         <CheckCircle2 className="h-4 w-4" />
-                                        {isWon ? "Re-convert (Owner)" : "Nota cepat (tanpa kasir)"}
+                                        {isWon ? "Re-convert (Owner)" : "Convert Closing"}
                                     </button>
                                 </>
                             )

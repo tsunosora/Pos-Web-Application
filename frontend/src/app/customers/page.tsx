@@ -2,16 +2,27 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-    getCustomersWithStats, getCustomersExportData,
+    getCustomersWithStats, getCustomersSummary, dedupeCustomers, getCustomersExportData,
     createCustomer, updateCustomer, deleteCustomer,
 } from "@/lib/api";
 import { exportToExcel, exportToPDF } from "@/lib/export";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Plus, Edit2, Trash2, Search, X, Users, TrendingUp, Wallet,
     Phone, MapPin, FileSpreadsheet, FileText, Loader2, MessageCircle, BarChart2,
-    ShoppingBag, ChevronRight, Package,
+    ShoppingBag, ChevronRight, ChevronLeft, Package, Wand2,
 } from "lucide-react";
+
+/** Normalisasi nomor ke format wa.me (62xxx). */
+function toWa(phone?: string | null): string {
+    if (!phone) return "";
+    let s = phone.replace(/\D/g, "");
+    if (!s) return "";
+    if (s.startsWith("62")) return s;
+    if (s.startsWith("0")) return "62" + s.slice(1);
+    if (s.startsWith("8")) return "62" + s;
+    return "62" + s;
+}
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -21,12 +32,28 @@ import { AnalyticsModal } from "./AnalyticsModal";
 
 export default function CustomersPage() {
     const queryClient = useQueryClient();
-    const { data: customers, isLoading } = useQuery({
-        queryKey: ["customers-with-stats"],
-        queryFn: getCustomersWithStats,
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const PAGE_SIZE = 20;
+
+    // Debounce pencarian → server, reset ke halaman 1
+    useEffect(() => {
+        const t = setTimeout(() => { setDebouncedSearch(searchQuery.trim()); setPage(1); }, 350);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
+
+    const { data, isLoading } = useQuery({
+        queryKey: ["customers-with-stats", page, debouncedSearch],
+        queryFn: () => getCustomersWithStats({ page, pageSize: PAGE_SIZE, search: debouncedSearch }),
+        placeholderData: (prev) => prev,
+    });
+    const { data: summary } = useQuery({
+        queryKey: ["customers-summary"],
+        queryFn: getCustomersSummary,
+        staleTime: 60_000,
     });
 
-    const [searchQuery, setSearchQuery] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [formData, setFormData] = useState({ name: "", phone: "", address: "" });
@@ -35,7 +62,19 @@ export default function CustomersPage() {
     const [exportingExcel, setExportingExcel] = useState(false);
     const [exportingPDF, setExportingPDF] = useState(false);
 
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["customers-with-stats"] });
+    const invalidate = () => {
+        queryClient.invalidateQueries({ queryKey: ["customers-with-stats"] });
+        queryClient.invalidateQueries({ queryKey: ["customers-summary"] });
+    };
+
+    const dedupeMutation = useMutation({
+        mutationFn: dedupeCustomers,
+        onSuccess: (res) => {
+            invalidate();
+            alert(`Selesai dirapikan:\n• ${res.customerPhonesFixed} nomor customer diseragamkan\n• ${res.txPhonesFixed} nomor di transaksi diseragamkan\n• ${res.duplicateGroups} grup duplikat, ${res.customersMerged} data digabung.`);
+        },
+        onError: (e: any) => alert(`Gagal merapikan: ${e?.response?.data?.message || e?.message || e}`),
+    });
 
     const createMutation = useMutation({ mutationFn: createCustomer, onSuccess: () => { invalidate(); closeModal(); } });
     const updateMutation = useMutation({
@@ -57,15 +96,15 @@ export default function CustomersPage() {
         else createMutation.mutate(formData);
     };
 
-    const filtered = (customers as any[] ?? []).filter(c =>
-        c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (c.phone && c.phone.includes(searchQuery))
-    );
+    // Server sudah memfilter (search) + paginasi → tampilkan apa adanya
+    const filtered = data?.rows ?? [];
+    const total = data?.total ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-    // Summary stats
-    const totalCustomers = customers?.length ?? 0;
-    const totalRevenue = (customers as any[] ?? []).reduce((s: number, c: any) => s + (c.totalRevenue ?? 0), 0);
-    const activeCustomers = (customers as any[] ?? []).filter((c: any) => c.totalOrders > 0).length;
+    // Summary stats (dari endpoint ringan, lintas seluruh data)
+    const totalCustomers = summary?.totalCustomers ?? 0;
+    const totalRevenue = summary?.totalRevenue ?? 0;
+    const activeCustomers = summary?.activeCustomers ?? 0;
 
     const PAYMENT_LABEL: Record<string, string> = {
         CASH: "Tunai", QRIS: "QRIS", BANK_TRANSFER: "Transfer",
@@ -198,6 +237,19 @@ export default function CustomersPage() {
                         {exportingPDF ? "Mengekspor..." : "PDF"}
                     </button>
                     <button
+                        onClick={() => {
+                            if (confirm("Rapikan data: seragamkan semua nomor ke format 62xxx & gabungkan customer duplikat (nomor sama) jadi satu. Riwayat transaksi tidak terhapus. Lanjut?")) {
+                                dedupeMutation.mutate();
+                            }
+                        }}
+                        disabled={dedupeMutation.isPending}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-muted/50 hover:bg-muted text-sm font-medium transition-colors disabled:opacity-60"
+                        title="Seragamkan format nomor & gabungkan customer duplikat"
+                    >
+                        {dedupeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Wand2 className="w-4 h-4 text-violet-600" />}
+                        {dedupeMutation.isPending ? "Merapikan..." : "Rapikan duplikat"}
+                    </button>
+                    <button
                         onClick={() => openModal()}
                         className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm text-sm"
                     >
@@ -288,7 +340,7 @@ export default function CustomersPage() {
                                             <Phone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                                             <span className="text-foreground">{c.phone}</span>
                                             <a
-                                                href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
+                                                href={`https://wa.me/${toWa(c.phone)}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="p-1 rounded text-emerald-600 hover:bg-emerald-50 transition-colors"
@@ -351,8 +403,19 @@ export default function CustomersPage() {
                         </div>
                     ))
                 )}
-                {filtered.length > 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-1">{filtered.length} pelanggan</p>
+                {total > 0 && (
+                    <div className="flex items-center justify-between gap-2 px-1 py-2 text-xs text-muted-foreground">
+                        <span>{(page - 1) * PAGE_SIZE + 1}–{(page - 1) * PAGE_SIZE + filtered.length} dari {total}</span>
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                                    className="p-1.5 rounded-md border border-border disabled:opacity-40"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                                <span className="font-medium text-foreground px-1">{page}/{totalPages}</span>
+                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                                    className="p-1.5 rounded-md border border-border disabled:opacity-40"><ChevronRight className="w-3.5 h-3.5" /></button>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
 
@@ -403,7 +466,7 @@ export default function CustomersPage() {
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-foreground">{c.phone}</span>
                                                     <a
-                                                        href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
+                                                        href={`https://wa.me/${toWa(c.phone)}`}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="p-1 rounded text-emerald-600 hover:bg-emerald-50 transition-colors"
@@ -479,9 +542,22 @@ export default function CustomersPage() {
                         </tbody>
                     </table>
                 </div>
-                {filtered.length > 0 && (
-                    <div className="px-5 py-2.5 border-t border-border bg-muted/20 text-xs text-muted-foreground">
-                        {filtered.length} pelanggan
+                {total > 0 && (
+                    <div className="flex items-center justify-between gap-2 px-5 py-2.5 border-t border-border bg-muted/20 text-xs text-muted-foreground">
+                        <span>Menampilkan <b className="text-foreground">{(page - 1) * PAGE_SIZE + 1}</b>–<b className="text-foreground">{(page - 1) * PAGE_SIZE + filtered.length}</b> dari <b className="text-foreground">{total}</b> pelanggan</span>
+                        {totalPages > 1 && (
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed">
+                                    <ChevronLeft className="w-3.5 h-3.5" /> Sebelumnya
+                                </button>
+                                <span className="px-2 font-medium text-foreground">Hal {page}/{totalPages}</span>
+                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed">
+                                    Berikutnya <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
