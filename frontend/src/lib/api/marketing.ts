@@ -24,6 +24,9 @@ export interface PublicLead {
     csName: string | null;
     branchName: string | null;
     createdAt: string;
+    firstResponseAt: string | null;
+    closeLostReason: string | null;
+    intakeAt: string | null;
     items: PublicLeadItem[];
 }
 export interface AdSpendEntry {

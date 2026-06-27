@@ -185,6 +185,7 @@ export class KpiService {
                 id: true, name: true, phone: true, source: true, sourceDetail: true,
                 status: true, level: true, estimatedValue: true, needs: true, city: true,
                 createdAt: true, convertedTransactionId: true,
+                firstResponseAt: true, closeLostReason: true, intakeAt: true,
                 assignedTo: { select: { name: true } },
                 branch: { select: { name: true } },
                 items: { select: { description: true, quantity: true, unitPrice: true, widthCm: true, heightCm: true, unitType: true, note: true } },
@@ -250,6 +251,11 @@ export class KpiService {
                 csName: l.assignedTo?.name ?? null,
                 branchName: l.branch?.name ?? null,
                 createdAt: l.createdAt,
+                // Sinyal perilaku: kapan CS pertama membalas (null = belum dibalas),
+                // alasan lost (diisi CS saat menutup), & jam lead benar-benar masuk.
+                firstResponseAt: l.firstResponseAt ?? null,
+                closeLostReason: l.closeLostReason ?? null,
+                intakeAt: l.intakeAt ?? null,
                 // Detail produk: utamakan item dari NOTA (transaksi) bila lead sudah
                 // jadi nota; kalau belum, pakai item yang diinput di lead.
                 items: (txId != null && (txItemsMap.get(txId)?.length))
