@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { verifyMarketingPin, getPublicMarketingDashboard, addMarketingSpend, deleteMarketingSpend, type PublicLead, type AdSpend } from "@/lib/api/marketing";
 import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
-import { TrendingUp, Users, Wallet, Clock, Loader2, Lock, RefreshCw, ChevronDown, Megaphone, Package, Filter, Target, Plus, Trash2, Receipt, Building2 } from "lucide-react";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { TrendingUp, Users, Wallet, Clock, Loader2, Lock, RefreshCw, ChevronDown, Megaphone, Package, Filter, Target, Plus, Trash2, Receipt, Building2, AlertTriangle, Timer, TimerOff, MessageSquare, ThumbsDown } from "lucide-react";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -24,6 +24,15 @@ const STATUS_CLS: Record<string, string> = {
     CLOSED_LOST: "bg-red-100 text-red-700",
     INVALID: "bg-muted text-muted-foreground",
 };
+const LEVEL_LABEL: Record<string, string> = { HOT: "Hot", WARM: "Warm", COLD: "Cold" };
+const LEVEL_CLS: Record<string, string> = {
+    HOT: "bg-red-100 text-red-700",
+    WARM: "bg-amber-100 text-amber-700",
+    COLD: "bg-sky-100 text-sky-700",
+};
+const LEVEL_EMOJI: Record<string, string> = { HOT: "🔥", WARM: "🌤️", COLD: "❄️" };
+const LEVEL_ORDER = ["HOT", "WARM", "COLD"];
+const LEVEL_COLOR: Record<string, string> = { HOT: "#ef4444", WARM: "#f59e0b", COLD: "#0ea5e9" };
 const SOURCE_LABEL: Record<string, string> = {
     WHATSAPP: "WhatsApp", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", TIKTOK: "TikTok",
     MARKETPLACE: "Marketplace", REFERRAL: "Referral", WEBSITE: "Website", WALK_IN: "Walk-in",
@@ -42,6 +51,35 @@ const STATUS_COLOR: Record<string, string> = {
 };
 const rupiah = (n: number) => "Rp" + Math.round(n || 0).toLocaleString("id-ID");
 const srcLabel = (s: string, detail?: string | null) => (s === "CUSTOM" && detail) ? detail : (SOURCE_LABEL[s] || detail || s);
+
+// Status yang masih "hidup" (belum closing/lost/invalid) — masih perlu di-follow CS.
+const ACTIVE_STATUSES = ["NEW", "FOLLOW_UP", "NEGOTIATION"];
+
+// Waktu respon pertama CS dalam menit (firstResponseAt − jam masuk lead).
+// null = CS belum pernah membalas lead ini.
+function responseMinutes(l: PublicLead): number | null {
+    if (!l.firstResponseAt) return null;
+    const base = new Date(l.intakeAt || l.createdAt).getTime();
+    const diff = new Date(l.firstResponseAt).getTime() - base;
+    return diff < 0 ? 0 : Math.floor(diff / 60000);
+}
+function fmtDuration(minutes: number): string {
+    if (minutes < 60) return `${minutes}m`;
+    if (minutes < 60 * 24) return `${Math.floor(minutes / 60)}j ${minutes % 60}m`;
+    return `${Math.floor(minutes / (60 * 24))}h ${Math.floor((minutes % (60 * 24)) / 60)}j`;
+}
+function respTone(minutes: number): "fast" | "ok" | "slow" | "late" {
+    if (minutes < 15) return "fast";
+    if (minutes < 60) return "ok";
+    if (minutes < 60 * 4) return "slow";
+    return "late";
+}
+const RESP_TONE_CLS: Record<string, string> = {
+    fast: "bg-emerald-100 text-emerald-700",
+    ok: "bg-blue-100 text-blue-700",
+    slow: "bg-amber-100 text-amber-700",
+    late: "bg-red-100 text-red-700",
+};
 
 function readSession(): string | null {
     try {
@@ -72,6 +110,7 @@ export default function MarketingDashboardPage() {
     const [expanded, setExpanded] = useState<number | null>(null);
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
     const [sourceSel, setSourceSel] = useState<string[]>([]); // [] = semua sumber (multi-select)
+    const [csSel, setCsSel] = useState<string>("ALL"); // "ALL" | nama CS
     const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
 
     const toggleSource = (s: string) =>
@@ -95,8 +134,9 @@ export default function MarketingDashboardPage() {
 
     useEffect(() => { if (pin) load(period, branchSel); }, [pin, period, branchSel, load]);
     useEffect(() => { if (pin) getPublicBranches().then(setBranches).catch(() => { }); }, [pin]);
-    // Pre-fill cabang form biaya mengikuti cabang yang sedang dilihat
-    useEffect(() => { setSpendForm(f => ({ ...f, branchId: branchSel === "ALL" ? "" : branchSel })); }, [branchSel]);
+    // Pre-fill cabang form biaya mengikuti cabang yang sedang dilihat; reset filter CS (roster beda per cabang/periode)
+    useEffect(() => { setSpendForm(f => ({ ...f, branchId: branchSel === "ALL" ? "" : branchSel })); setCsSel("ALL"); }, [branchSel]);
+    useEffect(() => { setCsSel("ALL"); }, [period]);
 
     const submitSpend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -162,10 +202,20 @@ export default function MarketingDashboardPage() {
     const t = data?.totals;
     const m = data?.metrics;
 
-    // Subset per kombinasi filter
-    const leadsByStatus = statusFilter === "ALL" ? leads : leads.filter(l => l.status === statusFilter); // utk chart sumber
-    const leadsBySrc = sourceSel.length === 0 ? leads : leads.filter(l => matchSrc(l.source));    // utk chart status
-    const filtered = leads.filter(l =>
+    // Filter CS (lensa client-side di atas semua analitik). "— Belum di-assign" = lead tanpa CS.
+    const csKey = (l: PublicLead) => l.csName || "— Belum di-assign";
+    const csLeads = csSel === "ALL" ? leads : leads.filter(l => csKey(l) === csSel);
+    // Opsi dropdown CS (dari seluruh leads periode, agar tetap bisa dipilih walau lensa lain aktif)
+    const csOptions = (() => {
+        const map = new Map<string, number>();
+        for (const l of leads) map.set(csKey(l), (map.get(csKey(l)) || 0) + 1);
+        return Array.from(map, ([cs, count]) => ({ cs, count })).sort((a, b) => b.count - a.count);
+    })();
+
+    // Subset per kombinasi filter (semuanya di atas csLeads)
+    const leadsByStatus = statusFilter === "ALL" ? csLeads : csLeads.filter(l => l.status === statusFilter); // utk chart sumber
+    const leadsBySrc = sourceSel.length === 0 ? csLeads : csLeads.filter(l => matchSrc(l.source));    // utk chart status
+    const filtered = csLeads.filter(l =>
         (statusFilter === "ALL" || l.status === statusFilter) && matchSrc(l.source));
 
     // Donut sumber (semua sumber dalam status terpilih)
@@ -178,14 +228,86 @@ export default function MarketingDashboardPage() {
     const statusChart = Object.keys(STATUS_LABEL)
         .map(s => ({ status: s, name: STATUS_LABEL[s], value: leadsBySrc.filter(l => l.status === s).length }))
         .filter(x => x.value > 0);
-    // Opsi chip filter sumber (semua sumber di data)
+    // Opsi chip filter sumber (ikut lensa CS supaya hitungan cocok)
     const sourceOptions = (() => {
         const map = new Map<string, number>();
-        for (const l of leads) map.set(l.source, (map.get(l.source) || 0) + 1);
+        for (const l of csLeads) map.set(l.source, (map.get(l.source) || 0) + 1);
         return Array.from(map, ([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count);
     })();
     const statusCounts: Record<string, number> = {};
     for (const l of leadsBySrc) statusCounts[l.status] = (statusCounts[l.status] || 0) + 1;
+    // Distribusi minat lead (Hot/Warm/Cold) — ikut filter sumber.
+    const levelCounts: Record<string, number> = {};
+    for (const l of leadsBySrc) levelCounts[l.level] = (levelCounts[l.level] || 0) + 1;
+    // Tren tingkat minat lead per hari (garis Hot/Warm/Cold) sepanjang periode.
+    const levelTrend = (() => {
+        if (!data?.period?.start || !data?.period?.end) return [];
+        const start = dayjs(data.period.start).startOf("day");
+        const end = dayjs(data.period.end).startOf("day");
+        const byDay = new Map<string, { HOT: number; WARM: number; COLD: number }>();
+        for (const l of leadsBySrc) {
+            const key = dayjs(l.createdAt).format("YYYY-MM-DD");
+            if (!byDay.has(key)) byDay.set(key, { HOT: 0, WARM: 0, COLD: 0 });
+            const b = byDay.get(key)!;
+            if (l.level === "HOT" || l.level === "WARM" || l.level === "COLD") b[l.level]++;
+        }
+        const out: { label: string; HOT: number; WARM: number; COLD: number }[] = [];
+        let cur = start, guard = 0;
+        while ((cur.isBefore(end) || cur.isSame(end, "day")) && guard++ < 400) {
+            const b = byDay.get(cur.format("YYYY-MM-DD")) || { HOT: 0, WARM: 0, COLD: 0 };
+            out.push({ label: cur.format("DD MMM"), ...b });
+            cur = cur.add(1, "day");
+        }
+        return out;
+    })();
+
+    // ── Kinerja per CS (ikut filter sumber, abaikan filter status) ──────────────
+    // Memperjelas siapa CS yang meng-handle tiap lead & seberapa responsif mereka.
+    const csStats = (() => {
+        const map = new Map<string, { cs: string; leads: number; unanswered: number; lostNoResp: number; answered: number; sumMin: number; closing: number; revenue: number }>();
+        const ensure = (n: string) => { if (!map.has(n)) map.set(n, { cs: n, leads: 0, unanswered: 0, lostNoResp: 0, answered: 0, sumMin: 0, closing: 0, revenue: 0 }); return map.get(n)!; };
+        for (const l of leadsBySrc) {
+            const e = ensure(l.csName || "— Belum di-assign");
+            e.leads++;
+            const mins = responseMinutes(l);
+            if (mins != null) { e.answered++; e.sumMin += mins; }
+            else if (ACTIVE_STATUSES.includes(l.status)) e.unanswered++;
+            else if (l.status === "CLOSED_LOST" || l.status === "INVALID") e.lostNoResp++;
+            if (l.status === "CLOSED_WON") { e.closing++; e.revenue += l.value; }
+        }
+        return Array.from(map.values())
+            .map(e => ({ ...e, avgMin: e.answered > 0 ? Math.round(e.sumMin / e.answered) : null }))
+            .sort((a, b) => b.leads - a.leads);
+    })();
+
+    // ── Perilaku pelanggan & responsivitas CS (ikut filter sumber, abaikan filter status) ──
+    // Memisahkan "lead gagal karena CS belum membalas" vs "pelanggan yang tidak jadi order".
+    const behavior = (() => {
+        let answered = 0, sumMin = 0;
+        let openUnanswered = 0;   // lead masih aktif tapi CS belum membalas → CS kurang inisiatif
+        let lostUnanswered = 0;   // lost/invalid tanpa pernah dibalas CS → lead hangus tanpa respon
+        let lostTotal = 0, lostNoReason = 0;
+        const lostReasons = new Map<string, number>();
+        for (const l of leadsBySrc) {
+            const mins = responseMinutes(l);
+            if (mins != null) { answered++; sumMin += mins; }
+            if (l.firstResponseAt == null) {
+                if (ACTIVE_STATUSES.includes(l.status)) openUnanswered++;
+                else if (l.status === "CLOSED_LOST" || l.status === "INVALID") lostUnanswered++;
+            }
+            if (l.status === "CLOSED_LOST") {
+                lostTotal++;
+                const r = (l.closeLostReason || "").trim();
+                if (r) lostReasons.set(r, (lostReasons.get(r) || 0) + 1);
+                else lostNoReason++;
+            }
+        }
+        const reasons = Array.from(lostReasons, ([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count);
+        return {
+            answered, avgMin: answered > 0 ? Math.round(sumMin / answered) : null,
+            openUnanswered, lostUnanswered, lostTotal, lostNoReason, reasons,
+        };
+    })();
 
     // Agregasi produk (kedua filter) + dari lead/sumber mana
     const products = (() => {
@@ -236,7 +358,7 @@ export default function MarketingDashboardPage() {
                     <div className="rounded-lg bg-white/15 p-2"><Megaphone className="h-4 w-4" /></div>
                     <div className="min-w-0">
                         <div className="font-semibold leading-tight">Dashboard Marketing</div>
-                        <div className="text-xs text-indigo-100">Pemantauan leads — {branchSel === "ALL" ? "semua cabang" : (branches.find(b => b.id === branchSel)?.name || "cabang")}</div>
+                        <div className="text-xs text-indigo-100">Pemantauan leads — {branchSel === "ALL" ? "semua cabang" : (branches.find(b => b.id === branchSel)?.name || "cabang")}{csSel !== "ALL" && ` · CS ${csSel}`}</div>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -268,6 +390,19 @@ export default function MarketingDashboardPage() {
                             >
                                 <option value="ALL">Semua Cabang</option>
                                 {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                        </label>
+                    )}
+                    {csOptions.length > 0 && (
+                        <label className={`inline-flex items-center gap-1.5 text-sm ${branches.length > 0 ? "" : "ml-auto"}`}>
+                            <Users className="h-4 w-4 text-muted-foreground" />
+                            <select
+                                value={csSel}
+                                onChange={e => setCsSel(e.target.value)}
+                                className="border border-border rounded-lg px-2.5 py-1.5 text-sm bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-400 max-w-[180px]"
+                            >
+                                <option value="ALL">Semua CS</option>
+                                {csOptions.map(c => <option key={c.cs} value={c.cs}>{c.cs} ({c.count})</option>)}
                             </select>
                         </label>
                     )}
@@ -392,6 +527,137 @@ export default function MarketingDashboardPage() {
                             </div>
                         </div>
 
+                        {/* Tren tingkat minat lead (line chart) */}
+                        <div className="bg-card rounded-xl border border-border p-4">
+                            <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                                <h2 className="font-semibold text-foreground flex items-center gap-2"><TrendingUp className="h-4 w-4 text-indigo-600" /> Tren Tingkat Minat Lead</h2>
+                                <div className="flex items-center gap-2.5 text-[11px]">
+                                    {LEVEL_ORDER.map(lv => (
+                                        <span key={lv} className="inline-flex items-center gap-1 text-muted-foreground">
+                                            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: LEVEL_COLOR[lv] }} /> {LEVEL_LABEL[lv]} <strong className="text-foreground">{levelCounts[lv] || 0}</strong>
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                            {levelTrend.length === 0 ? (
+                                <div className="flex items-center justify-center h-[240px] text-sm text-muted-foreground">Belum ada data pada periode ini.</div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height={240}>
+                                    <LineChart data={levelTrend} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                        <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} interval="preserveStartEnd" />
+                                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                                        <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--foreground)" }} />
+                                        <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                                        <Line type="monotone" dataKey="HOT" name="Hot" stroke={LEVEL_COLOR.HOT} strokeWidth={2} dot={{ r: 2 }} />
+                                        <Line type="monotone" dataKey="WARM" name="Warm" stroke={LEVEL_COLOR.WARM} strokeWidth={2} dot={{ r: 2 }} />
+                                        <Line type="monotone" dataKey="COLD" name="Cold" stroke={LEVEL_COLOR.COLD} strokeWidth={2} dot={{ r: 2 }} />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            )}
+                        </div>
+
+                        {/* Perilaku pelanggan & responsivitas CS */}
+                        <div className="bg-card rounded-xl border border-border p-4">
+                            <h2 className="font-semibold text-foreground flex items-center gap-2 mb-1">
+                                <MessageSquare className="h-4 w-4 text-indigo-600" /> Perilaku Pelanggan & Responsivitas CS
+                            </h2>
+                            <p className="text-[11px] text-muted-foreground mb-3">
+                                Membantu membedakan lead yang gagal karena <strong>CS belum membalas</strong> vs <strong>pelanggan yang memang tidak jadi order</strong>
+                                {sourceSel.length > 0 && <> · sumber: {sourceSel.map(s => srcLabel(s)).join(", ")}</>}.
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Sisi CS */}
+                                <div className="rounded-lg border border-border p-3">
+                                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2">Dari sisi CS</div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <Stat icon={<TimerOff className="h-4 w-4 text-red-600" />} value={String(behavior.openUnanswered)}
+                                            label="Belum dibalas" tone={behavior.openUnanswered > 0 ? "bad" : "ok"} />
+                                        <Stat icon={<AlertTriangle className="h-4 w-4 text-amber-600" />} value={String(behavior.lostUnanswered)}
+                                            label="Lost tanpa respon" tone={behavior.lostUnanswered > 0 ? "warn" : "ok"} />
+                                        <Stat icon={<Timer className="h-4 w-4 text-sky-600" />} value={behavior.avgMin == null ? "—" : fmtDuration(behavior.avgMin)}
+                                            label="Rata² respon" />
+                                    </div>
+                                    {(behavior.openUnanswered > 0 || behavior.lostUnanswered > 0) && (
+                                        <p className="text-[11px] text-muted-foreground mt-2 leading-snug">
+                                            {behavior.openUnanswered > 0 && <><strong className="text-red-600">{behavior.openUnanswered} lead aktif</strong> belum dibalas CS. </>}
+                                            {behavior.lostUnanswered > 0 && <><strong className="text-amber-600">{behavior.lostUnanswered} lead hangus</strong> tanpa pernah direspon — indikasi CS kurang inisiatif.</>}
+                                        </p>
+                                    )}
+                                </div>
+                                {/* Sisi pelanggan */}
+                                <div className="rounded-lg border border-border p-3">
+                                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+                                        <ThumbsDown className="h-3.5 w-3.5" /> Alasan pelanggan tidak jadi order ({behavior.lostTotal})
+                                    </div>
+                                    {behavior.reasons.length === 0 ? (
+                                        <p className="text-xs text-muted-foreground py-2">
+                                            {behavior.lostTotal === 0 ? "Belum ada lead lost pada filter ini." : "CS belum mengisi alasan lost."}
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-1.5">
+                                            {behavior.reasons.slice(0, 6).map(r => {
+                                                const pct = behavior.lostTotal > 0 ? Math.round((r.count / behavior.lostTotal) * 100) : 0;
+                                                return (
+                                                    <div key={r.reason}>
+                                                        <div className="flex items-center justify-between gap-2 text-xs mb-0.5">
+                                                            <span className="text-foreground truncate">{r.reason}</span>
+                                                            <span className="text-muted-foreground shrink-0 font-mono">{r.count} · {pct}%</span>
+                                                        </div>
+                                                        <div className="bg-muted rounded-full h-1.5 overflow-hidden">
+                                                            <div className="h-full bg-red-400 rounded-full" style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {behavior.lostNoReason > 0 && (
+                                                <p className="text-[11px] text-muted-foreground pt-1">+{behavior.lostNoReason} lost tanpa alasan tercatat</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Kinerja CS yang meng-handle lead */}
+                        <div className="bg-card rounded-xl border border-border p-4">
+                            <h2 className="font-semibold text-foreground flex items-center gap-2 mb-1">
+                                <Users className="h-4 w-4 text-indigo-600" /> Kinerja CS (yang Meng-handle Lead)
+                            </h2>
+                            <p className="text-[11px] text-muted-foreground mb-3">Siapa CS pemegang tiap lead & seberapa responsif mereka membalas{sourceSel.length > 0 && <> · sumber: {sourceSel.map(s => srcLabel(s)).join(", ")}</>}.</p>
+                            {csStats.length === 0 ? (
+                                <div className="text-sm text-muted-foreground py-4 text-center">Belum ada lead pada filter ini.</div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm min-w-[640px]">
+                                        <thead><tr className="text-xs text-muted-foreground border-b border-border">
+                                            <th className="text-left py-2 px-2">CS</th>
+                                            <th className="text-right py-2 px-2">Leads</th>
+                                            <th className="text-right py-2 px-2">Belum Dibalas</th>
+                                            <th className="text-right py-2 px-2">Lost Tanpa Respon</th>
+                                            <th className="text-right py-2 px-2">Rata² Respon</th>
+                                            <th className="text-right py-2 px-2">Closing</th>
+                                            <th className="text-right py-2 px-2">Pendapatan</th>
+                                        </tr></thead>
+                                        <tbody>
+                                            {csStats.map(c => (
+                                                <tr key={c.cs} className="border-b border-border last:border-0">
+                                                    <td className="py-2 px-2 font-medium text-foreground">{c.cs}</td>
+                                                    <td className="py-2 px-2 text-right font-mono">{c.leads}</td>
+                                                    <td className={`py-2 px-2 text-right font-mono font-semibold ${c.unanswered > 0 ? "text-red-600" : "text-muted-foreground/50"}`}>{c.unanswered || "—"}</td>
+                                                    <td className={`py-2 px-2 text-right font-mono ${c.lostNoResp > 0 ? "text-amber-600" : "text-muted-foreground/50"}`}>{c.lostNoResp || "—"}</td>
+                                                    <td className={`py-2 px-2 text-right font-mono ${c.avgMin == null ? "text-muted-foreground/50" : RESP_TONE_CLS[respTone(c.avgMin)].split(" ")[1]}`}>{c.avgMin == null ? "—" : fmtDuration(c.avgMin)}</td>
+                                                    <td className="py-2 px-2 text-right font-mono text-emerald-700">{c.closing || "—"}</td>
+                                                    <td className="py-2 px-2 text-right font-mono">{c.revenue > 0 ? rupiah(c.revenue) : "—"}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <p className="text-[11px] text-muted-foreground mt-2"><strong>Belum dibalas</strong> = lead aktif yang CS-nya belum pernah merespon · <strong>Lost tanpa respon</strong> = lead hangus tanpa pernah dibalas (indikasi CS kurang inisiatif).</p>
+                        </div>
+
                         {/* Filter sumber & status */}
                         <div className="bg-card rounded-xl border border-border p-3 space-y-2">
                             <div className="flex items-start gap-2 flex-wrap">
@@ -475,11 +741,26 @@ export default function MarketingDashboardPage() {
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-medium text-sm text-foreground truncate">{l.name}</span>
                                                 <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_CLS[l.status] || "bg-muted text-muted-foreground"}`}>{STATUS_LABEL[l.status] || l.status}</span>
+                                                {l.level && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${LEVEL_CLS[l.level] || "bg-muted text-muted-foreground"}`}>{LEVEL_EMOJI[l.level] || ""} {LEVEL_LABEL[l.level] || l.level}</span>}
+                                                {(() => {
+                                                    const mins = responseMinutes(l);
+                                                    if (mins != null) {
+                                                        const tone = respTone(mins);
+                                                        return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 ${RESP_TONE_CLS[tone]}`}><Timer className="h-2.5 w-2.5" />{fmtDuration(mins)}</span>;
+                                                    }
+                                                    if (ACTIVE_STATUSES.includes(l.status))
+                                                        return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 bg-red-100 text-red-700"><TimerOff className="h-2.5 w-2.5" />Belum dibalas CS</span>;
+                                                    if (l.status === "CLOSED_LOST" || l.status === "INVALID")
+                                                        return <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full inline-flex items-center gap-0.5 bg-amber-100 text-amber-700"><AlertTriangle className="h-2.5 w-2.5" />Tanpa respon</span>;
+                                                    return null;
+                                                })()}
                                             </div>
                                             <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2">
                                                 {l.phone && <span>{l.phone}</span>}
                                                 <span>· {srcLabel(l.source, l.sourceDetail)}</span>
-                                                {l.csName && <span>· CS {l.csName}</span>}
+                                                <span className="inline-flex items-center gap-1 font-medium text-foreground/80 bg-muted rounded-full px-1.5 py-0.5">
+                                                    <Users className="h-2.5 w-2.5" />{l.csName || "Belum di-assign"}
+                                                </span>
                                                 {l.branchName && <span>· {l.branchName}</span>}
                                                 <span>· {dayjs(l.createdAt).format("DD MMM")}</span>
                                             </div>
@@ -492,6 +773,17 @@ export default function MarketingDashboardPage() {
                                     </button>
                                     {expanded === l.id && (
                                         <div className="border-t border-border bg-muted/40 p-3 text-xs space-y-2">
+                                            {(() => {
+                                                const mins = responseMinutes(l);
+                                                if (mins != null)
+                                                    return <div className="text-muted-foreground"><span className="font-semibold">Respon CS:</span> dibalas dalam {fmtDuration(mins)} ({dayjs(l.firstResponseAt!).format("DD MMM HH:mm")})</div>;
+                                                if (ACTIVE_STATUSES.includes(l.status))
+                                                    return <div className="text-red-600 font-medium">CS belum membalas lead ini.</div>;
+                                                return null;
+                                            })()}
+                                            {l.status === "CLOSED_LOST" && l.closeLostReason && (
+                                                <div className="text-muted-foreground"><span className="font-semibold">Alasan lost:</span> {l.closeLostReason}</div>
+                                            )}
                                             {l.needs && <div className="text-muted-foreground"><span className="font-semibold">Kebutuhan:</span> {l.needs}</div>}
                                             {l.items.length === 0 ? (
                                                 <div className="text-muted-foreground italic">Belum ada detail produk di lead ini.</div>
@@ -529,6 +821,17 @@ function Card({ icon, label, value, sub }: { icon: React.ReactNode; label: strin
             <div className="flex items-center gap-2 mb-1.5">{icon}<span className="text-xs text-muted-foreground">{label}</span></div>
             <div className="text-lg font-bold text-foreground leading-tight">{value}</div>
             {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+        </div>
+    );
+}
+
+function Stat({ icon, value, label, tone }: { icon: React.ReactNode; value: string; label: string; tone?: "ok" | "warn" | "bad" }) {
+    const valueCls = tone === "bad" ? "text-red-600" : tone === "warn" ? "text-amber-600" : "text-foreground";
+    return (
+        <div className="rounded-lg bg-muted/50 p-2 text-center">
+            <div className="flex justify-center mb-1">{icon}</div>
+            <div className={`text-base font-bold leading-none ${valueCls}`}>{value}</div>
+            <div className="text-[10px] text-muted-foreground mt-1 leading-tight">{label}</div>
         </div>
     );
 }
