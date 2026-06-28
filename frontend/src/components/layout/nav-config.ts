@@ -27,12 +27,15 @@ export interface NavSection {
 }
 
 export const TOP_LINK: NavItem = { name: "Dashboard", href: "/", icon: LayoutDashboard };
+// Link mandiri (di luar section) — halaman owner full-screen, hanya tampil utk owner.
+// Sengaja TIDAK dimasukkan ke section mana pun supaya tidak mengubah firstItemHref
+// / sub-nav kategori yang sudah ada.
+export const OWNER_LINK: NavItem = { name: "Dashboard Owner", href: "/owner", icon: Crown, ownerOnly: true };
 
 export const SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Penjualan & Keuangan', icon: Wallet,
         items: [
-            { name: "Dashboard Owner", href: "/owner", icon: Crown, ownerOnly: true },
             { name: "Kasir POS", href: "/pos", icon: ShoppingCart },
             { name: "Rekap Penjualan", href: "/reports/sales", icon: BarChart3 },
             { name: "Laporan Laba Kotor", href: "/reports/profit", icon: BarChart3 },
