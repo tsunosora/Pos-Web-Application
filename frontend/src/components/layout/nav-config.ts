@@ -2,7 +2,7 @@ import {
     LayoutDashboard, ShoppingCart, BarChart3, Package, Wallet, FileText, MapPin,
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
-    Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award,
+    Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -17,6 +17,7 @@ export interface NavItem {
     icon: LucideIcon;
     badgeKey?: NavBadgeKey;
     managerOnly?: boolean;
+    ownerOnly?: boolean;
 }
 export interface NavSection {
     key: SidebarSectionKey;
@@ -31,6 +32,7 @@ export const SECTIONS: NavSection[] = [
     {
         key: 'sales', label: 'Penjualan & Keuangan', icon: Wallet,
         items: [
+            { name: "Dashboard Owner", href: "/owner", icon: Crown, ownerOnly: true },
             { name: "Kasir POS", href: "/pos", icon: ShoppingCart },
             { name: "Rekap Penjualan", href: "/reports/sales", icon: BarChart3 },
             { name: "Laporan Laba Kotor", href: "/reports/profit", icon: BarChart3 },
@@ -98,6 +100,11 @@ export const SECTIONS: NavSection[] = [
     },
 ];
 
+/** Apakah user boleh melihat item ini berdasarkan role (manager/owner). */
+export function canSeeNavItem(it: NavItem, roles: { isManager: boolean; isOwner: boolean }): boolean {
+    return (!it.managerOnly || roles.isManager) && (!it.ownerOnly || roles.isOwner);
+}
+
 export function isItemActive(pathname: string, href: string): boolean {
     if (href === '/') return pathname === '/';
     return pathname === href || pathname.startsWith(href + '/');
@@ -109,7 +116,7 @@ export function getActiveSection(pathname: string): NavSection | undefined {
 }
 
 /** Item pertama yang boleh diakses user (untuk tujuan klik kategori). */
-export function firstItemHref(section: NavSection, isManager: boolean): string {
-    const it = section.items.find(i => !i.managerOnly || isManager);
+export function firstItemHref(section: NavSection, isManager: boolean, isOwner = false): string {
+    const it = section.items.find(i => canSeeNavItem(i, { isManager, isOwner }));
     return (it ?? section.items[0]).href;
 }

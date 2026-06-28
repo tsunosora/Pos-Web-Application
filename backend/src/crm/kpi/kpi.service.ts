@@ -199,14 +199,19 @@ export class KpiService {
             leadsRaw.filter(l => l.convertedTransactionId).map(l => Number(l.convertedTransactionId)),
         ));
         const grossMap = new Map<number, number>();
+        const pendingMap = new Map<number, number>(); // txId → saldo outstanding (PENDING/PARTIAL)
         const txItemsMap = new Map<number, any[]>();
         if (convertedTxIds.length) {
             const txs: any[] = await this.tx.findMany({
                 where: { id: { in: convertedTxIds } },
-                select: { id: true, grandTotal: true, status: true } as any,
+                select: { id: true, grandTotal: true, downPayment: true, status: true } as any,
             });
             for (const t of txs) {
                 if (t.status !== 'FAILED' && t.status !== 'CANCELLED') grossMap.set(t.id, Number(t.grandTotal) || 0);
+                // Saldo "akan datang": tx belum lunas (PENDING penuh / PARTIAL sisa DP).
+                if (t.status === 'PENDING' || t.status === 'PARTIAL') {
+                    pendingMap.set(t.id, Math.max(0, Number(t.grandTotal) - Number(t.downPayment || 0)));
+                }
             }
             const txItems: any[] = await (this.prisma as any).transactionItem.findMany({
                 where: { transactionId: { in: convertedTxIds } },
@@ -256,6 +261,9 @@ export class KpiService {
                 firstResponseAt: l.firstResponseAt ?? null,
                 closeLostReason: l.closeLostReason ?? null,
                 intakeAt: l.intakeAt ?? null,
+                // Saldo "akan datang" lead ini (0 kalau lunas/belum jadi nota) — untuk
+                // kartu ringkasan yang ikut filter (CS/sumber/status) di sisi client.
+                pendingValue: (hasNota && txId != null && pendingMap.has(txId)) ? pendingMap.get(txId)! : 0,
                 // Detail produk: utamakan item dari NOTA (transaksi) bila lead sudah
                 // jadi nota; kalau belum, pakai item yang diinput di lead.
                 items: (txId != null && (txItemsMap.get(txId)?.length))
@@ -696,6 +704,119 @@ export class KpiService {
                     .sort((a, b) => b.count - a.count),
             }))
             .sort((a, b) => b.total - a.total);
+    }
+
+    /**
+     * Leaderboard OPERATOR produksi & cetak — gabungan output dua antrian yang
+     * dikerjakan operator, di-key per NAMA operator:
+     *  - Antrian CETAK paper (PrintJob): job yang sudah dicetak (SELESAI/DIAMBIL),
+     *    `operatorName` tersimpan langsung; basis tanggal = `finishedAt`.
+     *  - Antrian PRODUKSI (ProductionJob via ProductionJobActivity): operator yang
+     *    memindahkan kartu di kanban (STAGE_CHANGE oleh actorRole=OPERATOR);
+     *    basis tanggal = `activity.createdAt`. "Selesai" = toStage KIRIM/SELESAI.
+     * (Catatan: board /produksi lama berbasis-status tidak menyimpan nama operator,
+     *  jadi attribusi produksi mengandalkan kanban /produksi/board yang mencatat nama.)
+     */
+    async operatorLeaderboard(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+
+        // ── CETAK (PrintJob) ──────────────────────────────────────────────
+        // Omzet cetak = nilai line item yang dicetak (priceAtTime × qty item).
+        const printJobs: any[] = await (this.prisma as any).printJob.findMany({
+            where: {
+                ...branchScope,
+                status: { in: ['SELESAI', 'DIAMBIL'] },
+                operatorName: { not: null },
+                finishedAt: { gte: start, lte: end },
+            },
+            select: {
+                operatorName: true, quantity: true,
+                transactionItem: { select: { priceAtTime: true, quantity: true } },
+            },
+        });
+
+        // ── PRODUKSI (ProductionJobActivity: STAGE_CHANGE oleh OPERATOR) ───
+        const acts: any[] = await (this.prisma as any).productionJobActivity.findMany({
+            where: {
+                action: 'STAGE_CHANGE',
+                actorRole: 'OPERATOR',
+                actorName: { not: null },
+                createdAt: { gte: start, lte: end },
+            },
+            select: { jobId: true, actorName: true, toStage: true },
+        });
+        // Activity tak punya branchId → kalau di-scope ke cabang, filter via job.
+        let allowedJobIds: Set<number> | null = null;
+        if (branchScope && branchScope.branchId !== undefined) {
+            const jobIds = Array.from(new Set(acts.map(a => a.jobId)));
+            const jobs: any[] = jobIds.length === 0 ? [] : await (this.prisma as any).productionJob.findMany({
+                where: { id: { in: jobIds }, ...branchScope },
+                select: { id: true },
+            });
+            allowedJobIds = new Set(jobs.map(j => j.id));
+        }
+
+        // Nilai item per production job — untuk omzet produksi (hanya job yang
+        // dibawa sampai KIRIM/SELESAI, dihitung sekali per job per operator).
+        const DONE_STAGES = new Set(['KIRIM', 'SELESAI']);
+        const doneJobIds = Array.from(new Set(
+            acts.filter(a => DONE_STAGES.has(a.toStage) && (!allowedJobIds || allowedJobIds.has(a.jobId)))
+                .map(a => a.jobId),
+        ));
+        const prodJobValue = new Map<number, number>();
+        if (doneJobIds.length) {
+            const pj: any[] = await (this.prisma as any).productionJob.findMany({
+                where: { id: { in: doneJobIds } },
+                select: { id: true, transactionItem: { select: { priceAtTime: true, quantity: true } } },
+            });
+            for (const j of pj) {
+                const ti = j.transactionItem;
+                prodJobValue.set(j.id, ti ? Number(ti.priceAtTime || 0) * (Number(ti.quantity) || 1) : 0);
+            }
+        }
+
+        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDone: number; prodDoneJobs: Set<number> };
+        const map = new Map<string, Row>();
+        const ensure = (n: string) => {
+            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDone: 0, prodDoneJobs: new Set() });
+            return map.get(n)!;
+        };
+
+        for (const p of printJobs) {
+            const name = (p.operatorName || '').trim();
+            if (!name) continue;
+            const e = ensure(name);
+            e.printJobs++;
+            e.printPcs += Number(p.quantity) || 0;
+            const ti = p.transactionItem;
+            if (ti) e.printOmzet += Number(ti.priceAtTime || 0) * (Number(ti.quantity) || 1);
+        }
+        for (const a of acts) {
+            if (allowedJobIds && !allowedJobIds.has(a.jobId)) continue;
+            const name = (a.actorName || '').trim();
+            if (!name) continue;
+            const e = ensure(name);
+            e.prodJobs.add(a.jobId);
+            if (DONE_STAGES.has(a.toStage)) { e.prodDone++; e.prodDoneJobs.add(a.jobId); }
+        }
+
+        return Array.from(map.values())
+            .map(e => {
+                const prodOmzet = Array.from(e.prodDoneJobs).reduce((s, id) => s + (prodJobValue.get(id) || 0), 0);
+                return {
+                    name: e.name,
+                    printJobs: e.printJobs,
+                    printPcs: e.printPcs,
+                    printOmzet: e.printOmzet,
+                    prodJobs: e.prodJobs.size,
+                    prodDone: e.prodDone,
+                    prodOmzet,
+                    omzet: e.printOmzet + prodOmzet,
+                    total: e.printJobs + e.prodJobs.size,
+                };
+            })
+            .sort((a, b) => b.omzet - a.omzet || b.total - a.total || b.printPcs - a.printPcs);
     }
 
     async designerLeaderboard(ctx: BranchContext, params: KpiParams) {

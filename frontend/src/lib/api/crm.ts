@@ -620,6 +620,27 @@ export const getDesignOutput = async (params: {
 }): Promise<DesignOutputEntry[]> =>
     (await api.get('/crm/kpi/design-output', { params })).data;
 
+// ── Operator Produksi & Cetak (output dua antrian, per operator) ──────────
+export interface OperatorLeaderboardEntry {
+    name: string;
+    printJobs: number;   // job antrian cetak paper yang sudah dicetak (SELESAI/DIAMBIL)
+    printPcs: number;    // total lembar/qty dicetak
+    printOmzet: number;  // omzet dari job cetak (nilai line item, Rp)
+    prodJobs: number;    // job antrian produksi yang ia tangani (pindah kartu di kanban)
+    prodDone: number;    // job produksi yang ia bawa sampai KIRIM/SELESAI
+    prodOmzet: number;   // omzet dari job produksi yang selesai (Rp)
+    omzet: number;       // printOmzet + prodOmzet (total)
+    total: number;       // printJobs + prodJobs (jumlah job)
+}
+
+export const getOperatorLeaderboard = async (params: {
+    period: KpiPeriod;
+    start?: string;
+    end?: string;
+    branchId?: number | 'all';
+}): Promise<OperatorLeaderboardEntry[]> =>
+    (await api.get('/crm/kpi/operator-leaderboard', { params })).data;
+
 // ── Tren leaderboard (time-series per orang, untuk modal grafik) ──────────
 export interface LeaderboardTrendReport {
     period: { start: string; end: string };

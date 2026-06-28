@@ -623,6 +623,25 @@ model MarketingSpend {
   @@map("marketing_spend")
 }
 
+// Beban tetap bulanan yang diatur owner (gaji, sewa ruko, angsuran mesin,
+// supplier, dll). Dipakai di Dashboard Owner untuk menghitung estimasi laba
+// bersih (Laba Kotor − beban tetap). branchId null = pusat/semua cabang.
+model FixedExpense {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(150)
+  category  String   @default("LAINNYA") @db.VarChar(30) // GAJI | SEWA | ANGSURAN | SUPPLIER | LAINNYA
+  amount    Decimal  @db.Decimal(15, 2)                  // nominal per bulan
+  branchId  Int?     @map("branch_id")                   // null = pusat / semua cabang
+  dueDay    Int?     @map("due_day")                     // tanggal jatuh tempo (1-31), opsional
+  note      String?  @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([branchId])
+  @@map("fixed_expenses")
+}
+
 // Konfigurasi notifikasi Discord (singleton, id=1).
 // webhooks: map channel→URL { sales, production, finance, inventory, leaderboard, system }
 // events  : map event→bool  { shiftRecap, dealClosing, jobReady, lowStock, backup, error, champion }

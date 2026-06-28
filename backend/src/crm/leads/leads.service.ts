@@ -256,13 +256,14 @@ export class LeadsService {
      *   AREA_BASED: qty × (w × h / 10000) × unitPrice  (unitPrice = harga per m²)
      *   UNIT      : qty × unitPrice
      */
-    private calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null }): number {
+    private calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null; unitType?: string | null }): number {
         const qty = Number(item.quantity) || 0;
         const price = Number(item.unitPrice) || 0;
         const w = Number(item.widthCm) || 0;
         const h = Number(item.heightCm) || 0;
         if (w > 0 && h > 0) {
-            const areaM2 = (w * h) / 10000;
+            // unitType 'm' → angka sudah meter; selain itu (cm/default) → bagi 10000.
+            const areaM2 = item.unitType === 'm' ? (w * h) : (w * h) / 10000;
             return qty * areaM2 * price;
         }
         return qty * price;
@@ -950,7 +951,7 @@ export class LeadsService {
                         const w = Number(it.widthCm) || 0;
                         const h = Number(it.heightCm) || 0;
                         const isArea = w > 0 && h > 0;
-                        const areaM2 = isArea ? (w * h) / 10000 : 0;
+                        const areaM2 = isArea ? (it.unitType === 'm' ? (w * h) : (w * h) / 10000) : 0;
                         const qty = Number(it.quantity) || 1;
                         const uPrice = Number(it.unitPrice) || 0;
 
@@ -982,7 +983,10 @@ export class LeadsService {
                             quantity: qty,
                             widthCm: it.widthCm ? Number(it.widthCm) : undefined,
                             heightCm: it.heightCm ? Number(it.heightCm) : undefined,
-                            unitType: it.unitType || undefined,
+                            // Editor lead CRM selalu input dimensi dalam cm (label "Lebar/Tinggi (cm)"
+                            // & preview /10000). Default ke 'cm' supaya nota = preview CRM; tanpa ini
+                            // transactions.service default 'm' → 100×100 jadi 100m×100m (salah).
+                            unitType: it.unitType || 'cm',
                             note: it.note || undefined,
                             customPrice,
                         };
@@ -1180,15 +1184,17 @@ export class LeadsService {
                 const productName = it.productVariant?.product?.name || it.description;
                 const variantName = it.productVariant?.variantName;
                 const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
-                const sizeNote = isArea ? ` (${it.widthCm}×${it.heightCm}cm = ${((Number(it.widthCm) * Number(it.heightCm)) / 10000).toFixed(2)}m²)` : '';
+                const unitLabel = it.unitType === 'm' ? 'm' : 'cm';
+                const areaNote = it.unitType === 'm' ? (Number(it.widthCm) * Number(it.heightCm)) : (Number(it.widthCm) * Number(it.heightCm)) / 10000;
+                const sizeNote = isArea ? ` (${it.widthCm}×${it.heightCm}${unitLabel} = ${areaNote.toFixed(2)}m²)` : '';
                 const descParts = [productName, variantName].filter(Boolean).join(' - ');
 
                 let invQty = Number(it.quantity) || 1;
                 let invPrice = Number(it.unitPrice) || 0;
                 let unit = it.unitType || 'pcs';
                 if (isArea) {
-                    // Compress: per-qty price = (w × h / 10000) × pricePerM2
-                    const areaM2 = (Number(it.widthCm) * Number(it.heightCm)) / 10000;
+                    // Compress: per-qty price = area(m²) × pricePerM2 (honor unitType)
+                    const areaM2 = it.unitType === 'm' ? (Number(it.widthCm) * Number(it.heightCm)) : (Number(it.widthCm) * Number(it.heightCm)) / 10000;
                     invPrice = areaM2 * invPrice;
                     unit = 'pcs'; // invoice item per-pcs (sudah include area)
                 }

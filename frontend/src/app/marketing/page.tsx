@@ -199,9 +199,6 @@ export default function MarketingDashboardPage() {
         );
     }
 
-    const t = data?.totals;
-    const m = data?.metrics;
-
     // Filter CS (lensa client-side di atas semua analitik). "— Belum di-assign" = lead tanpa CS.
     const csKey = (l: PublicLead) => l.csName || "— Belum di-assign";
     const csLeads = csSel === "ALL" ? leads : leads.filter(l => csKey(l) === csSel);
@@ -210,6 +207,17 @@ export default function MarketingDashboardPage() {
         const map = new Map<string, number>();
         for (const l of leads) map.set(csKey(l), (map.get(csKey(l)) || 0) + 1);
         return Array.from(map, ([cs, count]) => ({ cs, count })).sort((a, b) => b.count - a.count);
+    })();
+
+    // Kartu ringkasan dihitung dari csLeads supaya IKUT filter CS (semua counting
+    // berubah sesuai CS terpilih). Saat "Semua CS" = seluruh lead periode/cabang.
+    const summary = (() => {
+        const totalLeads = csLeads.length;
+        const closedWon = csLeads.filter(l => l.status === "CLOSED_WON").length;
+        const closedLost = csLeads.filter(l => l.status === "CLOSED_LOST").length;
+        const wonValue = csLeads.filter(l => l.status === "CLOSED_WON").reduce((s, l) => s + (l.value || 0), 0);
+        const pendingValue = csLeads.reduce((s, l) => s + (l.pendingValue || 0), 0);
+        return { totalLeads, closedWon, closedLost, wonValue, pendingValue, closingRate: totalLeads > 0 ? closedWon / totalLeads : 0 };
     })();
 
     // Subset per kombinasi filter (semuanya di atas csLeads)
@@ -332,7 +340,7 @@ export default function MarketingDashboardPage() {
     const benchmark = (() => {
         const map = new Map<string, { source: string; leads: number; closing: number; revenue: number; spend: number }>();
         const ensure = (s: string) => { if (!map.has(s)) map.set(s, { source: s, leads: 0, closing: 0, revenue: 0, spend: 0 }); return map.get(s)!; };
-        for (const l of leads) {
+        for (const l of csLeads) {
             const e = ensure(l.source);
             e.leads++;
             if (l.status === "CLOSED_WON") { e.closing++; e.revenue += l.value; }
@@ -412,12 +420,12 @@ export default function MarketingDashboardPage() {
                     <div className="flex justify-center py-16 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
                 ) : (
                     <>
-                        {/* Summary cards */}
+                        {/* Summary cards — ikut filter CS */}
                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            <Card icon={<Users className="h-5 w-5 text-indigo-600" />} label="Total Leads" value={String(t.totalLeads)} sub={`${t.closedWon} closing · ${t.closedLost} lost`} />
-                            <Card icon={<TrendingUp className="h-5 w-5 text-emerald-600" />} label="Closing Rate" value={`${Math.round((m.closingRate || 0) * 100)}%`} sub={`${t.closedWon} dari ${t.totalLeads}`} />
-                            <Card icon={<Wallet className="h-5 w-5 text-amber-600" />} label="Pendapatan (WON)" value={rupiah(Number(t.wonValue))} sub="dari leads closing" />
-                            <Card icon={<Clock className="h-5 w-5 text-sky-600" />} label="Akan Datang" value={rupiah(Number(t.pendingValue))} sub="piutang belum lunas" />
+                            <Card icon={<Users className="h-5 w-5 text-indigo-600" />} label="Total Leads" value={String(summary.totalLeads)} sub={`${summary.closedWon} closing · ${summary.closedLost} lost`} />
+                            <Card icon={<TrendingUp className="h-5 w-5 text-emerald-600" />} label="Closing Rate" value={`${Math.round(summary.closingRate * 100)}%`} sub={`${summary.closedWon} dari ${summary.totalLeads}`} />
+                            <Card icon={<Wallet className="h-5 w-5 text-amber-600" />} label="Pendapatan (WON)" value={rupiah(summary.wonValue)} sub="dari leads closing" />
+                            <Card icon={<Clock className="h-5 w-5 text-sky-600" />} label="Akan Datang" value={rupiah(summary.pendingValue)} sub="piutang belum lunas" />
                         </div>
 
                         {/* Benchmark Iklan per sumber */}
@@ -460,6 +468,7 @@ export default function MarketingDashboardPage() {
                                 </table>
                             </div>
                             <p className="text-[11px] text-muted-foreground mt-2">ROAS = pendapatan ÷ biaya · CPL = biaya ÷ leads · CAC = biaya ÷ closing · Profit = pendapatan − biaya. "—" = belum ada biaya iklan untuk sumber itu.</p>
+                            {csSel !== "ALL" && <p className="text-[11px] text-amber-600 mt-1">Leads & pendapatan untuk CS <strong>{csSel}</strong>, tetapi biaya iklan tetap total semua CS — ROAS/CPL/CAC jadi indikatif saja.</p>}
 
                             <button onClick={() => setSpendOpen(o => !o)} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-800">
                                 <Receipt className="h-4 w-4" /> {spendOpen ? "Tutup" : "Catat / Kelola Biaya Iklan"}

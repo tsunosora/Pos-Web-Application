@@ -54,7 +54,7 @@ export const BACKUP_GROUPS = {
     },
     production: {
         label: 'Produksi & Antrian Cetak',
-        tables: ['productionBatch', 'productionJob', 'productionJobProof', 'productionJobActivity', 'printJob'],
+        tables: ['productionBatch', 'productionJob', 'productionJobProof', 'productionJobActivity', 'jerseyWorkOrder', 'printJob'],
     },
     branchWorkOrders: {
         label: 'Work Order Antar Cabang',
@@ -86,6 +86,12 @@ export const BACKUP_GROUPS = {
         label: 'CRM — Leads, Follow-ups, Templates',
         // Lead + items + images + activities + follow-ups + message templates
         tables: ['lead', 'leadItem', 'leadImage', 'leadActivity', 'followUp', 'messageTemplate'],
+    },
+    ownerFinance: {
+        label: 'Biaya Owner — Beban Tetap & Iklan',
+        // fixedExpense: beban tetap bulanan (gaji/sewa/angsuran/supplier).
+        // marketingSpend: biaya iklan per sumber (dashboard marketing).
+        tables: ['fixedExpense', 'marketingSpend'],
     },
     website: {
         label: 'Website — Landing Page & Artikel',
@@ -131,12 +137,15 @@ const RESTORE_ORDER = [
     'productionBatch', 'productionJob',
     'productionJobProof',                       // FK → productionJob (cascade delete)
     'productionJobActivity',                    // FK → productionJob (audit log)
+    'jerseyWorkOrder',                          // FK → productionJob (1-1). Setelah productionJob.
     'printJob',
     'branchWorkOrder', 'branchWorkOrderItem',
     'interBranchLedger',                        // FK → transaction + companyBranch (from/to). Setelah transaction & companyBranch.
     'ledgerSettlement',                         // FK → interBranchLedger + cashflow + stockMovement. Setelah ledger & cashflow & movements.
     'clickRate', 'clickLog', 'machineReject', 'meterReading',
     'stockOpnameSession', 'stockOpnameItem',
+    'marketingSpend', 'fixedExpense',           // biaya owner — branchId scalar (tanpa FK keras), aman di sini
+
     // CRM — diletakkan paling akhir karena bisa reference banyak entity:
     //   lead.assignedToId → user
     //   lead.convertedCustomerId → customer
@@ -212,7 +221,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.7', // v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
+                version: '3.8', // v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

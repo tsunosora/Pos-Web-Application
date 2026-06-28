@@ -3,15 +3,15 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-    getKpiReport, getDesignerLeaderboard, getDesignOutput,
+    getKpiReport, getDesignerLeaderboard, getDesignOutput, getOperatorLeaderboard,
     type KpiPeriod, type KpiLeaderboardEntry, type DesignCheckEntry,
-    type DesignerLeaderboardEntry, type DesignOutputEntry,
+    type DesignerLeaderboardEntry, type DesignOutputEntry, type OperatorLeaderboardEntry,
 } from "@/lib/api";
 import api from "@/lib/api/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
     Trophy, Crown, Target, Phone, Zap, Search, Palette, Factory, Award,
-    Loader2, Info, ChevronDown, Users,
+    Loader2, Info, ChevronDown, Users, Printer, Layers,
 } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -122,10 +122,12 @@ export default function LeaderboardPage() {
     const kpi = useQuery({ queryKey: ["lb-kpi", common], queryFn: () => getKpiReport(common as any) });
     const designer = useQuery({ queryKey: ["lb-designer", common], queryFn: () => getDesignerLeaderboard(common as any) });
     const designOut = useQuery({ queryKey: ["lb-designout", common], queryFn: () => getDesignOutput(common as any) });
+    const operatorQ = useQuery({ queryKey: ["lb-operator", common], queryFn: () => getOperatorLeaderboard(common as any) });
 
-    const showCS = divisi === "Semua" || (divisi !== "Designer");
+    const showCS = divisi === "Semua" || (divisi !== "Designer" && divisi !== "Operator");
     const showDesigner = divisi === "Semua" || divisi === "Designer";
-    const roleFilter = divisi !== "Semua" && divisi !== "Designer" ? divisi : null;
+    const showOperator = divisi === "Semua" || divisi === "Operator";
+    const roleFilter = divisi !== "Semua" && divisi !== "Designer" && divisi !== "Operator" ? divisi : null;
     const kw = karyawan.trim().toLowerCase();
 
     // ── CS rows (filter by role divisi + karyawan) ──
@@ -154,7 +156,13 @@ export default function LeaderboardPage() {
         return r.sort((a, b) => b.omzet - a.omzet || b.soCreated - a.soCreated || b.assignment - a.assignment);
     }, [designer.data, kw]);
 
-    const loading = kpi.isLoading || designer.isLoading || designOut.isLoading;
+    const opRows = useMemo(() => {
+        let r = [...(operatorQ.data ?? [])];
+        if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
+        return r.sort((a, b) => b.total - a.total || b.printPcs - a.printPcs);
+    }, [operatorQ.data, kw]);
+
+    const loading = kpi.isLoading || designer.isLoading || designOut.isLoading || operatorQ.isLoading;
 
     // Juara CS
     const champCuan = topByOf(csRows, x => x.wonValue + x.walkinValue);
@@ -200,7 +208,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-muted-foreground mr-1">Divisi</span>
-                    {["Semua", ...(roles?.map(r => r.name) ?? []), "Designer"].map(d => (
+                    {["Semua", ...(roles?.map(r => r.name) ?? []), "Designer", "Operator"].map(d => (
                         <button key={d} onClick={() => setDivisi(d)}
                             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${divisi === d ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>
                             {d}
@@ -386,6 +394,51 @@ export default function LeaderboardPage() {
                                 </CaraHitung>
                             </SectionCard>
                         </>
+                    )}
+
+                    {/* ══ DIVISI OPERATOR PRODUKSI & CETAK ══ */}
+                    {showOperator && (
+                        <SectionCard icon={<Factory className="h-5 w-5" />} title="Divisi Operator — Produksi & Cetak" subtitle="Output operator dari antrian produksi (kanban) + antrian cetak paper.">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
+                                <ChampionCard icon={<Crown />} title="Raja Omzet Operator" name={topByOf(opRows, x => x.omzet)?.row.name} value={fmtRp(topByOf(opRows, x => x.omzet)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
+                                <ChampionCard icon={<Printer />} title="Raja Cetak" name={topByOf(opRows, x => x.printJobs)?.row.name} value={`${topByOf(opRows, x => x.printJobs)?.v ?? 0} job`} accent="bg-cyan-500/15 text-cyan-500" />
+                                <ChampionCard icon={<Factory />} title="Raja Produksi" name={topByOf(opRows, x => x.prodJobs)?.row.name} value={`${topByOf(opRows, x => x.prodJobs)?.v ?? 0} job`} accent="bg-indigo-500/15 text-indigo-500" />
+                                <ChampionCard icon={<Layers />} title="Paling Banyak Lembar" name={topByOf(opRows, x => x.printPcs)?.row.name} value={`${topByOf(opRows, x => x.printPcs)?.v ?? 0} lembar`} accent="bg-fuchsia-500/15 text-fuchsia-500" />
+                            </div>
+                            {opRows.length === 0 ? <Empty /> : (
+                                <>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm min-w-[760px]">
+                                            <thead><tr className="text-xs text-muted-foreground border-b border-border">
+                                                <Th>Operator</Th><Th right>Cetak (job)</Th><Th right>Lembar</Th><Th right>Produksi (job)</Th><Th right>Selesai</Th><Th right>Total Job</Th><Th right>Omzet</Th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {opRows.map((r, i) => (
+                                                    <tr key={r.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
+                                                        <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
+                                                        <td className="py-2 px-2 text-right font-mono text-cyan-600 dark:text-cyan-300">{r.printJobs || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.printPcs || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{r.prodJobs || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.prodDone || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono font-semibold">{r.total || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzet > 0 ? fmtRp(r.omzet) : '—'}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzet }))} label="Omzet operator (cetak + produksi)" money />
+                                </>
+                            )}
+                            <CaraHitung>
+                                <p><b>Cetak (job)</b> = job di <b>antrian cetak paper</b> yang sudah dicetak operator ini (status SELESAI/DIAMBIL). <b>Lembar</b> = total qty yang dicetak. Basis tanggal = waktu selesai cetak.</p>
+                                <p><b>Produksi (job)</b> = job di <b>antrian produksi</b> (kanban /produksi/board) yang ia geser tahapannya. <b>Selesai</b> = job yang ia bawa sampai tahap KIRIM/SELESAI. Basis tanggal = waktu pindah kartu.</p>
+                                <p><b>Omzet</b> = nilai line item dari pekerjaannya — dari <b>job cetak</b> (semua yang selesai dicetak) <i>+</i> <b>job produksi</b> yang ia bawa sampai KIRIM/SELESAI (dihitung sekali per job). Dasar peringkat.</p>
+                                <p className="text-[11px] italic">Omzet bisa beririsan dengan divisi lain (CS/designer) — ini kredit kontribusi tim per tahap, bukan penjumlahan omzet toko.</p>
+                                <p><b>Total Job</b> = Cetak + Produksi. Operator dicocokkan berdasarkan <b>nama</b> yang ia isi saat login board/cetak.</p>
+                                <p className="text-[11px] italic">Produksi terhitung dari kedua board: kanban /produksi/board maupun antrian /produksi (mode-status) — keduanya kini mencatat nama operator saat menyelesaikan job.</p>
+                            </CaraHitung>
+                        </SectionCard>
                     )}
                 </>
             )}

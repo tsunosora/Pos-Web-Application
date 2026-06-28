@@ -9,12 +9,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavBadges } from "@/hooks/useNavBadges";
-import { SECTIONS, TOP_LINK, isItemActive, getActiveSection, firstItemHref, type NavSection } from "./nav-config";
+import { SECTIONS, TOP_LINK, isItemActive, getActiveSection, firstItemHref, canSeeNavItem, type NavSection } from "./nav-config";
 
 export function Sidebar() {
     const pathname = usePathname();
     const { isSidebarOpen, closeSidebar, sidebarCollapsed: collapsed, toggleSidebarCollapsed } = useUIStore();
-    const { isManager } = useCurrentUser();
+    const { isManager, isOwner } = useCurrentUser();
     const { getSectionBadge, getBadge } = useNavBadges();
 
     const { data: settings } = useQuery({
@@ -32,7 +32,7 @@ export function Sidebar() {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) closeSidebar();
     };
 
-    const visibleSections = SECTIONS.filter(s => s.items.some(it => !it.managerOnly || isManager));
+    const visibleSections = SECTIONS.filter(s => s.items.some(it => canSeeNavItem(it, { isManager, isOwner })));
 
     // Class link nav — saat collapsed (lg+) jadi ikon terpusat.
     const navLinkCls = (active: boolean) =>
@@ -50,7 +50,7 @@ export function Sidebar() {
         const badge = getSectionBadge(section);
         return (
             <Link
-                href={firstItemHref(section, isManager)}
+                href={firstItemHref(section, isManager, isOwner)}
                 onClick={handleLinkClick}
                 title={section.label}
                 className={navLinkCls(active)}
@@ -156,7 +156,7 @@ export function Sidebar() {
 
                     {visibleSections.map((section) => {
                         const isActiveSection = activeSection?.key === section.key;
-                        const subItems = section.items.filter(it => !it.managerOnly || isManager);
+                        const subItems = section.items.filter(it => canSeeNavItem(it, { isManager, isOwner }));
                         const subActiveHref = subItems
                             .filter(it => isItemActive(pathname, it.href))
                             .sort((a, b) => b.href.length - a.href.length)[0]?.href;

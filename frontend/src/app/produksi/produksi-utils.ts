@@ -10,6 +10,7 @@ export interface ProduksiSession {
     branchId: number | null;
     branchName: string | null;
     branchCode: string | null;
+    operatorName: string | null;
 }
 
 export function getStoredSession(): ProduksiSession | null {
@@ -24,12 +25,13 @@ export function getStoredSession(): ProduksiSession | null {
     }
 }
 
-export function saveSession(branchId: number | null = null, branchName: string | null = null, branchCode: string | null = null) {
+export function saveSession(branchId: number | null = null, branchName: string | null = null, branchCode: string | null = null, operatorName: string | null = null) {
     const session: ProduksiSession = {
         expires: Date.now() + PIN_TTL,
         branchId,
         branchName,
         branchCode,
+        operatorName,
     };
     localStorage.setItem(PIN_KEY, JSON.stringify(session));
 }
