@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavBadges } from "@/hooks/useNavBadges";
-import { SECTIONS, TOP_LINK, isItemActive, getActiveSection, firstItemHref, canSeeNavItem, type NavSection } from "./nav-config";
+import { SECTIONS, TOP_LINK, OWNER_LINK, isItemActive, getActiveSection, firstItemHref, canSeeNavItem, type NavSection } from "./nav-config";
 
 export function Sidebar() {
     const pathname = usePathname();
@@ -151,6 +151,23 @@ export function Sidebar() {
                         <LayoutDashboard className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", isItemActive(pathname, '/') ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-accent-foreground")} />
                         <span className={cn("truncate", collapsed && "lg:hidden")}>Dashboard</span>
                     </Link>
+
+                    {isOwner && (() => {
+                        const OwnerIcon = OWNER_LINK.icon;
+                        const active = isItemActive(pathname, OWNER_LINK.href);
+                        return (
+                            <Link
+                                href={OWNER_LINK.href}
+                                onClick={handleLinkClick}
+                                title={OWNER_LINK.name}
+                                className={navLinkCls(active)}
+                                aria-current={active ? 'page' : undefined}
+                            >
+                                <OwnerIcon className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", active ? "text-sidebar-accent-foreground" : "text-amber-500 group-hover:text-sidebar-accent-foreground")} />
+                                <span className={cn("truncate", collapsed && "lg:hidden")}>{OWNER_LINK.name}</span>
+                            </Link>
+                        );
+                    })()}
 
                     <div className="my-2 h-px bg-sidebar-border/50" />
 

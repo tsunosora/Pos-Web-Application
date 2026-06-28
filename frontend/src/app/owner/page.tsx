@@ -70,7 +70,7 @@ function computeRange(period: Period, cStart: string, cEnd: string): { start: st
 const EMPTY_FORM = { name: "", category: "GAJI" as FixedExpenseCategory, amount: "", branchId: "" as number | "", dueDay: "" as number | "", note: "" };
 
 export default function OwnerDashboardPage() {
-    const { isOwner } = useCurrentUser();
+    const { isOwner, currentUser } = useCurrentUser();
     const qc = useQueryClient();
     const activeBranchId = useBranchStore(s => s.activeBranchId);
     const setActiveBranchId = useBranchStore(s => s.setActiveBranchId);
@@ -172,6 +172,10 @@ export default function OwnerDashboardPage() {
     const branchLabel = activeBranchId == null ? "Semua Cabang" : branchName(activeBranchId);
     const loading = profitQ.isLoading || cashQ.isLoading || kpiQ.isLoading;
 
+    // Saat role masih dimuat, jangan tampilkan "akses ditolak" dulu (hindari flash utk owner).
+    if (currentUser === undefined) {
+        return <div className="min-h-screen bg-background flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
+    }
     if (!isOwner) {
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center py-24 text-center px-4">
