@@ -73,6 +73,21 @@ export class KpiController {
         });
     }
 
+    @Get('operator-leaderboard')
+    operatorLeaderboard(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
+    ) {
+        return this.kpi.operatorLeaderboard(scopeBranch(ctx, branchId), {
+            period: (period as KpiPeriod) || 'month',
+            start,
+            end,
+        });
+    }
+
     @Get('design-output')
     designOutput(
         @CurrentBranch() ctx: BranchContext,

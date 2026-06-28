@@ -27,6 +27,7 @@ export interface PublicLead {
     firstResponseAt: string | null;
     closeLostReason: string | null;
     intakeAt: string | null;
+    pendingValue: number;
     items: PublicLeadItem[];
 }
 export interface AdSpendEntry {

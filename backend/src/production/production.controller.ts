@@ -239,8 +239,8 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete')
-    completeJob(@Param('id', ParseIntPipe) id: number, @Body('operatorNote') operatorNote?: string) {
-        return this.productionService.completeJob(id, operatorNote);
+    completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string }) {
+        return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName);
     }
 
     @Post('jobs/:id/start-assembly')
@@ -249,8 +249,8 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete-assembly')
-    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body('assemblyNote') assemblyNote?: string) {
-        return this.productionService.completeAssembly(id, assemblyNote);
+    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string }) {
+        return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName);
     }
 
     @Post('jobs/:id/pickup')
@@ -271,8 +271,8 @@ export class ProductionController {
     }
 
     @Post('batches/:id/complete')
-    completeBatch(@Param('id', ParseIntPipe) id: number) {
-        return this.productionService.completeBatch(id);
+    completeBatch(@Param('id', ParseIntPipe) id: number, @Body('operatorName') operatorName?: string) {
+        return this.productionService.completeBatch(id, operatorName);
     }
 
     // ─── Meter Reading (Rekonsiliasi Operator) ───────────────────────────────

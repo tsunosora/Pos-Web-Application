@@ -247,7 +247,21 @@ export class ProductionService {
         });
     }
 
-    async completeJob(id: number, operatorNote?: string) {
+    /**
+     * Catat aktivitas penyelesaian job oleh operator board (status-mode) agar ikut
+     * terhitung di leaderboard operator — yang membaca ProductionJobActivity
+     * (STAGE_CHANGE oleh actorRole OPERATOR). Board status-mode tidak punya field
+     * operator, jadi attribusi diambil dari nama yang diisi operator saat login.
+     */
+    private async logOperatorDone(jobId: number, toStage: string, operatorName?: string, client?: any) {
+        const name = operatorName?.trim();
+        if (!name) return;
+        await ((client ?? this.prisma) as any).productionJobActivity.create({
+            data: { jobId, action: 'STAGE_CHANGE', toStage, actorName: name, actorRole: 'OPERATOR' },
+        });
+    }
+
+    async completeJob(id: number, operatorNote?: string, operatorName?: string) {
         const job = await (this.prisma as any).productionJob.findUnique({
             where: { id },
             include: {
@@ -265,16 +279,22 @@ export class ProductionService {
 
         const hasAssemblyStage = job.transactionItem?.productVariant?.product?.hasAssemblyStage === true;
         const nextStatus = hasAssemblyStage ? 'MENUNGGU_PASANG' : 'SELESAI';
+        const opName = operatorName?.trim();
 
-        return (this.prisma as any).productionJob.update({
+        const updated = await (this.prisma as any).productionJob.update({
             where: { id },
             data: {
                 status: nextStatus,
                 completedAt: new Date(),
                 ...(operatorNote ? { operatorNote } : {}),
+                ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}),
             },
             include: this.jobInclude(),
         });
+        // SELESAI = produksi tuntas (dihitung "selesai" + omzet); MENUNGGU_PASANG =
+        // produksi cetak selesai tapi tunggu rakit → forward stage non-done.
+        await this.logOperatorDone(id, nextStatus === 'SELESAI' ? 'SELESAI' : 'ANTRIAN_PRESS', opName);
+        return updated;
     }
 
     async startAssembly(id: number, assemblyNote?: string) {
@@ -333,20 +353,24 @@ export class ProductionService {
         });
     }
 
-    async completeAssembly(id: number, assemblyNote?: string) {
+    async completeAssembly(id: number, assemblyNote?: string, operatorName?: string) {
         const job = await (this.prisma as any).productionJob.findUnique({ where: { id } });
         if (!job) throw new NotFoundException('Job tidak ditemukan');
         if (job.status !== 'PASANG') throw new BadRequestException('Job belum dalam status PASANG');
 
-        return (this.prisma as any).productionJob.update({
+        const opName = operatorName?.trim();
+        const updated = await (this.prisma as any).productionJob.update({
             where: { id },
             data: {
                 status: 'SELESAI',
                 assemblyCompletedAt: new Date(),
-                ...(assemblyNote ? { assemblyNote } : {})
+                ...(assemblyNote ? { assemblyNote } : {}),
+                ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}),
             },
             include: this.jobInclude(),
         });
+        await this.logOperatorDone(id, 'SELESAI', opName);
+        return updated;
     }
 
     async pickupJob(id: number) {
@@ -512,16 +536,29 @@ export class ProductionService {
         });
     }
 
-    async completeBatch(id: number) {
+    async completeBatch(id: number, operatorName?: string) {
         return this.prisma.$transaction(async (tx) => {
             const batch = await (tx as any).productionBatch.findUnique({ where: { id } });
             if (!batch) throw new NotFoundException('Batch tidak ditemukan');
             if (batch.status !== 'PROSES') throw new BadRequestException('Batch tidak dalam status PROSES');
 
+            const opName = operatorName?.trim();
+            const toComplete: any[] = await (tx as any).productionJob.findMany({
+                where: { batchId: id, status: 'PROSES' },
+                select: { id: true },
+            });
+
             await (tx as any).productionJob.updateMany({
                 where: { batchId: id, status: 'PROSES' },
-                data: { status: 'SELESAI', completedAt: new Date() },
+                data: { status: 'SELESAI', completedAt: new Date(), ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}) },
             });
+
+            // Attribusi tiap job ke operator (leaderboard membaca activity log).
+            if (opName && toComplete.length) {
+                await (tx as any).productionJobActivity.createMany({
+                    data: toComplete.map(j => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: 'SELESAI', actorName: opName, actorRole: 'OPERATOR' })),
+                });
+            }
 
             return (tx as any).productionBatch.update({
                 where: { id },

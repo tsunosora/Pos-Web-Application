@@ -8,16 +8,17 @@ import { Plus, X, Search, Package } from "lucide-react";
 /**
  * Hitung subtotal item — AREA_BASED kalau widthCm & heightCm ter-isi (heuristic
  * sederhana, tidak perlu lookup pricingMode). Formula:
- *   AREA_BASED: qty × (w × h / 10000) × unitPrice (unitPrice = harga per m²)
+ *   AREA_BASED: qty × area(m²) × unitPrice (unitPrice = harga per m²)
+ *               area = unitType 'm' ? w×h : w×h/10000 (default cm)
  *   UNIT      : qty × unitPrice
  */
-export function calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null }): number {
+export function calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null; unitType?: string | null }): number {
     const qty = Number(item.quantity) || 0;
     const price = Number(item.unitPrice) || 0;
     const w = Number(item.widthCm) || 0;
     const h = Number(item.heightCm) || 0;
     if (w > 0 && h > 0) {
-        const areaM2 = (w * h) / 10000;
+        const areaM2 = item.unitType === "m" ? w * h : (w * h) / 10000;
         return qty * areaM2 * price;
     }
     return qty * price;
@@ -192,7 +193,8 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                         const subtotal = calcItemSubtotal(it);
                         const isCustom = !it.productVariantId;
                         const isArea = (Number(it.widthCm) || 0) > 0 && (Number(it.heightCm) || 0) > 0;
-                        const areaM2 = isArea ? (Number(it.widthCm) * Number(it.heightCm)) / 10000 : 0;
+                        const unit = it.unitType === "m" ? "m" : "cm";
+                        const areaM2 = isArea ? (unit === "m" ? Number(it.widthCm) * Number(it.heightCm) : (Number(it.widthCm) * Number(it.heightCm)) / 10000) : 0;
                         // Tandai kalau harga item mengikuti tier varian (bukan harga dasar/manual)
                         const tv = it.productVariantId ? variantById.get(it.productVariantId) : undefined;
                         const autoNow = tv && tv.pricingMode !== "AREA_BASED" && tv.priceTiers.length > 0
@@ -244,18 +246,27 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                                 </div>
                                 {/* Optional dimension for AREA_BASED */}
                                 {it.productVariant?.product?.pricingMode === "AREA_BASED" && (
-                                    <div className="grid grid-cols-2 gap-2 mt-1.5">
+                                    <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mt-1.5">
                                         <div>
-                                            <label className="text-[10px] text-muted-foreground">Lebar (cm)</label>
+                                            <label className="text-[10px] text-muted-foreground">Lebar ({unit})</label>
                                             <input type="number" min={0} value={it.widthCm || ""}
                                                 onChange={(e) => updateItem(idx, { widthCm: +e.target.value || null })}
                                                 className="w-full border border-border rounded px-2 py-1 text-xs font-mono bg-background" />
                                         </div>
                                         <div>
-                                            <label className="text-[10px] text-muted-foreground">Tinggi (cm)</label>
+                                            <label className="text-[10px] text-muted-foreground">Tinggi ({unit})</label>
                                             <input type="number" min={0} value={it.heightCm || ""}
                                                 onChange={(e) => updateItem(idx, { heightCm: +e.target.value || null })}
                                                 className="w-full border border-border rounded px-2 py-1 text-xs font-mono bg-background" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] text-muted-foreground">Satuan</label>
+                                            <select value={unit}
+                                                onChange={(e) => updateItem(idx, { unitType: e.target.value })}
+                                                className="w-full border border-border rounded px-2 py-1 text-xs font-mono bg-background text-foreground">
+                                                <option value="cm">cm</option>
+                                                <option value="m">m</option>
+                                            </select>
                                         </div>
                                     </div>
                                 )}

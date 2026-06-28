@@ -28,6 +28,8 @@ export default function ProduksiPage() {
     const [activeBranchId, setActiveBranchId] = useState<number | null>(null);
     const [activeBranchName, setActiveBranchName] = useState<string | null>(null);
     const [activeBranchCode, setActiveBranchCode] = useState<string | null>(null);
+    const [operatorName, setOperatorName] = useState<string | null>(null);
+    const [operatorNameInput, setOperatorNameInput] = useState('');
 
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<any[]>([]);
@@ -74,6 +76,7 @@ export default function ProduksiPage() {
             setActiveBranchId(session.branchId);
             setActiveBranchName(session.branchName);
             setActiveBranchCode(session.branchCode);
+            setOperatorName(session.operatorName ?? null);
             setAuthed(true);
         }
     }, []);
@@ -108,6 +111,10 @@ export default function ProduksiPage() {
     const handlePinSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pinInput) return;
+        if (!operatorNameInput.trim()) {
+            setPinError('Isi nama operator terlebih dahulu');
+            return;
+        }
         if (branches.length > 1 && activeBranchId == null) {
             setPinError('Pilih cabang terlebih dahulu');
             return;
@@ -118,9 +125,11 @@ export default function ProduksiPage() {
             // Kalau cuma 1 cabang aktif, auto-pilih supaya UX simpel
             const bid = activeBranchId ?? (branches.length === 1 ? branches[0].id : null);
             const branch = branches.find(b => b.id === bid) || null;
+            const opName = operatorNameInput.trim();
             const res = await verifyOperatorPin(pinInput, bid ?? undefined);
             if (res.valid) {
-                saveSession(bid, branch?.name ?? null, branch?.code ?? null);
+                saveSession(bid, branch?.name ?? null, branch?.code ?? null, opName);
+                setOperatorName(opName);
                 if (bid && branch) {
                     setActiveBranchId(bid);
                     setActiveBranchName(branch.name);
@@ -154,6 +163,8 @@ export default function ProduksiPage() {
         setActiveBranchId(null);
         setActiveBranchName(null);
         setActiveBranchCode(null);
+        setOperatorName(null);
+        setOperatorNameInput('');
         setPinInput('');
     };
 
@@ -241,7 +252,7 @@ export default function ProduksiPage() {
     const handleCompleteJob = async (id: number) => {
         if (!confirm('Tandai job ini sebagai SELESAI?')) return;
         try {
-            await completeProductionJob(id);
+            await completeProductionJob(id, undefined, operatorName ?? undefined);
             await loadData();
         } catch (e: any) {
             alert(e.message);
@@ -286,7 +297,7 @@ export default function ProduksiPage() {
     const handleCompleteBatch = async (batchId: number) => {
         if (!confirm('Tandai semua job dalam batch ini sebagai SELESAI?')) return;
         try {
-            await completeProductionBatch(batchId);
+            await completeProductionBatch(batchId, operatorName ?? undefined);
             await loadData();
         } catch (e: any) {
             alert(e.message);
@@ -316,7 +327,7 @@ export default function ProduksiPage() {
     const handleCompleteAssembly = async (id: number) => {
         if (!confirm('Tandai job ini sebagai selesai pemasangan?')) return;
         try {
-            await completeAssemblyJob(id);
+            await completeAssemblyJob(id, undefined, operatorName ?? undefined);
             await loadData();
         } catch (e: any) {
             alert(e.message || 'Gagal menyelesaikan pemasangan');
@@ -382,6 +393,19 @@ export default function ProduksiPage() {
 
                         <div>
                             <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                                Nama Operator
+                            </label>
+                            <input
+                                type="text"
+                                value={operatorNameInput}
+                                onChange={e => setOperatorNameInput(e.target.value)}
+                                placeholder="Nama kamu (untuk leaderboard)"
+                                className="w-full px-4 py-3 border-2 border-border bg-background text-foreground rounded-2xl focus:border-primary outline-none transition-colors"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
                                 PIN Operator
                             </label>
                             <input
@@ -390,7 +414,6 @@ export default function ProduksiPage() {
                                 onChange={e => setPinInput(e.target.value.replace(/\D/g, ''))}
                                 maxLength={6}
                                 placeholder="••••"
-                                autoFocus={!showBranchPicker}
                                 className="w-full text-center text-3xl tracking-[1rem] font-mono px-4 py-4 border-2 border-border bg-background rounded-2xl focus:border-primary outline-none transition-colors"
                             />
                         </div>
@@ -398,7 +421,7 @@ export default function ProduksiPage() {
                         {pinError && (
                             <div className="text-center text-sm text-red-500 font-medium">{pinError}</div>
                         )}
-                        <button type="submit" disabled={pinLoading || pinInput.length < 4}
+                        <button type="submit" disabled={pinLoading || pinInput.length < 4 || !operatorNameInput.trim()}
                             className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">
                             {pinLoading ? 'Memverifikasi...' : 'Masuk'}
                         </button>
@@ -439,7 +462,7 @@ export default function ProduksiPage() {
                             )}
                         </h1>
                         <p className="text-xs text-muted-foreground">
-                            {activeBranchName ? `${activeBranchName} · Auto refresh 30 detik` : 'Auto refresh 30 detik'}
+                            {operatorName ? `${operatorName} · ` : ''}{activeBranchName ? `${activeBranchName} · Auto refresh 30 detik` : 'Auto refresh 30 detik'}
                         </p>
                     </div>
                 </div>
