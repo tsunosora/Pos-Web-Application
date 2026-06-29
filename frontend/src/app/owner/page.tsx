@@ -11,10 +11,10 @@ import {
 import {
     Crown, Wallet, TrendingUp, Receipt, PiggyBank, Landmark, Package, CalendarClock,
     Loader2, Lock, Building2, HandCoins, BarChart3, Info, ChevronDown, ArrowLeft,
-    Plus, Trash2, Pencil, X, Check,
+    Plus, Trash2, Pencil, X, Check, Users, Palette, Factory, Sparkles,
 } from "lucide-react";
 import api from "@/lib/api/client";
-import { getKpiReport } from "@/lib/api";
+import { getKpiReport, getDesignerLeaderboard, getOperatorLeaderboard } from "@/lib/api";
 import { getProfitReport } from "@/lib/api/reports";
 import {
     getCashflows, getCashflowMonthlyTrend, getCashflowCategoryBreakdown,
@@ -26,6 +26,7 @@ import {
 } from "@/lib/api/fixed-expenses";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
+import { BonusPanel } from "./BonusPanel";
 
 dayjs.locale("id");
 
@@ -99,6 +100,9 @@ export default function OwnerDashboardPage() {
     const banksQ = useQuery({ queryKey: ["owner-banks", ...qkey], queryFn: () => getBankAccountsSummary(start, end), enabled: isOwner });
     const kpiQ = useQuery({ queryKey: ["owner-kpi", ...qkey], queryFn: () => getKpiReport({ period, start: period === "custom" ? start : undefined, end: period === "custom" ? end : undefined }), enabled: isOwner });
     const fixedQ = useQuery({ queryKey: ["owner-fixed"], queryFn: () => getFixedExpenses(), enabled: isOwner });
+    const lbParams = { period, start: period === "custom" ? start : undefined, end: period === "custom" ? end : undefined } as const;
+    const designerQ = useQuery({ queryKey: ["owner-designer", ...qkey], queryFn: () => getDesignerLeaderboard(lbParams), enabled: isOwner });
+    const operatorQ = useQuery({ queryKey: ["owner-operator", ...qkey], queryFn: () => getOperatorLeaderboard(lbParams), enabled: isOwner });
 
     const invalidateFixed = () => qc.invalidateQueries({ queryKey: ["owner-fixed"] });
     const createMut = useMutation({ mutationFn: createFixedExpense, onSuccess: () => { invalidateFixed(); resetForm(); } });
@@ -167,6 +171,23 @@ export default function OwnerDashboardPage() {
         [...expenseCats].sort((a, b) => Number(b.total) - Number(a.total)).slice(0, 8)
             .map(e => ({ name: e.category || "Lainnya", value: Number(e.total || 0) })),
     [expenseCats]);
+
+    // ── Leads & Leaderboard Karyawan ──────────────────────────────────────────
+    const kpiTotals = kpiQ.data?.totals;
+    const kpiMetrics = kpiQ.data?.metrics;
+    const leadsBySource: { source: string; count: number }[] = useMemo(() => {
+        const arr = kpiQ.data?.leadsBySource || [];
+        return [...arr].sort((a: any, b: any) => b.count - a.count);
+    }, [kpiQ.data]);
+    const csRows = useMemo(() => {
+        const arr = kpiQ.data?.leaderboard || [];
+        return [...arr].sort((a: any, b: any) => (b.wonValue + b.walkinValue) - (a.wonValue + a.walkinValue));
+    }, [kpiQ.data]);
+    const designerRows = useMemo(() => {
+        const arr = designerQ.data?.leaderboard || [];
+        return [...arr].sort((a: any, b: any) => b.omzet - a.omzet || b.acc - a.acc);
+    }, [designerQ.data]);
+    const operatorRows = useMemo(() => [...(operatorQ.data || [])], [operatorQ.data]);
 
     const branchName = (id: number | null) => id == null ? "Pusat / Semua" : (branches?.find(b => b.id === id)?.name || `Cabang #${id}`);
     const branchLabel = activeBranchId == null ? "Semua Cabang" : branchName(activeBranchId);
@@ -448,6 +469,65 @@ export default function OwnerDashboardPage() {
                             </Section>
                         </div>
 
+                        {/* Leads */}
+                        <Section icon={<Sparkles className="h-5 w-5" />} title="Leads (CRM)" subtitle="Ringkasan lead masuk & closing pada periode ini.">
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                                <MiniStat label="Total Leads" value={String(kpiTotals?.totalLeads ?? 0)} />
+                                <MiniStat label="Closing" value={String(kpiTotals?.closedWon ?? 0)} cls="text-emerald-600 dark:text-emerald-300" />
+                                <MiniStat label="Lost" value={String(kpiTotals?.closedLost ?? 0)} cls="text-red-600 dark:text-red-300" />
+                                <MiniStat label="Closing Rate" value={`${Math.round((kpiMetrics?.closingRate ?? 0) * 100)}%`} />
+                            </div>
+                            {leadsBySource.length === 0 ? <Empty /> : (
+                                <div className="space-y-2">
+                                    <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Leads per Sumber</div>
+                                    {(() => {
+                                        const max = Math.max(1, ...leadsBySource.map(s => s.count));
+                                        return leadsBySource.slice(0, 8).map(s => (
+                                            <div key={s.source}>
+                                                <div className="flex items-center justify-between gap-2 text-xs mb-0.5">
+                                                    <span className="text-foreground truncate">{s.source}</span>
+                                                    <span className="font-mono text-muted-foreground shrink-0">{s.count}</span>
+                                                </div>
+                                                <div className="bg-muted rounded-full h-2 overflow-hidden">
+                                                    <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${(s.count / max) * 100}%` }} />
+                                                </div>
+                                            </div>
+                                        ));
+                                    })()}
+                                </div>
+                            )}
+                        </Section>
+
+                        {/* Leaderboard Karyawan */}
+                        <Section icon={<Users className="h-5 w-5" />} title="Leaderboard Karyawan" subtitle="Kinerja CS, Designer & Operator pada periode/cabang ini.">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                {/* CS */}
+                                <div>
+                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2"><Users className="h-3.5 w-3.5 text-indigo-500" /> Customer Service</div>
+                                    <LbTable rows={csRows} empty="Belum ada data CS."
+                                        cols={["Nama", "Lead", "Closing", "Cuan"]}
+                                        render={(r: any) => [r.name, r.leadsHandled, r.dealsClosed, fmtRp((r.wonValue || 0) + (r.walkinValue || 0))]} />
+                                </div>
+                                {/* Designer */}
+                                <div>
+                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2"><Palette className="h-3.5 w-3.5 text-fuchsia-500" /> Designer</div>
+                                    <LbTable rows={designerRows} empty="Belum ada data Designer."
+                                        cols={["Nama", "ACC", "SO", "Omzet"]}
+                                        render={(r: any) => [r.name, r.acc || 0, r.soCreated || 0, fmtRp(r.omzet || 0)]} />
+                                </div>
+                                {/* Operator */}
+                                <div>
+                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2"><Factory className="h-3.5 w-3.5 text-sky-500" /> Operator</div>
+                                    <LbTable rows={operatorRows} empty="Belum ada data Operator."
+                                        cols={["Nama", "Cetak", "Produksi", "Omzet"]}
+                                        render={(r: any) => [r.name, r.printJobs || 0, r.prodJobs || 0, fmtRp(r.omzet || 0)]} />
+                                </div>
+                            </div>
+                        </Section>
+
+                        {/* Bonus Karyawan (target, pencapaian, toggle manual) */}
+                        <BonusPanel branches={branches || []} activeBranchId={activeBranchId} />
+
                         <CaraHitung>
                             <p><b>Omzet</b> = penjualan netto transaksi <b>lunas</b> (total − diskon). <b>HPP</b> = modal barang terjual. <b>Laba Kotor</b> = Omzet − HPP.</p>
                             <p><b>Estimasi Laba Bersih</b> = Laba Kotor − <b>beban tetap</b> (prorata: beban bulanan × hari periode ÷ 30). Biaya operasional kas ditampilkan terpisah sebagai info (tidak dikurangi, agar tidak dobel dengan beban tetap & HPP).</p>
@@ -467,6 +547,42 @@ function StatCard({ icon, label, value, sub, valueClass }: { icon: React.ReactNo
             <div className="flex items-center gap-2 mb-1.5">{icon}<span className="text-xs text-muted-foreground">{label}</span></div>
             <div className={`text-lg sm:text-xl font-bold leading-tight ${valueClass || "text-foreground"}`}>{value}</div>
             {sub && <div className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+        </div>
+    );
+}
+
+function MiniStat({ label, value, cls }: { label: string; value: string; cls?: string }) {
+    return (
+        <div className="rounded-lg bg-muted/50 p-2.5 text-center">
+            <div className={`text-lg font-bold leading-none ${cls || "text-foreground"}`}>{value}</div>
+            <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
+        </div>
+    );
+}
+
+function LbTable({ rows, cols, render, empty }: { rows: any[]; cols: string[]; render: (r: any) => (string | number)[]; empty: string }) {
+    if (!rows || rows.length === 0) return <div className="text-xs text-muted-foreground py-4 text-center">{empty}</div>;
+    return (
+        <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+                <thead><tr className="text-[10px] text-muted-foreground border-b border-border">
+                    {cols.map((c, i) => <th key={c} className={`py-1.5 px-1.5 ${i === 0 ? "text-left" : "text-right"}`}>{c}</th>)}
+                </tr></thead>
+                <tbody>
+                    {rows.slice(0, 8).map((r, ri) => {
+                        const cells = render(r);
+                        return (
+                            <tr key={ri} className="border-b border-border/60 last:border-0">
+                                {cells.map((cell, ci) => (
+                                    <td key={ci} className={`py-1.5 px-1.5 ${ci === 0 ? "text-left font-medium text-foreground truncate max-w-[110px]" : "text-right font-mono text-muted-foreground"}`}>
+                                        {ci === 0 && <span className="text-muted-foreground mr-1">{ri + 1}.</span>}{cell}
+                                    </td>
+                                ))}
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
     );
 }

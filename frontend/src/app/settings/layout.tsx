@@ -19,7 +19,7 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: stri
         title: 'Tim & Cabang',
         items: [
             { href: '/settings/users', icon: Users, label: 'Manajemen Staf' },
-            { href: '/settings/designers', icon: Palette, label: 'Kelola Desainer' },
+            { href: '/settings/designers', icon: Palette, label: 'Kelola Karyawan' },
             { href: '/settings/branches', icon: GitBranch, label: 'Cabang Perusahaan' },
             { href: '/settings/branch-config', icon: SlidersHorizontal, label: 'Per Cabang' },
         ],

@@ -9,5 +9,6 @@ import { KpiCron } from './kpi.cron';
     imports: [PrismaModule],
     controllers: [KpiController, KpiPublicController],
     providers: [KpiService, KpiCron],
+    exports: [KpiService],
 })
 export class KpiModule {}

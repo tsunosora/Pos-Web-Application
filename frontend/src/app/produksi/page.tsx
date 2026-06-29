@@ -8,6 +8,7 @@ import {
     startAssemblyJob, completeAssemblyJob,
 } from '@/lib/api';
 import { getPublicBranches, PublicBranch } from '@/lib/api/production';
+import { getPublicDesigners, verifyDesignerPin } from '@/lib/api/designers';
 import {
     Tab, PIN_KEY, PIN_TTL,
     getStoredSession, saveSession, clearSession,
@@ -30,6 +31,9 @@ export default function ProduksiPage() {
     const [activeBranchCode, setActiveBranchCode] = useState<string | null>(null);
     const [operatorName, setOperatorName] = useState<string | null>(null);
     const [operatorNameInput, setOperatorNameInput] = useState('');
+    // Operator terdaftar (picker + PIN). Kalau kosong → fallback input nama manual.
+    const [opList, setOpList] = useState<{ id: number; name: string }[]>([]);
+    const [selectedOpId, setSelectedOpId] = useState<number | ''>('');
 
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<any[]>([]);
@@ -107,14 +111,20 @@ export default function ProduksiPage() {
         return () => { if (refreshInterval.current) clearInterval(refreshInterval.current); };
     }, [authed, loadData]);
 
+    // Muat daftar karyawan global (= daftar Desainer) untuk picker login operator.
+    // Siapa saja boleh jadi operator, jadi tampilkan semua karyawan aktif.
+    useEffect(() => {
+        if (authed) return;
+        getPublicDesigners().then(setOpList).catch(() => setOpList([]));
+    }, [authed]);
+
     // ── PIN verification ───────────────────────────────────────────────────────
     const handlePinSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!pinInput) return;
-        if (!operatorNameInput.trim()) {
-            setPinError('Isi nama operator terlebih dahulu');
-            return;
-        }
+        const usingRegistry = opList.length > 0;
+        if (usingRegistry && !selectedOpId) { setPinError('Pilih nama operator dari daftar'); return; }
+        if (!usingRegistry && !operatorNameInput.trim()) { setPinError('Isi nama operator terlebih dahulu'); return; }
         if (branches.length > 1 && activeBranchId == null) {
             setPinError('Pilih cabang terlebih dahulu');
             return;
@@ -125,21 +135,26 @@ export default function ProduksiPage() {
             // Kalau cuma 1 cabang aktif, auto-pilih supaya UX simpel
             const bid = activeBranchId ?? (branches.length === 1 ? branches[0].id : null);
             const branch = branches.find(b => b.id === bid) || null;
-            const opName = operatorNameInput.trim();
-            const res = await verifyOperatorPin(pinInput, bid ?? undefined);
-            if (res.valid) {
-                saveSession(bid, branch?.name ?? null, branch?.code ?? null, opName);
-                setOperatorName(opName);
-                if (bid && branch) {
-                    setActiveBranchId(bid);
-                    setActiveBranchName(branch.name);
-                    setActiveBranchCode(branch.code);
-                }
-                setAuthed(true);
+            let opName: string;
+            if (usingRegistry) {
+                // Operator pilih namanya (dari daftar karyawan) + verifikasi PIN-nya.
+                const res = await verifyDesignerPin(Number(selectedOpId), pinInput);
+                if (!res.valid || !res.name) { setPinError('PIN operator salah.'); setPinInput(''); return; }
+                opName = res.name;
             } else {
-                setPinError(res.message || 'PIN salah. Coba lagi.');
-                setPinInput('');
+                // Fallback (belum ada operator terdaftar): PIN cabang + nama manual.
+                const res = await verifyOperatorPin(pinInput, bid ?? undefined);
+                if (!res.valid) { setPinError(res.message || 'PIN salah. Coba lagi.'); setPinInput(''); return; }
+                opName = operatorNameInput.trim();
             }
+            saveSession(bid, branch?.name ?? null, branch?.code ?? null, opName);
+            setOperatorName(opName);
+            if (bid && branch) {
+                setActiveBranchId(bid);
+                setActiveBranchName(branch.name);
+                setActiveBranchCode(branch.code);
+            }
+            setAuthed(true);
         } catch (err: any) {
             const msg: string = err?.message || '';
             if (msg === 'Failed to fetch' || /NetworkError/i.test(msg)) {
@@ -165,6 +180,7 @@ export default function ProduksiPage() {
         setActiveBranchCode(null);
         setOperatorName(null);
         setOperatorNameInput('');
+        setSelectedOpId('');
         setPinInput('');
     };
 
@@ -395,18 +411,29 @@ export default function ProduksiPage() {
                             <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
                                 Nama Operator
                             </label>
-                            <input
-                                type="text"
-                                value={operatorNameInput}
-                                onChange={e => setOperatorNameInput(e.target.value)}
-                                placeholder="Nama kamu (untuk leaderboard)"
-                                className="w-full px-4 py-3 border-2 border-border bg-background text-foreground rounded-2xl focus:border-primary outline-none transition-colors"
-                            />
+                            {opList.length > 0 ? (
+                                <select
+                                    value={selectedOpId === '' ? '' : String(selectedOpId)}
+                                    onChange={e => setSelectedOpId(e.target.value ? Number(e.target.value) : '')}
+                                    className="w-full px-4 py-3 border-2 border-border bg-background text-foreground rounded-2xl focus:border-primary outline-none transition-colors"
+                                >
+                                    <option value="">— Pilih nama kamu —</option>
+                                    {opList.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                                </select>
+                            ) : (
+                                <input
+                                    type="text"
+                                    value={operatorNameInput}
+                                    onChange={e => setOperatorNameInput(e.target.value)}
+                                    placeholder="Nama kamu (untuk leaderboard)"
+                                    className="w-full px-4 py-3 border-2 border-border bg-background text-foreground rounded-2xl focus:border-primary outline-none transition-colors"
+                                />
+                            )}
                         </div>
 
                         <div>
                             <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                                PIN Operator
+                                {opList.length > 0 ? 'PIN Kamu' : 'PIN Operator'}
                             </label>
                             <input
                                 type="password" inputMode="numeric" pattern="[0-9]*"
@@ -421,14 +448,14 @@ export default function ProduksiPage() {
                         {pinError && (
                             <div className="text-center text-sm text-red-500 font-medium">{pinError}</div>
                         )}
-                        <button type="submit" disabled={pinLoading || pinInput.length < 4 || !operatorNameInput.trim()}
+                        <button type="submit" disabled={pinLoading || pinInput.length < 4 || (opList.length > 0 ? !selectedOpId : !operatorNameInput.trim())}
                             className="w-full py-4 bg-primary text-primary-foreground font-bold text-lg rounded-2xl disabled:opacity-50 active:scale-[0.98] transition-transform">
                             {pinLoading ? 'Memverifikasi...' : 'Masuk'}
                         </button>
                     </form>
 
                     <p className="text-center text-xs text-muted-foreground mt-6">
-                        PIN per cabang. Berlaku 24 jam di perangkat ini.
+                        {opList.length > 0 ? 'Pilih nama & masukkan PIN kamu. Berlaku 24 jam di perangkat ini.' : 'PIN per cabang. Berlaku 24 jam di perangkat ini.'}
                     </p>
 
                     <div className="mt-4 text-center">

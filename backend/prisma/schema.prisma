@@ -642,6 +642,48 @@ model FixedExpense {
   @@map("fixed_expenses")
 }
 
+// Target & nominal bonus per cabang × posisi (CS/Designer/Operator). Diatur owner
+// di Dashboard Owner. metric = ukuran pencapaian (OMZET/DESIGN_ACC/NOTA). Bonus
+// dievaluasi BULANAN (target harian hanya untuk progress harian di UI).
+model BonusTarget {
+  id            Int      @id @default(autoincrement())
+  branchId      Int      @map("branch_id")
+  role          String   @db.VarChar(20)  // CS | DESIGNER | OPERATOR
+  metric        String   @db.VarChar(20)  // OMZET | DESIGN_ACC | NOTA
+  gajiPokok     Decimal  @default(1800000) @map("gaji_pokok") @db.Decimal(15, 2)
+  bonusKualitas Decimal  @default(300000) @map("bonus_kualitas") @db.Decimal(15, 2)
+  bonusTim      Decimal  @default(300000) @map("bonus_tim") @db.Decimal(15, 2)
+  bonusPribadi  Decimal  @default(300000) @map("bonus_pribadi") @db.Decimal(15, 2)
+  targetTim     Decimal  @default(0) @map("target_tim") @db.Decimal(15, 2)      // target bulanan tim
+  targetPribadi Decimal  @default(0) @map("target_pribadi") @db.Decimal(15, 2)  // target bulanan pribadi
+  periodTim     String   @default("BULANAN") @map("period_tim") @db.VarChar(10) // label: HARIAN | BULANAN
+  periodPribadi String   @default("HARIAN") @map("period_pribadi") @db.VarChar(10)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([branchId, role])
+  @@map("bonus_targets")
+}
+
+// Penyesuaian bonus manual per karyawan per bulan (data yg tak ada di sistem):
+// qualityEligible = Bonus Kualitas layak (tak ada komplain valid);
+// forfeited = bonus gugur (pelanggaran kebijakan piutang tanpa approval owner).
+model BonusAdjustment {
+  id              Int      @id @default(autoincrement())
+  branchId        Int      @map("branch_id")
+  role            String   @db.VarChar(20)
+  employeeName    String   @map("employee_name") @db.VarChar(120)
+  periodMonth     String   @map("period_month") @db.VarChar(7) // YYYY-MM
+  qualityEligible Boolean  @default(true) @map("quality_eligible")
+  forfeited       Boolean  @default(false)
+  note            String?  @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([branchId, role, employeeName, periodMonth])
+  @@map("bonus_adjustments")
+}
+
 // Konfigurasi notifikasi Discord (singleton, id=1).
 // webhooks: map channel→URL { sales, production, finance, inventory, leaderboard, system }
 // events  : map event→bool  { shiftRecap, dealClosing, jobReady, lowStock, backup, error, champion }
