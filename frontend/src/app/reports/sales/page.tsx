@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSalesSummary, getTransactions, getSettings, getBankAccounts } from '@/lib/api';
 import { updateTransactionPaymentMethod } from '@/lib/api/transactions';
 import { mapTransactionToReceipt, handlePrintSnap, handleShareWA } from '@/lib/receipt';
-import { exportToExcel, exportToPDF } from '@/lib/export';
+import { exportSheetsToExcel, exportToPDF } from '@/lib/export';
 import {
     Download, BarChart2, CreditCard, Banknote, Landmark, X, Receipt, Printer, MessageCircle,
     FileSpreadsheet, Pencil, Check, CalendarDays, PenSquare, TrendingUp, TrendingDown,
@@ -140,12 +140,31 @@ export default function SalesReportPage() {
     });
 
     const handleExportExcel = () => {
-        if (!transactions?.length) return alert('Tidak ada transaksi untuk di-export');
-        const data = transactions.map((t: any) => ({
+        // Export MENGIKUTI filter di tab Histori (CS/Kasir, cabang, metode, waktu, pencarian).
+        const rows = recentTransactions;
+        if (!rows.length) return alert('Tidak ada transaksi (sesuai filter) untuk di-export');
+        const METHOD_LABEL: Record<string, string> = { CASH: 'Tunai', QRIS: 'QRIS', BANK_TRANSFER: 'Transfer Bank' };
+        const methodLabel = (m?: string) => (m ? (METHOD_LABEL[m] || m) : '-');
+        const bankLabel = (bankId?: number | null, acc?: any) => {
+            const b = acc || bankAccounts?.find((x: any) => x.id === bankId);
+            if (!b) return '';
+            return `${b.bankName}${b.accountNumber ? ' - ' + b.accountNumber : ''}${b.accountOwner ? ' (' + b.accountOwner + ')' : ''}`;
+        };
+        const bankName = (bankId?: number | null, acc?: any) =>
+            (acc?.bankName || bankAccounts?.find((x: any) => x.id === bankId)?.bankName || 'Transfer').toUpperCase();
+        const bankTujuan = (t: any) => {
+            const parts: string[] = [];
+            if (t.dpPaymentMethod === 'BANK_TRANSFER') { const d = bankLabel(t.dpBankAccountId); if (d) parts.push(`DP: ${d}`); }
+            if (t.paymentMethod === 'BANK_TRANSFER') { const m = bankLabel(t.bankAccountId, t.bankAccount); if (m) parts.push(parts.length ? `Lunas: ${m}` : m); }
+            return parts.join(' | ');
+        };
+
+        const txRows = rows.map((t: any) => ({
             'No Invoice': t.invoiceNumber,
             'Tanggal': dayjs(t.createdAt).format('DD MMM YYYY HH:mm'),
             'Pelanggan': t.customerName || '-',
-            'Kasir': t.cashierName || '-',
+            'CS / Kasir': t.cashierName || '-',
+            'Cabang': t.branchName || '-',
             'Subtotal': Number(t.totalAmount),
             'Diskon': Number(t.discount),
             'Pajak': Number(t.tax),
@@ -153,16 +172,63 @@ export default function SalesReportPage() {
             'Potongan Marketplace': Number(t.marketplaceFee) || 0,
             'Diterima (Nett)': Math.max(0, Number(t.grandTotal) - (Number(t.marketplaceFee) || 0)),
             'Total Bersih': Number(t.grandTotal),
-            'Metode Pembayaran': t.paymentMethod,
-            'Status': t.status
+            'Metode Pembayaran': t.dpPaymentMethod && t.dpPaymentMethod !== t.paymentMethod
+                ? `${methodLabel(t.dpPaymentMethod)} → ${methodLabel(t.paymentMethod)}`
+                : methodLabel(t.paymentMethod),
+            'Bank Tujuan': bankTujuan(t),
+            'Status': t.status,
         }));
-        exportToExcel(data, `Laporan_Transaksi_${dayjs().format('YYYYMMDD')}.xlsx`);
+
+        // ── Ringkasan dihitung dari data TERFILTER (konsisten dgn baris di atas) ──
+        const pmCount: Record<string, number> = { CASH: 0, QRIS: 0, BANK_TRANSFER: 0 };
+        const pmRev: Record<string, number> = { CASH: 0, QRIS: 0, BANK_TRANSFER: 0 };
+        const bankRev: Record<string, number> = {};
+        let totalOmzet = 0;
+        for (const t of rows) {
+            const gt = Number(t.grandTotal) || 0;
+            totalOmzet += gt;
+            const m = t.paymentMethod;
+            if (m in pmCount) { pmCount[m]++; pmRev[m] += gt; }
+            if (m === 'BANK_TRANSFER') { const bn = bankName(t.bankAccountId, t.bankAccount); bankRev[bn] = (bankRev[bn] || 0) + gt; }
+        }
+        const periodeLabel = SALES_PERIODS.find(p => p.key === period)?.label ?? `${startDate} s/d ${endDate}`;
+        const ringkasan: any[][] = [
+            ['RINGKASAN LAPORAN PENJUALAN'],
+            ['Periode', periodeLabel],
+            ['Rentang', `${startDate} s/d ${endDate}`],
+            ['Filter CS / Kasir', filterKasir || 'Semua'],
+            ['Filter Cabang', filterCabang || 'Semua'],
+            ['Filter Metode', filterMetode ? methodLabel(filterMetode) : 'Semua'],
+            ['Filter Waktu', filterWaktu === 'semua' ? 'Semua' : filterWaktu],
+            [],
+            ['Total Transaksi', rows.length],
+            ['Total Omzet (Rp)', totalOmzet],
+            ['Rata-rata / Transaksi (Rp)', rows.length ? Math.round(totalOmzet / rows.length) : 0],
+            ['Pendapatan Tunai (Rp)', pmRev.CASH],
+            [],
+            ['METODE PEMBAYARAN', 'Jumlah Trx', 'Pendapatan (Rp)'],
+            ['Tunai', pmCount.CASH, pmRev.CASH],
+            ['QRIS', pmCount.QRIS, pmRev.QRIS],
+            ['Transfer Bank', pmCount.BANK_TRANSFER, pmRev.BANK_TRANSFER],
+            [],
+            ['DETAIL TRANSFER PER BANK', 'Pendapatan (Rp)'],
+            ...Object.entries(bankRev).sort((a, b) => b[1] - a[1]).map(([bank, amt]) => [bank, amt]),
+        ];
+        if (Object.keys(bankRev).length === 0) ringkasan.push(['(tidak ada transaksi transfer)', 0]);
+
+        exportSheetsToExcel(
+            [
+                { name: 'Transaksi', rows: txRows },
+                { name: 'Ringkasan', aoa: ringkasan, merges: [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }] },
+            ],
+            `Laporan_Penjualan_${dayjs().format('YYYYMMDD')}.xlsx`,
+        );
     };
 
     const handleExportPDF = () => {
-        if (!transactions?.length) return alert('Tidak ada transaksi untuk di-export');
+        if (!recentTransactions?.length) return alert('Tidak ada transaksi (sesuai filter) untuk di-export');
         const headers = ['Invoice', 'Tanggal', 'Pelanggan', 'Metode', 'Status', 'Total'];
-        const body = transactions.map((t: any) => [
+        const body = recentTransactions.map((t: any) => [
             t.invoiceNumber,
             dayjs(t.createdAt).format('DD MMM YYYY HH:mm'),
             t.customerName || '-',
@@ -553,7 +619,7 @@ export default function SalesReportPage() {
                                 onChange={e => setFilterKasir(e.target.value)}
                                 className="py-2 px-3 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                             >
-                                <option value="">Semua Kasir</option>
+                                <option value="">Semua CS / Kasir</option>
                                 {kasirOptions.map(name => (
                                     <option key={name} value={name}>{name}</option>
                                 ))}

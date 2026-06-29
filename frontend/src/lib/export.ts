@@ -23,6 +23,53 @@ export const exportToExcel = (data: any[], fileName: string) => {
     saveAs(dataBlob, fileName);
 };
 
+/** Rapikan worksheet: lebar kolom auto + format angka ribuan (#.##0). */
+const tidyWorksheet = (ws: XLSX.WorkSheet, numFmt = '#,##0') => {
+    const ref = ws['!ref'];
+    if (!ref) return;
+    const range = XLSX.utils.decode_range(ref);
+    const widths: number[] = [];
+    for (let R = range.s.r; R <= range.e.r; R++) {
+        for (let C = range.s.c; C <= range.e.c; C++) {
+            const cell: any = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+            if (!cell) continue;
+            let text: string;
+            if (cell.t === 'n') {
+                if (cell.z == null) cell.z = numFmt;              // format angka ribuan
+                text = Math.round(Number(cell.v)).toLocaleString('id-ID');
+            } else {
+                text = cell.v != null ? String(cell.v) : '';
+            }
+            widths[C] = Math.max(widths[C] || 0, text.length);
+        }
+    }
+    ws['!cols'] = widths.map(w => ({ wch: Math.min(Math.max((w || 8) + 2, 9), 60) }));
+};
+
+/**
+ * Export beberapa sheet sekaligus ke satu file Excel, sudah dirapikan
+ * (lebar kolom otomatis + format angka ribuan + opsi merge judul).
+ * Tiap sheet: `rows` (array of objects → header otomatis) ATAU `aoa` (array of
+ * arrays, untuk layout ringkasan bebas). `merges` opsional (gabung sel).
+ */
+export const exportSheetsToExcel = (
+    sheets: { name: string; rows?: any[]; aoa?: any[][]; merges?: XLSX.Range[] }[],
+    fileName: string,
+) => {
+    const workbook = XLSX.utils.book_new();
+    for (const s of sheets) {
+        const worksheet = s.aoa
+            ? XLSX.utils.aoa_to_sheet(s.aoa)
+            : XLSX.utils.json_to_sheet(s.rows || []);
+        tidyWorksheet(worksheet);
+        if (s.merges?.length) worksheet['!merges'] = s.merges;
+        XLSX.utils.book_append_sheet(workbook, worksheet, (s.name || 'Sheet').slice(0, 31));
+    }
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const dataBlob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(dataBlob, fileName);
+};
+
 /**
  * Export specific array of data to simple PDF Report using AutoTable
  * @param title Header Title inside PDF

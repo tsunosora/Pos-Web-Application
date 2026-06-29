@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Palette } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Users } from "lucide-react";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
 
 export default function DesignersSettingsPage() {
@@ -56,7 +56,7 @@ export default function DesignersSettingsPage() {
     function handleSave() {
         setError(null);
         if (!name.trim()) { setError("Nama wajib diisi"); return; }
-        if (!editId && !pin.trim()) { setError("PIN wajib diisi saat tambah desainer baru"); return; }
+        if (!editId && !pin.trim()) { setError("PIN wajib diisi saat tambah karyawan baru"); return; }
         if (editId) {
             const upd: any = { name: name.trim(), branchName: branchName.trim() || null };
             if (pin.trim()) upd.pin = pin.trim();
@@ -74,12 +74,12 @@ export default function DesignersSettingsPage() {
             <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
                 <div className="flex items-start gap-3 min-w-0">
                     <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-                        <Palette className="h-5 w-5" />
+                        <Users className="h-5 w-5" />
                     </div>
                     <div>
-                        <h1 className="text-xl font-bold tracking-tight">Kelola Desainer</h1>
+                        <h1 className="text-xl font-bold tracking-tight">Kelola Karyawan</h1>
                         <p className="text-sm text-muted-foreground mt-0.5">
-                            Daftar desainer yang bisa akses portal SO via PIN tanpa login akun.
+                            Satu daftar karyawan (nama + PIN). Dipakai login di portal desainer <code className="bg-muted px-1 rounded">/so-designer</code> &amp; board produksi <code className="bg-muted px-1 rounded">/produksi</code> — siapa saja bisa jadi desainer maupun operator.
                         </p>
                     </div>
                 </div>
@@ -87,21 +87,21 @@ export default function DesignersSettingsPage() {
                     onClick={() => { resetForm(); setShowForm(true); }}
                     className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
                 >
-                    <Plus className="h-4 w-4" /> Tambah Desainer
+                    <Plus className="h-4 w-4" /> Tambah Karyawan
                 </button>
             </div>
 
             {/* Form tambah / edit */}
             {showForm && (
                 <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                    <h2 className="text-sm font-semibold">{editId ? "Edit Desainer" : "Tambah Desainer Baru"}</h2>
+                    <h2 className="text-sm font-semibold">{editId ? "Edit Karyawan" : "Tambah Karyawan Baru"}</h2>
                     {error && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded px-3 py-2">{error}</div>}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-xs font-medium text-muted-foreground block mb-1">Nama *</label>
                             <input value={name} onChange={e => setName(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
-                                placeholder="Nama desainer" />
+                                placeholder="Nama karyawan" />
                         </div>
                         <div>
                             <label className="text-xs font-medium text-muted-foreground block mb-1">
@@ -124,7 +124,7 @@ export default function DesignersSettingsPage() {
                         </div>
                         <div className="col-span-2">
                             <label className="text-xs font-medium text-muted-foreground block mb-1">
-                                Nama Cabang <span className="font-normal">(opsional — kosongkan jika desainer di Pusat)</span>
+                                Nama Cabang <span className="font-normal">(opsional — kosongkan jika di Pusat)</span>
                             </label>
                             <input value={branchName} onChange={e => setBranchName(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
@@ -150,7 +150,7 @@ export default function DesignersSettingsPage() {
                     </div>
                 ) : designers.length === 0 ? (
                     <div className="p-10 text-center text-muted-foreground text-sm">
-                        Belum ada desainer terdaftar. Klik &ldquo;Tambah Desainer&rdquo; untuk memulai.
+                        Belum ada karyawan terdaftar. Klik &ldquo;Tambah Karyawan&rdquo; untuk memulai.
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -224,7 +224,7 @@ export default function DesignersSettingsPage() {
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                <strong>Cara akses:</strong> Desainer buka <code className="bg-blue-100 px-1 rounded">/so-designer</code> di browser, pilih nama & masukkan PIN → langsung bisa buat Surat Order tanpa login akun. Sesi tersimpan hanya selama tab browser terbuka.
+                <strong>Cara akses:</strong> Karyawan buka <code className="bg-blue-100 px-1 rounded">/so-designer</code> (buat SO) atau <code className="bg-blue-100 px-1 rounded">/produksi</code> (board produksi), pilih namanya & masukkan PIN → langsung kerja tanpa login akun. Reward dihitung per divisi sesuai kerja nyata (desain &amp; produksi bisa dapat keduanya).
             </div>
         </div>
     );

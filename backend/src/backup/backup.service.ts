@@ -88,10 +88,11 @@ export const BACKUP_GROUPS = {
         tables: ['lead', 'leadItem', 'leadImage', 'leadActivity', 'followUp', 'messageTemplate'],
     },
     ownerFinance: {
-        label: 'Biaya Owner — Beban Tetap & Iklan',
+        label: 'Biaya Owner — Beban Tetap, Iklan & Bonus',
         // fixedExpense: beban tetap bulanan (gaji/sewa/angsuran/supplier).
         // marketingSpend: biaya iklan per sumber (dashboard marketing).
-        tables: ['fixedExpense', 'marketingSpend'],
+        // bonusTarget/bonusAdjustment: target & penyesuaian bonus karyawan.
+        tables: ['fixedExpense', 'marketingSpend', 'bonusTarget', 'bonusAdjustment'],
     },
     website: {
         label: 'Website — Landing Page & Artikel',
@@ -145,6 +146,7 @@ const RESTORE_ORDER = [
     'clickRate', 'clickLog', 'machineReject', 'meterReading',
     'stockOpnameSession', 'stockOpnameItem',
     'marketingSpend', 'fixedExpense',           // biaya owner — branchId scalar (tanpa FK keras), aman di sini
+    'bonusTarget', 'bonusAdjustment',           // bonus karyawan — branchId scalar, tanpa FK keras
 
     // CRM — diletakkan paling akhir karena bisa reference banyak entity:
     //   lead.assignedToId → user
@@ -221,7 +223,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.8', // v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
+                version: '3.9', // v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,
