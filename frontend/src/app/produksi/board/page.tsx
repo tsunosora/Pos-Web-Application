@@ -136,12 +136,14 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
     const [step, setStep] = useState<'PIN' | 'NAME'>('PIN');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [designers, setDesigners] = useState<{ id: number; name: string }[]>([]);
 
     useEffect(() => {
         getPublicBranches().then(bs => {
             setBranches(bs);
             if (bs.length === 1) setBranchId(bs[0].id);
         }).catch(e => setError(e.message));
+        getPublicDesigners().then(setDesigners).catch(() => {});
     }, []);
 
     const handlePinSubmit = async (e: React.FormEvent) => {
@@ -252,13 +254,17 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Operator / Desainer</label>
-                            <input
+                            <select
                                 value={operatorName}
                                 onChange={(e) => setOperatorName(e.target.value)}
-                                placeholder="mis. Andi (Desainer) / Budi (Operator Cetak)"
                                 autoFocus
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                            />
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                            >
+                                <option value="">— Pilih nama —</option>
+                                {designers.map(d => (
+                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                ))}
+                            </select>
                             <p className="text-[10px] text-gray-500 mt-1">
                                 Disimpan di device ini — semua aksi (pindah card, upload proof) akan tercatat pakai nama ini.
                             </p>

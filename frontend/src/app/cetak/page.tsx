@@ -13,6 +13,7 @@ import {
     OperatorRejectType, OperatorRejectCause, OperatorCounterType,
     resolvePhotoUrl,
 } from '@/lib/api/production';
+import { getPublicDesigners } from '@/lib/api/designers';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
 type RejectType = OperatorRejectType;
@@ -79,6 +80,7 @@ export default function CetakPage() {
     const [pinLoading, setPinLoading] = useState(false);
 
     const [operatorName, setOperatorName] = useState('');
+    const [designers, setDesigners] = useState<{ id: number; name: string }[]>([]);
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<PrintJob[]>([]);
     const [total, setTotal] = useState(0);
@@ -117,6 +119,7 @@ export default function CetakPage() {
         }
         const storedOp = localStorage.getItem(OP_KEY);
         if (storedOp) setOperatorName(storedOp);
+        getPublicDesigners().then(setDesigners).catch(() => {});
     }, []);
 
     // Reset ke halaman 1 saat tab/pencarian/cabang berubah
@@ -202,13 +205,10 @@ export default function CetakPage() {
     };
 
     const ensureOperator = (): string | null => {
-        let name = operatorName.trim();
+        const name = operatorName.trim();
         if (!name) {
-            const input = window.prompt('Nama operator cetak:');
-            if (!input?.trim()) return null;
-            name = input.trim();
-            setOperatorName(name);
-            localStorage.setItem(OP_KEY, name);
+            alert('Pilih nama operator dulu dari dropdown di kanan atas.');
+            return null;
         }
         return name;
     };
@@ -319,13 +319,17 @@ export default function CetakPage() {
                         <p className="text-sm text-gray-600">
                             {activeBranchName && <span className="font-semibold">{activeBranchName}</span>}
                             {activeBranchName && ' · '}
-                            Operator: <span className="font-semibold">{operatorName || '—'}</span>
-                            {operatorName && (
-                                <button
-                                    onClick={() => { setOperatorName(''); localStorage.removeItem(OP_KEY); }}
-                                    className="ml-2 text-xs text-indigo-600 underline"
-                                >ganti</button>
-                            )}
+                            Operator:{' '}
+                            <select
+                                value={operatorName}
+                                onChange={e => { setOperatorName(e.target.value); localStorage.setItem(OP_KEY, e.target.value); }}
+                                className="ml-1 border rounded px-2 py-1 text-sm bg-white font-semibold"
+                            >
+                                <option value="">— Pilih operator —</option>
+                                {designers.map(d => (
+                                    <option key={d.id} value={d.name}>{d.name}</option>
+                                ))}
+                            </select>
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
