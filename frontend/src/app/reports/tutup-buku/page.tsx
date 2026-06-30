@@ -53,8 +53,26 @@ function buildExcel(d: MonthlyClosing) {
         [],
         ["TOTAL", "", d.receivables.gross, d.receivables.dp, d.receivables.sisa, ""],
     ];
+    const ringkasan: any[][] = [
+        ["RINGKASAN TUTUP BUKU"], [title], [],
+        ["REKAP PENDAPATAN", "Jumlah"],
+        ...d.income.channels.map(c => [c.channel, c.total]),
+        ["Total Pendapatan", d.income.total],
+        [],
+        ["REKAP PENGELUARAN", "Jumlah"],
+        ...d.expense.categories.map(c => [c.category, c.total]),
+        ["Total Pengeluaran", d.expense.total],
+        [],
+        ["LABA / RUGI (kas)", d.profit],
+        [],
+        ["PIUTANG OUTSTANDING", "Jumlah"],
+        ["Total tagihan piutang", d.receivables.gross],
+        ["DP sudah diterima", d.receivables.dp],
+        ["Sisa piutang (belum lunas)", d.receivables.sisa],
+    ];
 
     exportSheetsToExcel([
+        { name: "Ringkasan", aoa: ringkasan, merges: [{ s: { r: 0, c: 0 }, e: { r: 0, c: 1 } }] },
         { name: "Pendapatan", aoa: pendapatan, merges: [{ s: { r: 0, c: 0 }, e: { r: 0, c: wl.length + 1 } }] },
         { name: "Pengeluaran", aoa: pengeluaran },
         { name: "Neraca Rugi-Laba", aoa: neraca },
@@ -78,39 +96,56 @@ function buildPDF(d: MonthlyClosing) {
     doc.text(`${d.period.monthLabel} ${d.period.year}`, W / 2, 29, { align: "center" });
 
     const moneyCols = (n: number) => { const c: any = {}; for (let i = 1; i <= n; i++) c[i] = { halign: "right" }; return c; };
+    const Y = () => (doc as any).lastAutoTable.finalY;
 
+    // ── RINGKASAN (rekap keseluruhan) ──
+    doc.setFontSize(11); doc.setFont("helvetica", "bold");
+    doc.text("RINGKASAN", W / 2, 35, { align: "center" });
     autoTable(doc, {
-        startY: 35,
+        startY: 39,
+        head: [["REKAP PENDAPATAN", "Jumlah"]],
+        body: [...d.income.channels.map(c => [c.channel, num(c.total)]), ["Total Pendapatan", num(d.income.total)]],
+        theme: "grid", styles: { fontSize: 9 }, headStyles: { fillColor: [39, 174, 96], textColor: 255 }, columnStyles: { 1: { halign: "right" } },
+    });
+    autoTable(doc, {
+        startY: Y() + 5,
+        head: [["REKAP PENGELUARAN", "Jumlah"]],
+        body: [...d.expense.categories.map(c => [c.category, num(c.total)]), ["Total Pengeluaran", num(d.expense.total)]],
+        theme: "grid", styles: { fontSize: 9 }, headStyles: { fillColor: [192, 57, 43], textColor: 255 }, columnStyles: { 1: { halign: "right" } },
+    });
+    autoTable(doc, {
+        startY: Y() + 5,
+        head: [["NERACA & PIUTANG", "Jumlah"]],
+        body: [
+            ["Total Pendapatan", num(d.income.total)],
+            ["Total Pengeluaran", num(d.expense.total)],
+            ["LABA / RUGI (kas)", num(d.profit)],
+            ["Sisa Piutang (belum lunas)", num(d.receivables.sisa)],
+        ],
+        theme: "grid", styles: { fontSize: 9, fontStyle: "bold" }, headStyles: { fillColor: [241, 196, 15], textColor: 0 }, columnStyles: { 1: { halign: "right" } },
+    });
+
+    // ── DETAIL per pekan (halaman baru) ──
+    doc.addPage();
+    doc.setFontSize(12); doc.setFont("helvetica", "bold");
+    doc.text("RINCIAN PENDAPATAN & PENGELUARAN PER PEKAN", W / 2, 16, { align: "center" });
+    autoTable(doc, {
+        startY: 22,
         head: [["PENDAPATAN", ...wl, "Total"]],
         body: [
             ...d.income.channels.map(c => [c.channel, ...c.weeks.map(num), num(c.total)]),
             ["TOTAL", ...wl.map((_, i) => num(colSum(d.income.channels, i))), num(d.income.total)],
         ],
-        theme: "grid", styles: { fontSize: 8 }, headStyles: { fillColor: [39, 174, 96], textColor: 255 },
-        columnStyles: moneyCols(wl.length + 1), footStyles: { fontStyle: "bold" },
+        theme: "grid", styles: { fontSize: 8 }, headStyles: { fillColor: [39, 174, 96], textColor: 255 }, columnStyles: moneyCols(wl.length + 1),
     });
-
     autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 6,
+        startY: Y() + 6,
         head: [["PENGELUARAN", ...wl, "Total"]],
         body: [
             ...d.expense.categories.map(c => [c.category, ...c.weeks.map(num), num(c.total)]),
             ["TOTAL", ...wl.map((_, i) => num(colSum(d.expense.categories, i))), num(d.expense.total)],
         ],
-        theme: "grid", styles: { fontSize: 8 }, headStyles: { fillColor: [192, 57, 43], textColor: 255 },
-        columnStyles: moneyCols(wl.length + 1),
-    });
-
-    autoTable(doc, {
-        startY: (doc as any).lastAutoTable.finalY + 6,
-        head: [["NERACA RUGI / LABA", "Jumlah"]],
-        body: [
-            ["Pendapatan (uang masuk)", num(d.income.total)],
-            ["Total Pengeluaran", num(d.expense.total)],
-            ["LABA / RUGI (kas)", num(d.profit)],
-        ],
-        theme: "grid", styles: { fontSize: 9 }, headStyles: { fillColor: [241, 196, 15], textColor: 0 },
-        columnStyles: { 1: { halign: "right" } },
+        theme: "grid", styles: { fontSize: 8 }, headStyles: { fillColor: [192, 57, 43], textColor: 255 }, columnStyles: moneyCols(wl.length + 1),
     });
 
     // Rincian pengeluaran
@@ -214,10 +249,11 @@ export default function TutupBukuPage() {
             ) : (
                 <>
                     {/* Ringkasan angka */}
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                         <Card label="Pendapatan" value={rp(d.income.total)} cls="text-emerald-600 dark:text-emerald-300" />
                         <Card label="Pengeluaran" value={rp(d.expense.total)} cls="text-red-600 dark:text-red-300" />
                         <Card label="Laba / Rugi (kas)" value={rp(d.profit)} cls={d.profit >= 0 ? "text-indigo-600 dark:text-indigo-300" : "text-red-600 dark:text-red-300"} />
+                        <Card label="Sisa Piutang" value={rp(d.receivables.sisa)} cls="text-amber-600 dark:text-amber-300" />
                     </div>
 
                     <Section title="Pendapatan per Kanal">
