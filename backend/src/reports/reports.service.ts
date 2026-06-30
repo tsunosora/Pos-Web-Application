@@ -168,6 +168,108 @@ export class ReportsService {
         };
     }
 
+    /**
+     * Laporan TUTUP BUKU bulanan (basis kas) — meniru format manual Voliko:
+     * pendapatan per kanal (Cash/QRIS/Bank) × pekan, pengeluaran per kategori ×
+     * pekan + rincian, laba (uang masuk − uang keluar), dan piutang outstanding.
+     * Sumber: Cashflow (INCOME/EXPENSE) + Transaction (PENDING/PARTIAL).
+     */
+    async monthlyClosing(branchCtx: BranchContext, year: number, month: number) {
+        const bw = branchWhere(branchCtx);
+        const start = new Date(year, month - 1, 1, 0, 0, 0);
+        const end = new Date(year, month, 0, 23, 59, 59, 999); // hari terakhir bulan
+        const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const monthLabel = MONTHS[month - 1] || String(month);
+
+        let branchName: string | null = null;
+        if (branchCtx.branchId != null) {
+            const b = await this.prisma.companyBranch.findUnique({ where: { id: branchCtx.branchId }, select: { name: true } });
+            branchName = b?.name ?? null;
+        }
+        const banks = await this.prisma.bankAccount.findMany({ select: { id: true, bankName: true } });
+        const bankNameById = new Map(banks.map(b => [b.id, b.bankName]));
+
+        const weekOf = (d: Date) => { const day = d.getDate(); if (day <= 3) return 0; if (day <= 10) return 1; if (day <= 17) return 2; if (day <= 24) return 3; return 4; };
+        const lastDay = end.getDate();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const weekRanges = [[1, 3], [4, 10], [11, 17], [18, 24], [25, lastDay]];
+        const weekLabels = weekRanges.map(([a, b]) => `${pad(a)}–${pad(b)} ${monthLabel} ${year}`);
+
+        const cfs: any[] = await this.prisma.cashflow.findMany({
+            where: { ...bw, NOT: { category: 'INTER_BRANCH_SETTLEMENT' }, date: { gte: start, lte: end } } as any,
+            select: { type: true, category: true, amount: true, date: true, paymentMethod: true, bankAccountId: true, note: true },
+            orderBy: { date: 'asc' },
+        });
+        const channelOf = (cf: any): string => {
+            if (cf.paymentMethod === 'CASH') return 'Cash';
+            if (cf.paymentMethod === 'QRIS') return 'QRIS';
+            if (cf.bankAccountId) return bankNameById.get(cf.bankAccountId) || 'Transfer';
+            if (cf.paymentMethod === 'BANK_TRANSFER') return 'Transfer';
+            return 'Lainnya';
+        };
+
+        // Pendapatan per kanal × pekan
+        const incomeMap = new Map<string, number[]>();
+        let incomeTotal = 0;
+        // Pengeluaran per kategori × pekan + rincian
+        const expenseMap = new Map<string, number[]>();
+        const detailMap = new Map<string, any[]>();
+        let expenseTotal = 0;
+        for (const cf of cfs) {
+            const amt = Number(cf.amount) || 0;
+            const wi = weekOf(cf.date);
+            if (cf.type === 'INCOME') {
+                const ch = channelOf(cf);
+                if (!incomeMap.has(ch)) incomeMap.set(ch, [0, 0, 0, 0, 0]);
+                incomeMap.get(ch)![wi] += amt;
+                incomeTotal += amt;
+            } else {
+                const cat = cf.category || 'Lainnya';
+                if (!expenseMap.has(cat)) { expenseMap.set(cat, [0, 0, 0, 0, 0]); detailMap.set(cat, []); }
+                expenseMap.get(cat)![wi] += amt;
+                expenseTotal += amt;
+                detailMap.get(cat)!.push({ date: cf.date, keterangan: cf.note || cf.category, channel: channelOf(cf), amount: amt });
+            }
+        }
+        const chRank = (c: string) => (c === 'Cash' ? 0 : c === 'QRIS' ? 2 : c === 'Lainnya' ? 3 : 1);
+        const incomeChannels = Array.from(incomeMap.entries())
+            .map(([channel, weeks]) => ({ channel, weeks, total: weeks.reduce((s, x) => s + x, 0) }))
+            .sort((a, b) => chRank(a.channel) - chRank(b.channel) || b.total - a.total);
+        const expenseCategories = Array.from(expenseMap.entries())
+            .map(([category, weeks]) => ({ category, weeks, total: weeks.reduce((s, x) => s + x, 0), details: detailMap.get(category) || [] }))
+            .sort((a, b) => b.total - a.total);
+
+        // Piutang outstanding (PENDING/PARTIAL) per akhir bulan
+        const txs: any[] = await this.prisma.transaction.findMany({
+            where: { ...bw, status: { in: ['PENDING', 'PARTIAL'] as any }, createdAt: { lte: end } } as any,
+            select: {
+                invoiceNumber: true, customerName: true, grandTotal: true, downPayment: true, status: true, createdAt: true,
+                items: { select: { customName: true, productVariant: { select: { product: { select: { name: true } } } } } },
+            },
+            orderBy: { createdAt: 'asc' },
+        });
+        const receivables = txs.map(t => {
+            const names = Array.from(new Set((t.items || []).map((it: any) => it.productVariant?.product?.name || it.customName).filter(Boolean)));
+            const jumlah = Number(t.grandTotal) || 0;
+            const dp = Number(t.downPayment) || 0;
+            return { name: t.customerName || '-', keterangan: names.join(', ') || '-', jumlah, dp, sisa: Math.max(0, jumlah - dp), status: 'Blm Lunas', invoice: t.invoiceNumber };
+        }).filter(r => r.sisa > 0);
+
+        return {
+            period: { year, month, monthLabel, start: start.toISOString(), end: end.toISOString(), weekLabels },
+            branchName,
+            income: { channels: incomeChannels, total: incomeTotal },
+            expense: { categories: expenseCategories, total: expenseTotal },
+            profit: incomeTotal - expenseTotal,
+            receivables: {
+                rows: receivables,
+                gross: receivables.reduce((s, r) => s + r.jumlah, 0),
+                dp: receivables.reduce((s, r) => s + r.dp, 0),
+                sisa: receivables.reduce((s, r) => s + r.sisa, 0),
+            },
+        };
+    }
+
     async calculateCurrentShiftExpectations(branchCtx?: BranchContext) {
         const bw = branchCtx ? branchWhere(branchCtx) : {};
         const lastShift = await (this.prisma as any).shiftReport.findFirst({
