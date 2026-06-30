@@ -24,6 +24,19 @@ export const getProfitReport = async (startDate?: string, endDate?: string) => {
     return (await api.get(`/reports/profit?${params.toString()}`)).data;
 };
 
+// Laporan Tutup Buku bulanan (basis kas) — pendapatan per kanal, pengeluaran
+// per kategori, laba, piutang. Cabang mengikuti header X-Branch-Id (branch store).
+export interface MonthlyClosing {
+    period: { year: number; month: number; monthLabel: string; start: string; end: string; weekLabels: string[] };
+    branchName: string | null;
+    income: { channels: { channel: string; weeks: number[]; total: number }[]; total: number };
+    expense: { categories: { category: string; weeks: number[]; total: number; details: { date: string; keterangan: string; channel: string; amount: number }[] }[]; total: number };
+    profit: number;
+    receivables: { rows: { name: string; keterangan: string; jumlah: number; dp: number; sisa: number; status: string; invoice: string }[]; gross: number; dp: number; sisa: number };
+}
+export const getMonthlyClosing = async (year: number, month: number): Promise<MonthlyClosing> =>
+    (await api.get(`/reports/closing`, { params: { year, month } })).data;
+
 // Shift Close
 export const getShiftExpectations = async () => (await api.get('/reports/current-shift')).data;
 export const getStaffList = async () => (await api.get('/reports/staff-list')).data;

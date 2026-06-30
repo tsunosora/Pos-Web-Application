@@ -39,6 +39,7 @@ export const SECTIONS: NavSection[] = [
             { name: "Kasir POS", href: "/pos", icon: ShoppingCart },
             { name: "Rekap Penjualan", href: "/reports/sales", icon: BarChart3 },
             { name: "Laporan Laba Kotor", href: "/reports/profit", icon: BarChart3 },
+            { name: "Tutup Buku Bulanan", href: "/reports/tutup-buku", icon: BookOpen, managerOnly: true },
             { name: "Riwayat Tutup Shift", href: "/reports/shift-history", icon: History },
             { name: "DP / Piutang", href: "/transactions/dp", icon: Wallet },
             { name: "Cashflow Bisnis", href: "/cashflow", icon: Banknote },

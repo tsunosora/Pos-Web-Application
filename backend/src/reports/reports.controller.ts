@@ -66,6 +66,18 @@ export class ReportsController {
         return this.reportsService.getProfitReport(branchCtx, startDate, endDate);
     }
 
+    @Get('closing')
+    async getMonthlyClosing(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('year') year?: string,
+        @Query('month') month?: string,
+    ) {
+        const now = new Date();
+        const y = Number(year) || now.getFullYear();
+        const m = Number(month) || (now.getMonth() + 1);
+        return this.reportsService.monthlyClosing(branchCtx, y, m);
+    }
+
     // Endpoint untuk dropdown daftar staff/kasir
     @Get('staff-list')
     async getStaffList() {
