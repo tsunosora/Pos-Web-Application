@@ -189,10 +189,13 @@ export class ReportsService {
         const banks = await this.prisma.bankAccount.findMany({ select: { id: true, bankName: true } });
         const bankNameById = new Map(banks.map(b => [b.id, b.bankName]));
 
-        const weekOf = (d: Date) => { const day = d.getDate(); if (day <= 3) return 0; if (day <= 10) return 1; if (day <= 17) return 2; if (day <= 24) return 3; return 4; };
+        // Pekan 7-harian penuh: 1–7, 8–14, 15–21, 22–28, 29–akhir (lebih enak dibaca).
         const lastDay = end.getDate();
         const pad = (n: number) => String(n).padStart(2, '0');
-        const weekRanges = [[1, 3], [4, 10], [11, 17], [18, 24], [25, lastDay]];
+        const weekRanges: number[][] = [];
+        for (let s = 1; s <= lastDay; s += 7) weekRanges.push([s, Math.min(s + 6, lastDay)]);
+        const weekCount = weekRanges.length;
+        const weekOf = (d: Date) => Math.min(weekCount - 1, Math.floor((d.getDate() - 1) / 7));
         const weekLabels = weekRanges.map(([a, b]) => `${pad(a)}–${pad(b)} ${monthLabel} ${year}`);
 
         const cfs: any[] = await this.prisma.cashflow.findMany({
@@ -220,12 +223,12 @@ export class ReportsService {
             const wi = weekOf(cf.date);
             if (cf.type === 'INCOME') {
                 const ch = channelOf(cf);
-                if (!incomeMap.has(ch)) incomeMap.set(ch, [0, 0, 0, 0, 0]);
+                if (!incomeMap.has(ch)) incomeMap.set(ch, new Array(weekCount).fill(0));
                 incomeMap.get(ch)![wi] += amt;
                 incomeTotal += amt;
             } else {
                 const cat = cf.category || 'Lainnya';
-                if (!expenseMap.has(cat)) { expenseMap.set(cat, [0, 0, 0, 0, 0]); detailMap.set(cat, []); }
+                if (!expenseMap.has(cat)) { expenseMap.set(cat, new Array(weekCount).fill(0)); detailMap.set(cat, []); }
                 expenseMap.get(cat)![wi] += amt;
                 expenseTotal += amt;
                 detailMap.get(cat)!.push({ date: cf.date, keterangan: cf.note || cf.category, channel: channelOf(cf), amount: amt });

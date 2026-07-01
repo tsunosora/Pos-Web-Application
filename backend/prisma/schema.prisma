@@ -121,6 +121,7 @@ model Product {
   requiresProduction Boolean     @default(false) @map("requires_production")
   hasAssemblyStage   Boolean     @default(false) @map("has_assembly_stage")
   trackStock         Boolean     @default(true) @map("track_stock")
+  isActive           Boolean     @default(true) @map("is_active") // false = diarsipkan (soft-delete). Riwayat transaksi tetap aman.
   clickRateId        Int?        @map("click_rate_id")   // ClickRate yang berlaku untuk produk ini
   clicksPerUnit      Float?      @map("clicks_per_unit") // Jumlah klik per unit terjual
   createdAt          DateTime?   @default(now()) @map("created_at")

@@ -83,6 +83,7 @@ export class ProductsService {
 
     async findAll(branchCtx: BranchContext = { branchId: null, isOwner: true, roleName: null } as any) {
         const products = await (this.prisma as any).product.findMany({
+            where: { isActive: true },   // sembunyikan produk yang diarsipkan (soft-delete)
             include: {
                 category: { include: { parent: { select: { id: true, name: true } } } } as any,
                 unit: true,
@@ -373,7 +374,19 @@ export class ProductsService {
 
     async remove(id: number) {
         await this.findOne(id);
-        return this.prisma.product.delete({ where: { id } });
+        try {
+            // Hard-delete kalau produk belum pernah dipakai (cascade varian & BOM).
+            await this.prisma.product.delete({ where: { id } });
+            return { id, archived: false, message: 'Produk dihapus.' };
+        } catch (e: any) {
+            // FK: produk sudah dipakai di transaksi/SO/opname → arsipkan (soft-delete)
+            // supaya hilang dari daftar TAPI riwayat penjualan tetap utuh.
+            if (e?.code === 'P2003') {
+                await (this.prisma as any).product.update({ where: { id }, data: { isActive: false } });
+                return { id, archived: true, message: 'Produk sudah pernah dipakai di transaksi/SO, jadi diarsipkan (disembunyikan dari daftar). Riwayat tetap aman.' };
+            }
+            throw e;
+        }
     }
 
     async bulkRemove(ids: number[]) {
