@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, logStockMovement, deleteProduct, bulkDeleteProducts, bulkImportProducts } from '@/lib/api';
@@ -267,6 +267,8 @@ export default function InventoryPage() {
         if (!cat) return '';
         return cat.parent ? `${cat.parent.name} › ${cat.name}` : cat.name;
     };
+    // Label grup untuk header pemisah (produk tanpa kategori → "Tanpa Kategori")
+    const groupLabel = (product: any): string => getCategoryLabel(product?.category) || 'Tanpa Kategori';
 
     // Filter tabs: tampilkan nama parent unik (agar klik "Cetak" = semua sub-cetak)
     const filteredCategoryOptions = useMemo(() => {
@@ -688,7 +690,7 @@ export default function InventoryPage() {
                             title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
                             description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
                         />
-                    ) : groupedProducts.map(({ product, matchedVariants }) => {
+                    ) : groupedProducts.map(({ product, matchedVariants }, gi) => {
                         const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                         const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
                         const hasMultiple = matchedVariants.length > 1;
@@ -696,6 +698,7 @@ export default function InventoryPage() {
                         const visibleVariants = expanded ? matchedVariants : [matchedVariants[0]];
                         return (
                             <div key={product.id}>
+                                {(gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-2 bg-muted/40 border-y border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
                                 {visibleVariants.map((variant: any, idx: number) => {
                                     const isFirst = idx === 0;
                                     const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;
@@ -875,7 +878,7 @@ export default function InventoryPage() {
                                         />
                                     </td>
                                 </tr>
-                            ) : groupedProducts.map(({ product, matchedVariants }) => {
+                            ) : groupedProducts.map(({ product, matchedVariants }, gi) => {
                                 const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                                 const hasMultiple = matchedVariants.length > 1;
                                 const expanded = isFilterActive || expandedProducts.has(product.id);
@@ -883,6 +886,11 @@ export default function InventoryPage() {
                                 const hiddenCount = matchedVariants.length - 1;
 
                                 return [
+                                    (gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (
+                                        <tr key={`grp-${product.id}`} className="bg-muted/40 border-y border-border">
+                                            <td colSpan={12} className="px-4 py-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</td>
+                                        </tr>
+                                    ),
                                     ...visibleVariants.map((variant: any, idx: number) => {
                                         const isFirst = idx === 0;
                                         const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;
@@ -1045,7 +1053,7 @@ export default function InventoryPage() {
                                 title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
                                 description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
                             />
-                        ) : groupedProducts.map(({ product, matchedVariants }) => {
+                        ) : groupedProducts.map(({ product, matchedVariants }, gi) => {
                             const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                             const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
                             const expanded = isFilterActive || expandedProducts.has(product.id);
@@ -1054,6 +1062,7 @@ export default function InventoryPage() {
                             const hiddenCount = matchedVariants.length - 1;
                             return (
                                 <div key={product.id}>
+                                    {(gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-1.5 bg-muted/40 border-y border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
                                     {visibleVariants.map((variant: any, idx: number) => {
                                         const isFirst = idx === 0;
                                         const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;
