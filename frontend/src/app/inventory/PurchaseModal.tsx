@@ -294,11 +294,11 @@ export default function PurchaseModal({ onClose }: Props) {
                     </div>
 
                     {/* Footer */}
-                    <div className="px-5 py-4 border-t border-border shrink-0 flex items-center justify-between gap-3">
-                        <span className="text-xs text-muted-foreground">
+                    <div className="px-5 py-4 border-t border-border shrink-0 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs text-muted-foreground min-w-0 flex-1">
                             {cart.length > 0 ? `${cart.length} item · stok akan bertambah setelah simpan` : 'Belum ada item'}
                         </span>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 shrink-0 ml-auto">
                             <button type="button" onClick={onClose} className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-muted transition-colors">
                                 Batal
                             </button>

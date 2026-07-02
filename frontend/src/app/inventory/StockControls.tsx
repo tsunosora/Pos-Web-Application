@@ -72,7 +72,7 @@ export function SmartStockModal({
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-background/88 backdrop-blur-3xl" onClick={onClose}>
             <div
-                className="glass-strong w-full sm:max-w-md rounded-t-2xl sm:rounded-xl border border-border shadow-lg overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
+                className="glass-strong w-full sm:max-w-md rounded-t-2xl sm:rounded-xl border border-border shadow-lg max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between p-4 border-b border-border">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, logStockMovement, deleteProduct, bulkDeleteProducts, bulkImportProducts } from '@/lib/api';
 import { downloadBulkTemplate, parseBulkExcel, BulkProductInput } from '@/lib/bulk-import';
@@ -73,6 +74,8 @@ export default function InventoryPage() {
 
     // Kebab dropdown
     const [openDropdownId, setOpenDropdownId] = useState<number | null>(null);
+    // Posisi dropdown tabel (di-portal ke body agar tak terpotong overflow-x tabel di tablet)
+    const [tableMenuPos, setTableMenuPos] = useState<{ top: number; left: number } | null>(null);
 
     // Mobile action menu (⋮ more)
     const [showMobileActions, setShowMobileActions] = useState(false);
@@ -437,10 +440,10 @@ export default function InventoryPage() {
                     </div>
                     {/* Utama: berlabel */}
                     <button onClick={() => setShowPurchaseModal(true)} className="flex items-center gap-2 bg-emerald-600 text-white px-3.5 py-2 rounded-lg font-medium hover:bg-emerald-700 transition-colors shadow-sm text-sm">
-                        <ShoppingCart className="h-4 w-4" /> <span className="hidden lg:inline">Pembelian</span>
+                        <ShoppingCart className="h-4 w-4" /> <span className="hidden md:inline">Pembelian</span>
                     </button>
                     <button onClick={() => { setWasteVariant(null); setShowWasteModal(true); }} className="flex items-center gap-2 bg-amber-500 text-white px-3.5 py-2 rounded-lg font-medium hover:bg-amber-600 transition-colors shadow-sm text-sm">
-                        <Trash2 className="h-4 w-4" /> <span className="hidden lg:inline">Catat Susut</span>
+                        <Trash2 className="h-4 w-4" /> <span className="hidden md:inline">Catat Susut</span>
                     </button>
                     <Link href="/inventory/products/new" className="flex items-center gap-2 bg-primary text-primary-foreground px-3.5 py-2 rounded-lg font-medium hover:bg-primary/90 transition-colors shadow-sm text-sm">
                         <Plus className="h-4 w-4" /> Tambah Produk
@@ -964,14 +967,14 @@ export default function InventoryPage() {
                                                         {isFirst && (
                                                             <div className="relative" data-kebab-dropdown>
                                                                 <button
-                                                                    onClick={() => setOpenDropdownId(openDropdownId === product.id ? null : product.id)}
+                                                                    onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTableMenuPos({ top: r.bottom + 4, left: Math.max(8, r.right - 208) }); setOpenDropdownId(openDropdownId === product.id ? null : product.id); }}
                                                                     className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                                                                     title="Aksi lainnya"
                                                                 >
                                                                     <MoreVertical className="h-4 w-4" />
                                                                 </button>
-                                                                {openDropdownId === product.id && (
-                                                                    <div className="absolute right-0 top-full mt-1 w-52 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-xl shadow-xl z-30 py-1.5 overflow-hidden">
+                                                                {openDropdownId === product.id && tableMenuPos && createPortal(
+                                                                    <div data-kebab-dropdown style={{ position: 'fixed', top: tableMenuPos.top, left: tableMenuPos.left }} className="w-52 bg-card border border-border rounded-xl shadow-xl z-[60] py-1.5">
                                                                         <button onClick={() => { setWasteVariant(variant); setShowWasteModal(true); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Catat Susut
                                                                         </button>
@@ -989,7 +992,8 @@ export default function InventoryPage() {
                                                                         <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
                                                                         </button>
-                                                                    </div>
+                                                                    </div>,
+                                                                    document.body,
                                                                 )}
                                                             </div>
                                                         )}
