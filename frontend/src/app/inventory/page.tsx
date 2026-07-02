@@ -328,7 +328,17 @@ export default function InventoryPage() {
                 });
                 return { product, matchedVariants };
             })
-            .filter(({ matchedVariants }) => matchedVariants.length > 0);
+            .filter(({ matchedVariants }) => matchedVariants.length > 0)
+            // Urut berkelompok per kategori/grup (parent › sub), lalu per nama produk;
+            // produk tanpa kategori diletakkan paling akhir.
+            .sort((a: any, b: any) => {
+                const key = (p: any) => {
+                    const c = p.product.category;
+                    return c ? (c.parent ? `${c.parent.name} › ${c.name}` : c.name) : '￿';
+                };
+                const g = key(a).localeCompare(key(b), 'id', { sensitivity: 'base' });
+                return g !== 0 ? g : (a.product.name || '').localeCompare(b.product.name || '', 'id', { sensitivity: 'base' });
+            });
     }, [products, searchText, filterSkuVariant, filterCategory, filterType, filterMinPrice, filterMaxPrice, filterMinStock]);
 
     const totalRows = groupedProducts.reduce((acc, { matchedVariants }) => acc + matchedVariants.length, 0);
