@@ -643,7 +643,7 @@ export default function InventoryPage() {
                 {/* Product count + view mode toggle (desktop only) */}
                 <div className="flex items-center justify-between gap-2">
                     <span className="text-xs text-muted-foreground">{groupedProducts.length} produk · {totalRows} varian</span>
-                    <div className="hidden md:inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted p-0.5" role="group" aria-label="Pilih tampilan produk">
+                    <div className="hidden sm:inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted p-0.5" role="group" aria-label="Pilih tampilan produk">
                         {VIEW_MODES.map(m => {
                             const Icon = m.icon;
                             const active = viewMode === m.key;
@@ -677,7 +677,7 @@ export default function InventoryPage() {
                 kartu produk menonjol jelas & tidak terlihat "transparan/menyatu". */}
             <div className="bg-background rounded-xl shadow-sm border border-border overflow-visible">
                 {/* ── Mobile card list ── */}
-                <div className="md:hidden divide-y divide-border/50">
+                <div className="sm:hidden divide-y divide-border/50">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12 text-muted-foreground">
                             <Loader2 className="h-5 w-5 animate-spin" />
@@ -821,7 +821,7 @@ export default function InventoryPage() {
                 </div>
 
                 {/* ── Desktop: Tabel ── */}
-                <div className={cn('hidden overflow-x-auto', viewMode === 'table' ? 'md:block' : 'md:hidden')}>
+                <div className={cn('hidden overflow-x-auto', viewMode === 'table' ? 'sm:block' : 'sm:hidden')}>
                     <table className="min-w-full divide-y divide-border">
                         <thead className="bg-muted/50">
                             <tr>
@@ -1042,7 +1042,7 @@ export default function InventoryPage() {
 
                 {/* ── Desktop: Kompak (dense list) ── */}
                 {viewMode === 'compact' && (
-                    <div className="hidden md:block divide-y divide-border/50">
+                    <div className="hidden sm:block divide-y divide-border/50">
                         {isLoading ? (
                             <div className="flex items-center justify-center py-12 text-muted-foreground">
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1158,7 +1158,7 @@ export default function InventoryPage() {
 
                 {/* ── Desktop: Grid (kartu produk) ── */}
                 {viewMode === 'grid' && (
-                    <div className="hidden md:block p-3 sm:p-4">
+                    <div className="hidden sm:block p-3 sm:p-4">
                         {isLoading ? (
                             <div className="flex items-center justify-center py-12 text-muted-foreground">
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -1272,7 +1272,7 @@ export default function InventoryPage() {
 
                 {/* ── Desktop: Galeri (besar fokus visual) ── */}
                 {viewMode === 'gallery' && (
-                    <div className="hidden md:block p-4 sm:p-5">
+                    <div className="hidden sm:block p-4 sm:p-5">
                         {isLoading ? (
                             <div className="flex items-center justify-center py-12 text-muted-foreground">
                                 <Loader2 className="h-5 w-5 animate-spin" />
