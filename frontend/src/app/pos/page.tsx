@@ -256,13 +256,34 @@ function POSPageContent() {
         // kemunculan harus jadi baris sendiri. Kemunculan pertama merge normal
         // (biar klik grid tetap nambah ke baris itu); duplikat → baris terpisah.
         const seenUnitVariants = new Set<number>();
+        const recovered: string[] = []; // item dari produk terarsip yang tetap dimasukkan
+        const skipped: string[] = [];   // item yang benar-benar tak bisa dipulihkan
         for (const it of soData.items) {
-            const product = (products as any[]).find((p: any) =>
+            let product = (products as any[]).find((p: any) =>
                 p.variants?.some((v: any) => v.id === it.productVariantId)
             );
-            if (!product) continue;
-            const variant = product.variants.find((v: any) => v.id === it.productVariantId);
-            if (!variant) continue;
+            let variant = product?.variants.find((v: any) => v.id === it.productVariantId);
+            // Produk tak ada di katalog aktif (mis. diarsipkan/soft-delete) → JANGAN
+            // buang item diam-diam. Rekonstruksi dari data SO agar keranjang lengkap.
+            if (!product || !variant) {
+                const pv: any = it.productVariant;
+                if (!pv?.product) { skipped.push(`#${it.productVariantId}`); continue; }
+                product = {
+                    id: pv.product.id,
+                    name: pv.product.name,
+                    pricingMode: pv.product.pricingMode,
+                    trackStock: false, // produk terarsip: jangan blokir stok saat re-order
+                };
+                variant = {
+                    id: pv.id,
+                    sku: pv.sku,
+                    variantName: pv.variantName,
+                    price: pv.price,
+                    priceTiers: pv.priceTiers || [],
+                    stock: 0,
+                };
+                recovered.push(pv.product.name);
+            }
 
             // Item 'menit' disimpan tanpa heightCm (null) — tetap perlakukan sebagai area,
             // jangan sampai jatuh ke cabang UNIT. computeAreaPrice mengabaikan height utk 'menit'.
@@ -301,7 +322,14 @@ function POSPageContent() {
             }
         }
         setPrefilledSoId(fromSOId);
-        addNotification({ type: 'system', title: 'SO dibuka', message: `Cart ter-prefill dari SO ${soData.soNumber}` });
+        // Notifikasi jujur: jangan selalu bilang "sukses" saat ada item yang di-skip.
+        if (skipped.length) {
+            addNotification({ type: 'system', title: 'Sebagian item tidak termuat', message: `SO ${soData.soNumber}: ${skipped.length} item tak bisa dimasukkan (data produk tidak lengkap). Tambahkan manual: ${skipped.join(', ')}` });
+        } else if (recovered.length) {
+            addNotification({ type: 'system', title: 'SO dibuka (ada produk terarsip)', message: `Cart ter-prefill dari SO ${soData.soNumber}. ${recovered.length} item dari produk terarsip tetap dimasukkan — cek harga: ${Array.from(new Set(recovered)).join(', ')}` });
+        } else {
+            addNotification({ type: 'system', title: 'SO dibuka', message: `Cart ter-prefill dari SO ${soData.soNumber}` });
+        }
     }, [fromSOId, soData, products, prefilledSoId, addItem, clearCart, addNotification]);
 
     const cancelSOMode = useCallback(() => {
