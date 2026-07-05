@@ -551,8 +551,11 @@ export class SalesOrdersService {
             throw new BadRequestException('SO yang sudah jadi nota / dibatalkan tidak bisa dijadikan lead');
         }
 
-        // Estimasi nilai order dari item SO (kasar, untuk kolom estimatedValue lead)
+        // Estimasi nilai order dari item SO (kasar, untuk kolom estimatedValue lead).
+        // Sekaligus siapkan baris LeadItem agar keranjang lead di sisi CS terisi
+        // (sebelumnya item SO tidak pernah disalin → keranjang CS kosong).
         let estimate = 0;
+        const leadItemRows: any[] = [];
         for (const it of so.items || []) {
             const qty = Number(it.quantity) || 1;
             let price = Number(it.customPrice ?? it.productVariant?.price ?? 0);
@@ -573,6 +576,24 @@ export class SalesOrdersService {
                 units = Number(it.widthCm);
             }
             estimate += Math.round(price * units * qty * pcs);
+
+            // Baris LeadItem yang setara (LeadItem tidak punya kolom pcs → simpan di note)
+            const pv: any = it.productVariant;
+            const baseName = pv?.product?.name || 'Item';
+            const vName = pv?.variantName && pv.variantName !== baseName ? ` (${pv.variantName})` : '';
+            const note = pcs > 1
+                ? `${it.note ? it.note + ' ' : ''}[${pcs} pcs]`
+                : (it.note ?? null);
+            leadItemRows.push({
+                productVariantId: it.productVariantId ?? null,
+                description: `${baseName}${vName}`.slice(0, 255),
+                quantity: qty,
+                unitPrice: price,
+                widthCm: it.widthCm ?? null,
+                heightCm: it.heightCm ?? null,
+                unitType: it.unitType ?? null,
+                note,
+            });
         }
 
         const branchId = await this.resolveBranchId((so as any).branchName);
@@ -610,6 +631,8 @@ export class SalesOrdersService {
                 },
             });
             await this.syncLeadImagesFromSO(so, existing.id);
+            // Revisi: item lead dicerminkan dari SO terbaru (ganti penuh)
+            await this.writeLeadItemsFromSO(existing.id, leadItemRows, 'replace');
             await (this.prisma as any).leadActivity.create({
                 data: {
                     leadId: existing.id,
@@ -685,6 +708,9 @@ export class SalesOrdersService {
                     },
                 });
                 await this.syncLeadImagesFromSO(so, csLead.id);
+                // Merge satu pintu: isi item hanya bila lead CS masih kosong —
+                // jangan timpa ukuran/jumlah/tambahan yang sudah diatur CS
+                await this.writeLeadItemsFromSO(csLead.id, leadItemRows, 'fillIfEmpty');
                 await (this.prisma as any).leadActivity.create({
                     data: {
                         leadId: csLead.id,
@@ -742,6 +768,8 @@ export class SalesOrdersService {
 
         // Salin gambar proof SO ke galeri lead (lihat syncLeadImagesFromSO)
         await this.syncLeadImagesFromSO(so, lead.id);
+        // Isi keranjang lead dari item SO desainer
+        await this.writeLeadItemsFromSO(lead.id, leadItemRows, 'replace');
 
         // Beritahu CS via Discord (#penjualan cabang) — gambar desain SO ikut
         // dilampirkan supaya desainer tidak perlu kirim manual lagi
@@ -768,6 +796,50 @@ export class SalesOrdersService {
         this.discord.notifySuratOrder(caption, imagePaths, branchId);
 
         return { lead, existing: false };
+    }
+
+    /**
+     * Tulis item SO → keranjang lead (lead_items).
+     * - mode 'replace'      : ganti penuh (lead baru / revisi SO = cermin SO terbaru)
+     * - mode 'fillIfEmpty'  : hanya isi bila lead belum punya item (merge satu pintu —
+     *                          jangan timpa item yang sudah diisi/diubah CS)
+     * Dual-path (Prisma model / raw SQL) mengikuti pola _syncItems & detail().
+     */
+    private async writeLeadItemsFromSO(
+        leadId: number,
+        rows: any[],
+        mode: 'replace' | 'fillIfEmpty',
+    ) {
+        const hasModel = !!(this.prisma as any).leadItem?.createMany;
+
+        if (mode === 'fillIfEmpty') {
+            const existingCount = hasModel
+                ? await (this.prisma as any).leadItem.count({ where: { leadId } })
+                : Number((await this.prisma.$queryRawUnsafe(
+                    `SELECT COUNT(*) AS c FROM lead_items WHERE lead_id = ?`, leadId,
+                ) as any)[0].c);
+            if (existingCount > 0) return; // jaga item yang sudah diisi CS
+        } else if (hasModel) {
+            await (this.prisma as any).leadItem.deleteMany({ where: { leadId } });
+        } else {
+            await this.prisma.$executeRawUnsafe(`DELETE FROM lead_items WHERE lead_id = ?`, leadId);
+        }
+
+        if (!rows.length) return;
+        const data = rows.map((r) => ({ ...r, leadId }));
+        if (hasModel) {
+            await (this.prisma as any).leadItem.createMany({ data });
+        } else {
+            for (const r of data) {
+                await this.prisma.$executeRawUnsafe(
+                    `INSERT INTO lead_items
+                        (lead_id, product_variant_id, description, quantity, unit_price, width_cm, height_cm, unit_type, note)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    r.leadId, r.productVariantId, r.description, r.quantity, r.unitPrice,
+                    r.widthCm, r.heightCm, r.unitType, r.note,
+                );
+            }
+        }
     }
 
     /**
