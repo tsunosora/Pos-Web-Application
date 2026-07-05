@@ -37,6 +37,7 @@ interface FlatVariant {
     label: string;
     pricingMode: "UNIT" | "AREA_BASED";
     sku: string;
+    outOfStock: boolean; // produk lacak-stok & stok agregat habis (≤ 0)
 }
 
 function DesignerNewSOContent() {
@@ -127,7 +128,14 @@ function DesignerNewSOContent() {
             const mode: "UNIT" | "AREA_BASED" = p.pricingMode ?? "UNIT";
             for (const v of p.variants ?? []) {
                 const suffix = v.variantName ? ` — ${v.variantName}` : "";
-                out.push({ productVariantId: v.id, label: `${p.name}${suffix}`, pricingMode: mode, sku: v.sku ?? "" });
+                out.push({
+                    productVariantId: v.id,
+                    label: `${p.name}${suffix}`,
+                    pricingMode: mode,
+                    sku: v.sku ?? "",
+                    // Unlimited (trackStock=false) tak pernah habis; sisanya cek stok agregat.
+                    outOfStock: p.trackStock !== false && Number(v.stock ?? 0) <= 0,
+                });
             }
         }
         return out;
@@ -140,6 +148,11 @@ function DesignerNewSOContent() {
     }, [flatVariants, variantSearch]);
 
     function addVariant(v: FlatVariant) {
+        if (v.outOfStock) {
+            setError(`Stok "${v.label}" habis — tidak bisa ditambahkan ke order.`);
+            return;
+        }
+        setError(null);
         setItems(prev => [...prev, {
             key: `${v.productVariantId}-${Date.now()}`,
             productVariantId: v.productVariantId,
@@ -482,9 +495,15 @@ function DesignerNewSOContent() {
                                     <button key={v.productVariantId} type="button"
                                         onMouseDown={e => e.preventDefault()}
                                         onClick={() => addVariant(v)}
-                                        className="w-full text-left px-3 py-2 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-sm border-b border-slate-100 dark:border-slate-800 last:border-0 text-slate-700 dark:text-slate-200"
+                                        disabled={v.outOfStock}
+                                        className={`w-full text-left px-3 py-2 text-sm border-b border-slate-100 dark:border-slate-800 last:border-0 ${v.outOfStock ? "opacity-60 cursor-not-allowed text-slate-400 dark:text-slate-600" : "hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-700 dark:text-slate-200"}`}
                                     >
-                                        <div className="font-medium">{v.label}</div>
+                                        <div className="font-medium flex items-center gap-2">
+                                            <span>{v.label}</span>
+                                            {v.outOfStock && (
+                                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">Stok habis</span>
+                                            )}
+                                        </div>
                                         <div className="text-xs text-slate-400 dark:text-slate-500">{v.sku} • {v.pricingMode === "AREA_BASED" ? "per m²" : "per unit"}</div>
                                     </button>
                                 ))}

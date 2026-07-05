@@ -268,6 +268,38 @@ export class SalesOrdersService {
         return { count };
     }
 
+    /**
+     * Guard stok: tolak SO yang memuat produk LACAK-STOK yang stoknya habis (≤ 0).
+     * - Produk unlimited (trackStock=false) & jasa/cetak tidak pernah diblok.
+     * - Basis: stok agregat ProductVariant.stock (lintas cabang) — form desainer
+     *   publik tak terikat cabang, jadi blok hanya bila habis di SEMUA cabang.
+     * Mencegah CS/desainer terlanjur bikin order untuk produk yang tak tersedia.
+     */
+    private async assertItemsInStock(items: Array<{ productVariantId: number }>) {
+        const ids = Array.from(new Set((items || []).map((i) => i.productVariantId).filter(Boolean)));
+        if (!ids.length) return;
+        const variants = await this.prisma.productVariant.findMany({
+            where: { id: { in: ids } },
+            select: {
+                id: true,
+                stock: true,
+                variantName: true,
+                product: { select: { name: true, trackStock: true } },
+            },
+        });
+        const habis = variants.filter(
+            (v) => (v as any).product?.trackStock !== false && Number(v.stock) <= 0,
+        );
+        if (habis.length) {
+            const names = habis
+                .map((v) => (v as any).product?.name + (v.variantName ? ` (${v.variantName})` : ''))
+                .join(', ');
+            throw new BadRequestException(
+                `Stok habis untuk: ${names}. Produk ini tidak bisa diorder sampai stoknya diisi.`,
+            );
+        }
+    }
+
     async create(data: CreateSalesOrderDto, fallbackBranchId?: number | null) {
         if (!data.items || data.items.length === 0) {
             throw new BadRequestException('Minimal 1 item harus diisi');
@@ -278,6 +310,7 @@ export class SalesOrdersService {
         if (!data.designerName?.trim()) {
             throw new BadRequestException('Nama desainer wajib diisi');
         }
+        await this.assertItemsInStock(data.items);
 
         // Auto-tag branchName dari cabang aktif user kalau belum di-set di body.
         let branchName: string | null = data.branchName ?? null;
@@ -352,6 +385,7 @@ export class SalesOrdersService {
         // Guard INVOICED/CANCELLED sudah di atas. Ini supaya salah input bahan/qty
         // bisa diperbaiki tanpa bikin SO baru, meski sudah terkirim ke Discord.
         if (data.items) {
+            await this.assertItemsInStock(data.items);
             await (this.prisma as any).salesOrderItem.deleteMany({ where: { salesOrderId: id } });
             updateData.items = {
                 create: data.items.map((it) => ({
