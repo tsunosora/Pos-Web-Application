@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCategories, createCategory, updateCategory, deleteCategory, getProductionCategories, type ProductionCategory } from '@/lib/api';
 import { Plus, Pencil, Trash2, Check, X, ChevronRight, FolderOpen, Folder, FolderPlus, FolderTree, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/responsive-table';
+import ProductionCategoryManager from './ProductionCategoryManager';
 
 interface Category {
     id: number;
@@ -169,6 +170,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
 
                 {/* Daftar kategori (scroll) */}
                 <div className="flex-1 overflow-y-auto">
+                    <div className="p-3 border-b border-border"><ProductionCategoryManager /></div>
                     {isLoading ? (
                         <div className="px-5 py-10 text-center text-muted-foreground"><Loader2 className="mx-auto h-5 w-5 animate-spin" /></div>
                     ) : parents.length === 0 ? (
