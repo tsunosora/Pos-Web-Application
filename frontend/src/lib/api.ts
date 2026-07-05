@@ -1,6 +1,7 @@
 // Barrel re-export — semua import lama dari '@/lib/api' tetap bekerja
 export { default } from './api/client';
 export * from './api/products';
+export * from './api/production-categories';
 export * from './api/transactions';
 export * from './api/customers';
 export * from './api/cashflow';

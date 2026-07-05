@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string }) {
+  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) {
     // Cek nama duplikat dalam parent yang sama
     const existing = await (this.prisma as any).category.findFirst({
       where: { name: data.name, parentId: data.parentId ?? null },
@@ -17,9 +17,9 @@ export class CategoriesService {
         name: data.name,
         parentId: data.parentId ?? null,
         countsAsPcs: data.countsAsPcs ?? true,
-        productionType: (data.productionType as any) ?? 'NONE',
+        productionCategoryId: data.productionCategoryId ?? null,
       },
-      include: { parent: true, children: true },
+      include: { parent: true, children: true, productionCategory: true },
     });
   }
 
@@ -28,7 +28,14 @@ export class CategoriesService {
     return (this.prisma as any).category.findMany({
       include: {
         parent: { select: { id: true, name: true } },
-        children: { orderBy: { name: 'asc' }, select: { id: true, name: true, parentId: true, countsAsPcs: true, productionType: true } },
+        productionCategory: { select: { id: true, name: true, source: true, measureBy: true } },
+        children: {
+          orderBy: { name: 'asc' },
+          select: {
+            id: true, name: true, parentId: true, countsAsPcs: true, productionCategoryId: true,
+            productionCategory: { select: { id: true, name: true, source: true, measureBy: true } },
+          },
+        },
       },
       orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
     });
@@ -37,13 +44,13 @@ export class CategoriesService {
   async findOne(id: number) {
     const category = await (this.prisma as any).category.findUnique({
       where: { id },
-      include: { parent: true, children: true },
+      include: { parent: true, children: true, productionCategory: true },
     });
     if (!category) throw new NotFoundException(`Category #${id} not found`);
     return category;
   }
 
-  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string }) {
+  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) {
     await this.findOne(id);
 
     // Cegah circular reference
@@ -63,9 +70,9 @@ export class CategoriesService {
         name: data.name,
         parentId: data.parentId ?? null,
         ...(data.countsAsPcs !== undefined ? { countsAsPcs: !!data.countsAsPcs } : {}),
-        ...(data.productionType !== undefined ? { productionType: data.productionType as any } : {}),
+        ...(data.productionCategoryId !== undefined ? { productionCategoryId: data.productionCategoryId } : {}),
       },
-      include: { parent: true, children: true },
+      include: { parent: true, children: true, productionCategory: true },
     });
   }
 

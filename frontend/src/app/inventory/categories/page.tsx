@@ -2,10 +2,11 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCategories, createCategory, updateCategory, deleteCategory } from '@/lib/api';
+import { getCategories, createCategory, updateCategory, deleteCategory, getProductionCategories, type ProductionCategory } from '@/lib/api';
 import { Plus, Pencil, Trash2, Check, X, ChevronRight, FolderOpen, Folder, FolderPlus, FolderTree, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/responsive-table';
+import ProductionCategoryManager from '../ProductionCategoryManager';
 
 interface Category {
     id: number;
@@ -13,9 +14,10 @@ interface Category {
     parentId: number | null;
     // false = item kategori ini tidak dihitung di metrik pcs CRM (add-on/komponen)
     countsAsPcs: boolean;
-    productionType?: string;
+    productionCategoryId?: number | null;
+    productionCategory?: { id: number; name: string } | null;
     parent: { id: number; name: string } | null;
-    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean; productionType?: string }[];
+    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean; productionCategoryId?: number | null; productionCategory?: { id: number; name: string } | null }[];
 }
 
 /** Badge penanda kategori add-on (tidak dihitung pcs di laporan CRM) */
@@ -37,14 +39,14 @@ export default function CategoriesPage() {
     const [newName, setNewName] = useState('');
     const [newParentId, setNewParentId] = useState<string>('');
     const [newCountsAsPcs, setNewCountsAsPcs] = useState(true);
-    const [newProductionType, setNewProductionType] = useState<string>('NONE');
+    const [newProductionCategoryId, setNewProductionCategoryId] = useState<string>('');
 
     // Edit state
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
     const [editingParentId, setEditingParentId] = useState<string>('');
     const [editingCountsAsPcs, setEditingCountsAsPcs] = useState(true);
-    const [editingProductionType, setEditingProductionType] = useState<string>('NONE');
+    const [editingProductionCategoryId, setEditingProductionCategoryId] = useState<string>('');
 
     // Expand/collapse parent rows
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -57,6 +59,7 @@ export default function CategoriesPage() {
     const [deletingId, setDeletingId] = useState<number | null>(null);
 
     const { data: categoriesRaw = [], isLoading } = useQuery({ queryKey: ['categories'], queryFn: getCategories });
+    const { data: prodCats = [] } = useQuery({ queryKey: ['production-categories'], queryFn: getProductionCategories });
 
     const categories: Category[] = categoriesRaw;
 
@@ -69,7 +72,7 @@ export default function CategoriesPage() {
 
     const createMutation = useMutation({
         mutationFn: createCategory,
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); setNewProductionType('NONE'); }
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); setNewProductionCategoryId(''); }
     });
 
     const createSubMutation = useMutation({
@@ -83,7 +86,7 @@ export default function CategoriesPage() {
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string } }) => updateCategory(id, data),
+        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null } }) => updateCategory(id, data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setEditingId(null); }
     });
 
@@ -99,7 +102,7 @@ export default function CategoriesPage() {
             name: newName.trim(),
             parentId: newParentId ? Number(newParentId) : null,
             countsAsPcs: newCountsAsPcs,
-            productionType: newProductionType,
+            productionCategoryId: newProductionCategoryId ? Number(newProductionCategoryId) : null,
         });
     };
 
@@ -109,12 +112,12 @@ export default function CategoriesPage() {
         createSubMutation.mutate({ name: subName.trim(), parentId });
     };
 
-    const startEdit = (cat: Category | { id: number; name: string; parentId: number | null; countsAsPcs?: boolean; productionType?: string }) => {
+    const startEdit = (cat: Category | { id: number; name: string; parentId: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) => {
         setEditingId(cat.id);
         setEditingName(cat.name);
         setEditingParentId(cat.parentId ? String(cat.parentId) : '');
         setEditingCountsAsPcs(cat.countsAsPcs ?? true);
-        setEditingProductionType((cat as any).productionType ?? 'NONE');
+        setEditingProductionCategoryId((cat as any).productionCategoryId ? String((cat as any).productionCategoryId) : '');
         setDeletingId(null);
     };
 
@@ -126,7 +129,7 @@ export default function CategoriesPage() {
                 name: editingName.trim(),
                 parentId: editingParentId ? Number(editingParentId) : null,
                 countsAsPcs: editingCountsAsPcs,
-                productionType: editingProductionType,
+                productionCategoryId: editingProductionCategoryId ? Number(editingProductionCategoryId) : null,
             }
         });
     };
@@ -154,6 +157,10 @@ export default function CategoriesPage() {
                     { label: 'Kategori' },
                 ]}
             />
+
+            <div className="mb-5">
+                <ProductionCategoryManager />
+            </div>
 
             {/* Form Tambah Kategori */}
             <form onSubmit={handleCreate} className="mb-5 rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
@@ -205,15 +212,13 @@ export default function CategoriesPage() {
                     </span>
                 </label>
                 <select
-                    value={newProductionType}
-                    onChange={e => setNewProductionType(e.target.value)}
+                    value={newProductionCategoryId}
+                    onChange={e => setNewProductionCategoryId(e.target.value)}
                     className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm"
-                    title="Klasifikasi produksi untuk leaderboard operator"
+                    title="Kategori produksi untuk leaderboard operator"
                 >
-                    <option value="NONE">— Bukan kategori produksi —</option>
-                    <option value="BANNER">Produksi Banner</option>
-                    <option value="STIKER">Produksi Stiker</option>
-                    <option value="LASER_CUT">Produksi Laser Cut</option>
+                    <option value="">— Bukan kategori produksi —</option>
+                    {prodCats.map(pc => <option key={pc.id} value={pc.id}>{pc.name}</option>)}
                 </select>
             </form>
 
@@ -272,22 +277,20 @@ export default function CategoriesPage() {
                                                             className="h-3.5 w-3.5 accent-primary" />
                                                         hitung pcs
                                                     </label>
-                                                    <select value={editingProductionType} onChange={e => setEditingProductionType(e.target.value)}
+                                                    <select value={editingProductionCategoryId} onChange={e => setEditingProductionCategoryId(e.target.value)}
                                                         className="px-2 py-1 bg-background border border-border rounded-md text-xs outline-none"
-                                                        title="Tipe produksi (leaderboard operator)">
-                                                        <option value="NONE">non-produksi</option>
-                                                        <option value="BANNER">Banner</option>
-                                                        <option value="STIKER">Stiker</option>
-                                                        <option value="LASER_CUT">Laser Cut</option>
+                                                        title="Kategori produksi">
+                                                        <option value="">non-produksi</option>
+                                                        {prodCats.map(pc => <option key={pc.id} value={pc.id}>{pc.name}</option>)}
                                                     </select>
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-semibold text-foreground">{cat.name}</span>
                                                     {cat.countsAsPcs === false && <AddonBadge />}
-                                                    {(cat as any).productionType && (cat as any).productionType !== 'NONE' && (
+                                                    {cat.productionCategory && (
                                                         <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/20 text-[10px] font-semibold whitespace-nowrap">
-                                                            {(cat as any).productionType === 'BANNER' ? 'Banner' : (cat as any).productionType === 'STIKER' ? 'Stiker' : 'Laser Cut'}
+                                                            {cat.productionCategory.name}
                                                         </span>
                                                     )}
                                                     {children.length > 0 && (
@@ -402,9 +405,9 @@ export default function CategoriesPage() {
                                                                 <span className="text-sm text-foreground flex items-center gap-2">
                                                                     {child.name}
                                                                     {child.countsAsPcs === false && <AddonBadge />}
-                                                                    {(child as any).productionType && (child as any).productionType !== 'NONE' && (
+                                                                    {(child as any).productionCategory && (
                                                                         <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/20 text-[10px] font-semibold whitespace-nowrap">
-                                                                            {(child as any).productionType === 'BANNER' ? 'Banner' : (child as any).productionType === 'STIKER' ? 'Stiker' : 'Laser Cut'}
+                                                                            {(child as any).productionCategory.name}
                                                                         </span>
                                                                     )}
                                                                 </span>

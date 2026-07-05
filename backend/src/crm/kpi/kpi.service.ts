@@ -735,7 +735,7 @@ export class KpiService {
                 transactionItem: {
                     select: {
                         priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
-                        productVariant: { select: { product: { select: { category: { select: { productionType: true } } } } } },
+                        productVariant: { select: { product: { select: { category: { select: { productionCategoryId: true } } } } } },
                     },
                 },
             },
@@ -769,25 +769,31 @@ export class KpiService {
             acts.filter(a => DONE_STAGES.has(a.toStage) && (!allowedJobIds || allowedJobIds.has(a.jobId)))
                 .map(a => a.jobId),
         ));
-        // Kategori produksi yang di-breakdown di leaderboard operator.
-        const PROD_CATS = ['BANNER', 'STIKER', 'LASER_CUT'] as const;
-        type ProdCat = typeof PROD_CATS[number];
-        const emptyCats = () => ({
-            BANNER: { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 },
-            STIKER: { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 },
-            LASER_CUT: { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 },
+        // Kategori produksi (dinamis, bisa di-CRUD user) untuk breakdown per kategori.
+        // Tiap kategori punya `source` (CETAK vs PRODUKSI) yang menentukan dari antrian
+        // mana ia dihitung — sehingga tidak ada dobel (satu kategori = satu sumber).
+        const prodCatRows: any[] = await (this.prisma as any).productionCategory.findMany({
+            where: { isActive: true },
+            select: { id: true, source: true },
         });
-        // Tipe produksi kategori dari transactionItem (null jika bukan kategori produksi).
-        const catOf = (ti: any): ProdCat | null => {
-            const t = ti?.productVariant?.product?.category?.productionType;
-            return (t && (PROD_CATS as readonly string[]).includes(t)) ? (t as ProdCat) : null;
+        const prodCatSource = new Map<number, string>(prodCatRows.map(c => [c.id, c.source]));
+        type CatMetric = { jobs: number; pcs: number; areaM2: number; omzet: number };
+        // id ProductionCategory dari transactionItem (null jika bukan kategori produksi aktif).
+        const catIdOf = (ti: any): number | null => {
+            const id = ti?.productVariant?.product?.category?.productionCategoryId;
+            return (id && prodCatSource.has(id)) ? id : null;
         };
         // Luas total item (m²) = luas per-unit (areaCm2) × jumlah kopi (pcs).
         const areaM2Of = (ti: any) => (Number(ti?.areaCm2) || 0) / 10000 * (Number(ti?.pcs) || 1);
         const lineOmzet = (ti: any) => Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
+        const bump = (cats: Map<number, CatMetric>, id: number, m: CatMetric) => {
+            const c = cats.get(id) || { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 };
+            c.jobs += m.jobs; c.pcs += m.pcs; c.areaM2 += m.areaM2; c.omzet += m.omzet;
+            cats.set(id, c);
+        };
 
         // Info per production job selesai (omzet + kategori + pcs + luas) untuk breakdown.
-        const prodJobInfo = new Map<number, { omzet: number; cat: ProdCat | null; pcs: number; areaM2: number }>();
+        const prodJobInfo = new Map<number, { omzet: number; catId: number | null; pcs: number; areaM2: number }>();
         if (doneJobIds.length) {
             const pj: any[] = await (this.prisma as any).productionJob.findMany({
                 where: { id: { in: doneJobIds } },
@@ -796,7 +802,7 @@ export class KpiService {
                     transactionItem: {
                         select: {
                             priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
-                            productVariant: { select: { product: { select: { category: { select: { productionType: true } } } } } },
+                            productVariant: { select: { product: { select: { category: { select: { productionCategoryId: true } } } } } },
                         },
                     },
                 },
@@ -805,17 +811,17 @@ export class KpiService {
                 const ti = j.transactionItem;
                 prodJobInfo.set(j.id, {
                     omzet: ti ? lineOmzet(ti) : 0,
-                    cat: catOf(ti),
+                    catId: catIdOf(ti),
                     pcs: Number(ti?.quantity) || (Number(ti?.pcs) || 1),
                     areaM2: areaM2Of(ti),
                 });
             }
         }
 
-        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDone: number; prodDoneJobs: Set<number>; cats: ReturnType<typeof emptyCats> };
+        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDone: number; prodDoneJobs: Set<number>; cats: Map<number, CatMetric> };
         const map = new Map<string, Row>();
         const ensure = (n: string) => {
-            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDone: 0, prodDoneJobs: new Set(), cats: emptyCats() });
+            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDone: 0, prodDoneJobs: new Set(), cats: new Map() });
             return map.get(n)!;
         };
 
@@ -827,14 +833,10 @@ export class KpiService {
             e.printPcs += Number(p.quantity) || 0;
             const ti = p.transactionItem;
             if (ti) e.printOmzet += Number(ti.priceAtTime || 0) * (Number(ti.quantity) || 1);
-            // Breakdown Banner: dihitung dari bahan cetak (antrian cetak).
-            const pcat = catOf(ti);
-            if (pcat === 'BANNER') {
-                const c = e.cats.BANNER;
-                c.jobs++;
-                c.pcs += Number(p.quantity) || 0;
-                c.areaM2 += areaM2Of(ti);
-                c.omzet += lineOmzet(ti);
+            // Breakdown: kategori bersumber CETAK dihitung dari antrian cetak.
+            const cid = catIdOf(ti);
+            if (cid && prodCatSource.get(cid) === 'CETAK') {
+                bump(e.cats, cid, { jobs: 1, pcs: Number(p.quantity) || 0, areaM2: areaM2Of(ti), omzet: lineOmzet(ti) });
             }
         }
         for (const a of acts) {
@@ -854,16 +856,14 @@ export class KpiService {
                     const info = prodJobInfo.get(id);
                     if (!info) continue;
                     prodOmzet += info.omzet;
-                    // Banner sengaja dihitung dari antrian cetak saja (hindari dobel).
-                    if (info.cat && info.cat !== 'BANNER') {
-                        const c = e.cats[info.cat];
-                        c.jobs++;
-                        c.pcs += info.pcs;
-                        c.areaM2 += info.areaM2;
-                        c.omzet += info.omzet;
+                    // Breakdown: kategori bersumber PRODUKSI dihitung dari antrian produksi.
+                    if (info.catId && prodCatSource.get(info.catId) === 'PRODUKSI') {
+                        bump(e.cats, info.catId, { jobs: 1, pcs: info.pcs, areaM2: info.areaM2, omzet: info.omzet });
                     }
                 }
-                const cats = e.cats;
+                // Breakdown per kategori → objek keyed by id ProductionCategory.
+                const production: Record<string, CatMetric> = {};
+                for (const [id, c] of e.cats) production[id] = { ...c, areaM2: round2(c.areaM2) };
                 return {
                     name: e.name,
                     printJobs: e.printJobs,
@@ -874,12 +874,7 @@ export class KpiService {
                     prodOmzet,
                     omzet: e.printOmzet + prodOmzet,
                     total: e.printJobs + e.prodJobs.size,
-                    // Breakdown produksi per kategori (Banner dari cetak; Stiker/Laser dari kanban):
-                    production: {
-                        BANNER: { ...cats.BANNER, areaM2: round2(cats.BANNER.areaM2) },
-                        STIKER: { ...cats.STIKER, areaM2: round2(cats.STIKER.areaM2) },
-                        LASER_CUT: { ...cats.LASER_CUT, areaM2: round2(cats.LASER_CUT.areaM2) },
-                    },
+                    production,
                 };
             })
             .sort((a, b) => b.omzet - a.omzet || b.total - a.total || b.printPcs - a.printPcs);

@@ -631,11 +631,8 @@ export interface OperatorLeaderboardEntry {
     prodOmzet: number;   // omzet dari job produksi yang selesai (Rp)
     omzet: number;       // printOmzet + prodOmzet (total)
     total: number;       // printJobs + prodJobs (jumlah job)
-    production?: {        // breakdown produksi per kategori (Banner dari cetak; Stiker/Laser dari kanban)
-        BANNER: { jobs: number; pcs: number; areaM2: number; omzet: number };
-        STIKER: { jobs: number; pcs: number; areaM2: number; omzet: number };
-        LASER_CUT: { jobs: number; pcs: number; areaM2: number; omzet: number };
-    };
+    // breakdown produksi per kategori — keyed by id ProductionCategory (dinamis)
+    production?: Record<string, { jobs: number; pcs: number; areaM2: number; omzet: number }>;
 }
 
 export const getOperatorLeaderboard = async (params: {

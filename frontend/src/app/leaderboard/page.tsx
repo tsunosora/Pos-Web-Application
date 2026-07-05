@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     getKpiReport, getDesignerLeaderboard, getDesignOutput, getOperatorLeaderboard,
+    getProductionCategories, type ProductionCategory,
     type KpiPeriod, type KpiLeaderboardEntry, type DesignCheckEntry,
     type DesignerLeaderboardEntry, type DesignOutputEntry, type OperatorLeaderboardEntry,
 } from "@/lib/api";
@@ -124,6 +125,7 @@ export default function LeaderboardPage() {
     const designer = useQuery({ queryKey: ["lb-designer", common], queryFn: () => getDesignerLeaderboard(common as any) });
     const designOut = useQuery({ queryKey: ["lb-designout", common], queryFn: () => getDesignOutput(common as any) });
     const operatorQ = useQuery({ queryKey: ["lb-operator", common], queryFn: () => getOperatorLeaderboard(common as any) });
+    const prodCatsQ = useQuery({ queryKey: ["lb-prodcats"], queryFn: getProductionCategories });
 
     const showCS = divisi === "Semua" || (divisi !== "Designer" && divisi !== "Operator");
     const showDesigner = divisi === "Semua" || divisi === "Designer";
@@ -428,30 +430,37 @@ export default function LeaderboardPage() {
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div className="overflow-x-auto mt-4">
-                                        <div className="text-xs font-semibold text-muted-foreground mb-1">Breakdown Produksi per Kategori <span className="font-normal">(job · luas/pcs · omzet)</span></div>
-                                        <table className="w-full text-sm min-w-[820px]">
-                                            <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                                <Th>Operator</Th><Th right>Banner (job · m² · Rp)</Th><Th right>Stiker (job · m² · Rp)</Th><Th right>Laser Cut (job · pcs · Rp)</Th>
-                                            </tr></thead>
-                                            <tbody>
-                                                {opRows.map((r, i) => {
-                                                    const b = r.production?.BANNER, s = r.production?.STIKER, l = r.production?.LASER_CUT;
-                                                    const cell = (c?: { jobs: number; pcs: number; areaM2: number; omzet: number }, useArea = true) =>
-                                                        !c || c.jobs === 0 ? '—'
-                                                            : `${c.jobs} · ${useArea ? fmtM2(c.areaM2) : `${c.pcs || 0} pcs`} · ${fmtRp(c.omzet)}`;
-                                                    return (
-                                                        <tr key={r.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
-                                                            <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
-                                                            <td className="py-2 px-2 text-right font-mono text-lime-600 dark:text-lime-300">{cell(b, true)}</td>
-                                                            <td className="py-2 px-2 text-right font-mono text-pink-600 dark:text-pink-300">{cell(s, true)}</td>
-                                                            <td className="py-2 px-2 text-right font-mono text-orange-600 dark:text-orange-300">{cell(l, false)}</td>
-                                                        </tr>
-                                                    );
-                                                })}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                    {(prodCatsQ.data ?? []).length > 0 && (
+                                        <div className="overflow-x-auto mt-4">
+                                            <div className="text-xs font-semibold text-muted-foreground mb-1">Breakdown Produksi per Kategori <span className="font-normal">(job · luas/pcs · omzet)</span></div>
+                                            <table className="w-full text-sm min-w-[760px]">
+                                                <thead><tr className="text-xs text-muted-foreground border-b border-border">
+                                                    <Th>Operator</Th>
+                                                    {(prodCatsQ.data ?? []).map((pc: ProductionCategory) => (
+                                                        <Th key={pc.id} right>{pc.name} <span className="font-normal">(job · {pc.measureBy === 'PCS' ? 'pcs' : 'm²'} · Rp)</span></Th>
+                                                    ))}
+                                                </tr></thead>
+                                                <tbody>
+                                                    {opRows.map((r, i) => {
+                                                        const cell = (pc: ProductionCategory) => {
+                                                            const c = r.production?.[String(pc.id)];
+                                                            if (!c || c.jobs === 0) return '—';
+                                                            const measure = pc.measureBy === 'PCS' ? `${c.pcs || 0} pcs` : fmtM2(c.areaM2);
+                                                            return `${c.jobs} · ${measure} · ${fmtRp(c.omzet)}`;
+                                                        };
+                                                        return (
+                                                            <tr key={r.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
+                                                                <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
+                                                                {(prodCatsQ.data ?? []).map((pc: ProductionCategory) => (
+                                                                    <td key={pc.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{cell(pc)}</td>
+                                                                ))}
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                     <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzet }))} label="Omzet operator (cetak + produksi)" money />
                                 </>
                             )}
@@ -461,7 +470,7 @@ export default function LeaderboardPage() {
                                 <p><b>Omzet</b> = nilai line item dari pekerjaannya — dari <b>job cetak</b> (semua yang selesai dicetak) <i>+</i> <b>job produksi</b> yang ia bawa sampai KIRIM/SELESAI (dihitung sekali per job). Dasar peringkat.</p>
                                 <p className="text-[11px] italic">Omzet bisa beririsan dengan divisi lain (CS/designer) — ini kredit kontribusi tim per tahap, bukan penjumlahan omzet toko.</p>
                                 <p><b>Total Job</b> = Cetak + Produksi. Operator dicocokkan berdasarkan <b>nama</b> yang ia isi saat login board/cetak.</p>
-                                <p><b>Breakdown per kategori</b>: <b>Banner</b> dihitung dari <b>bahan cetak</b> (antrian cetak). <b>Stiker</b> (penempelan pada media + laminasi) &amp; <b>Laser Cut</b> dari antrian produksi (kanban), dihitung sekali per job saat selesai (KIRIM/SELESAI). Kategori ditandai lewat <b>Manajemen Kategori → Tipe Produksi</b>. <b>m²</b> = total luas item, <b>Rp</b> = nilai line item.</p>
+                                <p><b>Breakdown per kategori</b>: tiap <b>kategori produksi</b> (bisa ditambah/edit/hapus di <b>Manajemen Kategori → Kategori Produksi</b>) punya <b>sumber</b> sendiri — <b>Cetak</b> (dihitung dari bahan cetak/antrian cetak) atau <b>Produksi</b> (dari antrian produksi/kanban, sekali per job saat KIRIM/SELESAI). Kategori dilekatkan ke kategori barang lewat pilihan <b>Tipe Produksi</b>. Satuan mengikuti setelan kategori: <b>m²</b> (luas) atau <b>pcs</b>. <b>Rp</b> = nilai line item.</p>
                                 <p className="text-[11px] italic">Produksi terhitung dari kedua board: kanban /produksi/board maupun antrian /produksi (mode-status) — keduanya kini mencatat nama operator saat menyelesaikan job.</p>
                             </CaraHitung>
                         </SectionCard>

@@ -86,9 +86,9 @@ model Category {
   // false = item kategori ini TIDAK dihitung di metrik pcs (add-on/komponen
   // seperti kerah/lengan yang menempel ke produk utama, bukan barang terpisah)
   countsAsPcs    Boolean              @default(true) @map("counts_as_pcs")
-  // Klasifikasi produksi utk leaderboard operator (Banner/Stiker/Laser Cut).
-  // NONE = tidak masuk breakdown produksi per-kategori.
-  productionType CategoryProductionType @default(NONE) @map("production_type")
+  // Klasifikasi produksi utk leaderboard operator (Banner/Stiker/Laser Cut, dst).
+  // FK ke ProductionCategory yang bisa di-CRUD user. null = bukan kategori produksi.
+  productionCategoryId Int?           @map("production_category_id")
   products       Product[]
   opnameSessions StockOpnameSession[]
   createdAt      DateTime?            @default(now()) @map("created_at")
@@ -96,6 +96,7 @@ model Category {
 
   parent   Category?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
   children Category[] @relation("SubCategories")
+  productionCategory ProductionCategory? @relation(fields: [productionCategoryId], references: [id], onDelete: SetNull)
 
   @@map("categories")
 }
@@ -253,11 +254,32 @@ enum ProductType {
   SERVICE
 }
 
-enum CategoryProductionType {
-  NONE       // bukan kategori produksi yang dihitung di leaderboard operator
-  BANNER     // dihitung dari bahan cetak (antrian cetak)
-  STIKER     // penempelan stiker pada media + laminasi (tahap assembly)
-  LASER_CUT  // pekerjaan laser cutting
+// Sumber perhitungan sebuah kategori produksi di leaderboard operator.
+enum ProductionSource {
+  CETAK      // dihitung dari bahan cetak (antrian cetak / PrintJob)
+  PRODUKSI   // dihitung dari antrian produksi (kanban / ProductionJobActivity)
+}
+
+// Satuan ukur utama sebuah kategori produksi (untuk tampilan leaderboard).
+enum ProductionMeasure {
+  AREA       // luas (m²)
+  PCS        // pcs / lembar
+}
+
+// Jenis produksi yang bisa DITAMBAH/EDIT/HAPUS user (Banner, Stiker, Laser Cut, dst).
+// Dipakai untuk breakdown produksi per kategori di leaderboard operator.
+model ProductionCategory {
+  id         Int               @id @default(autoincrement())
+  name       String            @unique @db.VarChar(100)
+  source     ProductionSource  @default(PRODUKSI)
+  measureBy  ProductionMeasure @default(AREA) @map("measure_by")
+  isActive   Boolean           @default(true) @map("is_active")
+  sortOrder  Int               @default(0) @map("sort_order")
+  categories Category[]
+  createdAt  DateTime?         @default(now()) @map("created_at")
+  updatedAt  DateTime?         @default(now()) @updatedAt @map("updated_at")
+
+  @@map("production_categories")
 }
 
 model StockMovement {

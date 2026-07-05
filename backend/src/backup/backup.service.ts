@@ -14,7 +14,7 @@ const AdmZip = require('adm-zip');
 export const BACKUP_GROUPS = {
     master: {
         label: 'Master Data',
-        tables: ['role', 'category', 'unit', 'storeSettings', 'bankAccount', 'branch', 'discordConfig'],
+        tables: ['role', 'productionCategory', 'category', 'unit', 'storeSettings', 'bankAccount', 'branch', 'discordConfig'],
     },
     branches: {
         label: 'Cabang & Pengaturan Cabang',
@@ -115,7 +115,7 @@ export function storeSlug(name?: string | null): string {
 
 // Urutan restore — penting untuk FK integrity
 const RESTORE_ORDER = [
-    'role', 'storeSettings', 'discordConfig', 'category', 'unit', 'branch', 'competitor',
+    'role', 'storeSettings', 'discordConfig', 'productionCategory', 'category', 'unit', 'branch', 'competitor',
     'companyBranch',                            // tenant root — sebelum semua model operasional ber-branchId
     'bankAccount',                              // FK → companyBranch
     'branchSettings',                           // FK → companyBranch
