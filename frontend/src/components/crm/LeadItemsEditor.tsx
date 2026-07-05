@@ -9,7 +9,7 @@ import { Plus, X, Search, Package } from "lucide-react";
  * Hitung subtotal item — AREA_BASED kalau widthCm & heightCm ter-isi (heuristic
  * sederhana, tidak perlu lookup pricingMode). Formula:
  *   AREA_BASED: qty × area(m²) × unitPrice (unitPrice = harga per m²)
- *               area = unitType 'm' ? w×h : w×h/10000 (default cm)
+ *               area = unitType 'm' ? w×h : 'menit' ? w : w×h/10000 (default cm)
  *   UNIT      : qty × unitPrice
  */
 export function calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null; unitType?: string | null }): number {
@@ -17,6 +17,9 @@ export function calcItemSubtotal(item: { quantity?: number; unitPrice?: number; 
     const price = Number(item.unitPrice) || 0;
     const w = Number(item.widthCm) || 0;
     const h = Number(item.heightCm) || 0;
+    if (item.unitType === "menit" && w > 0) {
+        return qty * w * price;
+    }
     if (w > 0 && h > 0) {
         const areaM2 = item.unitType === "m" ? w * h : (w * h) / 10000;
         return qty * areaM2 * price;

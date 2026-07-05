@@ -254,6 +254,7 @@ export class LeadsService {
      * Hitung subtotal item — AREA_BASED kalau widthCm & heightCm ter-isi.
      * Formula:
      *   AREA_BASED: qty × (w × h / 10000) × unitPrice  (unitPrice = harga per m²)
+     *   MENIT     : qty × w × unitPrice  (durasi/jumlah di widthCm, harga per menit)
      *   UNIT      : qty × unitPrice
      */
     private calcItemSubtotal(item: { quantity?: number; unitPrice?: number; widthCm?: number | null; heightCm?: number | null; unitType?: string | null }): number {
@@ -261,6 +262,10 @@ export class LeadsService {
         const price = Number(item.unitPrice) || 0;
         const w = Number(item.widthCm) || 0;
         const h = Number(item.heightCm) || 0;
+        if (item.unitType === 'menit' && w > 0) {
+            // menit = kuantitas langsung (durasi di widthCm, heightCm null): qty × durasi × harga
+            return qty * w * price;
+        }
         if (w > 0 && h > 0) {
             // unitType 'm' → angka sudah meter; selain itu (cm/default) → bagi 10000.
             const areaM2 = item.unitType === 'm' ? (w * h) : (w * h) / 10000;
@@ -950,8 +955,10 @@ export class LeadsService {
                     items: txItems.map((it: any) => {
                         const w = Number(it.widthCm) || 0;
                         const h = Number(it.heightCm) || 0;
-                        const isArea = w > 0 && h > 0;
-                        const areaM2 = isArea ? (it.unitType === 'm' ? (w * h) : (w * h) / 10000) : 0;
+                        // menit = kuantitas langsung (durasi di widthCm, heightCm null) → areaM2 = w
+                        const isMenit = it.unitType === 'menit' && w > 0;
+                        const isArea = isMenit || (w > 0 && h > 0);
+                        const areaM2 = isMenit ? w : (isArea ? (it.unitType === 'm' ? (w * h) : (w * h) / 10000) : 0);
                         const qty = Number(it.quantity) || 1;
                         const uPrice = Number(it.unitPrice) || 0;
 
@@ -1183,20 +1190,25 @@ export class LeadsService {
             const invItems = leadItems.map((it: any) => {
                 const productName = it.productVariant?.product?.name || it.description;
                 const variantName = it.productVariant?.variantName;
-                const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
-                const unitLabel = it.unitType === 'm' ? 'm' : 'cm';
-                const areaNote = it.unitType === 'm' ? (Number(it.widthCm) * Number(it.heightCm)) : (Number(it.widthCm) * Number(it.heightCm)) / 10000;
-                const sizeNote = isArea ? ` (${it.widthCm}×${it.heightCm}${unitLabel} = ${areaNote.toFixed(2)}m²)` : '';
+                const iw = Number(it.widthCm) || 0;
+                const ih = Number(it.heightCm) || 0;
+                // menit = kuantitas langsung (durasi di widthCm, heightCm null) → areaM2 = w
+                const isMenit = it.unitType === 'menit' && iw > 0;
+                const isArea = isMenit || (iw > 0 && ih > 0);
+                const unitLabel = it.unitType === 'm' ? 'm' : (it.unitType === 'menit' ? 'menit' : 'cm');
+                const areaM2 = isMenit ? iw : (it.unitType === 'm' ? (iw * ih) : (iw * ih) / 10000);
+                const sizeNote = isArea
+                    ? (isMenit ? ` (${it.widthCm} ${unitLabel})` : ` (${it.widthCm}×${it.heightCm}${unitLabel} = ${areaM2.toFixed(2)}m²)`)
+                    : '';
                 const descParts = [productName, variantName].filter(Boolean).join(' - ');
 
                 let invQty = Number(it.quantity) || 1;
                 let invPrice = Number(it.unitPrice) || 0;
                 let unit = it.unitType || 'pcs';
                 if (isArea) {
-                    // Compress: per-qty price = area(m²) × pricePerM2 (honor unitType)
-                    const areaM2 = it.unitType === 'm' ? (Number(it.widthCm) * Number(it.heightCm)) : (Number(it.widthCm) * Number(it.heightCm)) / 10000;
+                    // Compress: per-qty price = area(m²)/durasi × pricePerUnit (honor unitType)
                     invPrice = areaM2 * invPrice;
-                    unit = 'pcs'; // invoice item per-pcs (sudah include area)
+                    unit = 'pcs'; // invoice item per-pcs (sudah include area/durasi)
                 }
                 return {
                     description: `${descParts || it.description}${sizeNote}`,

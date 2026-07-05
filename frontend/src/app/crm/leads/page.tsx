@@ -1341,14 +1341,14 @@ function LeadDetailDrawer({
                                                         <span className="text-[9px] text-emerald-600">✓ katalog · {it.productVariant?.sku}</span>
                                                     )}
                                                     {it.widthCm && it.heightCm && (
-                                                        <span className="text-[9px] text-muted-foreground ml-1">· {it.widthCm}×{it.heightCm}cm</span>
+                                                        <span className="text-[9px] text-muted-foreground ml-1">· {it.widthCm}×{it.heightCm}{it.unitType === 'm' ? 'm' : 'cm'}</span>
                                                     )}
                                                 </td>
                                                 <td className="py-1.5 px-1 text-right font-mono">
                                                     {it.quantity}
                                                     {isArea && (
                                                         <div className="text-[9px] text-muted-foreground">
-                                                            ×{((Number(it.widthCm) * Number(it.heightCm)) / 10000).toFixed(2)}m²
+                                                            ×{(it.unitType === 'm' ? Number(it.widthCm) * Number(it.heightCm) : (Number(it.widthCm) * Number(it.heightCm)) / 10000).toFixed(2)}m²
                                                         </div>
                                                     )}
                                                 </td>
@@ -2050,18 +2050,11 @@ function ConvertModal({
     const [bankAccountId, setBankAccountId] = useState<string>("");
     const [marketplaceFee, setMarketplaceFee] = useState<string>("");
 
-    // Estimasi total dari item order (yang sedang diedit)
+    // Estimasi total dari item order (yang sedang diedit).
+    // Pakai helper bersama calcItemSubtotal supaya konsisten dgn subtotal lead &
+    // menghormati unitType (m / cm / menit) — sebelumnya selalu /10000 (asumsi cm).
     const itemsEstimate = useMemo(() => {
-        return convItems.reduce((sum, it) => {
-            const isArea = Number(it.widthCm) > 0 && Number(it.heightCm) > 0;
-            const qty = Number(it.quantity) || 1;
-            const price = Number(it.unitPrice) || 0;
-            if (isArea) {
-                const areaM2 = (Number(it.widthCm) * Number(it.heightCm)) / 10000;
-                return sum + Math.round(areaM2 * price * qty);
-            }
-            return sum + Math.round(price * qty);
-        }, 0);
+        return convItems.reduce((sum, it) => sum + Math.round(calcItemSubtotal(it)), 0);
     }, [convItems]);
 
     // Designers list untuk picker

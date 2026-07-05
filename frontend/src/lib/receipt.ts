@@ -340,8 +340,12 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
       let u = item.unitType || 'm';
       let w = Number(item.widthCm || 0);
       let h = Number(item.heightCm || 1);
+      // areaCm2 = nilai otoritatif dari backend (selalu m²×10000). Utamakan ini
+      // supaya nota tetap benar walau unitType/dimensi mentah pernah tersimpan
+      // tidak konsisten (mis. data lama sebelum unitType disimpan saat edit).
       let areaM2 = 0;
-      if (u === 'm') areaM2 = w * h;
+      if (item.areaCm2 != null && Number(item.areaCm2) > 0) areaM2 = Number(item.areaCm2) / 10000;
+      else if (u === 'm') areaM2 = w * h;
       else if (u === 'cm') areaM2 = (w * h) / 10000;
       else if (u === 'menit') areaM2 = w;
 

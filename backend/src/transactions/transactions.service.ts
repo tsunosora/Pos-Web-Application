@@ -384,7 +384,15 @@ export class TransactionsService {
 
                     lineTotal = priceMultiplier * resolvedPrice * pcs;
                     // Admin custom price override for AREA_BASED mode (overrides full line total)
-                    if (item.customPrice != null) lineTotal = item.customPrice;
+                    let areaPriceAtTime = resolvedPrice; // per-m² yang disimpan ke priceAtTime
+                    if (item.customPrice != null) {
+                        lineTotal = item.customPrice;
+                        // Turunkan per-m² efektif dari customPrice supaya nota
+                        // (priceAtTime × area × pcs) menjumlah TEPAT ke total tertagih
+                        // (mis. harga nego dari CRM lead / override admin). Tanpa ini
+                        // priceAtTime tetap harga katalog → baris nota tak = grandTotal.
+                        if (areaM2 > 0 && pcs > 0) areaPriceAtTime = item.customPrice / (areaM2 * pcs);
+                    }
 
                     if (!requiresProduction && trackStock) {
                         // Multi-cabang: stok DIKURANGI dari cabang PELAKSANA (productionBranchId).
@@ -420,7 +428,7 @@ export class TransactionsService {
                     transactionItemsData.push({
                         productVariantId: variant.id,
                         quantity: 1,
-                        priceAtTime: resolvedPrice,  // per-m² price (total derived from priceAtTime × area × pcs)
+                        priceAtTime: areaPriceAtTime,  // per-m² price (total derived from priceAtTime × area × pcs)
                         hppAtTime: resolvedHpp,
                         widthCm,
                         heightCm,
@@ -1804,6 +1812,7 @@ export class TransactionsService {
 
             let lineTotal = 0;
             let unitResolvedPrice = 0; // per-unit price for UNIT mode (for priceAtTime storage)
+            let overrideAreaPriceAtTime: number | null = null; // per-m² efektif kalau ada override area
             let widthCm: number | null = null;
             let heightCm: number | null = null;
             let areaCm2: number | null = null;
@@ -1823,6 +1832,10 @@ export class TransactionsService {
                 areaCm2 = areaM2 * 10000;
                 const itemPcs = Math.max(1, editItem.pcs ?? 1);
                 lineTotal = editItem.priceOverride != null ? editItem.priceOverride : priceMultiplier * Number(variant.price) * itemPcs;
+                // Kalau ada override, simpan per-m² efektif supaya nota (priceAtTime × area × pcs) = total.
+                if (editItem.priceOverride != null && areaM2 > 0 && itemPcs > 0) {
+                    overrideAreaPriceAtTime = editItem.priceOverride / (areaM2 * itemPcs);
+                }
 
                 if (trackStock) {
                     await this._assertBranchStock(tx, editTxBranchId, variant.id, areaM2, product.name);
@@ -1882,10 +1895,13 @@ export class TransactionsService {
                 hppAtTime = variantIngredients.reduce((s: number, ing: any) => s + Number(ing.price) * Number(ing.quantity), 0);
             }
 
-            // Store per-m² price for AREA_BASED, per-unit price for UNIT (consistent with original checkout)
-            const itemPriceAtTime = pricingMode === 'AREA_BASED' ? Number(variant.price) : unitResolvedPrice;
+            // Store per-m² price for AREA_BASED, per-unit price for UNIT (consistent with original checkout).
+            // Kalau override area, pakai per-m² efektif supaya nota menjumlah tepat.
+            const itemPriceAtTime = overrideAreaPriceAtTime != null
+                ? overrideAreaPriceAtTime
+                : (pricingMode === 'AREA_BASED' ? Number(variant.price) : unitResolvedPrice);
             const newTxItem = await tx.transactionItem.create({
-                data: { transactionId, productVariantId: variant.id, quantity: qty, priceAtTime: itemPriceAtTime, hppAtTime, widthCm, heightCm, areaCm2, pcs: pricingMode === 'AREA_BASED' ? Math.max(1, editItem.pcs ?? 1) : 1 }
+                data: { transactionId, productVariantId: variant.id, quantity: qty, priceAtTime: itemPriceAtTime, hppAtTime, widthCm, heightCm, areaCm2, unitType: pricingMode === 'AREA_BASED' ? (editItem.unitType || 'm') : null, pcs: pricingMode === 'AREA_BASED' ? Math.max(1, editItem.pcs ?? 1) : 1 }
             });
 
             // Create production job if product requires production
@@ -1991,13 +2007,17 @@ export class TransactionsService {
 
                 const newPcs = Math.max(1, editItem.pcs ?? 1);
                 const newLineTotal = editItem.priceOverride != null ? editItem.priceOverride : newPriceMultiplier * Number(variant.price) * newPcs;
-                // Store per-m² price in priceAtTime (consistent with original checkout format)
-                // The total is derived from priceAtTime × area × pcs at display/calculation time
-                const storedPriceAtTime = Number(variant.price);
+                // Store per-m² price in priceAtTime (consistent with original checkout format).
+                // The total is derived from priceAtTime × area × pcs at display/calculation time.
+                // Kalau ada override, turunkan per-m² efektif supaya nota menjumlah tepat ke total.
+                let storedPriceAtTime = Number(variant.price);
+                if (editItem.priceOverride != null && newAreaM2 > 0 && newPcs > 0) {
+                    storedPriceAtTime = editItem.priceOverride / (newAreaM2 * newPcs);
+                }
 
                 await tx.transactionItem.update({
                     where: { id: txItem.id },
-                    data: { widthCm: newW, heightCm: newH, areaCm2: newAreaCm2, priceAtTime: storedPriceAtTime, pcs: newPcs }
+                    data: { widthCm: newW, heightCm: newH, areaCm2: newAreaCm2, unitType, priceAtTime: storedPriceAtTime, pcs: newPcs }
                 });
 
                 // Recreate production job if product requires production (old job may have been deleted or was missing)

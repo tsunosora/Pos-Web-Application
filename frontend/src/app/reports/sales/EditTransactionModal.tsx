@@ -49,12 +49,30 @@ function calcLineTotal(item: EditItem): number {
         const pcs = Math.max(1, item.pcs || 1);
         let mult = 0;
         if (item.unitType === 'm') mult = w * h;
-        else if (item.unitType === 'cm') mult = w * h;
+        else if (item.unitType === 'cm') mult = (w * h) / 10000; // cm² → m², konsisten dgn cart-store/backend/receipt
         else if (item.unitType === 'menit') mult = w;
         else mult = (w * h) / 10000;
         return mult * item.priceAtTime * pcs;
     }
     return item.priceAtTime * item.quantity;
+}
+
+// Simpulkan unitType untuk item area LAMA yang unitType-nya null (dibuat sebelum
+// kolom unitType disimpan). JANGAN default 'm' — itu membuat calcLineTotal &
+// backend menghitung w*h TANPA /10000 → total & stok meledak ~10.000×.
+// Pakai areaCm2 (otoritatif) sebagai penentu; default aman 'cm'.
+function inferUnitType(item: any): string {
+    if (item.unitType) return item.unitType;
+    const w = Number(item.widthCm) || 0;
+    // Pola 'menit': durasi disimpan di widthCm, heightCm null.
+    if (w > 0 && (item.heightCm === null || item.heightCm === undefined)) return 'menit';
+    const h = Number(item.heightCm) || 0;
+    const areaCm2 = item.areaCm2 != null ? Number(item.areaCm2) : null;
+    if (areaCm2 && areaCm2 > 0 && w > 0 && h > 0) {
+        // (w×h)×10000 ≈ areaCm2 → nilai dalam meter; kalau w×h ≈ areaCm2 → cm.
+        if (Math.abs(w * h * 10000 - areaCm2) / areaCm2 < 0.02) return 'm';
+    }
+    return 'cm';
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -75,7 +93,7 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
             widthCm: item.widthCm !== null ? Number(item.widthCm) : null,
             heightCm: item.heightCm !== null ? Number(item.heightCm) : null,
             areaCm2: item.areaCm2 !== null ? Number(item.areaCm2) : null,
-            unitType: item.unitType || 'm',
+            unitType: inferUnitType(item),
             pricingMode: item.widthCm !== null ? 'AREA_BASED' : 'UNIT',
             remove: false,
             isNew: false,
@@ -151,7 +169,20 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
     const directEditMutation = useMutation({
         mutationFn: () => editTransaction(transaction.id, { items: buildPayload(), discount, customerName, customerPhone, customerAddress }),
         onSuccess: (updated) => {
-            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            // Tulis hasil server ke cache SEKETIKA supaya grandTotal/sisa langsung
+            // benar tanpa menunggu refetch (yang tertahan staleTime 60s + cache
+            // persist IndexedDB). Tanpa ini, tampilan basi sampai user refresh
+            // berkali-kali. Patch semua varian query ['transactions', ...].
+            if (updated?.id) {
+                queryClient.setQueriesData({ queryKey: ['transactions'] }, (old: any) =>
+                    Array.isArray(old)
+                        ? old.map((t: any) => (t.id === updated.id ? { ...t, ...updated } : t))
+                        : old
+                );
+            }
+            // Cache ['transactions'] sudah dipatch dgn `updated` di atas — tandai stale
+            // saja (refetch saat mount berikutnya), tanpa fetch ulang seketika.
+            queryClient.invalidateQueries({ queryKey: ['transactions'], refetchType: 'none' });
             queryClient.invalidateQueries({ queryKey: ['salesSummary'] });
             // Stok & pergerakan stok bisa berubah karena edit (remove/add/ubah qty item).
             queryClient.invalidateQueries({ queryKey: ['products'] });

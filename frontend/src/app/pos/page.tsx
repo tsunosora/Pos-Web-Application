@@ -264,10 +264,12 @@ function POSPageContent() {
             const variant = product.variants.find((v: any) => v.id === it.productVariantId);
             if (!variant) continue;
 
-            if (product.pricingMode === 'AREA_BASED' && it.widthCm && it.heightCm) {
+            // Item 'menit' disimpan tanpa heightCm (null) — tetap perlakukan sebagai area,
+            // jangan sampai jatuh ke cabang UNIT. computeAreaPrice mengabaikan height utk 'menit'.
+            if (product.pricingMode === 'AREA_BASED' && it.widthCm && (it.heightCm || it.unitType === 'menit')) {
                 addItem(product, variant, {
                     widthCm: Number(it.widthCm),
-                    heightCm: Number(it.heightCm),
+                    heightCm: it.unitType === 'menit' ? 1 : Number(it.heightCm),
                     unitType: (it.unitType as 'm' | 'cm' | 'menit') || 'cm',
                     note: it.note || undefined,
                     pcs: it.pcs ? Number(it.pcs) : 1,
