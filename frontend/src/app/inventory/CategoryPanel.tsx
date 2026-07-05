@@ -11,8 +11,9 @@ interface Category {
     name: string;
     parentId: number | null;
     countsAsPcs: boolean;
+    productionType?: string;
     parent: { id: number; name: string } | null;
-    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean }[];
+    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean; productionType?: string }[];
 }
 
 function AddonBadge() {
@@ -38,11 +39,13 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
     const [newName, setNewName] = useState('');
     const [newParentId, setNewParentId] = useState<string>('');
     const [newCountsAsPcs, setNewCountsAsPcs] = useState(true);
+    const [newProductionType, setNewProductionType] = useState<string>('NONE');
 
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
     const [editingParentId, setEditingParentId] = useState<string>('');
     const [editingCountsAsPcs, setEditingCountsAsPcs] = useState(true);
+    const [editingProductionType, setEditingProductionType] = useState<string>('NONE');
 
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
     const [addSubFor, setAddSubFor] = useState<number | null>(null);
@@ -58,7 +61,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
 
     const createMutation = useMutation({
         mutationFn: createCategory,
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); }
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); setNewProductionType('NONE'); }
     });
     const createSubMutation = useMutation({
         mutationFn: createCategory,
@@ -69,7 +72,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
         }
     });
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean } }) => updateCategory(id, data),
+        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string } }) => updateCategory(id, data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setEditingId(null); }
     });
     const deleteMutation = useMutation({
@@ -80,21 +83,22 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
     const handleCreate = (e: React.FormEvent) => {
         e.preventDefault();
         if (!newName.trim()) return;
-        createMutation.mutate({ name: newName.trim(), parentId: newParentId ? Number(newParentId) : null, countsAsPcs: newCountsAsPcs });
+        createMutation.mutate({ name: newName.trim(), parentId: newParentId ? Number(newParentId) : null, countsAsPcs: newCountsAsPcs, productionType: newProductionType });
     };
     const handleCreateSub = (e: React.FormEvent, parentId: number) => {
         e.preventDefault();
         if (!subName.trim()) return;
         createSubMutation.mutate({ name: subName.trim(), parentId });
     };
-    const startEdit = (cat: { id: number; name: string; parentId: number | null; countsAsPcs?: boolean }) => {
+    const startEdit = (cat: { id: number; name: string; parentId: number | null; countsAsPcs?: boolean; productionType?: string }) => {
         setEditingId(cat.id); setEditingName(cat.name);
         setEditingParentId(cat.parentId ? String(cat.parentId) : '');
-        setEditingCountsAsPcs(cat.countsAsPcs ?? true); setDeletingId(null);
+        setEditingCountsAsPcs(cat.countsAsPcs ?? true);
+        setEditingProductionType((cat as any).productionType ?? 'NONE'); setDeletingId(null);
     };
     const saveEdit = () => {
         if (!editingId || !editingName.trim()) return;
-        updateMutation.mutate({ id: editingId, data: { name: editingName.trim(), parentId: editingParentId ? Number(editingParentId) : null, countsAsPcs: editingCountsAsPcs } });
+        updateMutation.mutate({ id: editingId, data: { name: editingName.trim(), parentId: editingParentId ? Number(editingParentId) : null, countsAsPcs: editingCountsAsPcs, productionType: editingProductionType } });
     };
     const toggleExpand = (id: number) => {
         setExpandedIds(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next; });
@@ -150,6 +154,17 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                             <span className="font-semibold text-foreground">Hitung sebagai produk (pcs) di laporan CRM.</span> Matikan untuk add-on/komponen (kerah, lengan) agar tidak terhitung pcs terpisah.
                         </span>
                     </label>
+                    <select
+                        value={newProductionType}
+                        onChange={e => setNewProductionType(e.target.value)}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm"
+                        title="Klasifikasi produksi untuk leaderboard operator"
+                    >
+                        <option value="NONE">— Bukan kategori produksi —</option>
+                        <option value="BANNER">Produksi Banner</option>
+                        <option value="STIKER">Produksi Stiker</option>
+                        <option value="LASER_CUT">Produksi Laser Cut</option>
+                    </select>
                 </form>
 
                 {/* Daftar kategori (scroll) */}
@@ -190,12 +205,25 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                                 <input type="checkbox" checked={editingCountsAsPcs} onChange={e => setEditingCountsAsPcs(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />
                                                                 hitung pcs
                                                             </label>
+                                                            <select value={editingProductionType} onChange={e => setEditingProductionType(e.target.value)}
+                                                                className="px-2 py-1 bg-background border border-border rounded-md text-xs outline-none"
+                                                                title="Tipe produksi (leaderboard operator)">
+                                                                <option value="NONE">non-produksi</option>
+                                                                <option value="BANNER">Banner</option>
+                                                                <option value="STIKER">Stiker</option>
+                                                                <option value="LASER_CUT">Laser Cut</option>
+                                                            </select>
                                                         </div>
                                                     </div>
                                                 ) : (
                                                     <div className="flex items-center gap-2 flex-wrap">
                                                         <span className="text-sm font-semibold text-foreground">{cat.name}</span>
                                                         {cat.countsAsPcs === false && <AddonBadge />}
+                                                        {(cat as any).productionType && (cat as any).productionType !== 'NONE' && (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/20 text-[10px] font-semibold whitespace-nowrap">
+                                                                {(cat as any).productionType === 'BANNER' ? 'Banner' : (cat as any).productionType === 'STIKER' ? 'Stiker' : 'Laser Cut'}
+                                                            </span>
+                                                        )}
                                                         {children.length > 0 && (
                                                             <button type="button" onClick={() => toggleExpand(cat.id)}
                                                                 className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-primary transition-colors">
@@ -272,6 +300,11 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                                     <span className="text-sm text-foreground flex items-center gap-2 flex-wrap">
                                                                         {child.name}
                                                                         {child.countsAsPcs === false && <AddonBadge />}
+                                                                        {(child as any).productionType && (child as any).productionType !== 'NONE' && (
+                                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/20 text-[10px] font-semibold whitespace-nowrap">
+                                                                                {(child as any).productionType === 'BANNER' ? 'Banner' : (child as any).productionType === 'STIKER' ? 'Stiker' : 'Laser Cut'}
+                                                                            </span>
+                                                                        )}
                                                                     </span>
                                                                 )}
                                                             </div>

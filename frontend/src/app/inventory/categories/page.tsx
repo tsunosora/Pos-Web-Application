@@ -13,8 +13,9 @@ interface Category {
     parentId: number | null;
     // false = item kategori ini tidak dihitung di metrik pcs CRM (add-on/komponen)
     countsAsPcs: boolean;
+    productionType?: string;
     parent: { id: number; name: string } | null;
-    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean }[];
+    children: { id: number; name: string; parentId: number; countsAsPcs?: boolean; productionType?: string }[];
 }
 
 /** Badge penanda kategori add-on (tidak dihitung pcs di laporan CRM) */
@@ -36,12 +37,14 @@ export default function CategoriesPage() {
     const [newName, setNewName] = useState('');
     const [newParentId, setNewParentId] = useState<string>('');
     const [newCountsAsPcs, setNewCountsAsPcs] = useState(true);
+    const [newProductionType, setNewProductionType] = useState<string>('NONE');
 
     // Edit state
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
     const [editingParentId, setEditingParentId] = useState<string>('');
     const [editingCountsAsPcs, setEditingCountsAsPcs] = useState(true);
+    const [editingProductionType, setEditingProductionType] = useState<string>('NONE');
 
     // Expand/collapse parent rows
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -66,7 +69,7 @@ export default function CategoriesPage() {
 
     const createMutation = useMutation({
         mutationFn: createCategory,
-        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); }
+        onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setNewName(''); setNewParentId(''); setNewCountsAsPcs(true); setNewProductionType('NONE'); }
     });
 
     const createSubMutation = useMutation({
@@ -80,7 +83,7 @@ export default function CategoriesPage() {
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean } }) => updateCategory(id, data),
+        mutationFn: ({ id, data }: { id: number; data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string } }) => updateCategory(id, data),
         onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['categories'] }); setEditingId(null); }
     });
 
@@ -96,6 +99,7 @@ export default function CategoriesPage() {
             name: newName.trim(),
             parentId: newParentId ? Number(newParentId) : null,
             countsAsPcs: newCountsAsPcs,
+            productionType: newProductionType,
         });
     };
 
@@ -105,11 +109,12 @@ export default function CategoriesPage() {
         createSubMutation.mutate({ name: subName.trim(), parentId });
     };
 
-    const startEdit = (cat: Category | { id: number; name: string; parentId: number | null; countsAsPcs?: boolean }) => {
+    const startEdit = (cat: Category | { id: number; name: string; parentId: number | null; countsAsPcs?: boolean; productionType?: string }) => {
         setEditingId(cat.id);
         setEditingName(cat.name);
         setEditingParentId(cat.parentId ? String(cat.parentId) : '');
         setEditingCountsAsPcs(cat.countsAsPcs ?? true);
+        setEditingProductionType((cat as any).productionType ?? 'NONE');
         setDeletingId(null);
     };
 
@@ -121,6 +126,7 @@ export default function CategoriesPage() {
                 name: editingName.trim(),
                 parentId: editingParentId ? Number(editingParentId) : null,
                 countsAsPcs: editingCountsAsPcs,
+                productionType: editingProductionType,
             }
         });
     };
@@ -198,6 +204,17 @@ export default function CategoriesPage() {
                         produk utama — supaya 1 jersey + kerah + lengan tetap terhitung 1 pcs, bukan 3.
                     </span>
                 </label>
+                <select
+                    value={newProductionType}
+                    onChange={e => setNewProductionType(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg outline-none text-sm"
+                    title="Klasifikasi produksi untuk leaderboard operator"
+                >
+                    <option value="NONE">— Bukan kategori produksi —</option>
+                    <option value="BANNER">Produksi Banner</option>
+                    <option value="STIKER">Produksi Stiker</option>
+                    <option value="LASER_CUT">Produksi Laser Cut</option>
+                </select>
             </form>
 
             {/* Daftar Kategori — Tree View */}
@@ -255,11 +272,24 @@ export default function CategoriesPage() {
                                                             className="h-3.5 w-3.5 accent-primary" />
                                                         hitung pcs
                                                     </label>
+                                                    <select value={editingProductionType} onChange={e => setEditingProductionType(e.target.value)}
+                                                        className="px-2 py-1 bg-background border border-border rounded-md text-xs outline-none"
+                                                        title="Tipe produksi (leaderboard operator)">
+                                                        <option value="NONE">non-produksi</option>
+                                                        <option value="BANNER">Banner</option>
+                                                        <option value="STIKER">Stiker</option>
+                                                        <option value="LASER_CUT">Laser Cut</option>
+                                                    </select>
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-2">
                                                     <span className="text-sm font-semibold text-foreground">{cat.name}</span>
                                                     {cat.countsAsPcs === false && <AddonBadge />}
+                                                    {(cat as any).productionType && (cat as any).productionType !== 'NONE' && (
+                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/20 text-[10px] font-semibold whitespace-nowrap">
+                                                            {(cat as any).productionType === 'BANNER' ? 'Banner' : (cat as any).productionType === 'STIKER' ? 'Stiker' : 'Laser Cut'}
+                                                        </span>
+                                                    )}
                                                     {children.length > 0 && (
                                                         <button type="button" onClick={() => toggleExpand(cat.id)}
                                                             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors">
@@ -372,6 +402,11 @@ export default function CategoriesPage() {
                                                                 <span className="text-sm text-foreground flex items-center gap-2">
                                                                     {child.name}
                                                                     {child.countsAsPcs === false && <AddonBadge />}
+                                                                    {(child as any).productionType && (child as any).productionType !== 'NONE' && (
+                                                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-500 border border-indigo-500/20 text-[10px] font-semibold whitespace-nowrap">
+                                                                            {(child as any).productionType === 'BANNER' ? 'Banner' : (child as any).productionType === 'STIKER' ? 'Stiker' : 'Laser Cut'}
+                                                                        </span>
+                                                                    )}
                                                                 </span>
                                                             )}
                                                         </div>

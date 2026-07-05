@@ -86,6 +86,9 @@ model Category {
   // false = item kategori ini TIDAK dihitung di metrik pcs (add-on/komponen
   // seperti kerah/lengan yang menempel ke produk utama, bukan barang terpisah)
   countsAsPcs    Boolean              @default(true) @map("counts_as_pcs")
+  // Klasifikasi produksi utk leaderboard operator (Banner/Stiker/Laser Cut).
+  // NONE = tidak masuk breakdown produksi per-kategori.
+  productionType CategoryProductionType @default(NONE) @map("production_type")
   products       Product[]
   opnameSessions StockOpnameSession[]
   createdAt      DateTime?            @default(now()) @map("created_at")
@@ -248,6 +251,13 @@ enum ProductType {
   SELLABLE
   RAW_MATERIAL
   SERVICE
+}
+
+enum CategoryProductionType {
+  NONE       // bukan kategori produksi yang dihitung di leaderboard operator
+  BANNER     // dihitung dari bahan cetak (antrian cetak)
+  STIKER     // penempelan stiker pada media + laminasi (tahap assembly)
+  LASER_CUT  // pekerjaan laser cutting
 }
 
 model StockMovement {

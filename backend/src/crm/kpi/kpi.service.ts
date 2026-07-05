@@ -732,7 +732,12 @@ export class KpiService {
             },
             select: {
                 operatorName: true, quantity: true,
-                transactionItem: { select: { priceAtTime: true, quantity: true } },
+                transactionItem: {
+                    select: {
+                        priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
+                        productVariant: { select: { product: { select: { category: { select: { productionType: true } } } } } },
+                    },
+                },
             },
         });
 
@@ -764,22 +769,53 @@ export class KpiService {
             acts.filter(a => DONE_STAGES.has(a.toStage) && (!allowedJobIds || allowedJobIds.has(a.jobId)))
                 .map(a => a.jobId),
         ));
-        const prodJobValue = new Map<number, number>();
+        // Kategori produksi yang di-breakdown di leaderboard operator.
+        const PROD_CATS = ['BANNER', 'STIKER', 'LASER_CUT'] as const;
+        type ProdCat = typeof PROD_CATS[number];
+        const emptyCats = () => ({
+            BANNER: { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 },
+            STIKER: { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 },
+            LASER_CUT: { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 },
+        });
+        // Tipe produksi kategori dari transactionItem (null jika bukan kategori produksi).
+        const catOf = (ti: any): ProdCat | null => {
+            const t = ti?.productVariant?.product?.category?.productionType;
+            return (t && (PROD_CATS as readonly string[]).includes(t)) ? (t as ProdCat) : null;
+        };
+        // Luas total item (m²) = luas per-unit (areaCm2) × jumlah kopi (pcs).
+        const areaM2Of = (ti: any) => (Number(ti?.areaCm2) || 0) / 10000 * (Number(ti?.pcs) || 1);
+        const lineOmzet = (ti: any) => Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
+
+        // Info per production job selesai (omzet + kategori + pcs + luas) untuk breakdown.
+        const prodJobInfo = new Map<number, { omzet: number; cat: ProdCat | null; pcs: number; areaM2: number }>();
         if (doneJobIds.length) {
             const pj: any[] = await (this.prisma as any).productionJob.findMany({
                 where: { id: { in: doneJobIds } },
-                select: { id: true, transactionItem: { select: { priceAtTime: true, quantity: true } } },
+                select: {
+                    id: true,
+                    transactionItem: {
+                        select: {
+                            priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
+                            productVariant: { select: { product: { select: { category: { select: { productionType: true } } } } } },
+                        },
+                    },
+                },
             });
             for (const j of pj) {
                 const ti = j.transactionItem;
-                prodJobValue.set(j.id, ti ? Number(ti.priceAtTime || 0) * (Number(ti.quantity) || 1) : 0);
+                prodJobInfo.set(j.id, {
+                    omzet: ti ? lineOmzet(ti) : 0,
+                    cat: catOf(ti),
+                    pcs: Number(ti?.quantity) || (Number(ti?.pcs) || 1),
+                    areaM2: areaM2Of(ti),
+                });
             }
         }
 
-        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDone: number; prodDoneJobs: Set<number> };
+        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDone: number; prodDoneJobs: Set<number>; cats: ReturnType<typeof emptyCats> };
         const map = new Map<string, Row>();
         const ensure = (n: string) => {
-            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDone: 0, prodDoneJobs: new Set() });
+            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDone: 0, prodDoneJobs: new Set(), cats: emptyCats() });
             return map.get(n)!;
         };
 
@@ -791,6 +827,15 @@ export class KpiService {
             e.printPcs += Number(p.quantity) || 0;
             const ti = p.transactionItem;
             if (ti) e.printOmzet += Number(ti.priceAtTime || 0) * (Number(ti.quantity) || 1);
+            // Breakdown Banner: dihitung dari bahan cetak (antrian cetak).
+            const pcat = catOf(ti);
+            if (pcat === 'BANNER') {
+                const c = e.cats.BANNER;
+                c.jobs++;
+                c.pcs += Number(p.quantity) || 0;
+                c.areaM2 += areaM2Of(ti);
+                c.omzet += lineOmzet(ti);
+            }
         }
         for (const a of acts) {
             if (allowedJobIds && !allowedJobIds.has(a.jobId)) continue;
@@ -801,9 +846,24 @@ export class KpiService {
             if (DONE_STAGES.has(a.toStage)) { e.prodDone++; e.prodDoneJobs.add(a.jobId); }
         }
 
+        const round2 = (v: number) => Math.round(v * 100) / 100;
         return Array.from(map.values())
             .map(e => {
-                const prodOmzet = Array.from(e.prodDoneJobs).reduce((s, id) => s + (prodJobValue.get(id) || 0), 0);
+                let prodOmzet = 0;
+                for (const id of e.prodDoneJobs) {
+                    const info = prodJobInfo.get(id);
+                    if (!info) continue;
+                    prodOmzet += info.omzet;
+                    // Banner sengaja dihitung dari antrian cetak saja (hindari dobel).
+                    if (info.cat && info.cat !== 'BANNER') {
+                        const c = e.cats[info.cat];
+                        c.jobs++;
+                        c.pcs += info.pcs;
+                        c.areaM2 += info.areaM2;
+                        c.omzet += info.omzet;
+                    }
+                }
+                const cats = e.cats;
                 return {
                     name: e.name,
                     printJobs: e.printJobs,
@@ -814,6 +874,12 @@ export class KpiService {
                     prodOmzet,
                     omzet: e.printOmzet + prodOmzet,
                     total: e.printJobs + e.prodJobs.size,
+                    // Breakdown produksi per kategori (Banner dari cetak; Stiker/Laser dari kanban):
+                    production: {
+                        BANNER: { ...cats.BANNER, areaM2: round2(cats.BANNER.areaM2) },
+                        STIKER: { ...cats.STIKER, areaM2: round2(cats.STIKER.areaM2) },
+                        LASER_CUT: { ...cats.LASER_CUT, areaM2: round2(cats.LASER_CUT.areaM2) },
+                    },
                 };
             })
             .sort((a, b) => b.omzet - a.omzet || b.total - a.total || b.printPcs - a.printPcs);

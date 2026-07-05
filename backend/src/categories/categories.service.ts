@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean }) {
+  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string }) {
     // Cek nama duplikat dalam parent yang sama
     const existing = await (this.prisma as any).category.findFirst({
       where: { name: data.name, parentId: data.parentId ?? null },
@@ -17,6 +17,7 @@ export class CategoriesService {
         name: data.name,
         parentId: data.parentId ?? null,
         countsAsPcs: data.countsAsPcs ?? true,
+        productionType: (data.productionType as any) ?? 'NONE',
       },
       include: { parent: true, children: true },
     });
@@ -27,7 +28,7 @@ export class CategoriesService {
     return (this.prisma as any).category.findMany({
       include: {
         parent: { select: { id: true, name: true } },
-        children: { orderBy: { name: 'asc' }, select: { id: true, name: true, parentId: true, countsAsPcs: true } },
+        children: { orderBy: { name: 'asc' }, select: { id: true, name: true, parentId: true, countsAsPcs: true, productionType: true } },
       },
       orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
     });
@@ -42,7 +43,7 @@ export class CategoriesService {
     return category;
   }
 
-  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean }) {
+  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionType?: string }) {
     await this.findOne(id);
 
     // Cegah circular reference
@@ -62,6 +63,7 @@ export class CategoriesService {
         name: data.name,
         parentId: data.parentId ?? null,
         ...(data.countsAsPcs !== undefined ? { countsAsPcs: !!data.countsAsPcs } : {}),
+        ...(data.productionType !== undefined ? { productionType: data.productionType as any } : {}),
       },
       include: { parent: true, children: true },
     });

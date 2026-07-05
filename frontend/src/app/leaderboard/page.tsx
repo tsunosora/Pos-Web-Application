@@ -29,6 +29,7 @@ const TOOLTIP_STYLE = { background: 'var(--card)', border: '1px solid var(--bord
 const AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 12 } as const;
 
 const fmtRp = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtM2 = (v: number) => v > 0 ? `${(Math.round(v * 100) / 100).toLocaleString('id-ID')} m²` : '—';
 const initials = (name?: string | null) => {
     const p = (name || '').trim().split(/\s+/);
     return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?';
@@ -427,6 +428,30 @@ export default function LeaderboardPage() {
                                             </tbody>
                                         </table>
                                     </div>
+                                    <div className="overflow-x-auto mt-4">
+                                        <div className="text-xs font-semibold text-muted-foreground mb-1">Breakdown Produksi per Kategori <span className="font-normal">(job · luas/pcs · omzet)</span></div>
+                                        <table className="w-full text-sm min-w-[820px]">
+                                            <thead><tr className="text-xs text-muted-foreground border-b border-border">
+                                                <Th>Operator</Th><Th right>Banner (job · m² · Rp)</Th><Th right>Stiker (job · m² · Rp)</Th><Th right>Laser Cut (job · pcs · Rp)</Th>
+                                            </tr></thead>
+                                            <tbody>
+                                                {opRows.map((r, i) => {
+                                                    const b = r.production?.BANNER, s = r.production?.STIKER, l = r.production?.LASER_CUT;
+                                                    const cell = (c?: { jobs: number; pcs: number; areaM2: number; omzet: number }, useArea = true) =>
+                                                        !c || c.jobs === 0 ? '—'
+                                                            : `${c.jobs} · ${useArea ? fmtM2(c.areaM2) : `${c.pcs || 0} pcs`} · ${fmtRp(c.omzet)}`;
+                                                    return (
+                                                        <tr key={r.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
+                                                            <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
+                                                            <td className="py-2 px-2 text-right font-mono text-lime-600 dark:text-lime-300">{cell(b, true)}</td>
+                                                            <td className="py-2 px-2 text-right font-mono text-pink-600 dark:text-pink-300">{cell(s, true)}</td>
+                                                            <td className="py-2 px-2 text-right font-mono text-orange-600 dark:text-orange-300">{cell(l, false)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                     <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzet }))} label="Omzet operator (cetak + produksi)" money />
                                 </>
                             )}
@@ -436,6 +461,7 @@ export default function LeaderboardPage() {
                                 <p><b>Omzet</b> = nilai line item dari pekerjaannya — dari <b>job cetak</b> (semua yang selesai dicetak) <i>+</i> <b>job produksi</b> yang ia bawa sampai KIRIM/SELESAI (dihitung sekali per job). Dasar peringkat.</p>
                                 <p className="text-[11px] italic">Omzet bisa beririsan dengan divisi lain (CS/designer) — ini kredit kontribusi tim per tahap, bukan penjumlahan omzet toko.</p>
                                 <p><b>Total Job</b> = Cetak + Produksi. Operator dicocokkan berdasarkan <b>nama</b> yang ia isi saat login board/cetak.</p>
+                                <p><b>Breakdown per kategori</b>: <b>Banner</b> dihitung dari <b>bahan cetak</b> (antrian cetak). <b>Stiker</b> (penempelan pada media + laminasi) &amp; <b>Laser Cut</b> dari antrian produksi (kanban), dihitung sekali per job saat selesai (KIRIM/SELESAI). Kategori ditandai lewat <b>Manajemen Kategori → Tipe Produksi</b>. <b>m²</b> = total luas item, <b>Rp</b> = nilai line item.</p>
                                 <p className="text-[11px] italic">Produksi terhitung dari kedua board: kanban /produksi/board maupun antrian /produksi (mode-status) — keduanya kini mencatat nama operator saat menyelesaikan job.</p>
                             </CaraHitung>
                         </SectionCard>
