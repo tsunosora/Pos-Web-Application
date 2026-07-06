@@ -1006,6 +1006,7 @@ model ProductionJobActivity {
   toStage    String?  @map("to_stage") @db.VarChar(30)
   actorName  String?  @map("actor_name") @db.VarChar(120) // nama operator/desainer (dari board) atau user (admin)
   actorRole  String?  @map("actor_role") @db.VarChar(20)  // ADMIN | OPERATOR
+  actorWeight Float   @default(1) @map("actor_weight") // bobot kredit 1/N saat kerja sama beberapa operator
   meta       Json?
   createdAt  DateTime @default(now()) @map("created_at")
 
@@ -1203,6 +1204,7 @@ model PrintJob {
   finishedAt        DateTime?      @map("finished_at")
   pickedUpAt        DateTime?      @map("picked_up_at")
   operatorName      String?        @map("operator_name") @db.VarChar(100)
+  coOperators       Json?          @map("co_operators") // rekan kerja sama (array nama, bagi rata 1/N)
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
