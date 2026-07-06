@@ -230,7 +230,17 @@ export class SalesOrdersService {
                 const soBranch: string = (so as any).branchName ?? '';
                 const match = names.some(n => soBranch === n || soBranch.toLowerCase().includes(n.toLowerCase()));
                 if (!match) {
-                    throw new NotFoundException('Surat Order tidak ditemukan di cabang Anda');
+                    // Pengecualian "satu pintu": SO desainer memang lintas cabang. CS
+                    // pemilik lead yang tertaut ke SO ini boleh membukanya (buat nota di
+                    // POS) walau branchName SO (cabang desainer) beda dari cabang CS —
+                    // berlaku dua arah (cabang↔pusat). Izinkan kalau ada lead milik
+                    // cabang pemohon yang tertaut ke SO ini via convertedSalesOrderId.
+                    const ownsLinkedLead = await (this.prisma as any).lead.count({
+                        where: { convertedSalesOrderId: id, branchId },
+                    });
+                    if (!ownsLinkedLead) {
+                        throw new NotFoundException('Surat Order tidak ditemukan di cabang Anda');
+                    }
                 }
             }
         }
