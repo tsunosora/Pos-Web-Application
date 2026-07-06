@@ -731,7 +731,7 @@ export class KpiService {
                 finishedAt: { gte: start, lte: end },
             },
             select: {
-                operatorName: true, quantity: true,
+                operatorName: true, coOperators: true, quantity: true,
                 transactionItem: {
                     select: {
                         priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
@@ -749,7 +749,7 @@ export class KpiService {
                 actorName: { not: null },
                 createdAt: { gte: start, lte: end },
             },
-            select: { jobId: true, actorName: true, toStage: true },
+            select: { jobId: true, actorName: true, toStage: true, actorWeight: true },
         });
         // Activity tak punya branchId → kalau di-scope ke cabang, filter via job.
         let allowedJobIds: Set<number> | null = null;
@@ -818,25 +818,36 @@ export class KpiService {
             }
         }
 
-        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDone: number; prodDoneJobs: Set<number>; cats: Map<number, CatMetric> };
+        // prodDoneJobs: jobId → bobot kredit (1/N bila kerja sama). Keterlibatan (prodJobs)
+        // TIDAK dibagi; metrik kredit (omzet/pcs/kategori/prodDone) dibagi via bobot.
+        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDoneJobs: Map<number, number>; cats: Map<number, CatMetric> };
         const map = new Map<string, Row>();
         const ensure = (n: string) => {
-            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDone: 0, prodDoneJobs: new Set(), cats: new Map() });
+            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDoneJobs: new Map(), cats: new Map() });
             return map.get(n)!;
         };
 
         for (const p of printJobs) {
-            const name = (p.operatorName || '').trim();
-            if (!name) continue;
-            const e = ensure(name);
-            e.printJobs++;
-            e.printPcs += Number(p.quantity) || 0;
+            const primary = (p.operatorName || '').trim();
+            if (!primary) continue;
+            // Kerja sama: bagi rata 1/N ke primary + rekan (coOperators = Json array nama).
+            const partners = (Array.isArray(p.coOperators) ? p.coOperators : [])
+                .map((n: any) => String(n || '').trim())
+                .filter((n: string) => n && n !== primary);
+            const all = Array.from(new Set([primary, ...partners]));
+            const w = 1 / all.length;
             const ti = p.transactionItem;
-            if (ti) e.printOmzet += Number(ti.priceAtTime || 0) * (Number(ti.quantity) || 1);
-            // Breakdown: kategori bersumber CETAK dihitung dari antrian cetak.
+            const qty = Number(p.quantity) || 0;
             const cid = catIdOf(ti);
-            if (cid && prodCatSource.get(cid) === 'CETAK') {
-                bump(e.cats, cid, { jobs: 1, pcs: Number(p.quantity) || 0, areaM2: areaM2Of(ti), omzet: lineOmzet(ti) });
+            const isCetakCat = cid && prodCatSource.get(cid) === 'CETAK';
+            for (const name of all) {
+                const e = ensure(name);
+                e.printJobs++;                       // keterlibatan: tak dibagi
+                e.printPcs += qty * w;               // kredit: bagi 1/N
+                if (ti) e.printOmzet += lineOmzet(ti) * w;
+                if (isCetakCat) {
+                    bump(e.cats, cid!, { jobs: w, pcs: qty * w, areaM2: areaM2Of(ti) * w, omzet: lineOmzet(ti) * w });
+                }
             }
         }
         for (const a of acts) {
@@ -844,35 +855,43 @@ export class KpiService {
             const name = (a.actorName || '').trim();
             if (!name) continue;
             const e = ensure(name);
-            e.prodJobs.add(a.jobId);
-            if (DONE_STAGES.has(a.toStage)) { e.prodDone++; e.prodDoneJobs.add(a.jobId); }
+            e.prodJobs.add(a.jobId); // keterlibatan: tak dibagi
+            if (DONE_STAGES.has(a.toStage)) {
+                const w = Number(a.actorWeight) || 1;
+                // Kalau operator sama punya >1 baris done utk job yg sama, ambil bobot terbesar.
+                e.prodDoneJobs.set(a.jobId, Math.max(e.prodDoneJobs.get(a.jobId) ?? 0, w));
+            }
         }
 
         const round2 = (v: number) => Math.round(v * 100) / 100;
         return Array.from(map.values())
             .map(e => {
-                let prodOmzet = 0;
-                for (const id of e.prodDoneJobs) {
+                let prodOmzet = 0, prodDone = 0;
+                for (const [id, w] of e.prodDoneJobs) {
+                    prodDone += w; // share job selesai (bagi 1/N bila kerja sama)
                     const info = prodJobInfo.get(id);
                     if (!info) continue;
-                    prodOmzet += info.omzet;
+                    prodOmzet += info.omzet * w;
                     // Breakdown: kategori bersumber PRODUKSI dihitung dari antrian produksi.
                     if (info.catId && prodCatSource.get(info.catId) === 'PRODUKSI') {
-                        bump(e.cats, info.catId, { jobs: 1, pcs: info.pcs, areaM2: info.areaM2, omzet: info.omzet });
+                        bump(e.cats, info.catId, { jobs: w, pcs: info.pcs * w, areaM2: info.areaM2 * w, omzet: info.omzet * w });
                     }
                 }
                 // Breakdown per kategori → objek keyed by id ProductionCategory.
                 const production: Record<string, CatMetric> = {};
-                for (const [id, c] of e.cats) production[id] = { ...c, areaM2: round2(c.areaM2) };
+                for (const [id, c] of e.cats) production[id] = { jobs: round2(c.jobs), pcs: round2(c.pcs), areaM2: round2(c.areaM2), omzet: round2(c.omzet) };
+                const printPcs = round2(e.printPcs);
+                const printOmzet = round2(e.printOmzet);
+                prodOmzet = round2(prodOmzet);
                 return {
                     name: e.name,
                     printJobs: e.printJobs,
-                    printPcs: e.printPcs,
-                    printOmzet: e.printOmzet,
+                    printPcs,
+                    printOmzet,
                     prodJobs: e.prodJobs.size,
-                    prodDone: e.prodDone,
+                    prodDone: round2(prodDone),
                     prodOmzet,
-                    omzet: e.printOmzet + prodOmzet,
+                    omzet: round2(printOmzet + prodOmzet),
                     total: e.printJobs + e.prodJobs.size,
                     production,
                 };

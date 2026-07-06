@@ -253,15 +253,21 @@ export class ProductionService {
      * (STAGE_CHANGE oleh actorRole OPERATOR). Board status-mode tidak punya field
      * operator, jadi attribusi diambil dari nama yang diisi operator saat login.
      */
-    private async logOperatorDone(jobId: number, toStage: string, operatorName?: string, client?: any) {
-        const name = operatorName?.trim();
-        if (!name) return;
-        await ((client ?? this.prisma) as any).productionJobActivity.create({
-            data: { jobId, action: 'STAGE_CHANGE', toStage, actorName: name, actorRole: 'OPERATOR' },
+    private async logOperatorDone(jobId: number, toStage: string, operatorName?: string, client?: any, coOperatorNames?: string[]) {
+        const primary = operatorName?.trim();
+        if (!primary) return;
+        // Kerja sama: tulis 1 baris kredit per operator, bobot 1/N (bagi rata).
+        const partners = (coOperatorNames ?? [])
+            .map(n => (n || '').trim())
+            .filter(n => n && n !== primary);
+        const all = Array.from(new Set([primary, ...partners]));
+        const weight = 1 / all.length;
+        await ((client ?? this.prisma) as any).productionJobActivity.createMany({
+            data: all.map(name => ({ jobId, action: 'STAGE_CHANGE', toStage, actorName: name, actorRole: 'OPERATOR', actorWeight: weight })),
         });
     }
 
-    async completeJob(id: number, operatorNote?: string, operatorName?: string) {
+    async completeJob(id: number, operatorNote?: string, operatorName?: string, coOperatorNames?: string[]) {
         const job = await (this.prisma as any).productionJob.findUnique({
             where: { id },
             include: {
@@ -293,7 +299,7 @@ export class ProductionService {
         });
         // SELESAI = produksi tuntas (dihitung "selesai" + omzet); MENUNGGU_PASANG =
         // produksi cetak selesai tapi tunggu rakit → forward stage non-done.
-        await this.logOperatorDone(id, nextStatus === 'SELESAI' ? 'SELESAI' : 'ANTRIAN_PRESS', opName);
+        await this.logOperatorDone(id, nextStatus === 'SELESAI' ? 'SELESAI' : 'ANTRIAN_PRESS', opName, undefined, coOperatorNames);
         return updated;
     }
 
@@ -353,7 +359,7 @@ export class ProductionService {
         });
     }
 
-    async completeAssembly(id: number, assemblyNote?: string, operatorName?: string) {
+    async completeAssembly(id: number, assemblyNote?: string, operatorName?: string, coOperatorNames?: string[]) {
         const job = await (this.prisma as any).productionJob.findUnique({ where: { id } });
         if (!job) throw new NotFoundException('Job tidak ditemukan');
         if (job.status !== 'PASANG') throw new BadRequestException('Job belum dalam status PASANG');
@@ -369,7 +375,7 @@ export class ProductionService {
             },
             include: this.jobInclude(),
         });
-        await this.logOperatorDone(id, 'SELESAI', opName);
+        await this.logOperatorDone(id, 'SELESAI', opName, undefined, coOperatorNames);
         return updated;
     }
 
@@ -536,7 +542,7 @@ export class ProductionService {
         });
     }
 
-    async completeBatch(id: number, operatorName?: string) {
+    async completeBatch(id: number, operatorName?: string, coOperatorNames?: string[]) {
         return this.prisma.$transaction(async (tx) => {
             const batch = await (tx as any).productionBatch.findUnique({ where: { id } });
             if (!batch) throw new NotFoundException('Batch tidak ditemukan');
@@ -554,9 +560,15 @@ export class ProductionService {
             });
 
             // Attribusi tiap job ke operator (leaderboard membaca activity log).
+            // Kerja sama: 1 baris kredit per operator per job, bobot 1/N (bagi rata).
             if (opName && toComplete.length) {
+                const partners = (coOperatorNames ?? [])
+                    .map(n => (n || '').trim())
+                    .filter(n => n && n !== opName);
+                const all = Array.from(new Set([opName, ...partners]));
+                const weight = 1 / all.length;
                 await (tx as any).productionJobActivity.createMany({
-                    data: toComplete.map(j => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: 'SELESAI', actorName: opName, actorRole: 'OPERATOR' })),
+                    data: toComplete.flatMap(j => all.map(name => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: 'SELESAI', actorName: name, actorRole: 'OPERATOR', actorWeight: weight }))),
                 });
             }
 
@@ -744,6 +756,7 @@ export class ProductionService {
             proofImageUrl?: string | null;
             isExpress?: boolean;
             designerName?: string | null;
+            coOperatorNames?: string[];
         },
         actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' },
     ) {
@@ -804,14 +817,25 @@ export class ProductionService {
         // Log activity entries (one per kind of change, biar history readable)
         const acts: any[] = [];
         if (data.pipelineStage !== undefined && existing?.pipelineStage !== data.pipelineStage) {
-            acts.push({
-                jobId: id,
-                action: 'STAGE_CHANGE',
-                fromStage: existing?.pipelineStage ?? null,
-                toStage: data.pipelineStage,
-                actorName: actor?.name ?? null,
-                actorRole: actor?.role ?? null,
-            });
+            // Kerja sama (khusus operator): tulis 1 baris STAGE_CHANGE per operator,
+            // bobot 1/N (bagi rata). Admin/tanpa rekan → 1 baris bobot 1 (perilaku lama).
+            const partners = (actor?.role === 'OPERATOR' ? (data.coOperatorNames ?? []) : [])
+                .map((n: string) => (n || '').trim())
+                .filter((n: string) => n && n !== actor?.name);
+            const all = Array.from(new Set([actor?.name, ...partners].filter(Boolean)));
+            const names = all.length ? all : [actor?.name ?? null];
+            const weight = names.length ? 1 / names.length : 1;
+            for (const name of names) {
+                acts.push({
+                    jobId: id,
+                    action: 'STAGE_CHANGE',
+                    fromStage: existing?.pipelineStage ?? null,
+                    toStage: data.pipelineStage,
+                    actorName: name ?? null,
+                    actorRole: actor?.role ?? null,
+                    actorWeight: weight,
+                });
+            }
         }
         if (data.pipelineStage === 'JAHIT' && (data.penjahitName || data.jahitEstimate)) {
             acts.push({

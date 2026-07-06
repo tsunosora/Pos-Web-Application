@@ -187,12 +187,23 @@ export class PrintQueueService {
         });
     }
 
-    async finishJob(id: number, operatorName?: string) {
+    async finishJob(id: number, operatorName?: string, coOperatorNames?: string[]) {
         const job = await this.getJob(id);
         if (job.status !== 'PROSES') throw new BadRequestException('Job tidak dalam status PROSES');
+        // Kerja sama: simpan daftar rekan → leaderboard bagi rata 1/N (primary + rekan).
+        const primary = (operatorName || job.operatorName || '').trim();
+        const partners = Array.from(new Set(
+            (coOperatorNames ?? [])
+                .map(n => (n || '').trim())
+                .filter(n => n && n !== primary),
+        ));
         const updated = await (this.prisma as any).printJob.update({
             where: { id },
-            data: { status: 'SELESAI', finishedAt: new Date(), operatorName: operatorName || job.operatorName },
+            data: {
+                status: 'SELESAI', finishedAt: new Date(),
+                operatorName: primary || job.operatorName,
+                coOperators: partners.length ? partners : [],
+            },
             include: this.jobInclude(),
         });
         // Notifikasi Discord: pesanan selesai dicetak → siap diambil (channel #produksi)

@@ -165,6 +165,7 @@ export class ProductionController {
             jahitEstimate?: string;
             qcNote?: string;
             returnReason?: string;
+            coOperatorNames?: string[];
         },
     ) {
         await this.productionService.verifyOperatorPinPublic(body.pin, body.branchId);
@@ -239,8 +240,8 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete')
-    completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string }) {
-        return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName);
+    completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[] }) {
+        return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName, body?.coOperatorNames);
     }
 
     @Post('jobs/:id/start-assembly')
@@ -249,8 +250,8 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete-assembly')
-    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string }) {
-        return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName);
+    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[] }) {
+        return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName, body?.coOperatorNames);
     }
 
     @Post('jobs/:id/pickup')
@@ -271,8 +272,8 @@ export class ProductionController {
     }
 
     @Post('batches/:id/complete')
-    completeBatch(@Param('id', ParseIntPipe) id: number, @Body('operatorName') operatorName?: string) {
-        return this.productionService.completeBatch(id, operatorName);
+    completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[] }) {
+        return this.productionService.completeBatch(id, body?.operatorName, body?.coOperatorNames);
     }
 
     // ─── Meter Reading (Rekonsiliasi Operator) ───────────────────────────────
