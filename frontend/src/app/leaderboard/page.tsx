@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
     getKpiReport, getDesignerLeaderboard, getDesignOutput, getOperatorLeaderboard,
-    getProductionCategories, type ProductionCategory,
+    getTeamLeaderboard, getProductionCategories, type ProductionCategory,
     type KpiPeriod, type KpiLeaderboardEntry, type DesignCheckEntry,
     type DesignerLeaderboardEntry, type DesignOutputEntry, type OperatorLeaderboardEntry,
 } from "@/lib/api";
@@ -12,7 +12,7 @@ import api from "@/lib/api/client";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
     Trophy, Crown, Target, Phone, Zap, Search, Palette, Factory, Award,
-    Loader2, Info, ChevronDown, Users, Printer, Layers,
+    Loader2, Info, ChevronDown, Users, Printer, Layers, Building2,
 } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -125,12 +125,14 @@ export default function LeaderboardPage() {
     const designer = useQuery({ queryKey: ["lb-designer", common], queryFn: () => getDesignerLeaderboard(common as any) });
     const designOut = useQuery({ queryKey: ["lb-designout", common], queryFn: () => getDesignOutput(common as any) });
     const operatorQ = useQuery({ queryKey: ["lb-operator", common], queryFn: () => getOperatorLeaderboard(common as any) });
+    const teamQ = useQuery({ queryKey: ["lb-team", common], queryFn: () => getTeamLeaderboard(common as any) });
     const prodCatsQ = useQuery({ queryKey: ["lb-prodcats"], queryFn: getProductionCategories });
 
-    const showCS = divisi === "Semua" || (divisi !== "Designer" && divisi !== "Operator");
+    const showTeam = divisi === "Semua" || divisi === "Tim";
+    const showCS = divisi === "Semua" || (divisi !== "Designer" && divisi !== "Operator" && divisi !== "Tim");
     const showDesigner = divisi === "Semua" || divisi === "Designer";
     const showOperator = divisi === "Semua" || divisi === "Operator";
-    const roleFilter = divisi !== "Semua" && divisi !== "Designer" && divisi !== "Operator" ? divisi : null;
+    const roleFilter = divisi !== "Semua" && divisi !== "Designer" && divisi !== "Operator" && divisi !== "Tim" ? divisi : null;
     const kw = karyawan.trim().toLowerCase();
 
     // ── CS rows (filter by role divisi + karyawan) ──
@@ -155,8 +157,8 @@ export default function LeaderboardPage() {
     const dgRows = useMemo(() => {
         let r = [...(designer.data?.leaderboard ?? [])];
         if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
-        // Omzet dulu; kalau seri (mis. sama-sama 0) → yang banyak bikin SO di atas
-        return r.sort((a, b) => b.omzet - a.omzet || b.soCreated - a.soCreated || b.assignment - a.assignment);
+        // Bagian omzet dulu; kalau seri (mis. sama-sama 0) → yang banyak bikin SO di atas
+        return r.sort((a, b) => b.omzetShare - a.omzetShare || b.soCreated - a.soCreated || b.assignment - a.assignment);
     }, [designer.data, kw]);
 
     const opRows = useMemo(() => {
@@ -164,6 +166,8 @@ export default function LeaderboardPage() {
         if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
         return r.sort((a, b) => b.total - a.total || b.printPcs - a.printPcs);
     }, [operatorQ.data, kw]);
+
+    const teamRows = useMemo(() => [...(teamQ.data?.leaderboard ?? [])].sort((a, b) => b.omzet - a.omzet), [teamQ.data]);
 
     const loading = kpi.isLoading || designer.isLoading || designOut.isLoading || operatorQ.isLoading;
 
@@ -211,7 +215,7 @@ export default function LeaderboardPage() {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-muted-foreground mr-1">Divisi</span>
-                    {["Semua", ...(roles?.map(r => r.name) ?? []), "Designer", "Operator"].map(d => (
+                    {["Semua", "Tim", ...(roles?.map(r => r.name) ?? []), "Designer", "Operator"].map(d => (
                         <button key={d} onClick={() => setDivisi(d)}
                             className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${divisi === d ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-muted text-muted-foreground hover:bg-accent'}`}>
                             {d}
@@ -236,6 +240,47 @@ export default function LeaderboardPage() {
                 <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
             ) : (
                 <>
+                    {/* ══ TIM / CABANG (omzet nota dibagi per peran → per cabang home) ══ */}
+                    {showTeam && (
+                        <SectionCard icon={<Building2 className="h-5 w-5" />} title="Tim / Cabang" subtitle="Omzet tiap nota dibagi rata ke peran yang terlibat (CS · Desainer · Operator), lalu dijumlah per cabang home.">
+                            {teamRows.length === 0 ? <Empty /> : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm min-w-[640px]">
+                                        <thead><tr className="text-xs text-muted-foreground border-b border-border">
+                                            <Th>Cabang</Th><Th right>Bagian CS</Th><Th right>Bagian Desainer</Th><Th right>Bagian Operator</Th><Th right>Total Omzet</Th>
+                                        </tr></thead>
+                                        <tbody>
+                                            {teamRows.map((r, i) => (
+                                                <tr key={r.branchId ?? 'none'} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
+                                                    <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
+                                                    <td className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{r.csShare > 0 ? fmtRp(r.csShare) : '—'}</td>
+                                                    <td className="py-2 px-2 text-right font-mono text-violet-600 dark:text-violet-300">{r.designerShare > 0 ? fmtRp(r.designerShare) : '—'}</td>
+                                                    <td className="py-2 px-2 text-right font-mono text-cyan-600 dark:text-cyan-300">{r.operatorShare > 0 ? fmtRp(r.operatorShare) : '—'}</td>
+                                                    <td className="py-2 px-2 text-right font-mono font-bold text-amber-600 dark:text-amber-300">{fmtRp(r.omzet)}</td>
+                                                </tr>
+                                            ))}
+                                            {teamQ.data && (
+                                                <tr className="border-t-2 border-border font-semibold">
+                                                    <td className="py-2 px-2 text-muted-foreground">Total</td>
+                                                    <td className="py-2 px-2 text-right font-mono">{fmtRp(teamQ.data.totals.csShare)}</td>
+                                                    <td className="py-2 px-2 text-right font-mono">{fmtRp(teamQ.data.totals.designerShare)}</td>
+                                                    <td className="py-2 px-2 text-right font-mono">{fmtRp(teamQ.data.totals.operatorShare)}</td>
+                                                    <td className="py-2 px-2 text-right font-mono">{fmtRp(teamQ.data.totals.omzet)}</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                            <CaraHitung>
+                                <p><b>Prinsip:</b> tiap nota (omzet = grandTotal) dibagi <b>rata</b> ke peran yang benar-benar terlibat di nota itu — CS pembuat lead, desainer pembuat SO, operator yang produksi. Kalau ketiganya ada → masing-masing 1/3; kalau hanya 2 peran → 1/2; dst. Total selalu = 100% omzet.</p>
+                                <p><b>Cabang:</b> bagian tiap orang masuk ke <b>cabang home</b>-nya (CS: cabang akun user; Desainer: cabang di profil desainer; Operator: cabang PIN saat produksi/cetak). Jadi nota lintas cabang otomatis terbagi antar cabang.</p>
+                                <p><b>Bagian operator</b> dibagi lagi antar operator sesuai keterlibatan (kerja sama 1/N).</p>
+                                <p className="text-[11px] italic">"Tak diketahui" = bagian yang cabang orangnya belum ter-set (mis. data operator lama sebelum fitur ini). Akurat penuh sejak fitur aktif.</p>
+                            </CaraHitung>
+                        </SectionCard>
+                    )}
+
                     {/* ══ DIVISI CS / SALES ══ */}
                     {showCS && (
                         <SectionCard icon={<Users className="h-5 w-5" />} title="Divisi CS / Sales" subtitle="Berbasis lead yang ditangani + transaksi POS walk-in.">
@@ -249,10 +294,10 @@ export default function LeaderboardPage() {
                             {csRows.length === 0 ? <Empty /> : (
                                 <>
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-sm min-w-[720px]">
+                                        <table className="w-full text-sm min-w-[820px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
-                                                <Th right>Rate</Th><Th right>Pcs</Th><Th right>Cuan (net)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
+                                                <Th right>Rate</Th><Th right>Pcs</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -264,6 +309,7 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{(r.pcsOrdered + r.walkinPcs) || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{fmtRp(r.wonValue + r.walkinValue)}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
                                                     </tr>
@@ -278,7 +324,8 @@ export default function LeaderboardPage() {
                                 <p><b>Leads</b> = jumlah lead yang di-assign ke orang ini & dibuat dalam periode.</p>
                                 <p><b>Closing</b> = lead berstatus <b>CLOSED_WON</b>. <b>Lost</b> = <b>CLOSED_LOST</b>. <b>Rate</b> = Closing ÷ Leads.</p>
                                 <p><b>Pcs</b> = jumlah barang yang diorder — dari nota lead closing <i>+</i> transaksi POS walk-in yang ia tangani (kategori add-on tidak dihitung).</p>
-                                <p><b>Cuan (net)</b> = Nilai deal lead yang closing (estimatedValue) <i>+</i> omzet transaksi POS walk-in yang ia tangani — keduanya <b>sudah dikurangi biaya platform</b> (fee marketplace).</p>
+                                <p><b>Cuan (net)</b> = Nilai deal lead yang closing (estimatedValue) <i>+</i> omzet transaksi POS walk-in yang ia tangani — keduanya <b>sudah dikurangi biaya platform</b> (fee marketplace). Ini omzet <b>penuh</b> penjualan yang ia bawa.</p>
+                                <p><b>Omzet (bagian)</b> = porsi <b>adil</b> CS dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Dipakai board <b>Tim / Cabang</b> agar nota lintas cabang terbagi ke tiap cabang home.</p>
                                 <p><b>Akan Datang</b> = sisa tagihan (piutang) transaksi yang masih PENDING/PARTIAL.</p>
                                 <p><b>Respon</b> = rata-rata jam dari lead masuk sampai aktivitas pertama CS.</p>
                             </CaraHitung>
@@ -361,7 +408,7 @@ export default function LeaderboardPage() {
                             <SectionCard icon={<Factory className="h-5 w-5" />} title="Designer — Produksi & Omzet" subtitle="SO yang dibuat designer + job produksi (SO yang jadi nota).">
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
                                     <ChampionCard icon={<span>📋</span>} title="Raja SO" name={topByOf(dgRows, x => x.soCreated)?.row.name} value={`${topByOf(dgRows, x => x.soCreated)?.v ?? 0} SO`} accent="bg-violet-500/15 text-violet-500" />
-                                    <ChampionCard icon={<Crown />} title="Raja Omzet" name={topByOf(dgRows, x => x.omzet)?.row.name} value={fmtRp(topByOf(dgRows, x => x.omzet)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
+                                    <ChampionCard icon={<Crown />} title="Raja Omzet (bagian)" name={topByOf(dgRows, x => x.omzetShare)?.row.name} value={fmtRp(topByOf(dgRows, x => x.omzetShare)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
                                     <ChampionCard icon={<Award />} title="Raja ACC" name={topByOf(dgRows, x => x.acc)?.row.name} value={`${topByOf(dgRows, x => x.acc)?.v ?? 0} ACC`} accent="bg-emerald-500/15 text-emerald-500" />
                                     <ChampionCard icon={<Factory />} title="Mesin Produksi" name={topByOf(dgRows, x => x.selesai)?.row.name} value={`${topByOf(dgRows, x => x.selesai)?.v ?? 0} selesai`} accent="bg-indigo-500/15 text-indigo-500" />
                                 </div>
@@ -369,7 +416,7 @@ export default function LeaderboardPage() {
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm min-w-[760px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                                <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th><Th right>Omzet</Th>
+                                                <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th><Th right>Omzet (bagian)</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {dgRows.map((r, i) => (
@@ -382,7 +429,7 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono">{r.selesai || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-orange-500">{r.express || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pcs || '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{fmtRp(r.omzet)}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -391,7 +438,8 @@ export default function LeaderboardPage() {
                                 )}
                                 <CaraHitung>
                                     <p><b>SO Dibuat</b> = jumlah Sales Order (SPK) yang dibuat designer di periode (kecuali yang CANCELLED). <b>Kolom ini menutup celah designer yang kerjanya membuat SO walau belum jadi nota.</b></p>
-                                    <p><b>Nota</b> = jumlah SO designer yang sudah jadi nota di periode. <b>Omzet</b> = total nilai nota tsb (grandTotal). <b>Pcs</b> = jumlah barang dari nota.</p>
+                                    <p><b>Nota</b> = jumlah SO designer yang sudah jadi nota di periode. <b>Pcs</b> = jumlah barang dari nota.</p>
+                                    <p><b>Omzet (bagian)</b> = bagian desainer dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Bukan lagi seluruh grandTotal, tapi porsi adilnya. Lihat board <b>Tim / Cabang</b>.</p>
                                     <p><b>Job/ACC/Selesai/Express</b> = dari job produksi (tanggal job dibuat). ACC = lolos ke tahap cetak; Selesai = sampai KIRIM/SELESAI.</p>
                                     <p className="text-[11px] italic">Catatan: designer bisa muncul walau Omzet 0 — kalau ia baru membuat SO yang belum jadi nota (kolom "SO Dibuat" tetap kehitung).</p>
                                 </CaraHitung>
@@ -403,7 +451,7 @@ export default function LeaderboardPage() {
                     {showOperator && (
                         <SectionCard icon={<Factory className="h-5 w-5" />} title="Divisi Operator — Produksi & Cetak" subtitle="Output operator dari antrian produksi (kanban) + antrian cetak paper.">
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-                                <ChampionCard icon={<Crown />} title="Raja Omzet Operator" name={topByOf(opRows, x => x.omzet)?.row.name} value={fmtRp(topByOf(opRows, x => x.omzet)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
+                                <ChampionCard icon={<Crown />} title="Raja Omzet Operator" name={topByOf(opRows, x => x.omzetShare)?.row.name} value={fmtRp(topByOf(opRows, x => x.omzetShare)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
                                 <ChampionCard icon={<Printer />} title="Raja Cetak" name={topByOf(opRows, x => x.printJobs)?.row.name} value={`${topByOf(opRows, x => x.printJobs)?.v ?? 0} job`} accent="bg-cyan-500/15 text-cyan-500" />
                                 <ChampionCard icon={<Factory />} title="Raja Produksi" name={topByOf(opRows, x => x.prodJobs)?.row.name} value={`${topByOf(opRows, x => x.prodJobs)?.v ?? 0} job`} accent="bg-indigo-500/15 text-indigo-500" />
                                 <ChampionCard icon={<Layers />} title="Paling Banyak Lembar" name={topByOf(opRows, x => x.printPcs)?.row.name} value={`${topByOf(opRows, x => x.printPcs)?.v ?? 0} lembar`} accent="bg-fuchsia-500/15 text-fuchsia-500" />
@@ -413,7 +461,7 @@ export default function LeaderboardPage() {
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm min-w-[760px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                                <Th>Operator</Th><Th right>Cetak (job)</Th><Th right>Lembar</Th><Th right>Produksi (job)</Th><Th right>Selesai</Th><Th right>Total Job</Th><Th right>Omzet</Th>
+                                                <Th>Operator</Th><Th right>Cetak (job)</Th><Th right>Lembar</Th><Th right>Produksi (job)</Th><Th right>Selesai</Th><Th right>Total Job</Th><Th right>Omzet (bagian)</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {opRows.map((r, i) => (
@@ -424,7 +472,7 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{r.prodJobs || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.prodDone || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{r.total || '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzet > 0 ? fmtRp(r.omzet) : '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -461,14 +509,13 @@ export default function LeaderboardPage() {
                                             </table>
                                         </div>
                                     )}
-                                    <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzet }))} label="Omzet operator (cetak + produksi)" money />
+                                    <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzetShare }))} label="Omzet (bagian) operator" money />
                                 </>
                             )}
                             <CaraHitung>
                                 <p><b>Cetak (job)</b> = job di <b>antrian cetak paper</b> yang sudah dicetak operator ini (status SELESAI/DIAMBIL). <b>Lembar</b> = total qty yang dicetak. Basis tanggal = waktu selesai cetak.</p>
                                 <p><b>Produksi (job)</b> = job di <b>antrian produksi</b> (kanban /produksi/board) yang ia geser tahapannya. <b>Selesai</b> = job yang ia bawa sampai tahap KIRIM/SELESAI. Basis tanggal = waktu pindah kartu.</p>
-                                <p><b>Omzet</b> = nilai line item dari pekerjaannya — dari <b>job cetak</b> (semua yang selesai dicetak) <i>+</i> <b>job produksi</b> yang ia bawa sampai KIRIM/SELESAI (dihitung sekali per job). Dasar peringkat.</p>
-                                <p className="text-[11px] italic">Omzet bisa beririsan dengan divisi lain (CS/designer) — ini kredit kontribusi tim per tahap, bukan penjumlahan omzet toko.</p>
+                                <p><b>Omzet (bagian)</b> = bagian operator dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator), lalu porsi operator dibagi lagi antar operator sesuai keterlibatan (kerja sama 1/N). Bukan lagi nilai line item. Dasar peringkat. Lihat board <b>Tim / Cabang</b>.</p>
                                 <p><b>Total Job</b> = Cetak + Produksi. Operator dicocokkan berdasarkan <b>nama</b> yang ia isi saat login board/cetak.</p>
                                 <p><b>Breakdown per kategori</b>: tiap <b>kategori produksi</b> (bisa ditambah/edit/hapus di <b>Manajemen Kategori → Kategori Produksi</b>) punya <b>sumber</b> sendiri — <b>Cetak</b> (dihitung dari bahan cetak/antrian cetak) atau <b>Produksi</b> (dari antrian produksi/kanban, sekali per job saat KIRIM/SELESAI). Kategori dilekatkan ke kategori barang lewat pilihan <b>Tipe Produksi</b>. Satuan mengikuti setelan kategori: <b>m²</b> (luas) atau <b>pcs</b>. <b>Rp</b> = nilai line item.</p>
                                 <p className="text-[11px] italic">Produksi terhitung dari kedua board: kanban /produksi/board maupun antrian /produksi (mode-status) — keduanya kini mencatat nama operator saat menyelesaikan job.</p>

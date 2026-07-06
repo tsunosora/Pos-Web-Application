@@ -233,7 +233,7 @@ export default function CetakPage() {
         if (!modal || !name) return;
         setFinishModal(null);
         setBusyId(modal.job.id);
-        try { await finishPrintJob(modal.job.id, name, coOperatorNames); await loadData(); }
+        try { await finishPrintJob(modal.job.id, name, coOperatorNames, activeBranchId ?? undefined); await loadData(); }
         finally { setBusyId(null); }
     };
     const handlePickup = async (job: PrintJob) => {

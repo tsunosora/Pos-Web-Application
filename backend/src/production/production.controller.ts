@@ -172,8 +172,9 @@ export class ProductionController {
         if (!body.operatorName?.trim()) {
             throw new BadRequestException('Nama operator wajib diisi');
         }
-        const { pin: _p, branchId: _b, operatorName, ...data } = body;
-        return this.productionService.updatePipelineStage(id, data, { name: operatorName.trim(), role: 'OPERATOR' });
+        const { pin: _p, branchId, operatorName, ...data } = body;
+        // branchId = cabang PIN operator → dipakai atribusi leaderboard (bukan dibuang).
+        return this.productionService.updatePipelineStage(id, data, { name: operatorName.trim(), role: 'OPERATOR', branchId: branchId ?? null });
     }
 
     @Post('pipeline/public/jobs/:id/proof-image')
@@ -240,8 +241,8 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete')
-    completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[] }) {
-        return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName, body?.coOperatorNames);
+    completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+        return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/start-assembly')
@@ -250,8 +251,8 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete-assembly')
-    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[] }) {
-        return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName, body?.coOperatorNames);
+    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+        return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')
@@ -272,8 +273,8 @@ export class ProductionController {
     }
 
     @Post('batches/:id/complete')
-    completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[] }) {
-        return this.productionService.completeBatch(id, body?.operatorName, body?.coOperatorNames);
+    completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+        return this.productionService.completeBatch(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     // ─── Meter Reading (Rekonsiliasi Operator) ───────────────────────────────

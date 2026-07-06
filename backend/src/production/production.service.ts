@@ -253,7 +253,7 @@ export class ProductionService {
      * (STAGE_CHANGE oleh actorRole OPERATOR). Board status-mode tidak punya field
      * operator, jadi attribusi diambil dari nama yang diisi operator saat login.
      */
-    private async logOperatorDone(jobId: number, toStage: string, operatorName?: string, client?: any, coOperatorNames?: string[]) {
+    private async logOperatorDone(jobId: number, toStage: string, operatorName?: string, client?: any, coOperatorNames?: string[], operatorBranchId?: number | null) {
         const primary = operatorName?.trim();
         if (!primary) return;
         // Kerja sama: tulis 1 baris kredit per operator, bobot 1/N (bagi rata).
@@ -262,12 +262,14 @@ export class ProductionService {
             .filter(n => n && n !== primary);
         const all = Array.from(new Set([primary, ...partners]));
         const weight = 1 / all.length;
+        // branchId = cabang home operator (atribusi leaderboard per cabang). Null → data lama.
+        const branchId = operatorBranchId ?? null;
         await ((client ?? this.prisma) as any).productionJobActivity.createMany({
-            data: all.map(name => ({ jobId, action: 'STAGE_CHANGE', toStage, actorName: name, actorRole: 'OPERATOR', actorWeight: weight })),
+            data: all.map(name => ({ jobId, action: 'STAGE_CHANGE', toStage, actorName: name, actorRole: 'OPERATOR', actorWeight: weight, branchId })),
         });
     }
 
-    async completeJob(id: number, operatorNote?: string, operatorName?: string, coOperatorNames?: string[]) {
+    async completeJob(id: number, operatorNote?: string, operatorName?: string, coOperatorNames?: string[], operatorBranchId?: number | null) {
         const job = await (this.prisma as any).productionJob.findUnique({
             where: { id },
             include: {
@@ -299,7 +301,7 @@ export class ProductionService {
         });
         // SELESAI = produksi tuntas (dihitung "selesai" + omzet); MENUNGGU_PASANG =
         // produksi cetak selesai tapi tunggu rakit → forward stage non-done.
-        await this.logOperatorDone(id, nextStatus === 'SELESAI' ? 'SELESAI' : 'ANTRIAN_PRESS', opName, undefined, coOperatorNames);
+        await this.logOperatorDone(id, nextStatus === 'SELESAI' ? 'SELESAI' : 'ANTRIAN_PRESS', opName, undefined, coOperatorNames, operatorBranchId ?? (job as any).branchId ?? null);
         return updated;
     }
 
@@ -359,7 +361,7 @@ export class ProductionService {
         });
     }
 
-    async completeAssembly(id: number, assemblyNote?: string, operatorName?: string, coOperatorNames?: string[]) {
+    async completeAssembly(id: number, assemblyNote?: string, operatorName?: string, coOperatorNames?: string[], operatorBranchId?: number | null) {
         const job = await (this.prisma as any).productionJob.findUnique({ where: { id } });
         if (!job) throw new NotFoundException('Job tidak ditemukan');
         if (job.status !== 'PASANG') throw new BadRequestException('Job belum dalam status PASANG');
@@ -375,7 +377,7 @@ export class ProductionService {
             },
             include: this.jobInclude(),
         });
-        await this.logOperatorDone(id, 'SELESAI', opName, undefined, coOperatorNames);
+        await this.logOperatorDone(id, 'SELESAI', opName, undefined, coOperatorNames, operatorBranchId ?? (job as any).branchId ?? null);
         return updated;
     }
 
@@ -542,7 +544,7 @@ export class ProductionService {
         });
     }
 
-    async completeBatch(id: number, operatorName?: string, coOperatorNames?: string[]) {
+    async completeBatch(id: number, operatorName?: string, coOperatorNames?: string[], operatorBranchId?: number | null) {
         return this.prisma.$transaction(async (tx) => {
             const batch = await (tx as any).productionBatch.findUnique({ where: { id } });
             if (!batch) throw new NotFoundException('Batch tidak ditemukan');
@@ -551,7 +553,7 @@ export class ProductionService {
             const opName = operatorName?.trim();
             const toComplete: any[] = await (tx as any).productionJob.findMany({
                 where: { batchId: id, status: 'PROSES' },
-                select: { id: true },
+                select: { id: true, branchId: true },
             });
 
             await (tx as any).productionJob.updateMany({
@@ -568,7 +570,7 @@ export class ProductionService {
                 const all = Array.from(new Set([opName, ...partners]));
                 const weight = 1 / all.length;
                 await (tx as any).productionJobActivity.createMany({
-                    data: toComplete.flatMap(j => all.map(name => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: 'SELESAI', actorName: name, actorRole: 'OPERATOR', actorWeight: weight }))),
+                    data: toComplete.flatMap(j => all.map(name => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: 'SELESAI', actorName: name, actorRole: 'OPERATOR', actorWeight: weight, branchId: operatorBranchId ?? j.branchId ?? null }))),
                 });
             }
 
@@ -758,11 +760,11 @@ export class ProductionService {
             designerName?: string | null;
             coOperatorNames?: string[];
         },
-        actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' },
+        actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR'; branchId?: number | null },
     ) {
         // Load existing untuk dapat fromStage di audit
         const existing = await (this.prisma as any).productionJob.findUnique({
-            where: { id }, select: { pipelineStage: true },
+            where: { id }, select: { pipelineStage: true, branchId: true },
         });
         const updateData: any = {};
         if (data.pipelineStage !== undefined) {
@@ -825,6 +827,10 @@ export class ProductionService {
             const all = Array.from(new Set([actor?.name, ...partners].filter(Boolean)));
             const names = all.length ? all : [actor?.name ?? null];
             const weight = names.length ? 1 / names.length : 1;
+            // branchId = cabang home operator (dari PIN). Admin → fallback cabang job.
+            const actBranchId = actor?.role === 'OPERATOR'
+                ? (actor?.branchId ?? existing?.branchId ?? null)
+                : null;
             for (const name of names) {
                 acts.push({
                     jobId: id,
@@ -834,6 +840,7 @@ export class ProductionService {
                     actorName: name ?? null,
                     actorRole: actor?.role ?? null,
                     actorWeight: weight,
+                    branchId: actBranchId,
                 });
             }
         }

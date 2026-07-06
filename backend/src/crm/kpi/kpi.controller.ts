@@ -88,6 +88,21 @@ export class KpiController {
         });
     }
 
+    @Get('team-leaderboard')
+    teamLeaderboard(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
+    ) {
+        return this.kpi.teamLeaderboard(scopeBranch(ctx, branchId), {
+            period: (period as KpiPeriod) || 'month',
+            start,
+            end,
+        });
+    }
+
     @Get('design-output')
     designOutput(
         @CurrentBranch() ctx: BranchContext,

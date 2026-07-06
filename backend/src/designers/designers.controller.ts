@@ -30,12 +30,12 @@ export class DesignersAdminController {
     }
 
     @Post()
-    create(@Body() body: { name: string; pin: string }) {
+    create(@Body() body: { name: string; pin: string; branchName?: string; branchId?: number | null }) {
         return this.service.create(body);
     }
 
     @Patch(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; pin?: string; isActive?: boolean }) {
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null; branchId?: number | null }) {
         return this.service.update(id, body);
     }
 

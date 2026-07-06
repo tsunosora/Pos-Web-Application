@@ -86,8 +86,8 @@ export const verifyPrintPin = async (pin: string, branchId?: number): Promise<{ 
 export const startPrintJob = async (id: number, operatorName?: string): Promise<PrintJob> =>
     (await api.post(`/print-queue/jobs/${id}/start`, { operatorName })).data;
 
-export const finishPrintJob = async (id: number, operatorName?: string, coOperatorNames?: string[]): Promise<PrintJob> =>
-    (await api.post(`/print-queue/jobs/${id}/finish`, { operatorName, coOperatorNames })).data;
+export const finishPrintJob = async (id: number, operatorName?: string, coOperatorNames?: string[], branchId?: number): Promise<PrintJob> =>
+    (await api.post(`/print-queue/jobs/${id}/finish`, { operatorName, coOperatorNames, branchId })).data;
 
 export const pickupPrintJob = async (id: number): Promise<PrintJob> =>
     (await api.post(`/print-queue/jobs/${id}/pickup`)).data;

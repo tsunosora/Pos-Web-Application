@@ -342,9 +342,10 @@ export default function ProduksiPage() {
         if (!m) return;
         setCompleteLoading(true);
         try {
-            if (m.kind === 'job') await completeProductionJob(m.id, undefined, operatorName ?? undefined, coOperatorNames);
-            else if (m.kind === 'batch') await completeProductionBatch(m.id, operatorName ?? undefined, coOperatorNames);
-            else await completeAssemblyJob(m.id, undefined, operatorName ?? undefined, coOperatorNames);
+            const bid = activeBranchId ?? undefined;
+            if (m.kind === 'job') await completeProductionJob(m.id, undefined, operatorName ?? undefined, coOperatorNames, bid);
+            else if (m.kind === 'batch') await completeProductionBatch(m.id, operatorName ?? undefined, coOperatorNames, bid);
+            else await completeAssemblyJob(m.id, undefined, operatorName ?? undefined, coOperatorNames, bid);
             setCompleteModal(null);
             await loadData();
         } catch (e: any) {

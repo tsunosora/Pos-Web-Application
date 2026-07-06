@@ -187,7 +187,7 @@ export class PrintQueueService {
         });
     }
 
-    async finishJob(id: number, operatorName?: string, coOperatorNames?: string[]) {
+    async finishJob(id: number, operatorName?: string, coOperatorNames?: string[], operatorBranchId?: number | null) {
         const job = await this.getJob(id);
         if (job.status !== 'PROSES') throw new BadRequestException('Job tidak dalam status PROSES');
         // Kerja sama: simpan daftar rekan → leaderboard bagi rata 1/N (primary + rekan).
@@ -203,6 +203,8 @@ export class PrintQueueService {
                 status: 'SELESAI', finishedAt: new Date(),
                 operatorName: primary || job.operatorName,
                 coOperators: partners.length ? partners : [],
+                // cabang PIN operator cetak → atribusi leaderboard; fallback cabang job.
+                operatorBranchId: operatorBranchId ?? (job as any).branchId ?? null,
             },
             include: this.jobInclude(),
         });

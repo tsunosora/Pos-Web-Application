@@ -471,6 +471,7 @@ export interface KpiLeaderboardEntry {
     walkinTx: number;
     walkinPcs: number;
     walkinValue: number;
+    omzetShare: number;   // bagian omzet nota utk CS (nota dibagi per peran)
     closingRate: number;
     avgResponseHrs: number | null;
 }
@@ -586,6 +587,7 @@ export interface DesignerLeaderboardEntry {
     soInvoiced: number;   // SO yang jadi nota di periode
     soConvRate: number;   // rasio SO dibuat → jadi nota (0..1)
     omzet: number;        // omzet nota dari SO designer ini
+    omzetShare: number;   // bagian omzet nota utk desainer (nota dibagi per peran)
     pcs: number;          // total pcs dari nota tsb
     avgDesignHrs: number | null;
 }
@@ -630,6 +632,7 @@ export interface OperatorLeaderboardEntry {
     prodDone: number;    // job produksi yang ia bawa sampai KIRIM/SELESAI
     prodOmzet: number;   // omzet dari job produksi yang selesai (Rp)
     omzet: number;       // printOmzet + prodOmzet (total)
+    omzetShare: number;  // bagian omzet nota utk operator (nota dibagi per peran)
     total: number;       // printJobs + prodJobs (jumlah job)
     // breakdown produksi per kategori — keyed by id ProductionCategory (dinamis)
     production?: Record<string, { jobs: number; pcs: number; areaM2: number; omzet: number }>;
@@ -642,6 +645,30 @@ export const getOperatorLeaderboard = async (params: {
     branchId?: number | 'all';
 }): Promise<OperatorLeaderboardEntry[]> =>
     (await api.get('/crm/kpi/operator-leaderboard', { params })).data;
+
+// ── Leaderboard Tim / Cabang (omzet nota dibagi per peran → per cabang home) ──
+export interface TeamLeaderboardEntry {
+    branchId: number | null;
+    name: string;         // "[KODE] Nama" cabang, atau "Tak diketahui"
+    csShare: number;      // Σ bagian CS anggota cabang
+    designerShare: number;
+    operatorShare: number;
+    omzet: number;        // total (cs+designer+operator)
+}
+
+export interface TeamLeaderboardReport {
+    period: { start: string; end: string };
+    leaderboard: TeamLeaderboardEntry[];
+    totals: { csShare: number; designerShare: number; operatorShare: number; omzet: number };
+}
+
+export const getTeamLeaderboard = async (params: {
+    period: KpiPeriod;
+    start?: string;
+    end?: string;
+    branchId?: number | 'all';
+}): Promise<TeamLeaderboardReport> =>
+    (await api.get('/crm/kpi/team-leaderboard', { params })).data;
 
 // ── Tren leaderboard (time-series per orang, untuk modal grafik) ──────────
 export interface LeaderboardTrendReport {

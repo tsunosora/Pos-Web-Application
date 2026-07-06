@@ -40,8 +40,8 @@ export class PrintQueueController {
     }
 
     @Post('jobs/:id/finish')
-    finish(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[] }) {
-        return this.svc.finishJob(id, body?.operatorName, body?.coOperatorNames);
+    finish(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+        return this.svc.finishJob(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')

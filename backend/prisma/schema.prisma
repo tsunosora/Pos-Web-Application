@@ -1007,10 +1007,14 @@ model ProductionJobActivity {
   actorName  String?  @map("actor_name") @db.VarChar(120) // nama operator/desainer (dari board) atau user (admin)
   actorRole  String?  @map("actor_role") @db.VarChar(20)  // ADMIN | OPERATOR
   actorWeight Float   @default(1) @map("actor_weight") // bobot kredit 1/N saat kerja sama beberapa operator
+  // Cabang operator saat aksi (dari PIN cabang yang dipakai) — untuk atribusi leaderboard
+  // per cabang home operator (bukan cabang produksi job). Null utk data lama/aksi admin.
+  branchId   Int?     @map("branch_id")
   meta       Json?
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([jobId, createdAt])
+  @@index([branchId])
   @@map("production_job_activities")
 }
 
@@ -1205,6 +1209,9 @@ model PrintJob {
   pickedUpAt        DateTime?      @map("picked_up_at")
   operatorName      String?        @map("operator_name") @db.VarChar(100)
   coOperators       Json?          @map("co_operators") // rekan kerja sama (array nama, bagi rata 1/N)
+  // Cabang operator cetak saat finish (dari PIN cabang) — atribusi leaderboard per cabang
+  // home operator, beda dari `branchId` (cabang job/transaksi). Null utk data lama.
+  operatorBranchId  Int?           @map("operator_branch_id")
   createdAt         DateTime       @default(now()) @map("created_at")
   updatedAt         DateTime       @updatedAt @map("updated_at")
 
@@ -1215,6 +1222,7 @@ model PrintJob {
   @@index([status])
   @@index([transactionId])
   @@index([branchId])
+  @@index([operatorBranchId])
   @@map("print_jobs")
 }
 
@@ -1417,9 +1425,11 @@ model Designer {
   name       String   @db.VarChar(100)
   pin        String   @db.VarChar(10)
   branchName String?  @map("branch_name") @db.VarChar(100) // nama cabang desainer ini (untuk auto-tag SO)
+  branchId   Int?     @map("branch_id") // FK cabang home desainer — atribusi leaderboard (resolve dari branchName)
   isActive   Boolean  @default(true)  @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
 
+  @@index([branchId])
   @@map("designers")
 }
 

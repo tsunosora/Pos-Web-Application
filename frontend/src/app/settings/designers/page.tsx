@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Users } from "lucide-react";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
+import { getActiveCompanyBranches, type CompanyBranchLite } from "@/lib/api/discord";
 
 export default function DesignersSettingsPage() {
     const qc = useQueryClient();
@@ -11,7 +12,7 @@ export default function DesignersSettingsPage() {
     const [editId, setEditId] = useState<number | null>(null);
     const [name, setName] = useState("");
     const [pin, setPin] = useState("");
-    const [branchName, setBranchName] = useState("");
+    const [branchId, setBranchId] = useState<number | null>(null);
     const [showPin, setShowPin] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -19,6 +20,11 @@ export default function DesignersSettingsPage() {
     const { data: designers = [], isLoading } = useQuery<Designer[]>({
         queryKey: ["designers"],
         queryFn: getDesigners,
+    });
+
+    const { data: branches = [] } = useQuery<CompanyBranchLite[]>({
+        queryKey: ["company-branches-active"],
+        queryFn: getActiveCompanyBranches,
     });
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["designers"] });
@@ -46,24 +52,31 @@ export default function DesignersSettingsPage() {
     });
 
     function resetForm() {
-        setShowForm(false); setEditId(null); setName(""); setPin(""); setBranchName(""); setError(null);
+        setShowForm(false); setEditId(null); setName(""); setPin(""); setBranchId(null); setError(null);
     }
 
     function startEdit(d: Designer) {
-        setEditId(d.id); setName(d.name); setPin(""); setBranchName((d as any).branchName || ""); setShowForm(true); setError(null);
+        setEditId(d.id); setName(d.name); setPin("");
+        // Cocokkan cabang: pakai branchId bila ada, else tebak dari branchName lama.
+        const bid = (d as any).branchId ?? branches.find(b => b.name === (d as any).branchName)?.id ?? null;
+        setBranchId(bid);
+        setShowForm(true); setError(null);
     }
 
     function handleSave() {
         setError(null);
         if (!name.trim()) { setError("Nama wajib diisi"); return; }
         if (!editId && !pin.trim()) { setError("PIN wajib diisi saat tambah karyawan baru"); return; }
+        // Pusat = branchId null → branchName null. Cabang dipilih → kirim id + nama snapshot.
+        const branch = branchId != null ? branches.find(b => b.id === branchId) : null;
+        const branchName = branch?.name ?? null;
         if (editId) {
-            const upd: any = { name: name.trim(), branchName: branchName.trim() || null };
+            const upd: any = { name: name.trim(), branchName, branchId };
             if (pin.trim()) upd.pin = pin.trim();
             updateMut.mutate({ id: editId, data: upd });
         } else {
             if (pin.length < 4) { setError("PIN minimal 4 karakter"); return; }
-            createMut.mutate({ name: name.trim(), pin: pin.trim(), branchName: branchName.trim() || undefined });
+            createMut.mutate({ name: name.trim(), pin: pin.trim(), branchName, branchId });
         }
     }
 
@@ -124,11 +137,20 @@ export default function DesignersSettingsPage() {
                         </div>
                         <div className="col-span-2">
                             <label className="text-xs font-medium text-muted-foreground block mb-1">
-                                Nama Cabang <span className="font-normal">(opsional — kosongkan jika di Pusat)</span>
+                                Cabang <span className="font-normal">(pilih dari daftar — untuk atribusi omzet leaderboard ke cabang)</span>
                             </label>
-                            <input value={branchName} onChange={e => setBranchName(e.target.value)}
+                            <select
+                                value={branchId ?? ""}
+                                onChange={e => setBranchId(e.target.value ? Number(e.target.value) : null)}
                                 className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
-                                placeholder="Contoh: Cabang Ngasem, Cabang Bantul..." />
+                            >
+                                <option value="">Pusat (tanpa cabang)</option>
+                                {branches.map(b => (
+                                    <option key={b.id} value={b.id}>
+                                        {b.code ? `[${b.code}] ${b.name}` : b.name}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
                     </div>
                     <div className="flex justify-end gap-2">

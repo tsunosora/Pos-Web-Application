@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere } from '../../common/branch-where.helper';
+import { matchBranchId } from '../../common/branch-name.util';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { DiscordService } from '../../discord/discord.service';
 
@@ -720,6 +721,8 @@ export class KpiService {
     async operatorLeaderboard(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);
+        // Bagian omzet operator (nota dibagi per peran) — kolom "omzet (bagian)".
+        const { operatorShareByName } = await this.computeNotaSplits(params);
 
         // ── CETAK (PrintJob) ──────────────────────────────────────────────
         // Omzet cetak = nilai line item yang dicetak (priceAtTime × qty item).
@@ -892,6 +895,8 @@ export class KpiService {
                     prodDone: round2(prodDone),
                     prodOmzet,
                     omzet: round2(printOmzet + prodOmzet),
+                    // Bagian omzet nota utk operator ini (nota dibagi per peran) → kolom leaderboard.
+                    omzetShare: Math.round(operatorShareByName.get(e.name) || 0),
                     total: e.printJobs + e.prodJobs.size,
                     production,
                 };
@@ -902,6 +907,8 @@ export class KpiService {
     async designerLeaderboard(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);
+        // Bagian omzet desainer (nota dibagi per peran) — kolom "omzet (bagian)".
+        const { designerShareByName } = await this.computeNotaSplits(params);
 
         const FORWARD = new Set(['PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'SELESAI']);
         const DONE = new Set(['KIRIM', 'SELESAI']);
@@ -1018,6 +1025,8 @@ export class KpiService {
                     soInvoiced: so.invoiced,                                   // SO yang jadi nota
                     soConvRate: soCreated > 0 ? so.invoiced / soCreated : 0,   // rasio SO → nota
                     omzet: so.omzet,                                           // omzet dari SO yang jadi nota
+                    // Bagian omzet nota utk desainer ini (nota dibagi per peran) → kolom leaderboard.
+                    omzetShare: Math.round(designerShareByName.get(name) || 0),
                     pcs: so.pcs,
                     avgDesignHrs: s.designCount > 0 ? s.designSumMs / s.designCount / 3_600_000 : null,
                 };
@@ -1043,6 +1052,225 @@ export class KpiService {
             leaderboard,
             totals,
         };
+    }
+
+    /**
+     * INTI fitur omzet-split. Untuk tiap nota (Transaction) di periode, bagi
+     * grandTotal RATA ke peran yang HADIR pada nota itu:
+     *   CS (pembuat lead) · desainer (pembuat SO) · operator (yang produksi).
+     * Tiap bagian dikreditkan ke cabang HOME orang tsb (bukan cabang produksi).
+     *   - CS       → User.branchId (assignedTo lead, fallback kasir walk-in).
+     *   - desainer → Designer.branchId (fallback resolve SalesOrder.branchName).
+     *   - operator → cabang PIN saat aksi (PrintJob.operatorBranchId /
+     *                ProductionJobActivity.branchId, fallback cabang job).
+     * Bagian operator dibagi lagi antar operator sesuai bobot keterlibatan
+     * (kerja sama 1/N dari coOperators/actorWeight).
+     *
+     * Invarian: untuk tiap nota, Σ(bagian semua peran hadir) = grandTotal.
+     * TIDAK di-scope cabang (board Tim membandingkan semua cabang; peta per-orang
+     * di-lookup by id/nama oleh leaderboard peran masing-masing).
+     */
+    private async computeNotaSplits(params: KpiParams): Promise<{
+        team: Map<number | 'none', { csShare: number; designerShare: number; operatorShare: number; omzet: number }>;
+        csShareByUser: Map<number, number>;
+        designerShareByName: Map<string, number>;
+        operatorShareByName: Map<string, number>;
+    }> {
+        const { start, end } = resolvePeriod(params);
+        const empty = {
+            team: new Map<number | 'none', { csShare: number; designerShare: number; operatorShare: number; omzet: number }>(),
+            csShareByUser: new Map<number, number>(),
+            designerShareByName: new Map<string, number>(),
+            operatorShareByName: new Map<string, number>(),
+        };
+
+        const txs: any[] = await (this.prisma as any).transaction.findMany({
+            where: { createdAt: { gte: start, lte: end }, status: { not: 'FAILED' } },
+            select: {
+                id: true, grandTotal: true, cashierName: true, branchId: true,
+                salesOrder: { select: { designerName: true, branchName: true } },
+            },
+        });
+        if (txs.length === 0) return empty;
+        const txIds = txs.map(t => t.id);
+
+        // ── CS per nota: lead.assignedToId (fallback kasir walk-in by nama) ──
+        const leads: any[] = await this.lead.findMany({
+            where: { convertedTransactionId: { in: txIds } },
+            select: { convertedTransactionId: true, assignedToId: true },
+        });
+        const csUserByTx = new Map<number, number>();
+        for (const l of leads) if (l.assignedToId) csUserByTx.set(Number(l.convertedTransactionId), l.assignedToId);
+
+        const users: any[] = await this.prisma.user.findMany({ select: { id: true, name: true, branchId: true } });
+        const userBranch = new Map<number, number | null>(users.map(u => [u.id, u.branchId ?? null]));
+        const nameToUser = new Map<string, any>();
+        for (const u of users) if (u.name) nameToUser.set(u.name.trim().toLowerCase(), u);
+
+        // ── Cabang desainer: nama → Designer.branchId (fallback branchName SO) ──
+        const designers: any[] = await (this.prisma as any).designer.findMany({ select: { name: true, branchId: true } });
+        const designerBranchByName = new Map<string, number | null>();
+        for (const d of designers) if (d.name) designerBranchByName.set(d.name.trim().toLowerCase(), d.branchId ?? null);
+        const branches: any[] = await (this.prisma as any).companyBranch.findMany({
+            where: { isActive: true }, select: { id: true, name: true, code: true },
+        });
+
+        // ── Operator per nota: printjob (done) + activity produksi (done) ──
+        const printJobs: any[] = await (this.prisma as any).printJob.findMany({
+            where: { transactionId: { in: txIds }, status: { in: ['SELESAI', 'DIAMBIL'] }, operatorName: { not: null } },
+            select: { transactionId: true, operatorName: true, coOperators: true, operatorBranchId: true, branchId: true },
+        });
+        const prodJobs: any[] = await (this.prisma as any).productionJob.findMany({
+            where: { transactionId: { in: txIds } },
+            select: { id: true, transactionId: true, branchId: true },
+        });
+        const jobTx = new Map<number, number>(prodJobs.map(j => [j.id, j.transactionId]));
+        const jobBranch = new Map<number, number | null>(prodJobs.map(j => [j.id, j.branchId ?? null]));
+        const jobIds = prodJobs.map(j => j.id);
+        const acts: any[] = jobIds.length ? await (this.prisma as any).productionJobActivity.findMany({
+            where: {
+                jobId: { in: jobIds }, action: 'STAGE_CHANGE', actorRole: 'OPERATOR',
+                actorName: { not: null }, toStage: { in: ['KIRIM', 'SELESAI'] },
+            },
+            select: { jobId: true, actorName: true, actorWeight: true, branchId: true },
+        }) : [];
+
+        type OpAgg = { weight: number; branchId: number | null };
+        const opByTx = new Map<number, Map<string, OpAgg>>();
+        const addOp = (txId: number, name: string, w: number, branchId: number | null) => {
+            if (!name) return;
+            let m = opByTx.get(txId); if (!m) { m = new Map(); opByTx.set(txId, m); }
+            const cur = m.get(name) || { weight: 0, branchId: null };
+            cur.weight += w;
+            if (cur.branchId == null && branchId != null) cur.branchId = branchId;
+            m.set(name, cur);
+        };
+        for (const p of printJobs) {
+            const primary = (p.operatorName || '').trim();
+            const partners = (Array.isArray(p.coOperators) ? p.coOperators : [])
+                .map((n: any) => String(n || '').trim()).filter((n: string) => n && n !== primary);
+            const all = Array.from(new Set([primary, ...partners])).filter(Boolean);
+            if (!all.length) continue;
+            const w = 1 / all.length;
+            const br = p.operatorBranchId ?? p.branchId ?? null;
+            for (const name of all) addOp(p.transactionId, name as string, w, br);
+        }
+        // Produksi: bobot per (job,nama) ambil terbesar (konsisten operatorLeaderboard).
+        const jobNameWeight = new Map<string, number>();
+        const jobNameBranch = new Map<string, number | null>();
+        for (const a of acts) {
+            const name = (a.actorName || '').trim(); if (!name) continue;
+            const key = `${a.jobId}|${name}`;
+            jobNameWeight.set(key, Math.max(jobNameWeight.get(key) ?? 0, Number(a.actorWeight) || 1));
+            const br = a.branchId ?? jobBranch.get(a.jobId) ?? null;
+            if (jobNameBranch.get(key) == null && br != null) jobNameBranch.set(key, br);
+        }
+        for (const [key, w] of jobNameWeight) {
+            const sep = key.indexOf('|');
+            const jobId = Number(key.slice(0, sep));
+            const name = key.slice(sep + 1);
+            const txId = jobTx.get(jobId); if (!txId) continue;
+            addOp(txId, name, w, jobNameBranch.get(key) ?? null);
+        }
+
+        // ── Split per nota ──
+        const team = empty.team;
+        const bump = (branchId: number | null, role: 'cs' | 'designer' | 'operator', v: number) => {
+            const key: number | 'none' = branchId == null ? 'none' : branchId;
+            const e = team.get(key) || { csShare: 0, designerShare: 0, operatorShare: 0, omzet: 0 };
+            if (role === 'cs') e.csShare += v; else if (role === 'designer') e.designerShare += v; else e.operatorShare += v;
+            e.omzet += v;
+            team.set(key, e);
+        };
+        const csShareByUser = empty.csShareByUser;
+        const designerShareByName = empty.designerShareByName;
+        const operatorShareByName = empty.operatorShareByName;
+
+        for (const t of txs) {
+            const gross = Number(t.grandTotal) || 0;
+            if (gross <= 0) continue;
+
+            let csUser: number | null = csUserByTx.get(t.id) ?? null;
+            let csBranch: number | null = null;
+            if (csUser != null) csBranch = userBranch.get(csUser) ?? null;
+            else {
+                const u = nameToUser.get((t.cashierName || '').trim().toLowerCase());
+                if (u) { csUser = u.id; csBranch = u.branchId ?? null; }
+            }
+            const hasCs = csUser != null;
+
+            const dName = (t.salesOrder?.designerName || '').trim();
+            const hasDesigner = !!dName;
+            let dBranch: number | null = null;
+            if (hasDesigner) {
+                dBranch = designerBranchByName.get(dName.toLowerCase()) ?? null;
+                if (dBranch == null) dBranch = matchBranchId(t.salesOrder?.branchName, branches);
+            }
+
+            const opMap = opByTx.get(t.id);
+            const hasOperator = !!opMap && opMap.size > 0;
+
+            const rolesCount = (hasCs ? 1 : 0) + (hasDesigner ? 1 : 0) + (hasOperator ? 1 : 0);
+            if (rolesCount === 0) continue; // nota tak bisa diatribusikan ke siapa pun
+            const share = gross / rolesCount;
+
+            if (hasCs) {
+                csShareByUser.set(csUser!, (csShareByUser.get(csUser!) || 0) + share);
+                bump(csBranch, 'cs', share);
+            }
+            if (hasDesigner) {
+                designerShareByName.set(dName, (designerShareByName.get(dName) || 0) + share);
+                bump(dBranch, 'designer', share);
+            }
+            if (hasOperator) {
+                const totalW = Array.from(opMap!.values()).reduce((s, o) => s + o.weight, 0) || 1;
+                for (const [name, agg] of opMap!) {
+                    const portion = share * (agg.weight / totalW);
+                    operatorShareByName.set(name, (operatorShareByName.get(name) || 0) + portion);
+                    bump(agg.branchId, 'operator', portion);
+                }
+            }
+        }
+
+        return { team, csShareByUser, designerShareByName, operatorShareByName };
+    }
+
+    /**
+     * Leaderboard TIM/cabang — omzet nota dibagi per peran lalu dijumlah per
+     * cabang HOME anggota. Selalu tampilkan SEMUA cabang (perbandingan antar tim);
+     * baris 'Tak diketahui' = bagian yang cabang orangnya belum ter-set (data lama).
+     */
+    async teamLeaderboard(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const { team } = await this.computeNotaSplits(params);
+        const branches: any[] = await (this.prisma as any).companyBranch.findMany({
+            select: { id: true, name: true, code: true },
+        });
+        const bMap = new Map<number, any>(branches.map(b => [b.id, b]));
+        const r0 = (v: number) => Math.round(v);
+        // Scope: cabang spesifik (staf non-owner / owner filter) → hanya cabangnya.
+        // ctx.branchId null (owner "Semua Cabang") → semua cabang (perbandingan tim).
+        const entries = ctx.branchId != null
+            ? Array.from(team.entries()).filter(([key]) => key === ctx.branchId)
+            : Array.from(team.entries());
+        const rows = entries.map(([key, v]) => {
+            const b = typeof key === 'number' ? bMap.get(key) : null;
+            return {
+                branchId: typeof key === 'number' ? key : null,
+                name: b ? (b.code ? `[${b.code}] ${b.name}` : b.name) : 'Tak diketahui',
+                csShare: r0(v.csShare),
+                designerShare: r0(v.designerShare),
+                operatorShare: r0(v.operatorShare),
+                omzet: r0(v.omzet),
+            };
+        }).sort((a, b) => b.omzet - a.omzet);
+        const totals = rows.reduce((t, r) => ({
+            csShare: t.csShare + r.csShare,
+            designerShare: t.designerShare + r.designerShare,
+            operatorShare: t.operatorShare + r.operatorShare,
+            omzet: t.omzet + r.omzet,
+        }), { csShare: 0, designerShare: 0, operatorShare: 0, omzet: 0 });
+        return { period: { start: start.toISOString(), end: end.toISOString() }, leaderboard: rows, totals };
     }
 
     // ── Helper bucket (dipakai csTrend & designerTrend) ─────────────────────
@@ -1230,6 +1458,8 @@ export class KpiService {
         // Filter staff (CS): batasi lead & FU ke assignedToId tsb; walk-in
         // dibatasi ke transaksi yang ditangani user tsb (match cashierName).
         const csScope: any = csId ? { assignedToId: csId } : {};
+        // Bagian omzet CS (nota dibagi per peran) — kolom "omzet (bagian)".
+        const { csShareByUser } = await this.computeNotaSplits(params);
 
         // ── Response time avg ──────────────────────────────────────────────
         // Ambil leads in period + first non-FIRST_CONTACT activity per lead.
@@ -1528,6 +1758,8 @@ export class KpiService {
                     walkinTx: stat.walkinTx,
                     walkinPcs: stat.walkinPcs,
                     walkinValue: stat.walkinValue,
+                    // Bagian omzet nota utk CS ini (nota dibagi per peran) → kolom leaderboard.
+                    omzetShare: Math.round(csShareByUser.get(userId) || 0),
                     closingRate: stat.leadsHandled > 0 ? stat.dealsClosed / stat.leadsHandled : 0,
                     avgResponseHrs: stat.respCount > 0
                         ? stat.respSum / stat.respCount / (1000 * 60 * 60)
