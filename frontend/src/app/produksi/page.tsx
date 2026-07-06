@@ -16,6 +16,7 @@ import {
 } from './produksi-utils';
 import { JobCard } from './JobCard';
 import { Footer } from '@/components/layout/Footer';
+import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
 
 // ── component ─────────────────────────────────────────────────────────────────
 export default function ProduksiPage() {
@@ -66,6 +67,9 @@ export default function ProduksiPage() {
     // Search & detail
     const [searchQuery, setSearchQuery] = useState('');
     const [detailJob, setDetailJob] = useState<any | null>(null);
+    // Modal "kerja sama" saat menandai selesai (job/batch/assembly) → poin bagi 1/N.
+    const [completeModal, setCompleteModal] = useState<{ kind: 'job' | 'batch' | 'assembly'; id: number; label: string } | null>(null);
+    const [completeLoading, setCompleteLoading] = useState(false);
 
     const refreshInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -265,14 +269,8 @@ export default function ProduksiPage() {
         }
     };
 
-    const handleCompleteJob = async (id: number) => {
-        if (!confirm('Tandai job ini sebagai SELESAI?')) return;
-        try {
-            await completeProductionJob(id, undefined, operatorName ?? undefined);
-            await loadData();
-        } catch (e: any) {
-            alert(e.message);
-        }
+    const handleCompleteJob = (id: number) => {
+        setCompleteModal({ kind: 'job', id, label: 'Tandai job ini sebagai SELESAI' });
     };
 
     const handlePickupJob = async (id: number) => {
@@ -310,14 +308,8 @@ export default function ProduksiPage() {
         }
     };
 
-    const handleCompleteBatch = async (batchId: number) => {
-        if (!confirm('Tandai semua job dalam batch ini sebagai SELESAI?')) return;
-        try {
-            await completeProductionBatch(batchId, operatorName ?? undefined);
-            await loadData();
-        } catch (e: any) {
-            alert(e.message);
-        }
+    const handleCompleteBatch = (batchId: number) => {
+        setCompleteModal({ kind: 'batch', id: batchId, label: 'Tandai semua job dalam batch ini sebagai SELESAI' });
     };
 
     // ── assembly actions ────────────────────────────────────────────────────────
@@ -340,13 +332,25 @@ export default function ProduksiPage() {
         }
     };
 
-    const handleCompleteAssembly = async (id: number) => {
-        if (!confirm('Tandai job ini sebagai selesai pemasangan?')) return;
+    const handleCompleteAssembly = (id: number) => {
+        setCompleteModal({ kind: 'assembly', id, label: 'Tandai job ini sebagai selesai pemasangan' });
+    };
+
+    // Dispatch penyelesaian setelah operator memilih rekan (opsional) di modal kerja sama.
+    const runComplete = async (coOperatorNames: string[]) => {
+        const m = completeModal;
+        if (!m) return;
+        setCompleteLoading(true);
         try {
-            await completeAssemblyJob(id, undefined, operatorName ?? undefined);
+            if (m.kind === 'job') await completeProductionJob(m.id, undefined, operatorName ?? undefined, coOperatorNames);
+            else if (m.kind === 'batch') await completeProductionBatch(m.id, operatorName ?? undefined, coOperatorNames);
+            else await completeAssemblyJob(m.id, undefined, operatorName ?? undefined, coOperatorNames);
+            setCompleteModal(null);
             await loadData();
         } catch (e: any) {
-            alert(e.message || 'Gagal menyelesaikan pemasangan');
+            alert(e.message || 'Gagal menyelesaikan');
+        } finally {
+            setCompleteLoading(false);
         }
     };
 
@@ -995,6 +999,17 @@ export default function ProduksiPage() {
                         </div>
                     </div>
                 </div>
+            )}
+            {completeModal && (
+                <KerjaSamaModal
+                    title={completeModal.label}
+                    subtitle="Tambah rekan bila dikerjakan bersama — poin leaderboard dibagi rata."
+                    designers={opList}
+                    selfName={operatorName ?? ''}
+                    submitting={completeLoading}
+                    onConfirm={runComplete}
+                    onCancel={() => setCompleteModal(null)}
+                />
             )}
             {/* ── Invoice Detail Modal ──────────────────────────────────────────────── */}
             {detailJob && (
