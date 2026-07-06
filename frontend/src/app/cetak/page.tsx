@@ -14,6 +14,7 @@ import {
     resolvePhotoUrl,
 } from '@/lib/api/production';
 import { getPublicDesigners } from '@/lib/api/designers';
+import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
 type RejectType = OperatorRejectType;
@@ -90,6 +91,7 @@ export default function CetakPage() {
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [busyId, setBusyId] = useState<number | null>(null);
+    const [finishModal, setFinishModal] = useState<{ job: PrintJob } | null>(null);
     const refreshRef = useRef<NodeJS.Timeout | null>(null);
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -220,11 +222,18 @@ export default function CetakPage() {
         try { await startPrintJob(job.id, name); await loadData(); }
         finally { setBusyId(null); }
     };
-    const handleFinish = async (job: PrintJob) => {
+    // Tandai selesai → buka modal kerja sama (opsi tambah rekan, poin dibagi 1/N).
+    const handleFinish = (job: PrintJob) => {
+        if (!ensureOperator()) return;
+        setFinishModal({ job });
+    };
+    const doFinish = async (coOperatorNames: string[]) => {
+        const modal = finishModal;
         const name = ensureOperator();
-        if (!name) return;
-        setBusyId(job.id);
-        try { await finishPrintJob(job.id, name); await loadData(); }
+        if (!modal || !name) return;
+        setFinishModal(null);
+        setBusyId(modal.job.id);
+        try { await finishPrintJob(modal.job.id, name, coOperatorNames); await loadData(); }
         finally { setBusyId(null); }
     };
     const handlePickup = async (job: PrintJob) => {
@@ -470,6 +479,18 @@ export default function CetakPage() {
                     </div>
                 )}
             </div>
+
+            {finishModal && (
+                <KerjaSamaModal
+                    title="Tandai selesai"
+                    subtitle={`${finishModal.job.jobNumber} · tambah rekan bila dicetak bersama (poin dibagi rata).`}
+                    designers={designers}
+                    selfName={operatorName}
+                    submitting={busyId === finishModal.job.id}
+                    onConfirm={doFinish}
+                    onCancel={() => setFinishModal(null)}
+                />
+            )}
 
             {/* Footer */}
             <footer className="mt-8 py-4 text-center">

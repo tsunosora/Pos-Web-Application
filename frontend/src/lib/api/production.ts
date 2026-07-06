@@ -84,11 +84,11 @@ export const startProductionJob = async (id: number, data: {
     return res.json();
 };
 
-export const completeProductionJob = async (id: number, operatorNote?: string, operatorName?: string): Promise<any> => {
+export const completeProductionJob = async (id: number, operatorNote?: string, operatorName?: string, coOperatorNames?: string[]): Promise<any> => {
     const res = await fetch(`${API_BASE()}/production/jobs/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operatorNote, operatorName }),
+        body: JSON.stringify({ operatorNote, operatorName, coOperatorNames }),
     });
     if (!res.ok) throw new Error((await res.json()).message || 'Gagal menyelesaikan job');
     return res.json();
@@ -315,11 +315,11 @@ export const startAssemblyJob = async (id: number, assemblyNote?: string): Promi
     return res.json();
 };
 
-export const completeAssemblyJob = async (id: number, assemblyNote?: string, operatorName?: string): Promise<any> => {
+export const completeAssemblyJob = async (id: number, assemblyNote?: string, operatorName?: string, coOperatorNames?: string[]): Promise<any> => {
     const res = await fetch(`${API_BASE()}/production/jobs/${id}/complete-assembly`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assemblyNote, operatorName }),
+        body: JSON.stringify({ assemblyNote, operatorName, coOperatorNames }),
     });
     if (!res.ok) throw new Error((await res.json()).message || 'Gagal menyelesaikan pemasangan');
     return res.json();
@@ -340,11 +340,11 @@ export const createProductionBatch = async (data: {
     return res.json();
 };
 
-export const completeProductionBatch = async (id: number, operatorName?: string): Promise<any> => {
+export const completeProductionBatch = async (id: number, operatorName?: string, coOperatorNames?: string[]): Promise<any> => {
     const res = await fetch(`${API_BASE()}/production/batches/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ operatorName }),
+        body: JSON.stringify({ operatorName, coOperatorNames }),
     });
     if (!res.ok) throw new Error((await res.json()).message || 'Gagal menyelesaikan batch');
     return res.json();
@@ -480,6 +480,7 @@ export const updatePublicPipelineStage = async (
         jahitEstimate?: string;
         qcNote?: string;
         returnReason?: string;
+        coOperatorNames?: string[];
     },
 ): Promise<PipelineJob> => {
     const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs/${id}`, {

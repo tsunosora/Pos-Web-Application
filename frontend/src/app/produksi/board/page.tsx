@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/production";
 import { getPublicDesigners } from "@/lib/api/designers";
 import { AssignDesignerModal } from "@/components/produksi/AssignDesignerModal";
+import { KerjaSamaModal } from "@/components/produksi/KerjaSamaModal";
 import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
@@ -301,6 +302,8 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
     const [activeJobId, setActiveJobId] = useState<number | null>(null);
     const [jahitModal, setJahitModal] = useState<{ job: PipelineJob } | null>(null);
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
+    // Tahap "selesai" (kredit leaderboard) → tawarkan opsi kerja sama (bagi 1/N).
+    const [kerjaSamaModal, setKerjaSamaModal] = useState<{ job: PipelineJob; stage: PipelineStage } | null>(null);
     const [proofViewer, setProofViewer] = useState<{ job: PipelineJob } | null>(null);
     const [assignProof, setAssignProof] = useState<{ jobId: number; files: File[] } | null>(null);
 
@@ -410,6 +413,8 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
         if (!job || (job.pipelineStage || "DESIGN") === newStage) return;
         if (newStage === "JAHIT") { setJahitModal({ job }); return; }
         if (newStage === "RETUR") { setReturModal({ job }); return; }
+        // Tahap selesai (KIRIM/SELESAI) = kredit leaderboard → tanya kerja sama dulu.
+        if (newStage === "KIRIM" || newStage === "SELESAI") { setKerjaSamaModal({ job, stage: newStage }); return; }
         stageMut.mutate({ id: jobId, payload: { pipelineStage: newStage } });
     }, [jobs, stageMut]);
 
@@ -500,6 +505,24 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
                         setReturModal(null);
                     }}
                     submitting={stageMut.isPending}
+                />
+            )}
+
+            {kerjaSamaModal && (
+                <KerjaSamaModal
+                    title={kerjaSamaModal.stage === "KIRIM" ? "Kirim pesanan" : "Tandai selesai"}
+                    subtitle={`${kerjaSamaModal.job.jobNumber} · tambah rekan bila dikerjakan bersama (poin dibagi rata).`}
+                    designers={designers}
+                    selfName={session.operatorName}
+                    submitting={stageMut.isPending}
+                    onConfirm={(coOperatorNames) => {
+                        stageMut.mutate({
+                            id: kerjaSamaModal.job.id,
+                            payload: { pipelineStage: kerjaSamaModal.stage, coOperatorNames },
+                        });
+                        setKerjaSamaModal(null);
+                    }}
+                    onCancel={() => setKerjaSamaModal(null)}
                 />
             )}
 
