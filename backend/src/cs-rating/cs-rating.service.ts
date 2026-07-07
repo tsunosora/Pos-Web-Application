@@ -191,13 +191,18 @@ export class CsRatingService {
 
     /** Ringkasan untuk owner: total, rata-rata bintang, %Ya, breakdown per petugas. */
     async summary(params: { branchId?: number; from?: string; to?: string } = {}) {
+        // Batas hari: 'YYYY-MM-DD' → awal hari (00:00) untuk from, akhir hari (23:59:59.999) untuk to.
+        // Tanpa ini, to=hari-ini jam 00:00 membuang semua penilaian yang masuk hari ini.
+        const dayStart = (s: string) => new Date(s.length <= 10 ? `${s}T00:00:00` : s);
+        const dayEnd = (s: string) => new Date(s.length <= 10 ? `${s}T23:59:59.999` : s);
+
         const where: any = { submittedAt: { not: null } };
         if (params.branchId) where.branchId = Number(params.branchId);
         if (params.from || params.to) {
             where.submittedAt = {
                 not: null,
-                ...(params.from ? { gte: new Date(params.from) } : {}),
-                ...(params.to ? { lte: new Date(params.to) } : {}),
+                ...(params.from ? { gte: dayStart(params.from) } : {}),
+                ...(params.to ? { lte: dayEnd(params.to) } : {}),
             };
         }
 
