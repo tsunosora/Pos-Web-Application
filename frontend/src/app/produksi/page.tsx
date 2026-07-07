@@ -208,6 +208,12 @@ export default function ProduksiPage() {
     // ── gang mode helpers ──────────────────────────────────────────────────────
     const toggleSelect = (id: number) => {
         const job = filteredJobs.find(j => j.id === id);
+        // Sub-order (printing luar) tak pakai bahan kita → tak boleh digabung cetak,
+        // supaya luasnya tidak ikut memotong stok bahan asli di createBatch.
+        if (job && isSubJob(job) && !selectedIds.has(id)) {
+            alert('Job Printing Luar (sub-order) dicetak vendor luar — tidak bisa digabung cetak. Proses secara individual.');
+            return;
+        }
         if (job && maxRollEffectiveWidth > 0) {
             // Normalisasi ke cm dulu (item bisa input m atau cm — keduanya disimpan di widthCm/heightCm)
             const dimsCm = getDimsInCm(job);
@@ -243,11 +249,15 @@ export default function ProduksiPage() {
     // ── actions ────────────────────────────────────────────────────────────────
     const isUnitJob = (job: any) =>
         job?.transactionItem?.productVariant?.product?.pricingMode === 'UNIT';
+    // Sub-order (printing luar): dicetak vendor luar → tidak potong stok, operator tak perlu pilih bahan.
+    const isSubJob = (job: any) => job?.isSubOrder === true;
 
     const handleStartJob = async () => {
         if (!processModal.job) return;
         const unitJob = isUnitJob(processModal.job);
-        if (!unitJob && !useWaste && !selectedRollId) {
+        const subJob = isSubJob(processModal.job);
+        const noMaterial = unitJob || subJob; // job tanpa pilih bahan
+        if (!noMaterial && !useWaste && !selectedRollId) {
             alert('Pilih bahan yang akan digunakan.');
             return;
         }
@@ -255,9 +265,9 @@ export default function ProduksiPage() {
         setModalLoading(true);
         try {
             await startProductionJob(processModal.job.id, {
-                rollVariantId: unitJob ? undefined : (useWaste ? undefined : selectedRollId!),
-                usedWaste: unitJob ? false : useWaste,
-                rollAreaM2: unitJob ? undefined : (useWaste ? undefined : jobAreaM2),
+                rollVariantId: noMaterial ? undefined : (useWaste ? undefined : selectedRollId!),
+                usedWaste: noMaterial ? false : useWaste,
+                rollAreaM2: noMaterial ? undefined : (useWaste ? undefined : jobAreaM2),
                 operatorNote: opNote || undefined,
             });
             setProcessModal({ open: false, job: null });
@@ -687,8 +697,16 @@ export default function ProduksiPage() {
                                 </div>
                             )}
 
-                            {/* Material choice — hanya untuk produk AREA_BASED */}
-                            {!isUnitJob(processModal.job) && (
+                            {/* Sub-order: dicetak vendor luar → tak potong stok, tak perlu pilih bahan */}
+                            {isSubJob(processModal.job) && (
+                                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-lg text-sm">
+                                    <span className="font-semibold text-purple-700">🖨️ Printing Luar (Sub-order): </span>
+                                    Dicetak oleh vendor luar — <span className="font-medium">tidak memotong stok bahan</span>. Cukup tandai proses, lalu selesai saat sudah jadi.
+                                </div>
+                            )}
+
+                            {/* Material choice — hanya untuk produk AREA_BASED yang dicetak sendiri */}
+                            {!isUnitJob(processModal.job) && !isSubJob(processModal.job) && (
                                 <div className="space-y-2">
                                     <label className="text-sm font-semibold">Pilih Bahan</label>
                                     <div className="grid grid-cols-2 gap-2">
@@ -702,7 +720,7 @@ export default function ProduksiPage() {
                                 </div>
                             )}
 
-                            {!isUnitJob(processModal.job) && !useWaste && (
+                            {!isUnitJob(processModal.job) && !isSubJob(processModal.job) && !useWaste && (
                                 <>
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold">Pilih Bahan dari Stok</label>
@@ -805,7 +823,7 @@ export default function ProduksiPage() {
                             </button>
                             <button type="button" onClick={handleStartJob} disabled={modalLoading}
                                 className="flex-[2] py-3 bg-primary text-primary-foreground rounded-xl text-sm font-bold disabled:opacity-50 transition-colors">
-                                {modalLoading ? 'Memproses...' : isUnitJob(processModal.job) ? 'Mulai Pengerjaan' : 'Mulai Cetak'}
+                                {modalLoading ? 'Memproses...' : (isUnitJob(processModal.job) || isSubJob(processModal.job)) ? 'Mulai Pengerjaan' : 'Mulai Cetak'}
                             </button>
                         </div>
                     </div>

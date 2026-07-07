@@ -31,6 +31,8 @@ export function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onC
     const dimsCm = getDimsInCm(job);
     const sambung = getSambungInfo(dimsCm?.widthCm ?? null, dimsCm?.heightCm ?? null, maxRollEffectiveWidth);
     const isUnit = job.transactionItem?.productVariant?.product?.pricingMode === 'UNIT';
+    // Sub-order: dicetak vendor luar — tidak memotong stok bahan saat diproses.
+    const isSub = job.isSubOrder === true;
     // Titip cetak: job dikerjakan di cabang ini, tapi transaksinya dari cabang lain.
     const isInterBranch = job.transaction?.branch && job.branchId
         && job.transaction.branch.id !== job.branchId;
@@ -71,7 +73,12 @@ export function JobCard({ job, tab, gangMode, selected, onSelect, onProcess, onC
                                 🏢 {ownerLabel}
                             </span>
                         ) : null}
-                        {sambung.needsSambung && (
+                        {isSub && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 bg-purple-500/15 text-purple-600 border border-purple-500/30 rounded-full" title="Sub-order — dicetak vendor luar, tidak potong stok bahan">
+                                🖨️ Printing Luar
+                            </span>
+                        )}
+                        {!isSub && sambung.needsSambung && (
                             <span className="text-[10px] font-bold px-2 py-0.5 bg-orange-500/15 text-orange-600 border border-orange-500/30 rounded-full">SAMBUNG ×{sambung.strips}</span>
                         )}
                         <span className="text-xs font-mono text-muted-foreground">{job.jobNumber}</span>
