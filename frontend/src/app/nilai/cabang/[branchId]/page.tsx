@@ -7,43 +7,42 @@ import { RatingForm } from '@/components/cs-rating/RatingForm';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type VerifyResult = {
+type BranchPoll = {
+    branchName: string;
     question: string;
     thankYouText: string;
-    alreadySubmitted: boolean;
 };
 
-export default function NilaiTokenPage() {
+export default function NilaiCabangPage() {
     const params = useParams();
-    const token = String(params?.token ?? '');
+    const branchId = String(params?.branchId ?? '');
 
     const [loading, setLoading] = useState(true);
-    const [info, setInfo] = useState<VerifyResult | null>(null);
+    const [poll, setPoll] = useState<BranchPoll | null>(null);
     const [notFound, setNotFound] = useState(false);
 
     useEffect(() => {
-        if (!token) return;
+        if (!branchId) return;
         (async () => {
             try {
-                const res = await fetch(`${API_URL}/cs-rating/public/${token}`);
+                const res = await fetch(`${API_URL}/cs-rating/public/branch/${branchId}`);
                 if (!res.ok) { setNotFound(true); return; }
-                setInfo(await res.json());
+                setPoll(await res.json());
             } catch {
                 setNotFound(true);
             } finally {
                 setLoading(false);
             }
         })();
-    }, [token]);
+    }, [branchId]);
 
     async function submit(v: { answer: boolean; stars: number; comment?: string }) {
-        const res = await fetch(`${API_URL}/cs-rating/public/${token}/submit`, {
+        const res = await fetch(`${API_URL}/cs-rating/public/branch/${branchId}/submit`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(v),
         });
         if (res.ok) return res.json();
-        if (res.status === 409) return; // sudah dinilai — anggap sukses
         const d = await res.json().catch(() => null);
         throw new Error(d?.message || 'Gagal mengirim penilaian.');
     }
@@ -56,12 +55,12 @@ export default function NilaiTokenPage() {
         );
     }
 
-    if (notFound || !info) {
+    if (notFound || !poll) {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6 text-center">
                 <AlertCircle className="h-12 w-12 text-destructive mb-3" />
-                <h1 className="text-lg font-semibold">Link tidak valid</h1>
-                <p className="text-sm text-muted-foreground mt-1">Tautan penilaian sudah tidak berlaku atau salah.</p>
+                <h1 className="text-lg font-semibold">Cabang tidak ditemukan</h1>
+                <p className="text-sm text-muted-foreground mt-1">Kode QR/link penilaian tidak valid.</p>
             </div>
         );
     }
@@ -69,10 +68,11 @@ export default function NilaiTokenPage() {
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-background p-6">
             <RatingForm
-                question={info.question}
-                initialThanks={info.thankYouText}
-                alreadyDone={info.alreadySubmitted}
+                question={poll.question}
+                subtitle={poll.branchName}
+                initialThanks={poll.thankYouText}
                 onSubmit={submit}
+                allowAgain
             />
         </div>
     );

@@ -528,7 +528,7 @@ export default function OwnerDashboardPage() {
                         </Section>
 
                         {/* Penilaian CS — poling pelayanan dari pelanggan */}
-                        <CsRatingSection branchId={activeBranchId} from={start} to={end} />
+                        <CsRatingSection branchId={activeBranchId} from={start} to={end} branches={branches || []} />
 
                         {/* Bonus Karyawan (target, pencapaian, toggle manual) */}
                         <BonusPanel branches={branches || []} activeBranchId={activeBranchId} />

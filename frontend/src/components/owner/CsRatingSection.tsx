@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Star, MessageSquare, Loader2, Check, Settings2 } from 'lucide-react';
+import { Star, MessageSquare, Loader2, Check, Settings2, QrCode, Copy } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { StarRating } from '@/components/ui/star-rating';
 import { getRatingSummary, getRatingConfig, updateRatingConfig } from '@/lib/api/cs-rating';
 
@@ -10,15 +11,24 @@ interface Props {
     branchId: number | null;
     from: string;
     to: string;
+    branches: { id: number; name: string }[];
 }
 
 const DEFAULT_QUESTION = 'Apakah Anda puas dengan pelayanan kami?';
 const DEFAULT_THANKS = 'Terima kasih atas penilaian Anda!';
 
 /** Ringkasan penilaian CS + editor pertanyaan poling untuk dashboard Owner. */
-export function CsRatingSection({ branchId, from, to }: Props) {
+export function CsRatingSection({ branchId, from, to, branches }: Props) {
     const qc = useQueryClient();
     const branchParam = branchId ?? undefined;
+
+    const [qrOpen, setQrOpen] = useState(false);
+    const [origin, setOrigin] = useState('');
+    const [copiedId, setCopiedId] = useState<number | null>(null);
+    useEffect(() => { setOrigin(window.location.origin); }, []);
+
+    // Cabang yang ditampilkan QR-nya: kalau owner pilih cabang tertentu → hanya itu; kalau "Semua" → semua cabang.
+    const qrBranches = branchId == null ? branches : branches.filter(b => b.id === branchId);
 
     const summaryQ = useQuery({
         queryKey: ['owner-cs-rating', branchId, from, to],
@@ -62,13 +72,60 @@ export function CsRatingSection({ branchId, from, to }: Props) {
                         <p className="text-xs text-muted-foreground">Poling pelayanan dari pelanggan (Ya/Tidak + bintang)</p>
                     </div>
                 </div>
-                <button
-                    onClick={() => setEditOpen(o => !o)}
-                    className="inline-flex items-center gap-1.5 text-xs border border-border rounded-lg px-2.5 py-1.5 hover:bg-muted"
-                >
-                    <Settings2 className="h-3.5 w-3.5" /> Ubah Pertanyaan
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setQrOpen(o => !o)}
+                        className="inline-flex items-center gap-1.5 text-xs border border-border rounded-lg px-2.5 py-1.5 hover:bg-muted"
+                    >
+                        <QrCode className="h-3.5 w-3.5" /> QR Meja Kasir
+                    </button>
+                    <button
+                        onClick={() => setEditOpen(o => !o)}
+                        className="inline-flex items-center gap-1.5 text-xs border border-border rounded-lg px-2.5 py-1.5 hover:bg-muted"
+                    >
+                        <Settings2 className="h-3.5 w-3.5" /> Ubah Pertanyaan
+                    </button>
+                </div>
             </div>
+
+            {/* QR / link statis per cabang (walk-in) */}
+            {qrOpen && (
+                <div className="rounded-xl border border-border bg-muted/20 p-3 space-y-3">
+                    <p className="text-xs text-muted-foreground">
+                        Tempel QR ini di meja kasir. Pelanggan (walk-in) scan → langsung menilai tanpa perlu link WhatsApp.
+                        Penilaian dari QR tercatat per cabang (tanpa nama petugas).
+                    </p>
+                    {qrBranches.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">Tidak ada cabang.</p>
+                    ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                            {qrBranches.map(b => {
+                                const url = `${origin}/nilai/cabang/${b.id}`;
+                                return (
+                                    <div key={b.id} className="flex flex-col items-center gap-2 rounded-lg border border-border bg-background p-3 text-center">
+                                        <div className="text-xs font-medium truncate w-full">{b.name}</div>
+                                        {origin ? (
+                                            <div className="bg-white p-2 rounded">
+                                                <QRCodeSVG value={url} size={104} />
+                                            </div>
+                                        ) : (
+                                            <div className="h-[120px] w-[120px] flex items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                                        )}
+                                        <button
+                                            onClick={async () => {
+                                                try { await navigator.clipboard.writeText(url); setCopiedId(b.id); setTimeout(() => setCopiedId(null), 1500); } catch { /* non-https */ }
+                                            }}
+                                            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                                        >
+                                            {copiedId === b.id ? <><Check className="h-3 w-3 text-emerald-600" /> Tersalin</> : <><Copy className="h-3 w-3" /> Salin link</>}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Editor pertanyaan */}
             {editOpen && (

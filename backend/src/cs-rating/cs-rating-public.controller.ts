@@ -7,6 +7,17 @@ import type { SubmitRatingDto } from './cs-rating.service';
 export class CsRatingPublicController {
     constructor(private readonly svc: CsRatingService) {}
 
+    // Rute cabang didefinisikan lebih dulu (statis 'branch') agar tidak tertangkap :token.
+    @Get('branch/:branchId')
+    branchPoll(@Param('branchId') branchId: string) {
+        return this.svc.getBranchPoll(Number(branchId));
+    }
+
+    @Post('branch/:branchId/submit')
+    branchSubmit(@Param('branchId') branchId: string, @Body() dto: SubmitRatingDto) {
+        return this.svc.submitBranch(Number(branchId), dto);
+    }
+
     @Get(':token')
     verify(@Param('token') token: string) {
         return this.svc.verifyToken(token);

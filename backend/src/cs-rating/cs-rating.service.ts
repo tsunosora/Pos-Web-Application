@@ -152,6 +152,43 @@ export class CsRatingService {
         return { ok: true, thankYouText: cfg.thankYouText };
     }
 
+    /** Poling per cabang (untuk QR/link statis di meja kasir — walk-in). */
+    async getBranchPoll(branchId: number) {
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
+        if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+        const cfg = await this.getActiveConfig(branchId);
+        return { branchName: branch.name, question: cfg.question, thankYouText: cfg.thankYouText };
+    }
+
+    /** Submit penilaian walk-in via QR cabang: buat + isi baris sekaligus (tanpa baris pending). */
+    async submitBranch(branchId: number, dto: SubmitRatingDto) {
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
+        if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+
+        const stars = Number(dto.stars);
+        if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+            throw new BadRequestException('Bintang harus 1 sampai 5');
+        }
+        if (typeof dto.answer !== 'boolean') {
+            throw new BadRequestException('Jawaban Ya/Tidak wajib diisi');
+        }
+        const comment = (dto.comment ?? '').toString().slice(0, 1000) || null;
+        const cfg = await this.getActiveConfig(branchId);
+
+        await this.prisma.csRatingResponse.create({
+            data: {
+                token: this.genToken(),
+                branchId,
+                question: cfg.question,
+                answer: dto.answer,
+                stars,
+                comment,
+                submittedAt: new Date(),
+            },
+        });
+        return { ok: true, thankYouText: cfg.thankYouText };
+    }
+
     /** Ringkasan untuk owner: total, rata-rata bintang, %Ya, breakdown per petugas. */
     async summary(params: { branchId?: number; from?: string; to?: string } = {}) {
         const where: any = { submittedAt: { not: null } };
