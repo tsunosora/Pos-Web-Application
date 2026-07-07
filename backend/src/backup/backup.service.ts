@@ -98,6 +98,10 @@ export const BACKUP_GROUPS = {
         label: 'Website — Landing Page & Artikel',
         tables: ['landingConfig', 'article'],
     },
+    csRating: {
+        label: 'Penilaian CS — Poling Ya/Tidak + Bintang',
+        tables: ['csRatingConfig', 'csRatingResponse'],
+    },
 } as const;
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
@@ -160,6 +164,9 @@ const RESTORE_ORDER = [
     'leadImage',                                // FK → lead
     'leadActivity',                             // FK → lead, customer, user
     'followUp',                                 // FK → lead, customer, user, branch, messageTemplate
+    // Penilaian CS — config dulu, lalu response (FK → customer, user, salesOrder, transaction, companyBranch)
+    'csRatingConfig',
+    'csRatingResponse',
     // Website — standalone (tanpa FK)
     'landingConfig',
     'article',

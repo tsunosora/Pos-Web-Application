@@ -27,6 +27,7 @@ import {
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { BonusPanel } from "./BonusPanel";
+import { CsRatingSection } from "@/components/owner/CsRatingSection";
 
 dayjs.locale("id");
 
@@ -525,6 +526,9 @@ export default function OwnerDashboardPage() {
                                 </div>
                             </div>
                         </Section>
+
+                        {/* Penilaian CS — poling pelayanan dari pelanggan */}
+                        <CsRatingSection branchId={activeBranchId} from={start} to={end} />
 
                         {/* Bonus Karyawan (target, pencapaian, toggle manual) */}
                         <BonusPanel branches={branches || []} activeBranchId={activeBranchId} />

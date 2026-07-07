@@ -6,12 +6,14 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft, Send, FileText, XCircle, Upload, Trash2, Loader2,
-    User, Phone, MapPin, Calendar, Edit3, ExternalLink, CheckCircle2
+    User, Phone, MapPin, Calendar, Edit3, ExternalLink, CheckCircle2,
+    Star, Copy, Check
 } from "lucide-react";
 import {
     getSalesOrder, sendSOWhatsapp, cancelSO, uploadProofs, deleteProof,
     type SalesOrder, type SalesOrderStatus
 } from "@/lib/api/sales-orders";
+import { createRatingInviteFromSO, buildRatingUrl } from "@/lib/api/cs-rating";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -50,6 +52,8 @@ export default function SalesOrderDetailPage() {
     const [cancelReason, setCancelReason] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [ratingLink, setRatingLink] = useState<string | null>(null);
+    const [copied, setCopied] = useState(false);
 
     const { data: so, isLoading } = useQuery<SalesOrder>({
         queryKey: ['sales-order', id],
@@ -78,6 +82,26 @@ export default function SalesOrderDetailPage() {
     const deleteProofMut = useMutation({
         mutationFn: (proofId: number) => deleteProof(id, proofId),
         onSuccess: invalidate,
+    });
+
+    // Minta penilaian CS: buat token → buka WhatsApp berisi pesan + link (manual, CS tinggal Send).
+    const inviteRatingMut = useMutation({
+        mutationFn: () => createRatingInviteFromSO(id),
+        onSuccess: (inv) => {
+            setError(null);
+            const url = buildRatingUrl(inv.token);
+            setRatingLink(url);
+            const nama = so?.customerName?.trim() || 'Kak';
+            const msg =
+                `Halo ${nama}, terima kasih sudah order di kami 🙏\n` +
+                `Boleh minta waktu sebentar menilai pelayanan kami? ${url}`;
+            const hp = normalizeWa(so?.customerPhone);
+            const waUrl = hp
+                ? `https://wa.me/${hp}?text=${encodeURIComponent(msg)}`
+                : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+            window.open(waUrl, '_blank');
+        },
+        onError: (e: any) => setError(e?.response?.data?.message || 'Gagal membuat link penilaian'),
     });
 
     async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -278,6 +302,46 @@ export default function SalesOrderDetailPage() {
 
                 {/* Right column — actions */}
                 <div className="space-y-4">
+                    {so.status === 'INVOICED' && (
+                        <Section title="Minta Penilaian CS">
+                            <p className="text-xs text-muted-foreground mb-2">
+                                Kirim link penilaian singkat (Ya/Tidak + bintang) ke pelanggan lewat WhatsApp.
+                                Pelanggan menilai sendiri — hasilnya masuk ke dashboard Owner.
+                            </p>
+                            <button
+                                onClick={() => inviteRatingMut.mutate()}
+                                disabled={inviteRatingMut.isPending}
+                                className="w-full inline-flex items-center justify-center gap-2 bg-[#25D366] text-white px-3 py-2 rounded-md text-sm font-medium hover:bg-[#1EBE5A] disabled:opacity-50"
+                            >
+                                {inviteRatingMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+                                Minta Penilaian via WhatsApp
+                            </button>
+                            {ratingLink && (
+                                <div className="mt-2 flex items-center gap-2 bg-muted/40 border border-border rounded-md px-2 py-1.5">
+                                    <span className="text-[11px] text-muted-foreground truncate flex-1 font-mono">{ratingLink}</span>
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await navigator.clipboard.writeText(ratingLink);
+                                                setCopied(true);
+                                                setTimeout(() => setCopied(false), 1500);
+                                            } catch { /* clipboard bisa gagal di non-https */ }
+                                        }}
+                                        className="shrink-0 p-1 rounded hover:bg-muted"
+                                        title="Salin link"
+                                    >
+                                        {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                                    </button>
+                                </div>
+                            )}
+                            {!so.customerPhone && (
+                                <p className="text-[11px] text-amber-600 mt-1.5">
+                                    Nomor HP pelanggan kosong — WhatsApp terbuka tanpa tujuan, pilih kontak manual atau salin link di atas.
+                                </p>
+                            )}
+                        </Section>
+                    )}
+
                     {canSendWa && (
                         <Section title="Kirim ke Discord Internal">
                             <p className="text-xs text-muted-foreground mb-2">
@@ -382,6 +446,17 @@ function Section({ title, children }: { title: string; children: React.ReactNode
             {children}
         </div>
     );
+}
+
+// Normalisasi nomor ke format wa.me (628xxx). Mengikuti konvensi 628xxx.
+function normalizeWa(phone?: string | null): string | null {
+    if (!phone) return null;
+    let d = phone.replace(/\D/g, '');
+    if (!d) return null;
+    if (d.startsWith('0')) d = '62' + d.slice(1);
+    else if (d.startsWith('8')) d = '62' + d;
+    else if (d.startsWith('620')) d = '62' + d.slice(3);
+    return d;
 }
 
 function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {

@@ -53,12 +53,14 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isLandingPublic = pathname === "/landing" || pathname.startsWith("/landing/");
     const isArtikelPublic = pathname === "/artikel" || pathname.startsWith("/artikel/");
     const isMarketingPublic = pathname.startsWith("/marketing");
+    // Halaman penilaian CS publik (dibuka pelanggan dari WhatsApp) — fullscreen, tanpa sidebar.
+    const isNilaiPublic = pathname.startsWith("/nilai/");
     // Dashboard Owner — halaman full-screen terpisah (login app, tanpa sidebar).
     const isOwnerPage = pathname.startsWith("/owner");
-    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isOwnerPage;
+    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage;
     // Toggle dark mode mengambang untuk halaman publik INTERNAL (staff/operator),
     // BUKAN halaman login & bukan halaman storefront publik (landing/artikel/produk).
-    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder;
+    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic;
 
     if (isStandalone) {
         return (

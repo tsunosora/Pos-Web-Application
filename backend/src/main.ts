@@ -22,6 +22,7 @@ async function bootstrap() {
       req.path === '/settings/public' ||
       req.path === '/landing/public' ||
       req.path.startsWith('/articles/public') ||
+      req.path.startsWith('/cs-rating/public') ||
       req.path === '/orders/public';
     if (isPublic) {
       res.setHeader('Access-Control-Allow-Origin', '*');

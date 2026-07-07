@@ -74,6 +74,7 @@ model User {
   activitiesCreated LeadActivity[]           @relation("ActivityCreatedBy")
   followUpsAssigned FollowUp[]               @relation("FollowUpAssignee")
   followUpsCreated  FollowUp[]               @relation("FollowUpCreatedBy")
+  csRatings         CsRatingResponse[]
 
   @@index([branchId])
   @@map("users")
@@ -368,6 +369,7 @@ model Transaction {
   branch            CompanyBranch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
   productionBranch  CompanyBranch?           @relation("TransactionProductionBranch", fields: [productionBranchId], references: [id], onDelete: SetNull)
   interBranchLedger InterBranchLedger?
+  csRatings         CsRatingResponse[]
 
   @@index([branchId])
   @@index([productionBranchId])
@@ -805,15 +807,64 @@ model Customer {
   updatedAt          DateTime?   @default(now()) @updatedAt @map("updated_at")
 
   salesOrders SalesOrder[]
-  assignedCs  User?          @relation("CustomerAssignedCs", fields: [assignedCsId], references: [id], onDelete: SetNull)
-  referrer    Customer?      @relation("CustomerReferrer", fields: [referrerCustomerId], references: [id], onDelete: SetNull)
-  referrals   Customer[]     @relation("CustomerReferrer")
-  fromLeads   Lead[]         @relation("LeadConvertedCustomer")
-  activities  LeadActivity[] @relation("CustomerActivities")
-  followUps   FollowUp[]     @relation("CustomerFollowUps")
+  csRatings   CsRatingResponse[]
+  assignedCs  User?              @relation("CustomerAssignedCs", fields: [assignedCsId], references: [id], onDelete: SetNull)
+  referrer    Customer?          @relation("CustomerReferrer", fields: [referrerCustomerId], references: [id], onDelete: SetNull)
+  referrals   Customer[]         @relation("CustomerReferrer")
+  fromLeads   Lead[]             @relation("LeadConvertedCustomer")
+  activities  LeadActivity[]     @relation("CustomerActivities")
+  followUps   FollowUp[]         @relation("CustomerFollowUps")
 
   @@index([assignedCsId])
   @@map("customers")
+}
+
+// ─── Penilaian CS (poling Ya/Tidak + bintang) ────────────────────────────────
+// Konfigurasi pertanyaan poling. branchId null = default global (berlaku semua cabang).
+model CsRatingConfig {
+  id           Int      @id @default(autoincrement())
+  branchId     Int?     @map("branch_id")
+  question     String   @default("Apakah Anda puas dengan pelayanan kami?") @db.VarChar(300)
+  thankYouText String   @default("Terima kasih atas penilaian Anda!") @map("thank_you_text") @db.VarChar(300)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  branch CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  @@index([branchId])
+  @@map("cs_rating_configs")
+}
+
+// 1 baris = 1 undangan penilaian. submittedAt null = belum dijawab (link masih aktif).
+model CsRatingResponse {
+  id             Int     @id @default(autoincrement())
+  token          String  @unique @db.VarChar(32) // dipakai di URL /nilai/[token]
+  branchId       Int?    @map("branch_id")
+  customerId     Int?    @map("customer_id")
+  salesOrderId   Int?    @map("sales_order_id")
+  transactionId  Int?    @map("transaction_id")
+  assignedCsId   Int?    @map("assigned_cs_id") // CS pelanggan (Customer.assignedCsId)
+  assignedCsName String? @map("assigned_cs_name") @db.VarChar(100) // snapshot nama CS
+  designerName   String? @map("designer_name") @db.VarChar(100) // snapshot desainer yg closing SO
+  question       String  @db.VarChar(300) // snapshot pertanyaan saat undangan dibuat
+
+  answer      Boolean?
+  stars       Int?
+  comment     String?   @db.Text
+  submittedAt DateTime? @map("submitted_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  branch      CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  customer    Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  salesOrder  SalesOrder?    @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+  transaction Transaction?   @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  assignedCs  User?          @relation(fields: [assignedCsId], references: [id], onDelete: SetNull)
+
+  @@index([branchId])
+  @@index([assignedCsId])
+  @@index([submittedAt])
+  @@map("cs_rating_responses")
 }
 
 // ----- Stock Opname ----- //
@@ -1380,11 +1431,12 @@ model SalesOrder {
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
 
-  customer    Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  transaction Transaction?      @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  customer    Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  transaction Transaction?       @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   items       SalesOrderItem[]
   proofs      SalesOrderProof[]
-  fromLeads   Lead[]            @relation("LeadConvertedSO")
+  fromLeads   Lead[]             @relation("LeadConvertedSO")
+  csRatings   CsRatingResponse[]
 
   @@index([status])
   @@index([customerId])
@@ -1482,6 +1534,8 @@ model CompanyBranch {
   leads                  Lead[]
   followUps              FollowUp[]
   invoices               Invoice[]
+  csRatingConfigs        CsRatingConfig[]
+  csRatings              CsRatingResponse[]
 
   @@map("company_branches")
 }
