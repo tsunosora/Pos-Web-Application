@@ -398,7 +398,8 @@ export default function LeaderboardPage() {
                                     </>
                                 )}
                                 <CaraHitung>
-                                    <p><b>Total Desain</b> = jumlah item produk <b>"Jasa Desain"</b> yang dikerjakan designer ini (per job produksi), dijumlah qty-nya. Basis tanggal = job dibuat.</p>
+                                    <p><b>Total Desain</b> = jumlah item produk <b>"Jasa Desain"</b> di nota, dijumlah qty-nya. Basis tanggal = tanggal nota dibuat.</p>
+                                    <p><b>Designer</b> diambil dari SO (Sales Order). Nota walk-in tanpa SO masuk ke <b>"Belum di-assign"</b> agar tidak hilang dari hitungan.</p>
                                     <p><b>Rincian Tier</b> = pecahan per <b>varian</b> jasa desain (Easy/Medium/Hard/Standar) — tier ditentukan saat input order.</p>
                                     <p><b>Omzet</b> = nilai line item jasa desainnya saja (bukan seluruh order).</p>
                                 </CaraHitung>

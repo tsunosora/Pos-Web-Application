@@ -653,44 +653,70 @@ export class KpiService {
     //  - avgDesignHrs: rata-rata jam dari job dibuat sampai proof pertama (designEnteredAt)
     // accRate = acc / (assignment - batal). Bucket/periode pakai job.createdAt.
     /**
-     * Produktivitas jasa desain per designer (berbasis order/ProductionJob).
-     * "Berapa desain dikerjakan" tiap designer di periode, dipecah per tier (nama
-     * varian) + omzet jasa desainnya. Deteksi item: produk bernama "Desain".
-     * Basis tanggal = job.createdAt (samakan dgn leaderboard designer omzet).
+     * Produktivitas jasa desain per designer — berbasis ITEM NOTA (TransactionItem),
+     * BUKAN ProductionJob. Alasan: produk "Jasa Desain" di master ber-
+     * `requiresProduction=false`, jadi penjualannya TIDAK pernah membuat ProductionJob
+     * (lih. transactions.service.ts). Deteksi lama yang berbasis job → panel selalu
+     * kosong total. Sekarang: hitung langsung item produk bernama "desain" di nota.
+     *
+     * Atribusi designer diambil dari SalesOrder.designerName (via transaction.salesOrder).
+     * Nota walk-in tanpa SO → dikelompokkan sbg "Belum di-assign" supaya tidak hilang.
+     * "Berapa desain dikerjakan" tiap designer di periode, dipecah per tier (nama varian)
+     * + omzet jasa desainnya. Basis tanggal = transaction.createdAt (tgl nota).
      */
     async designOutput(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);
 
-        const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+        const items: any[] = await (this.prisma as any).transactionItem.findMany({
             where: {
-                ...branchScope,
-                createdAt: { gte: start, lte: end },
-                designerName: { not: null },
-                transactionItem: { productVariant: { product: { name: { contains: 'desain' } } } },
+                productVariant: { product: { name: { contains: 'desain' } } },
+                transaction: { ...branchScope, createdAt: { gte: start, lte: end } },
             },
             select: {
-                designerName: true,
-                transactionItem: {
+                quantity: true, priceAtTime: true,
+                productVariant: { select: { variantName: true } },
+                transaction: {
                     select: {
-                        quantity: true, priceAtTime: true,
-                        productVariant: { select: { variantName: true } },
+                        invoiceNumber: true,
+                        salesOrder: { select: { designerName: true } },
                     },
                 },
             },
         });
 
+        // Sebagian nota lama punya SalesOrder yang FK `transactionId`-nya tidak konsisten
+        // (relasi reverse `transaction.salesOrder` = null) padahal `soNumber == invoiceNumber`.
+        // Selamatkan atribusi designer via pencocokan soNumber = invoiceNumber, dibatch
+        // (bukan N+1). Nota yang benar-benar tanpa SO (walk-in, mis. INV-*) tetap "Belum di-assign".
+        const unlinkedInvoices = Array.from(new Set(
+            items
+                .filter((it) => !((it.transaction?.salesOrder?.designerName || '').trim()) && it.transaction?.invoiceNumber)
+                .map((it) => it.transaction.invoiceNumber as string),
+        ));
+        const soByNumber = new Map<string, string>();
+        if (unlinkedInvoices.length) {
+            const sos: any[] = await (this.prisma as any).salesOrder.findMany({
+                where: { soNumber: { in: unlinkedInvoices } },
+                select: { soNumber: true, designerName: true },
+            });
+            for (const so of sos) {
+                const dn = (so.designerName || '').trim();
+                if (dn) soByNumber.set(so.soNumber, dn);
+            }
+        }
+
         type Stat = { total: number; omzet: number; byTier: Map<string, number> };
         const byDesigner = new Map<string, Stat>();
-        for (const j of jobs) {
-            const name = (j.designerName || '').trim();
-            const ti = j.transactionItem;
-            if (!name || !ti) continue;
-            const qty = Number(ti.quantity) || 1;
-            const tier = ((ti.productVariant?.variantName || 'Standar').trim()) || 'Standar';
+        for (const it of items) {
+            const fromRel = (it.transaction?.salesOrder?.designerName || '').trim();
+            const fromNum = soByNumber.get(it.transaction?.invoiceNumber || '') || '';
+            const name = fromRel || fromNum || 'Belum di-assign';
+            const qty = Number(it.quantity) || 1;
+            const tier = ((it.productVariant?.variantName || 'Standar').trim()) || 'Standar';
             const e = byDesigner.get(name) || { total: 0, omzet: 0, byTier: new Map<string, number>() };
             e.total += qty;
-            e.omzet += Number(ti.priceAtTime || 0) * qty;
+            e.omzet += Number(it.priceAtTime || 0) * qty;
             e.byTier.set(tier, (e.byTier.get(tier) || 0) + qty);
             byDesigner.set(name, e);
         }
