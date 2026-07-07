@@ -3,6 +3,8 @@ import {
     NotFoundException,
     ConflictException,
     BadRequestException,
+    HttpException,
+    HttpStatus,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { randomBytes } from 'crypto';
@@ -22,7 +24,12 @@ export interface SubmitRatingDto {
     answer?: boolean;
     stars?: number;
     comment?: string;
+    staffId?: number; // hanya untuk QR walk-in: CS/karyawan yang dipilih pelanggan (opsional)
 }
+
+// Anti-spam QR walk-in: maksimal N submit per IP per cabang dalam WINDOW.
+const IP_WINDOW_MS = 5 * 60 * 1000;
+const IP_MAX = 20;
 
 export interface UpdateConfigDto {
     branchId?: number | null;
@@ -35,9 +42,33 @@ export interface UpdateConfigDto {
 export class CsRatingService {
     constructor(private readonly prisma: PrismaService) {}
 
+    // Peta anti-spam per IP+cabang (in-memory; reset saat restart — cukup untuk cegah flood).
+    private ipHits = new Map<string, number[]>();
+
     private genToken(): string {
         // ~22 char base64url, muat di kolom VarChar(32)
         return randomBytes(16).toString('base64url');
+    }
+
+    /** Batasi flood submit walk-in dari satu IP ke satu cabang. Lempar 429 bila lewat batas. */
+    private throttleIp(ip: string | undefined, branchId: number) {
+        const key = `${ip || 'unknown'}|${branchId}`;
+        const now = Date.now();
+        const recent = (this.ipHits.get(key) || []).filter((t) => now - t < IP_WINDOW_MS);
+        if (recent.length >= IP_MAX) {
+            throw new HttpException(
+                'Terlalu banyak penilaian dari koneksi ini. Coba lagi beberapa menit lagi.',
+                HttpStatus.TOO_MANY_REQUESTS,
+            );
+        }
+        recent.push(now);
+        this.ipHits.set(key, recent);
+        // Prune sesekali agar map tidak menggelembung.
+        if (this.ipHits.size > 5000) {
+            for (const [k, v] of this.ipHits) {
+                if (!v.some((t) => now - t < IP_WINDOW_MS)) this.ipHits.delete(k);
+            }
+        }
     }
 
     /** Ambil config aktif: cabang cocok → global (branchId null) → default hardcoded. */
@@ -160,10 +191,28 @@ export class CsRatingService {
         return { branchName: branch.name, question: cfg.question, thankYouText: cfg.thankYouText };
     }
 
-    /** Submit penilaian walk-in via QR cabang: buat + isi baris sekaligus (tanpa baris pending). */
-    async submitBranch(branchId: number, dto: SubmitRatingDto) {
+    /** Daftar CS/karyawan cabang untuk dipilih pelanggan (walk-in). Owner dikecualikan. */
+    async getBranchStaff(branchId: number) {
         const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
         if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+        const users = await this.prisma.user.findMany({
+            where: {
+                branchId,
+                name: { not: null },
+                role: { is: { name: { not: 'Owner' } } },
+            },
+            select: { id: true, name: true },
+            orderBy: { name: 'asc' },
+        });
+        return users;
+    }
+
+    /** Submit penilaian walk-in via QR cabang: buat + isi baris sekaligus (tanpa baris pending). */
+    async submitBranch(branchId: number, dto: SubmitRatingDto, ip?: string) {
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
+        if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+
+        this.throttleIp(ip, branchId);
 
         const stars = Number(dto.stars);
         if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
@@ -173,12 +222,29 @@ export class CsRatingService {
             throw new BadRequestException('Jawaban Ya/Tidak wajib diisi');
         }
         const comment = (dto.comment ?? '').toString().slice(0, 1000) || null;
+
+        // CS yang dipilih pelanggan (opsional). Validasi memang staff cabang ini.
+        let assignedCsId: number | null = null;
+        let assignedCsName: string | null = null;
+        if (dto.staffId) {
+            const staff = await this.prisma.user.findFirst({
+                where: { id: Number(dto.staffId), branchId },
+                select: { id: true, name: true },
+            });
+            if (staff) {
+                assignedCsId = staff.id;
+                assignedCsName = staff.name ?? null;
+            }
+        }
+
         const cfg = await this.getActiveConfig(branchId);
 
         await this.prisma.csRatingResponse.create({
             data: {
                 token: this.genToken(),
                 branchId,
+                assignedCsId,
+                assignedCsName,
                 question: cfg.question,
                 answer: dto.answer,
                 stars,
@@ -226,7 +292,7 @@ export class CsRatingService {
             { name: string; count: number; starSum: number; yes: number }
         >();
         for (const r of rows) {
-            const name = r.designerName || r.assignedCsName || 'Tidak diketahui';
+            const name = r.assignedCsName || r.designerName || 'Umum';
             const g = byPerson.get(name) ?? { name, count: 0, starSum: 0, yes: 0 };
             g.count += 1;
             g.starSum += r.stars ?? 0;

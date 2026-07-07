@@ -13,10 +13,12 @@ interface RatingFormProps {
     onSubmit: (v: { answer: boolean; stars: number; comment?: string }) => Promise<{ thankYouText?: string } | void>;
     /** Tampilkan tombol "Beri penilaian lagi" (untuk QR/tablet kasir). */
     allowAgain?: boolean;
+    /** Slot tambahan di atas tombol Ya/Tidak (mis. pilih CS untuk walk-in). */
+    extra?: React.ReactNode;
 }
 
 /** Form penilaian bersama: Ya/Tidak + bintang + komentar. Dipakai halaman token & cabang. */
-export function RatingForm({ question, subtitle, initialThanks, alreadyDone = false, onSubmit, allowAgain = false }: RatingFormProps) {
+export function RatingForm({ question, subtitle, initialThanks, alreadyDone = false, onSubmit, allowAgain = false, extra }: RatingFormProps) {
     const [answer, setAnswer] = useState<boolean | null>(null);
     const [stars, setStars] = useState(0);
     const [comment, setComment] = useState('');
@@ -71,6 +73,8 @@ export function RatingForm({ question, subtitle, initialThanks, alreadyDone = fa
                 <h1 className="text-xl font-bold leading-snug">{question}</h1>
                 <p className="text-xs text-muted-foreground">{subtitle ?? 'Penilaian Anda sangat berarti untuk kami.'}</p>
             </div>
+
+            {extra}
 
             <div className="grid grid-cols-2 gap-3">
                 <button

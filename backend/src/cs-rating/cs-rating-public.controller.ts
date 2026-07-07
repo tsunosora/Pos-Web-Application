@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Ip } from '@nestjs/common';
 import { CsRatingService } from './cs-rating.service';
 import type { SubmitRatingDto } from './cs-rating.service';
 
@@ -13,9 +13,14 @@ export class CsRatingPublicController {
         return this.svc.getBranchPoll(Number(branchId));
     }
 
+    @Get('branch/:branchId/staff')
+    branchStaff(@Param('branchId') branchId: string) {
+        return this.svc.getBranchStaff(Number(branchId));
+    }
+
     @Post('branch/:branchId/submit')
-    branchSubmit(@Param('branchId') branchId: string, @Body() dto: SubmitRatingDto) {
-        return this.svc.submitBranch(Number(branchId), dto);
+    branchSubmit(@Param('branchId') branchId: string, @Body() dto: SubmitRatingDto, @Ip() ip: string) {
+        return this.svc.submitBranch(Number(branchId), dto, ip);
     }
 
     @Get(':token')
