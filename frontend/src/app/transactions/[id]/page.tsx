@@ -161,7 +161,7 @@ function Receipt({ trx }: { trx: Transaction }) {
                         )}
                         {isArea && item.widthCm && item.heightCm && (
                             <p className="text-[10px] pl-1">
-                                {Number(item.widthCm)} × {Number(item.heightCm)} cm
+                                {Number(item.widthCm)} × {Number(item.heightCm)} {item.unitType || "cm"}
                                 {item.pcs && item.pcs > 1 ? ` × ${item.pcs} pcs` : ""}
                             </p>
                         )}
@@ -384,7 +384,7 @@ export default function TransactionDetailPage() {
                                                     <p className="text-xs text-muted-foreground">{item.productVariant.name}</p>
                                                     {isArea && item.widthCm && item.heightCm && (
                                                         <p className="text-xs text-primary">
-                                                            {Number(item.widthCm).toLocaleString("id-ID")} × {Number(item.heightCm).toLocaleString("id-ID")} cm
+                                                            {Number(item.widthCm).toLocaleString("id-ID")} × {Number(item.heightCm).toLocaleString("id-ID")} {item.unitType || "cm"}
                                                             {item.pcs && item.pcs > 1 ? ` × ${item.pcs} pcs` : ""}
                                                         </p>
                                                     )}

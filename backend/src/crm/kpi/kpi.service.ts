@@ -788,7 +788,14 @@ export class KpiService {
         };
         // Luas total item (m²) = luas per-unit (areaCm2) × jumlah kopi (pcs).
         const areaM2Of = (ti: any) => (Number(ti?.areaCm2) || 0) / 10000 * (Number(ti?.pcs) || 1);
-        const lineOmzet = (ti: any) => Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
+        // Omzet per line: item AREA = harga/m² × luas total (area × pcs); item UNIT = harga × qty.
+        // Tanpa cabang area, item AREA (quantity=1, priceAtTime per-m²) akan undercount besar.
+        const lineOmzet = (ti: any) => {
+            const areaM2 = areaM2Of(ti);
+            return areaM2 > 0
+                ? Number(ti?.priceAtTime || 0) * areaM2
+                : Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
+        };
         const bump = (cats: Map<number, CatMetric>, id: number, m: CatMetric) => {
             const c = cats.get(id) || { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 };
             c.jobs += m.jobs; c.pcs += m.pcs; c.areaM2 += m.areaM2; c.omzet += m.omzet;

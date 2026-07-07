@@ -72,8 +72,11 @@ export class ReportsService {
                 let areaM2 = 0;
 
                 if (isArea) {
-                    // Area based: priceAtTime & HPP are both per-m², multiply by area
-                    areaM2 = Number(item.areaCm2) / 10000;
+                    // Area based: priceAtTime & HPP are both per-m², multiply by area.
+                    // areaCm2 tersimpan PER-SATU-KEPING → kalikan pcs utk luas total,
+                    // supaya revenue/HPP per-item tidak undercount saat pcs > 1.
+                    const pcs = Math.max(1, Number(item.pcs) || 1);
+                    areaM2 = Number(item.areaCm2) / 10000 * pcs;
                     itemHpp = hpp * areaM2;
                     itemRevenue = Number(item.priceAtTime) * areaM2;
                 } else {

@@ -715,7 +715,7 @@ export default function SalesReportPage() {
                                                                         <span className="text-foreground/80">
                                                                             {item.productVariant?.product?.name}
                                                                             {item.productVariant?.variantName ? ` - ${item.productVariant.variantName}` : ''}
-                                                                            {item.widthCm && item.heightCm ? ` (${item.widthCm}×${item.heightCm})` : ''}
+                                                                            {item.widthCm && item.heightCm ? ` (${item.widthCm}×${item.heightCm} ${item.unitType || 'cm'})` : ''}
                                                                         </span>
                                                                         <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
                                                                             {item.quantity} × Rp {Number(item.priceAtTime).toLocaleString('id-ID')} = <span className="font-semibold text-foreground">Rp {(item.quantity * Number(item.priceAtTime)).toLocaleString('id-ID')}</span>
