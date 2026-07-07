@@ -191,7 +191,9 @@ export class ProductionService {
             if (!job) throw new NotFoundException('Job tidak ditemukan');
             if (job.status !== 'ANTRIAN') throw new BadRequestException('Job tidak dalam status ANTRIAN');
 
-            if (!data.usedWaste && data.rollVariantId && data.rollAreaM2) {
+            // Sub Order: job disub ke printing luar → tidak potong bahan/tinta walau operator isi roll & area.
+            const jobIsSub = (job as any).isSubOrder === true;
+            if (!data.usedWaste && !jobIsSub && data.rollVariantId && data.rollAreaM2) {
                 const jobBranchId: number | null = (job as any).branchId ?? null;
                 const areaToDeduct = Math.ceil(data.rollAreaM2);
 

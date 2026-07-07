@@ -144,6 +144,9 @@ export class TransactionsService {
             unitType?: string;
             note?: string;
             customPrice?: number;
+            isSubOrder?: boolean;
+            subPrice?: number;
+            subVendor?: string;
         }[];
         paymentMethod: PaymentMethod;
         discount?: number;
@@ -192,6 +195,9 @@ export class TransactionsService {
             pcs?: number;
             note?: string;
             customPrice?: number;
+            isSubOrder?: boolean;
+            subPrice?: number;
+            subVendor?: string;
         }[];
         paymentMethod: PaymentMethod;
         discount?: number;
@@ -278,6 +284,13 @@ export class TransactionsService {
             const transactionItemsData: any[] = [];
 
             for (const item of data.items) {
+                // Sub Order: item dicetak di printing luar. hppAtTime = harga sub (per m²/satuan)
+                // supaya laporan profit otomatis menghitung laba = harga jual − harga sub.
+                // Item sub TIDAK memotong stok bahan/tinta (guard di blok pengurangan stok di bawah).
+                const isSubOrder = item.isSubOrder === true;
+                const subPrice = isSubOrder ? Number(item.subPrice ?? 0) : null;
+                const subVendor = isSubOrder ? (item.subVendor?.trim() || null) : null;
+
                 // Item custom (tanpa varian katalog) — mis. dari CRM lead dengan item bebas.
                 // Tidak ada lookup stok, tidak ada BOM, langsung masuk produksi.
                 if (!item.productVariantId) {
@@ -288,7 +301,10 @@ export class TransactionsService {
                         customName: item.customName || null,
                         quantity: qty,
                         priceAtTime: customPrice,
-                        hppAtTime: 0,
+                        hppAtTime: isSubOrder ? (subPrice ?? 0) : 0,
+                        isSubOrder,
+                        subPrice: isSubOrder ? subPrice : null,
+                        subVendor,
                         note: item.note || null,
                         _requiresProduction: true,
                         _clickRateId: null,
@@ -394,9 +410,10 @@ export class TransactionsService {
                         if (areaM2 > 0 && pcs > 0) areaPriceAtTime = item.customPrice / (areaM2 * pcs);
                     }
 
-                    if (!requiresProduction && trackStock) {
+                    if (!requiresProduction && trackStock && !isSubOrder) {
                         // Multi-cabang: stok DIKURANGI dari cabang PELAKSANA (productionBranchId).
                         // Kalau bukan titipan, productionBranchId = branchId (fallback di atas), jadi tetap sama.
+                        // Sub Order → blok ini di-skip: tidak potong stok/BOM/tinta sama sekali.
                         const stockBranchId = productionBranchId ?? branchId;
                         await this._assertBranchStock(tx, stockBranchId, variant.id, totalAreaM2, variant.product.name);
                         await this._adjustStock(tx, stockBranchId, variant.id, -totalAreaM2);
@@ -429,7 +446,10 @@ export class TransactionsService {
                         productVariantId: variant.id,
                         quantity: 1,
                         priceAtTime: areaPriceAtTime,  // per-m² price (total derived from priceAtTime × area × pcs)
-                        hppAtTime: resolvedHpp,
+                        hppAtTime: isSubOrder ? (subPrice ?? 0) : resolvedHpp,
+                        isSubOrder,
+                        subPrice: isSubOrder ? subPrice : null,
+                        subVendor,
                         widthCm,
                         heightCm,
                         areaCm2,
@@ -447,7 +467,7 @@ export class TransactionsService {
                     // Multi-cabang: stok dari cabang PELAKSANA (kalau titip cetak, dari cabang tujuan).
                     // Hoist ke luar `if (trackStock)` supaya bisa dipakai juga oleh BOM/ingredient deduction di bawah.
                     const stockBranchId = productionBranchId ?? branchId;
-                    if (trackStock) {
+                    if (trackStock && !isSubOrder) {
                         await this._assertBranchStock(tx, stockBranchId, variant.id, item.quantity, variant.product.name);
                         await this._adjustStock(tx, stockBranchId, variant.id, -item.quantity);
                         await this.logMovement(tx, variant.id, 'OUT', item.quantity, `Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
@@ -461,7 +481,10 @@ export class TransactionsService {
                         productVariantId: variant.id,
                         quantity: item.quantity,
                         priceAtTime: resolvedPrice,
-                        hppAtTime: resolvedHpp,
+                        hppAtTime: isSubOrder ? (subPrice ?? 0) : resolvedHpp,
+                        isSubOrder,
+                        subPrice: isSubOrder ? subPrice : null,
+                        subVendor,
                         note: item.note || null,
                         _requiresProduction: requiresProduction,
                         _clickRateId: _unitClickRate?.isActive ? _unitClickRate.id : null,
@@ -472,7 +495,7 @@ export class TransactionsService {
                     // Deduct product-level BOM (UNIT) — di cabang PELAKSANA (sama dengan stok variant utama)
                     const ingredients = (variant.product as any).ingredients || [];
                     for (const ing of ingredients) {
-                        if (ing.rawMaterialVariantId) {
+                        if (ing.rawMaterialVariantId && !isSubOrder) {
                             const neededStock = Number(ing.quantity) * item.quantity;
                             await this._adjustStock(tx, stockBranchId, ing.rawMaterialVariantId, -neededStock);
                             await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong oleh Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
@@ -480,8 +503,9 @@ export class TransactionsService {
                     }
 
                     // Deduct variant-level ingredients (UNIT, non-service-cost only) — di cabang PELAKSANA
+                    // Sub Order → skip (tidak potong bahan/tinta).
                     for (const ing of variantIngredients) {
-                        if (ing.rawMaterialVariantId && !ing.isServiceCost) {
+                        if (ing.rawMaterialVariantId && !ing.isServiceCost && !isSubOrder) {
                             const neededStock = Number(ing.quantity) * item.quantity;
                             await this._adjustStock(tx, stockBranchId, ing.rawMaterialVariantId, -neededStock);
                             await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', neededStock, `Terpotong (varian) oleh Penjualan ${variant.product.name} — ${preInvoiceNumber}`, movementRef, stockBranchId);
@@ -618,6 +642,8 @@ export class TransactionsService {
                             priority: data.productionPriority || 'NORMAL',
                             deadline: data.productionDeadline ? new Date(data.productionDeadline) : null,
                             notes: data.productionNotes || null,
+                            // Sub Order: job disub ke printing luar → operator startJob tidak potong bahan.
+                            isSubOrder: transactionItemsData[i].isSubOrder === true,
                         },
                     });
                 }
@@ -1673,6 +1699,7 @@ export class TransactionsService {
         priority: string,
         deadline: Date | null,
         notes: string | null,
+        isSubOrder: boolean = false,
     ) {
         const jobDateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
         const jobPrefix = `JOB-${jobDateStr}-`;
@@ -1697,6 +1724,7 @@ export class TransactionsService {
                 priority: priority || 'NORMAL',
                 deadline: deadline || null,
                 notes: notes || null,
+                isSubOrder,
                 ...(jobBranchId != null ? { branchId: jobBranchId } : {}),
             },
         });
@@ -1748,7 +1776,8 @@ export class TransactionsService {
             const variantIngredients: any[] = variant.variantIngredients || [];
             const productIngredients: any[] = product.ingredients || [];
 
-            if (trackStock) {
+            // Sub Order tak pernah memotong stok → saat dihapus jangan kembalikan stok.
+            if (trackStock && !(txItem as any).isSubOrder) {
                 if (pricingMode === 'AREA_BASED') {
                     const areaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
                     if (areaM2 > 0) {
@@ -1932,7 +1961,9 @@ export class TransactionsService {
             const variant = txItem.productVariant;
             const product = variant.product;
             const pricingMode = product.pricingMode || 'UNIT';
-            const trackStock = product.trackStock !== false;
+            // Sub Order tak pernah memotong stok → koreksi qty/area tidak menyentuh stok.
+            const itemIsSub = Boolean((txItem as any).isSubOrder);
+            const trackStock = product.trackStock !== false && !itemIsSub;
             const variantIngredients: any[] = variant.variantIngredients || [];
             const productIngredients: any[] = product.ingredients || [];
 
@@ -2031,6 +2062,7 @@ export class TransactionsService {
                             transaction.productionPriority || 'NORMAL',
                             transaction.productionDeadline || null,
                             transaction.productionNotes || null,
+                            itemIsSub,
                         );
                     }
                 }
@@ -2099,6 +2131,7 @@ export class TransactionsService {
                             transaction.productionPriority || 'NORMAL',
                             transaction.productionDeadline || null,
                             transaction.productionNotes || null,
+                            itemIsSub,
                         );
                     }
                 }
