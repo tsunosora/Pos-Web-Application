@@ -949,7 +949,11 @@ export class KpiService {
         const jobs: any[] = await (this.prisma as any).productionJob.findMany({
             where: {
                 ...branchScope,
-                createdAt: { gte: start, lte: end },
+                // Atribusi kredit desainer ke WAKTU DESAIN DIUPLOAD (designEnteredAt),
+                // bukan tanggal nota dibuat (createdAt). Kalau pakai createdAt, desainer
+                // yang upload gambar di periode ini untuk job yang notanya dibuat di
+                // periode lain TIDAK muncul di leaderboard periode ini.
+                designEnteredAt: { gte: start, lte: end },
                 designerName: { not: null },
             },
             select: {

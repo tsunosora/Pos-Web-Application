@@ -530,3 +530,49 @@ export const deletePublicProof = async (
     });
     return parseResponse<{ ok: boolean }>(res, 'Hapus proof');
 };
+
+// ─── Ringkasan Desainer di Pipeline ────────────────────────────────────────
+// Dihitung LANGSUNG dari isi pipeline (array jobs yang sudah dimuat halaman),
+// jadi panel selalu sinkron dgn kanban — termasuk update optimistic saat drag.
+// Metrik per desainer:
+//  - wip          : masih di stage DESIGN (belum ACC)
+//  - upload       : sudah ada bukti desain (designEnteredAt / proofs / legacy)
+//  - siapProduksi : sudah LEWAT DESIGN (PRINT..SELESAI) = otomatis ACC & siap produksi
+//  - retur        : di stage RETUR
+// Job tanpa designerName → bucket "Belum di-assign" (biar desain belum diklaim terlihat).
+
+export interface DesignerPipelineSummaryRow {
+    name: string;
+    total: number;
+    wip: number;
+    upload: number;
+    siapProduksi: number;
+    retur: number;
+}
+
+export const UNASSIGNED_DESIGNER = 'Belum di-assign';
+
+export function summarizeDesignersFromJobs(jobs: PipelineJob[]): DesignerPipelineSummaryRow[] {
+    const FORWARD = new Set<PipelineStage>(['PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'SELESAI']);
+    const byName = new Map<string, DesignerPipelineSummaryRow>();
+
+    for (const j of jobs) {
+        const name = (j.designerName || '').trim() || UNASSIGNED_DESIGNER;
+        const row = byName.get(name) || { name, total: 0, wip: 0, upload: 0, siapProduksi: 0, retur: 0 };
+        row.total++;
+        const stage = (j.pipelineStage || 'DESIGN') as PipelineStage;
+        if (stage === 'DESIGN') row.wip++;
+        else if (stage === 'RETUR') row.retur++;
+        else if (FORWARD.has(stage)) row.siapProduksi++;
+        const hasProof = !!j.designEnteredAt || (Array.isArray(j.proofs) && j.proofs.length > 0) || !!j.proofImageUrl;
+        if (hasProof) row.upload++;
+        byName.set(name, row);
+    }
+
+    return Array.from(byName.values()).sort((a, b) => {
+        // "Belum di-assign" selalu di bawah; sisanya urut siapProduksi desc lalu total desc.
+        if (a.name === UNASSIGNED_DESIGNER) return 1;
+        if (b.name === UNASSIGNED_DESIGNER) return -1;
+        return b.siapProduksi - a.siapProduksi || b.total - a.total;
+    });
+}

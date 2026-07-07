@@ -11,11 +11,13 @@ import {
     getPublicPipelineJobs, updatePublicPipelineStage,
     uploadPublicProofImage, deletePublicProof, resolvePhotoUrl,
     verifyOperatorPin, getPublicBranches, type PublicBranch,
+    summarizeDesignersFromJobs,
     type PipelineJob, type PipelineStage, type OperatorSession,
     PIPELINE_STAGES, PIPELINE_STAGE_LABEL,
 } from "@/lib/api/production";
 import { getPublicDesigners } from "@/lib/api/designers";
 import { AssignDesignerModal } from "@/components/produksi/AssignDesignerModal";
+import { DesignerPipelinePanel } from "@/components/produksi/DesignerPipelinePanel";
 import { KerjaSamaModal } from "@/components/produksi/KerjaSamaModal";
 import Link from "next/link";
 import {
@@ -327,6 +329,9 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
         staleTime: 5 * 60_000,
     });
 
+    // Ringkasan desainer dihitung dari isi pipeline (ikut update optimistic saat drag).
+    const designerSummary = useMemo(() => summarizeDesignersFromJobs(jobs), [jobs]);
+
     const stageMut = useMutation({
         mutationFn: (data: { id: number; payload: Parameters<typeof updatePublicPipelineStage>[2] }) =>
             updatePublicPipelineStage(data.id, opSession, data.payload),
@@ -448,7 +453,9 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
                     <button onClick={onLogout} className="block mx-auto mt-2 text-xs underline">Login ulang</button>
                 </div>
             ) : (
-                <div className="flex-1 p-2 sm:p-3">
+                <div className="flex-1 p-2 sm:p-3 space-y-3">
+                    <DesignerPipelinePanel rows={designerSummary} />
+
                     <DndContext
                         sensors={sensors}
                         collisionDetection={pointerWithin}

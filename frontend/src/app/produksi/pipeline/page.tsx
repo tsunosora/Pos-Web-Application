@@ -12,11 +12,13 @@ import {
 import {
     getPipelineJobs, updatePipelineStage, uploadPipelineProofImage,
     deletePipelineProof, deletePipelineJob, cancelPipelineJob, resolvePhotoUrl,
+    summarizeDesignersFromJobs,
     type PipelineJob, type PipelineStage,
     PIPELINE_STAGES, PIPELINE_STAGE_LABEL,
 } from "@/lib/api/production";
 import { getPublicDesigners } from "@/lib/api/designers";
 import { AssignDesignerModal } from "@/components/produksi/AssignDesignerModal";
+import { DesignerPipelinePanel } from "@/components/produksi/DesignerPipelinePanel";
 import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
@@ -277,6 +279,9 @@ export default function ProduksiPipelinePage() {
         return Array.from(names).sort();
     }, [jobs]);
 
+    // Ringkasan desainer dihitung dari isi pipeline (ikut update optimistic saat drag).
+    const designerSummary = useMemo(() => summarizeDesignersFromJobs(jobs), [jobs]);
+
     const totalFiltered = Object.values(grouped).reduce((s, arr) => s + arr.length, 0);
     const totalAll = jobs.length;
     const isFiltering = deferredSearch.trim() !== "" || filterPriority !== "ALL" || filterDate !== "ALL" || filterDesigner !== "ALL";
@@ -440,6 +445,8 @@ export default function ProduksiPipelinePage() {
                     )}
                 </div>
             </div>
+
+            <DesignerPipelinePanel rows={designerSummary} />
 
             <DndContext
                 sensors={sensors}
