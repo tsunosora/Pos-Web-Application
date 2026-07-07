@@ -777,6 +777,39 @@ export class TransactionsService {
                 });
             }
 
+            // Catat biaya sub-order (printing luar) sebagai pengeluaran saat nota dibuat.
+            // subPrice = harga sub per m²/satuan (basis sama dgn priceAtTime), jadi biaya per item
+            // = subPrice × luas × pcs (AREA) atau subPrice × qty (UNIT/custom).
+            // Dicatat sebagai EXPENSE BANK_TRANSFER (non-kas): masuk laporan pengeluaran &
+            // shift, TIDAK mengurangi kas laci. Dibuat terlepas dari DP (vendor tetap dibayar).
+            let totalSubCost = 0;
+            const subVendors = new Set<string>();
+            for (const it of transactionItemsData) {
+                if (!it.isSubOrder || !it.subPrice) continue;
+                const sub = Number(it.subPrice) || 0;
+                const cost = (Number(it.areaCm2) || 0) > 0
+                    ? sub * (Number(it.areaCm2) / 10000) * (Number(it.pcs) || 1)
+                    : sub * (Number(it.quantity) || 1);
+                totalSubCost += cost;
+                if (it.subVendor) subVendors.add(it.subVendor);
+            }
+            if (totalSubCost > 0) {
+                const vendorInfo = subVendors.size ? ` — vendor: ${Array.from(subVendors).join(', ')}` : '';
+                await tx.cashflow.create({
+                    data: {
+                        type: CashflowType.EXPENSE,
+                        category: 'Biaya Sub / Printing Luar',
+                        amount: Math.round(totalSubCost),
+                        paymentMethod: 'BANK_TRANSFER',
+                        bankAccountId: null,
+                        note: `Biaya printing luar Invoice ${invoiceNumber}${customerInfo}${branchInfo}${vendorInfo}`,
+                        branchName: effectiveBranchName,
+                        branchId: branchId,
+                        date: effectiveCashflowDate,
+                    } as any
+                });
+            }
+
             // Hook: tandai SalesOrder sebagai INVOICED jika transaksi dibuat dari SO
             if (data.salesOrderId) {
                 try {

@@ -57,7 +57,8 @@ const fmtRpShort = (n: number) => {
 };
 
 // Kategori pengeluaran kas yang BUKAN biaya operasional (pembelian stok / settlement internal).
-const NON_OPEX_KEYWORDS = ["inter", "antar cabang", "titipan", "stok", "stock", "beli", "pembelian", "supplier", "restock", "modal"];
+// "sub"/"printing luar" = COGS yang sudah masuk HPP (Laba Kotor) → jangan tampil lagi di opex biar tak ganda.
+const NON_OPEX_KEYWORDS = ["inter", "antar cabang", "titipan", "stok", "stock", "beli", "pembelian", "supplier", "restock", "modal", "sub / printing", "printing luar"];
 const isNonOpex = (cat?: string) => NON_OPEX_KEYWORDS.some(k => (cat || "").toLowerCase().includes(k));
 
 function computeRange(period: Period, cStart: string, cEnd: string): { start: string; end: string } {
