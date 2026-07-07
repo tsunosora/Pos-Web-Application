@@ -25,6 +25,12 @@ export interface CartItem {
     priceTiers: PriceTier[];     // [] = no tiering, price is always pricePerUnit
     note?: string;               // operator note: design name, finishing type, custom text, etc.
     customPrice?: number | null; // admin-overridden price; when set, replaces computed price
+    // Sub Order: item dicetak di printing luar. Harga jual tetap normal, tapi
+    // subPrice = biaya printing luar (per m²/satuan, basis sama dgn pricePerUnit).
+    // Item sub TIDAK memotong stok bahan/tinta di backend.
+    isSubOrder?: boolean;
+    subPrice?: number | null;
+    subVendor?: string;
     // AREA_BASED only
     unitType?: 'm' | 'cm' | 'menit';
     widthCm?: number;
@@ -46,6 +52,7 @@ interface CartState {
     updateAreaDimensions: (lineId: string, widthCm: number, heightCm: number, unitType: 'm' | 'cm' | 'menit', pricePerUnitM2: number, note?: string, pcs?: number) => void;
     updateNote: (lineId: string, note: string) => void;
     updateCustomPrice: (lineId: string, customPrice: number | null) => void;
+    updateSubOrder: (lineId: string, patch: { isSubOrder?: boolean; subPrice?: number | null; subVendor?: string }) => void;
     clearCart: () => void;
     setDiscount: (amount: number) => void;
 
@@ -232,6 +239,21 @@ export const useCartStore = create<CartState>((set, get) => ({
                     }
                 }
                 return { ...i, customPrice, price: customPrice };
+            })
+        }));
+    },
+
+    updateSubOrder: (lineId, patch) => {
+        set((state) => ({
+            items: state.items.map(i => {
+                if (i.lineId !== lineId) return i;
+                const next = { ...i, ...patch };
+                // Matikan sub → bersihkan harga sub & vendor.
+                if (patch.isSubOrder === false) {
+                    next.subPrice = null;
+                    next.subVendor = '';
+                }
+                return next;
             })
         }));
     },

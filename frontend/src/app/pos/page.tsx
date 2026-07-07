@@ -198,6 +198,7 @@ function POSPageContent() {
     const updateAreaDimensions = useCartStore((state) => state.updateAreaDimensions);
     const updateNote = useCartStore((state) => state.updateNote);
     const updateCustomPrice = useCartStore((state) => state.updateCustomPrice);
+    const updateSubOrder = useCartStore((state) => state.updateSubOrder);
     const setQuantityDirect = useCartStore((state) => state.setQuantityDirect);
     const clearCart = useCartStore((state) => state.clearCart);
     const _subtotal = useCartStore((state) => state.subtotal());
@@ -523,6 +524,9 @@ function POSPageContent() {
                 pcs: item.pcs ?? 1,
                 note: item.note,
                 customPrice: item.customPrice != null ? item.customPrice : undefined,
+                ...(item.isSubOrder
+                    ? { isSubOrder: true, subPrice: Number(item.subPrice) || 0, subVendor: item.subVendor?.trim() || undefined }
+                    : {}),
             })),
             paymentMethod: paymentMethod === 'KREDIT' ? 'CASH'
                 : paymentMethod === 'BAYAR_NANTI'
@@ -1082,6 +1086,62 @@ function POSPageContent() {
                                                 </>
                                             )}
                                         </div>
+
+                                        {/* ── SUB ORDER: cetak di printing luar ────────────────── */}
+                                        {(() => {
+                                            const salePerUnit = item.pricingMode === 'AREA_BASED' ? item.pricePerUnit : item.price;
+                                            const basisLabel = item.pricingMode === 'AREA_BASED' ? `/${item.unitType || 'm'}²` : '/unit';
+                                            const subVal = Number(item.subPrice) || 0;
+                                            const margin = salePerUnit - subVal;
+                                            return (
+                                                <div className="mt-1.5">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateSubOrder(item.lineId, { isSubOrder: !item.isSubOrder })}
+                                                        className={`flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border transition-colors ${item.isSubOrder
+                                                            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-500'
+                                                            : 'bg-muted/40 border-border text-muted-foreground hover:text-foreground hover:border-indigo-400/40'}`}
+                                                        title="Item ini dicetak di printing luar (tidak memotong stok bahan/tinta)">
+                                                        <Printer className="w-3 h-3" />
+                                                        {item.isSubOrder ? 'Sub ke printing luar ✓' : 'Sub ke printing luar'}
+                                                    </button>
+
+                                                    {item.isSubOrder && (
+                                                        <div className="mt-1.5 flex flex-col gap-1.5 bg-indigo-500/5 border border-indigo-500/20 rounded-lg p-2 w-fit">
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[11px] text-muted-foreground w-20">Harga sub</span>
+                                                                <span className="text-[11px] text-muted-foreground">Rp</span>
+                                                                <input
+                                                                    type="number" min="0" step="any"
+                                                                    value={item.subPrice ?? ''}
+                                                                    onChange={e => updateSubOrder(item.lineId, { subPrice: e.target.value === '' ? null : Number(e.target.value) })}
+                                                                    placeholder="0"
+                                                                    className="w-24 px-2 py-0.5 text-xs font-mono bg-background border border-indigo-400/40 rounded outline-none focus:ring-1 focus:ring-indigo-400"
+                                                                />
+                                                                <span className="text-[10px] text-muted-foreground">{basisLabel}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span className="text-[11px] text-muted-foreground w-20">Vendor</span>
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.subVendor ?? ''}
+                                                                    onChange={e => updateSubOrder(item.lineId, { subVendor: e.target.value })}
+                                                                    placeholder="Printing luar (opsional)"
+                                                                    className="w-40 px-2 py-0.5 text-xs bg-background border border-indigo-400/40 rounded outline-none focus:ring-1 focus:ring-indigo-400"
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center gap-2 text-[11px]">
+                                                                <span className="text-muted-foreground">Laba:</span>
+                                                                <span className={`font-mono font-semibold ${margin >= 0 ? 'text-emerald-500' : 'text-destructive'}`}>
+                                                                    Rp {margin.toLocaleString('id-ID')}{basisLabel}
+                                                                </span>
+                                                                <span className="text-[10px] text-muted-foreground">• stok tidak dipotong</span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </div>
 
                                     <div className="flex flex-col items-end gap-2 justify-center shrink-0">
