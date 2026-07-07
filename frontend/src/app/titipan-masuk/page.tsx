@@ -12,7 +12,7 @@ import {
     HandoverStatus,
 } from '@/lib/api/branch-inbox';
 import { startPrintJob, finishPrintJob, pickupPrintJob } from '@/lib/api/print-queue';
-import { Inbox, Package, Printer, Clock, CheckCircle2, ArrowRight, Truck, AlertCircle, Play, ExternalLink } from 'lucide-react';
+import { Inbox, Package, Printer, Clock, CheckCircle2, ArrowRight, Truck, AlertCircle, Play, ExternalLink, Flag } from 'lucide-react';
 
 const TABS: { key: HandoverStatus | 'ALL'; label: string; color: string }[] = [
     { key: 'BARU', label: 'Baru Masuk', color: 'text-red-500' },
@@ -130,8 +130,8 @@ export default function TitipanMasukPage() {
                                                 {isExpress && (
                                                     <span className="text-[10px] font-bold px-2 py-0.5 bg-red-500 text-white rounded-full">EXPRESS</span>
                                                 )}
-                                                <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-500/15 text-amber-600 border border-amber-500/30 rounded-full">
-                                                    ⚑ dari {entry.sourceBranch?.code || entry.sourceBranch?.name}
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-amber-500/15 text-amber-600 border border-amber-500/30 rounded-full">
+                                                    <Flag className="w-2.5 h-2.5" /> dari {entry.sourceBranch?.code || entry.sourceBranch?.name}
                                                 </span>
                                                 <StatusChip status={entry.handoverStatus} />
                                                 <span className="text-xs font-mono text-muted-foreground">{entry.invoiceNumber}</span>

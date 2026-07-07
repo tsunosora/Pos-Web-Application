@@ -153,7 +153,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                     </select>
                     <label className="flex items-start gap-2 cursor-pointer select-none">
                         <input type="checkbox" checked={newCountsAsPcs} onChange={e => setNewCountsAsPcs(e.target.checked)} className="mt-0.5 h-4 w-4 accent-primary" />
-                        <span className="text-[11px] text-muted-foreground leading-snug">
+                        <span className="text-xs text-muted-foreground leading-snug">
                             <span className="font-semibold text-foreground">Hitung sebagai produk (pcs) di laporan CRM.</span> Matikan untuk add-on/komponen (kerah, lengan) agar tidak terhitung pcs terpisah.
                         </span>
                     </label>
@@ -203,7 +203,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                                 <option value="">Kategori Utama</option>
                                                                 {parentOptions.filter(p => p.id !== cat.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                             </select>
-                                                            <label className="flex items-center gap-1 text-[11px] text-muted-foreground whitespace-nowrap cursor-pointer select-none">
+                                                            <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none">
                                                                 <input type="checkbox" checked={editingCountsAsPcs} onChange={e => setEditingCountsAsPcs(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />
                                                                 hitung pcs
                                                             </label>
@@ -226,7 +226,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                         )}
                                                         {children.length > 0 && (
                                                             <button type="button" onClick={() => toggleExpand(cat.id)}
-                                                                className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-primary transition-colors">
+                                                                className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary transition-colors">
                                                                 <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                                                                 {children.length} sub
                                                             </button>
@@ -290,7 +290,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                                                 <option value="">Jadikan Kategori Utama</option>
                                                                                 {parentOptions.filter(p => p.id !== child.id).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                                             </select>
-                                                                            <label className="flex items-center gap-1 text-[11px] text-muted-foreground whitespace-nowrap cursor-pointer select-none">
+                                                                            <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none">
                                                                                 <input type="checkbox" checked={editingCountsAsPcs} onChange={e => setEditingCountsAsPcs(e.target.checked)} className="h-3.5 w-3.5 accent-primary" />
                                                                                 hitung pcs
                                                                             </label>

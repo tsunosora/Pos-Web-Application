@@ -132,10 +132,10 @@ function FormModal({ mode, initial, pendingLat, pendingLng, onClose, onSave, isP
                             <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Jl. ..." className="flex-1 bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                             <button type="button" onClick={handleGeocode} disabled={geocoding || !address} title="Auto-isi koordinat dari alamat"
                                 className="shrink-0 px-3 py-2 rounded-lg border border-input bg-background text-xs font-medium text-primary hover:bg-primary/5 disabled:opacity-50 transition-colors">
-                                {geocoding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "📍 Cari"}
+                                {geocoding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5" /> Cari</span>}
                             </button>
                         </div>
-                        <p className="text-xs text-muted-foreground">Klik "📍 Cari" untuk auto-isi koordinat. Atau klik langsung di peta.</p>
+                        <p className="text-xs text-muted-foreground">Klik tombol <span className="font-medium text-foreground">Cari</span> untuk auto-isi koordinat. Atau klik langsung di peta.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">

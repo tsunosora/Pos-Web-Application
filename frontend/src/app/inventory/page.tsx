@@ -9,6 +9,7 @@ import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2
 import { EmptyState } from '@/components/ui/responsive-table';
 import { useUIStore, type InventoryViewMode } from '@/store/ui-store';
 import { cn } from '@/lib/utils';
+import { badgeToneClass } from '@/components/ui/status-badge';
 import { ProductImageFill } from '@/components/ui/ProductImageFill';
 import StockHistoryModal from './StockHistoryModal';
 import PurchaseModal from './PurchaseModal';
@@ -377,8 +378,8 @@ export default function InventoryPage() {
     };
 
     const PRODUCT_TYPE_CONFIG: Record<string, { label: string; className: string }> = {
-        SELLABLE:     { label: 'Siap Jual',  className: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-        RAW_MATERIAL: { label: 'Bahan Baku', className: 'bg-amber-100 text-amber-700 border-amber-200' },
+        SELLABLE:     { label: 'Siap Jual',  className: badgeToneClass.success },
+        RAW_MATERIAL: { label: 'Bahan Baku', className: badgeToneClass.warning },
         SERVICE:      { label: 'Jasa',       className: 'bg-violet-100 text-violet-700 border-violet-200' },
     };
 
@@ -888,7 +889,7 @@ export default function InventoryPage() {
                                 return [
                                     (gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (
                                         <tr key={`grp-${product.id}`} className="bg-muted/40 border-y border-border">
-                                            <td colSpan={12} className="px-4 py-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</td>
+                                            <td colSpan={12} className="px-4 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</td>
                                         </tr>
                                     ),
                                     ...visibleVariants.map((variant: any, idx: number) => {
@@ -1062,7 +1063,7 @@ export default function InventoryPage() {
                             const hiddenCount = matchedVariants.length - 1;
                             return (
                                 <div key={product.id}>
-                                    {(gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-1.5 bg-muted/40 border-y border-border text-[11px] font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
+                                    {(gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-1.5 bg-muted/40 border-y border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
                                     {visibleVariants.map((variant: any, idx: number) => {
                                         const isFirst = idx === 0;
                                         const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;

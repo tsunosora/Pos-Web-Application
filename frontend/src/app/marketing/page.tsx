@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { verifyMarketingPin, getPublicMarketingDashboard, addMarketingSpend, deleteMarketingSpend, type PublicLead, type AdSpend } from "@/lib/api/marketing";
 import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
-import { TrendingUp, Users, Wallet, Clock, Loader2, Lock, RefreshCw, ChevronDown, Megaphone, Package, Filter, Target, Plus, Trash2, Receipt, Building2, AlertTriangle, Timer, TimerOff, MessageSquare, ThumbsDown } from "lucide-react";
+import { TrendingUp, Users, Wallet, Clock, Loader2, Lock, RefreshCw, ChevronDown, Megaphone, Package, Filter, Target, Plus, Trash2, Receipt, Building2, AlertTriangle, Timer, TimerOff, MessageSquare, ThumbsDown, Flame, CloudSun, Snowflake, type LucideIcon } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -30,7 +30,7 @@ const LEVEL_CLS: Record<string, string> = {
     WARM: "bg-amber-100 text-amber-700",
     COLD: "bg-sky-100 text-sky-700",
 };
-const LEVEL_EMOJI: Record<string, string> = { HOT: "🔥", WARM: "🌤️", COLD: "❄️" };
+const LEVEL_ICON: Record<string, LucideIcon> = { HOT: Flame, WARM: CloudSun, COLD: Snowflake };
 const LEVEL_ORDER = ["HOT", "WARM", "COLD"];
 const LEVEL_COLOR: Record<string, string> = { HOT: "#ef4444", WARM: "#f59e0b", COLD: "#0ea5e9" };
 const SOURCE_LABEL: Record<string, string> = {
@@ -749,8 +749,8 @@ export default function MarketingDashboardPage() {
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="font-medium text-sm text-foreground truncate">{l.name}</span>
-                                                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_CLS[l.status] || "bg-muted text-muted-foreground"}`}>{STATUS_LABEL[l.status] || l.status}</span>
-                                                {l.level && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${LEVEL_CLS[l.level] || "bg-muted text-muted-foreground"}`}>{LEVEL_EMOJI[l.level] || ""} {LEVEL_LABEL[l.level] || l.level}</span>}
+                                                <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${STATUS_CLS[l.status] || "bg-muted text-muted-foreground"}`}>{STATUS_LABEL[l.status] || l.status}</span>
+                                                {l.level && (() => { const LvIcon = LEVEL_ICON[l.level]; return <span className={`inline-flex items-center gap-1 text-xs font-semibold px-1.5 py-0.5 rounded-full ${LEVEL_CLS[l.level] || "bg-muted text-muted-foreground"}`}>{LvIcon && <LvIcon className="h-3 w-3" />} {LEVEL_LABEL[l.level] || l.level}</span>; })()}
                                                 {(() => {
                                                     const mins = responseMinutes(l);
                                                     if (mins != null) {

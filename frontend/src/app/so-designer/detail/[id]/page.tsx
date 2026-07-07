@@ -7,6 +7,7 @@ import { ArrowLeft, Send, XCircle, Upload, Trash2, Loader2, CheckCircle2, Pencil
 import { designerGetSO, designerSendWA, designerCancelSO, designerUploadProofs, designerDeleteProof } from "@/lib/api/designers";
 import { useDesignerSession } from "../../useDesignerSession";
 import type { SalesOrder, SalesOrderStatus } from "@/lib/api/sales-orders";
+import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -20,10 +21,10 @@ function proofUrl(filename: string) {
 }
 
 const STATUS_BADGE: Record<SalesOrderStatus, string> = {
-    DRAFT: "bg-slate-200 text-slate-700 border border-slate-300",
-    SENT: "bg-blue-100 text-blue-700 border border-blue-200",
-    INVOICED: "bg-emerald-100 text-emerald-700 border border-emerald-200",
-    CANCELLED: "bg-red-100 text-red-700 border border-red-200",
+    DRAFT: badgeToneClass.neutral,
+    SENT: badgeToneClass.info,
+    INVOICED: badgeToneClass.success,
+    CANCELLED: badgeToneClass.danger,
 };
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
     DRAFT: "Draft",
@@ -157,7 +158,7 @@ export default function DesignerSODetailPage() {
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono font-bold text-sm">{so.soNumber}</span>
-                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_BADGE[so.status]}`}>
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[so.status]}`}>
                             {STATUS_LABEL[so.status]}
                         </span>
                     </div>

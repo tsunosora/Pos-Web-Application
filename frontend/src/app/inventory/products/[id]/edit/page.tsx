@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCategories, getUnits, getProduct, updateProduct, uploadProductImages, uploadVariantImage, getSettings, getProducts, getHppWorksheets, createHppWorksheet, updateHppWorksheet, applyHppToVariant, getClickRates } from '@/lib/api';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Plus, Trash2, Save, Upload, Image as ImageIcon, FlaskConical, X, Ruler, Package, Link2, RefreshCw, Calculator, Pencil, MousePointerClick } from 'lucide-react';
+import { badgeToneClass } from '@/components/ui/status-badge';
 import Link from 'next/link';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -678,7 +679,7 @@ export default function EditProductPage() {
                             onClick={() => setTrackStock(v => !v)}
                             className={`relative shrink-0 w-12 h-6 rounded-full transition-colors ${trackStock ? 'bg-primary' : 'bg-muted-foreground/30'}`}
                         >
-                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${trackStock ? 'translate-x-6' : 'translate-x-0'}`} />
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-primary-foreground shadow transition-transform ${trackStock ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                     </label>
                     {!trackStock && (
@@ -757,7 +758,7 @@ export default function EditProductPage() {
                                         ) : (
                                             <div className="flex flex-col items-center justify-center h-full gap-0.5">
                                                 <ImageIcon className="w-4 h-4 text-muted-foreground/50" />
-                                                <span className="text-[10px] text-muted-foreground/50">Foto</span>
+                                                <span className="text-xs text-muted-foreground/50">Foto</span>
                                             </div>
                                         )}
                                         <input type="file" className="hidden" accept="image/*" onChange={e => handleVariantImageChange(index, e)} />
@@ -781,7 +782,7 @@ export default function EditProductPage() {
                                 <div className="p-3 space-y-3">
                                     {/* SKU */}
                                     <div>
-                                        <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">SKU *</label>
+                                        <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">SKU *</label>
                                         <div className="flex gap-2">
                                             <input required type="text" value={v.sku}
                                                 onChange={e => updateVariant(index, 'sku', e.target.value)}
@@ -797,7 +798,7 @@ export default function EditProductPage() {
                                     {/* Harga Jual + HPP */}
                                     <div className="grid grid-cols-2 gap-2">
                                         <div>
-                                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">
+                                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
                                                 {pricingMode === 'AREA_BASED' ? 'Harga/m² (Rp)' : 'Harga Jual (Rp)'} *
                                             </label>
                                             <input required type="number" min="0" inputMode="numeric" value={v.price}
@@ -805,7 +806,7 @@ export default function EditProductPage() {
                                                 className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary" />
                                         </div>
                                         <div>
-                                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Modal / HPP</label>
+                                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Modal / HPP</label>
                                             <input type="number" min="0" inputMode="numeric" value={v.hpp}
                                                 onChange={e => updateVariant(index, 'hpp', e.target.value)}
                                                 placeholder="Opsional"
@@ -817,7 +818,7 @@ export default function EditProductPage() {
                                     <div className="grid grid-cols-3 gap-2">
                                         {trackStock && (
                                             <div>
-                                                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">
+                                                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
                                                     {pricingMode === 'AREA_BASED' ? 'Stok (m²)' : 'Stok'}
                                                 </label>
                                                 <input type="number" min="0" inputMode="decimal"
@@ -828,14 +829,14 @@ export default function EditProductPage() {
                                             </div>
                                         )}
                                         <div>
-                                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Size</label>
+                                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Size</label>
                                             <input type="text" value={v.size}
                                                 onChange={e => updateVariant(index, 'size', e.target.value)}
                                                 placeholder="M, L, XL"
                                                 className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary" />
                                         </div>
                                         <div>
-                                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Warna</label>
+                                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Warna</label>
                                             <input type="text" value={v.color}
                                                 onChange={e => updateVariant(index, 'color', e.target.value)}
                                                 placeholder="Merah"
@@ -847,7 +848,7 @@ export default function EditProductPage() {
                                     {pricingMode !== 'AREA_BASED' && (
                                         <div className="border-t border-border/40 pt-3 space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-[11px] font-semibold text-muted-foreground uppercase">
+                                                <span className="text-xs font-semibold text-muted-foreground uppercase">
                                                     Harga Bertingkat
                                                     {v.priceTiers.length > 0 && <span className="ml-1.5 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 px-1.5 py-0.5 rounded font-semibold">{v.priceTiers.length} tier</span>}
                                                 </span>
@@ -856,7 +857,7 @@ export default function EditProductPage() {
                                                 </button>
                                             </div>
                                             {v.priceTiers.length === 0 && (
-                                                <p className="text-[11px] text-muted-foreground">Harga Jual di atas berlaku untuk semua qty.</p>
+                                                <p className="text-xs text-muted-foreground">Harga Jual di atas berlaku untuk semua qty.</p>
                                             )}
                                             {v.priceTiers.map((tier, ti) => (
                                                 <div key={ti} className="bg-orange-50/60 dark:bg-orange-950/10 border border-orange-200/60 dark:border-orange-800/30 rounded-lg p-2.5 space-y-2">
@@ -871,21 +872,21 @@ export default function EditProductPage() {
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-2">
                                                         <div>
-                                                            <label className="block text-[10px] text-muted-foreground mb-1">Min Qty</label>
+                                                            <label className="block text-xs text-muted-foreground mb-1">Min Qty</label>
                                                             <input type="number" min="1" inputMode="numeric" value={tier.minQty}
                                                                 onChange={e => updateTier(index, ti, 'minQty', e.target.value)}
                                                                 placeholder="1"
                                                                 className="w-full px-2 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary text-center" />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[10px] text-muted-foreground mb-1">Max Qty</label>
+                                                            <label className="block text-xs text-muted-foreground mb-1">Max Qty</label>
                                                             <input type="number" min="1" inputMode="numeric" value={tier.maxQty}
                                                                 onChange={e => updateTier(index, ti, 'maxQty', e.target.value)}
                                                                 placeholder="∞"
                                                                 className="w-full px-2 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary text-center" />
                                                         </div>
                                                         <div>
-                                                            <label className="block text-[10px] text-muted-foreground mb-1">Harga/unit (Rp)</label>
+                                                            <label className="block text-xs text-muted-foreground mb-1">Harga/unit (Rp)</label>
                                                             <input type="number" min="0" inputMode="numeric" value={tier.price}
                                                                 onChange={e => updateTier(index, ti, 'price', e.target.value)}
                                                                 placeholder="0"
@@ -895,7 +896,7 @@ export default function EditProductPage() {
                                                 </div>
                                             ))}
                                             {v.priceTiers.length > 0 && (
-                                                <p className="text-[10px] text-muted-foreground">Harga Jual dipakai jika qty tidak cocok tier manapun.</p>
+                                                <p className="text-xs text-muted-foreground">Harga Jual dipakai jika qty tidak cocok tier manapun.</p>
                                             )}
                                         </div>
                                     )}
@@ -911,14 +912,14 @@ export default function EditProductPage() {
                                         {v.isRollMaterial && (
                                             <div className="grid grid-cols-2 gap-2">
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Lebar Fisik (m)</label>
+                                                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Lebar Fisik (m)</label>
                                                     <input type="number" step="0.1" min="0" inputMode="decimal" value={v.rollPhysicalWidth}
                                                         onChange={e => updateVariant(index, 'rollPhysicalWidth', e.target.value)}
                                                         placeholder="3.2"
                                                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary font-mono" />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Lebar Cetak (m)</label>
+                                                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Lebar Cetak (m)</label>
                                                     <input type="number" step="0.1" min="0" inputMode="decimal" value={v.rollEffectivePrintWidth}
                                                         onChange={e => updateVariant(index, 'rollEffectivePrintWidth', e.target.value)}
                                                         placeholder="3.0"
@@ -931,7 +932,7 @@ export default function EditProductPage() {
 
                                 {v.id && (
                                     <div className="px-3 pb-2">
-                                        <p className="text-[10px] text-muted-foreground/40 font-mono">ID: {v.id}</p>
+                                        <p className="text-xs text-muted-foreground/40 font-mono">ID: {v.id}</p>
                                     </div>
                                 )}
                                 {/* HPP Worksheet — only for saved variants */}
@@ -945,7 +946,7 @@ export default function EditProductPage() {
                                             <Calculator className="w-4 h-4" />
                                             HPP Worksheet
                                             {(hppByVariantId[v.id!] || []).length > 0 && (
-                                                <span className="ml-1 text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-semibold">
+                                                <span className={`ml-1 text-xs ${badgeToneClass.warning} px-1.5 py-0.5 rounded font-semibold border`}>
                                                     {(hppByVariantId[v.id!] || []).length}
                                                 </span>
                                             )}
@@ -1048,7 +1049,7 @@ export default function EditProductPage() {
                                     <div className="p-3 space-y-3">
                                         {/* Stock link */}
                                         <div>
-                                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">
+                                            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">
                                                 <span className="flex items-center gap-1"><Link2 className="w-3 h-3" /> Terhubung ke Stok</span>
                                             </label>
                                             <div className="flex items-center gap-2">
@@ -1071,21 +1072,21 @@ export default function EditProductPage() {
                                         {/* Qty + Unit + Harga + Subtotal */}
                                         <div className="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Jumlah</label>
+                                                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Jumlah</label>
                                                 <input type="number" min="0" step="any" inputMode="decimal" value={ing.quantity} onChange={e => updateIngredient(i, 'quantity', e.target.value)} placeholder="0" className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary" />
                                             </div>
                                             <div>
-                                                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Satuan</label>
+                                                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Satuan</label>
                                                 <input type="text" value={ing.unit} onChange={e => updateIngredient(i, 'unit', e.target.value)} placeholder="pcs, gram, lembar..." className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary" />
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
                                             <div>
-                                                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Harga Satuan (Rp)</label>
+                                                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Harga Satuan (Rp)</label>
                                                 <input type="number" readOnly value={ing.price} placeholder="0" className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-muted-foreground outline-none cursor-not-allowed" />
                                             </div>
                                             <div>
-                                                <label className="block text-[11px] font-semibold text-muted-foreground uppercase mb-1">Subtotal HPP (Rp)</label>
+                                                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Subtotal HPP (Rp)</label>
                                                 <input type="number" readOnly value={ing.subtotal} placeholder="0" className="w-full px-3 py-2.5 bg-muted border border-border rounded-lg text-sm text-muted-foreground outline-none cursor-not-allowed font-bold" />
                                             </div>
                                         </div>

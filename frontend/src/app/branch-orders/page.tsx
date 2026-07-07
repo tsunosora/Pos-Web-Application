@@ -13,6 +13,7 @@ import {
     type BranchWOStatus,
 } from '@/lib/api/branch-work-orders';
 import axios from '@/lib/api/client';
+import { badgeToneClass } from '@/components/ui/status-badge';
 
 interface Branch {
     id: number;
@@ -27,10 +28,10 @@ const STATUS_LABELS: Record<BranchWOStatus, string> = {
 };
 
 const STATUS_COLORS: Record<BranchWOStatus, string> = {
-    ANTRIAN: 'bg-yellow-100 text-yellow-800',
-    PROSES: 'bg-blue-100 text-blue-800',
-    SELESAI: 'bg-green-100 text-green-800',
-    DIBATALKAN: 'bg-muted text-muted-foreground',
+    ANTRIAN: badgeToneClass.warning,
+    PROSES: badgeToneClass.info,
+    SELESAI: badgeToneClass.success,
+    DIBATALKAN: badgeToneClass.neutral,
 };
 
 const STATUS_ICONS: Record<BranchWOStatus, React.ReactNode> = {
@@ -148,17 +149,17 @@ function SummaryTab() {
                                             <span className="text-xs text-muted-foreground">{b.totalOrders} WO · {b.totalItems} items</span>
                                         </div>
                                         <div className="flex gap-3 text-center text-xs">
-                                            <div className="flex-1 bg-green-50 rounded-lg py-2">
-                                                <p className="text-xl font-bold text-green-600">{b.selesai}</p>
-                                                <p className="text-green-700">Selesai</p>
+                                            <div className="flex-1 bg-emerald-500/10 rounded-lg py-2">
+                                                <p className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{b.selesai}</p>
+                                                <p className="text-emerald-700 dark:text-emerald-300">Selesai</p>
                                             </div>
-                                            <div className="flex-1 bg-blue-50 rounded-lg py-2">
-                                                <p className="text-xl font-bold text-blue-600">{b.proses}</p>
-                                                <p className="text-blue-700">Proses</p>
+                                            <div className="flex-1 bg-blue-500/10 rounded-lg py-2">
+                                                <p className="text-xl font-bold text-blue-700 dark:text-blue-300">{b.proses}</p>
+                                                <p className="text-blue-700 dark:text-blue-300">Proses</p>
                                             </div>
-                                            <div className="flex-1 bg-yellow-50 rounded-lg py-2">
-                                                <p className="text-xl font-bold text-yellow-600">{b.antrian}</p>
-                                                <p className="text-yellow-700">Antrian</p>
+                                            <div className="flex-1 bg-amber-500/10 rounded-lg py-2">
+                                                <p className="text-xl font-bold text-amber-700 dark:text-amber-300">{b.antrian}</p>
+                                                <p className="text-amber-700 dark:text-amber-300">Antrian</p>
                                             </div>
                                         </div>
                                         <div>
@@ -287,7 +288,7 @@ function ListTab() {
                                 <th className="px-4 py-2.5" />
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
+                        <tbody className="divide-y divide-border">
                             {filtered.map(wo => (
                                 <tr key={wo.id} className="hover:bg-muted transition-colors">
                                     <td className="px-4 py-3 font-mono text-xs text-foreground">{wo.woNumber}</td>
@@ -341,7 +342,7 @@ export default function BranchOrdersPage() {
     return (
         <div className="space-y-5">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                     <Building2 className="w-5 h-5 text-blue-600" />
                     <h1 className="text-xl font-bold text-foreground">Order Cabang</h1>

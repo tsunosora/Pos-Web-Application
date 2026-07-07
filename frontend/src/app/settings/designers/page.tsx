@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Users } from "lucide-react";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
 import { getActiveCompanyBranches, type CompanyBranchLite } from "@/lib/api/discord";
+import { badgeToneClass } from "@/components/ui/status-badge";
 
 export default function DesignersSettingsPage() {
     const qc = useQueryClient();
@@ -192,7 +193,7 @@ export default function DesignersSettingsPage() {
                                     <td className="px-4 py-2 font-medium">{d.name}</td>
                                     <td className="px-4 py-2 text-sm text-muted-foreground">
                                         {(d as any).branchName ? (
-                                            <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">{(d as any).branchName}</span>
+                                            <span className={`${badgeToneClass.info} border text-xs font-medium px-2 py-0.5 rounded-full`}>{(d as any).branchName}</span>
                                         ) : (
                                             <span className="text-xs text-muted-foreground/50">Pusat</span>
                                         )}
@@ -201,7 +202,7 @@ export default function DesignersSettingsPage() {
                                         {"•".repeat(d.pin.length)}
                                     </td>
                                     <td className="px-4 py-2 text-center">
-                                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${d.isActive ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-muted-foreground"}`}>
+                                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${d.isActive ? badgeToneClass.success : badgeToneClass.neutral}`}>
                                             {d.isActive ? "Aktif" : "Nonaktif"}
                                         </span>
                                     </td>
@@ -215,7 +216,7 @@ export default function DesignersSettingsPage() {
                                                 {d.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
                                             </button>
                                             <button onClick={() => startEdit(d)}
-                                                className="p-1.5 rounded hover:bg-muted text-slate-600" title="Edit">
+                                                className="p-1.5 rounded hover:bg-muted text-muted-foreground" title="Edit">
                                                 <Pencil className="h-4 w-4" />
                                             </button>
                                             {deleteConfirm === d.id ? (
@@ -225,7 +226,7 @@ export default function DesignersSettingsPage() {
                                                         <Check className="h-4 w-4" />
                                                     </button>
                                                     <button onClick={() => setDeleteConfirm(null)}
-                                                        className="p-1.5 rounded hover:bg-muted text-slate-500">
+                                                        className="p-1.5 rounded hover:bg-muted text-muted-foreground">
                                                         <X className="h-4 w-4" />
                                                     </button>
                                                 </div>

@@ -528,7 +528,7 @@ function ProductTrendChart({
                 </div>
             </div>
 
-            <p className="text-[11px] text-muted-foreground -mt-1 mb-3">
+            <p className="text-xs text-muted-foreground -mt-1 mb-3">
                 Dari <strong>semua transaksi POS</strong> di periode (termasuk walk-in tanpa lead), berdasarkan <strong>tanggal transaksi</strong>.
                 Item add-on (kerah/lengan/rib) tidak dihitung sebagai pcs.
             </p>
@@ -539,15 +539,15 @@ function ProductTrendChart({
                     <span className="text-muted-foreground">
                         Order <strong className="text-foreground">{csOptions.find(c => c.id === effectiveCsId)?.name}</strong>:
                     </span>
-                    <div className="flex items-center gap-1.5 bg-indigo-50 border border-indigo-200 rounded-full px-2.5 py-1">
-                        <span className="font-medium text-indigo-700">Dari Lead</span>
-                        <span className="font-mono text-indigo-600">{data.sourceSplit.lead.toLocaleString("id-ID")} pcs</span>
+                    <div className="flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2.5 py-1">
+                        <span className="font-medium text-indigo-700 dark:text-indigo-300">Dari Lead</span>
+                        <span className="font-mono text-indigo-600 dark:text-indigo-300">{data.sourceSplit.lead.toLocaleString("id-ID")} pcs</span>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
-                        <span className="font-medium text-amber-700">Dari Walk-in</span>
-                        <span className="font-mono text-amber-600">{data.sourceSplit.walkin.toLocaleString("id-ID")} pcs</span>
+                    <div className="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-2.5 py-1">
+                        <span className="font-medium text-amber-700 dark:text-amber-300">Dari Walk-in</span>
+                        <span className="font-mono text-amber-600 dark:text-amber-300">{data.sourceSplit.walkin.toLocaleString("id-ID")} pcs</span>
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                         (walk-in dicocokkan dari Kasir/Staff)
                     </span>
                 </div>
@@ -601,9 +601,9 @@ function ProductTrendChart({
                                     <span className="font-mono text-muted-foreground">{t.pcs.toLocaleString("id-ID")} pcs</span>
                                 </div>
                             ))}
-                        <div className="flex items-center gap-1.5 text-xs bg-indigo-50 border border-indigo-200 rounded-full px-2.5 py-1 ml-auto">
-                            <span className="font-semibold text-indigo-700">Total</span>
-                            <span className="font-mono text-indigo-600">{grandTotal.toLocaleString("id-ID")} pcs</span>
+                        <div className="flex items-center gap-1.5 text-xs bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2.5 py-1 ml-auto">
+                            <span className="font-semibold text-indigo-700 dark:text-indigo-300">Total</span>
+                            <span className="font-mono text-indigo-600 dark:text-indigo-300">{grandTotal.toLocaleString("id-ID")} pcs</span>
                         </div>
                     </div>
                 </>
@@ -614,9 +614,9 @@ function ProductTrendChart({
 
 // ── Breakdown per Sumber (gaya dashboard Shopee) ─────────────────────────────
 const BREAKDOWN_STATUS: { value: string; label: string; on: string; off: string }[] = [
-    { value: "CLOSED_WON",  label: "Closing", on: "bg-emerald-600 text-white border-emerald-600", off: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100" },
-    { value: "CLOSED_LOST", label: "Lost",    on: "bg-red-600 text-white border-red-600",          off: "bg-red-50 text-red-700 border-red-200 hover:bg-red-100" },
-    { value: "INVALID",     label: "Invalid", on: "bg-orange-500 text-white border-orange-500",    off: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100" },
+    { value: "CLOSED_WON",  label: "Closing", on: "bg-emerald-600 text-white border-emerald-600", off: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 hover:bg-emerald-500/20" },
+    { value: "CLOSED_LOST", label: "Lost",    on: "bg-red-600 text-white border-red-600",          off: "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/20 hover:bg-red-500/20" },
+    { value: "INVALID",     label: "Invalid", on: "bg-orange-500 text-white border-orange-500",    off: "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/20 hover:bg-orange-500/20" },
 ];
 
 function fmtRpShort(n: number): string {
@@ -750,7 +750,7 @@ function SourceBreakdownChart({
                 </div>
             </div>
 
-            <p className="text-[11px] text-muted-foreground -mt-1 mb-3">
+            <p className="text-xs text-muted-foreground -mt-1 mb-3">
                 Hanya dari <strong>lead</strong> (sesuai filter status), berdasarkan <strong>tanggal lead masuk</strong> — pcs diambil dari nota hasil closing.
                 Order walk-in tanpa lead tidak dihitung di sini, jadi total pcs wajar lebih kecil dari Tren Produk.
             </p>

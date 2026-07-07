@@ -6,7 +6,7 @@ import {
     Plus, ArrowDownRight, ArrowUpRight, ArrowRightLeft, Loader2,
     Pencil, Trash2, TrendingUp, BarChart3, Download, Filter, X, Store,
     Clock, CheckCircle2, XCircle, AlertTriangle, Wallet, Landmark,
-    Package, ChevronDown, ChevronUp,
+    Package, ChevronDown, ChevronUp, Banknote, Smartphone, User,
 } from "lucide-react";
 import { PageHeader } from '@/components/ui/page-header';
 import { usePagination, PaginationBar } from '@/components/ui/pagination';
@@ -25,6 +25,8 @@ import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, Legend
 } from "recharts";
+
+function payMethodLabel(m: string) { if (m === 'CASH') return <><Banknote className="h-3.5 w-3.5" /> Tunai</>; if (m === 'QRIS') return <><Smartphone className="h-3.5 w-3.5" /> QRIS</>; return <><Landmark className="h-3.5 w-3.5" /> Transfer</>; }
 
 // --- Types ---
 type CashflowEntry = {
@@ -140,8 +142,8 @@ function EditModal({ entry, bankAccounts, onClose, onSave, isPending }: {
                             {(['CASH', 'QRIS', 'BANK_TRANSFER'] as const).map(m => (
                                 <button type="button" key={m}
                                     onClick={() => { setPaymentMethod(m); if (m !== 'BANK_TRANSFER') setBankAccountId(''); }}
-                                    className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${paymentMethod === m ? 'bg-primary/10 text-primary border-primary/30' : 'border-input text-muted-foreground hover:bg-muted/50'}`}>
-                                    {m === 'CASH' ? '💵 Tunai' : m === 'QRIS' ? '📱 QRIS' : '🏦 Transfer'}
+                                    className={`flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium border transition-colors ${paymentMethod === m ? 'bg-primary/10 text-primary border-primary/30' : 'border-input text-muted-foreground hover:bg-muted/50'}`}>
+                                    {payMethodLabel(m)}
                                 </button>
                             ))}
                         </div>
@@ -259,8 +261,8 @@ function SubmitRequestModal({ entry, type, bankAccounts, onClose, onSubmit, isPe
                                     {(['CASH', 'QRIS', 'BANK_TRANSFER'] as const).map(m => (
                                         <button type="button" key={m}
                                             onClick={() => { setPaymentMethod(m); if (m !== 'BANK_TRANSFER') setBankAccountId(''); }}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${paymentMethod === m ? 'bg-primary/10 text-primary border-primary/30' : 'border-input text-muted-foreground hover:bg-muted/50'}`}>
-                                            {m === 'CASH' ? '💵 Tunai' : m === 'QRIS' ? '📱 QRIS' : '🏦 Transfer'}
+                                            className={`flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium border transition-colors ${paymentMethod === m ? 'bg-primary/10 text-primary border-primary/30' : 'border-input text-muted-foreground hover:bg-muted/50'}`}>
+                                            {payMethodLabel(m)}
                                         </button>
                                     ))}
                                 </div>
@@ -1002,7 +1004,7 @@ export default function CashflowPage() {
                                                 <span className="text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full">{entry.category}</span>
                                             )}
                                             {isProductView && order?.customerName && (
-                                                <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">👤 {order.customerName}</span>
+                                                <span className="inline-flex items-center gap-1 text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full"><User className="h-3 w-3" /> {order.customerName}</span>
                                             )}
                                             {!entry.userId && !isProductView && (
                                                 <span className="text-xs bg-muted text-muted-foreground px-1.5 py-0.5 rounded-full">Otomatis</span>
@@ -1011,10 +1013,8 @@ export default function CashflowPage() {
                                                 <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{entry.platformSource}</span>
                                             )}
                                             {entry.paymentMethod && (
-                                                <span className="text-xs bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 px-1.5 py-0.5 rounded-full">
-                                                    {entry.paymentMethod === 'CASH' ? '💵 Tunai'
-                                                        : entry.paymentMethod === 'QRIS' ? '📱 QRIS'
-                                                        : `🏦 ${entry.bankAccount?.bankName || 'Transfer'}`}
+                                                <span className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 px-1.5 py-0.5 rounded-full">
+                                                    {entry.paymentMethod === 'CASH' ? <><Banknote className="h-3 w-3" /> Tunai</> : entry.paymentMethod === 'QRIS' ? <><Smartphone className="h-3 w-3" /> QRIS</> : <><Landmark className="h-3 w-3" /> {entry.bankAccount?.bankName || 'Transfer'}</>}
                                                 </span>
                                             )}
                                         </div>
@@ -1152,8 +1152,8 @@ export default function CashflowPage() {
                                     {(['CASH', 'QRIS', 'BANK_TRANSFER'] as const).map(m => (
                                         <button type="button" key={m}
                                             onClick={() => { setPaymentMethod(m); if (m !== 'BANK_TRANSFER') setBankAccountId(''); }}
-                                            className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-colors ${paymentMethod === m ? 'bg-primary/10 text-primary border-primary/30' : 'border-input text-muted-foreground hover:bg-muted/50'}`}>
-                                            {m === 'CASH' ? '💵 Tunai' : m === 'QRIS' ? '📱 QRIS' : '🏦 Transfer'}
+                                            className={`flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg text-xs font-medium border transition-colors ${paymentMethod === m ? 'bg-primary/10 text-primary border-primary/30' : 'border-input text-muted-foreground hover:bg-muted/50'}`}>
+                                            {payMethodLabel(m)}
                                         </button>
                                     ))}
                                 </div>

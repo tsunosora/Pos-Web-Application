@@ -11,7 +11,7 @@ const TABS: { key: TabKey; label: string; icon: any; color: string }[] = [
     { key: 'BARU', label: 'Dikirim', icon: Send, color: 'text-amber-600' },
     { key: 'DIPROSES', label: 'Dikerjakan', icon: Clock, color: 'text-blue-600' },
     { key: 'SIAP_AMBIL', label: 'Siap Diambil', icon: PackageCheck, color: 'text-emerald-600' },
-    { key: 'DISERAHKAN', label: 'Selesai', icon: CheckCircle2, color: 'text-gray-500' },
+    { key: 'DISERAHKAN', label: 'Selesai', icon: CheckCircle2, color: 'text-muted-foreground' },
     { key: 'ALL', label: 'Semua', icon: Inbox, color: 'text-foreground' },
 ];
 
@@ -20,7 +20,7 @@ function StatusChip({ s }: { s: HandoverStatus }) {
         BARU: { bg: 'bg-amber-500/15 border-amber-500/30', text: 'text-amber-700', label: 'Menunggu diterima' },
         DIPROSES: { bg: 'bg-blue-500/15 border-blue-500/30', text: 'text-blue-700', label: 'Sedang dikerjakan' },
         SIAP_AMBIL: { bg: 'bg-emerald-500/15 border-emerald-500/30', text: 'text-emerald-700', label: 'Siap diambil' },
-        DISERAHKAN: { bg: 'bg-gray-500/15 border-gray-500/30', text: 'text-gray-600', label: 'Selesai' },
+        DISERAHKAN: { bg: 'bg-muted border-border', text: 'text-muted-foreground', label: 'Selesai' },
     };
     const c = cfg[s] || cfg.BARU;
     return (
@@ -144,7 +144,7 @@ export default function TitipanKeluarPage() {
                                                 </p>
                                             )}
                                             {it.handoverDoneAt && (
-                                                <p className="text-[11px] text-gray-500 mt-1 flex items-center gap-1">
+                                                <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
                                                     <CheckCircle2 className="w-3 h-3" />
                                                     Diambil {new Date(it.handoverDoneAt).toLocaleString('id-ID')}
                                                 </p>

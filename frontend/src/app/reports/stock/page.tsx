@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Search, ArrowUpCircle, ArrowDownCircle, RefreshCw, Download, Filter, X, Package, Loader2, History, ExternalLink } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/responsive-table';
+import { badgeToneClass } from '@/components/ui/status-badge';
 
 // ── Preset rentang tanggal ─────────────────────────────────────────────────
 function getPresetRange(key: string): { start: string; end: string } {
@@ -38,9 +39,9 @@ function getPresetRange(key: string): { start: string; end: string } {
 }
 
 const TYPE_CONFIG = {
-    IN:     { label: 'Masuk',   icon: ArrowUpCircle,   className: 'text-emerald-600 bg-emerald-100 border-emerald-200' },
-    OUT:    { label: 'Keluar',  icon: ArrowDownCircle, className: 'text-red-600 bg-red-100 border-red-200' },
-    ADJUST: { label: 'Koreksi', icon: RefreshCw,       className: 'text-blue-600 bg-blue-100 border-blue-200' },
+    IN:     { label: 'Masuk',   icon: ArrowUpCircle,   className: badgeToneClass.success },
+    OUT:    { label: 'Keluar',  icon: ArrowDownCircle, className: badgeToneClass.danger },
+    ADJUST: { label: 'Koreksi', icon: RefreshCw,       className: badgeToneClass.info },
 } as const;
 
 /** Format quantity: tampilkan desimal hanya jika perlu, strip trailing zeros */
@@ -269,7 +270,7 @@ export default function StockReportPage() {
                                                 <Icon className="w-3 h-3" />{cfg?.label}
                                             </span>
                                         </td>
-                                        <td className={`px-4 py-2.5 text-right font-bold text-sm ${m.type === 'IN' ? 'text-emerald-600' : m.type === 'OUT' ? 'text-red-600' : 'text-blue-600'}`}>
+                                        <td className={`px-4 py-2.5 text-right font-bold text-sm tabular-nums ${m.type === 'IN' ? 'text-emerald-600' : m.type === 'OUT' ? 'text-red-600' : 'text-blue-600'}`}>
                                             {m.type === 'IN' ? '+' : m.type === 'OUT' ? '-' : '~'}{fmtQty(m.quantity)}
                                             <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{unit}</span>
                                         </td>

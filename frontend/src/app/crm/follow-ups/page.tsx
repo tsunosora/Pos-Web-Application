@@ -12,6 +12,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
     Loader2, Phone, Calendar, CheckCircle2, SkipForward, MessageCircle,
     User, AlertCircle, Trash2, ClipboardList, Sparkles, X, Copy,
+    Target, Package, RotateCw, Banknote, Globe, Flame, CalendarClock,
+    type LucideIcon,
 } from "lucide-react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
@@ -26,11 +28,11 @@ const TYPE_COLOR: Record<FollowUpType, string> = {
     PAYMENT_REMINDER: "bg-amber-100 text-amber-700 border-amber-200",
 };
 
-const TYPE_ICON: Record<FollowUpType, string> = {
-    LEAD_FU: "🎯",
-    AFTER_SALES: "📦",
-    REPEAT_ORDER: "🔄",
-    PAYMENT_REMINDER: "💰",
+const TYPE_ICON: Record<FollowUpType, LucideIcon> = {
+    LEAD_FU: Target,
+    AFTER_SALES: Package,
+    REPEAT_ORDER: RotateCw,
+    PAYMENT_REMINDER: Banknote,
 };
 
 export default function FollowUpsPage() {
@@ -78,7 +80,7 @@ export default function FollowUpsPage() {
         <div className="space-y-4">
             <div>
                 <h1 className="text-2xl font-bold flex items-center gap-2">
-                    <ClipboardList className="h-6 w-6 text-indigo-600" />
+                    <ClipboardList className="h-6 w-6 text-accent-foreground" />
                     Tugas Follow-up
                 </h1>
                 <p className="text-sm text-muted-foreground">
@@ -90,19 +92,19 @@ export default function FollowUpsPage() {
             <div className="flex gap-2 flex-wrap">
                 <button
                     onClick={() => setScope("mine")}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-medium ${
-                        scope === "mine" ? "bg-indigo-600 text-white" : "bg-muted hover:bg-accent"
+                    className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        scope === "mine" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"
                     }`}
                 >
-                    👤 Tugas Saya
+                    <User className="h-4 w-4" /> Tugas Saya
                 </button>
                 <button
                     onClick={() => setScope("all")}
-                    className={`px-4 py-1.5 rounded-lg text-sm font-medium ${
-                        scope === "all" ? "bg-indigo-600 text-white" : "bg-muted hover:bg-accent"
+                    className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        scope === "all" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"
                     }`}
                 >
-                    🌐 Semua
+                    <Globe className="h-4 w-4" /> Semua
                 </button>
             </div>
 
@@ -134,7 +136,7 @@ export default function FollowUpsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <StatCard label="Overdue" value={overdue.length} color="text-red-600" bg="bg-red-50 border-red-200" />
                     <StatCard label="Upcoming" value={upcoming.length} color="text-amber-600" bg="bg-amber-50 border-amber-200" />
-                    <StatCard label="Total Pending" value={items.length} color="text-indigo-600" bg="bg-indigo-50 border-indigo-200" />
+                    <StatCard label="Total Pending" value={items.length} color="text-accent-foreground" bg="bg-primary/10 border-primary/20" />
                 </div>
             )}
 
@@ -150,14 +152,14 @@ export default function FollowUpsPage() {
             ) : (
                 <div className="space-y-4">
                     {statusFilter === "PENDING" && overdue.length > 0 && (
-                        <Section title="🔥 Overdue" items={overdue} variant="overdue"
+                        <Section title={<><Flame className="h-4 w-4 text-red-500" /> Overdue</>} items={overdue} variant="overdue"
                             onDone={(fu) => { setDoneNotesModal(fu); setDoneNotesText(""); }}
                             onSkip={(id) => skipMut.mutate(id)}
                             onTemplate={(fu) => setTemplateModal(fu)}
                             onDelete={(id) => deleteMut.mutate(id)} />
                     )}
                     {statusFilter === "PENDING" && upcoming.length > 0 && (
-                        <Section title="📅 Akan Datang" items={upcoming} variant="upcoming"
+                        <Section title={<><CalendarClock className="h-4 w-4 text-amber-500" /> Akan Datang</>} items={upcoming} variant="upcoming"
                             onDone={(fu) => { setDoneNotesModal(fu); setDoneNotesText(""); }}
                             onSkip={(id) => skipMut.mutate(id)}
                             onTemplate={(fu) => setTemplateModal(fu)}
@@ -193,9 +195,9 @@ export default function FollowUpsPage() {
                             <button
                                 onClick={() => doneMut.mutate({ id: doneNotesModal.id, notes: doneNotesText || undefined })}
                                 disabled={doneMut.isPending}
-                                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50"
                             >
-                                {doneMut.isPending ? "..." : "✓ Selesai"}
+                                {doneMut.isPending ? "..." : <><CheckCircle2 className="h-4 w-4" /> Selesai</>}
                             </button>
                         </div>
                     </div>
@@ -225,7 +227,7 @@ function StatCard({ label, value, color, bg }: { label: string; value: number; c
 function Section({
     title, items, variant, onDone, onSkip, onTemplate, onDelete,
 }: {
-    title: string;
+    title: React.ReactNode;
     items: FollowUp[];
     variant: "overdue" | "upcoming" | "done";
     onDone: (fu: FollowUp) => void;
@@ -235,7 +237,7 @@ function Section({
 }) {
     return (
         <div>
-            <h2 className="font-bold text-sm text-muted-foreground uppercase mb-2">
+            <h2 className="font-bold text-sm text-muted-foreground uppercase mb-2 flex items-center gap-1.5">
                 {title} ({items.length})
             </h2>
             <div className="space-y-2">
@@ -279,9 +281,14 @@ function FUItem({ followUp, variant, onDone, onSkip, onTemplate, onDelete }: {
             <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className={`text-[10px] px-2 py-0.5 rounded border ${TYPE_COLOR[followUp.type]}`}>
-                            {TYPE_ICON[followUp.type]} {FOLLOW_UP_TYPE_LABEL[followUp.type]}
-                        </span>
+                        {(() => {
+                            const TypeIcon = TYPE_ICON[followUp.type];
+                            return (
+                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${TYPE_COLOR[followUp.type]}`}>
+                                    <TypeIcon className="h-3 w-3" /> {FOLLOW_UP_TYPE_LABEL[followUp.type]}
+                                </span>
+                            );
+                        })()}
                         <span className={`text-xs font-semibold ${isOverdue ? "text-red-600" : "text-muted-foreground"}`}>
                             <Calendar className="h-3 w-3 inline mr-1" />
                             {due.format("DD MMM YYYY")} ({due.fromNow()})
@@ -397,11 +404,11 @@ function FUTemplateModal({ followUp, onClose }: { followUp: FollowUp; onClose: (
                         <button
                             key={t.id}
                             onClick={() => handlePick(t)}
-                            className={`text-left p-2 border rounded-lg hover:border-indigo-300 ${
-                                selected?.id === t.id ? "border-indigo-500 bg-indigo-50" : "border-border"
+                            className={`text-left p-2 border rounded-lg transition-colors hover:border-primary/40 ${
+                                selected?.id === t.id ? "border-primary bg-primary/10" : "border-border"
                             }`}
                         >
-                            <div className="text-[10px] text-indigo-600 font-semibold">{t.category}</div>
+                            <div className="text-[10px] text-accent-foreground font-semibold">{t.category}</div>
                             <div className="font-semibold text-sm">{t.name}</div>
                         </button>
                     ))}
@@ -418,8 +425,8 @@ function FUTemplateModal({ followUp, onClose }: { followUp: FollowUp; onClose: (
                         <div className="flex gap-2 mt-3">
                             <button
                                 onClick={handleCopy}
-                                className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 ${
-                                    copied ? "bg-emerald-600 text-white" : "bg-indigo-600 text-white"
+                                className={`flex-1 px-4 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
+                                    copied ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground"
                                 }`}
                             >
                                 {copied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}

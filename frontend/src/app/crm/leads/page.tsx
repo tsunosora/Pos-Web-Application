@@ -17,8 +17,9 @@ import { LeadItemsEditor, calcItemSubtotal } from "@/components/crm/LeadItemsEdi
 import { LeadImageCarousel } from "@/components/crm/LeadImageCarousel";
 import {
     Plus, Search, X, Phone, MessageSquare, Calendar, MapPin, Sparkles, Trash2,
-    Loader2, ChevronRight, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
+    Loader2, ChevronRight, ChevronLeft, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
     CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays, Link2, Unlink, Palette,
+    Receipt, Package,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -709,21 +710,21 @@ function LeadFormModal({
                                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
                                             {idx > 0 && (
                                                 <button type="button" onClick={() => moveImage(idx, -1)}
-                                                    className="bg-white/90 rounded p-1 text-xs" title="Geser ke kiri">←</button>
+                                                    className="bg-card text-foreground rounded p-1" title="Geser ke kiri"><ChevronLeft className="h-3.5 w-3.5" /></button>
                                             )}
                                             {idx < imageUrls.length - 1 && (
                                                 <button type="button" onClick={() => moveImage(idx, 1)}
-                                                    className="bg-white/90 rounded p-1 text-xs" title="Geser ke kanan">→</button>
+                                                    className="bg-card text-foreground rounded p-1" title="Geser ke kanan"><ChevronRight className="h-3.5 w-3.5" /></button>
                                             )}
                                             <button type="button" onClick={() => removeImage(idx)}
-                                                className="bg-red-500 text-white rounded p-1 text-xs" title="Hapus">×</button>
+                                                className="bg-red-500 text-white rounded p-1" title="Hapus"><X className="h-3.5 w-3.5" /></button>
                                         </div>
                                     </div>
                                 );
                             })}
                             {imageUrls.length < MAX_IMAGES && (
                                 <label className={`aspect-square rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-                                    <span className="text-2xl text-muted-foreground">{uploading ? "⏳" : "+"}</span>
+                                    <span className="text-2xl text-muted-foreground">{uploading ? <Loader2 className="h-6 w-6 animate-spin" /> : "+"}</span>
                                     <span className="text-[10px] text-muted-foreground mt-0.5">
                                         {uploading ? "Upload..." : "Tambah"}
                                     </span>
@@ -821,7 +822,7 @@ function LeadFormModal({
                             {!phoneSearching && phoneMatches.length > 0 && (
                                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 text-xs">
                                     <div className="font-semibold text-amber-700 dark:text-amber-300 mb-1.5 flex items-center gap-1">
-                                        ⚠️ Customer dengan HP serupa sudah terdaftar ({phoneMatches.length})
+                                        <AlertCircle className="h-3.5 w-3.5 shrink-0" /> Customer dengan HP serupa sudah terdaftar ({phoneMatches.length})
                                     </div>
                                     <div className="space-y-1.5">
                                         {phoneMatches.map(c => (
@@ -847,7 +848,7 @@ function LeadFormModal({
                             )}
                             {!phoneSearching && phoneChecked && phoneMatches.length === 0 && form.phone.replace(/\D/g, "").length >= 6 && (
                                 <div className="text-xs text-emerald-600 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded px-2 py-1.5 flex items-center gap-1.5">
-                                    ✓ HP ini belum terdaftar — aman dibuat sebagai lead baru
+                                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> HP ini belum terdaftar — aman dibuat sebagai lead baru
                                 </div>
                             )}
                         </>
@@ -1311,7 +1312,7 @@ function LeadDetailDrawer({
                     {(lead2.items && lead2.items.length > 0) && (
                         <div className="bg-card border border-border rounded-xl p-3 shadow-sm">
                             <div className="text-xs font-semibold text-foreground mb-2 flex items-center justify-between">
-                                <span>📦 Daftar Produk Order ({lead2.items.length} item)</span>
+                                <span className="flex items-center gap-1.5"><Package className="h-3.5 w-3.5" /> Daftar Produk Order ({lead2.items.length} item)</span>
                                 <span className="text-indigo-600 dark:text-indigo-300 font-bold">
                                     Total: Rp {lead2.items.reduce((s: number, it: any) => s + calcItemSubtotal(it), 0).toLocaleString("id-ID", { maximumFractionDigits: 0 })}
                                 </span>
@@ -1383,7 +1384,7 @@ function LeadDetailDrawer({
                                     onClick={() => setShowPreNota(true)}
                                     className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-lg font-semibold hover:opacity-90 transition-opacity inline-flex items-center gap-1"
                                 >
-                                    🧾 Buat Nota di POS
+                                    <Receipt className="h-3.5 w-3.5" /> Buat Nota di POS
                                 </button>
                                 <button
                                     onClick={() => { if (confirm("Lepas tautan SO dari lead ini?")) linkSOMut.mutate(null); }}
@@ -1407,7 +1408,7 @@ function LeadDetailDrawer({
                             </div>
                             {lead2.convertedTransactionId && (
                                 <div className="flex items-center gap-2 pt-1 border-t border-emerald-500/20">
-                                    <span className="text-emerald-600 dark:text-emerald-300">🧾 Nota Produksi:</span>
+                                    <span className="text-emerald-600 dark:text-emerald-300 inline-flex items-center gap-1"><Receipt className="h-3.5 w-3.5" /> Nota Produksi:</span>
                                     <a
                                         href={`/transactions/${lead2.convertedTransactionId}`}
                                         target="_blank"
@@ -1516,7 +1517,7 @@ function LeadDetailDrawer({
                                         className="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50"
                                         title="Buat customer + SO, lalu lanjut ke kasir POS untuk membuat nota"
                                     >
-                                        🧾 {buatNotaKasirMut.isPending ? "Menyiapkan…" : "Buat Nota di Kasir"}
+                                        <Receipt className="h-3.5 w-3.5" /> {buatNotaKasirMut.isPending ? "Menyiapkan…" : "Buat Nota di Kasir"}
                                     </button>
                                     {/* Convert Closing — buka modal convert (buat customer + SO/nota
                                         langsung & tandai lead closing). Tombol asli, dikembalikan. */}
@@ -1792,9 +1793,9 @@ function ActivityItem({ activity }: { activity: any }) {
                     href={`/transactions/${txId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 mt-1"
+                    className="inline-flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-300 hover:underline underline-offset-2 mt-1"
                 >
-                    🧾 Lihat Nota #{txId}
+                    <Receipt className="h-3 w-3" /> Lihat Nota #{txId}
                 </a>
             )}
             {activity.createdBy?.name && (
@@ -2150,7 +2151,7 @@ function ConvertModal({
                             <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Pilih Customer Existing</p>
                             {existingCustomerId ? (
                                 <div className="flex items-center justify-between bg-card rounded-lg px-3 py-2 border border-emerald-500/30">
-                                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-300">✓ {existingCustomerName}</span>
+                                    <span className="text-sm font-medium text-emerald-600 dark:text-emerald-300 flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 shrink-0" /> {existingCustomerName}</span>
                                     <button
                                         type="button"
                                         onClick={() => { setExistingCustomerId(null); setExistingCustomerName(""); }}

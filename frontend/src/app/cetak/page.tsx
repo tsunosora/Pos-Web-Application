@@ -249,16 +249,16 @@ export default function CetakPage() {
     if (!authed) {
         const showBranchPicker = branches.length > 1;
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-indigo-50 to-sky-50 p-4">
-                <form onSubmit={handlePin} className="bg-white p-8 rounded-2xl shadow-lg w-full max-w-sm">
+            <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+                <form onSubmit={handlePin} className="bg-card p-8 rounded-2xl shadow-lg w-full max-w-sm">
                     <h1 className="text-2xl font-bold mb-1">Antrian Cetak Paper</h1>
-                    <p className="text-sm text-gray-500 mb-5">
+                    <p className="text-sm text-muted-foreground mb-5">
                         {showBranchPicker ? 'Pilih cabang & masukkan PIN operator' : 'Masukkan PIN operator'}
                     </p>
 
                     {showBranchPicker && (
                         <div className="mb-4">
-                            <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">Cabang</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Cabang</label>
                             <div className="grid grid-cols-1 gap-2">
                                 {branches.map(b => (
                                     <button
@@ -267,14 +267,14 @@ export default function CetakPage() {
                                         onClick={() => setActiveBranchId(b.id)}
                                         className={`flex items-center justify-between px-4 py-2.5 rounded-lg border-2 transition-all ${
                                             activeBranchId === b.id
-                                                ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                                                : 'border-gray-200 bg-white hover:border-indigo-300'
+                                                ? 'bg-primary/10 text-foreground border-primary'
+                                                : 'border-border bg-card hover:border-primary/40'
                                         }`}
                                     >
                                         <span className="font-semibold text-sm">{b.name}</span>
                                         {b.code && (
                                             <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded ${
-                                                activeBranchId === b.id ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-500'
+                                                activeBranchId === b.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
                                             }`}>{b.code}</span>
                                         )}
                                     </button>
@@ -283,13 +283,13 @@ export default function CetakPage() {
                         </div>
                     )}
 
-                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wider">PIN Operator</label>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">PIN Operator</label>
                     <input
                         type="password"
                         inputMode="numeric"
                         value={pinInput}
                         onChange={e => setPinInput(e.target.value)}
-                        className="w-full border rounded-lg px-4 py-3 text-lg tracking-widest text-center focus:ring-2 focus:ring-indigo-400 outline-none"
+                        className="w-full border border-border rounded-lg px-4 py-3 text-lg tracking-widest text-center focus:ring-2 focus:ring-ring outline-none"
                         placeholder="••••"
                         autoFocus={!showBranchPicker}
                     />
@@ -297,42 +297,42 @@ export default function CetakPage() {
                     <button
                         type="submit"
                         disabled={pinLoading}
-                        className="w-full mt-4 bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                        className="w-full mt-4 bg-primary text-primary-foreground font-semibold py-3 rounded-lg hover:bg-primary/90 disabled:opacity-50"
                     >{pinLoading ? 'Memeriksa...' : 'Masuk'}</button>
 
-                    <p className="text-center text-xs text-gray-400 mt-4">
+                    <p className="text-center text-xs text-muted-foreground mt-4">
                         PIN per cabang. Berlaku 24 jam di perangkat ini.
                     </p>
                 </form>
                 <div className="mt-6 text-center">
-                    <p className="text-sm font-semibold text-gray-400 tracking-wide">Voliko Print</p>
-                    <p className="text-xs text-gray-400 mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
+                    <p className="text-sm font-semibold text-muted-foreground tracking-wide">Voliko Print</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
+        <div className="min-h-screen bg-background p-4 sm:p-6">
             <div className="max-w-7xl mx-auto">
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                     <div>
                         <h1 className="text-2xl font-bold flex items-center gap-2">
                             Antrian Cetak Paper
                             {activeBranchCode && (
-                                <span className="text-xs font-mono font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-full">
+                                <span className="text-xs font-mono font-bold px-2 py-0.5 bg-primary/15 text-foreground border border-primary/30 rounded-full">
                                     {activeBranchCode}
                                 </span>
                             )}
                         </h1>
-                        <p className="text-sm text-gray-600">
+                        <p className="text-sm text-muted-foreground">
                             {activeBranchName && <span className="font-semibold">{activeBranchName}</span>}
                             {activeBranchName && ' · '}
                             Operator:{' '}
                             <select
                                 value={operatorName}
                                 onChange={e => { setOperatorName(e.target.value); localStorage.setItem(OP_KEY, e.target.value); }}
-                                className="ml-1 border rounded px-2 py-1 text-sm bg-white font-semibold"
+                                className="ml-1 border border-border rounded px-2 py-1 text-sm bg-card font-semibold"
                             >
                                 <option value="">— Pilih operator —</option>
                                 {designers.map(d => (
@@ -347,11 +347,11 @@ export default function CetakPage() {
                             placeholder="Cari no. job / invoice / pelanggan..."
                             value={search}
                             onChange={e => setSearch(e.target.value)}
-                            className="border rounded-lg px-3 py-2 text-sm w-72 bg-white"
+                            className="border border-border rounded-lg px-3 py-2 text-sm w-72 bg-card"
                         />
                         <button
                             onClick={handleLogout}
-                            className="text-xs text-gray-500 hover:text-gray-700 px-3 py-2 rounded-lg hover:bg-gray-100"
+                            className="text-xs text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted"
                         >Keluar</button>
                     </div>
                 </div>
@@ -365,11 +365,11 @@ export default function CetakPage() {
                             <button
                                 key={t.key}
                                 onClick={() => setTab(t.key)}
-                                className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap border ${active ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'}`}
+                                className={`px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap border ${active ? 'bg-primary text-primary-foreground border-primary' : 'bg-card text-foreground border-border hover:bg-muted'}`}
                             >
                                 {t.label}
                                 {count != null && (
-                                    <span className={`ml-1 px-1.5 rounded ${active ? 'bg-indigo-500' : 'bg-gray-100'}`}>{count}</span>
+                                    <span className={`ml-1 px-1.5 rounded ${active ? 'bg-primary/70' : 'bg-muted'}`}>{count}</span>
                                 )}
                             </button>
                         );
@@ -378,20 +378,20 @@ export default function CetakPage() {
 
                 {tab === 'REKONSILIASI' ? (
                     activeBranchId ? <RekonsiliasiPanel branchId={activeBranchId} branchName={activeBranchName ?? ''} /> :
-                    <div className="bg-white border border-dashed rounded-xl p-10 text-center text-gray-500">Cabang belum dipilih.</div>
+                    <div className="bg-card border border-border border-dashed rounded-xl p-10 text-center text-muted-foreground">Cabang belum dipilih.</div>
                 ) : filtered.length === 0 ? (
-                    <div className="bg-white border border-dashed rounded-xl p-10 text-center text-gray-500">Tidak ada job di tab ini.</div>
+                    <div className="bg-card border border-border border-dashed rounded-xl p-10 text-center text-muted-foreground">Tidak ada job di tab ini.</div>
                 ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {filtered.map(job => {
                             const item = job.transactionItem;
                             const variant = item.productVariant;
                             return (
-                                <div key={job.id} className="bg-white border rounded-xl p-4 shadow-sm flex flex-col">
+                                <div key={job.id} className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col">
                                     <div className="flex items-start justify-between gap-2 mb-2">
                                         <div>
-                                            <p className="font-mono text-xs text-indigo-700 font-bold">{job.jobNumber}</p>
-                                            <p className="text-[11px] text-gray-500">{formatDate(job.createdAt)}</p>
+                                            <p className="font-mono text-xs text-accent-foreground font-bold">{job.jobNumber}</p>
+                                            <p className="text-xs text-muted-foreground">{formatDate(job.createdAt)}</p>
                                             {(() => {
                                                 const tx: any = job.transaction;
                                                 const isTitipan = tx.productionBranchId != null && tx.productionBranchId !== tx.branchId;
@@ -419,10 +419,10 @@ export default function CetakPage() {
                                     </div>
                                     <div className="mb-2">
                                         <p className="font-semibold text-sm">{variant.product.name}</p>
-                                        {variant.variantName && <p className="text-xs text-gray-600">{variant.variantName}</p>}
-                                        <p className="text-xs text-gray-500 mt-1">Qty: <span className="font-bold text-gray-800">{job.quantity}</span>{item.clickType && ` • ${item.clickType}`}</p>
+                                        {variant.variantName && <p className="text-xs text-muted-foreground">{variant.variantName}</p>}
+                                        <p className="text-xs text-muted-foreground mt-1">Qty: <span className="font-bold text-foreground">{job.quantity}</span>{item.clickType && ` • ${item.clickType}`}</p>
                                     </div>
-                                    <div className="text-xs text-gray-700 mb-2 border-t pt-2">
+                                    <div className="text-xs text-foreground mb-2 border-t border-border pt-2">
                                         <p>Invoice: <span className="font-mono">{job.transaction.invoiceNumber}</span></p>
                                         {job.transaction.checkoutNumber && (
                                             <p>SC: <span className="font-mono">{job.transaction.checkoutNumber}</span></p>
@@ -431,7 +431,7 @@ export default function CetakPage() {
                                     </div>
                                     {job.notes && <p className="text-[11px] bg-amber-50 text-amber-800 border border-amber-200 rounded p-1.5 mb-2">{job.notes}</p>}
                                     {(job.startedAt || job.finishedAt || job.pickedUpAt) && (
-                                        <div className="text-[10px] text-gray-500 mb-2 space-y-0.5">
+                                        <div className="text-[10px] text-muted-foreground mb-2 space-y-0.5">
                                             {job.startedAt && <p>Mulai: {formatDate(job.startedAt)} oleh {job.operatorName || '—'}</p>}
                                             {job.finishedAt && <p>Selesai: {formatDate(job.finishedAt)}</p>}
                                             {job.pickedUpAt && <p>Diambil: {formatDate(job.pickedUpAt)}</p>}
@@ -440,7 +440,7 @@ export default function CetakPage() {
 
                                     <div className="mt-auto pt-2">
                                         {job.status === 'ANTRIAN' && (
-                                            <button disabled={busyId === job.id} onClick={() => handleStart(job)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg disabled:opacity-50">Mulai Cetak</button>
+                                            <button disabled={busyId === job.id} onClick={() => handleStart(job)} className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 rounded-lg disabled:opacity-50">Mulai Cetak</button>
                                         )}
                                         {job.status === 'PROSES' && (
                                             <button disabled={busyId === job.id} onClick={() => handleFinish(job)} className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg disabled:opacity-50">Tandai Selesai</button>
@@ -449,7 +449,7 @@ export default function CetakPage() {
                                             <button disabled={busyId === job.id} onClick={() => handlePickup(job)} className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 rounded-lg disabled:opacity-50">Konfirmasi Diambil</button>
                                         )}
                                         {job.status === 'DIAMBIL' && (
-                                            <div className="text-center text-xs text-gray-500 py-2">✓ Selesai & Diambil</div>
+                                            <div className="text-center text-xs text-muted-foreground py-2">✓ Selesai & Diambil</div>
                                         )}
                                     </div>
                                 </div>
@@ -464,15 +464,15 @@ export default function CetakPage() {
                         <button
                             onClick={() => setPage(p => Math.max(1, p - 1))}
                             disabled={page <= 1}
-                            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             ‹ Sebelumnya
                         </button>
-                        <span className="text-xs text-gray-500 font-medium">Hal {page} / {totalPages} · {total} job</span>
+                        <span className="text-xs text-muted-foreground font-medium">Hal {page} / {totalPages} · {total} job</span>
                         <button
                             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                             disabled={page >= totalPages}
-                            className="px-4 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="px-4 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             Berikutnya ›
                         </button>
@@ -494,8 +494,8 @@ export default function CetakPage() {
 
             {/* Footer */}
             <footer className="mt-8 py-4 text-center">
-                <p className="text-sm font-semibold text-gray-400 tracking-wide">Voliko Print</p>
-                <p className="text-xs text-gray-400 mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
+                <p className="text-sm font-semibold text-muted-foreground tracking-wide">Voliko Print</p>
+                <p className="text-xs text-muted-foreground mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
             </footer>
         </div>
     );
@@ -602,11 +602,11 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
     return (
         <div className="space-y-4">
             {/* Form input */}
-            <div className="bg-white rounded-xl border border-indigo-200 p-5 shadow-sm">
+            <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div>
                         <h2 className="font-bold text-base flex items-center gap-2">📊 Input Pembacaan Counter</h2>
-                        <p className="text-xs text-gray-500">Cabang: <span className="font-semibold">{branchName || `#${branchId}`}</span> · Satu pembacaan per tanggal (akan di-update kalau sudah ada)</p>
+                        <p className="text-xs text-muted-foreground">Cabang: <span className="font-semibold">{branchName || `#${branchId}`}</span> · Satu pembacaan per tanggal (akan di-update kalau sudah ada)</p>
                     </div>
                 </div>
 
@@ -614,16 +614,16 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
                     {/* Tanggal & Total */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal Pembacaan</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Tanggal Pembacaan</label>
                             <input type="date" value={form.readingDate} required
                                 onChange={e => setForm(f => ({ ...f, readingDate: e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Total Counter (Cumulative)</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Total Counter (Cumulative)</label>
                             <input type="number" min={0} value={form.totalCount || ''} required
                                 onChange={e => setForm(f => ({ ...f, totalCount: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono"
                                 placeholder="contoh: 124530" />
                         </div>
                     </div>
@@ -631,22 +631,22 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
                     {/* Breakdown FC / BW / SC */}
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-indigo-600 mb-1">Full Color</label>
+                            <label className="block text-xs font-semibold text-accent-foreground mb-1">Full Color</label>
                             <input type="number" min={0} value={form.fullColorCount || ''}
                                 onChange={e => setForm(f => ({ ...f, fullColorCount: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-700 mb-1">Black & White</label>
+                            <label className="block text-xs font-semibold text-foreground mb-1">Black & White</label>
                             <input type="number" min={0} value={form.blackCount || ''}
                                 onChange={e => setForm(f => ({ ...f, blackCount: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-500 mb-1">Single Color</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Single Color</label>
                             <input type="number" min={0} value={form.singleColorCount || ''}
                                 onChange={e => setForm(f => ({ ...f, singleColorCount: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono" />
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono" />
                         </div>
                     </div>
 
@@ -663,16 +663,16 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
 
                     {/* Upload foto */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Foto Counter Mesin</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Foto Counter Mesin</label>
                         {form.photoUrl ? (
                             <div className="flex items-start gap-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={resolvePhotoUrl(form.photoUrl) || form.photoUrl} alt="Foto counter" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border border-gray-200" />
+                                <img src={resolvePhotoUrl(form.photoUrl) || form.photoUrl} alt="Foto counter" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border border-border" />
                                 <button type="button" onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
                                     className="text-xs text-red-600 hover:underline">Hapus foto</button>
                             </div>
                         ) : (
-                            <label className={`flex items-center gap-2 border-2 border-dashed rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-50 text-sm text-gray-500 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                            <label className={`flex items-center gap-2 border-2 border-border border-dashed rounded-lg px-3 py-3 cursor-pointer hover:bg-muted text-sm text-muted-foreground ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {uploading ? '⏳ Mengupload…' : '📷 Pilih / ambil foto counter'}
                                 <input type="file" accept="image/*" capture="environment"
                                     onChange={handleUpload} className="hidden" />
@@ -682,9 +682,9 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
 
                     {/* Notes */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (opsional)</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Catatan (opsional)</label>
                         <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                            rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             placeholder="contoh: setelah ganti tinta, kondisi mesin OK" />
                     </div>
 
@@ -699,50 +699,50 @@ function RekonsiliasiPanel({ branchId, branchName }: RekonsiliasiPanelProps) {
 
                     {/* Submit */}
                     <button type="submit" disabled={submitting || sumMismatch || form.totalCount <= 0}
-                        className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                        className="w-full sm:w-auto px-6 py-2.5 bg-primary text-primary-foreground font-bold rounded-lg hover:bg-primary/90 disabled:opacity-50">
                         {submitting ? 'Menyimpan…' : '💾 Simpan Pembacaan'}
                     </button>
                 </form>
             </div>
 
             {/* History */}
-            <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+            <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <h3 className="font-bold text-base">Riwayat 30 Hari Terakhir</h3>
                     <button onClick={loadHistory} disabled={loadingHistory}
-                        className="text-xs px-3 py-1 bg-white border rounded-lg hover:bg-gray-50">
+                        className="text-xs px-3 py-1 bg-card border border-border rounded-lg hover:bg-muted">
                         {loadingHistory ? 'Memuat…' : '↻ Refresh'}
                     </button>
                 </div>
                 {loadingHistory ? (
-                    <p className="text-sm text-gray-500 text-center py-4">Memuat…</p>
+                    <p className="text-sm text-muted-foreground text-center py-4">Memuat…</p>
                 ) : history.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-6">Belum ada pembacaan dalam 30 hari terakhir.</p>
+                    <p className="text-sm text-muted-foreground text-center py-6">Belum ada pembacaan dalam 30 hari terakhir.</p>
                 ) : (
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b text-xs text-gray-500 uppercase">
+                                <tr className="border-b border-border text-xs text-muted-foreground uppercase">
                                     <th className="text-left py-2 px-2">Tanggal</th>
                                     <th className="text-right py-2 px-2">Total</th>
-                                    <th className="text-right py-2 px-2 text-indigo-600">FC</th>
+                                    <th className="text-right py-2 px-2 text-accent-foreground">FC</th>
                                     <th className="text-right py-2 px-2">BW</th>
-                                    <th className="text-right py-2 px-2 text-gray-500">SC</th>
+                                    <th className="text-right py-2 px-2 text-muted-foreground">SC</th>
                                     <th className="text-center py-2 px-2">Foto</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {history.map(r => (
-                                    <tr key={r.id} className="border-t hover:bg-gray-50">
+                                    <tr key={r.id} className="border-t border-border hover:bg-muted">
                                         <td className="py-2 px-2 font-medium">{fmtDate(r.readingDate)}</td>
                                         <td className="py-2 px-2 text-right font-mono font-bold">{r.totalCount.toLocaleString('id-ID')}</td>
-                                        <td className="py-2 px-2 text-right font-mono text-indigo-700">{r.fullColorCount.toLocaleString('id-ID')}</td>
+                                        <td className="py-2 px-2 text-right font-mono text-accent-foreground">{r.fullColorCount.toLocaleString('id-ID')}</td>
                                         <td className="py-2 px-2 text-right font-mono">{r.blackCount.toLocaleString('id-ID')}</td>
-                                        <td className="py-2 px-2 text-right font-mono text-gray-500">{r.singleColorCount.toLocaleString('id-ID')}</td>
+                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.singleColorCount.toLocaleString('id-ID')}</td>
                                         <td className="py-2 px-2 text-center">
                                             {r.photoUrl ? (
-                                                <a href={r.photoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline">📷 Lihat</a>
-                                            ) : <span className="text-gray-300">—</span>}
+                                                <a href={r.photoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-foreground hover:underline">📷 Lihat</a>
+                                            ) : <span className="text-muted-foreground/50">—</span>}
                                         </td>
                                     </tr>
                                 ))}
@@ -857,11 +857,11 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
     const totalValue = rejects.reduce((s, r) => s + Number(r.totalCost || 0), 0);
 
     return (
-        <div className="bg-white rounded-xl border border-orange-200 p-5 shadow-sm">
+        <div className="bg-card rounded-xl border border-orange-200 p-5 shadow-sm">
             <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div>
                     <h3 className="font-bold text-base flex items-center gap-2">⚠️ Reject Mesin</h3>
-                    <p className="text-xs text-gray-500">Cabang: <span className="font-semibold">{branchName || `#${branchId}`}</span> · Catat klik gagal/test/kalibrasi (bulan {monthLabel})</p>
+                    <p className="text-xs text-muted-foreground">Cabang: <span className="font-semibold">{branchName || `#${branchId}`}</span> · Catat klik gagal/test/kalibrasi (bulan {monthLabel})</p>
                 </div>
                 <button onClick={() => setShowForm(s => !s)}
                     className="text-sm px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">
@@ -870,50 +870,50 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
             </div>
 
             {showForm && (
-                <form onSubmit={handleSubmit} className="space-y-3 border-t pt-3 mb-4">
+                <form onSubmit={handleSubmit} className="space-y-3 border-t border-border pt-3 mb-4">
                     {/* Tanggal & cause */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Tanggal</label>
                             <input type="date" value={form.date} required
                                 onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Penyebab</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Penyebab</label>
                             <div className="flex gap-2">
-                                <label className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${form.cause === 'MACHINE' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold' : 'border-gray-200'}`}>
+                                <label className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${form.cause === 'MACHINE' ? 'border-emerald-500 bg-emerald-50 text-emerald-700 font-semibold' : 'border-border'}`}>
                                     <input type="radio" name="cause" className="hidden"
                                         checked={form.cause === 'MACHINE'}
                                         onChange={() => setForm(f => ({ ...f, cause: 'MACHINE' }))} />
                                     🔧 Mesin
                                 </label>
-                                <label className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${form.cause === 'HUMAN' ? 'border-amber-500 bg-amber-50 text-amber-700 font-semibold' : 'border-gray-200'}`}>
+                                <label className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg border-2 cursor-pointer text-sm ${form.cause === 'HUMAN' ? 'border-amber-500 bg-amber-50 text-amber-700 font-semibold' : 'border-border'}`}>
                                     <input type="radio" name="cause" className="hidden"
                                         checked={form.cause === 'HUMAN'}
                                         onChange={() => setForm(f => ({ ...f, cause: 'HUMAN' }))} />
                                     👤 Operator
                                 </label>
                             </div>
-                            <p className="text-[10px] text-gray-400 mt-1">Mesin = vendor bebaskan · Operator = tetap ditagih</p>
+                            <p className="text-[10px] text-muted-foreground mt-1">Mesin = vendor bebaskan · Operator = tetap ditagih</p>
                         </div>
                     </div>
 
                     {/* Tipe & counter type */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Jenis Reject</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Jenis Reject</label>
                             <select value={form.rejectType}
                                 onChange={e => setForm(f => ({ ...f, rejectType: e.target.value as RejectType }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm">
                                 {REJECT_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Mode Counter</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Mode Counter</label>
                             <select value={form.counterType}
                                 onChange={e => setForm(f => ({ ...f, counterType: e.target.value as CounterType }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm">
                                 {COUNTER_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                         </div>
@@ -922,17 +922,17 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
                     {/* Jumlah & harga */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Jumlah Klik</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Jumlah Klik</label>
                             <input type="number" min={0} value={form.quantity || ''} required
                                 onChange={e => setForm(f => ({ ...f, quantity: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono"
                                 placeholder="contoh: 25" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Harga / Klik (Rp) <span className="text-gray-400 font-normal">opsional</span></label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Harga / Klik (Rp) <span className="text-muted-foreground font-normal">opsional</span></label>
                             <input type="number" min={0} value={form.pricePerClick || ''}
                                 onChange={e => setForm(f => ({ ...f, pricePerClick: +e.target.value }))}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono"
                                 placeholder="kosongkan = pakai default" />
                         </div>
                     </div>
@@ -946,16 +946,16 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
 
                     {/* Foto */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Foto Bukti (opsional)</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Foto Bukti (opsional)</label>
                         {form.photoUrl ? (
                             <div className="flex items-start gap-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={resolvePhotoUrl(form.photoUrl) || form.photoUrl} alt="Foto reject" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border" />
+                                <img src={resolvePhotoUrl(form.photoUrl) || form.photoUrl} alt="Foto reject" loading="lazy" decoding="async" className="w-32 h-32 object-cover rounded-lg border border-border" />
                                 <button type="button" onClick={() => setForm(f => ({ ...f, photoUrl: '' }))}
                                     className="text-xs text-red-600 hover:underline">Hapus</button>
                             </div>
                         ) : (
-                            <label className={`flex items-center gap-2 border-2 border-dashed rounded-lg px-3 py-3 cursor-pointer hover:bg-gray-50 text-sm text-gray-500 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                            <label className={`flex items-center gap-2 border-2 border-border border-dashed rounded-lg px-3 py-3 cursor-pointer hover:bg-muted text-sm text-muted-foreground ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
                                 {uploading ? '⏳ Mengupload…' : '📷 Pilih / ambil foto'}
                                 <input type="file" accept="image/*" capture="environment"
                                     onChange={handleUpload} className="hidden" />
@@ -965,9 +965,9 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
 
                     {/* Catatan */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan (opsional)</label>
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Catatan (opsional)</label>
                         <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                            rows={2} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                            rows={2} className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                             placeholder="contoh: head clogged, perlu cleaning" />
                     </div>
 
@@ -1000,14 +1000,14 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
 
             {/* History */}
             {loading ? (
-                <p className="text-sm text-gray-500 text-center py-4">Memuat…</p>
+                <p className="text-sm text-muted-foreground text-center py-4">Memuat…</p>
             ) : rejects.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-6">Belum ada reject bulan ini.</p>
+                <p className="text-sm text-muted-foreground text-center py-6">Belum ada reject bulan ini.</p>
             ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead>
-                            <tr className="border-b text-xs text-gray-500 uppercase">
+                            <tr className="border-b border-border text-xs text-muted-foreground uppercase">
                                 <th className="text-left py-2 px-2">Tanggal</th>
                                 <th className="text-left py-2 px-2">Jenis</th>
                                 <th className="text-left py-2 px-2">Penyebab</th>
@@ -1018,7 +1018,7 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
                         </thead>
                         <tbody>
                             {rejects.map(r => (
-                                <tr key={r.id} className="border-t hover:bg-gray-50">
+                                <tr key={r.id} className="border-t border-border hover:bg-muted">
                                     <td className="py-2 px-2">{fmtDate(r.date)}</td>
                                     <td className="py-2 px-2">{REJECT_TYPE_OPTIONS.find(o => o.value === r.rejectType)?.label || r.rejectType}</td>
                                     <td className="py-2 px-2">
@@ -1031,7 +1031,7 @@ function RejectPanel({ branchId, branchName }: { branchId: number; branchName: s
                                     <td className="py-2 px-2 text-center">
                                         {r.photoUrl ? (
                                             <a href={r.photoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-600 hover:underline">📷 Lihat</a>
-                                        ) : <span className="text-gray-300">—</span>}
+                                        ) : <span className="text-muted-foreground/50">—</span>}
                                     </td>
                                 </tr>
                             ))}

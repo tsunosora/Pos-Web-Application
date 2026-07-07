@@ -535,19 +535,19 @@ export default function BackupPage() {
                                                 <CheckCircle2 className="w-4 h-4" /> {restoreResult.message}
                                             </div>
                                             <div className="grid grid-cols-4 gap-2 text-xs">
-                                                <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
+                                                <div className="bg-card dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
                                                     <p className="text-lg font-bold text-green-700 dark:text-green-400">{restoreResult.totalRestored}</p>
                                                     <p className="text-muted-foreground">Baris Data</p>
                                                 </div>
-                                                <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
+                                                <div className="bg-card dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
                                                     <p className="text-lg font-bold text-muted-foreground">{restoreResult.totalSkipped}</p>
                                                     <p className="text-muted-foreground">Dilewati</p>
                                                 </div>
-                                                <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
+                                                <div className="bg-card dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
                                                     <p className="text-lg font-bold text-blue-600 dark:text-blue-400">{restoreResult.imagesRestored ?? 0}</p>
                                                     <p className="text-muted-foreground">Foto</p>
                                                 </div>
-                                                <div className="bg-white dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
+                                                <div className="bg-card dark:bg-muted/30 rounded-lg p-2 text-center border border-border">
                                                     <p className={`text-lg font-bold ${restoreResult.waConfigRestored ? "text-green-600" : "text-muted-foreground"}`}>
                                                         {restoreResult.waConfigRestored ? "✓" : "–"}
                                                     </p>

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '@/lib/api/client';
 import Link from 'next/link';
 import { Building2, Plus, Pencil, Trash2, Check, X, Settings2 } from 'lucide-react';
+import { badgeToneClass } from '@/components/ui/status-badge';
 
 interface Branch {
     id: number;
@@ -207,7 +208,7 @@ export default function BranchesSettingsPage() {
                                     <p className="font-medium text-foreground text-sm flex items-center gap-2">
                                         {b.name}
                                         {b.code && (
-                                            <span className="bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                                            <span className={`${badgeToneClass.info} border text-[10px] font-bold px-1.5 py-0.5 rounded`}>
                                                 {b.code}
                                             </span>
                                         )}

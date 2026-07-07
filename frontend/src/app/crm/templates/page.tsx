@@ -7,7 +7,7 @@ import {
     deleteMessageTemplate, seedDefaultTemplates,
     type MessageTemplate, TEMPLATE_CATEGORY_LABEL, type TemplateCategory,
 } from "@/lib/api";
-import { Plus, Edit2, Trash2, X, MessageSquare, Sparkles, Loader2, Eye, Power } from "lucide-react";
+import { Plus, Edit2, Trash2, X, MessageSquare, Sparkles, Loader2, Eye, Power, Pin } from "lucide-react";
 
 const CATEGORIES: TemplateCategory[] = [
     "GREETING", "FU_LEAD", "PROGRESS_UPDATE", "AFTER_SALES", "REPEAT_ORDER", "CUSTOM",
@@ -87,8 +87,8 @@ export default function TemplatesPage() {
             </div>
 
             {/* Placeholder hint */}
-            <div className="bg-indigo-50 border border-indigo-100 rounded-lg p-3 text-sm">
-                <div className="font-semibold text-indigo-700 mb-1">📌 Placeholder Tersedia</div>
+            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-3 text-sm">
+                <div className="font-semibold text-indigo-700 dark:text-indigo-300 mb-1 flex items-center gap-1.5"><Pin className="h-4 w-4" /> Placeholder Tersedia</div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs text-foreground">
                     {PLACEHOLDER_HINT.map((p) => (
                         <div key={p} className="font-mono">{p}</div>
@@ -174,16 +174,16 @@ function TemplateCard({ template, onEdit, onDelete, onPreview, onToggleActive }:
             </div>
             <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4 mb-3 bg-muted p-2 rounded">{template.bodyTemplate}</p>
             <div className="flex gap-1 flex-wrap">
-                <button onClick={onPreview} className="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 flex items-center gap-1">
+                <button onClick={onPreview} className="px-2 py-1 text-xs bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-500/20 flex items-center gap-1">
                     <Eye className="h-3 w-3" /> Preview
                 </button>
                 <button onClick={onEdit} className="px-2 py-1 text-xs bg-muted text-foreground rounded hover:bg-accent flex items-center gap-1">
                     <Edit2 className="h-3 w-3" /> Edit
                 </button>
-                <button onClick={onToggleActive} className="px-2 py-1 text-xs bg-amber-100 text-amber-700 rounded hover:bg-amber-200 flex items-center gap-1">
+                <button onClick={onToggleActive} className="px-2 py-1 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 rounded hover:bg-amber-500/20 flex items-center gap-1">
                     <Power className="h-3 w-3" /> {template.isActive ? "Nonaktifkan" : "Aktifkan"}
                 </button>
-                <button onClick={onDelete} className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 flex items-center gap-1">
+                <button onClick={onDelete} className="px-2 py-1 text-xs bg-red-500/10 text-red-700 dark:text-red-300 rounded hover:bg-red-500/20 flex items-center gap-1">
                     <Trash2 className="h-3 w-3" /> Hapus
                 </button>
             </div>
@@ -305,7 +305,7 @@ function PreviewModal({ template, onClose }: { template: MessageTemplate; onClos
                     </button>
                 </div>
                 <div className="text-xs text-muted-foreground mb-2">Render dengan data dummy:</div>
-                <pre className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm whitespace-pre-wrap font-sans text-foreground">{rendered}</pre>
+                <pre className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm whitespace-pre-wrap font-sans text-foreground">{rendered}</pre>
                 <p className="text-[10px] text-muted-foreground mt-2">
                     Saat di-render dari halaman lead/customer, placeholder akan terisi data asli.
                 </p>

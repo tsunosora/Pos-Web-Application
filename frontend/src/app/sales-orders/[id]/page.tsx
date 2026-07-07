@@ -14,6 +14,7 @@ import {
     type SalesOrder, type SalesOrderStatus
 } from "@/lib/api/sales-orders";
 import { createRatingInviteFromSO, buildRatingUrl } from "@/lib/api/cs-rating";
+import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -28,10 +29,10 @@ function proofUrl(filename: string): string {
 }
 
 const STATUS_BADGE: Record<SalesOrderStatus, string> = {
-    DRAFT: 'bg-gray-100 text-gray-700 border-gray-200',
-    SENT: 'bg-blue-100 text-blue-700 border-blue-200',
-    INVOICED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    CANCELLED: 'bg-red-100 text-red-700 border-red-200',
+    DRAFT: badgeToneClass.neutral,
+    SENT: badgeToneClass.info,
+    INVOICED: badgeToneClass.success,
+    CANCELLED: badgeToneClass.danger,
 };
 
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
@@ -318,7 +319,7 @@ export default function SalesOrderDetailPage() {
                             </button>
                             {ratingLink && (
                                 <div className="mt-2 flex items-center gap-2 bg-muted/40 border border-border rounded-md px-2 py-1.5">
-                                    <span className="text-[11px] text-muted-foreground truncate flex-1 font-mono">{ratingLink}</span>
+                                    <span className="text-xs text-muted-foreground truncate flex-1 font-mono">{ratingLink}</span>
                                     <button
                                         onClick={async () => {
                                             try {
@@ -335,7 +336,7 @@ export default function SalesOrderDetailPage() {
                                 </div>
                             )}
                             {!so.customerPhone && (
-                                <p className="text-[11px] text-amber-600 mt-1.5">
+                                <p className="text-xs text-amber-600 mt-1.5">
                                     Nomor HP pelanggan kosong — WhatsApp terbuka tanpa tujuan, pilih kontak manual atau salin link di atas.
                                 </p>
                             )}
@@ -389,7 +390,7 @@ export default function SalesOrderDetailPage() {
                                 <Edit3 className="h-4 w-4" />
                                 Edit (belum tersedia)
                             </Link>
-                            <p className="text-[11px] text-muted-foreground mt-2">
+                            <p className="text-xs text-muted-foreground mt-2">
                                 Fitur edit detail akan ditambahkan pada update berikut.
                             </p>
                         </Section>

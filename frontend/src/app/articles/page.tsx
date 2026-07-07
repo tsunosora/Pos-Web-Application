@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getArticles, deleteArticle, resolvePhotoUrl } from "@/lib/api";
 import { FileText, Plus, Pencil, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 
 export default function ArticlesPage() {
@@ -58,7 +59,7 @@ export default function ArticlesPage() {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3">
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${a.status === "PUBLISHED" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
+                                        <span className={`inline-flex items-center border px-2 py-0.5 rounded-full text-xs font-semibold ${badgeToneClass[a.status === "PUBLISHED" ? "success" : "neutral"]}`}>
                                             {a.status === "PUBLISHED" ? "Terbit" : "Draft"}
                                         </span>
                                     </td>

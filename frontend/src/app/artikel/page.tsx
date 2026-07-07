@@ -24,22 +24,26 @@ function fmtDate(s?: string | null) {
 export default async function ArtikelListPage() {
     const items = await getList();
     return (
-        <main style={{ fontFamily: "system-ui, sans-serif", color: "#0f172a", maxWidth: 1100, margin: "0 auto", padding: "48px 24px" }}>
-            <h1 style={{ fontSize: 36, fontWeight: 800, marginBottom: 28 }}>Artikel</h1>
+        <main className="mx-auto max-w-[1100px] px-4 py-10 sm:px-6 sm:py-12">
+            <h1 className="mb-6 text-3xl font-extrabold tracking-tight sm:mb-7 sm:text-4xl">Artikel</h1>
             {items.length === 0 ? (
-                <p style={{ color: "#94a3b8" }}>Belum ada artikel.</p>
+                <p className="text-muted-foreground">Belum ada artikel.</p>
             ) : (
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 24 }}>
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
                     {items.map((a) => (
-                        <Link key={a.id} href={`/artikel/${a.slug}`} style={{ textDecoration: "none", color: "inherit", border: "1px solid #eef0f3", borderRadius: 16, overflow: "hidden", background: "#fff", display: "flex", flexDirection: "column" }}>
+                        <Link
+                            key={a.id}
+                            href={`/artikel/${a.slug}`}
+                            className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-inherit no-underline shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg"
+                        >
                             {a.coverImage
                                 // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={img(a.coverImage)} alt={a.title} style={{ width: "100%", height: 170, objectFit: "cover" }} />
-                                : <div style={{ height: 170, background: "#f1f5f9" }} />}
-                            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
-                                <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0, lineHeight: 1.3 }}>{a.title}</h2>
-                                {a.excerpt && <p style={{ color: "#64748b", fontSize: 14, margin: 0, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{a.excerpt}</p>}
-                                <span style={{ marginTop: "auto", fontSize: 12, color: "#94a3b8" }}>{fmtDate(a.publishedAt)}{a.authorName ? ` · ${a.authorName}` : ""}</span>
+                                ? <img src={img(a.coverImage)} alt={a.title} className="h-[170px] w-full object-cover" />
+                                : <div className="h-[170px] bg-muted" />}
+                            <div className="flex flex-1 flex-col gap-2 p-4">
+                                <h2 className="text-lg font-bold leading-snug transition-colors group-hover:text-primary">{a.title}</h2>
+                                {a.excerpt && <p className="line-clamp-3 text-sm text-muted-foreground">{a.excerpt}</p>}
+                                <span className="mt-auto text-xs text-muted-foreground">{fmtDate(a.publishedAt)}{a.authorName ? ` · ${a.authorName}` : ""}</span>
                             </div>
                         </Link>
                     ))}

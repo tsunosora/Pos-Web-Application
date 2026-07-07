@@ -548,7 +548,7 @@ export default function AddProductPage() {
                             onClick={() => setTrackStock(v => !v)}
                             className={`relative shrink-0 w-12 h-6 rounded-full transition-colors ${trackStock ? 'bg-primary' : 'bg-muted-foreground/30'}`}
                         >
-                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${trackStock ? 'translate-x-6' : 'translate-x-0'}`} />
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-primary-foreground shadow transition-transform ${trackStock ? 'translate-x-6' : 'translate-x-0'}`} />
                         </button>
                     </label>
                     {!trackStock && (

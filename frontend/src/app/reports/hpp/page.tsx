@@ -1474,7 +1474,7 @@ function HppCalculatorContent() {
                                                                 <select
                                                                     value={row.clickRateId ?? ''}
                                                                     onChange={e => setVariantCalcRows(rows => rows.map(r => r.id === row.id ? { ...r, clickRateId: e.target.value ? +e.target.value : null } : r))}
-                                                                    className="w-full border border-indigo-200 dark:border-indigo-800 rounded-[8px] px-2 py-2 text-[12px] bg-white dark:bg-background outline-none focus:border-indigo-400"
+                                                                    className="w-full border border-indigo-200 dark:border-indigo-800 rounded-[8px] px-2 py-2 text-[12px] bg-background outline-none focus:border-indigo-400"
                                                                 >
                                                                     <option value="">-- Tidak ada klik --</option>
                                                                     {dbClickRates.filter((r: any) => r.isActive).map((r: any) => (
@@ -1946,7 +1946,7 @@ function HppCalculatorContent() {
                                     <select
                                         value={hppClickRateId ?? ''}
                                         onChange={e => setHppClickRateId(e.target.value ? +e.target.value : null)}
-                                        className="w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm bg-white dark:bg-background"
+                                        className="w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm bg-background"
                                     >
                                         <option value="">-- Tidak ada --</option>
                                         {dbClickRates.filter((r: any) => r.isActive).map((r: any) => (

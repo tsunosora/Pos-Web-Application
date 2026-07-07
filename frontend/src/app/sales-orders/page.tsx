@@ -8,24 +8,25 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { listSalesOrders, type SalesOrder, type SalesOrderStatus } from "@/lib/api/sales-orders";
 import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
+import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
 dayjs.locale("id");
 
 const TABS: { key: 'ALL' | SalesOrderStatus; label: string; color: string }[] = [
-    { key: 'ALL', label: 'Semua', color: 'bg-slate-100 text-slate-700' },
-    { key: 'DRAFT', label: 'Draft', color: 'bg-muted text-foreground' },
-    { key: 'SENT', label: 'Terkirim', color: 'bg-blue-100 text-blue-700' },
-    { key: 'INVOICED', label: 'Invoiced', color: 'bg-emerald-100 text-emerald-700' },
-    { key: 'CANCELLED', label: 'Dibatalkan', color: 'bg-red-100 text-red-700' },
+    { key: 'ALL', label: 'Semua', color: badgeToneClass.neutral },
+    { key: 'DRAFT', label: 'Draft', color: badgeToneClass.neutral },
+    { key: 'SENT', label: 'Terkirim', color: badgeToneClass.info },
+    { key: 'INVOICED', label: 'Invoiced', color: badgeToneClass.success },
+    { key: 'CANCELLED', label: 'Dibatalkan', color: badgeToneClass.danger },
 ];
 
 const STATUS_BADGE: Record<SalesOrderStatus, string> = {
-    DRAFT: 'bg-muted text-foreground border-border',
-    SENT: 'bg-blue-100 text-blue-700 border-blue-200',
-    INVOICED: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    CANCELLED: 'bg-red-100 text-red-700 border-red-200',
+    DRAFT: badgeToneClass.neutral,
+    SENT: badgeToneClass.info,
+    INVOICED: badgeToneClass.success,
+    CANCELLED: badgeToneClass.danger,
 };
 
 const STATUS_LABEL: Record<SalesOrderStatus, string> = {
@@ -111,7 +112,7 @@ export default function SalesOrdersPage() {
                         Jembatan dari desainer ke kasir — upload proof, kirim ke Discord internal, lalu kasir buat nota.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {/* Link ke portal desainer */}
                     <a
                         href="/so-designer"
@@ -165,7 +166,7 @@ export default function SalesOrdersPage() {
                                 }`}
                             >
                                 {b.name}
-                                {b.code && <span className="ml-1.5 text-[10px] font-mono opacity-70">{b.code}</span>}
+                                {b.code && <span className="ml-1.5 text-xs font-mono opacity-70">{b.code}</span>}
                             </button>
                         ))}
                     </div>
@@ -184,7 +185,7 @@ export default function SalesOrdersPage() {
                             >
                                 {t.label}
                                 {counts && (
-                                    <span className={`ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-primary-foreground/20' : 'bg-background/70'}`}>
+                                    <span className={`ml-1.5 text-xs font-semibold px-1.5 py-0.5 rounded-full ${activeTab === t.key ? 'bg-primary-foreground/20' : 'bg-background/70'}`}>
                                         {counts[t.key]}
                                     </span>
                                 )}
@@ -246,7 +247,7 @@ export default function SalesOrdersPage() {
                                         <td className="px-3 py-2 text-xs">
                                             <div>{so.designerName}</div>
                                             {(so as any).branchName && (
-                                                <span className="inline-block mt-0.5 bg-blue-50 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                                                <span className={`inline-block mt-0.5 ${badgeToneClass.info} text-xs font-semibold px-1.5 py-0.5 rounded-full`}>
                                                     {(so as any).branchName}
                                                 </span>
                                             )}
@@ -256,11 +257,11 @@ export default function SalesOrdersPage() {
                                             {so.deadline ? dayjs(so.deadline).format('DD MMM YYYY') : '—'}
                                         </td>
                                         <td className="px-3 py-2 text-center">
-                                            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[so.status]}`}>
+                                            <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${STATUS_BADGE[so.status]}`}>
                                                 {STATUS_LABEL[so.status]}
                                             </span>
                                             {so.transaction && (
-                                                <div className="text-[10px] text-muted-foreground mt-0.5 font-mono">
+                                                <div className="text-xs text-muted-foreground mt-0.5 font-mono">
                                                     {so.transaction.invoiceNumber}
                                                 </div>
                                             )}

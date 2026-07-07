@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCategories, createCategory, updateCategory, deleteCategory, getProductionCategories, type ProductionCategory } from '@/lib/api';
 import { Plus, Pencil, Trash2, Check, X, ChevronRight, FolderOpen, Folder, FolderPlus, FolderTree, Loader2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
+import { badgeToneClass } from '@/components/ui/status-badge';
 import { EmptyState } from '@/components/ui/responsive-table';
 import ProductionCategoryManager from '../ProductionCategoryManager';
 
@@ -24,7 +25,7 @@ interface Category {
 function AddonBadge() {
     return (
         <span
-            className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-semibold whitespace-nowrap"
+            className={`inline-flex items-center px-1.5 py-0.5 rounded-full ${badgeToneClass.warning} border text-[10px] font-semibold whitespace-nowrap`}
             title='Item kategori ini tidak dihitung di metrik pcs (komponen/add-on seperti kerah, lengan)'
         >
             ⛔ tidak dihitung pcs
@@ -192,7 +193,7 @@ export default function CategoriesPage() {
                     </button>
                 </div>
                 {newParentId && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-xs text-muted-foreground">
                         Akan dibuat sebagai sub-kategori dari <strong>{parentOptions.find(p => String(p.id) === newParentId)?.name}</strong>
                     </p>
                 )}
@@ -270,7 +271,7 @@ export default function CategoriesPage() {
                                                             <option key={p.id} value={p.id}>{p.name}</option>
                                                         ))}
                                                     </select>
-                                                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground whitespace-nowrap cursor-pointer select-none"
+                                                    <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none"
                                                         title="Centang = item kategori ini dihitung di metrik pcs CRM. Matikan untuk add-on (kerah, lengan, dll).">
                                                         <input type="checkbox" checked={editingCountsAsPcs}
                                                             onChange={e => setEditingCountsAsPcs(e.target.checked)}
@@ -295,7 +296,7 @@ export default function CategoriesPage() {
                                                     )}
                                                     {children.length > 0 && (
                                                         <button type="button" onClick={() => toggleExpand(cat.id)}
-                                                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-primary transition-colors">
+                                                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
                                                             <ChevronRight className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                                                             {children.length} sub
                                                         </button>
@@ -393,7 +394,7 @@ export default function CategoriesPage() {
                                                                             <option key={p.id} value={p.id}>{p.name}</option>
                                                                         ))}
                                                                     </select>
-                                                                    <label className="flex items-center gap-1 text-[11px] text-muted-foreground whitespace-nowrap cursor-pointer select-none"
+                                                                    <label className="flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap cursor-pointer select-none"
                                                                         title="Centang = item kategori ini dihitung di metrik pcs CRM. Matikan untuk add-on (kerah, lengan, dll).">
                                                                         <input type="checkbox" checked={editingCountsAsPcs}
                                                                             onChange={e => setEditingCountsAsPcs(e.target.checked)}

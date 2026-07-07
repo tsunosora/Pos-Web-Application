@@ -23,8 +23,9 @@ import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
     Upload, FileText, Image as ImageIcon, Trash2, ChevronLeft, ChevronRight,
-    LogOut, ShieldCheck,
+    LogOut, ShieldCheck, Shirt, Package, CheckCircle2,
 } from "lucide-react";
+import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
@@ -40,21 +41,21 @@ interface BoardSession {
 }
 
 const COLUMN_STYLE: Record<PipelineStage, { color: string; bg: string }> = {
-    DESIGN:        { color: "text-slate-700",   bg: "bg-slate-50 border-slate-200" },
+    DESIGN:        { color: "text-foreground",  bg: "bg-muted/50 border-border" },
     PRINT:         { color: "text-blue-700",    bg: "bg-blue-50 border-blue-200" },
     ANTRIAN_PRESS: { color: "text-cyan-700",    bg: "bg-cyan-50 border-cyan-200" },
     JAHIT:         { color: "text-purple-700",  bg: "bg-purple-50 border-purple-200" },
     QC_PACKING:    { color: "text-amber-700",   bg: "bg-amber-50 border-amber-200" },
     KIRIM:         { color: "text-emerald-700", bg: "bg-emerald-50 border-emerald-200" },
     RETUR:         { color: "text-red-700",     bg: "bg-red-50 border-red-200" },
-    SELESAI:       { color: "text-gray-700",    bg: "bg-gray-50 border-gray-200" },
+    SELESAI:       { color: "text-foreground",  bg: "bg-muted/50 border-border" },
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
-    URGENT: "bg-red-100 text-red-700 border-red-200",
-    HIGH: "bg-orange-100 text-orange-700 border-orange-200",
-    NORMAL: "bg-gray-100 text-gray-600 border-gray-200",
-    LOW: "bg-sky-100 text-sky-700 border-sky-200",
+    URGENT: badgeToneClass.danger,
+    HIGH: badgeToneClass.warning,
+    NORMAL: badgeToneClass.neutral,
+    LOW: badgeToneClass.info,
 };
 
 function getProofList(job: PipelineJob): { id?: number; filename: string }[] {
@@ -83,7 +84,7 @@ const URGENCY_STRIP: Record<UrgencyLevel, string> = {
 };
 
 const URGENCY_UPLOAD_BTN: Record<UrgencyLevel, string> = {
-    aman:   "border-gray-300 hover:border-emerald-400 hover:bg-emerald-50 text-gray-500 hover:text-emerald-600",
+    aman:   "border-border hover:border-emerald-400 hover:bg-emerald-50 text-muted-foreground hover:text-emerald-600",
     normal: "border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100",
     urgent: "border-red-400 bg-red-50 text-red-700 hover:bg-red-100 animate-pulse",
 };
@@ -116,7 +117,7 @@ export default function ProduksiBoardPage() {
 
     if (!hydrated) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-slate-100">
+            <div className="min-h-screen flex items-center justify-center bg-background">
                 <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
             </div>
         );
@@ -196,13 +197,13 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-100 via-blue-50 to-white p-4">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
+            <div className="w-full max-w-md bg-card rounded-2xl shadow-xl p-6">
                 <div className="text-center mb-6">
                     <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-indigo-100 mb-3">
                         <ShieldCheck className="h-7 w-7 text-indigo-600" />
                     </div>
-                    <h1 className="font-bold text-lg text-gray-800">Pipeline Produksi</h1>
-                    <p className="text-xs text-gray-500 mt-1">
+                    <h1 className="font-bold text-lg text-foreground">Pipeline Produksi</h1>
+                    <p className="text-xs text-muted-foreground mt-1">
                         Akses operator &amp; desainer
                     </p>
                 </div>
@@ -211,11 +212,11 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
                     <form onSubmit={handlePinSubmit} className="space-y-3">
                         {branches.length > 1 && (
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">Cabang</label>
+                                <label className="block text-xs font-semibold text-muted-foreground mb-1">Cabang</label>
                                 <select
                                     value={branchId ?? ""}
                                     onChange={(e) => setBranchId(e.target.value ? Number(e.target.value) : null)}
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                    className="w-full border border-border rounded-lg px-3 py-2 text-sm"
                                 >
                                     <option value="">— Pilih cabang —</option>
                                     {branches.map(b => (
@@ -227,7 +228,7 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
                             </div>
                         )}
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">PIN Operator</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">PIN Operator</label>
                             <input
                                 type="password"
                                 inputMode="numeric"
@@ -235,7 +236,7 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
                                 onChange={(e) => setPin(e.target.value)}
                                 placeholder="••••"
                                 autoFocus
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-lg font-mono tracking-widest text-center"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-lg font-mono tracking-widest text-center"
                             />
                         </div>
                         {error && <p className="text-xs text-red-600 text-center">{error}</p>}
@@ -252,23 +253,23 @@ function LoginGate({ onLogin }: { onLogin: (s: BoardSession) => void }) {
 
                 {step === 'NAME' && (
                     <form onSubmit={handleNameSubmit} className="space-y-3">
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-xs text-emerald-700 text-center">
-                            ✓ PIN valid — masukkan nama Anda untuk mulai
+                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-xs text-emerald-700 text-center flex items-center justify-center gap-1">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> PIN valid — masukkan nama Anda untuk mulai
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Operator / Desainer</label>
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Nama Operator / Desainer</label>
                             <select
                                 value={operatorName}
                                 onChange={(e) => setOperatorName(e.target.value)}
                                 autoFocus
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                                className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-card"
                             >
                                 <option value="">— Pilih nama —</option>
                                 {designers.map(d => (
                                     <option key={d.id} value={d.name}>{d.name}</option>
                                 ))}
                             </select>
-                            <p className="text-[10px] text-gray-500 mt-1">
+                            <p className="text-[10px] text-muted-foreground mt-1">
                                 Disimpan di device ini — semua aksi (pindah card, upload proof) akan tercatat pakai nama ini.
                             </p>
                         </div>
@@ -424,14 +425,14 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
     }, [jobs, stageMut]);
 
     return (
-        <div className="min-h-screen bg-slate-100 flex flex-col">
+        <div className="min-h-screen bg-background flex flex-col">
             {/* Top bar */}
-            <div className="bg-white border-b shadow-sm px-3 py-2 flex items-center justify-between gap-2 flex-wrap sticky top-0 z-30">
+            <div className="bg-card border-b border-border shadow-sm px-3 py-2 flex items-center justify-between gap-2 flex-wrap sticky top-0 z-30">
                 <div className="flex items-center gap-2 min-w-0">
                     <ShieldCheck className="h-5 w-5 text-indigo-600 flex-shrink-0" />
                     <div className="min-w-0">
                         <div className="font-bold text-sm truncate">Pipeline Produksi</div>
-                        <div className="text-[10px] text-gray-500 truncate">
+                        <div className="text-[10px] text-muted-foreground truncate">
                             {session.branchName} · <span className="font-semibold text-indigo-700">{session.operatorName}</span>
                         </div>
                     </div>
@@ -440,7 +441,7 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
                     {isLoading && <Loader2 className="h-4 w-4 animate-spin text-indigo-600" />}
                     <button
                         onClick={onLogout}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded"
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:bg-muted rounded"
                     >
                         <LogOut className="h-3.5 w-3.5" /> Keluar
                     </button>
@@ -581,7 +582,7 @@ const Column = memo(function Column({
             </div>
             <div className="p-1.5 sm:p-2 space-y-1.5 sm:space-y-2 flex-1 overflow-y-auto max-h-[64vh] sm:max-h-[72vh]">
                 {jobs.length === 0 ? (
-                    <p className="text-[10px] sm:text-xs text-gray-400 text-center py-6 italic">— kosong —</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground text-center py-6 italic">— kosong —</p>
                 ) : (
                     jobs.map((job) => (
                         <KanbanCard
@@ -641,14 +642,14 @@ const KanbanCard = memo(function KanbanCard({
     return (
         <div
             ref={setNodeRef}
-            className={`bg-white rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs ${isDragging ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : "border-gray-200"}`}
+            className={`bg-card rounded-lg shadow-sm border p-1.5 sm:p-2 text-[11px] sm:text-xs ${isDragging ? "opacity-30" : ""} ${jahitLate ? "border-red-400 bg-red-50" : "border-border"}`}
         >
             <div className="flex items-start justify-between gap-1 mb-1">
-                <span className="font-mono font-bold text-[9px] sm:text-[10px] text-gray-600 truncate">{job.jobNumber}</span>
+                <span className="font-mono font-bold text-[9px] sm:text-[10px] text-muted-foreground truncate">{job.jobNumber}</span>
                 <button
                     {...attributes}
                     {...listeners}
-                    className="text-gray-400 hover:text-gray-700 cursor-grab active:cursor-grabbing touch-none flex-shrink-0 p-0.5"
+                    className="text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing touch-none flex-shrink-0 p-0.5"
                     aria-label="Drag"
                 >
                     <GripVertical className="h-3.5 w-3.5" />
@@ -661,16 +662,16 @@ const KanbanCard = memo(function KanbanCard({
                 </span>
             )}
 
-            <div className="font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">
+            <div className="font-semibold text-foreground line-clamp-2 leading-tight mb-1">
                 {productName}
             </div>
 
-            <div className="text-gray-600 space-y-0.5">
+            <div className="text-muted-foreground space-y-0.5">
                 <div className="flex items-center gap-1">
-                    <User className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                    <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{customerName}</span>
                 </div>
-                <div className="text-gray-500">
+                <div className="text-muted-foreground">
                     {qty} pcs{dim && ` · ${dim}`}
                 </div>
                 {job.transaction?.id && (
@@ -692,7 +693,7 @@ const KanbanCard = memo(function KanbanCard({
                     </div>
                 )}
                 {job.deadline && !deadlineLate && (
-                    <div className="flex items-center gap-1 text-gray-500">
+                    <div className="flex items-center gap-1 text-muted-foreground">
                         <Clock className="h-3 w-3" /> {dayjs(job.deadline).format("DD MMM")}
                     </div>
                 )}
@@ -757,8 +758,8 @@ const KanbanCard = memo(function KanbanCard({
             ) : null}
 
             {job.pipelineStage === "JAHIT" && (job.penjahitName || job.jahitEstimate) && (
-                <div className={`mt-1.5 pt-1.5 border-t text-[10px] ${jahitLate ? "border-red-200 text-red-700 font-semibold" : "border-gray-100 text-gray-600"}`}>
-                    {job.penjahitName && <div className="truncate">👔 {job.penjahitName}</div>}
+                <div className={`mt-1.5 pt-1.5 border-t text-[10px] ${jahitLate ? "border-red-200 text-red-700 font-semibold" : "border-border text-muted-foreground"}`}>
+                    {job.penjahitName && <div className="flex items-center gap-1 truncate"><Shirt className="h-2.5 w-2.5 shrink-0" /> {job.penjahitName}</div>}
                     {job.jahitEstimate && (
                         <div className="flex items-center gap-1">
                             <Clock className="h-2.5 w-2.5" />
@@ -770,14 +771,14 @@ const KanbanCard = memo(function KanbanCard({
             )}
 
             {job.pipelineStage === "RETUR" && job.returnReason && (
-                <div className="mt-1.5 pt-1.5 border-t border-red-200 text-[10px] text-red-700 line-clamp-2">
-                    📦 {job.returnReason}
+                <div className="mt-1.5 pt-1.5 border-t border-red-200 text-[10px] text-red-700 line-clamp-2 flex items-start gap-1">
+                    <Package className="h-2.5 w-2.5 shrink-0 mt-0.5" /> {job.returnReason}
                 </div>
             )}
 
             {/* Last updated by — kelihatan kecil di bawah */}
             {job.lastUpdatedBy && (
-                <div className="mt-1.5 pt-1 border-t border-gray-100 text-[9px] text-gray-400 italic truncate">
+                <div className="mt-1.5 pt-1 border-t border-border text-[9px] text-muted-foreground italic truncate">
                     by {job.lastUpdatedBy}
                     {job.lastUpdatedAt && ` · ${dayjs(job.lastUpdatedAt).format("DD MMM HH:mm")}`}
                 </div>
@@ -794,10 +795,10 @@ function DragPreview({ job }: { job: PipelineJob }) {
         || "—";
     const customerName = job.transaction?.customerName || "—";
     return (
-        <div className="bg-white rounded-lg shadow-2xl border-2 border-indigo-400 p-2 text-xs w-56 rotate-2 cursor-grabbing">
-            <div className="font-mono font-bold text-[10px] text-gray-600 mb-1">{job.jobNumber}</div>
-            <div className="font-semibold text-gray-800 line-clamp-2 leading-tight mb-1">{productName}</div>
-            <div className="text-gray-500 text-[11px] truncate">{customerName}</div>
+        <div className="bg-card rounded-lg shadow-2xl border-2 border-indigo-400 p-2 text-xs w-56 rotate-2 cursor-grabbing">
+            <div className="font-mono font-bold text-[10px] text-muted-foreground mb-1">{job.jobNumber}</div>
+            <div className="font-semibold text-foreground line-clamp-2 leading-tight mb-1">{productName}</div>
+            <div className="text-muted-foreground text-[11px] truncate">{customerName}</div>
         </div>
     );
 }
@@ -923,27 +924,27 @@ function JahitModal({
     const canSubmit = penjahitName.trim().length > 0 && jahitInDate && jahitEstimate;
     return (
         <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg">Kirim ke Jahit</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="h-5 w-5" /></button>
+                    <button onClick={onClose} className="p-1 hover:bg-muted rounded"><X className="h-5 w-5" /></button>
                 </div>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-muted-foreground mb-4">
                     Job <span className="font-mono font-semibold">{job.jobNumber}</span> akan masuk antrian jahit. Lewat estimasi → card berubah warna merah.
                 </p>
                 <div className="space-y-3">
                     <div>
-                        <label className="block text-xs font-semibold text-gray-600 mb-1">Nama Penjahit *</label>
-                        <input value={penjahitName} onChange={(e) => setPenjahitName(e.target.value)} placeholder="mis. Bu Yuni" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" autoFocus />
+                        <label className="block text-xs font-semibold text-muted-foreground mb-1">Nama Penjahit *</label>
+                        <input value={penjahitName} onChange={(e) => setPenjahitName(e.target.value)} placeholder="mis. Bu Yuni" className="w-full border border-border rounded-lg px-3 py-2 text-sm" autoFocus />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Tanggal Masuk</label>
-                            <input type="date" value={jahitInDate} onChange={(e) => setJahitInDate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Tanggal Masuk</label>
+                            <input type="date" value={jahitInDate} onChange={(e) => setJahitInDate(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1">Estimasi Jadi</label>
-                            <input type="date" value={jahitEstimate} onChange={(e) => setJahitEstimate(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                            <label className="block text-xs font-semibold text-muted-foreground mb-1">Estimasi Jadi</label>
+                            <input type="date" value={jahitEstimate} onChange={(e) => setJahitEstimate(e.target.value)} className="w-full border border-border rounded-lg px-3 py-2 text-sm" />
                         </div>
                     </div>
                 </div>
@@ -971,14 +972,14 @@ function ReturModal({
     const [reason, setReason] = useState(job.returnReason || "");
     return (
         <div className="fixed inset-0 bg-black/50 z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-white rounded-xl p-4 sm:p-5 max-w-md w-full">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg text-red-700">Tandai Retur</h3>
-                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded"><X className="h-5 w-5" /></button>
+                    <button onClick={onClose} className="p-1 hover:bg-muted rounded"><X className="h-5 w-5" /></button>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">Job <span className="font-mono font-semibold">{job.jobNumber}</span> akan ditandai sebagai retur.</p>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Alasan Retur</label>
-                <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="mis. Salah ukuran" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" autoFocus />
+                <p className="text-xs text-muted-foreground mb-3">Job <span className="font-mono font-semibold">{job.jobNumber}</span> akan ditandai sebagai retur.</p>
+                <label className="block text-xs font-semibold text-muted-foreground mb-1">Alasan Retur</label>
+                <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} placeholder="mis. Salah ukuran" className="w-full border border-border rounded-lg px-3 py-2 text-sm" autoFocus />
                 <div className="flex gap-2 mt-5">
                     <button onClick={onClose} className="flex-1 px-4 py-2 border rounded-lg text-sm">Batal</button>
                     <button onClick={() => onSubmit(reason.trim())} disabled={submitting} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">

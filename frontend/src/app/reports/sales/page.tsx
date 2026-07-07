@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/responsive-table';
+import { badgeToneClass } from '@/components/ui/status-badge';
 import dayjs from "dayjs";
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useBranchStore } from '@/store/branch-store';
@@ -675,7 +676,7 @@ export default function SalesReportPage() {
                                                             {trx.status === 'PARTIAL' && Number(trx.downPayment) === 0 && trx.dueDate && <span className="bg-violet-500/10 text-violet-600 border border-violet-500/20 px-1.5 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">KREDIT</span>}
                                                             <div>
                                                                 <span>{trx.invoiceNumber}</span>
-                                                                {trx.checkoutNumber && <div className="text-[11px] text-muted-foreground font-mono mt-0.5">{trx.checkoutNumber}</div>}
+                                                                {trx.checkoutNumber && <div className="text-xs text-muted-foreground font-mono mt-0.5">{trx.checkoutNumber}</div>}
                                                             </div>
                                                         </div>
                                                     </td>
@@ -702,7 +703,7 @@ export default function SalesReportPage() {
                                                                 </span>
                                                         }
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground text-right">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-foreground text-right tabular-nums">
                                                         Rp {Number(trx.grandTotal).toLocaleString('id-ID')}
                                                     </td>
                                                 </tr>
@@ -787,7 +788,7 @@ export default function SalesReportPage() {
                                 {selectedTransaction.branchName && (
                                     <div className="col-span-2">
                                         <p className="text-muted-foreground text-xs mb-1">Cabang Asal Order</p>
-                                        <span className="inline-block bg-blue-50 text-blue-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-blue-200">
+                                        <span className={`inline-block border ${badgeToneClass.info} text-xs font-semibold px-2 py-0.5 rounded-full`}>
                                             {selectedTransaction.branchName}
                                         </span>
                                     </div>

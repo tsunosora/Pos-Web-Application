@@ -470,7 +470,7 @@ export default function WhatsappSettingsPage() {
                                             <div className="font-semibold text-indigo-700 dark:text-indigo-200 truncate">
                                                 {groups.find(g => g.id === config.designGroupId)?.name || 'Group tidak diikuti bot'}
                                             </div>
-                                            <div className="font-mono text-[10px] text-indigo-600/70 dark:text-indigo-300/70 truncate">{config.designGroupId}</div>
+                                            <div className="font-mono text-xs text-indigo-600/70 dark:text-indigo-300/70 truncate">{config.designGroupId}</div>
                                         </div>
                                         <Button
                                             size="sm"
@@ -647,7 +647,7 @@ export default function WhatsappSettingsPage() {
                                             <th className="px-4 py-3 font-semibold">Fungsi</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-slate-200 text-muted-foreground">
+                                    <tbody className="divide-y divide-border text-muted-foreground">
                                         {[
                                             ['!getgroupid', 'Mendapatkan ID grup saat ini (hanya di grup)'],
                                             ['!botadmin status', 'Cek status koneksi bot'],

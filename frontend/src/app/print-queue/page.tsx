@@ -89,7 +89,7 @@ export default function PrintQueueAdminPage() {
                         <Printer className="w-6 h-6" /> Antrian Cetak Paper
                         {/* Badge cabang aktif — supaya admin tahu sedang lihat data cabang yang mana */}
                         {activeBranchId ? (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 border border-indigo-300 rounded-full">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-mono font-bold px-2 py-0.5 bg-primary/15 text-foreground border border-primary/30 rounded-full">
                                 <Building2 className="w-3 h-3" />
                                 {(isOwner ? '' : userBranchCode) || userBranchName || `Cabang #${activeBranchId}`}
                             </span>
@@ -110,7 +110,7 @@ export default function PrintQueueAdminPage() {
                     <Link
                         href="/cetak"
                         target="_blank"
-                        className="text-sm bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 font-medium"
+                        className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded-lg hover:bg-primary/90 flex items-center gap-1.5 font-medium"
                     >
                         <ExternalLink className="w-3.5 h-3.5" /> Buka Halaman Operator
                     </Link>
@@ -123,7 +123,7 @@ export default function PrintQueueAdminPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
                 {([
                     { label: 'Antrian', val: stats.antrian, color: 'text-foreground' },
-                    { label: 'Proses', val: stats.proses, color: 'text-indigo-700' },
+                    { label: 'Proses', val: stats.proses, color: 'text-accent-foreground' },
                     { label: 'Siap Diambil', val: stats.selesai, color: 'text-green-700' },
                     { label: 'Diambil', val: stats.diambil, color: 'text-sky-700' },
                 ]).map(c => (
@@ -137,7 +137,7 @@ export default function PrintQueueAdminPage() {
             <div className="flex flex-wrap items-center gap-2 mb-3">
                 <div className="flex gap-1 overflow-x-auto">
                     {STATUSES.map(s => (
-                        <button key={s.key} onClick={() => setFilter(s.key)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filter === s.key ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-card border-border hover:bg-muted'}`}>{s.label}</button>
+                        <button key={s.key} onClick={() => setFilter(s.key)} className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${filter === s.key ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-muted'}`}>{s.label}</button>
                     ))}
                 </div>
                 <input
@@ -172,7 +172,7 @@ export default function PrintQueueAdminPage() {
                                 <tr><td colSpan={11} className="px-3 py-10 text-center text-muted-foreground">Tidak ada job.</td></tr>
                             ) : jobs.map(j => (
                                 <tr key={j.id} className="border-t hover:bg-muted">
-                                    <td className="px-3 py-2 font-mono text-xs text-indigo-700 font-bold">
+                                    <td className="px-3 py-2 font-mono text-xs text-accent-foreground font-bold">
                                         {j.jobNumber}
                                         {(() => {
                                             const isTitipan = j.transaction.productionBranchId != null && j.transaction.productionBranchId !== j.transaction.branchId;
@@ -197,7 +197,7 @@ export default function PrintQueueAdminPage() {
                                         })()}
                                     </td>
                                     <td className="px-3 py-2">
-                                        <Link href={`/transactions/${j.transaction.id}`} className="font-mono text-xs text-indigo-700 hover:underline">{j.transaction.invoiceNumber}</Link>
+                                        <Link href={`/transactions/${j.transaction.id}`} className="font-mono text-xs text-accent-foreground hover:underline">{j.transaction.invoiceNumber}</Link>
                                         {j.transaction.checkoutNumber && (
                                             <div className="font-mono text-[10px] text-muted-foreground">{j.transaction.checkoutNumber}</div>
                                         )}

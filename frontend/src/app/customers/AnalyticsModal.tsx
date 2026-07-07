@@ -124,13 +124,13 @@ export function AnalyticsModal({ customerId, onClose }: { customerId: number; on
                                                 type="category"
                                                 dataKey="name"
                                                 width={90}
-                                                tick={{ fontSize: 10, fill: "#6b7280" }}
+                                                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                                                 tickLine={false}
                                                 axisLine={false}
                                             />
                                             <Tooltip
                                                 formatter={(v: any) => [`${v}x`, "Qty"]}
-                                                contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: 12 }}
+                                                contentStyle={{ borderRadius: "8px", backgroundColor: "var(--popover)", border: "1px solid var(--border)", color: "var(--popover-foreground)", fontSize: 12 }}
                                             />
                                             <Bar dataKey="qty" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                                         </BarChart>
@@ -154,12 +154,12 @@ export function AnalyticsModal({ customerId, onClose }: { customerId: number; on
                                                 <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                                             </linearGradient>
                                         </defs>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.4} />
-                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "#6b7280" }} axisLine={false} tickLine={false} />
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.4} />
+                                        <XAxis dataKey="month" tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                                         <YAxis hide />
                                         <Tooltip
                                             formatter={(v: any) => [`Rp ${Number(v).toLocaleString("id-ID")}`, "Total"]}
-                                            contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: 12 }}
+                                            contentStyle={{ borderRadius: "8px", backgroundColor: "var(--popover)", border: "1px solid var(--border)", color: "var(--popover-foreground)", fontSize: 12 }}
                                         />
                                         <Area type="monotone" dataKey="total" stroke="#8b5cf6" strokeWidth={2} fill="url(#spendGrad)" />
                                     </AreaChart>

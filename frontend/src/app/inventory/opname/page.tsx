@@ -11,6 +11,7 @@ import {
     Copy, Check, AlertTriangle, RefreshCw, Loader2, ArrowLeft,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/page-header';
+import { badgeToneClass } from '@/components/ui/status-badge';
 import { ResponsiveTable, EmptyState } from '@/components/ui/responsive-table';
 
 type OpnameStatus = 'ONGOING' | 'COMPLETED' | 'CANCELLED';
@@ -156,7 +157,7 @@ function VariantWasteHistory({ variantId, since }: { variantId: number; since: s
     return (
         <div className="mt-1 space-y-0.5">
             {waste.map((w: any) => (
-                <p key={w.id} className="text-[10px] text-amber-600 leading-tight">
+                <p key={w.id} className="text-xs text-amber-600 leading-tight">
                     {new Date(w.date).toLocaleDateString('id-ID')} — {w.reason} <span className="font-medium">(-{w.quantity})</span>
                 </p>
             ))}
@@ -349,7 +350,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                                                             </span>
                                                             {inp.isEstimated && (
                                                                 <span
-                                                                    className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded cursor-help border border-amber-300"
+                                                                    className={`text-[10px] ${badgeToneClass.warning} px-1.5 py-0.5 rounded cursor-help border`}
                                                                     title={inp.estimationNotes ?? 'Nilai estimasi (tidak terukur tepat)'}
                                                                 >
                                                                     ~Est.

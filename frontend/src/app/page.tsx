@@ -216,25 +216,25 @@ export default function Home() {
                         <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" opacity={0.5} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" opacity={0.5} />
                     <XAxis
                       dataKey="name"
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                       dy={10}
                     />
                     <YAxis
                       axisLine={false}
                       tickLine={false}
-                      tick={{ fontSize: 11, fill: '#6b7280' }}
+                      tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                       tickFormatter={(val) => val >= 1000000 ? `${(val / 1000000).toFixed(1)}jt` : `${(val / 1000).toFixed(0)}k`}
                       dx={-10}
                     />
                     <RechartsTooltip
-                      contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      contentStyle={{ borderRadius: '8px', backgroundColor: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                       formatter={(value: any) => [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Pendapatan']}
-                      labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '4px' }}
+                      labelStyle={{ fontWeight: 'bold', color: 'var(--foreground)', marginBottom: '4px' }}
                     />
                     <Area
                       type="monotone"
@@ -369,12 +369,12 @@ export default function Home() {
                   margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
                   layout="vertical"
                 >
-                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" opacity={0.5} />
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--border)" opacity={0.5} />
                   <XAxis
                     type="number"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
+                    tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                     tickFormatter={(v) => v >= 1000000 ? `${(v / 1000000).toFixed(1)}jt` : `${(v / 1000).toFixed(0)}k`}
                   />
                   <YAxis
@@ -382,15 +382,15 @@ export default function Home() {
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 12, fill: '#374151' }}
+                    tick={{ fontSize: 12, fill: 'var(--foreground)' }}
                     width={100}
                   />
                   <RechartsTooltip
-                    contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    contentStyle={{ borderRadius: '8px', backgroundColor: 'var(--popover)', border: '1px solid var(--border)', color: 'var(--popover-foreground)', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(value: any, name: any) => name === 'Revenue'
                       ? [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Pendapatan']
                       : [value, 'Invoice']}
-                    labelStyle={{ fontWeight: 'bold', color: '#374151', marginBottom: '4px' }}
+                    labelStyle={{ fontWeight: 'bold', color: 'var(--foreground)', marginBottom: '4px' }}
                   />
                   <Bar dataKey="Revenue" radius={[0, 6, 6, 0]} maxBarSize={36}>
                     {(cashierStats as any[]).map((_: any, i: number) => {
@@ -401,7 +401,7 @@ export default function Home() {
                       dataKey="Count"
                       position="right"
                       formatter={(v: any) => `${v} inv`}
-                      style={{ fontSize: 11, fill: '#6b7280' }}
+                      style={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                     />
                   </Bar>
                 </RechartsBarChart>

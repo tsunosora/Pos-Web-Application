@@ -23,15 +23,16 @@ import Link from "next/link";
 import {
     Clock, User, GripVertical, AlertTriangle, Loader2, X,
     Upload, FileText, ImageIcon, Trash2, ChevronLeft, ChevronRight, Search, Calendar,
-    Share2, Copy, Check, Pen, Zap, Ban,
+    Share2, Copy, Check, Pen, Zap, Ban, Shirt, Package,
 } from "lucide-react";
+import { badgeToneClass } from "@/components/ui/status-badge";
 import { WorkOrderModal } from "@/components/produksi/WorkOrderModal";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
 
 const COLUMN_STYLE: Record<PipelineStage, { color: string; bg: string }> = {
-    DESIGN:        { color: "text-slate-700",   bg: "bg-slate-50 border-slate-200" },
+    DESIGN:        { color: "text-foreground",  bg: "bg-muted/50 border-border" },
     PRINT:         { color: "text-blue-700",    bg: "bg-blue-50 border-blue-200" },
     ANTRIAN_PRESS: { color: "text-cyan-700",    bg: "bg-cyan-50 border-cyan-200" },
     JAHIT:         { color: "text-purple-700",  bg: "bg-purple-50 border-purple-200" },
@@ -42,10 +43,10 @@ const COLUMN_STYLE: Record<PipelineStage, { color: string; bg: string }> = {
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
-    URGENT: "bg-red-100 text-red-700 border-red-200",
-    HIGH: "bg-orange-100 text-orange-700 border-orange-200",
-    NORMAL: "bg-muted text-muted-foreground border-border",
-    LOW: "bg-sky-100 text-sky-700 border-sky-200",
+    URGENT: badgeToneClass.danger,
+    HIGH: badgeToneClass.warning,
+    NORMAL: badgeToneClass.neutral,
+    LOW: badgeToneClass.info,
 };
 
 // Helper: dapatkan list proof images (gabungan proofs[] baru + proofImageUrl legacy)
@@ -367,7 +368,7 @@ export default function ProduksiPipelinePage() {
                     </div>
 
                     {/* Divider */}
-                    <div className="w-px h-4 bg-gray-200 self-center hidden sm:block" />
+                    <div className="w-px h-4 bg-border self-center hidden sm:block" />
 
                     {/* Filter Prioritas */}
                     <div className="flex gap-1 flex-wrap">
@@ -385,7 +386,7 @@ export default function ProduksiPipelinePage() {
                                         : p === "URGENT" ? "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
                                         : p === "HIGH" ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100"
                                         : p === "LOW" ? "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100"
-                                        : p === "NORMAL" ? "bg-muted text-muted-foreground border-border hover:bg-gray-200"
+                                        : p === "NORMAL" ? "bg-muted text-muted-foreground border-border hover:bg-muted/70"
                                         : "bg-card text-muted-foreground border-border hover:bg-muted"
                                 }`}
                             >
@@ -395,7 +396,7 @@ export default function ProduksiPipelinePage() {
                     </div>
 
                     {/* Divider */}
-                    <div className="w-px h-4 bg-gray-200 self-center hidden sm:block" />
+                    <div className="w-px h-4 bg-border self-center hidden sm:block" />
 
                     {/* Filter Designer */}
                     <div className="flex items-center gap-1 flex-wrap">
@@ -621,7 +622,7 @@ function SharePopover({ onClose }: { onClose: () => void }) {
                             <div className="flex gap-1.5">
                                 <button
                                     onClick={() => copy(url)}
-                                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-semibold transition-colors ${isCopied ? "bg-emerald-100 text-emerald-700" : "bg-muted hover:bg-gray-200 text-foreground"}`}
+                                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[11px] font-semibold transition-colors ${isCopied ? "bg-emerald-100 text-emerald-700" : "bg-muted hover:bg-muted/70 text-foreground"}`}
                                 >
                                     {isCopied ? <><Check className="h-3 w-3" /> Tersalin!</> : <><Copy className="h-3 w-3" /> Salin Link</>}
                                 </button>
@@ -822,7 +823,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(false); }}
                                 onPointerDown={(e) => e.stopPropagation()}
-                                className="text-[9px] px-1.5 py-0.5 bg-gray-200 text-foreground rounded"
+                                className="text-[9px] px-1.5 py-0.5 bg-muted text-foreground rounded"
                             >Batal</button>
                         </>
                     ) : (
@@ -832,7 +833,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 onClick={(e) => { e.stopPropagation(); onCancelJob(job); }}
                                 onPointerDown={(e) => e.stopPropagation()}
                                 title="Tandai batal / klien tidak jadi order"
-                                className="text-gray-300 hover:text-amber-600 transition-colors"
+                                className="text-muted-foreground hover:text-amber-600 transition-colors"
                             >
                                 <Ban className="h-3 w-3" />
                             </button>
@@ -841,7 +842,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
                                 onPointerDown={(e) => e.stopPropagation()}
                                 title="Hapus job"
-                                className="text-gray-300 hover:text-red-500 transition-colors"
+                                className="text-muted-foreground hover:text-red-500 transition-colors"
                             >
                                 <Trash2 className="h-3 w-3" />
                             </button>
@@ -978,7 +979,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
 
             {job.pipelineStage === "JAHIT" && (job.penjahitName || job.jahitEstimate) && (
                 <div className={`mt-1.5 pt-1.5 border-t text-[10px] ${jahitLate ? "border-red-200 text-red-700 font-semibold" : "border-border/60 text-muted-foreground"}`}>
-                    {job.penjahitName && <div className="truncate">👔 {job.penjahitName}</div>}
+                    {job.penjahitName && <div className="flex items-center gap-1 truncate"><Shirt className="h-2.5 w-2.5 shrink-0" /> {job.penjahitName}</div>}
                     {job.jahitEstimate && (
                         <div className="flex items-center gap-1">
                             <Clock className="h-2.5 w-2.5" />
@@ -990,8 +991,8 @@ const KanbanCardInner = memo(function KanbanCardInner({
             )}
 
             {job.pipelineStage === "RETUR" && job.returnReason && (
-                <div className="mt-1.5 pt-1.5 border-t border-red-200 text-[10px] text-red-700 line-clamp-2">
-                    📦 {job.returnReason}
+                <div className="mt-1.5 pt-1.5 border-t border-red-200 text-[10px] text-red-700 line-clamp-2 flex items-start gap-1">
+                    <Package className="h-2.5 w-2.5 shrink-0 mt-0.5" /> {job.returnReason}
                 </div>
             )}
 
@@ -1241,7 +1242,7 @@ function JahitModal({
 
     return (
         <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg">Kirim ke Jahit</h3>
                     <button onClick={onClose} className="p-1 hover:bg-muted rounded">
@@ -1314,7 +1315,7 @@ function ReturModal({
     const [reason, setReason] = useState(job.returnReason || "");
     return (
         <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg text-red-700">Tandai Retur</h3>
                     <button onClick={onClose} className="p-1 hover:bg-muted rounded">
@@ -1361,7 +1362,7 @@ function CancelModal({
     const [reason, setReason] = useState("");
     return (
         <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-3 sm:p-4">
-            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full">
+            <div className="bg-card rounded-xl p-4 sm:p-5 max-w-md w-full max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="font-bold text-base sm:text-lg text-amber-700 flex items-center gap-1.5">
                         <Ban className="h-5 w-5" /> Tandai Batal

@@ -144,7 +144,7 @@ export default function LoginAppearancePage() {
                             >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </button>
-                            <span className="absolute bottom-1 left-2 text-emerald-400 text-[10px] font-semibold opacity-0 group-hover:opacity-100">
+                            <span className="absolute bottom-1 left-2 text-emerald-400 text-xs font-semibold opacity-0 group-hover:opacity-100">
                                 Aktif
                             </span>
                         </div>
@@ -170,7 +170,7 @@ export default function LoginAppearancePage() {
                             <Upload className="h-4 w-4" />
                             {uploadingLogo ? 'Mengupload...' : (loginLogoUrl ? 'Ganti Logo' : 'Upload Logo')}
                         </button>
-                        <p className="text-[11px] text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                             Rekomendasi: PNG/SVG dengan background transparent, rasio 1:1 (square), min. 400×400px.
                         </p>
                     </div>

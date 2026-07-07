@@ -360,7 +360,7 @@ export default function CustomersPage() {
                                         <p className="text-muted-foreground text-xs">Belum ada transaksi</p>
                                     )}
                                     {c.lastOrderDate && (
-                                        <p className="text-[10px] text-muted-foreground">{dayjs(c.lastOrderDate).format("DD MMM YYYY")}</p>
+                                        <p className="text-xs text-muted-foreground">{dayjs(c.lastOrderDate).format("DD MMM YYYY")}</p>
                                     )}
                                 </div>
                             </div>

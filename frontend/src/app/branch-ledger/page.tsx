@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { BookOpen, RefreshCw, ArrowUpRight, ArrowDownLeft, Scale, ChevronDown, ChevronUp, X, Wallet, Package } from 'lucide-react';
+import { BookOpen, RefreshCw, ArrowUpRight, ArrowDownLeft, Scale, ChevronDown, ChevronUp, X, Wallet, Package, BarChart3, AlertTriangle, Lightbulb } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import {
     listBranchLedger, getBranchLedgerSummary, getBranchLedgerDetail,
     getLedgerBankAccounts, settleBranchLedgerCash,
@@ -82,19 +83,7 @@ export default function BranchLedgerPage() {
 
     return (
         <div>
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <BookOpen className="w-6 h-6" /> Buku Titipan Antar Cabang
-                    </h1>
-                    <p className="text-sm text-muted-foreground">
-                        Catatan hutang-piutang otomatis saat cabang saling titip cetak. Dicatat waktu cetakan diserahkan.
-                    </p>
-                </div>
-                <button onClick={load} disabled={loading} className="text-sm bg-card border px-3 py-1.5 rounded-lg hover:bg-muted flex items-center gap-1">
-                    <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
-                </button>
-            </div>
+            <PageHeader title="Buku Titipan Antar Cabang" description="Catatan hutang-piutang otomatis saat cabang saling titip cetak. Dicatat waktu cetakan diserahkan." icon={BookOpen} actions={<button onClick={load} disabled={loading} className="text-sm bg-card border border-border px-3 py-1.5 rounded-lg hover:bg-muted flex items-center gap-1 transition-colors disabled:opacity-50"><RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh</button>} />
 
             {summary && summary.mode === 'single' && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
@@ -169,7 +158,7 @@ export default function BranchLedgerPage() {
                 <div className="flex gap-1 ml-auto">
                     {STATUS_TABS.map(s => (
                         <button key={s} onClick={() => setStatus(s)}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${status === s ? 'bg-gray-800 text-white border-gray-800' : 'bg-card border-border hover:bg-muted'}`}>
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${status === s ? 'bg-primary text-primary-foreground border-primary' : 'bg-card border-border hover:bg-muted'}`}>
                             {s === 'ALL' ? 'Semua Status' : STATUS_LABEL[s]}
                         </button>
                     ))}
@@ -258,7 +247,7 @@ export default function BranchLedgerPage() {
                                                         <ul className="space-y-1">
                                                             {details[e.id].settlements.map(s => (
                                                                 <li key={s.id} className="flex justify-between border-t border-border py-1">
-                                                                    <span>{s.settlementType === 'CASH' ? '💰 Tunai' : '📦 Kirim Bahan'} · {fmtDate(s.createdAt)}</span>
+                                                                    <span className="inline-flex items-center gap-1">{s.settlementType === 'CASH' ? <><Wallet className="h-3 w-3" /> Tunai</> : <><Package className="h-3 w-3" /> Kirim Bahan</>} · {fmtDate(s.createdAt)}</span>
                                                                     <span className="font-semibold">{rupiah(s.amount)}</span>
                                                                 </li>
                                                             ))}
@@ -412,7 +401,7 @@ function SettleCashModal({ ledger, onClose, onSuccess }: SettleCashModalProps) {
                         <div className="flex gap-1 mt-1">
                             <button type="button" onClick={() => setAmount(String(ledger.outstandingAmount))}
                                 className="text-xs text-indigo-600 hover:underline">Bayar lunas</button>
-                            <span className="text-gray-300">·</span>
+                            <span className="text-muted-foreground/50">·</span>
                             <button type="button" onClick={() => setAmount(String(Math.round(ledger.outstandingAmount / 2)))}
                                 className="text-xs text-indigo-600 hover:underline">Separuh</button>
                         </div>
@@ -595,7 +584,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                             Cabang <span className="font-mono">{data.fromBranchCode || data.fromBranchName}</span> belum punya stok bahan.
                                         </p>
                                         <div className="text-xs text-amber-700 space-y-1">
-                                            <p>📊 Diagnostik:</p>
+                                            <p className="inline-flex items-center gap-1"><BarChart3 className="h-3.5 w-3.5" /> Diagnostik:</p>
                                             <ul className="list-disc list-inside ml-1 space-y-0.5">
                                                 <li>Total entry BranchStock: <strong>{data.diagnostics?.totalBranchStockEntries ?? 0}</strong></li>
                                                 <li>Yang stok &gt; 0: <strong>{data.diagnostics?.entriesWithStock ?? 0}</strong></li>
@@ -625,7 +614,7 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                             className={`flex items-center gap-2 p-2 hover:bg-muted ${
                                                 noPrice
                                                     ? 'opacity-60 cursor-not-allowed'
-                                                    : `cursor-pointer ${variantId === it.variantId ? 'bg-indigo-50' : ''}`
+                                                    : `cursor-pointer ${variantId === it.variantId ? 'bg-primary/10' : ''}`
                                             }`}>
                                             <input type="radio" checked={variantId === it.variantId}
                                                 disabled={noPrice}
@@ -636,10 +625,10 @@ function SettleStockModal({ ledger, onClose, onSuccess }: SettleStockModalProps)
                                                 </p>
                                                 <p className="text-xs text-muted-foreground font-mono">{it.sku}</p>
                                                 {noPrice && (
-                                                    <p className="text-[10px] text-amber-700 mt-0.5">⚠ Belum ada HPP & belum ada riwayat pembelian</p>
+                                                    <p className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-400 mt-0.5"><AlertTriangle className="h-3 w-3 shrink-0" /> Belum ada HPP & belum ada riwayat pembelian</p>
                                                 )}
                                                 {fallback && (
-                                                    <p className="text-[10px] text-blue-600 mt-0.5">💡 Pakai harga beli terakhir (HPP varian belum di-set)</p>
+                                                    <p className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 mt-0.5"><Lightbulb className="h-3 w-3 shrink-0" /> Pakai harga beli terakhir (HPP varian belum di-set)</p>
                                                 )}
                                             </div>
                                             <div className="text-right text-xs">

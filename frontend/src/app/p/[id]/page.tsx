@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { getPublicProduct } from '@/lib/api/products';
 import { getPublicSettings } from '@/lib/api/settings';
-import { ChevronLeft, ChevronRight, MessageCircle, Tag, Layers } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageCircle, Tag, Layers, Package, PackageSearch } from 'lucide-react';
 
 interface PriceTier {
     id: number;
@@ -82,10 +82,10 @@ export default function PublicProductPage() {
 
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-dvh flex items-center justify-center bg-background">
                 <div className="text-center">
-                    <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                    <p className="text-gray-500 text-sm">Memuat produk...</p>
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                    <p className="text-muted-foreground text-sm">Memuat produk...</p>
                 </div>
             </div>
         );
@@ -93,11 +93,11 @@ export default function PublicProductPage() {
 
     if (notFound || !product) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-dvh flex items-center justify-center bg-background">
                 <div className="text-center px-6">
-                    <div className="text-5xl mb-4">🔍</div>
-                    <h1 className="text-xl font-semibold text-gray-800 mb-2">Produk tidak ditemukan</h1>
-                    <p className="text-gray-500 text-sm">Link yang kamu akses mungkin sudah tidak aktif.</p>
+                    <PackageSearch className="h-12 w-12 mx-auto mb-4 text-muted-foreground/60" />
+                    <h1 className="text-xl font-semibold text-foreground mb-2">Produk tidak ditemukan</h1>
+                    <p className="text-muted-foreground text-sm">Link yang kamu akses mungkin sudah tidak aktif.</p>
                 </div>
             </div>
         );
@@ -127,24 +127,24 @@ export default function PublicProductPage() {
         : null;
 
     return (
-        <div className="min-h-screen bg-gray-50 flex flex-col">
+        <div className="min-h-dvh bg-background flex flex-col">
             {/* Header */}
-            <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+            <header className="bg-card/80 backdrop-blur-xl border-b border-border px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
                 {settings?.logoImageUrl ? (
                     <img src={resolveImageUrl(settings.logoImageUrl)!} alt="logo" className="h-8 w-8 object-contain rounded" />
                 ) : (
-                    <div className="h-8 w-8 rounded bg-blue-600 flex items-center justify-center">
-                        <span className="text-white text-xs font-bold">{settings?.storeName?.charAt(0) ?? 'P'}</span>
+                    <div className="h-8 w-8 rounded bg-primary flex items-center justify-center">
+                        <span className="text-primary-foreground text-xs font-bold">{settings?.storeName?.charAt(0) ?? 'P'}</span>
                     </div>
                 )}
-                <span className="font-semibold text-gray-800 text-sm">{settings?.storeName ?? 'Toko'}</span>
+                <span className="font-semibold text-foreground text-sm">{settings?.storeName ?? 'Toko'}</span>
             </header>
 
             <main className="flex-1 max-w-2xl mx-auto w-full px-0 sm:px-4 py-0 sm:py-6">
-                <div className="bg-white sm:rounded-xl sm:shadow-sm overflow-hidden">
+                <div className="bg-card sm:rounded-2xl sm:shadow-sm sm:border sm:border-border overflow-hidden">
                     {/* Image Gallery */}
                     {displayImages.length > 0 ? (
-                        <div className="relative bg-gray-100 aspect-square sm:aspect-[4/3] overflow-hidden">
+                        <div className="relative bg-muted aspect-square sm:aspect-[4/3] overflow-hidden">
                             <img
                                 src={currentImage!}
                                 alt={product.name}
@@ -178,8 +178,8 @@ export default function PublicProductPage() {
                             )}
                         </div>
                     ) : (
-                        <div className="aspect-square sm:aspect-[4/3] bg-gray-100 flex items-center justify-center">
-                            <span className="text-gray-400 text-4xl">📦</span>
+                        <div className="aspect-square sm:aspect-[4/3] bg-muted flex items-center justify-center">
+                            <Package className="h-12 w-12 text-muted-foreground/50" />
                         </div>
                     )}
 
@@ -187,13 +187,13 @@ export default function PublicProductPage() {
                         {/* Category + Pricing mode badge */}
                         <div className="flex flex-wrap gap-2 mb-2">
                             {product.category && (
-                                <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                <span className="inline-flex items-center gap-1 text-xs bg-accent text-accent-foreground px-2 py-0.5 rounded-full">
                                     <Tag className="w-3 h-3" />
                                     {product.category.name}
                                 </span>
                             )}
                             {isAreaBased && (
-                                <span className="inline-flex items-center gap-1 text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                                <span className="inline-flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-0.5 rounded-full">
                                     <Layers className="w-3 h-3" />
                                     Harga per m²
                                 </span>
@@ -201,16 +201,16 @@ export default function PublicProductPage() {
                         </div>
 
                         {/* Product name */}
-                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1">{product.name}</h1>
+                        <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1">{product.name}</h1>
 
                         {/* Unit */}
                         {product.unit && (
-                            <p className="text-xs text-gray-400 mb-3">Satuan: {product.unit.name}</p>
+                            <p className="text-xs text-muted-foreground mb-3">Satuan: {product.unit.name}</p>
                         )}
 
                         {/* Description */}
                         {product.description && (
-                            <p className="text-sm text-gray-600 leading-relaxed mb-4 whitespace-pre-wrap">{product.description}</p>
+                            <p className="text-sm text-muted-foreground leading-relaxed mb-4 whitespace-pre-wrap">{product.description}</p>
                         )}
 
                         {/* Variants */}
@@ -225,8 +225,8 @@ export default function PublicProductPage() {
                                                 onClick={() => { setActiveVariantIdx(i); setActiveImageIdx(0); }}
                                                 className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                                                     i === activeVariantIdx
-                                                        ? 'bg-blue-600 text-white border-blue-600'
-                                                        : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'
+                                                        ? 'bg-primary text-primary-foreground border-primary'
+                                                        : 'bg-card text-muted-foreground border-border hover:border-primary/50'
                                                 }`}
                                             >
                                                 {v.variantName ?? v.sku}
@@ -237,31 +237,31 @@ export default function PublicProductPage() {
 
                                 {/* Active variant details */}
                                 {activeVariant && (
-                                    <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                                    <div className="border border-border rounded-xl p-4 bg-muted/50">
                                         {/* Variant name + attributes */}
                                         <div className="flex flex-wrap gap-2 mb-3">
                                             {activeVariant.variantName && (
-                                                <span className="text-sm font-semibold text-gray-800">{activeVariant.variantName}</span>
+                                                <span className="text-sm font-semibold text-foreground">{activeVariant.variantName}</span>
                                             )}
                                             {activeVariant.size && (
-                                                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">{activeVariant.size}</span>
+                                                <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded">{activeVariant.size}</span>
                                             )}
                                             {activeVariant.color && (
-                                                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">{activeVariant.color}</span>
+                                                <span className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded">{activeVariant.color}</span>
                                             )}
                                         </div>
 
                                         {/* SKU */}
-                                        <p className="text-xs text-gray-400 mb-3">SKU: {activeVariant.sku}</p>
+                                        <p className="text-xs text-muted-foreground mb-3">SKU: {activeVariant.sku}</p>
 
                                         {/* Price tiers or base price */}
                                         {activeVariant.priceTiers.length > 0 ? (
                                             <div>
-                                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Harga Bertingkat</p>
+                                                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Harga Bertingkat</p>
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-sm">
                                                         <thead>
-                                                            <tr className="text-left text-xs text-gray-500 border-b border-gray-200">
+                                                            <tr className="text-left text-xs text-muted-foreground border-b border-border">
                                                                 <th className="pb-1.5 font-medium">Nama Tier</th>
                                                                 <th className="pb-1.5 font-medium">Min. Qty</th>
                                                                 <th className="pb-1.5 font-medium text-right">Harga</th>
@@ -269,12 +269,12 @@ export default function PublicProductPage() {
                                                         </thead>
                                                         <tbody>
                                                             {activeVariant.priceTiers.map((tier) => (
-                                                                <tr key={tier.id} className="border-b border-gray-100 last:border-0">
-                                                                    <td className="py-1.5 text-gray-700">{tier.tierName ?? '—'}</td>
-                                                                    <td className="py-1.5 text-gray-600">≥ {tier.minQty}{tier.maxQty ? ` – ${tier.maxQty}` : '+'}</td>
-                                                                    <td className="py-1.5 text-right font-semibold text-blue-700">
+                                                                <tr key={tier.id} className="border-b border-border/60 last:border-0">
+                                                                    <td className="py-1.5 text-foreground/90">{tier.tierName ?? '—'}</td>
+                                                                    <td className="py-1.5 text-muted-foreground tabular-nums">≥ {tier.minQty}{tier.maxQty ? ` – ${tier.maxQty}` : '+'}</td>
+                                                                    <td className="py-1.5 text-right font-semibold text-foreground tabular-nums">
                                                                         {formatRupiah(Number(tier.price))}
-                                                                        {isAreaBased && <span className="text-xs font-normal text-gray-400">/m²</span>}
+                                                                        {isAreaBased && <span className="text-xs font-normal text-muted-foreground">/m²</span>}
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -284,9 +284,9 @@ export default function PublicProductPage() {
                                             </div>
                                         ) : (
                                             <div className="flex items-baseline gap-1">
-                                                <span className="text-2xl font-bold text-blue-700">{formatRupiah(Number(activeVariant.price))}</span>
-                                                {isAreaBased && <span className="text-sm text-gray-400">/m²</span>}
-                                                {product.unit && !isAreaBased && <span className="text-sm text-gray-400">/{product.unit.name}</span>}
+                                                <span className="text-2xl font-bold text-foreground tabular-nums">{formatRupiah(Number(activeVariant.price))}</span>
+                                                {isAreaBased && <span className="text-sm text-muted-foreground">/m²</span>}
+                                                {product.unit && !isAreaBased && <span className="text-sm text-muted-foreground">/{product.unit.name}</span>}
                                             </div>
                                         )}
                                     </div>
@@ -311,7 +311,7 @@ export default function PublicProductPage() {
             </main>
 
             {/* Footer */}
-            <footer className="text-center py-4 text-xs text-gray-400">
+            <footer className="text-center py-4 text-xs text-muted-foreground">
                 <p>{settings?.storeName ?? 'Toko'}</p>
                 <p className="mt-1">© 2026 Muhammad Faisal</p>
             </footer>

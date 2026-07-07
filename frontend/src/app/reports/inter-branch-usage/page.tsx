@@ -7,6 +7,7 @@ import {
     ArrowLeftRight, RefreshCw, Loader2, Building2, ChevronDown, ChevronUp,
     Package, ExternalLink, Calendar,
 } from 'lucide-react';
+import { PageHeader } from '@/components/ui/page-header';
 import { getInterBranchUsage } from '@/lib/api/inter-branch-usage';
 import { getPublicBranches, type PublicBranch } from '@/lib/api/production';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -151,31 +152,7 @@ export default function InterBranchUsageReportPage() {
     return (
         <div>
             {/* Page header */}
-            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <ArrowLeftRight className="w-6 h-6 text-primary" />
-                        Laporan Bahan Titipan Antar Cabang
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Tracking bahan dari cabang produksi yang dipakai untuk order titipan dari cabang lain.
-                        Tidak ada hutang formal — cuma audit visibility untuk owner.
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={handleExportCSV}
-                        disabled={!data || data.perBranch.length === 0}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-40"
-                    >
-                        Export CSV
-                    </button>
-                    <button onClick={() => refetch()} disabled={isLoading}
-                        className="text-sm bg-white border px-3 py-1.5 rounded-lg hover:bg-gray-50 flex items-center gap-1">
-                        <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
-                    </button>
-                </div>
-            </div>
+            <PageHeader title="Laporan Bahan Titipan Antar Cabang" description="Tracking bahan dari cabang produksi yang dipakai untuk order titipan dari cabang lain. Tidak ada hutang formal — cuma audit visibility untuk owner." icon={ArrowLeftRight} actions={<><button onClick={handleExportCSV} disabled={!data || data.perBranch.length === 0} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-40 transition-colors">Export CSV</button><button onClick={() => refetch()} disabled={isLoading} className="text-sm bg-card border border-border px-3 py-1.5 rounded-lg hover:bg-muted flex items-center gap-1 transition-colors disabled:opacity-50"><RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh</button></>} />
 
             {/* Filter bar */}
             <div className="rounded-xl glass shadow-sm p-4 space-y-3 mb-4">

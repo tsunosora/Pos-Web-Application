@@ -247,10 +247,14 @@ function DashboardTab({ month, year }: { month: number; year: number }) {
                     <p className="text-sm font-semibold text-foreground mb-4">Klik per Jenis Cetak</p>
                     <ResponsiveContainer width="100%" height={240}>
                         <BarChart data={data.byRate} margin={{ left: 0, right: 8 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
-                            <Tooltip formatter={(v: any) => [v.toLocaleString("id-ID"), "Klik"]} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                            <YAxis tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
+                            <Tooltip
+                                formatter={(v: any) => [v.toLocaleString("id-ID"), "Klik"]}
+                                contentStyle={{ backgroundColor: "var(--popover)", border: "1px solid var(--border)", color: "var(--popover-foreground)" }}
+                                labelStyle={{ color: "var(--foreground)" }}
+                            />
                             <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
                                 {data.byRate.map((_, i) => (
                                     <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />

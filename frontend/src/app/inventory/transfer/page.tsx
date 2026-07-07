@@ -203,7 +203,7 @@ export default function TransferStokPage() {
                                 ))}
                             </select>
                             {!isOwner && (
-                                <p className="mt-1 text-[11px] text-muted-foreground">
+                                <p className="mt-1 text-xs text-muted-foreground">
                                     Staff hanya bisa transfer dari cabangnya sendiri.
                                 </p>
                             )}
@@ -349,14 +349,14 @@ export default function TransferStokPage() {
                                     <div key={t.id} className="rounded-lg border border-border p-3 hover:bg-muted/30 transition-colors">
                                         <div className="mb-2 flex items-start justify-between gap-2">
                                             <div className="min-w-0">
-                                                <p className="text-[11px] font-mono text-muted-foreground">{t.transferNumber}</p>
+                                                <p className="text-xs font-mono text-muted-foreground">{t.transferNumber}</p>
                                                 <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-sm">
                                                     <span className="font-medium text-foreground">{fbLabel}</span>
                                                     <ArrowRightLeft className="h-3.5 w-3.5 text-primary" />
                                                     <span className="font-medium text-foreground">{tbLabel}</span>
                                                 </div>
                                             </div>
-                                            <span className="shrink-0 text-[11px] text-muted-foreground">
+                                            <span className="shrink-0 text-xs text-muted-foreground">
                                                 {new Date(t.createdAt).toLocaleString('id-ID')}
                                             </span>
                                         </div>
@@ -370,7 +370,7 @@ export default function TransferStokPage() {
                                             ))}
                                         </ul>
                                         {t.notes && (
-                                            <p className="mt-2 text-[11px] italic text-muted-foreground">"{t.notes}"</p>
+                                            <p className="mt-2 text-xs italic text-muted-foreground">"{t.notes}"</p>
                                         )}
                                     </div>
                                 );

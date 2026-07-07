@@ -365,7 +365,7 @@ export default function ProfitReportPage() {
                                                 </div>
                                                 <div className="text-xs text-muted-foreground mt-0.5">{item.sku}</div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium tabular-nums">
                                                 {item.isAreaBased ? (
                                                     <div>
                                                         <span className="font-bold text-foreground">
@@ -379,13 +379,13 @@ export default function ProfitReportPage() {
                                                     <span>{item.qty} {item.unit}</span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-foreground">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-foreground tabular-nums">
                                                 Rp {Number(item.revenue).toLocaleString('id-ID')}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-muted-foreground">
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-muted-foreground tabular-nums">
                                                 Rp {Number(item.totalHpp).toLocaleString('id-ID')}
                                             </td>
-                                            <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-bold ${isLoss ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                            <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-bold tabular-nums ${isLoss ? 'text-rose-600' : 'text-emerald-600'}`}>
                                                 Rp {Number(item.grossProfit).toLocaleString('id-ID')}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right">

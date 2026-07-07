@@ -45,7 +45,7 @@ function ToggleSwitch({ checked, onChange, disabled }: { checked: boolean; onCha
             onClick={() => onChange(!checked)}
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none disabled:opacity-40 ${checked ? 'bg-primary' : 'bg-muted-foreground/30'}`}
         >
-            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-primary-foreground shadow-md transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
     );
 }
@@ -246,7 +246,7 @@ export default function DiscordSettingsPage() {
                             {i > 0 && <div className="border-t border-dashed border-border my-1" />}
                             <div className="flex items-start justify-between gap-4 py-1.5">
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">{ev.label} <span className="text-[10px] font-normal text-muted-foreground">→ {CHANNEL_LABEL[ev.channel]}</span></p>
+                                    <p className="text-sm font-medium">{ev.label} <span className="text-xs font-normal text-muted-foreground">→ {CHANNEL_LABEL[ev.channel]}</span></p>
                                     <p className="text-xs text-muted-foreground mt-0.5">{ev.desc}</p>
                                 </div>
                                 <ToggleSwitch checked={eventOn(ev.key)} onChange={v => setEvent(ev.key, v)} disabled={!form.enabled} />

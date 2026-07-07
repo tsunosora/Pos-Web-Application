@@ -21,7 +21,7 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
             onClick={() => onChange(!checked)}
             className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${checked ? 'bg-primary' : 'bg-muted-foreground/30'}`}
         >
-            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
+            <span className={`inline-block h-5 w-5 transform rounded-full bg-primary-foreground shadow-md ring-0 transition-transform duration-200 ${checked ? 'translate-x-5' : 'translate-x-0'}`} />
         </button>
     );
 }
@@ -401,12 +401,12 @@ export default function NotificationsSettingsPage() {
                 </div>
 
                 {/* Step-by-step guide */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2">
-                    <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Cara Pasang Webhook di GitHub</h3>
-                    <ol className="text-xs text-slate-600 space-y-1.5 list-decimal ml-4">
+                <div className="bg-muted/50 border border-border rounded-xl p-4 space-y-2">
+                    <h3 className="text-xs font-bold text-foreground uppercase tracking-wide">Cara Pasang Webhook di GitHub</h3>
+                    <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal ml-4">
                         <li>Buka repository GitHub kamu → <strong>Settings</strong> → <strong>Webhooks</strong> → <strong>Add webhook</strong></li>
                         <li>Isi <strong>Payload URL</strong> dengan URL di atas (salin & tempel)</li>
-                        <li>Ubah <strong>Content type</strong> ke <code className="bg-slate-100 px-1 rounded">application/json</code></li>
+                        <li>Ubah <strong>Content type</strong> ke <code className="bg-muted px-1 rounded">application/json</code></li>
                         <li>Isi <strong>Secret</strong> jika kamu mengatur secret token di atas</li>
                         <li>Pilih event: <strong>Just the push event</strong></li>
                         <li>Centang <strong>Active</strong> lalu klik <strong>Add webhook</strong></li>

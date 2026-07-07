@@ -211,7 +211,7 @@ export default function GeneralSettings() {
                     </div>
 
                     {form.enableTax && (
-                        <div className="p-4 bg-muted/30 rounded-lg border border-border flex items-center gap-4">
+                        <div className="p-4 bg-muted/30 rounded-lg border border-border flex flex-col sm:flex-row sm:items-center gap-4">
                             <label className="text-sm font-medium whitespace-nowrap">Persentase PPN (%):</label>
                             <input
                                 type="number" step="0.1" min="0" value={form.taxRate}

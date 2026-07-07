@@ -17,7 +17,7 @@ function H2({ id, children }: { id: string; children: React.ReactNode }) {
     return (
         <h2
             id={id}
-            className="scroll-mt-20 text-xl font-bold text-gray-900 mt-10 mb-4 pb-3 border-b border-gray-200"
+            className="scroll-mt-20 text-xl font-bold text-foreground mt-10 mb-4 pb-3 border-b border-border"
         >
             {children}
         </h2>
@@ -26,23 +26,23 @@ function H2({ id, children }: { id: string; children: React.ReactNode }) {
 
 function H3({ id, children }: { id?: string; children: React.ReactNode }) {
     return (
-        <h3 id={id} className="scroll-mt-20 text-base font-semibold text-gray-800 mt-6 mb-3">
+        <h3 id={id} className="scroll-mt-20 text-base font-semibold text-foreground mt-6 mb-3">
             {children}
         </h3>
     );
 }
 
 function P({ children }: { children: React.ReactNode }) {
-    return <p className="text-gray-600 leading-relaxed mb-3 text-[15px]">{children}</p>;
+    return <p className="text-muted-foreground leading-relaxed mb-3 text-[15px]">{children}</p>;
 }
 
 function Ul({ children }: { children: React.ReactNode }) {
-    return <ul className="list-disc list-inside space-y-1.5 text-gray-600 mb-4 text-[15px] pl-2">{children}</ul>;
+    return <ul className="list-disc list-inside space-y-1.5 text-muted-foreground mb-4 text-[15px] pl-2">{children}</ul>;
 }
 
 function Code({ children }: { children: React.ReactNode }) {
     return (
-        <code className="bg-gray-100 border border-gray-200 text-green-700 px-1.5 py-0.5 rounded text-[13px] font-mono">
+        <code className="bg-muted border border-border text-accent-foreground px-1.5 py-0.5 rounded text-[13px] font-mono">
             {children}
         </code>
     );
@@ -58,10 +58,10 @@ function Callout({
     children: React.ReactNode;
 }) {
     const cfg = {
-        info: { bg: "bg-blue-50", border: "border-blue-400", text: "text-blue-800", icon: <Info size={15} className="flex-shrink-0 mt-0.5" /> },
-        tip: { bg: "bg-green-50", border: "border-green-400", text: "text-green-800", icon: <CheckCircle size={15} className="flex-shrink-0 mt-0.5" /> },
-        warning: { bg: "bg-amber-50", border: "border-amber-400", text: "text-amber-800", icon: <AlertCircle size={15} className="flex-shrink-0 mt-0.5" /> },
-        danger: { bg: "bg-red-50", border: "border-red-400", text: "text-red-800", icon: <AlertCircle size={15} className="flex-shrink-0 mt-0.5" /> },
+        info: { bg: "bg-blue-500/10", border: "border-blue-500", text: "text-blue-700 dark:text-blue-300", icon: <Info size={15} className="flex-shrink-0 mt-0.5" /> },
+        tip: { bg: "bg-primary/10", border: "border-primary", text: "text-accent-foreground", icon: <CheckCircle size={15} className="flex-shrink-0 mt-0.5" /> },
+        warning: { bg: "bg-amber-500/10", border: "border-amber-500", text: "text-amber-700 dark:text-amber-300", icon: <AlertCircle size={15} className="flex-shrink-0 mt-0.5" /> },
+        danger: { bg: "bg-red-500/10", border: "border-red-500", text: "text-red-700 dark:text-red-300", icon: <AlertCircle size={15} className="flex-shrink-0 mt-0.5" /> },
     };
     const c = cfg[type];
     return (
@@ -85,14 +85,14 @@ function Table({
     rows: (string | React.ReactNode)[][];
 }) {
     return (
-        <div className="overflow-x-auto mb-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="overflow-x-auto mb-6 rounded-xl border border-border shadow-sm">
             <table className="w-full border-collapse text-sm">
                 <thead>
-                    <tr className="bg-gray-50">
+                    <tr className="bg-muted/50">
                         {headers.map((h, i) => (
                             <th
                                 key={i}
-                                className="border-b border-gray-200 px-4 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                                className="border-b border-border px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                             >
                                 {h}
                             </th>
@@ -101,9 +101,9 @@ function Table({
                 </thead>
                 <tbody>
                     {rows.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-100 last:border-0 even:bg-gray-50/40 hover:bg-green-50/50 transition-colors">
+                        <tr key={i} className="border-b border-border/60 last:border-0 even:bg-muted/30 hover:bg-primary/10 transition-colors">
                             {row.map((cell, j) => (
-                                <td key={j} className="px-4 py-2.5 text-gray-600 align-top">
+                                <td key={j} className="px-4 py-2.5 text-muted-foreground align-top">
                                     {cell}
                                 </td>
                             ))}
@@ -120,12 +120,12 @@ function Steps({ steps }: { steps: { title: string; desc?: React.ReactNode }[] }
         <div className="space-y-3 mb-6">
             {steps.map((s, i) => (
                 <div key={i} className="flex gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-green-500 text-white flex items-center justify-center text-xs font-bold mt-0.5">
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-bold mt-0.5">
                         {i + 1}
                     </div>
                     <div>
-                        <div className="font-medium text-gray-800 text-sm">{s.title}</div>
-                        {s.desc && <div className="text-gray-500 text-sm mt-0.5">{s.desc}</div>}
+                        <div className="font-medium text-foreground text-sm">{s.title}</div>
+                        {s.desc && <div className="text-muted-foreground text-sm mt-0.5">{s.desc}</div>}
                     </div>
                 </div>
             ))}
@@ -1004,16 +1004,16 @@ function SecFAQ() {
                 {pg.pageItems.map((faq, i) => (
                     <details
                         key={`${pg.page}-${i}`}
-                        className="group border border-gray-200 rounded-lg overflow-hidden"
+                        className="group border border-border rounded-xl overflow-hidden"
                     >
-                        <summary className="flex items-center justify-between cursor-pointer px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors list-none">
-                            <span className="font-medium text-gray-800 text-sm">{faq.q}</span>
+                        <summary className="flex items-center justify-between cursor-pointer px-4 py-3 bg-muted/50 hover:bg-muted transition-colors list-none">
+                            <span className="font-medium text-foreground text-sm">{faq.q}</span>
                             <ChevronDown
                                 size={16}
-                                className="text-gray-400 flex-shrink-0 transition-transform group-open:rotate-180"
+                                className="text-muted-foreground flex-shrink-0 transition-transform group-open:rotate-180"
                             />
                         </summary>
-                        <div className="px-4 py-3 text-gray-600 text-sm leading-relaxed border-t border-gray-100">
+                        <div className="px-4 py-3 text-muted-foreground text-sm leading-relaxed border-t border-border">
                             {faq.a}
                         </div>
                     </details>
@@ -1389,10 +1389,10 @@ function Sidebar({ activeId, onNavigate }: { activeId: string; onNavigate: (id: 
     return (
         <div className="h-full overflow-y-auto py-4 px-2">
             <div className="mb-4 px-3">
-                <div className="text-[11px] font-bold uppercase tracking-widest text-gray-400 mb-1">Panduan PosPro</div>
+                <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Panduan PosPro</div>
                 <button
                     onClick={() => onNavigate("setup")}
-                    className="text-[13px] text-green-700 hover:underline font-medium"
+                    className="text-[13px] text-accent-foreground hover:underline font-medium"
                 >
                     ← Mulai dari sini
                 </button>
@@ -1403,7 +1403,7 @@ function Sidebar({ activeId, onNavigate }: { activeId: string; onNavigate: (id: 
                     <div key={g.label} className="mb-1">
                         <button
                             onClick={() => setOpen((p) => ({ ...p, [g.label]: !p[g.label] }))}
-                            className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors"
+                            className="w-full flex items-center justify-between px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
                         >
                             <span className="flex items-center gap-1.5">{g.icon}{g.label}</span>
                             <ChevronDown size={11} className={`transition-transform ${isOpen ? "" : "-rotate-90"}`} />
@@ -1415,8 +1415,8 @@ function Sidebar({ activeId, onNavigate }: { activeId: string; onNavigate: (id: 
                                         key={item.id}
                                         onClick={() => onNavigate(item.id)}
                                         className={`w-full text-left px-4 py-1.5 rounded-md text-[13px] transition-colors ${activeId === item.id
-                                            ? "bg-green-100 text-green-800 font-semibold border-l-2 border-green-500 pl-[14px]"
-                                            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                                            ? "bg-primary/15 text-foreground font-semibold border-l-2 border-primary pl-[14px]"
+                                            : "text-muted-foreground hover:text-foreground hover:bg-muted"
                                             }`}
                                     >
                                         {item.label}
@@ -1463,29 +1463,29 @@ export default function HelpPage() {
     }, []);
 
     return (
-        <div className="min-h-screen bg-white flex flex-col">
+        <div className="min-h-dvh bg-background flex flex-col">
             {/* Header */}
-            <header className="sticky top-0 z-50 h-14 border-b border-gray-200 bg-white/95 backdrop-blur-sm flex items-center px-4 gap-3 shadow-sm">
+            <header className="sticky top-0 z-50 h-14 border-b border-border bg-card/80 backdrop-blur-xl flex items-center px-4 gap-3 shadow-sm">
                 <Link
                     href="/"
-                    className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors shrink-0"
+                    className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors shrink-0"
                 >
                     <ArrowLeft size={15} />
                     <span className="hidden sm:inline">Kembali ke Aplikasi</span>
                 </Link>
-                <div className="w-px h-5 bg-gray-200 hidden sm:block" />
+                <div className="w-px h-5 bg-border hidden sm:block" />
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className="w-7 h-7 bg-green-500 rounded-lg flex items-center justify-center shrink-0">
-                        <BookOpen size={14} className="text-white" />
+                    <div className="w-7 h-7 bg-primary rounded-lg flex items-center justify-center shrink-0">
+                        <BookOpen size={14} className="text-primary-foreground" />
                     </div>
                     <div className="min-w-0">
-                        <span className="font-bold text-gray-900 text-sm">Panduan PosPro</span>
-                        <span className="hidden sm:inline text-gray-400 text-sm ml-2">Manual Book &amp; Dokumentasi</span>
+                        <span className="font-bold text-foreground text-sm">Panduan PosPro</span>
+                        <span className="hidden sm:inline text-muted-foreground text-sm ml-2">Manual Book &amp; Dokumentasi</span>
                     </div>
                 </div>
-                <span className="hidden sm:inline text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full shrink-0">v5.2</span>
+                <span className="hidden sm:inline text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">v5.2</span>
                 <button
-                    className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+                    className="lg:hidden p-2 rounded-lg hover:bg-muted text-muted-foreground"
                     onClick={() => setSidebarOpen(!sidebarOpen)}
                     aria-label="Toggle menu"
                 >
@@ -1495,15 +1495,15 @@ export default function HelpPage() {
 
             <div className="flex flex-1">
                 {/* Sidebar Desktop */}
-                <aside className="hidden lg:block w-60 shrink-0 border-r border-gray-100 sticky top-14 self-start h-[calc(100vh-3.5rem)]">
+                <aside className="hidden lg:block w-60 shrink-0 border-r border-border sticky top-14 self-start h-[calc(100vh-3.5rem)]">
                     <Sidebar activeId={activeId} onNavigate={scrollTo} />
                 </aside>
 
                 {/* Sidebar Mobile */}
                 {sidebarOpen && (
                     <>
-                        <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-                        <aside className="fixed top-14 left-0 bottom-0 z-50 w-64 bg-white border-r border-gray-200 lg:hidden overflow-y-auto shadow-xl">
+                        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
+                        <aside className="fixed top-14 left-0 bottom-0 z-50 w-64 bg-card border-r border-border lg:hidden overflow-y-auto shadow-xl">
                             <Sidebar activeId={activeId} onNavigate={scrollTo} />
                         </aside>
                     </>
@@ -1525,10 +1525,10 @@ export default function HelpPage() {
                     <SecPengaturan />
                     <SecFAQ />
 
-                    <div className="mt-16 pt-8 border-t border-gray-200 text-center">
-                        <p className="text-sm font-semibold text-gray-600">PosPro Manual Book</p>
-                        <p className="text-xs text-gray-400 mt-1">© 2026 Muhammad Faisal. All rights reserved.</p>
-                        <Link href="/" className="inline-block mt-4 text-sm text-green-600 hover:text-green-700 hover:underline font-medium">
+                    <div className="mt-16 pt-8 border-t border-border text-center">
+                        <p className="text-sm font-semibold text-foreground">PosPro Manual Book</p>
+                        <p className="text-xs text-muted-foreground mt-1">© 2026 Muhammad Faisal. All rights reserved.</p>
+                        <Link href="/" className="inline-block mt-4 text-sm text-accent-foreground hover:underline font-medium">
                             ← Kembali ke Aplikasi
                         </Link>
                     </div>

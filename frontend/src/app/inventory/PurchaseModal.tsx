@@ -232,7 +232,7 @@ export default function PurchaseModal({ onClose }: Props) {
                                 <div className="border border-border rounded-xl overflow-x-auto">
                                     <div className="min-w-[420px]">
                                     {/* Header */}
-                                    <div className="grid grid-cols-[1fr_100px_120px_32px] gap-2 px-3 py-2 bg-muted/50 text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+                                    <div className="grid grid-cols-[1fr_100px_120px_32px] gap-2 px-3 py-2 bg-muted/50 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                                         <span>Produk</span>
                                         <span className="text-right">Jumlah</span>
                                         <span className="text-right">Harga Beli/Unit</span>

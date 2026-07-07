@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { getUsers, getRoles, updateUser, deleteUser, createRole, updateRole, deleteRole, createUser } from "@/lib/api";
 import { Loader2, ShieldAlert, UserCog, Plus, Trash2, Edit, X, Shield, Key, Building2 } from "lucide-react";
 import axios from "@/lib/api/client";
+import { badgeToneClass } from "@/components/ui/status-badge";
 
 const OWNER_ROLE_NAMES = ["owner", "superadmin", "super_admin", "super admin"];
 const isOwnerRoleName = (name?: string | null) =>
@@ -256,12 +257,12 @@ export default function UserManagementSettings() {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             {user.branch ? (
-                                                <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 text-xs font-semibold px-2 py-0.5 rounded-full">
+                                                <span className={`inline-flex items-center gap-1 ${badgeToneClass.neutral} border text-xs font-semibold px-2 py-0.5 rounded-full`}>
                                                     <Building2 className="w-3 h-3" />
                                                     {user.branch.code || user.branch.name}
                                                 </span>
                                             ) : isOwnerRoleName(user.role?.name) ? (
-                                                <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-xs font-semibold px-2 py-0.5 rounded-full border border-emerald-200">
+                                                <span className={`inline-flex items-center gap-1 ${badgeToneClass.success} border text-xs font-semibold px-2 py-0.5 rounded-full`}>
                                                     Semua Cabang
                                                 </span>
                                             ) : (
@@ -364,7 +365,7 @@ export default function UserManagementSettings() {
                                     ))}
                                 </select>
                                 {!userModalIsOwner && (
-                                    <p className="text-[11px] text-muted-foreground">
+                                    <p className="text-xs text-muted-foreground">
                                         User ini hanya bisa login & akses data cabang yang dipilih.
                                     </p>
                                 )}

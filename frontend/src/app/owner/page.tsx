@@ -28,6 +28,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { BonusPanel } from "./BonusPanel";
 import { CsRatingSection } from "@/components/owner/CsRatingSection";
+import { badgeToneClass } from "@/components/ui/status-badge";
 
 dayjs.locale("id");
 
@@ -44,8 +45,8 @@ const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 11 } as const;
 
 const CAT_LABEL: Record<FixedExpenseCategory, string> = { GAJI: "Gaji", SEWA: "Sewa", ANGSURAN: "Angsuran", SUPPLIER: "Supplier", LAINNYA: "Lainnya" };
 const CAT_CLS: Record<FixedExpenseCategory, string> = {
-    GAJI: "bg-indigo-100 text-indigo-700", SEWA: "bg-amber-100 text-amber-700",
-    ANGSURAN: "bg-violet-100 text-violet-700", SUPPLIER: "bg-sky-100 text-sky-700", LAINNYA: "bg-slate-100 text-slate-700",
+    GAJI: badgeToneClass.info, SEWA: badgeToneClass.warning,
+    ANGSURAN: badgeToneClass.accent, SUPPLIER: badgeToneClass.success, LAINNYA: badgeToneClass.neutral,
 };
 const CATEGORIES: FixedExpenseCategory[] = ["GAJI", "SEWA", "ANGSURAN", "SUPPLIER", "LAINNYA"];
 
@@ -346,7 +347,7 @@ export default function OwnerDashboardPage() {
                                             </div>
                                             <div className="flex items-center gap-2 shrink-0">
                                                 <span className="text-sm font-mono font-semibold text-foreground">{fmtRp(e.amount)}</span>
-                                                <button onClick={() => toggleMut.mutate({ id: e.id, isActive: !e.isActive })} title={e.isActive ? "Nonaktifkan" : "Aktifkan"} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${e.isActive ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{e.isActive ? "Aktif" : "Off"}</button>
+                                                <button onClick={() => toggleMut.mutate({ id: e.id, isActive: !e.isActive })} title={e.isActive ? "Nonaktifkan" : "Aktifkan"} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${e.isActive ? badgeToneClass.success : "bg-muted text-muted-foreground"}`}>{e.isActive ? "Aktif" : "Off"}</button>
                                                 <button onClick={() => startEdit(e)} className="text-muted-foreground hover:text-foreground"><Pencil className="h-3.5 w-3.5" /></button>
                                                 <button onClick={() => { if (confirm(`Hapus beban "${e.name}"?`)) deleteMut.mutate(e.id); }} className="text-red-400 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
                                             </div>
