@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { exportSheetsToExcel } from "@/lib/export";
 import type { FinanceMonthlyReport } from "@/lib/api/finance-analytics";
 
 const num = (n: number) => Math.round(Number(n) || 0).toLocaleString("id-ID");
@@ -98,4 +99,80 @@ export function buildMonthlyReportPDF(d: FinanceMonthlyReport) {
     }
 
     doc.save(`Laporan_Bulanan_${(d.branchName || "SemuaCabang").replace(/\s+/g, "_")}_${d.period.monthLabel}_${d.period.year}.pdf`);
+}
+
+/** Bangun & unduh Excel laporan keuangan bulanan owner (multi-sheet). */
+export function buildMonthlyReportExcel(d: FinanceMonthlyReport) {
+    const title = `${d.branchName || "Semua Cabang"} — ${d.period.monthLabel} ${d.period.year}`;
+
+    const ringkasan: (string | number)[][] = [
+        ["LAPORAN KEUANGAN BULANAN"], [title], [],
+        ["RINGKASAN", "Nilai"],
+        ["Omzet (uang masuk)", d.summary.income],
+        ["Pengeluaran (uang keluar)", d.summary.expense],
+        ["Laba / Rugi (kas)", d.summary.net],
+        ["Margin (%)", d.summary.margin],
+        ["Sisa Piutang", d.summary.receivables.sisa],
+    ];
+
+    const analisa: (string | number)[][] = [
+        ["ANALISA OTOMATIS"], [title], [],
+        ...([
+            ["Ringkasan Eksekutif", d.analysis.executive],
+            ["Perkembangan Perusahaan", d.analysis.growth],
+            ["Efisiensi Biaya", d.analysis.efficiency],
+            ["Kesehatan Arus Kas", d.analysis.cashHealth],
+            ["Peringatan", d.analysis.warnings],
+            ["Rekomendasi", d.analysis.recommendations],
+        ] as [string, string[]][]).flatMap(([head, lines]) => lines.length ? [[head], ...lines.map((l) => ["", l]), []] : []),
+    ];
+
+    const perkembangan: (string | number)[][] = [
+        ["PERKEMBANGAN PERUSAHAAN (6 BULAN)"], [title], [],
+        ["Bulan", "Omzet", "Pengeluaran", "Laba", "Margin (%)"],
+        ...d.trend.months.map((mo) => [mo.label, mo.income, mo.expense, mo.net, mo.margin]),
+    ];
+
+    const pendapatan: (string | number)[][] = [
+        ["Kanal", "Jumlah"],
+        ...d.summary.incomeChannels.map((c) => [c.channel, c.total]),
+        ["TOTAL", d.summary.income],
+    ];
+
+    const pengeluaran: (string | number)[][] = [
+        ["Kategori", "Jumlah", "%"],
+        ...d.summary.expenseCategories.map((c) => [c.category, c.amount, c.pct]),
+        ["TOTAL", d.summary.expense, 100],
+    ];
+
+    const perbandingan: (string | number)[][] = [
+        ["PERBANDINGAN vs BULAN SEBELUMNYA"], [title], [],
+        ["", "Bulan Ini", "Bulan Lalu", "Selisih", "%"],
+        ["Omzet", d.summary.income, d.comparison.previous.income, d.comparison.delta.income, d.comparison.delta.incomePct],
+        ["Pengeluaran", d.summary.expense, d.comparison.previous.expense, d.comparison.delta.expense, d.comparison.delta.expensePct],
+        ["Laba", d.summary.net, d.comparison.previous.net, d.comparison.delta.net, d.comparison.delta.netPct],
+        [],
+        ["Perubahan Biaya Terbesar", "Bulan Ini", "Bulan Lalu", "Selisih"],
+        ...d.comparison.topExpenseChanges.map((c) => [c.category, c.current, c.previous, c.delta]),
+    ];
+
+    const sheets: { name: string; aoa: (string | number)[][] }[] = [
+        { name: "Ringkasan", aoa: ringkasan },
+        { name: "Analisa", aoa: analisa },
+        { name: "Perkembangan", aoa: perkembangan },
+        { name: "Pendapatan", aoa: pendapatan },
+        { name: "Pengeluaran", aoa: pengeluaran },
+        { name: "Perbandingan", aoa: perbandingan },
+    ];
+    if (d.anomalies.items.length) {
+        sheets.push({
+            name: "Anomali",
+            aoa: [
+                ["Tanggal", "Tingkat", "Keterangan", "Nilai"],
+                ...d.anomalies.items.map((a) => [a.date, a.severity.toUpperCase(), a.reason, a.amount]),
+            ],
+        });
+    }
+
+    exportSheetsToExcel(sheets, `Laporan_Bulanan_${(d.branchName || "SemuaCabang").replace(/\s+/g, "_")}_${d.period.monthLabel}_${d.period.year}.xlsx`);
 }

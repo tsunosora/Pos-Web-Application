@@ -9,14 +9,14 @@ import {
 } from "recharts";
 import {
     ArrowLeft, FileText, Loader2, Lock, FileBarChart, TrendingUp, TrendingDown, Minus,
-    Sparkles, Rocket, Wallet, Scale, AlertTriangle, Lightbulb, Building2,
+    Sparkles, Rocket, Wallet, Scale, AlertTriangle, Lightbulb, Building2, Download,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import api from "@/lib/api/client";
 import { getFinanceMonthlyReport, type FinanceMonthlyReport } from "@/lib/api/finance-analytics";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
-import { buildMonthlyReportPDF } from "@/lib/report-pdf";
+import { buildMonthlyReportPDF, buildMonthlyReportExcel } from "@/lib/report-pdf";
 
 dayjs.locale("id");
 const rp = (n: number) => "Rp " + Math.round(Number(n) || 0).toLocaleString("id-ID");
@@ -75,10 +75,16 @@ export default function LaporanBulananPage() {
                     <input type="checkbox" checked={includeFixed} onChange={(e) => setIncludeFixed(e.target.checked)} className="accent-[var(--primary)]" />
                     Sertakan beban tetap
                 </label>
-                <button onClick={() => data && buildMonthlyReportPDF(data)} disabled={!data}
-                    className="ml-auto inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 disabled:opacity-50">
-                    <FileText className="h-4 w-4" /> Export PDF
-                </button>
+                <div className="ml-auto flex items-center gap-2">
+                    <button onClick={() => data && buildMonthlyReportExcel(data)} disabled={!data}
+                        className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-500/20 disabled:opacity-50">
+                        <Download className="h-4 w-4" /> Excel
+                    </button>
+                    <button onClick={() => data && buildMonthlyReportPDF(data)} disabled={!data}
+                        className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 disabled:opacity-50">
+                        <FileText className="h-4 w-4" /> PDF
+                    </button>
+                </div>
             </div>
 
             <p className="text-xs text-muted-foreground -mt-2">
