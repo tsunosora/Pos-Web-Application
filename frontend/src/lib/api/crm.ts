@@ -471,6 +471,8 @@ export interface KpiLeaderboardEntry {
     walkinTx: number;
     walkinPcs: number;
     walkinValue: number;
+    // Jumlah nota yang berhasil terkirim (job produksi mencapai stage KIRIM, non-retur) dalam periode
+    notasShipped: number;
     omzetShare: number;   // bagian omzet nota utk CS (nota dibagi per peran)
     closingRate: number;
     avgResponseHrs: number | null;
