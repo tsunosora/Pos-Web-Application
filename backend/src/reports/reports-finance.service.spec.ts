@@ -74,21 +74,39 @@ describe('ReportsService.getFinanceCandles', () => {
         expect(res.summary.trend).toBe('bullish');
     });
 
-    it('alokasikan FixedExpense sebagai expense pada dueDay', async () => {
+    it('proyeksikan FixedExpense pada dueDay yang BELUM tiba (masa depan)', async () => {
         const prisma = makePrisma({
             cashflow: {
                 groupBy: jest.fn().mockResolvedValue([]),
                 findMany: jest.fn().mockResolvedValue([]),
             },
-            fixedExpense: { findMany: jest.fn().mockResolvedValue([{ name: 'Sewa', category: 'SEWA', amount: 400, dueDay: 5, isActive: true }]) },
+            fixedExpense: { findMany: jest.fn().mockResolvedValue([{ id: 1, name: 'Sewa', category: 'SEWA', amount: 400, dueDay: 5, isActive: true }]) },
         });
         const svc = await build(prisma);
+        // "Hari ini" = 1 Juli 2026 → jatuh tempo 5 Juli masih di depan, jadi diproyeksikan.
+        jest.spyOn(svc as any, 'now').mockReturnValue(new Date('2026-07-01T08:00:00'));
         const res = await svc.getFinanceCandles(OWNER, 'day', '2026-07-01', '2026-07-31', true);
         expect(res.candles).toHaveLength(1);
         expect(res.candles[0].time).toBe('2026-07-05');
         expect(res.candles[0].expense).toBe(400);
         expect(res.summary.closingBalance).toBe(-400);
         expect(res.summary.trend).toBe('bearish');
+    });
+
+    it('JANGAN suntik FixedExpense untuk dueDay yang sudah lewat (riwayat = kas nyata saja)', async () => {
+        const prisma = makePrisma({
+            cashflow: {
+                groupBy: jest.fn().mockResolvedValue([]),
+                findMany: jest.fn().mockResolvedValue([]),
+            },
+            fixedExpense: { findMany: jest.fn().mockResolvedValue([{ id: 1, name: 'Sewa', category: 'SEWA', amount: 400, dueDay: 5, isActive: true }]) },
+        });
+        const svc = await build(prisma);
+        // "Hari ini" = 20 Juli 2026 → jatuh tempo 5 Juli sudah lewat: TIDAK diproyeksikan (dianggap sudah ada di Cashflow).
+        jest.spyOn(svc as any, 'now').mockReturnValue(new Date('2026-07-20T08:00:00'));
+        const res = await svc.getFinanceCandles(OWNER, 'day', '2026-07-01', '2026-07-31', true);
+        expect(res.candles).toHaveLength(0);
+        expect(res.summary.closingBalance).toBe(0);
     });
 });
 

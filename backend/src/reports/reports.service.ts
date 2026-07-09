@@ -1015,9 +1015,46 @@ export class ReportsService {
         return `${y}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
+    /** Jam dinding — dipisah agar bisa di-mock di test (proyeksi beban tetap bergantung "hari ini"). */
+    protected now(): Date {
+        return new Date();
+    }
+
+    /**
+     * Proyeksi Beban Tetap sebagai event pengeluaran, HANYA untuk tanggal jatuh tempo
+     * yang belum lewat (hari kalender > hari ini).
+     *
+     * Alasan (basis KAS): gaji/angsuran/sewa yang sudah dibayar SUDAH tercatat sebagai
+     * Cashflow EXPENSE nyata. Kalau disuntik lagi dari FixedExpense untuk bulan yang sudah
+     * berjalan → (1) double-count saldo, (2) menulis ulang riwayat dengan beban TERBARU
+     * (mis. beban 10 karyawan menimpa bulan lalu yang cuma 5 karyawan). FixedExpense murni
+     * template/anggaran ke depan, jadi hanya sah untuk memproyeksikan tanggal yang belum tiba.
+     */
+    private async projectedFixedExpenses(bw: any, start: Date, end: Date) {
+        const now = this.now();
+        const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
+        const out: { date: Date; amount: number; category: string; name: string; id: number }[] = [];
+        const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (cursor <= end) {
+            const y = cursor.getFullYear(), m = cursor.getMonth();
+            const lastDay = new Date(y, m + 1, 0).getDate();
+            for (const fe of fes) {
+                const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
+                const d = new Date(y, m, day, 12, 0, 0);
+                if (d >= start && d <= end && d > todayEnd) {
+                    out.push({ date: d, amount: Number(fe.amount || 0), category: fe.category || 'LAINNYA', name: fe.name, id: fe.id });
+                }
+            }
+            cursor.setMonth(cursor.getMonth() + 1);
+        }
+        return out;
+    }
+
     /**
      * Candlestick equity-curve: "harga" = saldo kas berjalan (running sum INCOME-EXPENSE).
-     * Basis Cashflow + FixedExpense (dialokasi per dueDay), exclude INTER_BRANCH_SETTLEMENT.
+     * Basis KAS NYATA (Cashflow) untuk periode yang sudah berjalan; FixedExpense hanya
+     * memproyeksikan tanggal jatuh tempo yang belum tiba. Exclude INTER_BRANCH_SETTLEMENT.
      */
     async getFinanceCandles(
         branchCtx: BranchContext,
@@ -1054,19 +1091,10 @@ export class ReportsService {
             events.push({ date: r.date, income: r.type === 'INCOME' ? amt : 0, expense: r.type === 'EXPENSE' ? amt : 0, isTx: true });
         }
 
-        // 3) FixedExpense teralokasi per bulan pada dueDay
+        // 3) FixedExpense — HANYA proyeksi tanggal jatuh tempo yang belum tiba (masa lalu = kas nyata)
         if (includeFixed) {
-            const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
-            const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
-            while (cursor <= end) {
-                const y = cursor.getFullYear(), m = cursor.getMonth();
-                const lastDay = new Date(y, m + 1, 0).getDate();
-                for (const fe of fes) {
-                    const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
-                    const d = new Date(y, m, day, 12, 0, 0);
-                    if (d >= start && d <= end) events.push({ date: d, income: 0, expense: num(fe.amount), isTx: false });
-                }
-                cursor.setMonth(cursor.getMonth() + 1);
+            for (const fe of await this.projectedFixedExpenses(bw, start, end)) {
+                events.push({ date: fe.date, income: 0, expense: fe.amount, isTx: false });
             }
         }
 
@@ -1183,17 +1211,8 @@ export class ReportsService {
         });
         for (const r of rows) raw.push({ date: r.date, type: r.type, source: 'cashflow', category: r.category, label: r.note || r.category, amount: num(r.amount), paymentMethod: r.paymentMethod || null, refId: r.id });
         if (includeFixed) {
-            const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
-            const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
-            while (cursor <= end) {
-                const y = cursor.getFullYear(), m = cursor.getMonth();
-                const lastDay = new Date(y, m + 1, 0).getDate();
-                for (const fe of fes) {
-                    const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
-                    const d = new Date(y, m, day, 12, 0, 0);
-                    if (d >= start && d <= end) raw.push({ date: d, type: 'EXPENSE', source: 'fixed', category: fe.category, label: `Beban tetap: ${fe.name}`, amount: num(fe.amount), paymentMethod: null, refId: fe.id });
-                }
-                cursor.setMonth(cursor.getMonth() + 1);
+            for (const fe of await this.projectedFixedExpenses(bw, start, end)) {
+                raw.push({ date: fe.date, type: 'EXPENSE', source: 'fixed', category: fe.category, label: `Proyeksi beban tetap: ${fe.name}`, amount: fe.amount, paymentMethod: null, refId: fe.id });
             }
         }
         raw.sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -1267,7 +1286,7 @@ export class ReportsService {
         return { period: { startDate, endDate }, count: anomalies.length, anomalies };
     }
 
-    /** Helper: total pemasukan/pengeluaran + pengeluaran per kategori (Cashflow + FixedExpense). */
+    /** Helper: total pemasukan/pengeluaran + pengeluaran per kategori (Cashflow nyata + proyeksi FixedExpense masa depan). */
     private async financeTotals(bw: any, start: Date, end: Date, includeFixed: boolean) {
         const num = (v: any) => Number(v || 0);
         const cfs: any[] = await this.prisma.cashflow.findMany({
@@ -1282,17 +1301,8 @@ export class ReportsService {
             else { expense += amt; const cat = c.category || 'LAINNYA'; expByCat[cat] = (expByCat[cat] || 0) + amt; }
         }
         if (includeFixed) {
-            const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
-            const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
-            while (cursor <= end) {
-                const y = cursor.getFullYear(), m = cursor.getMonth();
-                const lastDay = new Date(y, m + 1, 0).getDate();
-                for (const fe of fes) {
-                    const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
-                    const d = new Date(y, m, day, 12, 0, 0);
-                    if (d >= start && d <= end) { const amt = num(fe.amount); expense += amt; const cat = fe.category || 'LAINNYA'; expByCat[cat] = (expByCat[cat] || 0) + amt; }
-                }
-                cursor.setMonth(cursor.getMonth() + 1);
+            for (const fe of await this.projectedFixedExpenses(bw, start, end)) {
+                expense += fe.amount; expByCat[fe.category] = (expByCat[fe.category] || 0) + fe.amount;
             }
         }
         return { income, expense, net: income - expense, expByCat };
