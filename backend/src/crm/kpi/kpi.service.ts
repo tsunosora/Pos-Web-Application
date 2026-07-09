@@ -963,7 +963,7 @@ export class KpiService {
         });
 
         type Stat = {
-            assignment: number; acc: number; wip: number; retur: number;
+            assignment: number; acc: number; nungguAcc: number; wip: number; retur: number;
             selesai: number; batal: number; express: number;
             designSumMs: number; designCount: number;
         };
@@ -972,7 +972,7 @@ export class KpiService {
             const name = (j.designerName || '').trim();
             if (!name) continue;
             const s = byDesigner.get(name) || {
-                assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0,
+                assignment: 0, acc: 0, nungguAcc: 0, wip: 0, retur: 0, selesai: 0, batal: 0,
                 express: 0, designSumMs: 0, designCount: 0,
             };
             s.assignment++;
@@ -981,6 +981,7 @@ export class KpiService {
             } else {
                 const stage = j.pipelineStage || 'DESIGN';
                 if (stage === 'DESIGN') s.wip++;
+                else if (stage === 'ACC') s.nungguAcc++;
                 else if (stage === 'RETUR') s.retur++;
                 else if (FORWARD.has(stage)) s.acc++;
                 if (DONE.has(stage)) s.selesai++;
@@ -1039,7 +1040,7 @@ export class KpiService {
 
         // Union nama: designer dari production job + designer yang hanya punya SO
         const allNames = new Set<string>([...byDesigner.keys(), ...soByDesigner.keys(), ...soNotaByDesigner.keys()]);
-        const ZERO: Stat = { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, designSumMs: 0, designCount: 0 };
+        const ZERO: Stat = { assignment: 0, acc: 0, nungguAcc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, designSumMs: 0, designCount: 0 };
         const ZSO: SoStat = { invoiced: 0, omzet: 0, pcs: 0 };
 
         const leaderboard = Array.from(allNames)
@@ -1053,6 +1054,7 @@ export class KpiService {
                     assignment: s.assignment,
                     acc: s.acc,
                     accRate: denom > 0 ? s.acc / denom : 0,
+                    nungguAcc: s.nungguAcc,
                     wip: s.wip,
                     retur: s.retur,
                     selesai: s.selesai,
@@ -1073,6 +1075,7 @@ export class KpiService {
         const totals = leaderboard.reduce((t, r) => ({
             assignment: t.assignment + r.assignment,
             acc: t.acc + r.acc,
+            nungguAcc: t.nungguAcc + r.nungguAcc,
             wip: t.wip + r.wip,
             retur: t.retur + r.retur,
             selesai: t.selesai + r.selesai,
@@ -1082,7 +1085,7 @@ export class KpiService {
             soInvoiced: t.soInvoiced + r.soInvoiced,
             omzet: t.omzet + r.omzet,
             pcs: t.pcs + r.pcs,
-        }), { assignment: 0, acc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, soCreated: 0, soInvoiced: 0, omzet: 0, pcs: 0 });
+        }), { assignment: 0, acc: 0, nungguAcc: 0, wip: 0, retur: 0, selesai: 0, batal: 0, express: 0, soCreated: 0, soInvoiced: 0, omzet: 0, pcs: 0 });
 
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
@@ -1440,7 +1443,7 @@ export class KpiService {
             select: { designerName: true, pipelineStage: true, cancelledAt: true, isExpress: true, createdAt: true },
         });
 
-        const SUM_METRICS = ['assignment', 'soCreated', 'acc', 'wip', 'retur', 'selesai', 'batal', 'express'];
+        const SUM_METRICS = ['assignment', 'soCreated', 'acc', 'nungguAcc', 'wip', 'retur', 'selesai', 'batal', 'express'];
         const acc: Record<string, Map<string, Map<string, number>>> = {};
         for (const m of SUM_METRICS) acc[m] = new Map();
         const personTotals = new Map<string, number>();
@@ -1462,6 +1465,7 @@ export class KpiService {
             } else {
                 const stage = j.pipelineStage || 'DESIGN';
                 if (stage === 'DESIGN') add('wip', bk, person, 1);
+                else if (stage === 'ACC') add('nungguAcc', bk, person, 1);
                 else if (stage === 'RETUR') add('retur', bk, person, 1);
                 else if (FORWARD.has(stage)) add('acc', bk, person, 1);
                 if (DONE.has(stage)) add('selesai', bk, person, 1);

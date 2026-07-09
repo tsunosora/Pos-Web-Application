@@ -617,7 +617,7 @@ export class ProductionService {
     // Field `pipelineStage` di-set independen dari `status` (yang dipakai operator).
 
     private static readonly PIPELINE_STAGES = [
-        'DESIGN', 'PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'RETUR', 'SELESAI',
+        'DESIGN', 'ACC', 'PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'RETUR', 'SELESAI',
     ] as const;
 
     async getPipelineJobs(branchId?: number) {
@@ -664,11 +664,17 @@ export class ProductionService {
     }
 
     async addProof(jobId: number, filename: string, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }, designerName?: string) {
-        const last = await (this.prisma as any).productionJobProof.findFirst({
-            where: { jobId },
-            orderBy: { position: 'desc' },
-            select: { position: true },
-        });
+        const [last, job] = await Promise.all([
+            (this.prisma as any).productionJobProof.findFirst({
+                where: { jobId },
+                orderBy: { position: 'desc' },
+                select: { position: true },
+            }),
+            (this.prisma as any).productionJob.findUnique({
+                where: { id: jobId },
+                select: { pipelineStage: true },
+            }),
+        ]);
         const isFirstProof = !last;
         const nextPos = last ? last.position + 1 : 0;
         const caption = actor?.name ? `by ${actor.name}` : null;
@@ -682,6 +688,12 @@ export class ProductionService {
         }
         if (isFirstProof) {
             jobUpdate.designEnteredAt = new Date();
+        }
+        // Auto-maju ke ACC (menunggu approve customer) saat desain di-upload.
+        // Hanya dari DESIGN/null → ACC; job yang sudah lewat DESIGN atau di RETUR tidak dipindah balik.
+        const curStage = job?.pipelineStage ?? 'DESIGN';
+        if (curStage === 'DESIGN') {
+            jobUpdate.pipelineStage = 'ACC';
         }
         // Kredit desainer (dipilih saat upload) → leaderboard produksi desainer.
         // Hanya untuk atribusi produksi; tidak menyentuh lead.designerName.

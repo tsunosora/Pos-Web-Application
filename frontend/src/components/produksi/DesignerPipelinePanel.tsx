@@ -45,6 +45,7 @@ export function DesignerPipelinePanel({ rows }: { rows: DesignerPipelineSummaryR
                                     <tr className="text-[11px] uppercase tracking-wide text-gray-400 dark:text-slate-500 text-left border-b border-gray-100 dark:border-slate-800">
                                         <th className="py-1.5 pr-2 font-medium">Desainer</th>
                                         <th className="py-1.5 px-2 font-medium text-center" title="Masih di stage Design">WIP</th>
+                                        <th className="py-1.5 px-2 font-medium text-center" title="Sudah upload, menunggu approve customer (stage ACC)">Nunggu ACC</th>
                                         <th className="py-1.5 px-2 font-medium text-center" title="Sudah ada bukti desain di-upload">Upload</th>
                                         <th className="py-1.5 px-2 font-medium text-center" title="Sudah lewat Design = ACC & siap produksi">Siap Produksi</th>
                                         <th className="py-1.5 pl-2 font-medium text-center">Retur</th>
@@ -59,6 +60,7 @@ export function DesignerPipelinePanel({ rows }: { rows: DesignerPipelineSummaryR
                                                     {unassigned ? <span className="italic">{r.name}</span> : r.name}
                                                 </td>
                                                 <td className="py-1.5 px-2 text-center tabular-nums">{r.wip || "—"}</td>
+                                                <td className="py-1.5 px-2 text-center tabular-nums text-orange-600 dark:text-orange-400">{r.nungguAcc || "—"}</td>
                                                 <td className="py-1.5 px-2 text-center tabular-nums">{r.upload || "—"}</td>
                                                 <td className="py-1.5 px-2 text-center tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
                                                     {r.siapProduksi || "—"}

@@ -33,6 +33,7 @@ dayjs.locale("id");
 
 const COLUMN_STYLE: Record<PipelineStage, { color: string; bg: string }> = {
     DESIGN:        { color: "text-foreground",  bg: "bg-muted/50 border-border" },
+    ACC:           { color: "text-orange-700",  bg: "bg-orange-50 border-orange-200" },
     PRINT:         { color: "text-blue-700",    bg: "bg-blue-50 border-blue-200" },
     ANTRIAN_PRESS: { color: "text-cyan-700",    bg: "bg-cyan-50 border-cyan-200" },
     JAHIT:         { color: "text-purple-700",  bg: "bg-purple-50 border-purple-200" },
@@ -203,7 +204,7 @@ export default function ProduksiPipelinePage() {
         const startOfMonth = now.startOf("month");
 
         const g: Record<PipelineStage, PipelineJob[]> = {
-            DESIGN: [], PRINT: [], ANTRIAN_PRESS: [], JAHIT: [],
+            DESIGN: [], ACC: [], PRINT: [], ANTRIAN_PRESS: [], JAHIT: [],
             QC_PACKING: [], KIRIM: [], RETUR: [], SELESAI: [],
         };
         for (const j of jobs) {

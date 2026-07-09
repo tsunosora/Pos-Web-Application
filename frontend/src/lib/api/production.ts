@@ -357,14 +357,15 @@ export const completeProductionBatch = async (id: number, operatorName?: string,
 import api from './client';
 
 export type PipelineStage =
-    | 'DESIGN' | 'PRINT' | 'ANTRIAN_PRESS' | 'JAHIT' | 'QC_PACKING' | 'KIRIM' | 'RETUR' | 'SELESAI';
+    | 'DESIGN' | 'ACC' | 'PRINT' | 'ANTRIAN_PRESS' | 'JAHIT' | 'QC_PACKING' | 'KIRIM' | 'RETUR' | 'SELESAI';
 
 export const PIPELINE_STAGES: PipelineStage[] = [
-    'DESIGN', 'PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'RETUR', 'SELESAI',
+    'DESIGN', 'ACC', 'PRINT', 'ANTRIAN_PRESS', 'JAHIT', 'QC_PACKING', 'KIRIM', 'RETUR', 'SELESAI',
 ];
 
 export const PIPELINE_STAGE_LABEL: Record<PipelineStage, string> = {
     DESIGN: 'Design',
+    ACC: 'ACC',
     PRINT: 'Print',
     ANTRIAN_PRESS: 'Antrian Press',
     JAHIT: 'Jahit',
@@ -535,9 +536,10 @@ export const deletePublicProof = async (
 // Dihitung LANGSUNG dari isi pipeline (array jobs yang sudah dimuat halaman),
 // jadi panel selalu sinkron dgn kanban — termasuk update optimistic saat drag.
 // Metrik per desainer:
-//  - wip          : masih di stage DESIGN (belum ACC)
+//  - wip          : masih di stage DESIGN (belum upload)
+//  - nungguAcc    : di stage ACC (sudah upload, menunggu approve customer)
 //  - upload       : sudah ada bukti desain (designEnteredAt / proofs / legacy)
-//  - siapProduksi : sudah LEWAT DESIGN (PRINT..SELESAI) = otomatis ACC & siap produksi
+//  - siapProduksi : sudah LEWAT DESIGN & ACC (PRINT..SELESAI) = approve & siap produksi
 //  - retur        : di stage RETUR
 // Job tanpa designerName → bucket "Belum di-assign" (biar desain belum diklaim terlihat).
 
@@ -545,6 +547,7 @@ export interface DesignerPipelineSummaryRow {
     name: string;
     total: number;
     wip: number;
+    nungguAcc: number;
     upload: number;
     siapProduksi: number;
     retur: number;
@@ -558,10 +561,11 @@ export function summarizeDesignersFromJobs(jobs: PipelineJob[]): DesignerPipelin
 
     for (const j of jobs) {
         const name = (j.designerName || '').trim() || UNASSIGNED_DESIGNER;
-        const row = byName.get(name) || { name, total: 0, wip: 0, upload: 0, siapProduksi: 0, retur: 0 };
+        const row = byName.get(name) || { name, total: 0, wip: 0, nungguAcc: 0, upload: 0, siapProduksi: 0, retur: 0 };
         row.total++;
         const stage = (j.pipelineStage || 'DESIGN') as PipelineStage;
         if (stage === 'DESIGN') row.wip++;
+        else if (stage === 'ACC') row.nungguAcc++;
         else if (stage === 'RETUR') row.retur++;
         else if (FORWARD.has(stage)) row.siapProduksi++;
         const hasProof = !!j.designEnteredAt || (Array.isArray(j.proofs) && j.proofs.length > 0) || !!j.proofImageUrl;

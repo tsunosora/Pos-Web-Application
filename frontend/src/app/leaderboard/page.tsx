@@ -419,9 +419,9 @@ export default function LeaderboardPage() {
                                 </div>
                                 {dgRows.length === 0 ? <Empty /> : (
                                     <div className="overflow-x-auto">
-                                        <table className="w-full text-sm min-w-[760px]">
+                                        <table className="w-full text-sm min-w-[860px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                                <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th><Th right>Omzet (bagian)</Th>
+                                                <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>Nunggu ACC</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th><Th right>Omzet (bagian)</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {dgRows.map((r, i) => (
@@ -430,6 +430,7 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-violet-600 dark:text-violet-300">{r.soCreated || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono">{r.soInvoiced || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono">{r.assignment || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-orange-600 dark:text-orange-300">{r.nungguAcc || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.acc || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono">{r.selesai || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-orange-500">{r.express || '—'}</td>
@@ -445,7 +446,8 @@ export default function LeaderboardPage() {
                                     <p><b>SO Dibuat</b> = jumlah Sales Order (SPK) yang dibuat designer di periode (kecuali yang CANCELLED). <b>Kolom ini menutup celah designer yang kerjanya membuat SO walau belum jadi nota.</b></p>
                                     <p><b>Nota</b> = jumlah SO designer yang sudah jadi nota di periode. <b>Pcs</b> = jumlah barang dari nota.</p>
                                     <p><b>Omzet (bagian)</b> = bagian desainer dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Bukan lagi seluruh grandTotal, tapi porsi adilnya. Lihat board <b>Tim / Cabang</b>.</p>
-                                    <p><b>Job/ACC/Selesai/Express</b> = dari job produksi (tanggal job dibuat). ACC = lolos ke tahap cetak; Selesai = sampai KIRIM/SELESAI.</p>
+                                    <p><b>Nunggu ACC</b> = desain sudah di-upload, card di stage <b>ACC</b> menunggu approve customer (belum masuk cetak).</p>
+                                    <p><b>Job/ACC/Selesai/Express</b> = dari job produksi (tanggal job dibuat). ACC = sudah lolos approve & masuk tahap cetak (PRINT..SELESAI); Selesai = sampai KIRIM/SELESAI.</p>
                                     <p className="text-[11px] italic">Catatan: designer bisa muncul walau Omzet 0 — kalau ia baru membuat SO yang belum jadi nota (kolom "SO Dibuat" tetap kehitung).</p>
                                 </CaraHitung>
                             </SectionCard>

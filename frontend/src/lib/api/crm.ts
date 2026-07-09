@@ -580,6 +580,7 @@ export interface DesignerLeaderboardEntry {
     assignment: number;
     acc: number;
     accRate: number;
+    nungguAcc: number;    // di stage ACC (upload, menunggu approve customer)
     wip: number;
     retur: number;
     selesai: number;
@@ -597,7 +598,7 @@ export interface DesignerLeaderboardEntry {
 export interface DesignerLeaderboardReport {
     period: { start: string; end: string };
     leaderboard: DesignerLeaderboardEntry[];
-    totals: { assignment: number; acc: number; wip: number; retur: number; selesai: number; batal: number; express: number; soCreated: number; soInvoiced: number; omzet: number; pcs: number };
+    totals: { assignment: number; acc: number; nungguAcc: number; wip: number; retur: number; selesai: number; batal: number; express: number; soCreated: number; soInvoiced: number; omzet: number; pcs: number };
 }
 
 export const getDesignerLeaderboard = async (params: {
