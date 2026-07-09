@@ -11,7 +11,7 @@ import {
 import {
     Crown, Wallet, TrendingUp, Receipt, PiggyBank, Landmark, Package, CalendarClock,
     Loader2, Lock, Building2, HandCoins, BarChart3, Info, ChevronDown, ArrowLeft,
-    Plus, Trash2, Pencil, X, Check, Users, Palette, Factory, Sparkles,
+    Plus, Trash2, Pencil, X, Check, Users, Palette, Factory, Sparkles, FileBarChart,
 } from "lucide-react";
 import api from "@/lib/api/client";
 import { getKpiReport, getDesignerLeaderboard, getOperatorLeaderboard } from "@/lib/api";
@@ -225,6 +225,9 @@ export default function OwnerDashboardPage() {
                 <div className="flex items-center gap-2">
                     <Link href="/owner/analisa-keuangan" className="inline-flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 transition-colors">
                         <BarChart3 className="h-4 w-4" /> <span className="hidden sm:inline">Analisa Keuangan</span>
+                    </Link>
+                    <Link href="/owner/laporan-bulanan" className="inline-flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 transition-colors">
+                        <FileBarChart className="h-4 w-4" /> <span className="hidden sm:inline">Laporan Bulanan</span>
                     </Link>
                     <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 transition-colors">
                         <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Kembali ke App</span>

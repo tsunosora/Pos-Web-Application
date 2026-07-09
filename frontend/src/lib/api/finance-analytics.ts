@@ -87,6 +87,42 @@ export interface FinanceConsolidation {
     grandTotal: { bank: number; cash: number; total: number; suggestedModal: number };
 }
 
+export interface FinanceMonthlyReport {
+    period: { year: number; month: number; monthLabel: string; startDate: string; endDate: string };
+    branchName: string | null;
+    summary: {
+        income: number; expense: number; net: number; margin: number;
+        incomeChannels: { channel: string; total: number }[];
+        expenseCategories: { category: string; amount: number; pct: number }[];
+        receivables: { gross: number; dp: number; sisa: number; count: number };
+    };
+    comparison: {
+        previous: { income: number; expense: number; net: number; monthLabel: string };
+        delta: { income: number; expense: number; net: number; incomePct: number; expensePct: number; netPct: number };
+        topExpenseChanges: { category: string; current: number; previous: number; delta: number }[];
+    };
+    trend: {
+        months: { year: number; month: number; label: string; income: number; expense: number; net: number; margin: number }[];
+        direction: 'naik' | 'turun' | 'datar';
+        avgMonthlyGrowthPct: number;
+        bestMonth: { label: string; net: number } | null;
+        worstMonth: { label: string; net: number } | null;
+    };
+    activity: {
+        busiestDay: { label: string; count: number; revenue: number } | null;
+        quietestDay: { label: string; count: number; revenue: number } | null;
+    };
+    anomalies: { count: number; items: { date: string; severity: 'low' | 'med' | 'high'; reason: string; amount: number }[] };
+    analysis: {
+        executive: string[];
+        growth: string[];
+        efficiency: string[];
+        cashHealth: string[];
+        warnings: string[];
+        recommendations: string[];
+    };
+}
+
 const qs = (o: Record<string, string | boolean | undefined>) => {
     const p = new URLSearchParams();
     Object.entries(o).forEach(([k, v]) => { if (v !== undefined) p.append(k, String(v)); });
@@ -109,6 +145,8 @@ export const getFinanceReconciliation = async (startDate: string, endDate: strin
     (await api.get(`/reports/finance/reconciliation?${qs({ startDate, endDate })}`)).data;
 export const getFinanceConsolidation = async (year: number, month: number): Promise<FinanceConsolidation> =>
     (await api.get(`/reports/finance/consolidation`, { params: { year, month } })).data;
+export const getFinanceMonthlyReport = async (year: number, month: number, includeFixed = true): Promise<FinanceMonthlyReport> =>
+    (await api.get(`/reports/finance/monthly-report`, { params: { year, month, includeFixed } })).data;
 export const closeBranchBalance = async (year: number, month: number, branchId: number): Promise<{ ok: boolean; collectedBank: number; collectedCash: number; total: number }> =>
     (await api.post(`/reports/finance/close-branch`, { year, month, branchId })).data;
 export const fundBranchBalance = async (year: number, month: number, branchId: number, allocations: { bankAccountId: number; amount: number }[]): Promise<{ ok: boolean; modalTotal: number }> =>
