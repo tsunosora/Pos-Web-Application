@@ -9,10 +9,11 @@ import {
 } from "recharts";
 import {
     ArrowLeft, FileText, Loader2, Lock, FileBarChart, TrendingUp, TrendingDown, Minus,
-    Sparkles, Rocket, Wallet, Scale, AlertTriangle, Lightbulb,
+    Sparkles, Rocket, Wallet, Scale, AlertTriangle, Lightbulb, Building2,
 } from "lucide-react";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
+import api from "@/lib/api/client";
 import { getFinanceMonthlyReport, type FinanceMonthlyReport } from "@/lib/api/finance-analytics";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { buildMonthlyReportPDF } from "@/lib/report-pdf";
@@ -25,10 +26,17 @@ const AXIS_TICK = { fontSize: 11, fill: "var(--muted-foreground)" };
 export default function LaporanBulananPage() {
     const { isOwner, currentUser } = useCurrentUser();
     const activeBranchId = useBranchStore((s) => s.activeBranchId);
+    const setActiveBranchId = useBranchStore((s) => s.setActiveBranchId);
     const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
     const [includeFixed, setIncludeFixed] = useState(true);
     const [y, m] = month.split("-").map(Number);
 
+    const { data: branches } = useQuery({
+        queryKey: ["active-branches"],
+        queryFn: async () => (await api.get("/company-branches/active")).data as { id: number; name: string }[],
+        staleTime: 5 * 60 * 1000,
+        enabled: isOwner,
+    });
     const { data, isLoading } = useQuery({
         queryKey: ["finance-monthly-report", y, m, includeFixed, activeBranchId],
         queryFn: () => getFinanceMonthlyReport(y, m, includeFixed),
@@ -53,6 +61,16 @@ export default function LaporanBulananPage() {
             <div className="flex flex-wrap items-center gap-3 bg-card rounded-2xl border border-border p-3">
                 <input type="month" value={month} onChange={(e) => setMonth(e.target.value)}
                     className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm text-foreground" />
+                {branches && branches.length > 0 && (
+                    <label className="inline-flex items-center gap-1.5 text-sm">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <select value={activeBranchId ?? "all"} onChange={(e) => setActiveBranchId(e.target.value === "all" ? null : Number(e.target.value))}
+                            className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm text-foreground">
+                            <option value="all">Semua Cabang (konsolidasi)</option>
+                            {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                        </select>
+                    </label>
+                )}
                 <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
                     <input type="checkbox" checked={includeFixed} onChange={(e) => setIncludeFixed(e.target.checked)} className="accent-[var(--primary)]" />
                     Sertakan beban tetap
@@ -62,6 +80,12 @@ export default function LaporanBulananPage() {
                     <FileText className="h-4 w-4" /> Export PDF
                 </button>
             </div>
+
+            <p className="text-xs text-muted-foreground -mt-2">
+                {activeBranchId == null
+                    ? "Mode Semua Cabang menggabungkan seluruh cabang + pusat. Pilih cabang/pusat spesifik untuk laporan terpisah."
+                    : "Laporan difilter untuk satu cabang/pusat. Pilih “Semua Cabang” untuk konsolidasi."}
+            </p>
 
             {isLoading ? (
                 <div className="flex justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
