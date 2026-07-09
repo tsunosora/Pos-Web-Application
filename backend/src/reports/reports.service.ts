@@ -1308,6 +1308,87 @@ export class ReportsService {
         return { income, expense, net: income - expense, expByCat };
     }
 
+    /** Tren keuangan N bulan ke belakang (termasuk bulan target), terurut lama→baru. Basis kas. */
+    private async financeMultiMonthTrend(bw: any, year: number, month: number, monthsBack = 6, includeFixed = true) {
+        const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const months: { year: number; month: number; label: string; income: number; expense: number; net: number; margin: number }[] = [];
+        for (let i = monthsBack - 1; i >= 0; i--) {
+            const d = new Date(year, month - 1 - i, 1);
+            const y = d.getFullYear(), m = d.getMonth() + 1;
+            const start = new Date(y, m - 1, 1, 0, 0, 0);
+            const end = new Date(y, m, 0, 23, 59, 59, 999);
+            const t = await this.financeTotals(bw, start, end, includeFixed);
+            months.push({ year: y, month: m, label: `${MONTHS[m - 1]} ${y}`, income: round2(t.income), expense: round2(t.expense), net: round2(t.net), margin: t.income > 0 ? round2((t.net / t.income) * 100) : 0 });
+        }
+        // Arah tren & pertumbuhan net rata-rata MoM
+        const growths: number[] = [];
+        for (let i = 1; i < months.length; i++) {
+            const p = months[i - 1].net, c = months[i].net;
+            if (p !== 0) growths.push(((c - p) / Math.abs(p)) * 100);
+        }
+        const avgMonthlyGrowthPct = growths.length ? round2(growths.reduce((a, b) => a + b, 0) / growths.length) : 0;
+        const direction: 'naik' | 'turun' | 'datar' = avgMonthlyGrowthPct > 3 ? 'naik' : avgMonthlyGrowthPct < -3 ? 'turun' : 'datar';
+        const withData = months.filter((m) => m.income !== 0 || m.expense !== 0);
+        const bestMonth = withData.length ? withData.reduce((a, b) => (b.net > a.net ? b : a)) : null;
+        const worstMonth = withData.length ? withData.reduce((a, b) => (b.net < a.net ? b : a)) : null;
+        return {
+            months,
+            direction,
+            avgMonthlyGrowthPct,
+            bestMonth: bestMonth ? { label: bestMonth.label, net: bestMonth.net } : null,
+            worstMonth: worstMonth ? { label: worstMonth.label, net: worstMonth.net } : null,
+        };
+    }
+
+    /** Susun analisa naratif bulanan (bahasa Indonesia, ramah owner). Fungsi murni (tanpa DB). */
+    private buildMonthlyNarrative(x: {
+        monthLabel: string;
+        summary: { income: number; expense: number; net: number; margin: number; receivables: { sisa: number; count: number }; topExpenseCategory: { category: string; pct: number } | null };
+        comparison: { delta: { netPct: number; incomePct: number; expensePct: number }; previousLabel: string; biggestExpenseUp: { category: string; delta: number } | null };
+        trend: { direction: 'naik' | 'turun' | 'datar'; avgMonthlyGrowthPct: number; bestMonth: { label: string; net: number } | null; worstMonth: { label: string; net: number } | null };
+        activity: { busiestDay: string | null; quietestDay: string | null };
+        anomalies: { count: number; high: number };
+    }) {
+        const rp = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+        const s = x.summary, c = x.comparison, t = x.trend;
+        const executive: string[] = [];
+        const untung = s.net >= 0;
+        executive.push(`Pada ${x.monthLabel}, perusahaan ${untung ? 'membukukan LABA' : 'mengalami RUGI'} ${rp(Math.abs(s.net))} dari omzet ${rp(s.income)} (margin ${s.margin}%).`);
+        if (s.income > 0) executive.push(`Total pengeluaran ${rp(s.expense)} atau ${Math.round((s.expense / s.income) * 100)}% dari omzet.`);
+        if (Math.abs(c.delta.netPct) > 0) executive.push(`Dibanding ${c.previousLabel}, laba bersih ${c.delta.netPct >= 0 ? 'naik' : 'turun'} ${Math.abs(c.delta.netPct)}%.`);
+
+        const growth: string[] = [];
+        growth.push(`Tren keuangan beberapa bulan terakhir cenderung ${t.direction}${t.avgMonthlyGrowthPct ? ` (rata-rata ${t.avgMonthlyGrowthPct >= 0 ? '+' : ''}${t.avgMonthlyGrowthPct}% laba per bulan)` : ''}.`);
+        if (t.bestMonth) growth.push(`Bulan terbaik: ${t.bestMonth.label} dengan laba ${rp(t.bestMonth.net)}.`);
+        if (t.worstMonth && t.worstMonth.label !== t.bestMonth?.label) growth.push(`Bulan terlemah: ${t.worstMonth.label} dengan laba ${rp(t.worstMonth.net)}.`);
+        if (Math.abs(c.delta.incomePct) > 0) growth.push(`Omzet ${c.delta.incomePct >= 0 ? 'tumbuh' : 'menyusut'} ${Math.abs(c.delta.incomePct)}% vs bulan lalu.`);
+
+        const efficiency: string[] = [];
+        if (s.topExpenseCategory) efficiency.push(`Pos biaya terbesar: ${s.topExpenseCategory.category} (${s.topExpenseCategory.pct}% dari total pengeluaran).`);
+        if (c.biggestExpenseUp && c.biggestExpenseUp.delta > 0) efficiency.push(`Kenaikan biaya terbesar bulan ini: ${c.biggestExpenseUp.category} +${rp(c.biggestExpenseUp.delta)} — cek apakah wajar.`);
+        if (c.delta.expensePct > 10) efficiency.push(`Total pengeluaran naik ${c.delta.expensePct}% — perhatikan agar tidak menggerus laba.`);
+
+        const cashHealth: string[] = [];
+        if (s.receivables.sisa > 0) cashHealth.push(`Ada piutang belum tertagih ${rp(s.receivables.sisa)} dari ${s.receivables.count} nota — tagih untuk memperkuat kas.`);
+        else cashHealth.push('Tidak ada piutang menggantung signifikan bulan ini.');
+        if (x.activity.busiestDay) cashHealth.push(`Hari paling ramai: ${x.activity.busiestDay}${x.activity.quietestDay ? `, paling sepi: ${x.activity.quietestDay}` : ''}.`);
+
+        const warnings: string[] = [];
+        if (x.anomalies.count > 0) warnings.push(`Terdeteksi ${x.anomalies.count} pergerakan uang tidak jelas${x.anomalies.high ? ` (${x.anomalies.high} berprioritas tinggi)` : ''} — tinjau di menu Analisa Keuangan.`);
+        if (!untung) warnings.push('Bulan ini rugi — evaluasi pos biaya terbesar & dorong omzet.');
+        if (s.margin > 0 && s.margin < 10) warnings.push(`Margin tipis (${s.margin}%) — sedikit guncangan biaya bisa membuat rugi.`);
+
+        const recommendations: string[] = [];
+        if (s.receivables.sisa > 0) recommendations.push('Tagih piutang yang jatuh tempo minggu ini.');
+        if (c.biggestExpenseUp && c.biggestExpenseUp.delta > 0) recommendations.push(`Audit kenaikan biaya ${c.biggestExpenseUp.category}.`);
+        if (t.direction === 'turun') recommendations.push('Tren laba menurun — susun program promosi / efisiensi bulan depan.');
+        if (x.activity.quietestDay) recommendations.push(`Buat promo khusus hari ${x.activity.quietestDay} untuk mengangkat hari sepi.`);
+        if (!recommendations.length) recommendations.push('Pertahankan pola operasi saat ini; kondisi keuangan sehat.');
+
+        return { executive, growth, efficiency, cashHealth, warnings, recommendations };
+    }
+
     /** Breakdown pengeluaran per kategori (untuk analisa 'uang lari ke mana'). */
     async getFinanceExpenseBreakdown(branchCtx: BranchContext, startDate: string, endDate: string, includeFixed = true) {
         if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
@@ -1457,6 +1538,66 @@ export class ReportsService {
             suggestedModal: round2(branchRows.reduce((s, r) => s + r.suggestedModal, 0)),
         };
         return { period: { year, month, monthLabel }, branches: branchRows, grandTotal };
+    }
+
+    /** Laporan jurnal keuangan bulanan lengkap + analisa naratif (owner-only). Basis kas. */
+    async getFinanceMonthlyReport(branchCtx: BranchContext, year: number, month: number, includeFixed = true) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Laporan keuangan bulanan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const startDate = `${year}-${pad(month)}-01`;
+        const endDate = `${year}-${pad(month)}-${pad(new Date(year, month, 0).getDate())}`;
+
+        // Panggil ulang method yang sudah ada (semua sudah guard owner & scoping cabang).
+        const [closing, breakdown, comparison, heatmap, anomaliesRes, trend] = await Promise.all([
+            this.monthlyClosing(branchCtx, year, month),
+            this.getFinanceExpenseBreakdown(branchCtx, startDate, endDate, includeFixed),
+            this.getFinanceComparison(branchCtx, startDate, endDate, includeFixed),
+            this.getFinanceHeatmap(branchCtx, startDate, endDate),
+            this.getFinanceAnomalies(branchCtx, startDate, endDate),
+            this.financeMultiMonthTrend(bw, year, month, 6, includeFixed),
+        ]);
+
+        const income = round2(breakdown.totalIncome);
+        const expense = round2(breakdown.total);
+        const net = round2(income - expense);
+        const margin = income > 0 ? round2((net / income) * 100) : 0;
+        const topExpenseCategory = breakdown.categories[0] ? { category: breakdown.categories[0].category, pct: breakdown.categories[0].pct } : null;
+        const biggestExpenseUp = comparison.topExpenseChanges.find((c) => c.delta > 0) || null;
+        const highAnoms = anomaliesRes.anomalies.filter((a) => a.severity === 'high').length;
+
+        const analysis = this.buildMonthlyNarrative({
+            monthLabel: `${closing.period.monthLabel} ${year}`,
+            summary: { income, expense, net, margin, receivables: { sisa: closing.receivables.sisa, count: closing.receivables.rows.length }, topExpenseCategory },
+            comparison: { delta: comparison.delta, previousLabel: 'bulan sebelumnya', biggestExpenseUp: biggestExpenseUp ? { category: biggestExpenseUp.category, delta: biggestExpenseUp.delta } : null },
+            trend: { direction: trend.direction, avgMonthlyGrowthPct: trend.avgMonthlyGrowthPct, bestMonth: trend.bestMonth, worstMonth: trend.worstMonth },
+            activity: { busiestDay: heatmap.busiestDay?.count ? heatmap.busiestDay.label : null, quietestDay: heatmap.quietestDay?.label || null },
+            anomalies: { count: anomaliesRes.count, high: highAnoms },
+        });
+
+        return {
+            period: { year, month, monthLabel: closing.period.monthLabel, startDate, endDate },
+            branchName: closing.branchName,
+            summary: {
+                income, expense, net, margin,
+                incomeChannels: closing.income.channels.map((c) => ({ channel: c.channel, total: round2(c.total) })),
+                expenseCategories: breakdown.categories,
+                receivables: { gross: closing.receivables.gross, dp: closing.receivables.dp, sisa: closing.receivables.sisa, count: closing.receivables.rows.length },
+            },
+            comparison: {
+                previous: { income: comparison.previous.income, expense: comparison.previous.expense, net: comparison.previous.net, monthLabel: 'bulan sebelumnya' },
+                delta: comparison.delta,
+                topExpenseChanges: comparison.topExpenseChanges,
+            },
+            trend,
+            activity: {
+                busiestDay: heatmap.busiestDay?.count ? { label: heatmap.busiestDay.label, count: heatmap.busiestDay.count, revenue: heatmap.busiestDay.revenue } : null,
+                quietestDay: heatmap.quietestDay ? { label: heatmap.quietestDay.label, count: heatmap.quietestDay.count, revenue: heatmap.quietestDay.revenue } : null,
+            },
+            anomalies: { count: anomaliesRes.count, items: anomaliesRes.anomalies.slice(0, 15).map((a) => ({ date: a.date, severity: a.severity, reason: a.reason, amount: a.amount })) },
+            analysis,
+        };
     }
 
     /** Pengosongan saldo cabang (setor ke pusat) — catat cashflow EXPENSE + reset saldo. Idempoten. */

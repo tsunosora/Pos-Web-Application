@@ -190,6 +190,19 @@ export class ReportsController {
         return this.reportsService.getFinanceConsolidation(branchCtx, y, m);
     }
 
+    @Get('finance/monthly-report')
+    async getFinanceMonthlyReport(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('year') year?: string,
+        @Query('month') month?: string,
+        @Query('includeFixed') includeFixed?: string,
+    ) {
+        const now = new Date();
+        const y = Number(year) || now.getFullYear();
+        const m = Number(month) || (now.getMonth() + 1);
+        return this.reportsService.getFinanceMonthlyReport(branchCtx, y, m, includeFixed !== 'false');
+    }
+
     @Post('finance/close-branch')
     async closeBranchBalance(
         @CurrentBranch() branchCtx: BranchContext,

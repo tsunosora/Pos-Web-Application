@@ -16,6 +16,7 @@ function makePrisma(overrides: any = {}) {
         fixedExpense: { findMany: jest.fn().mockResolvedValue([]) },
         transaction: { findMany: jest.fn().mockResolvedValue([]) },
         shiftReport: { findMany: jest.fn().mockResolvedValue([]) },
+        bankAccount: { findMany: jest.fn().mockResolvedValue([]) },
         companyBranch: { findUnique: jest.fn().mockResolvedValue(null) },
         branchMonthlyClosing: { findMany: jest.fn().mockResolvedValue([]) },
         centralTreasuryEntry: { groupBy: jest.fn().mockResolvedValue([]), findMany: jest.fn().mockResolvedValue([]), create: jest.fn().mockResolvedValue({ id: 1 }) },
@@ -340,5 +341,74 @@ describe('ReportsService.getFinanceAnomalies', () => {
         expect(unexplained).toBeDefined();
         expect(unexplained!.amount).toBe(750000);
         expect(res.count).toBeGreaterThanOrEqual(2);
+    });
+});
+
+describe('ReportsService.financeMultiMonthTrend', () => {
+    it('hasilkan 3 bulan terurut lama→baru dengan margin', async () => {
+        const prisma = makePrisma({
+            cashflow: {
+                groupBy: jest.fn().mockResolvedValue([]),
+                findMany: jest.fn().mockResolvedValue([
+                    { type: 'INCOME', category: 'PENJUALAN', amount: 1000 },
+                    { type: 'EXPENSE', category: 'OPERASIONAL', amount: 400 },
+                ]),
+            },
+            fixedExpense: { findMany: jest.fn().mockResolvedValue([]) },
+        });
+        const svc = await build(prisma);
+        const trend = await (svc as any).financeMultiMonthTrend({}, 2026, 7, 3, false);
+        expect(trend.months).toHaveLength(3);
+        expect(trend.months[2].month).toBe(7); // terakhir = bulan target
+        expect(trend.months[0].month).toBe(5); // pertama = 2 bulan sebelum
+        expect(trend.months[2].income).toBe(1000);
+        expect(trend.months[2].net).toBe(600);
+        expect(trend.months[2].margin).toBe(60);
+        expect(['naik', 'turun', 'datar']).toContain(trend.direction);
+    });
+});
+
+describe('ReportsService.buildMonthlyNarrative', () => {
+    it('narasikan laba positif & tren naik', async () => {
+        const svc = await build(makePrisma());
+        const input = {
+            monthLabel: 'Juli 2026',
+            summary: { income: 10_000_000, expense: 6_000_000, net: 4_000_000, margin: 40, receivables: { sisa: 500_000, count: 2 }, topExpenseCategory: { category: 'GAJI', pct: 50 } },
+            comparison: { delta: { netPct: 25, incomePct: 15, expensePct: 5 }, previousLabel: 'Juni 2026', biggestExpenseUp: { category: 'SUPPLIER', delta: 300_000 } },
+            trend: { direction: 'naik' as const, avgMonthlyGrowthPct: 12, bestMonth: { label: 'Juli 2026', net: 4_000_000 }, worstMonth: { label: 'Mei 2026', net: 1_000_000 } },
+            activity: { busiestDay: 'Sabtu', quietestDay: 'Minggu' },
+            anomalies: { count: 1, high: 0 },
+        };
+        const a = (svc as any).buildMonthlyNarrative(input);
+        expect(a.executive.join(' ')).toMatch(/laba/i);
+        expect(a.growth.join(' ')).toMatch(/naik|tumbuh/i);
+        expect(Array.isArray(a.recommendations)).toBe(true);
+        expect(a.warnings.length).toBeGreaterThanOrEqual(0);
+    });
+});
+
+describe('ReportsService.getFinanceMonthlyReport', () => {
+    it('tolak non-owner', async () => {
+        const svc = await build(makePrisma());
+        await expect(svc.getFinanceMonthlyReport(STAFF, 2026, 7)).rejects.toThrow(/owner/i);
+    });
+    it('rakit laporan bulanan lengkap untuk owner', async () => {
+        const prisma = makePrisma({
+            cashflow: {
+                groupBy: jest.fn().mockResolvedValue([]),
+                findMany: jest.fn().mockResolvedValue([
+                    { type: 'INCOME', category: 'PENJUALAN', amount: 1000, date: new Date('2026-07-05T10:00:00'), paymentMethod: 'CASH', bankAccountId: null, note: null, id: 1 },
+                    { type: 'EXPENSE', category: 'OPERASIONAL', amount: 400, date: new Date('2026-07-06T10:00:00'), paymentMethod: 'CASH', bankAccountId: null, note: 'beli tinta', id: 2 },
+                ]),
+            },
+        });
+        const svc = await build(prisma);
+        const r = await svc.getFinanceMonthlyReport(OWNER, 2026, 7);
+        expect(r.period.monthLabel).toBe('Juli');
+        expect(r.summary.income).toBe(1000);
+        expect(r.summary.net).toBe(600);
+        expect(r.trend.months.length).toBeGreaterThanOrEqual(6);
+        expect(r.analysis.executive.length).toBeGreaterThan(0);
+        expect(r.analysis.recommendations.length).toBeGreaterThan(0);
     });
 });
