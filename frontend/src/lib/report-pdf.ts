@@ -7,6 +7,58 @@ const num = (n: number) => Math.round(Number(n) || 0).toLocaleString("id-ID");
 const rp = (n: number) => "Rp " + num(n);
 const W = 210;
 
+/** Format angka ringkas untuk label sumbu grafik: 1.2jt / 350rb / 0. */
+const compact = (n: number) => {
+    const a = Math.abs(n);
+    if (a >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "jt";
+    if (a >= 1_000) return Math.round(n / 1_000) + "rb";
+    return String(Math.round(n));
+};
+
+/** Gambar grafik garis "laba per bulan" langsung sebagai vektor jsPDF (tanpa html2canvas → aman dari oklch). */
+function drawTrendChart(doc: jsPDF, months: { label: string; net: number }[], ox: number, oy: number, w: number, h: number) {
+    const n = months.length;
+    if (n === 0) return;
+    const vals = months.map((m) => m.net);
+    const maxV = Math.max(...vals, 0);
+    const minV = Math.min(...vals, 0);
+    const range = maxV - minV || 1;
+    const xFor = (i: number) => (n === 1 ? ox + w / 2 : ox + (i / (n - 1)) * w);
+    const yFor = (v: number) => oy + h - ((v - minV) / range) * h;
+    const y0 = yFor(0);
+
+    // Bingkai plot
+    doc.setDrawColor(210); doc.setLineWidth(0.2);
+    doc.rect(ox, oy, w, h);
+
+    // Garis nol (dashed)
+    doc.setDrawColor(150); doc.setLineDashPattern([1, 1], 0);
+    doc.line(ox, y0, ox + w, y0);
+    doc.setLineDashPattern([], 0);
+
+    // Area di bawah garis (indigo transparan-semu) per segmen
+    doc.setFillColor(224, 226, 252);
+    for (let i = 0; i < n - 1; i++) {
+        const x1 = xFor(i), x2 = xFor(i + 1), y1 = yFor(vals[i]), y2 = yFor(vals[i + 1]);
+        doc.lines([[0, y1 - y0], [x2 - x1, y2 - y1], [0, y0 - y2]], x1, y0, [1, 1], "F", true);
+    }
+
+    // Garis tren
+    doc.setDrawColor(99, 102, 241); doc.setLineWidth(0.6);
+    for (let i = 0; i < n - 1; i++) doc.line(xFor(i), yFor(vals[i]), xFor(i + 1), yFor(vals[i + 1]));
+
+    // Titik + label nilai + label bulan
+    doc.setFontSize(6);
+    for (let i = 0; i < n; i++) {
+        const x = xFor(i), y = yFor(vals[i]);
+        doc.setFillColor(99, 102, 241); doc.circle(x, y, 0.9, "F");
+        doc.setTextColor(60); doc.text(compact(vals[i]), x, y - 2, { align: "center" });
+        doc.setTextColor(120); doc.text(months[i].label.split(" ")[0].slice(0, 3), x, oy + h + 4, { align: "center" });
+    }
+    // Reset state
+    doc.setTextColor(0); doc.setLineWidth(0.2); doc.setDrawColor(0);
+}
+
 /** Bangun & unduh PDF laporan keuangan bulanan owner (ringkasan → analisa → tren → tabel → anomali). */
 export function buildMonthlyReportPDF(d: FinanceMonthlyReport) {
     const doc = new jsPDF("portrait");
@@ -59,12 +111,16 @@ export function buildMonthlyReportPDF(d: FinanceMonthlyReport) {
         yy += 2;
     }
 
-    // ── Perkembangan (tabel tren) ──
+    // ── Perkembangan (grafik + tabel tren) ──
     doc.addPage();
     doc.setFontSize(12); doc.setFont("helvetica", "bold");
     doc.text("PERKEMBANGAN PERUSAHAAN (6 BULAN)", W / 2, 16, { align: "center" });
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120);
+    doc.text("Grafik laba bersih (kas) per bulan", W / 2, 21, { align: "center" });
+    doc.setTextColor(0);
+    drawTrendChart(doc, d.trend.months.map((mo) => ({ label: mo.label, net: mo.net })), 20, 26, W - 40, 42);
     autoTable(doc, {
-        startY: 22,
+        startY: 78,
         head: [["Bulan", "Omzet", "Pengeluaran", "Laba", "Margin"]],
         body: d.trend.months.map((mo) => [mo.label, num(mo.income), num(mo.expense), num(mo.net), `${mo.margin}%`]),
         theme: "grid", styles: { fontSize: 8 }, headStyles: { fillColor: [52, 73, 94], textColor: 255 },
