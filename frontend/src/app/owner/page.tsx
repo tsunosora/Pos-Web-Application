@@ -222,9 +222,14 @@ export default function OwnerDashboardPage() {
                         <div className="text-xs text-amber-50/90">Ringkasan keuangan — {branchLabel}</div>
                     </div>
                 </div>
-                <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 transition-colors">
-                    <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Kembali ke App</span>
-                </Link>
+                <div className="flex items-center gap-2">
+                    <Link href="/owner/analisa-keuangan" className="inline-flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 transition-colors">
+                        <BarChart3 className="h-4 w-4" /> <span className="hidden sm:inline">Analisa Keuangan</span>
+                    </Link>
+                    <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-medium bg-white/15 hover:bg-white/25 rounded-lg px-3 py-1.5 transition-colors">
+                        <ArrowLeft className="h-4 w-4" /> <span className="hidden sm:inline">Kembali ke App</span>
+                    </Link>
+                </div>
             </div>
 
             <div className="max-w-7xl mx-auto p-4 space-y-5 pb-10">

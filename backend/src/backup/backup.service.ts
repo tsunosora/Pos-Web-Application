@@ -92,7 +92,7 @@ export const BACKUP_GROUPS = {
         // fixedExpense: beban tetap bulanan (gaji/sewa/angsuran/supplier).
         // marketingSpend: biaya iklan per sumber (dashboard marketing).
         // bonusTarget/bonusAdjustment: target & penyesuaian bonus karyawan.
-        tables: ['fixedExpense', 'marketingSpend', 'bonusTarget', 'bonusAdjustment'],
+        tables: ['fixedExpense', 'marketingSpend', 'bonusTarget', 'bonusAdjustment', 'branchMonthlyClosing', 'centralTreasuryEntry'],
     },
     website: {
         label: 'Website — Landing Page & Artikel',
@@ -151,6 +151,8 @@ const RESTORE_ORDER = [
     'stockOpnameSession', 'stockOpnameItem',
     'marketingSpend', 'fixedExpense',           // biaya owner — branchId scalar (tanpa FK keras), aman di sini
     'bonusTarget', 'bonusAdjustment',           // bonus karyawan — branchId scalar, tanpa FK keras
+    'branchMonthlyClosing',                     // tutup buku bulanan per cabang — branchId scalar, tanpa FK keras
+    'centralTreasuryEntry',                     // kas pusat (dompet owner) — branchId scalar, tanpa FK keras
 
     // CRM — diletakkan paling akhir karena bisa reference banyak entity:
     //   lead.assignedToId → user

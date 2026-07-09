@@ -7,6 +7,7 @@ import { compressImage } from '../common/utils/compress-image.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
+import type { FinanceTimeframe } from './reports.service';
 
 export type StructuredExpenseItem = { name: string; amount: number };
 export type StructuredExpenses = Record<string, StructuredExpenseItem[]>;
@@ -76,6 +77,153 @@ export class ReportsController {
         const y = Number(year) || now.getFullYear();
         const m = Number(month) || (now.getMonth() + 1);
         return this.reportsService.monthlyClosing(branchCtx, y, m);
+    }
+
+    // ==================== ANALISA KEUANGAN (owner-only) ====================
+
+    @Get('finance/candles')
+    async getFinanceCandles(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('timeframe') timeframe: FinanceTimeframe = 'day',
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('includeFixed') includeFixed?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
+        const e = endDate || iso(now);
+        const tf: FinanceTimeframe = (['day', 'week', 'month', 'year'] as const).includes(timeframe as any) ? timeframe : 'day';
+        return this.reportsService.getFinanceCandles(branchCtx, tf, s, e, includeFixed !== 'false');
+    }
+
+    @Get('finance/heatmap')
+    async getFinanceHeatmap(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
+        const e = endDate || iso(now);
+        return this.reportsService.getFinanceHeatmap(branchCtx, s, e);
+    }
+
+    @Get('finance/journal')
+    async getFinanceJournal(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('includeFixed') includeFixed?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(now);
+        const e = endDate || iso(now);
+        return this.reportsService.getFinanceJournal(branchCtx, s, e, includeFixed !== 'false');
+    }
+
+    @Get('finance/anomalies')
+    async getFinanceAnomalies(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
+        const e = endDate || iso(now);
+        return this.reportsService.getFinanceAnomalies(branchCtx, s, e);
+    }
+
+    @Get('finance/expense-breakdown')
+    async getFinanceExpenseBreakdown(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('includeFixed') includeFixed?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
+        const e = endDate || iso(now);
+        return this.reportsService.getFinanceExpenseBreakdown(branchCtx, s, e, includeFixed !== 'false');
+    }
+
+    @Get('finance/comparison')
+    async getFinanceComparison(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('includeFixed') includeFixed?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
+        const e = endDate || iso(now);
+        return this.reportsService.getFinanceComparison(branchCtx, s, e, includeFixed !== 'false');
+    }
+
+    @Get('finance/reconciliation')
+    async getFinanceReconciliation(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const now = new Date();
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
+        const e = endDate || iso(now);
+        return this.reportsService.getFinanceReconciliation(branchCtx, s, e);
+    }
+
+    @Get('finance/consolidation')
+    async getFinanceConsolidation(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('year') year?: string,
+        @Query('month') month?: string,
+    ) {
+        const now = new Date();
+        const y = Number(year) || now.getFullYear();
+        const m = Number(month) || (now.getMonth() + 1);
+        return this.reportsService.getFinanceConsolidation(branchCtx, y, m);
+    }
+
+    @Post('finance/close-branch')
+    async closeBranchBalance(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Body() body: { year: number; month: number; branchId: number },
+    ) {
+        return this.reportsService.closeBranchBalance(branchCtx, Number(body.year), Number(body.month), Number(body.branchId));
+    }
+
+    @Post('finance/fund-branch')
+    async fundBranchBalance(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Body() body: { year: number; month: number; branchId: number; allocations: { bankAccountId: number; amount: number }[] },
+    ) {
+        return this.reportsService.fundBranchBalance(branchCtx, Number(body.year), Number(body.month), Number(body.branchId), body.allocations || []);
+    }
+
+    @Get('finance/central-treasury')
+    async getCentralTreasury(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('year') year?: string,
+        @Query('month') month?: string,
+    ) {
+        const now = new Date();
+        const y = Number(year) || now.getFullYear();
+        const m = Number(month) || (now.getMonth() + 1);
+        return this.reportsService.getCentralTreasury(branchCtx, y, m);
+    }
+
+    @Post('finance/central-expense')
+    async addCentralExpense(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Body() body: { category: string; amount: number; note?: string; date?: string },
+    ) {
+        return this.reportsService.addCentralExpense(branchCtx, body.category, Number(body.amount), body.note, body.date);
     }
 
     // Endpoint untuk dropdown daftar staff/kasir

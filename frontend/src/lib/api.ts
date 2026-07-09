@@ -6,6 +6,7 @@ export * from './api/transactions';
 export * from './api/customers';
 export * from './api/cashflow';
 export * from './api/reports';
+export * from './api/finance-analytics';
 export * from './api/settings';
 export * from './api/hpp';
 export * from './api/invoices';

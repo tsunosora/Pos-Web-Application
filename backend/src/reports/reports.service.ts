@@ -1,9 +1,27 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscordService } from '../discord/discord.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
+
+export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
+
+export interface FinanceCandle {
+    time: string;           // 'YYYY-MM-DD'
+    open: number; high: number; low: number; close: number;
+    income: number; expense: number; net: number;
+    volume: number; txCount: number;
+}
+
+/**
+ * Kategori cashflow non-operasional (mutasi treasury/internal) yang DIKECUALIKAN dari
+ * semua agregasi laba/operasional (tutup buku, candlestick, breakdown, anomali, jurnal).
+ * - INTER_BRANCH_SETTLEMENT: settlement cetak titipan antar cabang.
+ * - PENGOSONGAN_SALDO: setor saldo tutup buku ke pusat.
+ * - MODAL_MASUK: pemberian modal awal dari pusat.
+ */
+const NON_OPERATIONAL_CATS = ['INTER_BRANCH_SETTLEMENT', 'PENGOSONGAN_SALDO', 'MODAL_MASUK'];
 
 @Injectable()
 export class ReportsService {
@@ -202,7 +220,7 @@ export class ReportsService {
         const weekLabels = weekRanges.map(([a, b]) => `${pad(a)}–${pad(b)} ${monthLabel} ${year}`);
 
         const cfs: any[] = await this.prisma.cashflow.findMany({
-            where: { ...bw, NOT: { category: 'INTER_BRANCH_SETTLEMENT' }, date: { gte: start, lte: end } } as any,
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { gte: start, lte: end } } as any,
             select: { type: true, category: true, amount: true, date: true, paymentMethod: true, bankAccountId: true, note: true },
             orderBy: { date: 'asc' },
         });
@@ -978,5 +996,566 @@ export class ReportsService {
         msg += `QRIS : ${formatRp(actualQris)}\n`;
 
         return msg;
+    }
+
+    // ==================== ANALISA KEUANGAN (candlestick / equity curve) ====================
+
+    /** Key bucket per timeframe (string 'YYYY-MM-DD'). week = Senin minggu itu. */
+    private financeBucketKey(d: Date, tf: FinanceTimeframe): string {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const y = d.getFullYear();
+        if (tf === 'year') return `${y}-01-01`;
+        if (tf === 'month') return `${y}-${pad(d.getMonth() + 1)}-01`;
+        if (tf === 'week') {
+            const dt = new Date(y, d.getMonth(), d.getDate());
+            const dow = (dt.getDay() + 6) % 7; // 0 = Senin
+            dt.setDate(dt.getDate() - dow);
+            return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+        }
+        return `${y}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    /**
+     * Candlestick equity-curve: "harga" = saldo kas berjalan (running sum INCOME-EXPENSE).
+     * Basis Cashflow + FixedExpense (dialokasi per dueDay), exclude INTER_BRANCH_SETTLEMENT.
+     */
+    async getFinanceCandles(
+        branchCtx: BranchContext,
+        timeframe: FinanceTimeframe,
+        startDate: string,
+        endDate: string,
+        includeFixed = true,
+    ) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const num = (v: any) => Number(v || 0);
+
+        // 1) Opening balance = net cashflow sebelum start
+        const priorGroups: any[] = await (this.prisma.cashflow.groupBy as any)({
+            by: ['type'],
+            _sum: { amount: true },
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { lt: start } } as any,
+        });
+        let opening = 0;
+        for (const g of priorGroups) opening += g.type === 'INCOME' ? num(g._sum.amount) : -num(g._sum.amount);
+
+        // 2) Event dalam range
+        type Ev = { date: Date; income: number; expense: number; isTx: boolean };
+        const events: Ev[] = [];
+        const rows: any[] = await this.prisma.cashflow.findMany({
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { gte: start, lte: end } } as any,
+            select: { type: true, amount: true, date: true },
+            orderBy: { date: 'asc' },
+        });
+        for (const r of rows) {
+            const amt = num(r.amount);
+            events.push({ date: r.date, income: r.type === 'INCOME' ? amt : 0, expense: r.type === 'EXPENSE' ? amt : 0, isTx: true });
+        }
+
+        // 3) FixedExpense teralokasi per bulan pada dueDay
+        if (includeFixed) {
+            const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
+            const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+            while (cursor <= end) {
+                const y = cursor.getFullYear(), m = cursor.getMonth();
+                const lastDay = new Date(y, m + 1, 0).getDate();
+                for (const fe of fes) {
+                    const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
+                    const d = new Date(y, m, day, 12, 0, 0);
+                    if (d >= start && d <= end) events.push({ date: d, income: 0, expense: num(fe.amount), isTx: false });
+                }
+                cursor.setMonth(cursor.getMonth() + 1);
+            }
+        }
+
+        // 4) Urut kronologis lalu bucket → OHLC equity
+        events.sort((a, b) => a.date.getTime() - b.date.getTime());
+        const buckets = new Map<string, FinanceCandle>();
+        let running = opening;
+        for (const ev of events) {
+            const key = this.financeBucketKey(ev.date, timeframe);
+            let c = buckets.get(key);
+            if (!c) {
+                c = { time: key, open: running, high: running, low: running, close: running, income: 0, expense: 0, net: 0, volume: 0, txCount: 0 };
+                buckets.set(key, c);
+            }
+            running += ev.income - ev.expense;
+            c.close = running;
+            c.high = Math.max(c.high, running);
+            c.low = Math.min(c.low, running);
+            c.income += ev.income;
+            c.expense += ev.expense;
+            c.volume += ev.income;
+            if (ev.isTx && ev.income > 0) c.txCount += 1;
+        }
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const candles = Array.from(buckets.values())
+            .sort((a, b) => (a.time < b.time ? -1 : 1))
+            .map((c) => ({
+                ...c,
+                open: round2(c.open), high: round2(c.high), low: round2(c.low), close: round2(c.close),
+                income: round2(c.income), expense: round2(c.expense), net: round2(c.income - c.expense), volume: round2(c.volume),
+            }));
+
+        const totalIncome = candles.reduce((s, c) => s + c.income, 0);
+        const totalExpense = candles.reduce((s, c) => s + c.expense, 0);
+        const closingBalance = round2(running);
+        const changePct = opening !== 0 ? round2(((closingBalance - opening) / Math.abs(opening)) * 100) : 0;
+        const trend = closingBalance > opening ? 'bullish' : closingBalance < opening ? 'bearish' : 'flat';
+
+        return {
+            timeframe,
+            period: { startDate, endDate },
+            summary: {
+                openingBalance: round2(opening),
+                closingBalance,
+                totalIncome: round2(totalIncome),
+                totalExpense: round2(totalExpense),
+                net: round2(totalIncome - totalExpense),
+                changePct,
+                trend,
+            },
+            candles,
+        };
+    }
+
+    /** Heatmap traffic: hari & jam paling sepi/rame (basis Transaction PAID). */
+    async getFinanceHeatmap(branchCtx: BranchContext, startDate: string, endDate: string) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const txs: any[] = await this.prisma.transaction.findMany({
+            where: { ...bw, status: 'PAID', createdAt: { gte: start, lte: end } } as any,
+            select: { grandTotal: true, createdAt: true },
+        });
+        const DOW = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+        const byDay = DOW.map((label, dow) => ({ dow, label, count: 0, revenue: 0 }));
+        const byHour = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0, revenue: 0 }));
+        const grid: Record<string, { count: number; revenue: number }> = {};
+        for (const t of txs) {
+            const d: Date = t.createdAt;
+            const dow = d.getDay(); const hour = d.getHours(); const amt = Number(t.grandTotal || 0);
+            byDay[dow].count++; byDay[dow].revenue += amt;
+            byHour[hour].count++; byHour[hour].revenue += amt;
+            const k = `${dow}-${hour}`;
+            grid[k] = grid[k] || { count: 0, revenue: 0 };
+            grid[k].count++; grid[k].revenue += amt;
+        }
+        const activeDays = byDay.filter((d) => d.count > 0);
+        const busiestDay = activeDays.reduce((a, b) => (b.count > a.count ? b : a), byDay[0]);
+        const quietestDay = activeDays.length ? activeDays.reduce((a, b) => (b.count < a.count ? b : a)) : null;
+        return {
+            period: { startDate, endDate },
+            byDayOfWeek: byDay,
+            byHour,
+            grid: Object.entries(grid).map(([k, v]) => { const [dow, hour] = k.split('-').map(Number); return { dow, hour, ...v }; }),
+            busiestDay,
+            quietestDay,
+        };
+    }
+
+    /** Jurnal harian keuangan: event uang terurut waktu + running balance, dikelompokkan per hari. */
+    async getFinanceJournal(branchCtx: BranchContext, startDate: string, endDate: string, includeFixed = true) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const num = (v: any) => Number(v || 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        const prior: any[] = await (this.prisma.cashflow.groupBy as any)({
+            by: ['type'], _sum: { amount: true },
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { lt: start } } as any,
+        });
+        let running = 0;
+        for (const g of prior) running += g.type === 'INCOME' ? num(g._sum.amount) : -num(g._sum.amount);
+        const openingBalance = running;
+
+        type Entry = { date: Date; type: 'INCOME' | 'EXPENSE'; source: 'cashflow' | 'fixed'; category: string; label: string; amount: number; paymentMethod: string | null; refId: number | null };
+        const raw: Entry[] = [];
+        const rows: any[] = await this.prisma.cashflow.findMany({
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { gte: start, lte: end } } as any,
+            select: { id: true, type: true, category: true, amount: true, date: true, paymentMethod: true, note: true },
+            orderBy: { date: 'asc' },
+        });
+        for (const r of rows) raw.push({ date: r.date, type: r.type, source: 'cashflow', category: r.category, label: r.note || r.category, amount: num(r.amount), paymentMethod: r.paymentMethod || null, refId: r.id });
+        if (includeFixed) {
+            const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
+            const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+            while (cursor <= end) {
+                const y = cursor.getFullYear(), m = cursor.getMonth();
+                const lastDay = new Date(y, m + 1, 0).getDate();
+                for (const fe of fes) {
+                    const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
+                    const d = new Date(y, m, day, 12, 0, 0);
+                    if (d >= start && d <= end) raw.push({ date: d, type: 'EXPENSE', source: 'fixed', category: fe.category, label: `Beban tetap: ${fe.name}`, amount: num(fe.amount), paymentMethod: null, refId: fe.id });
+                }
+                cursor.setMonth(cursor.getMonth() + 1);
+            }
+        }
+        raw.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const dayKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const daysMap = new Map<string, { date: string; openingBalance: number; closingBalance: number; income: number; expense: number; entries: (Entry & { runningBalance: number })[] }>();
+        for (const e of raw) {
+            const before = running;
+            running += e.type === 'INCOME' ? e.amount : -e.amount;
+            const entry = { ...e, runningBalance: round2(running) };
+            const k = dayKey(e.date);
+            let day = daysMap.get(k);
+            if (!day) { day = { date: k, openingBalance: round2(before), closingBalance: 0, income: 0, expense: 0, entries: [] }; daysMap.set(k, day); }
+            day.entries.push(entry);
+            day.closingBalance = entry.runningBalance;
+            if (e.type === 'INCOME') day.income += e.amount; else day.expense += e.amount;
+        }
+        const days = Array.from(daysMap.values()).map((d) => ({ ...d, income: round2(d.income), expense: round2(d.expense) }));
+        return { period: { startDate, endDate }, openingBalance: round2(openingBalance), closingBalance: round2(running), days };
+    }
+
+    /** Laporan anomali "pergerakan uang tidak jelas" (rule-based). */
+    async getFinanceAnomalies(branchCtx: BranchContext, startDate: string, endDate: string) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const num = (v: any) => Number(v || 0);
+        const sev = (v: number, med: number, high: number): 'low' | 'med' | 'high' => (v >= high ? 'high' : v >= med ? 'med' : 'low');
+        const anomalies: { date: string; type: string; severity: 'low' | 'med' | 'high'; reason: string; amount: number; refId: number | null }[] = [];
+        const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+        // 1) Selisih kas shift
+        const shifts: any[] = await this.prisma.shiftReport.findMany({
+            where: { ...bw, closedAt: { gte: start, lte: end } } as any,
+            select: { id: true, closedAt: true, cashDifference: true, qrisDifference: true, transferDifference: true },
+        });
+        for (const s of shifts) {
+            for (const [k, label] of [['cashDifference', 'Selisih kas'], ['qrisDifference', 'Selisih QRIS'], ['transferDifference', 'Selisih transfer']] as const) {
+                const diff = num(s[k]);
+                if (Math.abs(diff) > 0) anomalies.push({ date: s.closedAt ? iso(s.closedAt) : startDate, type: 'SHIFT_DIFF', severity: sev(Math.abs(diff), 50000, 200000), reason: `${label} Rp ${Math.abs(diff).toLocaleString('id-ID')} (${diff < 0 ? 'kurang' : 'lebih'})`, amount: diff, refId: s.id });
+            }
+        }
+
+        // 2) Outlier nominal + 3) pengeluaran tanpa keterangan
+        const cfs: any[] = await this.prisma.cashflow.findMany({
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { gte: start, lte: end } } as any,
+            select: { id: true, type: true, category: true, amount: true, date: true, note: true },
+        });
+        const byType: Record<string, number[]> = { INCOME: [], EXPENSE: [] };
+        for (const c of cfs) byType[c.type]?.push(num(c.amount));
+        const stats = (arr: number[]) => { if (!arr.length) return { mean: 0, std: 0 }; const mean = arr.reduce((a, b) => a + b, 0) / arr.length; const std = Math.sqrt(arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length); return { mean, std }; };
+        const st = { INCOME: stats(byType.INCOME), EXPENSE: stats(byType.EXPENSE) };
+        for (const c of cfs) {
+            const amt = num(c.amount);
+            const s = st[c.type as 'INCOME' | 'EXPENSE'];
+            if (s && s.std > 0 && amt > s.mean + 3 * s.std) anomalies.push({ date: iso(c.date), type: 'OUTLIER', severity: 'high', reason: `${c.type === 'INCOME' ? 'Pemasukan' : 'Pengeluaran'} janggal besar (Rp ${amt.toLocaleString('id-ID')}) jauh di atas rata-rata`, amount: amt, refId: c.id });
+            if (c.type === 'EXPENSE' && amt >= 500000 && (!c.note || !c.note.trim()) && (!c.category || c.category.toUpperCase() === 'LAINNYA')) anomalies.push({ date: iso(c.date), type: 'UNEXPLAINED', severity: sev(amt, 1000000, 5000000), reason: `Pengeluaran Rp ${amt.toLocaleString('id-ID')} tanpa keterangan/kategori`, amount: amt, refId: c.id });
+        }
+
+        // 4) Hari net anjlok (outlier bawah)
+        const netByDay: Record<string, number> = {};
+        for (const c of cfs) { const k = iso(c.date); netByDay[k] = (netByDay[k] || 0) + (c.type === 'INCOME' ? num(c.amount) : -num(c.amount)); }
+        const nets = Object.values(netByDay);
+        const ns = stats(nets);
+        if (ns.std > 0) for (const [k, v] of Object.entries(netByDay)) if (v < ns.mean - 2 * ns.std) anomalies.push({ date: k, type: 'DIP', severity: 'med', reason: `Arus kas harian anjlok (net Rp ${Math.round(v).toLocaleString('id-ID')}) jauh di bawah tren`, amount: v, refId: null });
+
+        const order = { high: 0, med: 1, low: 2 } as const;
+        anomalies.sort((a, b) => order[a.severity] - order[b.severity] || (a.date < b.date ? 1 : -1));
+        return { period: { startDate, endDate }, count: anomalies.length, anomalies };
+    }
+
+    /** Helper: total pemasukan/pengeluaran + pengeluaran per kategori (Cashflow + FixedExpense). */
+    private async financeTotals(bw: any, start: Date, end: Date, includeFixed: boolean) {
+        const num = (v: any) => Number(v || 0);
+        const cfs: any[] = await this.prisma.cashflow.findMany({
+            where: { ...bw, category: { notIn: NON_OPERATIONAL_CATS }, date: { gte: start, lte: end } } as any,
+            select: { type: true, category: true, amount: true },
+        });
+        let income = 0, expense = 0;
+        const expByCat: Record<string, number> = {};
+        for (const c of cfs) {
+            const amt = num(c.amount);
+            if (c.type === 'INCOME') income += amt;
+            else { expense += amt; const cat = c.category || 'LAINNYA'; expByCat[cat] = (expByCat[cat] || 0) + amt; }
+        }
+        if (includeFixed) {
+            const fes: any[] = await this.prisma.fixedExpense.findMany({ where: { ...bw, isActive: true } as any });
+            const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+            while (cursor <= end) {
+                const y = cursor.getFullYear(), m = cursor.getMonth();
+                const lastDay = new Date(y, m + 1, 0).getDate();
+                for (const fe of fes) {
+                    const day = Math.min(Math.max(1, fe.dueDay || 1), lastDay);
+                    const d = new Date(y, m, day, 12, 0, 0);
+                    if (d >= start && d <= end) { const amt = num(fe.amount); expense += amt; const cat = fe.category || 'LAINNYA'; expByCat[cat] = (expByCat[cat] || 0) + amt; }
+                }
+                cursor.setMonth(cursor.getMonth() + 1);
+            }
+        }
+        return { income, expense, net: income - expense, expByCat };
+    }
+
+    /** Breakdown pengeluaran per kategori (untuk analisa 'uang lari ke mana'). */
+    async getFinanceExpenseBreakdown(branchCtx: BranchContext, startDate: string, endDate: string, includeFixed = true) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const t = await this.financeTotals(bw, start, end, includeFixed);
+        const categories = Object.entries(t.expByCat)
+            .map(([category, amount]) => ({ category, amount: round2(amount), pct: t.expense > 0 ? round2((amount / t.expense) * 100) : 0 }))
+            .sort((a, b) => b.amount - a.amount);
+        return { period: { startDate, endDate }, total: round2(t.expense), totalIncome: round2(t.income), categories };
+    }
+
+    /** Perbandingan periode ini vs periode sebelumnya (panjang sama) + narasi otomatis. */
+    async getFinanceComparison(branchCtx: BranchContext, startDate: string, endDate: string, includeFixed = true) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+        const pct = (c: number, p: number) => (p !== 0 ? round2(((c - p) / Math.abs(p)) * 100) : (c !== 0 ? 100 : 0));
+
+        const prevEnd = new Date(start.getTime() - 1);
+        const prevStart = new Date(prevEnd.getTime() - (end.getTime() - start.getTime()));
+        const cur = await this.financeTotals(bw, start, end, includeFixed);
+        const prev = await this.financeTotals(bw, prevStart, prevEnd, includeFixed);
+
+        const cats = new Set([...Object.keys(cur.expByCat), ...Object.keys(prev.expByCat)]);
+        const topExpenseChanges = Array.from(cats)
+            .map((cat) => ({ category: cat, current: round2(cur.expByCat[cat] || 0), previous: round2(prev.expByCat[cat] || 0), delta: round2((cur.expByCat[cat] || 0) - (prev.expByCat[cat] || 0)) }))
+            .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+            .slice(0, 5);
+
+        const insights: string[] = [];
+        if (prev.income === 0 && prev.expense === 0) {
+            insights.push('Tidak ada data periode pembanding sebelumnya untuk dibandingkan.');
+        } else {
+            const netDelta = cur.net - prev.net;
+            if (netDelta < 0) insights.push(`Laba bersih turun ${Math.abs(pct(cur.net, prev.net))}% (${fmt(cur.net)} vs ${fmt(prev.net)} periode sebelumnya).`);
+            else if (netDelta > 0) insights.push(`Laba bersih naik ${pct(cur.net, prev.net)}% (${fmt(cur.net)} vs ${fmt(prev.net)} periode sebelumnya).`);
+            else insights.push('Laba bersih relatif sama dengan periode sebelumnya.');
+            const incDelta = cur.income - prev.income;
+            if (Math.abs(incDelta) > 0) insights.push(`Omzet ${incDelta < 0 ? 'turun' : 'naik'} ${fmt(Math.abs(incDelta))} (${incDelta < 0 ? '-' : '+'}${Math.abs(pct(cur.income, prev.income))}%).`);
+            const expDelta = cur.expense - prev.expense;
+            if (Math.abs(expDelta) > 0) insights.push(`Total pengeluaran ${expDelta < 0 ? 'turun' : 'naik'} ${fmt(Math.abs(expDelta))}.`);
+            const biggestUp = topExpenseChanges.find((c) => c.delta > 0);
+            if (biggestUp) insights.push(`Kenaikan pengeluaran terbesar: ${biggestUp.category} +${fmt(biggestUp.delta)}.`);
+        }
+
+        return {
+            current: { income: round2(cur.income), expense: round2(cur.expense), net: round2(cur.net), period: { startDate, endDate } },
+            previous: { income: round2(prev.income), expense: round2(prev.expense), net: round2(prev.net), period: { startDate: ymd(prevStart), endDate: ymd(prevEnd) } },
+            delta: { income: round2(cur.income - prev.income), expense: round2(cur.expense - prev.expense), net: round2(cur.net - prev.net), incomePct: pct(cur.income, prev.income), expensePct: pct(cur.expense, prev.expense), netPct: pct(cur.net, prev.net) },
+            topExpenseChanges,
+            insights,
+        };
+    }
+
+    /** Rekonsiliasi: saldo bank riil (BankAccount) + selisih kas terakumulasi dari ShiftReport. */
+    async getFinanceReconciliation(branchCtx: BranchContext, startDate: string, endDate: string) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');
+        const bw = branchWhere(branchCtx);
+        const start = new Date(`${startDate}T00:00:00`);
+        const end = new Date(`${endDate}T23:59:59.999`);
+        const num = (v: any) => Number(v || 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        const banks: any[] = await this.prisma.bankAccount.findMany({ select: { bankName: true, currentBalance: true, isActive: true } });
+        const bankAccounts = banks.filter((b) => b.isActive !== false).map((b) => ({ name: b.bankName, balance: num(b.currentBalance) }));
+        const totalBankBalance = bankAccounts.reduce((s, b) => s + b.balance, 0);
+
+        const shifts: any[] = await this.prisma.shiftReport.findMany({
+            where: { ...bw, closedAt: { gte: start, lte: end } } as any,
+            select: { cashDifference: true, qrisDifference: true, transferDifference: true },
+        });
+        let netDifference = 0, absDifference = 0, shiftsWithDiff = 0;
+        for (const s of shifts) {
+            const d = num(s.cashDifference) + num(s.qrisDifference) + num(s.transferDifference);
+            netDifference += d;
+            absDifference += Math.abs(num(s.cashDifference)) + Math.abs(num(s.qrisDifference)) + Math.abs(num(s.transferDifference));
+            if (d !== 0) shiftsWithDiff++;
+        }
+        return {
+            period: { startDate, endDate },
+            bankAccounts,
+            totalBankBalance: round2(totalBankBalance),
+            shiftReconciliation: { netDifference: round2(netDifference), absDifference: round2(absDifference), shiftsWithDiff, totalShifts: shifts.length },
+            hasIssue: Math.round(netDifference) !== 0,
+        };
+    }
+
+    /**
+     * Konsolidasi saldo tutup buku (owner, semua cabang): saldo bank per rekening + kas tunai
+     * (dari shift terakhir) per cabang, plus saran modal awal = rata-rata biaya operasional 3 bulan.
+     */
+    async getFinanceConsolidation(branchCtx: BranchContext, year: number, month: number) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Konsolidasi saldo hanya untuk owner.');
+        const num = (v: any) => Number(v || 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const MONTHS = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        const monthLabel = MONTHS[month - 1] || String(month);
+
+        const branches: any[] = await this.prisma.companyBranch.findMany({ where: { isActive: true }, select: { id: true, name: true, code: true }, orderBy: { id: 'asc' } });
+        const banks: any[] = await this.prisma.bankAccount.findMany({ where: { isActive: true }, select: { id: true, bankName: true, accountNumber: true, currentBalance: true, branchId: true } });
+        const shifts: any[] = await this.prisma.shiftReport.findMany({ distinct: ['branchId'], orderBy: { closedAt: 'desc' }, select: { branchId: true, actualCash: true, closedAt: true } });
+        const cashByBranch = new Map<number, { cash: number; asOf: Date | null }>();
+        for (const s of shifts) if (s.branchId != null) cashByBranch.set(s.branchId, { cash: num(s.actualCash), asOf: s.closedAt ?? null });
+
+        const closings: any[] = await this.prisma.branchMonthlyClosing.findMany({ where: { year, month } });
+        const closingByBranch = new Map<number, any>(closings.map((c) => [c.branchId, c]));
+
+        // Saran modal: rata-rata biaya operasional 3 bulan terakhir per cabang.
+        const winEnd = new Date(year, month - 1, 1, 0, 0, 0);
+        const winStart = new Date(year, month - 1 - 3, 1, 0, 0, 0);
+        const expGroups: any[] = await (this.prisma.cashflow.groupBy as any)({
+            by: ['branchId'], _sum: { amount: true },
+            where: { type: 'EXPENSE', category: { notIn: NON_OPERATIONAL_CATS }, date: { gte: winStart, lt: winEnd } },
+        });
+        const suggByBranch = new Map<number, number>();
+        for (const g of expGroups) if (g.branchId != null) suggByBranch.set(g.branchId, num(g._sum.amount) / 3);
+
+        const branchRows = branches.map((b) => {
+            const accounts = banks.filter((k) => k.branchId === b.id).map((k) => ({ id: k.id, bankName: k.bankName, accountNumber: k.accountNumber, balance: round2(num(k.currentBalance)) }));
+            const bankTotal = round2(accounts.reduce((s, a) => s + a.balance, 0));
+            const c = cashByBranch.get(b.id);
+            const cash = round2(c?.cash || 0);
+            const suggestedModal = round2(suggByBranch.get(b.id) || 0);
+            const cl = closingByBranch.get(b.id);
+            const closing = cl ? { status: cl.status, modalTotal: round2(num(cl.modalTotal)), closedAt: cl.closedAt ?? null, fundedAt: cl.fundedAt ?? null } : null;
+            return { branchId: b.id, branchName: b.name, code: b.code, accounts, bankTotal, cash, cashAsOf: c?.asOf ?? null, total: round2(bankTotal + cash), suggestedModal, closing };
+        });
+        const orphan = banks.filter((k) => k.branchId == null);
+        if (orphan.length) {
+            const accounts = orphan.map((k) => ({ id: k.id, bankName: k.bankName, accountNumber: k.accountNumber, balance: round2(num(k.currentBalance)) }));
+            const bankTotal = round2(accounts.reduce((s, a) => s + a.balance, 0));
+            branchRows.push({ branchId: 0, branchName: 'Tanpa Cabang', code: null, accounts, bankTotal, cash: 0, cashAsOf: null, total: bankTotal, suggestedModal: 0, closing: null });
+        }
+
+        const grandTotal = {
+            bank: round2(branchRows.reduce((s, r) => s + r.bankTotal, 0)),
+            cash: round2(branchRows.reduce((s, r) => s + r.cash, 0)),
+            total: round2(branchRows.reduce((s, r) => s + r.total, 0)),
+            suggestedModal: round2(branchRows.reduce((s, r) => s + r.suggestedModal, 0)),
+        };
+        return { period: { year, month, monthLabel }, branches: branchRows, grandTotal };
+    }
+
+    /** Pengosongan saldo cabang (setor ke pusat) — catat cashflow EXPENSE + reset saldo. Idempoten. */
+    async closeBranchBalance(branchCtx: BranchContext, year: number, month: number, branchId: number) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Aksi tutup buku hanya untuk owner.');
+        if (!branchId) throw new BadRequestException('Cabang wajib dipilih.');
+        const num = (v: any) => Number(v || 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        const existing = await this.prisma.branchMonthlyClosing.findUnique({ where: { year_month_branchId: { year, month, branchId } } });
+        if (existing) throw new BadRequestException(`Cabang ini sudah ditutup buku untuk ${month}/${year}.`);
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId }, select: { name: true } });
+        if (!branch) throw new BadRequestException('Cabang tidak ditemukan.');
+
+        const accounts = await this.prisma.bankAccount.findMany({ where: { branchId, isActive: true }, select: { id: true, bankName: true, currentBalance: true } });
+        const shift = await this.prisma.shiftReport.findFirst({ where: { branchId }, orderBy: { closedAt: 'desc' }, select: { actualCash: true } });
+        const cash = round2(num(shift?.actualCash));
+        const date = new Date(year, month, 0, 23, 59, 59); // hari terakhir bulan ybs
+        const snapshotAccounts = accounts.map((a) => ({ bankAccountId: a.id, bankName: a.bankName, balance: round2(num(a.currentBalance)) }));
+        const collectedBank = round2(snapshotAccounts.reduce((s, a) => s + a.balance, 0));
+
+        await this.prisma.$transaction(async (tx) => {
+            for (const a of snapshotAccounts) {
+                if (a.balance !== 0) {
+                    await tx.cashflow.create({ data: { type: 'EXPENSE', category: 'PENGOSONGAN_SALDO', amount: a.balance, bankAccountId: a.bankAccountId, branchId, paymentMethod: 'BANK_TRANSFER', date, note: `Setor saldo tutup buku ${month}/${year} (${a.bankName}) ke pusat`, excludeFromShift: true } as any });
+                    await tx.bankAccount.update({ where: { id: a.bankAccountId }, data: { currentBalance: 0 } });
+                }
+            }
+            if (cash > 0) {
+                await tx.cashflow.create({ data: { type: 'EXPENSE', category: 'PENGOSONGAN_SALDO', amount: cash, branchId, paymentMethod: 'CASH', date, note: `Setor kas tunai tutup buku ${month}/${year} ke pusat`, excludeFromShift: true } as any });
+            }
+            await tx.branchMonthlyClosing.create({ data: { year, month, branchId, status: 'CLOSED', collectedBank, collectedCash: cash, snapshot: snapshotAccounts as any, closedBy: branchCtx.roleName ?? null } });
+            // Uang masuk ke Kas Pusat (dompet owner)
+            const collectedTotal = round2(collectedBank + cash);
+            if (collectedTotal > 0) {
+                await tx.centralTreasuryEntry.create({ data: { direction: 'IN', category: 'SETORAN_CABANG', amount: collectedTotal, branchId, date, note: `Setoran tutup buku ${month}/${year} dari ${branch.name}`, createdBy: branchCtx.roleName ?? null } });
+            }
+        });
+        return { ok: true, branchId, collectedBank, collectedCash: cash, total: round2(collectedBank + cash) };
+    }
+
+    /** Pemberian modal awal per rekening — catat cashflow INCOME + tambah saldo. Butuh sudah ditutup. */
+    async fundBranchBalance(branchCtx: BranchContext, year: number, month: number, branchId: number, allocations: { bankAccountId: number; amount: number }[]) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Aksi beri modal hanya untuk owner.');
+        if (!branchId) throw new BadRequestException('Cabang wajib dipilih.');
+        const num = (v: any) => Number(v || 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        const closing = await this.prisma.branchMonthlyClosing.findUnique({ where: { year_month_branchId: { year, month, branchId } } });
+        if (!closing) throw new BadRequestException('Cabang belum ditutup buku. Kosongkan saldo dulu.');
+        if (closing.status === 'FUNDED') throw new BadRequestException('Cabang ini sudah diberi modal.');
+
+        const clean = (allocations || []).filter((a) => a && a.bankAccountId && num(a.amount) > 0);
+        if (!clean.length) throw new BadRequestException('Alokasi modal kosong.');
+        const date = new Date(year, month, 1, 8, 0, 0); // awal bulan berikutnya (month 1-based → bulan depan)
+        let modalTotal = 0;
+
+        await this.prisma.$transaction(async (tx) => {
+            for (const a of clean) {
+                const amt = round2(num(a.amount));
+                modalTotal += amt;
+                const acc = await tx.bankAccount.findUnique({ where: { id: a.bankAccountId }, select: { bankName: true, branchId: true } });
+                if (!acc || acc.branchId !== branchId) throw new BadRequestException('Rekening tidak cocok dengan cabang.');
+                await tx.cashflow.create({ data: { type: 'INCOME', category: 'MODAL_MASUK', amount: amt, bankAccountId: a.bankAccountId, branchId, paymentMethod: 'BANK_TRANSFER', date, note: `Modal awal dari pusat (${acc.bankName})`, excludeFromShift: true } as any });
+                await tx.bankAccount.update({ where: { id: a.bankAccountId }, data: { currentBalance: { increment: amt } } });
+            }
+            await tx.branchMonthlyClosing.update({ where: { id: closing.id }, data: { status: 'FUNDED', modalTotal: round2(modalTotal), fundedAt: new Date() } });
+            // Uang keluar dari Kas Pusat untuk modal cabang
+            await tx.centralTreasuryEntry.create({ data: { direction: 'OUT', category: 'MODAL_CABANG', amount: round2(modalTotal), branchId, date, note: `Modal awal untuk cabang`, createdBy: branchCtx.roleName ?? null } });
+        });
+        return { ok: true, branchId, modalTotal: round2(modalTotal) };
+    }
+
+    /** Ringkasan Kas Pusat (dompet owner): saldo all-time + rincian bulan + entri terbaru. */
+    async getCentralTreasury(branchCtx: BranchContext, year: number, month: number) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Kas pusat hanya untuk owner.');
+        const num = (v: any) => Number(v || 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+
+        // Saldo kumulatif (all-time)
+        const allGroups: any[] = await (this.prisma.centralTreasuryEntry.groupBy as any)({ by: ['direction'], _sum: { amount: true } });
+        let totalIn = 0, totalOut = 0;
+        for (const g of allGroups) { if (g.direction === 'IN') totalIn = num(g._sum.amount); else totalOut = num(g._sum.amount); }
+        const balance = round2(totalIn - totalOut);
+
+        // Rincian bulan terpilih
+        const start = new Date(year, month - 1, 1, 0, 0, 0);
+        const end = new Date(year, month, 0, 23, 59, 59, 999);
+        const monthEntries: any[] = await this.prisma.centralTreasuryEntry.findMany({ where: { date: { gte: start, lte: end } }, orderBy: { date: 'desc' } });
+        const sumBy = (dir: string, cat?: string) => round2(monthEntries.filter((e) => e.direction === dir && (!cat || e.category === cat)).reduce((s, e) => s + num(e.amount), 0));
+        const period = {
+            collected: sumBy('IN', 'SETORAN_CABANG'),
+            otherIn: sumBy('IN') - sumBy('IN', 'SETORAN_CABANG'),
+            modalOut: sumBy('OUT', 'MODAL_CABANG'),
+            bahanOut: sumBy('OUT', 'BELI_BAHAN'),
+            otherOut: sumBy('OUT', 'LAINNYA'),
+        };
+        const entries = monthEntries.slice(0, 100).map((e) => ({ id: e.id, direction: e.direction, category: e.category, amount: round2(num(e.amount)), branchId: e.branchId, note: e.note, date: e.date }));
+        return { period: { year, month }, balance, totalIn: round2(totalIn), totalOut: round2(totalOut), monthSummary: period, entries };
+    }
+
+    /** Catat pengeluaran Kas Pusat (beli bahan / lainnya). */
+    async addCentralExpense(branchCtx: BranchContext, category: string, amount: number, note?: string, date?: string) {
+        if (!branchCtx.isOwner) throw new ForbiddenException('Kas pusat hanya untuk owner.');
+        const amt = Number(amount || 0);
+        if (amt <= 0) throw new BadRequestException('Nominal harus lebih dari 0.');
+        const cat = category === 'BELI_BAHAN' ? 'BELI_BAHAN' : 'LAINNYA';
+        const when = date ? new Date(`${date}T12:00:00`) : new Date();
+        const entry = await this.prisma.centralTreasuryEntry.create({ data: { direction: 'OUT', category: cat, amount: amt, note: note || null, date: when, createdBy: branchCtx.roleName ?? null } });
+        return { ok: true, id: entry.id };
     }
 }

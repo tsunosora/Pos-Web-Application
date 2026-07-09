@@ -681,6 +681,46 @@ model FixedExpense {
   @@map("fixed_expenses")
 }
 
+/// Tutup buku bulanan per cabang: catatan pengosongan saldo (setor ke pusat) + pemberian modal.
+/// Idempoten via @@unique([year, month, branchId]) — cegah dobel-tutup / dobel-modal.
+model BranchMonthlyClosing {
+  id            Int       @id @default(autoincrement())
+  year          Int
+  month         Int
+  branchId      Int       @map("branch_id")
+  status        String    @default("CLOSED") @db.VarChar(20) // CLOSED | FUNDED
+  collectedBank Decimal   @default(0) @map("collected_bank") @db.Decimal(15, 2)
+  collectedCash Decimal   @default(0) @map("collected_cash") @db.Decimal(15, 2)
+  modalTotal    Decimal   @default(0) @map("modal_total") @db.Decimal(15, 2)
+  snapshot      Json?
+  closedBy      String?   @map("closed_by") @db.VarChar(100)
+  closedAt      DateTime  @default(now()) @map("closed_at")
+  fundedAt      DateTime? @map("funded_at")
+
+  @@unique([year, month, branchId])
+  @@index([branchId])
+  @@map("branch_monthly_closings")
+}
+
+/// Kas Pusat — dompet owner terpisah dari semua cabang.
+/// IN: setoran tutup buku tiap cabang. OUT: modal ke cabang + beli bahan + lainnya.
+/// Saldo pusat = SUM(IN) - SUM(OUT).
+model CentralTreasuryEntry {
+  id        Int      @id @default(autoincrement())
+  direction String   @db.VarChar(3) // IN | OUT
+  category  String   @db.VarChar(30) // SETORAN_CABANG | MODAL_CABANG | BELI_BAHAN | LAINNYA
+  amount    Decimal  @db.Decimal(15, 2)
+  branchId  Int?     @map("branch_id") // cabang terkait (setoran/modal)
+  note      String?  @db.Text
+  date      DateTime @default(now())
+  createdBy String?  @map("created_by") @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([direction])
+  @@index([date])
+  @@map("central_treasury_entries")
+}
+
 // Target & nominal bonus per cabang × posisi (CS/Designer/Operator). Diatur owner
 // di Dashboard Owner. metric = ukuran pencapaian (OMZET/DESIGN_ACC/NOTA). Bonus
 // dievaluasi BULANAN (target harian hanya untuk progress harian di UI).
