@@ -232,7 +232,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '3.9', // v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
+                version: '4.0', // v4.0: + branchMonthlyClosing & centralTreasuryEntry (grup Biaya Owner — konsolidasi tutup buku + kas pusat), + grup Penilaian CS: csRatingConfig & csRatingResponse. v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,
