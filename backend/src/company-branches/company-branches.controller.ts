@@ -36,6 +36,7 @@ export class CompanyBranchesController {
         @Body() body: {
             name?: string; address?: string; phone?: string; isActive?: boolean;
             code?: string | null; notaHeader?: string | null; notaFooter?: string | null; logoUrl?: string | null;
+            dailyTargetOverride?: number | null;
         },
     ) { return this.service.update(id, body); }
 

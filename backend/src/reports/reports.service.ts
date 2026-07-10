@@ -4,6 +4,7 @@ import { DiscordService } from '../discord/discord.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
+import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
 
 export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
 
@@ -1018,6 +1019,82 @@ export class ReportsService {
     /** Jam dinding — dipisah agar bisa di-mock di test (proyeksi beban tetap bergantung "hari ini"). */
     protected now(): Date {
         return new Date();
+    }
+
+    /**
+     * Status target omzet harian per cabang (hybrid override + fallback beban bulanan).
+     * Target = dailyTargetOverride ?? (beban tetap bulanan cabang + alokasi beban pusat) ÷ hari.
+     * - Staff / owner-cabang-spesifik → array 1 cabang (sesuai branchCtx).
+     * - Owner "Semua Cabang" → semua cabang aktif.
+     */
+    async getDailyTargetStatus(branchCtx: BranchContext): Promise<{
+        today: string;
+        daysInMonth: number;
+        branches: DailyTargetStatus[];
+    }> {
+        const now = this.now();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        const today = `${todayStart.getFullYear()}-${pad(todayStart.getMonth() + 1)}-${pad(todayStart.getDate())}`;
+
+        // Cabang yang relevan (staff/owner-spesifik → 1; owner all → semua aktif)
+        const branchFilter: any = branchCtx.branchId != null ? { id: branchCtx.branchId } : { isActive: true };
+        const branches: { id: number; name: string; dailyTargetOverride: any }[] =
+            await (this.prisma as any).companyBranch.findMany({
+                where: branchFilter,
+                select: { id: true, name: true, dailyTargetOverride: true },
+                orderBy: { name: 'asc' },
+            });
+        if (branches.length === 0) return { today, daysInMonth, branches: [] };
+
+        const branchIds = branches.map((b) => b.id);
+
+        // Beban tetap aktif: per-cabang (branchId in scope) + pusat (branchId null)
+        const feRows: { branchId: number | null; _sum: { amount: any } }[] =
+            await (this.prisma as any).fixedExpense.groupBy({
+                by: ['branchId'],
+                where: { isActive: true, OR: [{ branchId: { in: branchIds } }, { branchId: null }] },
+                _sum: { amount: true },
+            });
+        const branchFixedMap = new Map<number, number>();
+        let pusatFixedTotal = 0;
+        for (const row of feRows) {
+            const amt = Number(row._sum.amount || 0);
+            if (row.branchId == null) pusatFixedTotal += amt;
+            else branchFixedMap.set(row.branchId, amt);
+        }
+
+        // Omzet hari ini per cabang (cashflow auto-income; userId null = otomatis dari transaksi PAID)
+        const omzetRows: { branchId: number | null; _sum: { amount: any } }[] =
+            await (this.prisma as any).cashflow.groupBy({
+                by: ['branchId'],
+                where: {
+                    createdAt: { gte: todayStart },
+                    type: 'INCOME',
+                    userId: null,
+                    branchId: { in: branchIds },
+                },
+                _sum: { amount: true },
+            });
+        const omzetMap = new Map<number, number>();
+        for (const row of omzetRows) {
+            if (row.branchId != null) omzetMap.set(row.branchId, Number(row._sum.amount || 0));
+        }
+
+        const statuses = computeDailyTargets(
+            branches.map((b) => ({
+                branchId: b.id,
+                branchName: b.name,
+                branchFixedTotal: branchFixedMap.get(b.id) || 0,
+                override: b.dailyTargetOverride != null ? Number(b.dailyTargetOverride) : null,
+                todayOmzet: omzetMap.get(b.id) || 0,
+            })),
+            pusatFixedTotal,
+            daysInMonth,
+        );
+
+        return { today, daysInMonth, branches: statuses };
     }
 
     /**

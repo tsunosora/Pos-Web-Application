@@ -1545,6 +1545,7 @@ model CompanyBranch {
   notaHeader String?  @map("nota_header") @db.Text // Override header nota cabang ini
   notaFooter String?  @map("nota_footer") @db.Text // Override footer nota cabang ini
   logoUrl    String?  @map("logo_url") @db.Text // Logo khusus cabang (override storeLogo)
+  dailyTargetOverride Decimal? @map("daily_target_override") @db.Decimal(15, 2) // null = auto dari beban bulanan ÷ hari
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")

@@ -53,6 +53,7 @@ export class CompanyBranchesService {
             notaHeader?: string | null;
             notaFooter?: string | null;
             logoUrl?: string | null;
+            dailyTargetOverride?: number | null;
         },
     ) {
         const existing = await (this.prisma as any).companyBranch.findUnique({ where: { id } });
@@ -66,6 +67,10 @@ export class CompanyBranchesService {
         if ('notaFooter' in data) upd.notaFooter = data.notaFooter?.trim() || null;
         if ('logoUrl' in data) upd.logoUrl = data.logoUrl?.trim() || null;
         if (data.isActive !== undefined) upd.isActive = data.isActive;
+        if ('dailyTargetOverride' in data) {
+            const v = (data as any).dailyTargetOverride;
+            upd.dailyTargetOverride = (v === null || v === '' || Number.isNaN(Number(v))) ? null : Number(v);
+        }
         return (this.prisma as any).companyBranch.update({ where: { id }, data: upd });
     }
 

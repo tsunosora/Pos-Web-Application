@@ -203,6 +203,11 @@ export class ReportsController {
         return this.reportsService.getFinanceMonthlyReport(branchCtx, y, m, includeFixed !== 'false');
     }
 
+    @Get('finance/daily-target-status')
+    getDailyTargetStatus(@CurrentBranch() branchCtx: BranchContext) {
+        return this.reportsService.getDailyTargetStatus(branchCtx);
+    }
+
     @Post('finance/close-branch')
     async closeBranchBalance(
         @CurrentBranch() branchCtx: BranchContext,
