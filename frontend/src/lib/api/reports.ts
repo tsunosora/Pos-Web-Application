@@ -1,5 +1,25 @@
 import api from './client';
 
+// Target omzet harian per cabang (vs beban tetap bulanan)
+export interface DailyTargetBranch {
+    branchId: number;
+    branchName: string;
+    monthlyFixedExpense: number;
+    dailyTarget: number;
+    isOverride: boolean;
+    todayOmzet: number;
+    pct: number;
+    met: boolean;
+    shortfall: number;
+}
+export interface DailyTargetStatusResponse {
+    today: string;
+    daysInMonth: number;
+    branches: DailyTargetBranch[];
+}
+export const getDailyTargetStatus = async (): Promise<DailyTargetStatusResponse> =>
+    (await api.get('/reports/finance/daily-target-status')).data;
+
 // Dashboard & Sales
 export const getDashboardMetrics = async () => (await api.get('/transactions/dashboard/metrics')).data;
 export const getSalesChart = async (period: string) => (await api.get(`/transactions/dashboard/chart?period=${period}`)).data;

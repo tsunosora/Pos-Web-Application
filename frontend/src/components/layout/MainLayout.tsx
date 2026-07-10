@@ -8,6 +8,7 @@ import { SubNav } from "./SubNav";
 import { getActiveSection } from "./nav-config";
 import { Footer } from "./Footer";
 import { ShiftReminderBanner } from "./ShiftReminderBanner";
+import { DailyTargetBanner } from "./DailyTargetBanner";
 import { BranchInboxPopup } from "./BranchInboxPopup";
 import { BranchOutboxReadyPopup } from "./BranchOutboxReadyPopup";
 import { ReadyJobsPopup } from "./ReadyJobsPopup";
@@ -83,6 +84,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             </div>
             <AppInitializer />
             <div className="print:hidden"><ShiftReminderBanner /></div>
+            <div className="print:hidden"><DailyTargetBanner /></div>
             <div className="print:hidden"><BranchInboxPopup /></div>
             <div className="print:hidden"><BranchOutboxReadyPopup /></div>
             <ReadyJobsPopup onOpenModal={() => setReadyJobsModalOpen(true)} />
