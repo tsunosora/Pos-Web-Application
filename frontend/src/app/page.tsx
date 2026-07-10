@@ -29,6 +29,7 @@ import { EmptyState } from "@/components/ui/responsive-table";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { DailyTargetProgressCard } from "@/components/dashboard/DailyTargetProgressCard";
+import { DashboardCandleCard } from "@/components/dashboard/DashboardCandleCard";
 import {
   AreaChart,
   Area,
@@ -188,6 +189,9 @@ export default function Home() {
 
       {/* Target omzet harian vs beban bulanan */}
       <DailyTargetProgressCard />
+
+      {/* Grafik saldo kas candlestick — klik candle untuk jurnal (owner) */}
+      <DashboardCandleCard />
 
       {/* Main grid: chart + side */}
       <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-3">
