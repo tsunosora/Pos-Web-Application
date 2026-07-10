@@ -187,12 +187,6 @@ export default function Home() {
         />
       </div>
 
-      {/* Target omzet harian vs beban bulanan */}
-      <DailyTargetProgressCard />
-
-      {/* Grafik saldo kas candlestick — klik candle untuk jurnal (owner) */}
-      <DashboardCandleCard />
-
       {/* Main grid: chart + side */}
       <div className="grid grid-cols-1 gap-5 sm:gap-6 lg:grid-cols-3">
         {/* Left: trend chart + quick actions */}
@@ -264,6 +258,12 @@ export default function Home() {
               )}
             </div>
           </Section>
+
+          {/* Target omzet harian vs beban bulanan */}
+          <DailyTargetProgressCard />
+
+          {/* Grafik saldo kas candlestick — klik candle untuk jurnal (owner) */}
+          <DashboardCandleCard />
 
           {/* Quick actions */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
