@@ -36,7 +36,7 @@ export default function BranchesSettingsPage() {
     // Catatan: form halaman ini SENGAJA hanya menangani identitas tenant (name, code, isActive).
     // Alamat, telepon, logo, header/footer nota, PIN operator, WA group — dikelola di
     // /settings/branch-config (tabel BranchSettings) karena itu yang dibaca nota & POS.
-    const [form, setForm] = useState({ name: '', code: '', dailyTarget: '' });
+    const [form, setForm] = useState({ name: '', code: '' });
     const [deleteId, setDeleteId] = useState<number | null>(null);
     const [error, setError] = useState('');
 
@@ -61,8 +61,6 @@ export default function BranchesSettingsPage() {
             // Ganti code/name cabang ikut dipakai BranchSettings.getOne — invalidate supaya POS & nota refresh.
             qc.invalidateQueries({ queryKey: ['branch-settings'] });
             qc.invalidateQueries({ queryKey: ['branches'] });
-            // Target override berubah → refresh progress bar & banner.
-            qc.invalidateQueries({ queryKey: ['daily-target-status'] });
             resetForm();
         },
         onError: (e: any) => setError(e?.response?.data?.message || 'Gagal menyimpan'),
@@ -88,17 +86,13 @@ export default function BranchesSettingsPage() {
     function resetForm() {
         setShowForm(false);
         setEditId(null);
-        setForm({ name: '', code: '', dailyTarget: '' });
+        setForm({ name: '', code: '' });
         setError('');
     }
 
     function startEdit(b: Branch) {
         setEditId(b.id);
-        setForm({
-            name: b.name,
-            code: b.code ?? '',
-            dailyTarget: b.dailyTargetOverride != null ? String(b.dailyTargetOverride) : '',
-        });
+        setForm({ name: b.name, code: b.code ?? '' });
         setShowForm(true);
         setError('');
     }
@@ -111,8 +105,6 @@ export default function BranchesSettingsPage() {
             code: form.code.trim() || null,
         };
         if (editId) {
-            // Override target hanya relevan saat edit (endpoint create mengabaikannya).
-            payload.dailyTargetOverride = form.dailyTarget.trim() === '' ? null : Number(form.dailyTarget);
             updateMut.mutate({ id: editId, d: payload });
         } else {
             createMut.mutate(payload);
@@ -179,25 +171,6 @@ export default function BranchesSettingsPage() {
                             />
                         </div>
                     </div>
-                    {editId && (
-                        <div>
-                            <label className="block text-xs text-muted-foreground mb-1">
-                                Target Omzet Harian (opsional)
-                            </label>
-                            <input
-                                type="number"
-                                min={0}
-                                value={form.dailyTarget}
-                                onChange={e => setForm(f => ({ ...f, dailyTarget: e.target.value }))}
-                                className="w-full border border-border rounded-lg px-3 py-1.5 text-sm"
-                                placeholder="Kosongkan = otomatis dari beban bulanan"
-                            />
-                            <p className="text-[11px] text-muted-foreground mt-1">
-                                Kosongkan untuk memakai target otomatis: total beban tetap bulanan ÷ jumlah hari.
-                                Diisi untuk menimpa (override) dengan nominal manual.
-                            </p>
-                        </div>
-                    )}
                     <p className="text-xs text-muted-foreground">
                         Setelah menyimpan, lanjutkan ke{' '}
                         <Link href="/settings/branch-config" className="underline text-blue-600">

@@ -14,6 +14,7 @@ interface Branch {
     id: number;
     name: string;
     code?: string | null;
+    dailyTargetOverride?: number | string | null;
 }
 
 interface BranchSettings {
@@ -52,6 +53,29 @@ export default function BranchConfigPage() {
 
     const [form, setForm] = useState<BranchSettings>({});
     const [waBroadcastRaw, setWaBroadcastRaw] = useState<string>('');
+    const [targetInput, setTargetInput] = useState<string>('');
+
+    const activeBranch = branches.find(b => b.id === activeBranchId) ?? null;
+    // Sinkronkan input target dgn cabang yang dipilih.
+    useEffect(() => {
+        setTargetInput(activeBranch?.dailyTargetOverride != null ? String(activeBranch.dailyTargetOverride) : '');
+    }, [activeBranchId, activeBranch?.dailyTargetOverride]);
+
+    const saveTargetMutation = useMutation({
+        mutationFn: async () => {
+            const val = targetInput.trim() === '' ? null : Number(targetInput);
+            return axios.patch(`/company-branches/${activeBranchId}`, { dailyTargetOverride: val }).then(r => r.data);
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ['company-branches-active'] });
+            qc.invalidateQueries({ queryKey: ['company-branches'] });
+            qc.invalidateQueries({ queryKey: ['daily-target-status'] });
+            alert('✅ Target omzet harian tersimpan');
+        },
+        onError: (err: any) => {
+            alert(`❌ Gagal: ${err?.response?.data?.message || err.message}`);
+        },
+    });
 
     useEffect(() => {
         if (detail?.settings) {
@@ -137,6 +161,43 @@ export default function BranchConfigPage() {
                                 value={form.operatorPin ?? ''}
                                 onChange={e => upd('operatorPin', e.target.value)}
                             />
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Target Omzet Harian</CardTitle>
+                            <CardDescription>
+                                Target omzet/hari untuk progress bar &amp; notifikasi di dashboard. Kosongkan untuk
+                                memakai target <strong>otomatis</strong>: total beban tetap bulanan cabang (+ alokasi
+                                pusat) ÷ jumlah hari. Isi untuk menimpa (override) dengan nominal manual.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Label htmlFor="dailyTargetOverride">Target Omzet Harian (Rp)</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="dailyTargetOverride"
+                                    type="number"
+                                    min="0"
+                                    placeholder="Kosongkan = otomatis dari beban bulanan"
+                                    value={targetInput}
+                                    onChange={e => setTargetInput(e.target.value)}
+                                />
+                                <Button
+                                    onClick={() => saveTargetMutation.mutate()}
+                                    disabled={saveTargetMutation.isPending}
+                                    className="gap-2 shrink-0"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {saveTargetMutation.isPending ? 'Menyimpan…' : 'Simpan'}
+                                </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {targetInput.trim() === ''
+                                    ? 'Mode otomatis: target dihitung dari beban tetap bulanan.'
+                                    : 'Mode manual (override): target dikunci ke nominal di atas.'}
+                            </p>
                         </CardContent>
                     </Card>
 

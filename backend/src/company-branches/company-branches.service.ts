@@ -11,10 +11,10 @@ export class CompanyBranchesService {
         });
     }
 
-    async findAllActive(): Promise<{ id: number; name: string; code: string | null; phone: string | null }[]> {
+    async findAllActive(): Promise<{ id: number; name: string; code: string | null; phone: string | null; dailyTargetOverride: any }[]> {
         return (this.prisma as any).companyBranch.findMany({
             where: { isActive: true },
-            select: { id: true, name: true, code: true, phone: true },
+            select: { id: true, name: true, code: true, phone: true, dailyTargetOverride: true },
             orderBy: { name: 'asc' },
         });
     }
