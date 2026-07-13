@@ -2,23 +2,36 @@
 // Orkestrator cetak thermal: snap → canvas → raster → kirim BT; plus fallback browser-print.
 import html2canvas from 'html2canvas';
 import type { ReceiptSnapshot } from '../receipt';
-import { buildThermalReceiptBody, buildThermalReceiptHTML, THERMAL_CSS } from './receipt-thermal';
+import { buildThermalReceiptHTML } from './receipt-thermal';
 import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
 import { ensureConnected, sendBytes } from './bluetooth';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
-/** Render body struk ke <canvas> selebar 384px lewat DOM tersembunyi. */
+/**
+ * Render struk ke <canvas> selebar 384px lewat IFRAME terisolasi.
+ * Iframe punya dokumen sendiri (tanpa CSS Tailwind app), jadi html2canvas 1.4.1
+ * tak pernah ketemu warna `oklch()`/`lab()` (yang di-parse jadi transparan →
+ * struk bisa kosong). Dulu di-inject ke document.body → mewarisi warna app.
+ */
 const renderToCanvas = async (snap: ReceiptSnapshot, status: Status): Promise<HTMLCanvasElement> => {
-  const host = document.createElement('div');
-  host.style.cssText = 'position:absolute;left:-99999px;top:0;background:#fff;';
-  host.innerHTML = `<style>${THERMAL_CSS}</style>${buildThermalReceiptBody(snap, status)}`;
-  document.body.appendChild(host);
-  const target = host.querySelector('.receipt') as HTMLElement;
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.style.cssText = 'position:absolute;left:-99999px;top:0;width:400px;height:100px;border:0;background:#fff;';
+  document.body.appendChild(iframe);
+  const doc = iframe.contentDocument;
+  if (!doc) {
+    document.body.removeChild(iframe);
+    throw new Error('Gagal menyiapkan kanvas struk.');
+  }
+  doc.open();
+  doc.write(buildThermalReceiptHTML(snap, status));
+  doc.close();
+  const target = doc.querySelector('.receipt') as HTMLElement;
   // Tunggu semua gambar (logo) selesai load agar tak ter-render kosong.
   await Promise.all(
-    Array.from(host.querySelectorAll('img')).map((img) =>
+    Array.from(doc.querySelectorAll('img')).map((img) =>
       img.complete
         ? Promise.resolve()
         : new Promise((r) => {
@@ -34,7 +47,7 @@ const renderToCanvas = async (snap: ReceiptSnapshot, status: Status): Promise<HT
       useCORS: true,
     });
   } finally {
-    document.body.removeChild(host);
+    document.body.removeChild(iframe);
   }
 };
 
