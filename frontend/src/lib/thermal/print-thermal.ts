@@ -77,3 +77,59 @@ export const printThermalViaBrowser = (snap: ReceiptSnapshot, status: Status): v
   win.focus();
   win.print();
 };
+
+// --- Print Bridge (Linux/desktop): HTTP -> Bluetooth SPP ---
+// Di Linux, Web Bluetooth (BLE) sering gagal ambil alih printer dual-mode yang
+// dipegang BlueZ di mode Classic (SPP). Bridge lokal (tools/print-bridge/bridge.py)
+// menerima byte ESC/POS via HTTP lalu meneruskan ke printer via RFCOMM.
+
+const BRIDGE_LS_KEY = 'thermalPrinter.bridgeUrl';
+const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:9100';
+
+/** URL bridge; bisa dioverride via localStorage `thermalPrinter.bridgeUrl`. */
+export const getBridgeUrl = (): string => {
+  try {
+    return localStorage.getItem(BRIDGE_LS_KEY) || DEFAULT_BRIDGE_URL;
+  } catch {
+    return DEFAULT_BRIDGE_URL;
+  }
+};
+
+/** Cek apakah bridge lokal aktif (GET /health) dengan timeout pendek. */
+export const isBridgeAvailable = async (timeoutMs = 1200): Promise<boolean> => {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${getBridgeUrl()}/health`, { signal: ctrl.signal });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return !!data?.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+};
+
+/** Cetak lewat bridge lokal: render byte ESC/POS lalu POST ke bridge. */
+export const printThermalViaBridge = async (snap: ReceiptSnapshot, status: Status): Promise<void> => {
+  const bytes = await snapToEscpos(snap, status);
+  // Salin ke ArrayBuffer murni — hindari tipe Uint8Array<ArrayBufferLike> (bisa SharedArrayBuffer)
+  // yang tak diterima BodyInit di lib TS terbaru.
+  const buf = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buf).set(bytes);
+  const res = await fetch(`${getBridgeUrl()}/print`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: buf,
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = (await res.json())?.error || '';
+    } catch {
+      /* ignore */
+    }
+    throw new Error(detail || `Bridge menolak (HTTP ${res.status}).`);
+  }
+};

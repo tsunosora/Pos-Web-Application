@@ -1,15 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { X, Printer, Bluetooth, Loader2, Globe } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { X, Printer, Bluetooth, Loader2, Globe, Usb } from "lucide-react";
 import type { ReceiptSnapshot } from "@/lib/receipt";
 import {
   buildThermalReceiptHTML,
   connectPrinter,
   getLastPrinterName,
+  isBridgeAvailable,
   isPrinterConnected,
   isWebBluetoothAvailable,
   printThermalBluetoothAuto,
+  printThermalViaBridge,
   printThermalViaBrowser,
 } from "@/lib/thermal";
 
@@ -30,13 +32,40 @@ export default function ThermalReceiptModal({
   const btSupported = isWebBluetoothAvailable();
   const [connected, setConnected] = useState(isPrinterConnected());
   const [printerName, setPrinterName] = useState<string | null>(getLastPrinterName());
-  const [busy, setBusy] = useState<"connect" | "bt" | null>(null);
+  const [busy, setBusy] = useState<"connect" | "bt" | "bridge" | null>(null);
+  const [bridgeReady, setBridgeReady] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
   const previewHtml = useMemo(
     () => (open ? buildThermalReceiptHTML(snap, status) : ""),
     [open, snap, status],
   );
+
+  // Deteksi print bridge lokal (Linux/desktop) tiap kali modal dibuka.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    isBridgeAvailable().then((ok) => {
+      if (alive) setBridgeReady(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
+  // 1-tap: kirim struk ke printer via bridge lokal (HTTP -> Bluetooth SPP).
+  const handlePrintBridge = async () => {
+    setBusy("bridge");
+    setMsg(null);
+    try {
+      await printThermalViaBridge(snap, status);
+      setMsg({ kind: "ok", text: "Struk terkirim ke printer (bridge)." });
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : "Gagal mencetak via bridge." });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (!open) return null;
 
@@ -109,6 +138,22 @@ export default function ThermalReceiptModal({
 
         {/* Aksi */}
         <div className="p-4 border-t border-border space-y-3 shrink-0">
+          {/* Jalur andal untuk Linux/desktop: kirim ke printer via bridge lokal (SPP). */}
+          {bridgeReady && (
+            <button
+              onClick={handlePrintBridge}
+              disabled={busy !== null}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base transition-all disabled:opacity-40"
+            >
+              {busy === "bridge" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Usb className="w-5 h-5" />
+              )}
+              Cetak (Linux)
+            </button>
+          )}
+
           {btSupported ? (
             <>
               {/* Tombol utama 1-tap: auto-sambung printer tersimpan lalu cetak */}
