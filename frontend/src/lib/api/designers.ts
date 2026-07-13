@@ -165,8 +165,9 @@ export const designerLookupLeadsByPhone = async (
 export const designerListActiveCsLeads = async (
     designerId: number,
     pin: string,
+    search?: string,
 ): Promise<ActiveLeadPreview[]> =>
-    (await axios.post(`${BASE}/sales-orders/designer/cs-leads`, { designerId, pin })).data;
+    (await axios.post(`${BASE}/sales-orders/designer/cs-leads`, { designerId, pin, search })).data;
 
 /** Daftar SO milik desainer (paginasi) */
 export const designerListSOs = async (

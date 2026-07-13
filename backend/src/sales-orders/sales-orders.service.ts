@@ -565,21 +565,46 @@ export class SalesOrdersService {
      * (dan SO otomatis ditempel ke lead itu saat "Lead Order"). Lead yang dibuat dari
      * SO desainer sendiri dikecualikan (bukan antrian CS).
      */
-    async listActiveCsLeads() {
+    async listActiveCsLeads(search?: string) {
+        const s = (search || '').trim();
+        const digits = s.replace(/\D/g, '');
+        // Filter pencarian server-side (nama/HP). Wajib server-side: kalau hanya
+        // filter di klien atas N lead teratas, lead yang kepotong batas `take`
+        // tak akan pernah sampai ke browser sehingga tak bisa dicari sama sekali.
+        const searchClause = s
+            ? {
+                  // MySQL: collation `_ci` sudah case-insensitive, jadi `contains`
+                  // polos cukup (opsi `mode` tak didukung provider MySQL).
+                  OR: [
+                      { name: { contains: s } },
+                      { phone: { contains: s } },
+                      ...(digits ? [{ phoneNormalized: { contains: digits } }] : []),
+                  ],
+              }
+            : null;
         const leads = await (this.prisma as any).lead.findMany({
             where: {
                 status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] },
                 convertedSalesOrderId: null,             // belum ada SO = antrian yg butuh desainer
-                // hanya lead buatan CS (bukan dari SO desainer). NULL-safe: lead CS
+                // Dua kondisi OR (eksklusi SO Desainer + pencarian) tak bisa jadi dua
+                // key `OR` di level sama, jadi dibungkus AND. NULL-safe: lead CS
                 // umumnya sourceDetail=NULL — `NOT { sourceDetail }` polos akan salah
                 // mengecualikan baris NULL, jadi pakai OR eksplisit.
-                OR: [
-                    { sourceDetail: null },
-                    { sourceDetail: { not: 'SO Desainer' } },
+                AND: [
+                    {
+                        OR: [
+                            { sourceDetail: null },
+                            { sourceDetail: { not: 'SO Desainer' } },
+                        ],
+                    },
+                    ...(searchClause ? [searchClause] : []),
                 ],
             },
             orderBy: { createdAt: 'desc' },
-            take: 60,
+            // Tanpa search: tampilkan backlog jauh lebih banyak (dulu 60 → lead
+            // ke-61+ tak terjangkau saat antrian menumpuk). Dengan search: cukup 100
+            // teratas yang cocok karena user sudah mempersempit.
+            take: s ? 100 : 300,
             include: this.LEAD_PREVIEW_INCLUDE,
         });
         return leads.map((l: any) => this.mapLeadPreview(l));

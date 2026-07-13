@@ -70,6 +70,7 @@ function DesignerNewSOContent() {
     const [leadChoiceOpen, setLeadChoiceOpen] = useState(false); // modal pilih: tempel vs lead baru
     const [csLeads, setCsLeads] = useState<ActiveLeadPreview[]>([]); // antrian lead CS utk kartu pilihan
     const [csLeadsLoading, setCsLeadsLoading] = useState(true);
+    const [csLeadQuery, setCsLeadQuery] = useState(""); // kata kunci cari lead CS (server-side)
     const [pickedLead, setPickedLead] = useState<ActiveLeadPreview | null>(null); // lead CS yg dipilih dari kartu
     const [csPickerOpen, setCsPickerOpen] = useState(false); // modal daftar lead CS
 
@@ -103,16 +104,21 @@ function DesignerNewSOContent() {
         setError(null);
     }
 
-    // Muat antrian lead CS (mode buat baru saja)
+    // Muat antrian lead CS (mode buat baru saja). Pencarian dikirim ke server &
+    // di-debounce — supaya lead di luar batas tampilan awal tetap bisa ditemukan.
     useEffect(() => {
         if (!session || isEdit) { setCsLeadsLoading(false); return; }
+        const q = csLeadQuery.trim();
         setCsLeadsLoading(true);
-        designerListActiveCsLeads(session.id, session.pin)
-            .then(setCsLeads)
-            .catch(() => setCsLeads([]))
-            .finally(() => setCsLeadsLoading(false));
+        const t = setTimeout(() => {
+            designerListActiveCsLeads(session.id, session.pin, q || undefined)
+                .then(setCsLeads)
+                .catch(() => setCsLeads([]))
+                .finally(() => setCsLeadsLoading(false));
+        }, q ? 300 : 0);
+        return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [session?.id, isEdit]);
+    }, [session?.id, isEdit, csLeadQuery]);
 
     // Lazy-load produk saat pertama kali user klik search
     async function ensureProducts() {
@@ -678,6 +684,8 @@ function DesignerNewSOContent() {
                             leads={csLeads}
                             loading={csLeadsLoading}
                             pickedId={pickedLead?.id ?? null}
+                            query={csLeadQuery}
+                            onQueryChange={setCsLeadQuery}
                             onPick={l => { pickLead(l); setCsPickerOpen(false); }}
                             onClose={() => setCsPickerOpen(false)}
                         />
@@ -873,20 +881,19 @@ function ActiveLeadsPreview({ leads }: { leads: ActiveLeadPreview[] }) {
  * Klik salah satu → isi data customer & SO menempel ke lead itu saat "Lead Order".
  */
 function CsLeadPicker({
-    leads, loading, pickedId, onPick, onClose,
+    leads, loading, pickedId, query, onQueryChange, onPick, onClose,
 }: {
     leads: ActiveLeadPreview[];
     loading: boolean;
     pickedId: number | null;
+    query: string;
+    onQueryChange: (q: string) => void;
     onPick: (l: ActiveLeadPreview) => void;
     onClose: () => void;
 }) {
-    const [q, setQ] = useState("");
-    const filtered = useMemo(() => {
-        const s = q.trim().toLowerCase();
-        if (!s) return leads;
-        return leads.filter(l => (l.name || "").toLowerCase().includes(s) || (l.phone || "").includes(s));
-    }, [leads, q]);
+    // Pencarian dilakukan di server (lihat useEffect pemanggil): `leads` sudah
+    // merupakan hasil filter, jadi di sini cukup ditampilkan apa adanya.
+    const hasQuery = query.trim().length > 0;
 
     return (
         <>
@@ -901,12 +908,12 @@ function CsLeadPicker({
                 </button>
             </div>
 
-            {/* Search tetap */}
-            {leads.length > 3 && (
+            {/* Search tetap — dikirim ke server, jadi lead di luar tampilan awal tetap ketemu */}
+            {(leads.length > 3 || hasQuery) && (
                 <div className="px-4 pt-3 shrink-0">
                     <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Cari nama / HP lead…" autoFocus
+                        <input value={query} onChange={e => onQueryChange(e.target.value)} placeholder="Cari nama / HP lead…" autoFocus
                             className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" />
                     </div>
                 </div>
@@ -919,13 +926,13 @@ function CsLeadPicker({
                 </div>
             ) : leads.length === 0 ? (
                 <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-8 px-4">
-                    Belum ada lead aktif dari CS. Tutup lalu isi data customer manual.
+                    {hasQuery
+                        ? "Tidak ada lead cocok."
+                        : "Belum ada lead aktif dari CS. Tutup lalu isi data customer manual."}
                 </div>
-            ) : filtered.length === 0 ? (
-                <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-8">Tidak ada lead cocok.</div>
             ) : (
                 <div className="space-y-2 overflow-y-auto flex-1 p-4 pt-3">
-                    {filtered.map(l => {
+                    {leads.map(l => {
                         const handler = l.assignedToName || l.createdByName;
                         const active = pickedId === l.id;
                         return (

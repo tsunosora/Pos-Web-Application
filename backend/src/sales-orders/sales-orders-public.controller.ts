@@ -97,9 +97,9 @@ export class SalesOrdersPublicController {
      * Desainer klik kartu → data customer terisi & SO ditempel ke lead itu.
      */
     @Post('cs-leads')
-    async csLeads(@Body() body: { designerId: number; pin: string }) {
+    async csLeads(@Body() body: { designerId: number; pin: string; search?: string }) {
         await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
-        return this.soService.listActiveCsLeads();
+        return this.soService.listActiveCsLeads(body.search);
     }
 
     /** Buat SO baru */
