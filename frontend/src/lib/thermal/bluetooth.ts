@@ -19,15 +19,8 @@ export const getLastPrinterName = (): string | null =>
 
 export const isPrinterConnected = (): boolean => !!characteristic;
 
-/** Minta user pilih printer BLE lalu ambil characteristic tulis. Butuh gesture user. */
-export const connectPrinter = async (): Promise<string> => {
-  const bt = (navigator as any).bluetooth;
-  if (!bt) {
-    throw new Error(
-      'Perangkat ini tidak mendukung Bluetooth web (iPhone/Safari?). Gunakan tombol Cetak Browser.',
-    );
-  }
-  device = await bt.requestDevice({ acceptAllDevices: true, optionalServices: OPTIONAL_SERVICES });
+/** Sambungkan GATT dari `device` yang sudah dipilih & ambil characteristic tulis. */
+const connectGatt = async (): Promise<string> => {
   const server = await device.gatt.connect();
   const services = await server.getPrimaryServices();
   characteristic = null;
@@ -51,6 +44,43 @@ export const connectPrinter = async (): Promise<string> => {
     /* ignore */
   }
   return device.name || 'Printer';
+};
+
+/** Minta user pilih printer BLE lalu ambil characteristic tulis. Butuh gesture user. */
+export const connectPrinter = async (): Promise<string> => {
+  const bt = (navigator as any).bluetooth;
+  if (!bt) {
+    throw new Error(
+      'Perangkat ini tidak mendukung Bluetooth web (iPhone/Safari?). Gunakan tombol Cetak Browser.',
+    );
+  }
+  device = await bt.requestDevice({ acceptAllDevices: true, optionalServices: OPTIONAL_SERVICES });
+  return connectGatt();
+};
+
+/**
+ * Pastikan printer siap tanpa memaksa dialog pemilihan:
+ * 1) kalau sudah terhubung → langsung pakai.
+ * 2) coba sambung ulang ke printer yang sudah pernah diizinkan (getDevices, tanpa dialog).
+ * 3) fallback → buka dialog pemilihan (butuh gesture user; dipanggil dari onClick).
+ */
+export const ensureConnected = async (): Promise<string> => {
+  if (characteristic) return device?.name || 'Printer';
+  const bt = (navigator as any).bluetooth;
+  if (bt?.getDevices) {
+    try {
+      const known: any[] = await bt.getDevices();
+      const last = getLastPrinterName();
+      const dev = known.find((d) => d.name === last) || known[0];
+      if (dev) {
+        device = dev;
+        return await connectGatt();
+      }
+    } catch {
+      /* lanjut ke pemilihan manual */
+    }
+  }
+  return connectPrinter();
 };
 
 /** Kirim byte per-chunk kecil dengan jeda (printer BLE murah rawan overflow). */

@@ -9,7 +9,7 @@ import {
   getLastPrinterName,
   isPrinterConnected,
   isWebBluetoothAvailable,
-  printThermalBluetooth,
+  printThermalBluetoothAuto,
   printThermalViaBrowser,
 } from "@/lib/thermal";
 
@@ -40,6 +40,7 @@ export default function ThermalReceiptModal({
 
   if (!open) return null;
 
+  // Pilih/ganti printer secara eksplisit (dialog pemilihan Bluetooth).
   const handleConnect = async () => {
     setBusy("connect");
     setMsg(null);
@@ -55,12 +56,15 @@ export default function ThermalReceiptModal({
     }
   };
 
+  // 1-tap: auto-sambung ke printer tersimpan (tanpa dialog) lalu cetak.
   const handlePrintBt = async () => {
     setBusy("bt");
     setMsg(null);
     try {
-      await printThermalBluetooth(snap, status);
-      setMsg({ kind: "ok", text: "Struk terkirim ke printer." });
+      const name = await printThermalBluetoothAuto(snap, status);
+      setConnected(true);
+      setPrinterName(name);
+      setMsg({ kind: "ok", text: `Struk terkirim ke ${name}.` });
     } catch (e) {
       setMsg({ kind: "err", text: e instanceof Error ? e.message : "Gagal mencetak." });
     } finally {
@@ -106,41 +110,36 @@ export default function ThermalReceiptModal({
         {/* Aksi */}
         <div className="p-4 border-t border-border space-y-3 shrink-0">
           {btSupported ? (
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={handleConnect}
-                disabled={busy !== null}
-                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all disabled:opacity-50"
-              >
-                {busy === "connect" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Bluetooth className="w-4 h-4 text-sky-500" />
-                )}
-                {connected ? "Ganti Printer" : "Hubungkan"}
-              </button>
+            <>
+              {/* Tombol utama 1-tap: auto-sambung printer tersimpan lalu cetak */}
               <button
                 onClick={handlePrintBt}
-                disabled={busy !== null || !connected}
-                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-sm transition-all disabled:opacity-40"
+                disabled={busy !== null}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base transition-all disabled:opacity-40"
               >
                 {busy === "bt" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <Printer className="w-4 h-4" />
+                  <Bluetooth className="w-5 h-5" />
                 )}
                 Cetak Bluetooth
               </button>
-            </div>
+              <button
+                onClick={handleConnect}
+                disabled={busy !== null}
+                className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                {busy === "connect" ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Bluetooth className="w-3.5 h-3.5" />
+                )}
+                {connected && printerName ? `Printer: ${printerName} · ganti` : "Pilih printer manual"}
+              </button>
+            </>
           ) : (
             <p className="text-xs text-muted-foreground text-center">
               Perangkat ini tidak mendukung Bluetooth web (iPhone/Safari). Gunakan Cetak Browser di bawah.
-            </p>
-          )}
-
-          {connected && printerName && (
-            <p className="text-[11px] text-muted-foreground text-center -mt-1">
-              Printer: <span className="font-medium text-foreground">{printerName}</span>
             </p>
           )}
 

@@ -167,7 +167,7 @@ function POSPageContent() {
     const [cashierName, setCashierName] = useState('');
     const [employeeName, setEmployeeName] = useState('');
     const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null);
-    const [thermalOpen, setThermalOpen] = useState(false);
+    const [thermalState, setThermalState] = useState<{ snap: ReceiptSnapshot; status: 'TAGIHAN' | 'LUNAS' } | null>(null);
     const [productionPriority, setProductionPriority] = useState<'NORMAL' | 'EXPRESS'>('NORMAL');
     const [productionDeadline, setProductionDeadline] = useState('');
     const [productionNotes, setProductionNotes] = useState('');
@@ -374,6 +374,11 @@ function POSPageContent() {
 
     const handlePrintTagihan = () => handlePrintSnap(buildCurrentSnap(), 'TAGIHAN', bankAccounts);
     const handleShareTagihan = () => handleShareWA(buildCurrentSnap(), 'TAGIHAN', bankAccounts);
+    // Status nota dari komposisi DP vs total (LUNAS bila terbayar penuh).
+    const snapStatus = (s: ReceiptSnapshot): 'TAGIHAN' | 'LUNAS' =>
+        (s.downPayment ?? s.grandTotal) < s.grandTotal ? 'TAGIHAN' : 'LUNAS';
+    const openThermal = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUNAS' = snapStatus(snap)) =>
+        setThermalState({ snap, status });
 
     // Guard hydration: kategori hanya di-render client-side untuk hindari mismatch
     // karena TanStack Query cache beda antara SSR (kosong) vs client (cached).
@@ -574,6 +579,7 @@ function POSPageContent() {
             // Bersihkan mode SO juga (kalau nota offline ini dari SO)
             if (salesOrderId) { setSalesOrderId(null); router.replace('/pos'); }
             setReceipt(snap);
+            if (settings?.receiptDefaultFormat === 'THERMAL_58') openThermal(snap);
         } else {
             transactionMutation.mutate(payload, {
                 onSuccess: (data) => {
@@ -602,6 +608,7 @@ function POSPageContent() {
                         router.replace('/pos');
                     }
                     setReceipt(snap);
+                    if (settings?.receiptDefaultFormat === 'THERMAL_58') openThermal(snap);
 
                     // Notif transaksi berhasil
                     const namaCustomer = snap.customerName || 'Pelanggan';
@@ -1904,14 +1911,22 @@ function POSPageContent() {
                                 <p className="text-[10px] text-muted-foreground/80 mb-2 leading-relaxed">
                                     Belum dibayar? Cetak struk tagihan atau kirim lewat WhatsApp dulu — pelanggan bisa transfer atau datang melunasi.
                                 </p>
-                                <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-3 gap-2">
                                     <button
                                         onClick={handlePrintTagihan}
                                         className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-xs transition-colors"
-                                        title="Print struk tagihan untuk pelanggan"
+                                        title="Print faktur A5 tagihan untuk pelanggan"
                                     >
                                         <Printer className="w-3.5 h-3.5 text-muted-foreground" />
-                                        Cetak Tagihan
+                                        Faktur A5
+                                    </button>
+                                    <button
+                                        onClick={() => openThermal(buildCurrentSnap(), 'TAGIHAN')}
+                                        className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border bg-background hover:bg-muted font-semibold text-xs transition-colors"
+                                        title="Cetak struk thermal 58mm tagihan (Bluetooth)"
+                                    >
+                                        <Printer className="w-3.5 h-3.5 text-muted-foreground" />
+                                        Struk 58mm
                                     </button>
                                     <button
                                         onClick={handleShareTagihan}
@@ -1919,7 +1934,7 @@ function POSPageContent() {
                                         title="Kirim tagihan via WhatsApp"
                                     >
                                         <MessageCircle className="w-3.5 h-3.5" />
-                                        Kirim via WA
+                                        WA
                                     </button>
                                 </div>
                             </div>
@@ -2106,7 +2121,7 @@ function POSPageContent() {
                                     <Printer className="w-4 h-4 text-muted-foreground" />
                                     Faktur A5
                                 </button>
-                                <button onClick={() => setThermalOpen(true)}
+                                <button onClick={() => openThermal(receipt)}
                                     className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${settings?.receiptDefaultFormat === 'THERMAL_58' ? 'border-primary bg-primary/5 hover:bg-primary/10' : 'border-border bg-background hover:bg-muted hover:border-primary/30'}`}>
                                     <Printer className="w-4 h-4 text-muted-foreground" />
                                     Struk 58mm
@@ -2117,12 +2132,6 @@ function POSPageContent() {
                                 <MessageCircle className="w-4 h-4" />
                                 Share ke WA
                             </button>
-                            <ThermalReceiptModal
-                                open={thermalOpen}
-                                onClose={() => setThermalOpen(false)}
-                                snap={receipt}
-                                status={(receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS'}
-                            />
                             <button onClick={() => {
                                 // Defensive: pastikan cart & state customer bersih saat user
                                 // klik "Selesai / Transaksi Baru". Idempotent — onSuccess
@@ -2216,6 +2225,16 @@ function POSPageContent() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {/* Modal struk thermal — dipakai untuk nota hasil transaksi & draft tagihan */}
+            {thermalState && (
+                <ThermalReceiptModal
+                    open={true}
+                    onClose={() => setThermalState(null)}
+                    snap={thermalState.snap}
+                    status={thermalState.status}
+                />
             )}
         </div>
     );

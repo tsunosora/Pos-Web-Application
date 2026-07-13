@@ -5,7 +5,7 @@ import type { ReceiptSnapshot } from '../receipt';
 import { buildThermalReceiptBody, buildThermalReceiptHTML, THERMAL_CSS } from './receipt-thermal';
 import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
-import { sendBytes } from './bluetooth';
+import { ensureConnected, sendBytes } from './bluetooth';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
@@ -38,14 +38,34 @@ const renderToCanvas = async (snap: ReceiptSnapshot, status: Status): Promise<HT
   }
 };
 
-/** Cetak via printer Bluetooth (Android/Chrome). Printer harus sudah connect. */
-export const printThermalBluetooth = async (snap: ReceiptSnapshot, status: Status): Promise<void> => {
+/** Render snap → byte ESC/POS raster (dipakai internal). */
+const snapToEscpos = async (snap: ReceiptSnapshot, status: Status): Promise<Uint8Array> => {
   const canvas = await renderToCanvas(snap, status);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Gagal membuat gambar struk.');
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const { mono, height } = imageDataToMono(img);
-  await sendBytes(concatBytes(initPrinter(), rasterImage(mono, height), feedAndCut()));
+  return concatBytes(initPrinter(), rasterImage(mono, height), feedAndCut());
+};
+
+/** Cetak via printer Bluetooth (Android/Chrome). Printer harus sudah connect. */
+export const printThermalBluetooth = async (snap: ReceiptSnapshot, status: Status): Promise<void> => {
+  await sendBytes(await snapToEscpos(snap, status));
+};
+
+/**
+ * Cetak 1-tap: pastikan koneksi (pakai printer tersimpan bila ada, tanpa dialog),
+ * baru kirim. Harus dipanggil dari gesture user (onClick) agar fallback dialog boleh muncul.
+ * @returns nama printer yang dipakai.
+ */
+export const printThermalBluetoothAuto = async (
+  snap: ReceiptSnapshot,
+  status: Status,
+): Promise<string> => {
+  // Siapkan byte dulu (paralel dgn kemungkinan reconnect) lalu kirim.
+  const [bytes, name] = await Promise.all([snapToEscpos(snap, status), ensureConnected()]);
+  await sendBytes(bytes);
+  return name;
 };
 
 /** Fallback: buka window & window.print() dengan @page 58mm (iOS/Windows). */
