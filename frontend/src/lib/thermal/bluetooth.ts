@@ -29,31 +29,57 @@ export const getLastPrinterName = (): string | null => {
 
 export const isPrinterConnected = (): boolean => !!characteristic;
 
-/** Sambungkan GATT dari `device` yang sudah dipilih & ambil characteristic tulis. */
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sambungkan GATT dari `device` yang sudah dipilih & ambil characteristic tulis.
+ * Retry + backoff: printer BLE murah sering drop tepat setelah `connect()` →
+ * "GATT Server is disconnected. Cannot retrieve services." Ulangi beberapa kali.
+ */
 const connectGatt = async (): Promise<string> => {
-  const server = await device.gatt.connect();
-  const services = await server.getPrimaryServices();
-  characteristic = null;
-  for (const svc of services) {
-    const chars = await svc.getCharacteristics();
-    const w = chars.find((c: any) => c.properties.write || c.properties.writeWithoutResponse);
-    if (w) {
-      characteristic = w;
-      break;
+  let lastErr: unknown = null;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    characteristic = null;
+    try {
+      const server = await device.gatt.connect();
+      // connect() kadang resolve sebelum link benar-benar siap → beri jeda & pastikan.
+      if (!server.connected) {
+        await delay(300);
+        if (!device.gatt?.connected) throw new Error('GATT belum tersambung.');
+      }
+      const services = await server.getPrimaryServices();
+      for (const svc of services) {
+        const chars = await svc.getCharacteristics();
+        const w = chars.find((c: any) => c.properties.write || c.properties.writeWithoutResponse);
+        if (w) {
+          characteristic = w;
+          break;
+        }
+      }
+      if (!characteristic) {
+        throw new Error('Printer terhubung tapi tak ada jalur tulis. Coba printer thermal lain.');
+      }
+      device.addEventListener('gattserverdisconnected', () => {
+        characteristic = null;
+      });
+      try {
+        localStorage.setItem(LS_KEY, device.name || 'Printer');
+      } catch {
+        /* ignore */
+      }
+      return device.name || 'Printer';
+    } catch (e) {
+      lastErr = e;
+      try {
+        device.gatt?.disconnect();
+      } catch {
+        /* ignore */
+      }
+      // Backoff: beri printer waktu siap ulang sebelum coba lagi.
+      if (attempt < 4) await delay(350 * attempt);
     }
   }
-  if (!characteristic) {
-    throw new Error('Printer terhubung tapi tak ada jalur tulis. Coba printer thermal lain.');
-  }
-  device.addEventListener('gattserverdisconnected', () => {
-    characteristic = null;
-  });
-  try {
-    localStorage.setItem(LS_KEY, device.name || 'Printer');
-  } catch {
-    /* ignore */
-  }
-  return device.name || 'Printer';
+  throw lastErr instanceof Error ? lastErr : new Error('Gagal menyambung printer Bluetooth.');
 };
 
 /** Minta user pilih printer BLE lalu ambil characteristic tulis. Butuh gesture user. */
