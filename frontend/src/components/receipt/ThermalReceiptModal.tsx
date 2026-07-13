@@ -91,7 +91,8 @@ export default function ThermalReceiptModal({
     setMsg(null);
     try {
       const name = await printThermalBluetoothAuto(snap, status);
-      setConnected(true);
+      // Koneksi dilepas setelah cetak → sinkronkan status (bukan "paired terus").
+      setConnected(isPrinterConnected());
       setPrinterName(name);
       setMsg({ kind: "ok", text: `Struk terkirim ke ${name}.` });
     } catch (e) {
@@ -154,7 +155,9 @@ export default function ThermalReceiptModal({
             </button>
           )}
 
-          {btSupported ? (
+          {/* Web Bluetooth disembunyikan bila bridge tersedia — bridge lebih andal
+              di desktop & menghindari status "paired" yang membingungkan. */}
+          {!bridgeReady && (btSupported ? (
             <>
               {/* Tombol utama 1-tap: auto-sambung printer tersimpan lalu cetak */}
               <button
@@ -186,7 +189,7 @@ export default function ThermalReceiptModal({
             <p className="text-xs text-muted-foreground text-center">
               Perangkat ini tidak mendukung Bluetooth web (iPhone/Safari). Gunakan Cetak Browser di bawah.
             </p>
-          )}
+          ))}
 
           <button
             onClick={() => printThermalViaBrowser(snap, status)}
