@@ -5,7 +5,9 @@ const OPTIONAL_SERVICES: (number | string)[] = [
   0xffe0,
   0x18f0,
   0xff00,
-  '000018f0-0000-1000-8000-00805f9b34fb',
+  '000018f0-0000-1000-8000-00805f9b34fb', // service cetak RPP02N / banyak thermal BLE (char tulis 0x2af1)
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // service vendor RPP02N (varian)
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // ISSC/microchip (beberapa thermal)
   '6e400001-b5a3-f393-e0a9-e50e24dcca9e', // Nordic UART
 ];
 const LS_KEY = 'thermalPrinter.lastName';
