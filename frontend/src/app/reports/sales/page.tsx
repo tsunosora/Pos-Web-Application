@@ -4,7 +4,8 @@ import { useState, useEffect, Fragment } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSalesSummary, getTransactions, getSettings, getBankAccounts } from '@/lib/api';
 import { updateTransactionPaymentMethod } from '@/lib/api/transactions';
-import { mapTransactionToReceipt, handlePrintSnap, handleShareWA } from '@/lib/receipt';
+import { mapTransactionToReceipt, handleShareWA } from '@/lib/receipt';
+import { useReceiptPrinter } from '@/lib/useReceiptPrinter';
 import { exportSheetsToExcel, exportToPDF } from '@/lib/export';
 import {
     Download, BarChart2, CreditCard, Banknote, Landmark, X, Receipt, Printer, MessageCircle,
@@ -94,6 +95,7 @@ export default function SalesReportPage() {
     });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts', activeBranchId], queryFn: getBankAccounts });
+    const { printReceipt, thermalModal } = useReceiptPrinter(settings, bankAccounts);
 
     const { isManager } = useCurrentUser();
     const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
@@ -993,7 +995,7 @@ export default function SalesReportPage() {
                         <div className="p-4 border-t border-border bg-muted/30 flex justify-between items-center">
                             <div className="flex gap-2">
                                 <button
-                                    onClick={() => handlePrintSnap(mapTransactionToReceipt(selectedTransaction, settings), selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
+                                    onClick={() => printReceipt(mapTransactionToReceipt(selectedTransaction, settings), selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS')}
                                     className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors outline-none"
                                 >
                                     <Printer className="w-4 h-4" /> Cetak Struk
@@ -1045,6 +1047,7 @@ export default function SalesReportPage() {
                 />
             )}
             </div>
+            {thermalModal}
         </div>
     );
 }
