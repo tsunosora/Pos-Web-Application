@@ -5,7 +5,7 @@ import type { ReceiptSnapshot } from '../receipt';
 import { buildThermalReceiptHTML } from './receipt-thermal';
 import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
-import { ensureConnected, sendBytes } from './bluetooth';
+import { disconnectPrinter, ensureConnected, sendBytes } from './bluetooth';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
@@ -69,6 +69,8 @@ export const printThermalBluetooth = async (snap: ReceiptSnapshot, status: Statu
 /**
  * Cetak 1-tap: pastikan koneksi (pakai printer tersimpan bila ada, tanpa dialog),
  * baru kirim. Harus dipanggil dari gesture user (onClick) agar fallback dialog boleh muncul.
+ * Setelah cetak, koneksi DILEPAS supaya 1 printer bisa dipakai bergantian oleh
+ * beberapa device (Android/Windows) — koneksi ulang berikutnya tanpa dialog (getDevices).
  * @returns nama printer yang dipakai.
  */
 export const printThermalBluetoothAuto = async (
@@ -77,7 +79,14 @@ export const printThermalBluetoothAuto = async (
 ): Promise<string> => {
   // Siapkan byte dulu (paralel dgn kemungkinan reconnect) lalu kirim.
   const [bytes, name] = await Promise.all([snapToEscpos(snap, status), ensureConnected()]);
-  await sendBytes(bytes);
+  try {
+    await sendBytes(bytes);
+    // Beri jeda agar printer menyerap seluruh data sebelum link diputus.
+    await new Promise((r) => setTimeout(r, 400));
+  } finally {
+    // Lepas koneksi → printer bebas dipakai device lain (pemakaian bergantian).
+    disconnectPrinter();
+  }
   return name;
 };
 
