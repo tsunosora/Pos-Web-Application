@@ -97,9 +97,14 @@ export const printThermalViaBrowser = (snap: ReceiptSnapshot, status: Status): v
 // menerima byte ESC/POS via HTTP lalu meneruskan ke printer via RFCOMM.
 
 const BRIDGE_LS_KEY = 'thermalPrinter.bridgeUrl';
-const DEFAULT_BRIDGE_URL = 'http://127.0.0.1:9100';
+// Default: env NEXT_PUBLIC_BRIDGE_URL (mis. print server LAN dipakai banyak kasir),
+// jatuh ke localhost bila tak diset. localStorage tetap bisa override per-device.
+const DEFAULT_BRIDGE_URL = process.env.NEXT_PUBLIC_BRIDGE_URL || 'http://127.0.0.1:9100';
 
-/** URL bridge; bisa dioverride via localStorage `thermalPrinter.bridgeUrl`. */
+/**
+ * URL bridge. Prioritas: localStorage `thermalPrinter.bridgeUrl` (override per-device)
+ * → env `NEXT_PUBLIC_BRIDGE_URL` (setelan global) → `http://127.0.0.1:9100`.
+ */
 export const getBridgeUrl = (): string => {
   try {
     return localStorage.getItem(BRIDGE_LS_KEY) || DEFAULT_BRIDGE_URL;

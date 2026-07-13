@@ -68,12 +68,43 @@ systemctl --user enable --now print-bridge
 ## Cara pakai di aplikasi
 
 Saat bridge aktif, modal **Struk Thermal 58mm** otomatis menampilkan tombol
-**"Cetak (Linux)"** (deteksi via `GET /health`). Klik → struk langsung tercetak.
+**"Cetak (Printer Server)"** (deteksi via `GET /health`). Klik → struk langsung tercetak.
 
-Override URL bridge (mis. port lain) dari browser:
+URL bridge (prioritas): `localStorage thermalPrinter.bridgeUrl` → env
+`NEXT_PUBLIC_BRIDGE_URL` → `http://127.0.0.1:9100`.
+
+Override per-device dari browser:
 ```js
-localStorage.setItem('thermalPrinter.bridgeUrl', 'http://127.0.0.1:9100')
+localStorage.setItem('thermalPrinter.bridgeUrl', 'http://192.168.1.10:9100')
 ```
+
+## Banyak device, satu printer (print server LAN)
+
+Printer thermal murah (RPP02N) hanya mendukung **1 koneksi Bluetooth**, jadi tak
+bisa di-pair ke banyak device. Solusinya: **satu mesin memegang printer**, device
+lain (Android/laptop/Linux) kirim job cetak ke mesin itu lewat jaringan. Bridge
+meng-antre job (ada lock) jadi aman dipakai bergantian banyak kasir.
+
+1. **Di mesin host** (yang printer-nya paired), jalankan bridge bind ke LAN:
+   ```bash
+   python3 tools/print-bridge/bridge.py --mac 66:32:5C:C4:3B:32 --host 0.0.0.0
+   # atau pm2:
+   pm2 start tools/print-bridge/bridge.py --name print-bridge --interpreter python3 -- --mac 66:32:5C:C4:3B:32 --host 0.0.0.0
+   ```
+2. Cari IP LAN host (`ip a` / `hostname -I`), mis. `192.168.1.10`. Pastikan
+   **firewall mengizinkan port 9100**.
+3. **Arahkan semua device** ke host itu — dua cara:
+   - Global (rekomendasi): set env frontend `NEXT_PUBLIC_BRIDGE_URL=http://192.168.1.10:9100`
+     lalu rebuild/redeploy. Semua device otomatis pakai server ini.
+   - Per-device: jalankan di console browser tiap device
+     `localStorage.setItem('thermalPrinter.bridgeUrl','http://192.168.1.10:9100')`.
+
+Catatan:
+- Jalur ini **tak butuh Web Bluetooth / HTTPS** → jalan di device mana pun,
+  termasuk iOS dan yang diakses via IP LAN.
+- Aplikasi & bridge harus **sama-sama di jaringan lokal** (private→private) supaya
+  lolos Private Network Access. Jangan campur HTTPS-app → HTTP-bridge (mixed content).
+- Cukup **1 printer**; host harus menyala selama kasir dipakai.
 
 ## API
 

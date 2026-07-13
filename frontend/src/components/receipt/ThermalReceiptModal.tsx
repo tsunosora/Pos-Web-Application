@@ -150,7 +150,7 @@ export default function ThermalReceiptModal({
               ) : (
                 <Usb className="w-5 h-5" />
               )}
-              Cetak (Linux)
+              Cetak (Printer Server)
             </button>
           )}
 
