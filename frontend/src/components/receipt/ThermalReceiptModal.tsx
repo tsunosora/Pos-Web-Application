@@ -102,7 +102,7 @@ export default function ThermalReceiptModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-[600] flex items-center justify-center p-4">
       <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg flex flex-col max-h-[95vh]">
         <div className="px-5 py-4 border-b border-border flex justify-between items-center shrink-0">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
