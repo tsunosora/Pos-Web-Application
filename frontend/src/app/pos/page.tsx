@@ -584,6 +584,9 @@ function POSPageContent() {
             transactionMutation.mutate(payload, {
                 onSuccess: (data) => {
                     snap.transactionId = data?.id;
+                    // Ambil nomor SO (invoice) & CO (checkout) hasil generate server → tampil di nota/thermal.
+                    snap.orderNumber = data?.invoiceNumber || undefined;
+                    snap.checkoutNumber = data?.checkoutNumber || undefined;
                     setCheckoutModalOpen(false);
                     clearCart();
                     // Auto-save customer baru berdasarkan nomor HP (unique key)
