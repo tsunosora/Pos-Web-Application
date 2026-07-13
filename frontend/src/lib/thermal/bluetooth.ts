@@ -16,8 +16,16 @@ const LS_KEY = 'thermalPrinter.lastName';
 let device: any = null;
 let characteristic: any = null;
 
-export const getLastPrinterName = (): string | null =>
-  typeof localStorage !== 'undefined' ? localStorage.getItem(LS_KEY) : null;
+export const getLastPrinterName = (): string | null => {
+  // SSR-safe: di prerender Next.js, `localStorage` bisa ADA sebagai stub tapi
+  // `getItem` bukan fungsi → cek tipe fungsi + try/catch.
+  try {
+    if (typeof window === 'undefined' || typeof localStorage?.getItem !== 'function') return null;
+    return localStorage.getItem(LS_KEY);
+  } catch {
+    return null;
+  }
+};
 
 export const isPrinterConnected = (): boolean => !!characteristic;
 
