@@ -14,6 +14,7 @@ export default function GeneralSettings() {
         enableAdvancedPricing: false,
         enableTax: true,
         taxRate: 10,
+        receiptDefaultFormat: 'A5',
         operatorPin: '',
         marketingPin: '',
     });
@@ -29,6 +30,7 @@ export default function GeneralSettings() {
                 enableAdvancedPricing: data.enableAdvancedPricing || false,
                 enableTax: data.enableTax ?? true,
                 taxRate: data.taxRate ? Number(data.taxRate) : 10,
+                receiptDefaultFormat: data.receiptDefaultFormat || 'A5',
                 operatorPin: data.operatorPin || '',
                 marketingPin: data.marketingPin || '',
             });
@@ -220,6 +222,34 @@ export default function GeneralSettings() {
                             />
                         </div>
                     )}
+                </div>
+
+                {/* Format Nota Default */}
+                <div className="p-5 rounded-xl border border-border bg-background/50 space-y-4">
+                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Format Nota Default</h2>
+                    <p className="text-sm text-muted-foreground">Format nota yang ditonjolkan di kasir saat mencetak. Kedua format tetap bisa dipilih; ini hanya menentukan default.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {([
+                            { val: 'A5', title: 'Faktur A5', desc: 'Nota besar (kertas A5/A4), lengkap dengan tabel & terbilang.' },
+                            { val: 'THERMAL_58', title: 'Struk Thermal 58mm', desc: 'Struk ringkas printer thermal Bluetooth 58mm.' },
+                        ] as const).map(opt => (
+                            <div
+                                key={opt.val}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => setForm({ ...form, receiptDefaultFormat: opt.val })}
+                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${form.receiptDefaultFormat === opt.val ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-sm">{opt.title}</span>
+                                    {form.receiptDefaultFormat === opt.val && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-primary/20 text-primary">Default</span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">{opt.desc}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
                 {/* Operator PIN */}

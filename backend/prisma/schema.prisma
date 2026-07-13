@@ -611,6 +611,7 @@ model StoreSettings {
   enableAdvancedPricing  Boolean   @default(false) @map("enable_advanced_pricing")
   enableTax              Boolean   @default(true) @map("enable_tax")
   taxRate                Decimal   @default(10) @map("tax_rate") @db.Decimal(5, 2)
+  receiptDefaultFormat   String    @default("A5") @map("receipt_default_format") @db.VarChar(20) // "A5" | "THERMAL_58"
   loginBgImages          String?   @map("login_bg_images") @db.Text
   loginTaglines          String?   @map("login_taglines") @db.Text
   // Custom logo untuk login page (replace animasi Voliko centerpiece).

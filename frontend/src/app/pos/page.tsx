@@ -2102,12 +2102,12 @@ function POSPageContent() {
                             {/* Pilihan format nota: Faktur A5 (lama) atau Struk Thermal 58mm (baru) */}
                             <div className="grid grid-cols-2 gap-3">
                                 <button onClick={() => handlePrintSnap(receipt, (receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
-                                    className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all">
+                                    className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${settings?.receiptDefaultFormat !== 'THERMAL_58' ? 'border-primary bg-primary/5 hover:bg-primary/10' : 'border-border bg-background hover:bg-muted hover:border-primary/30'}`}>
                                     <Printer className="w-4 h-4 text-muted-foreground" />
                                     Faktur A5
                                 </button>
                                 <button onClick={() => setThermalOpen(true)}
-                                    className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all">
+                                    className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${settings?.receiptDefaultFormat === 'THERMAL_58' ? 'border-primary bg-primary/5 hover:bg-primary/10' : 'border-border bg-background hover:bg-muted hover:border-primary/30'}`}>
                                     <Printer className="w-4 h-4 text-muted-foreground" />
                                     Struk 58mm
                                 </button>
