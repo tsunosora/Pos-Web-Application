@@ -1,119 +1,86 @@
-# Print Bridge (Linux) — HTTP → Bluetooth SPP
+# Print Bridge — cetak thermal dari aplikasi web tanpa Web Bluetooth
 
-Jembatan kecil agar aplikasi POS (browser) bisa mencetak ke printer thermal
-**RPP02N** di **Linux desktop**, tanpa bergantung pada Web Bluetooth Chrome.
+Jembatan kecil (`bridge.py`) yang menerima struk (byte ESC/POS) dari aplikasi POS
+di browser lalu meneruskannya ke printer thermal. **Tidak memakai Bluetooth
+Chrome sama sekali**, jadi bebas dari masalah "device nyangkut di Chrome" & GATT
+sering putus.
 
-## Kenapa perlu
+Dua mode:
+- **Windows** → tulis ke **COM port** Bluetooth printer (`--com COM5`). ⭐ untuk kasir.
+- **Linux** → socket **RFCOMM** ke MAC printer (`--mac ...`). (mesin dev)
 
-RPP02N adalah printer **dual-mode**. Di Linux, BlueZ memegangnya di mode
-**Bluetooth Classic (Serial Port Profile / SPP)**. Web Bluetooth Chrome hanya bisa
-lewat **BLE/GATT**, sehingga sering gagal mengambil alih printer → tombol
-"Cetak Bluetooth" tidak jalan.
+---
 
-Jalur SPP sendiri **andal**. Bridge ini menerima byte ESC/POS dari aplikasi via
-HTTP lalu meneruskannya ke printer via socket RFCOMM.
+## WINDOWS (device kasir) — langkah lengkap
 
-> Catatan: di **Android** jalur Web Bluetooth (tombol "Cetak Bluetooth") tetap
-> mulus — bridge ini khusus untuk **Linux/desktop**.
+### 1. Pair printer di Windows → dapatkan COM port
+1. Nyalakan printer. Buka **Settings → Bluetooth & devices → Add device → Bluetooth**.
+2. Pilih **RPP02N**, pair (kalau minta PIN: `0000` atau `1234`).
+3. Buka **Control Panel → Devices and Printers** (atau *Bluetooth settings → COM Ports*).
+   Catat **COM port "Outgoing"** untuk RPP02N, mis. `COM5`.
+   (Bisa juga cek di *Device Manager → Ports (COM & LPT)*.)
 
-## Prasyarat
-
-- Printer sudah **paired** di Linux: `bluetoothctl` → `pair`/`trust` RPP02N.
-- Python 3 (stdlib saja — **tanpa dependency**).
-
-## Jalankan manual
-
-```bash
-python3 tools/print-bridge/bridge.py --mac 66:32:5C:C4:3B:32
-```
-
-Opsi:
-- `--mac`      MAC printer (default `66:32:5C:C4:3B:32`, atau env `PRINTER_MAC`)
-- `--channel`  RFCOMM channel (default: autodetect 1..6, atau env `PRINTER_CHANNEL`)
-- `--port`     port HTTP (default `9100`, atau env `BRIDGE_PORT`)
-- `--host`     host bind (default `127.0.0.1`)
-
-Cek:
-```bash
-curl http://127.0.0.1:9100/health
-# {"ok": true, "printer": "66:32:5C:C4:3B:32", "channel": null}
-```
-
-## Jalankan permanen (pm2)
-
-```bash
-pm2 start tools/print-bridge/bridge.py --name print-bridge --interpreter python3 -- --mac 66:32:5C:C4:3B:32
-pm2 save
-```
-
-Atau systemd user service (`~/.config/systemd/user/print-bridge.service`):
-
-```ini
-[Unit]
-Description=POS Print Bridge (HTTP -> Bluetooth SPP)
-After=bluetooth.target
-
-[Service]
-ExecStart=/usr/bin/python3 %h/WEBDEV/Pos-Web-Application/tools/print-bridge/bridge.py --mac 66:32:5C:C4:3B:32
-Restart=on-failure
-
-[Install]
-WantedBy=default.target
-```
-
-```bash
-systemctl --user enable --now print-bridge
-```
-
-## Cara pakai di aplikasi
-
-Saat bridge aktif, modal **Struk Thermal 58mm** otomatis menampilkan tombol
-**"Cetak (Printer Server)"** (deteksi via `GET /health`). Klik → struk langsung tercetak.
-
-URL bridge (prioritas): `localStorage thermalPrinter.bridgeUrl` → env
-`NEXT_PUBLIC_BRIDGE_URL` → `http://127.0.0.1:9100`.
-
-Override per-device dari browser:
-```js
-localStorage.setItem('thermalPrinter.bridgeUrl', 'http://192.168.1.10:9100')
-```
-
-## Banyak device, satu printer (print server LAN)
-
-Printer thermal murah (RPP02N) hanya mendukung **1 koneksi Bluetooth**, jadi tak
-bisa di-pair ke banyak device. Solusinya: **satu mesin memegang printer**, device
-lain (Android/laptop/Linux) kirim job cetak ke mesin itu lewat jaringan. Bridge
-meng-antre job (ada lock) jadi aman dipakai bergantian banyak kasir.
-
-1. **Di mesin host** (yang printer-nya paired), jalankan bridge bind ke LAN:
-   ```bash
-   python3 tools/print-bridge/bridge.py --mac 66:32:5C:C4:3B:32 --host 0.0.0.0
-   # atau pm2:
-   pm2 start tools/print-bridge/bridge.py --name print-bridge --interpreter python3 -- --mac 66:32:5C:C4:3B:32 --host 0.0.0.0
+### 2. Pasang Python + jalankan bridge
+1. Install Python dari <https://python.org> (centang **Add Python to PATH**).
+2. (Opsional, lebih andal) buka Command Prompt: `pip install pyserial`
+3. Jalankan bridge (ganti COM5 sesuai punyamu):
    ```
-2. Cari IP LAN host (`ip a` / `hostname -I`), mis. `192.168.1.10`. Pastikan
-   **firewall mengizinkan port 9100**.
-3. **Arahkan semua device** ke host itu — dua cara:
-   - Global (rekomendasi): set env frontend `NEXT_PUBLIC_BRIDGE_URL=http://192.168.1.10:9100`
-     lalu rebuild/redeploy. Semua device otomatis pakai server ini.
-   - Per-device: jalankan di console browser tiap device
-     `localStorage.setItem('thermalPrinter.bridgeUrl','http://192.168.1.10:9100')`.
+   python bridge.py --com COM5
+   ```
+   Muncul: `listening http://127.0.0.1:9100  mode=com  target=COM5`
+4. Tes: buka browser ke <http://127.0.0.1:9100/health> → harus `{"ok": true, ...}`.
 
-Catatan:
-- Jalur ini **tak butuh Web Bluetooth / HTTPS** → jalan di device mana pun,
-  termasuk iOS dan yang diakses via IP LAN.
-- Aplikasi & bridge harus **sama-sama di jaringan lokal** (private→private) supaya
-  lolos Private Network Access. Jangan campur HTTPS-app → HTTP-bridge (mixed content).
-- Cukup **1 printer**; host harus menyala selama kasir dipakai.
+### 3. Jalankan otomatis saat Windows nyala (opsional)
+Buat file `jalankan-bridge.bat`:
+```bat
+@echo off
+python "C:\path\ke\tools\print-bridge\bridge.py" --com COM5
+```
+Taruh shortcut-nya di folder **Startup** (`Win+R` → `shell:startup`).
+
+### 4. Pakai di aplikasi
+Buka aplikasi POS seperti biasa. Saat modal **Struk Thermal 58mm** muncul, akan ada
+tombol **"Cetak (Printer Server)"** (bridge terdeteksi otomatis). Klik → tercetak.
+Aplikasi HTTPS boleh memanggil `http://127.0.0.1` (localhost dikecualikan dari
+mixed-content, jadi aman).
+
+---
+
+## LINUX (mesin dev)
+
+```bash
+python3 bridge.py --mac 66:32:5C:C4:3B:32
+```
+Opsi: `--channel` (default autodetect 1..6), `--port` (default 9100), `--host`.
+Prasyarat: printer JANGAN di-pair di bluetoothctl (biar tak direbut mode Classic).
+
+---
+
+## Konfigurasi URL bridge di aplikasi
+
+Prioritas: `localStorage thermalPrinter.bridgeUrl` → env `NEXT_PUBLIC_BRIDGE_URL`
+→ `http://127.0.0.1:9100`. Default sudah pas untuk bridge lokal per-device.
 
 ## API
 
-- `GET  /health` → `{ ok, printer, channel }`
-- `POST /print`  → body = **raw byte ESC/POS** (`application/octet-stream`) → `{ ok, bytes, channel }`
+- `GET  /health` → `{ ok, target, mode }`  (`mode` = `com` | `rfcomm`)
+- `POST /print`  → body = **raw byte ESC/POS** (`application/octet-stream`)
+
+## Catatan penting soal berbagi 1 printer
+
+- Printer thermal murah hanya bisa **1 koneksi**. Dengan bridge, printer terhubung
+  ke **satu** mesin host (COM port). Mesin itulah yang mencetak.
+- Kalau mau device lain (HP Android / PC lain) ikut mencetak ke printer yang sama,
+  mereka harus mengirim ke host lewat jaringan. Karena aplikasi **HTTPS**, panggilan
+  ke bridge di IP lain (http) akan diblokir *mixed-content* — solusinya perlu bridge
+  di-proxy lewat HTTPS domain aplikasi (mis. lokasi `/printbridge` di nginx/caddy).
+  Diskusikan dulu; untuk awal, paling simpel **1 printer per mesin host**.
 
 ## Troubleshooting
 
-- **Tombol "Cetak (Linux)" tak muncul:** bridge belum jalan / port beda. Cek `curl .../health`.
-- **`/print` error "Gagal kirim ke printer":** printer mati / keluar jangkauan / belum paired.
-  Uji ulang: `bluetoothctl info 66:32:5C:C4:3B:32` (harus `Paired: yes`).
-- **Channel salah:** set manual `--channel 1` (RPP02N umumnya channel 1).
+- **Tombol "Cetak (Printer Server)" tak muncul:** bridge belum jalan / COM salah.
+  Cek `http://127.0.0.1:9100/health` di browser mesin itu.
+- **`/print` error:** printer mati / keluar jangkauan / COM port salah. Coba COM
+  port "Outgoing" yang lain, atau `pip install pyserial` lalu ulang.
+- **COM port tak muncul di Windows:** hapus pairing lalu pair ulang; pastikan
+  layanan *Bluetooth Support Service* jalan.
