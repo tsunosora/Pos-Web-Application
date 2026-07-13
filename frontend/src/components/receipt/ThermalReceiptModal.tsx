@@ -1,0 +1,158 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { X, Printer, Bluetooth, Loader2, Globe } from "lucide-react";
+import type { ReceiptSnapshot } from "@/lib/receipt";
+import {
+  buildThermalReceiptHTML,
+  connectPrinter,
+  getLastPrinterName,
+  isPrinterConnected,
+  isWebBluetoothAvailable,
+  printThermalBluetooth,
+  printThermalViaBrowser,
+} from "@/lib/thermal";
+
+type Status = "TAGIHAN" | "LUNAS";
+type Msg = { kind: "ok" | "err"; text: string } | null;
+
+export default function ThermalReceiptModal({
+  open,
+  onClose,
+  snap,
+  status,
+}: {
+  open: boolean;
+  onClose: () => void;
+  snap: ReceiptSnapshot;
+  status: Status;
+}) {
+  const btSupported = isWebBluetoothAvailable();
+  const [connected, setConnected] = useState(isPrinterConnected());
+  const [printerName, setPrinterName] = useState<string | null>(getLastPrinterName());
+  const [busy, setBusy] = useState<"connect" | "bt" | null>(null);
+  const [msg, setMsg] = useState<Msg>(null);
+
+  const previewHtml = useMemo(
+    () => (open ? buildThermalReceiptHTML(snap, status) : ""),
+    [open, snap, status],
+  );
+
+  if (!open) return null;
+
+  const handleConnect = async () => {
+    setBusy("connect");
+    setMsg(null);
+    try {
+      const name = await connectPrinter();
+      setConnected(true);
+      setPrinterName(name);
+      setMsg({ kind: "ok", text: `Terhubung ke ${name}` });
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : "Gagal menghubungkan printer." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handlePrintBt = async () => {
+    setBusy("bt");
+    setMsg(null);
+    try {
+      await printThermalBluetooth(snap, status);
+      setMsg({ kind: "ok", text: "Struk terkirim ke printer." });
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : "Gagal mencetak." });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-background/88 backdrop-blur-3xl z-50 flex items-center justify-center p-4">
+      <div className="glass-strong w-full max-w-md rounded-xl border border-border shadow-lg flex flex-col max-h-[95vh]">
+        <div className="px-5 py-4 border-b border-border flex justify-between items-center shrink-0">
+          <h3 className="font-semibold text-foreground flex items-center gap-2">
+            <Printer className="h-4 w-4 text-muted-foreground" /> Struk Thermal 58mm
+          </h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-2">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Preview (iframe isolasi penuh) */}
+        <div className="overflow-y-auto grow p-4 flex justify-center bg-muted/30">
+          <iframe
+            title="Preview struk thermal"
+            srcDoc={previewHtml}
+            className="bg-white rounded-md shadow-sm"
+            style={{ width: 384, height: "58vh", border: 0 }}
+          />
+        </div>
+
+        {/* Pesan status */}
+        {msg && (
+          <div
+            className={`mx-4 mt-3 rounded-lg px-3 py-2 text-sm ${
+              msg.kind === "ok"
+                ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                : "bg-red-500/10 text-red-600 border border-red-500/20"
+            }`}
+          >
+            {msg.text}
+          </div>
+        )}
+
+        {/* Aksi */}
+        <div className="p-4 border-t border-border space-y-3 shrink-0">
+          {btSupported ? (
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={handleConnect}
+                disabled={busy !== null}
+                className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all disabled:opacity-50"
+              >
+                {busy === "connect" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Bluetooth className="w-4 h-4 text-sky-500" />
+                )}
+                {connected ? "Ganti Printer" : "Hubungkan"}
+              </button>
+              <button
+                onClick={handlePrintBt}
+                disabled={busy !== null || !connected}
+                className="flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-sm transition-all disabled:opacity-40"
+              >
+                {busy === "bt" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Printer className="w-4 h-4" />
+                )}
+                Cetak Bluetooth
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center">
+              Perangkat ini tidak mendukung Bluetooth web (iPhone/Safari). Gunakan Cetak Browser di bawah.
+            </p>
+          )}
+
+          {connected && printerName && (
+            <p className="text-[11px] text-muted-foreground text-center -mt-1">
+              Printer: <span className="font-medium text-foreground">{printerName}</span>
+            </p>
+          )}
+
+          <button
+            onClick={() => printThermalViaBrowser(snap, status)}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all"
+          >
+            <Globe className="w-4 h-4 text-muted-foreground" />
+            Cetak Browser / PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

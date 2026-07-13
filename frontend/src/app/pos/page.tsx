@@ -53,6 +53,7 @@ const emptyAreaModal = (): AreaModalState => ({
 });
 
 import { ReceiptSnapshot, ReceiptItem, handlePrintSnap, handleShareWA } from '@/lib/receipt';
+import ThermalReceiptModal from '@/components/receipt/ThermalReceiptModal';
 
 // Petakan item keranjang → item nota dengan semantik harga yang konsisten dgn
 // mapTransactionToReceipt (nota dari transaksi tersimpan):
@@ -166,6 +167,7 @@ function POSPageContent() {
     const [cashierName, setCashierName] = useState('');
     const [employeeName, setEmployeeName] = useState('');
     const [receipt, setReceipt] = useState<ReceiptSnapshot | null>(null);
+    const [thermalOpen, setThermalOpen] = useState(false);
     const [productionPriority, setProductionPriority] = useState<'NORMAL' | 'EXPRESS'>('NORMAL');
     const [productionDeadline, setProductionDeadline] = useState('');
     const [productionNotes, setProductionNotes] = useState('');
@@ -2097,19 +2099,30 @@ function POSPageContent() {
 
                         {/* Action buttons */}
                         <div className="p-4 border-t border-border bg-muted/30 space-y-3">
-                            {/* Print + WA row */}
+                            {/* Pilihan format nota: Faktur A5 (lama) atau Struk Thermal 58mm (baru) */}
                             <div className="grid grid-cols-2 gap-3">
                                 <button onClick={() => handlePrintSnap(receipt, (receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
                                     className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all">
                                     <Printer className="w-4 h-4 text-muted-foreground" />
-                                    Cetak Struk
+                                    Faktur A5
                                 </button>
-                                <button onClick={() => handleShareWA(receipt, (receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
-                                    className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#25D366]/40 bg-[#25D366]/5 hover:bg-[#25D366]/10 font-semibold text-sm text-[#25D366] transition-all">
-                                    <MessageCircle className="w-4 h-4" />
-                                    Share ke WA
+                                <button onClick={() => setThermalOpen(true)}
+                                    className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-border bg-background hover:bg-muted hover:border-primary/30 font-semibold text-sm transition-all">
+                                    <Printer className="w-4 h-4 text-muted-foreground" />
+                                    Struk 58mm
                                 </button>
                             </div>
+                            <button onClick={() => handleShareWA(receipt, (receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
+                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-[#25D366]/40 bg-[#25D366]/5 hover:bg-[#25D366]/10 font-semibold text-sm text-[#25D366] transition-all">
+                                <MessageCircle className="w-4 h-4" />
+                                Share ke WA
+                            </button>
+                            <ThermalReceiptModal
+                                open={thermalOpen}
+                                onClose={() => setThermalOpen(false)}
+                                snap={receipt}
+                                status={(receipt.downPayment ?? receipt.grandTotal) < receipt.grandTotal ? 'TAGIHAN' : 'LUNAS'}
+                            />
                             <button onClick={() => {
                                 // Defensive: pastikan cart & state customer bersih saat user
                                 // klik "Selesai / Transaksi Baru". Idempotent — onSuccess

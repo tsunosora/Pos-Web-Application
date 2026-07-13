@@ -1,8 +1,11 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getTransactionById } from "@/lib/api";
+import { getTransactionById, getSettings } from "@/lib/api";
+import { mapTransactionToReceipt } from "@/lib/receipt";
+import ThermalReceiptModal from "@/components/receipt/ThermalReceiptModal";
 import {
     ArrowLeft, Loader2, User, Phone, MapPin, Calendar,
     CreditCard, Hash, Package, Printer, CheckCircle, Clock, AlertCircle,
@@ -274,6 +277,13 @@ export default function TransactionDetailPage() {
         enabled: !!id,
     });
 
+    const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
+    const [thermalOpen, setThermalOpen] = useState(false);
+    const thermalSnap = useMemo(
+        () => (trx ? mapTransactionToReceipt(trx, settings) : null),
+        [trx, settings],
+    );
+
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-24">
@@ -350,9 +360,25 @@ export default function TransactionDetailPage() {
                                 <Printer className="w-4 h-4" />
                                 Cetak Struk
                             </button>
+                            <button
+                                onClick={() => setThermalOpen(true)}
+                                className="flex items-center gap-2 border-2 border-border bg-background px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted hover:border-primary/30 transition-colors"
+                            >
+                                <Printer className="w-4 h-4 text-muted-foreground" />
+                                Thermal 58mm
+                            </button>
                         </div>
                     </div>
                 </div>
+
+                {thermalSnap && (
+                    <ThermalReceiptModal
+                        open={thermalOpen}
+                        onClose={() => setThermalOpen(false)}
+                        snap={thermalSnap}
+                        status={trx.status === "PAID" ? "LUNAS" : "TAGIHAN"}
+                    />
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left: Items table */}
