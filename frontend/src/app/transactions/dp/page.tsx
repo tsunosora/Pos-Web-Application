@@ -74,9 +74,13 @@ export default function DPTransactionsPage() {
                 marketplaceFeeItems: validFeeItems.length > 0 ? validFeeItems : undefined,
             });
         },
-        onSuccess: () => {
+        onSuccess: (data: any) => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            // Cetak nota pelunasan (LUNAS) ikut Format Nota Default. `data` (hasil
+            // pelunasan server) tak berisi items → gabung dgn selectedTrx yg punya items.
+            const paidTrx = selectedTrx ? { ...selectedTrx, ...data } : data;
             resetModal();
+            printReceipt(mapTransactionToReceipt(paidTrx, settings), 'LUNAS');
         }
     });
 
@@ -86,9 +90,13 @@ export default function DPTransactionsPage() {
             paymentMethod,
             bankAccountId: payoffBankId ? Number(payoffBankId) : undefined,
         }),
-        onSuccess: () => {
+        onSuccess: (data: any) => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            // Kalau penambahan DP membuat transaksi jadi LUNAS, cetak nota pelunasan.
+            const updatedTrx = selectedTrx ? { ...selectedTrx, ...data } : data;
+            const becamePaid = data?.status === 'PAID';
             resetModal();
+            if (becamePaid) printReceipt(mapTransactionToReceipt(updatedTrx, settings), 'LUNAS');
         }
     });
 
