@@ -36,33 +36,56 @@ const agentCmd = (d: PrinterDeviceDTO) =>
 
 // Bangun start-agent.bat yang: cek Python, pasang pyserial, unduh agent.py, lalu
 // jalan — token/URL/target sudah terisi. Di komputer toko cukup dobel-klik.
+// Selalu berakhir di :end + pause supaya jendela TAK menutup sendiri saat error.
 const buildBat = (d: PrinterDeviceDTO): string => {
     const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     const isBt = d.connection === 'bluetooth';
     const target = d.target || (isBt ? '<MAC_PRINTER>' : 'COM5');
     const runArg = isBt ? '--mac %TARGET%' : '--com %TARGET%';
+    const safeName = d.name.replace(/[^\w \-]/g, '').slice(0, 50) || 'Printer';
     return [
         '@echo off',
-        `REM Print Relay Agent - ${d.name}`,
-        'REM Dobel-klik file ini di komputer toko yang colok printer.',
-        'REM Syarat: Python terinstal (python.org, centang "Add Python to PATH").',
+        'setlocal',
+        `title Print Relay Agent - ${safeName}`,
+        'cd /d "%~dp0"',
+        '',
+        `REM Printer ${safeName} (cabang ${d.branchId}). Dobel-klik di komputer yang colok printer.`,
         isBt
-            ? 'REM Bluetooth: ganti TARGET di bawah dengan MAC printer (atau COM outgoing di Windows).'
-            : 'REM USB: kalau COM5 salah, ganti TARGET dengan COM port printer Anda.',
+            ? 'REM Bluetooth: kalau perlu, ganti TARGET dgn MAC printer (atau COM outgoing di Windows).'
+            : 'REM USB: kalau COM5 salah, ganti TARGET dgn COM port printer Anda.',
         '',
-        `set URL=${backendUrl}`,
-        `set TOKEN=${d.token}`,
-        `set TARGET=${target}`,
-        `set AGENT_SRC=${appOrigin}/print-agent/agent.py`,
+        `set "URL=${backendUrl}"`,
+        `set "TOKEN=${d.token}"`,
+        `set "TARGET=${target}"`,
+        `set "AGENT_SRC=${appOrigin}/print-agent/agent.py"`,
         '',
-        'where python >nul 2>nul || (echo [ERROR] Python belum terinstal. Install dari python.org lalu jalankan ulang.^& pause^& exit /b)',
-        'python -c "import serial" 2>nul || (echo Memasang pyserial...^& pip install pyserial)',
-        'if not exist "%~dp0agent.py" (',
-        '  echo Mengunduh agent.py...',
-        `  powershell -Command "try{Invoke-WebRequest -Uri '%AGENT_SRC%' -OutFile '%~dp0agent.py'}catch{Write-Host 'Gagal mengunduh agent.py'; exit 1}"`,
+        `echo === Print Relay Agent: ${safeName} ===`,
+        'echo.',
+        'where python >nul 2>nul',
+        'if errorlevel 1 (',
+        '  echo [ERROR] Python belum terinstal.',
+        '  echo Install dari https://www.python.org/downloads/ - centang "Add Python to PATH" - lalu jalankan ulang file ini.',
+        '  goto :end',
         ')',
-        'echo Menjalankan agen... (biarkan jendela ini tetap terbuka)',
-        'python "%~dp0agent.py" --url %URL% --token %TOKEN% ' + runArg,
+        'python -c "import serial" >nul 2>nul',
+        'if errorlevel 1 (',
+        '  echo Memasang pyserial...',
+        '  python -m pip install pyserial',
+        ')',
+        'if not exist "agent.py" (',
+        '  echo Mengunduh agent.py...',
+        `  powershell -NoProfile -Command "try{ Invoke-WebRequest -Uri '%AGENT_SRC%' -OutFile 'agent.py' }catch{ exit 1 }"`,
+        '  if errorlevel 1 (',
+        '    echo [ERROR] Gagal mengunduh agent.py dari %AGENT_SRC%',
+        '    goto :end',
+        '  )',
+        ')',
+        'echo Menjalankan agen... biarkan jendela ini TETAP TERBUKA.',
+        'echo.',
+        `python agent.py --url %URL% --token %TOKEN% ${runArg}`,
+        '',
+        ':end',
+        'echo.',
         'pause',
         '',
     ].join('\r\n');
