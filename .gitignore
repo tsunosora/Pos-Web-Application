@@ -127,3 +127,7 @@ toko/config.local.php
 toko/toko_export.sql
 toko/uploads.zip
 toko/dumperr.txt
+
+# Python cache (tools/print-bridge)
+__pycache__/
+*.pyc
