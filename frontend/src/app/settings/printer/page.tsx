@@ -32,7 +32,11 @@ const backendUrl = (
 
 const agentCmd = (d: PrinterDeviceDTO) =>
     `python agent.py --url ${backendUrl} --token ${d.token} ` +
-    (d.connection === 'bluetooth' ? '--mac <MAC_PRINTER>' : '--com COM5');
+    (d.connection === 'bluetooth'
+        ? '--mac <MAC_PRINTER>'
+        : d.connection === 'windows'
+          ? `--printer "${d.target || 'RP58 Printer'}"`
+          : '--com COM5');
 
 // Token = kredensial rahasia agen → jangan tampilkan penuh. Cukup awal+akhir
 // supaya owner bisa mencocokkan dengan baris TOKEN di .bat toko saat diagnosa 401.
@@ -44,8 +48,9 @@ const maskToken = (t: string) => (t.length <= 12 ? t : `${t.slice(0, 6)}…${t.s
 const buildBat = (d: PrinterDeviceDTO): string => {
     const appOrigin = typeof window !== 'undefined' ? window.location.origin : '';
     const isBt = d.connection === 'bluetooth';
-    const target = d.target || (isBt ? '<MAC_PRINTER>' : 'COM5');
-    const runArg = isBt ? '--mac %TARGET%' : '--com %TARGET%';
+    const isWin = d.connection === 'windows';
+    const target = d.target || (isWin ? 'RP58 Printer' : isBt ? '<MAC_PRINTER>' : 'COM5');
+    const runArg = isWin ? '--printer "%TARGET%"' : isBt ? '--mac %TARGET%' : '--com %TARGET%';
     const safeName = d.name.replace(/[^\w \-]/g, '').slice(0, 50) || 'Printer';
     return [
         '@echo off',
@@ -54,9 +59,11 @@ const buildBat = (d: PrinterDeviceDTO): string => {
         'cd /d "%~dp0"',
         '',
         `REM Printer ${safeName} (cabang ${d.branchId}). Dobel-klik di komputer yang colok printer.`,
-        isBt
-            ? 'REM Bluetooth: kalau perlu, ganti TARGET dgn MAC printer (atau COM outgoing di Windows).'
-            : 'REM USB: kalau COM5 salah, ganti TARGET dgn COM port printer Anda.',
+        isWin
+            ? 'REM Printer Windows: TARGET = NAMA printer persis di Windows > Printers (mis. RP58 Printer).'
+            : isBt
+                ? 'REM Bluetooth: kalau perlu, ganti TARGET dgn MAC printer (atau COM outgoing di Windows).'
+                : 'REM USB: kalau COM5 salah, ganti TARGET dgn COM port printer Anda.',
         '',
         `set "URL=${backendUrl}"`,
         `set "TOKEN=${d.token}"`,
@@ -71,11 +78,17 @@ const buildBat = (d: PrinterDeviceDTO): string => {
         '  echo Install dari https://www.python.org/downloads/ - centang "Add Python to PATH" - lalu jalankan ulang file ini.',
         '  goto :end',
         ')',
-        'python -c "import serial" >nul 2>nul',
-        'if errorlevel 1 (',
-        '  echo Memasang pyserial...',
-        '  python -m pip install pyserial',
-        ')',
+        // pyserial hanya perlu utk mode COM/Bluetooth. Mode Windows (spooler) pakai
+        // ctypes bawaan Python → lewati pemasangan pyserial.
+        ...(isWin
+            ? []
+            : [
+                  'python -c "import serial" >nul 2>nul',
+                  'if errorlevel 1 (',
+                  '  echo Memasang pyserial...',
+                  '  python -m pip install pyserial',
+                  ')',
+              ]),
         'REM Selalu ambil agent.py TERBARU (hindari agen basi). Kalau unduh gagal',
         'REM tapi agent.py lama masih ada, pakai yang lama; kalau tak ada, berhenti.',
         'echo Mengunduh agent.py terbaru...',
@@ -121,7 +134,7 @@ export default function PrinterSettingsPage() {
     });
 
     const [name, setName] = useState('');
-    const [connection, setConnection] = useState<'usb' | 'bluetooth'>('usb');
+    const [connection, setConnection] = useState<'usb' | 'bluetooth' | 'windows'>('windows');
     const [target, setTarget] = useState('');
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ['printer-devices', activeBranchId] });
@@ -228,24 +241,36 @@ export default function PrinterSettingsPage() {
                     </div>
                     <div className="space-y-1.5">
                         <Label>Koneksi ke printer</Label>
-                        <div className="flex gap-2">
+                        <div className="grid grid-cols-3 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setConnection('windows')}
+                                className={
+                                    'flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm transition-colors ' +
+                                    (connection === 'windows'
+                                        ? 'bg-primary/10 border-primary text-primary'
+                                        : 'bg-background border-border hover:bg-muted')
+                                }
+                            >
+                                <Printer className="w-4 h-4" /> Printer Windows
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setConnection('usb')}
                                 className={
-                                    'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm transition-colors ' +
+                                    'flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm transition-colors ' +
                                     (connection === 'usb'
                                         ? 'bg-primary/10 border-primary text-primary'
                                         : 'bg-background border-border hover:bg-muted')
                                 }
                             >
-                                <Usb className="w-4 h-4" /> USB (kabel)
+                                <Usb className="w-4 h-4" /> USB (COM)
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setConnection('bluetooth')}
                                 className={
-                                    'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm transition-colors ' +
+                                    'flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm transition-colors ' +
                                     (connection === 'bluetooth'
                                         ? 'bg-primary/10 border-primary text-primary'
                                         : 'bg-background border-border hover:bg-muted')
@@ -254,16 +279,33 @@ export default function PrinterSettingsPage() {
                                 <Bluetooth className="w-4 h-4" /> Bluetooth
                             </button>
                         </div>
+                        {connection === 'windows' && (
+                            <p className="text-[11px] text-muted-foreground">
+                                Pilih ini untuk printer thermal USB yang muncul sebagai antrean di
+                                <span className="font-medium"> Windows &gt; Printers</span> (mis. RP58
+                                Printer / port USB001) — jenis paling umum.
+                            </p>
+                        )}
                     </div>
                 </div>
                 <div className="space-y-1.5">
                     <Label>
-                        {connection === 'usb' ? 'COM port (opsional)' : 'MAC printer (opsional)'}
+                        {connection === 'windows'
+                            ? 'Nama printer Windows'
+                            : connection === 'usb'
+                                ? 'COM port (opsional)'
+                                : 'MAC printer (opsional)'}
                     </Label>
                     <Input
                         value={target}
                         onChange={(e) => setTarget(e.target.value)}
-                        placeholder={connection === 'usb' ? 'mis. COM5' : 'mis. 66:32:5C:C4:3B:32'}
+                        placeholder={
+                            connection === 'windows'
+                                ? 'mis. RP58 Printer (persis seperti di Windows > Printers)'
+                                : connection === 'usb'
+                                    ? 'mis. COM5'
+                                    : 'mis. 66:32:5C:C4:3B:32'
+                        }
                     />
                 </div>
                 <Button
@@ -287,6 +329,8 @@ export default function PrinterSettingsPage() {
                             <div className="flex items-center gap-2 min-w-0">
                                 {d.connection === 'bluetooth' ? (
                                     <Bluetooth className="w-4 h-4 text-muted-foreground shrink-0" />
+                                ) : d.connection === 'windows' ? (
+                                    <Printer className="w-4 h-4 text-muted-foreground shrink-0" />
                                 ) : (
                                     <Usb className="w-4 h-4 text-muted-foreground shrink-0" />
                                 )}
@@ -373,9 +417,11 @@ export default function PrinterSettingsPage() {
                                 <Download className="w-4 h-4 mr-1.5" /> Download agen (start-agent.bat)
                             </Button>
                             <p className="text-[11px] text-muted-foreground">
-                                {d.connection === 'usb'
-                                    ? 'File .bat otomatis pasang pyserial & unduh agent.py. Kalau COM port bukan COM5, buka file .bat dgn Notepad & ganti baris TARGET.'
-                                    : 'File .bat otomatis pasang pyserial & unduh agent.py. Buka .bat dgn Notepad & isi TARGET dengan MAC printer (atau COM outgoing di Windows).'}
+                                {d.connection === 'windows'
+                                    ? 'File .bat otomatis unduh agent.py & cetak lewat spooler Windows (tak perlu pyserial/COM). Pastikan baris TARGET = NAMA printer persis di Windows > Printers.'
+                                    : d.connection === 'usb'
+                                        ? 'File .bat otomatis pasang pyserial & unduh agent.py. Kalau COM port bukan COM5, buka file .bat dgn Notepad & ganti baris TARGET.'
+                                        : 'File .bat otomatis pasang pyserial & unduh agent.py. Buka .bat dgn Notepad & isi TARGET dengan MAC printer (atau COM outgoing di Windows).'}
                             </p>
                             <details className="text-[11px]">
                                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground">

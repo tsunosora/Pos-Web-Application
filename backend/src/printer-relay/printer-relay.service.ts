@@ -38,8 +38,17 @@ export class PrinterRelayService {
         return (this.prisma as any).printerDevice;
     }
 
+    // "usb" (COM port) | "bluetooth" (RFCOMM/COM) | "windows" (spooler RAW by name)
+    private normalizeConnection(connection?: string): string {
+        if (connection === 'bluetooth') return 'bluetooth';
+        if (connection === 'windows') return 'windows';
+        return 'usb';
+    }
+
     private modeFor(connection: string): string {
-        return connection === 'bluetooth' ? 'rfcomm' : 'com';
+        if (connection === 'bluetooth') return 'rfcomm';
+        if (connection === 'windows') return 'spooler';
+        return 'com';
     }
 
     private shape(dev: any) {
@@ -134,7 +143,7 @@ export class PrinterRelayService {
         const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
         if (!branch) throw new NotFoundException('Cabang tidak ditemukan.');
 
-        const connection = payload.connection === 'bluetooth' ? 'bluetooth' : 'usb';
+        const connection = this.normalizeConnection(payload.connection);
         const dev = await this.devices.create({
             data: {
                 branchId,
@@ -159,7 +168,7 @@ export class PrinterRelayService {
         if (payload.target !== undefined) data.target = payload.target?.trim() || null;
         if (payload.isActive !== undefined) data.isActive = !!payload.isActive;
         if (payload.connection !== undefined) {
-            const connection = payload.connection === 'bluetooth' ? 'bluetooth' : 'usb';
+            const connection = this.normalizeConnection(payload.connection);
             data.connection = connection;
             data.mode = this.modeFor(connection);
         }

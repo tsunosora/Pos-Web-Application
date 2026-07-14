@@ -13,14 +13,19 @@ Cara kerja: loop GET {AGENT_URL}/printer-relay/poll (ditahan ~25s oleh server).
 Kalau ada job (byte ESC/POS base64) -> cetak ke printer -> POST /printer-relay/ack.
 
 Koneksi ke printer (PILIHAN):
-  * USB (kabel)   : --com COM5           (Windows; pyserial bila ada, else raw)
+  * Printer Win   : --printer "RP58 Printer"  (Windows spooler RAW; untuk printer
+                    USB yang muncul sbg antrean/queue Windows -> port USB001 dsb.
+                    dan TIDAK punya COM port. Pakai NAMA persis di Windows Printers.)
+  * USB (COM)     : --com COM5           (Windows; pyserial bila ada, else raw)
   * Bluetooth     : --mac 66:32:5C:..    (Linux RFCOMM; autodetect channel 1..6)
                     di Windows, printer Bluetooth juga muncul sbg COM -> pakai --com
 
 Auth: token perangkat dari halaman Settings > Printer (bukan login user).
 
 Contoh:
-  # USB di Windows
+  # Printer USB Windows (muncul sbg antrean Windows, tanpa COM) -- REKOMENDASI
+  python agent.py --url https://pos.domain.com --token <TOKEN> --printer "RP58 Printer"
+  # USB via COM di Windows
   python agent.py --url https://pos.domain.com --token <TOKEN> --com COM5
   # Bluetooth di Linux
   python agent.py --url https://pos.domain.com --token <TOKEN> --mac 66:32:5C:C4:3B:32
@@ -101,7 +106,72 @@ def _send_via_rfcomm(mac: str, payload: bytes) -> str:
     raise RuntimeError(f"Gagal kirim ke printer {mac}: {last_err}")
 
 
-def _print_job(com: str, mac: str, payload: bytes) -> str:
+def _send_via_winspool(printer_name: str, payload: bytes) -> str:
+    """Kirim RAW ESC/POS ke antrean printer Windows berdasarkan NAMA (spooler).
+
+    Untuk printer USB yang muncul sebagai "Printer" Windows (port USB001 dll.) dan
+    TAK punya COM port. Pakai ctypes -> winspool.drv, tanpa dependensi. Windows-only.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    winspool = ctypes.WinDLL("winspool.drv", use_last_error=True)
+
+    class DOC_INFO_1(ctypes.Structure):
+        _fields_ = [
+            ("pDocName", wintypes.LPWSTR),
+            ("pOutputFile", wintypes.LPWSTR),
+            ("pDatatype", wintypes.LPWSTR),
+        ]
+
+    # argtypes/restype WAJIB: tanpa ini ctypes memangkas HANDLE ke 32-bit di Win64.
+    winspool.OpenPrinterW.argtypes = [wintypes.LPWSTR, ctypes.POINTER(wintypes.HANDLE), wintypes.LPVOID]
+    winspool.OpenPrinterW.restype = wintypes.BOOL
+    winspool.StartDocPrinterW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(DOC_INFO_1)]
+    winspool.StartDocPrinterW.restype = wintypes.DWORD
+    winspool.StartPagePrinter.argtypes = [wintypes.HANDLE]
+    winspool.StartPagePrinter.restype = wintypes.BOOL
+    winspool.WritePrinter.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    winspool.WritePrinter.restype = wintypes.BOOL
+    winspool.EndPagePrinter.argtypes = [wintypes.HANDLE]
+    winspool.EndPagePrinter.restype = wintypes.BOOL
+    winspool.EndDocPrinter.argtypes = [wintypes.HANDLE]
+    winspool.EndDocPrinter.restype = wintypes.BOOL
+    winspool.ClosePrinter.argtypes = [wintypes.HANDLE]
+    winspool.ClosePrinter.restype = wintypes.BOOL
+
+    h = wintypes.HANDLE()
+    if not winspool.OpenPrinterW(printer_name, ctypes.byref(h), None):
+        raise RuntimeError(
+            f"OpenPrinter '{printer_name}' gagal (err {ctypes.get_last_error()}). "
+            "Cek NAMA printer persis seperti di Windows > Bluetooth & devices > Printers."
+        )
+    try:
+        doc = DOC_INFO_1("Print Relay", None, "RAW")
+        if not winspool.StartDocPrinterW(h, 1, ctypes.byref(doc)):
+            raise RuntimeError(f"StartDocPrinter gagal (err {ctypes.get_last_error()}).")
+        try:
+            if not winspool.StartPagePrinter(h):
+                raise RuntimeError(f"StartPagePrinter gagal (err {ctypes.get_last_error()}).")
+            written = wintypes.DWORD(0)
+            buf = ctypes.create_string_buffer(payload, len(payload))
+            ok = winspool.WritePrinter(h, ctypes.cast(buf, wintypes.LPVOID), len(payload), ctypes.byref(written))
+            if not ok or written.value != len(payload):
+                raise RuntimeError(
+                    f"WritePrinter gagal ({written.value}/{len(payload)} byte, "
+                    f"err {ctypes.get_last_error()})."
+                )
+            winspool.EndPagePrinter(h)
+        finally:
+            winspool.EndDocPrinter(h)
+    finally:
+        winspool.ClosePrinter(h)
+    return f"win:{printer_name}"
+
+
+def _print_job(com: str, mac: str, printer: str, payload: bytes) -> str:
+    if printer:
+        return _send_via_winspool(printer, payload)
     if com:
         return _send_via_com(com, payload)
     return _send_via_rfcomm(mac, payload)
@@ -170,9 +240,10 @@ def _report_http_error(e: urllib.error.HTTPError, url: str) -> None:
         print(f"[agent] body: {body}", file=sys.stderr)
 
 
-def run(url: str, token: str, com: str, mac: str):
-    target_label = com or mac
-    print(f"[agent] mulai - backend={url}  printer={'USB '+com if com else 'BT '+mac}")
+def run(url: str, token: str, com: str, mac: str, printer: str):
+    target_label = printer or com or mac
+    where_desc = ('WinPrinter ' + printer) if printer else ('USB ' + com if com else 'BT ' + mac)
+    print(f"[agent] mulai - backend={url}  printer={where_desc}")
     print("[agent] menunggu job cetak... (Ctrl+C untuk berhenti)")
     while True:
         try:
@@ -197,7 +268,7 @@ def run(url: str, token: str, com: str, mac: str):
         job_id = job.get("jobId", "")
         try:
             payload = base64.b64decode(job.get("dataBase64", ""))
-            where = _print_job(com, mac, payload)
+            where = _print_job(com, mac, printer, payload)
             print(f"[agent] cetak OK job {job_id[:8]} -> {where} ({len(payload)} byte)")
             _ack(url, token, job_id, True, target=str(where))
         except Exception as e:  # noqa: BLE001
@@ -215,22 +286,26 @@ def main():
                     help="USB/Bluetooth COM port (Windows), mis. COM5")
     ap.add_argument("--mac", default=os.environ.get("PRINTER_MAC", ""),
                     help="MAC printer Bluetooth (Linux RFCOMM)")
+    ap.add_argument("--printer", default=os.environ.get("PRINTER_NAME", ""),
+                    help='Nama printer Windows (spooler RAW), mis. "RP58 Printer"')
     args = ap.parse_args()
 
     url = args.url.strip().rstrip("/")
     token = args.token.strip()
     com = args.com.strip()
     mac = args.mac.strip()
+    printer = args.printer.strip()
 
     if not url or not token:
         print("ERROR: wajib --url dan --token (atau env AGENT_URL / PRINTER_TOKEN).", file=sys.stderr)
         sys.exit(2)
-    if not com and not mac:
-        print("ERROR: pilih target printer - USB: --com COM5 | Bluetooth: --mac <MAC>.", file=sys.stderr)
+    if not com and not mac and not printer:
+        print('ERROR: pilih target printer - Windows: --printer "Nama" | '
+              "USB(COM): --com COM5 | Bluetooth: --mac <MAC>.", file=sys.stderr)
         sys.exit(2)
 
     try:
-        run(url, token, com, mac)
+        run(url, token, com, mac, printer)
     except KeyboardInterrupt:
         print("\n[agent] berhenti.")
 
