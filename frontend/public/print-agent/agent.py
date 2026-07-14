@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Print Relay Agent — jembatan aplikasi (cloud/https) -> printer thermal lokal.
+Print Relay Agent - jembatan aplikasi (cloud/https) -> printer thermal lokal.
 
 Beda dengan bridge.py: bridge.py = HTTP server LAN (device menembak IP-nya, kena
 mixed-content saat app https). agent.py = "menelpon KELUAR" ke backend via HTTP
@@ -90,7 +90,7 @@ def _send_via_rfcomm(mac: str, payload: bytes) -> str:
                 s.close()
             _known_channel = ch
             return f"{mac} ch{ch}"
-        except Exception as e:  # noqa: BLE001 — coba channel berikutnya
+        except Exception as e:  # noqa: BLE001 - coba channel berikutnya
             last_err = e
             continue
     raise RuntimeError(f"Gagal kirim ke printer {mac}: {last_err}")
@@ -103,7 +103,7 @@ def _print_job(com: str, mac: str, payload: bytes) -> str:
 
 
 def _poll(url: str, token: str):
-    """GET /printer-relay/poll — kembalikan job dict atau None (timeout normal)."""
+    """GET /printer-relay/poll - kembalikan job dict atau None (timeout normal)."""
     req = urllib.request.Request(
         url + "/printer-relay/poll",
         headers={"x-printer-token": token},
@@ -124,13 +124,13 @@ def _ack(url: str, token: str, job_id: str, ok: bool, target: str = "", error: s
     try:
         with urllib.request.urlopen(req, timeout=ACK_HTTP_TIMEOUT) as r:
             r.read()
-    except Exception as e:  # noqa: BLE001 — ack gagal bukan fatal, job lain jalan
+    except Exception as e:  # noqa: BLE001 - ack gagal bukan fatal, job lain jalan
         print(f"[agent] ack gagal (job {job_id[:8]}): {e}", file=sys.stderr)
 
 
 def run(url: str, token: str, com: str, mac: str):
     target_label = com or mac
-    print(f"[agent] mulai — backend={url}  printer={'USB '+com if com else 'BT '+mac}")
+    print(f"[agent] mulai - backend={url}  printer={'USB '+com if com else 'BT '+mac}")
     print("[agent] menunggu job cetak... (Ctrl+C untuk berhenti)")
     while True:
         try:
@@ -140,7 +140,7 @@ def run(url: str, token: str, com: str, mac: str):
                 print("[agent] TOKEN DITOLAK. Cek token di Settings > Printer.", file=sys.stderr)
                 time.sleep(RETRY_SLEEP)
             else:
-                print(f"[agent] HTTP {e.code} saat poll — coba lagi.", file=sys.stderr)
+                print(f"[agent] HTTP {e.code} saat poll - coba lagi.", file=sys.stderr)
                 time.sleep(RETRY_SLEEP)
             continue
         except (urllib.error.URLError, socket.timeout, TimeoutError):
@@ -149,7 +149,7 @@ def run(url: str, token: str, com: str, mac: str):
             time.sleep(1)
             continue
         except Exception as e:  # noqa: BLE001
-            print(f"[agent] error poll: {e} — coba lagi.", file=sys.stderr)
+            print(f"[agent] error poll: {e} - coba lagi.", file=sys.stderr)
             time.sleep(RETRY_SLEEP)
             continue
 
@@ -188,7 +188,7 @@ def main():
         print("ERROR: wajib --url dan --token (atau env AGENT_URL / PRINTER_TOKEN).", file=sys.stderr)
         sys.exit(2)
     if not com and not mac:
-        print("ERROR: pilih target printer — USB: --com COM5 | Bluetooth: --mac <MAC>.", file=sys.stderr)
+        print("ERROR: pilih target printer - USB: --com COM5 | Bluetooth: --mac <MAC>.", file=sys.stderr)
         sys.exit(2)
 
     try:
