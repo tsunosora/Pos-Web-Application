@@ -18,7 +18,7 @@ export const BACKUP_GROUPS = {
     },
     branches: {
         label: 'Cabang & Pengaturan Cabang',
-        tables: ['companyBranch', 'branchSettings', 'branchStock'],
+        tables: ['companyBranch', 'branchSettings', 'branchStock', 'printerDevice'],
     },
     users: {
         label: 'Pengguna',
@@ -123,6 +123,7 @@ const RESTORE_ORDER = [
     'companyBranch',                            // tenant root — sebelum semua model operasional ber-branchId
     'bankAccount',                              // FK → companyBranch
     'branchSettings',                           // FK → companyBranch
+    'printerDevice',                            // FK → companyBranch (printer relay per cabang)
     'designer',                                 // sebelum salesOrder
     'user',                                     // FK → role + companyBranch (nullable untuk Owner)
     'customer', 'supplier',

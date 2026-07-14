@@ -1,6 +1,6 @@
 "use client";
 
-import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, Palette, GitBranch, SlidersHorizontal, Webhook } from 'lucide-react';
+import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, Palette, GitBranch, SlidersHorizontal, Webhook, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -12,6 +12,7 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: stri
             { href: '/settings/general', icon: Store, label: 'Profil Toko' },
             { href: '/settings/payments', icon: CreditCard, label: 'Pembayaran' },
             { href: '/settings/bank-accounts', icon: Building2, label: 'Rekening Bank' },
+            { href: '/settings/printer', icon: Printer, label: 'Printer Struk' },
             { href: '/settings/login', icon: Paintbrush, label: 'Tampilan Login' },
         ],
     },

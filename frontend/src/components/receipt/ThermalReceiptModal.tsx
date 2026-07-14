@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Printer, Bluetooth, Loader2, Globe, Usb } from "lucide-react";
+import { X, Printer, Bluetooth, Loader2, Globe, Usb, Store } from "lucide-react";
 import type { ReceiptSnapshot } from "@/lib/receipt";
 import {
   buildThermalReceiptHTML,
@@ -9,10 +9,12 @@ import {
   getLastPrinterName,
   isBridgeAvailable,
   isPrinterConnected,
+  isRelayAvailable,
   isWebBluetoothAvailable,
   printThermalBluetoothAuto,
   printThermalViaBridge,
   printThermalViaBrowser,
+  printThermalViaRelay,
 } from "@/lib/thermal";
 
 type Status = "TAGIHAN" | "LUNAS";
@@ -32,8 +34,9 @@ export default function ThermalReceiptModal({
   const btSupported = isWebBluetoothAvailable();
   const [connected, setConnected] = useState(isPrinterConnected());
   const [printerName, setPrinterName] = useState<string | null>(getLastPrinterName());
-  const [busy, setBusy] = useState<"connect" | "bt" | "bridge" | null>(null);
+  const [busy, setBusy] = useState<"connect" | "bt" | "bridge" | "relay" | null>(null);
   const [bridgeReady, setBridgeReady] = useState(false);
+  const [relayReady, setRelayReady] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
 
   const previewHtml = useMemo(
@@ -41,10 +44,15 @@ export default function ThermalReceiptModal({
     [open, snap, status],
   );
 
-  // Deteksi print bridge lokal (Linux/desktop) tiap kali modal dibuka.
+  // Deteksi jalur cetak yang tersedia tiap kali modal dibuka:
+  // - relay (printer server cabang via backend) → paling andal utk https+multi-device,
+  // - bridge lokal (localhost) → desktop yg jalankan bridge sendiri.
   useEffect(() => {
     if (!open) return;
     let alive = true;
+    isRelayAvailable().then((ok) => {
+      if (alive) setRelayReady(ok);
+    });
     isBridgeAvailable().then((ok) => {
       if (alive) setBridgeReady(ok);
     });
@@ -52,6 +60,20 @@ export default function ThermalReceiptModal({
       alive = false;
     };
   }, [open]);
+
+  // 1-tap: kirim struk ke printer server cabang (backend → agen → printer).
+  const handlePrintRelay = async () => {
+    setBusy("relay");
+    setMsg(null);
+    try {
+      await printThermalViaRelay(snap, status);
+      setMsg({ kind: "ok", text: "Struk terkirim ke printer toko." });
+    } catch (e) {
+      setMsg({ kind: "err", text: e instanceof Error ? e.message : "Gagal mencetak via printer toko." });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   // 1-tap: kirim struk ke printer via bridge lokal (HTTP -> Bluetooth SPP).
   const handlePrintBridge = async () => {
@@ -139,7 +161,23 @@ export default function ThermalReceiptModal({
 
         {/* Aksi */}
         <div className="p-4 border-t border-border space-y-3 shrink-0">
-          {/* Jalur andal untuk Linux/desktop: kirim ke printer via bridge lokal (SPP). */}
+          {/* Jalur paling andal (https + banyak device): printer server cabang via backend. */}
+          {relayReady && (
+            <button
+              onClick={handlePrintRelay}
+              disabled={busy !== null}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base transition-all disabled:opacity-40"
+            >
+              {busy === "relay" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Store className="w-5 h-5" />
+              )}
+              Cetak (Printer Toko)
+            </button>
+          )}
+
+          {/* Jalur bridge lokal (desktop yg jalankan bridge sendiri di localhost). */}
           {bridgeReady && (
             <button
               onClick={handlePrintBridge}
@@ -155,9 +193,9 @@ export default function ThermalReceiptModal({
             </button>
           )}
 
-          {/* Web Bluetooth disembunyikan bila bridge tersedia — bridge lebih andal
-              di desktop & menghindari status "paired" yang membingungkan. */}
-          {!bridgeReady && (btSupported ? (
+          {/* Web Bluetooth disembunyikan bila ada printer server (relay/bridge) —
+              lebih andal & menghindari status "paired" yang membingungkan. */}
+          {!relayReady && !bridgeReady && (btSupported ? (
             <>
               {/* Tombol utama 1-tap: auto-sambung printer tersimpan lalu cetak */}
               <button

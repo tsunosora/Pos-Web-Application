@@ -55,6 +55,7 @@ import { ArticlesModule } from './articles/articles.module';
 import { FixedExpensesModule } from './fixed-expenses/fixed-expenses.module';
 import { BonusModule } from './bonus/bonus.module';
 import { CsRatingModule } from './cs-rating/cs-rating.module';
+import { PrinterRelayModule } from './printer-relay/printer-relay.module';
 
 @Module({
   imports: [
@@ -62,7 +63,7 @@ import { CsRatingModule } from './cs-rating/cs-rating.module';
       rootPath: join(__dirname, '..', '..', 'public'), // Serve local uploads
     }),
     ScheduleModule.forRoot(),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule],
+    PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule, PrinterRelayModule],
   controllers: [AppController],
   providers: [AppService],
 })

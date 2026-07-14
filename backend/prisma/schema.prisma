@@ -1538,18 +1538,18 @@ model Designer {
 // ===========================
 
 model CompanyBranch {
-  id         Int      @id @default(autoincrement())
-  name       String   @db.VarChar(100)
-  code       String?  @unique @db.VarChar(20) // Kode singkat: PST, BTL, dll. Untuk prefix WO/INV.
-  address    String?  @db.Text
-  phone      String?  @db.VarChar(50)
-  notaHeader String?  @map("nota_header") @db.Text // Override header nota cabang ini
-  notaFooter String?  @map("nota_footer") @db.Text // Override footer nota cabang ini
-  logoUrl    String?  @map("logo_url") @db.Text // Logo khusus cabang (override storeLogo)
+  id                  Int      @id @default(autoincrement())
+  name                String   @db.VarChar(100)
+  code                String?  @unique @db.VarChar(20) // Kode singkat: PST, BTL, dll. Untuk prefix WO/INV.
+  address             String?  @db.Text
+  phone               String?  @db.VarChar(50)
+  notaHeader          String?  @map("nota_header") @db.Text // Override header nota cabang ini
+  notaFooter          String?  @map("nota_footer") @db.Text // Override footer nota cabang ini
+  logoUrl             String?  @map("logo_url") @db.Text // Logo khusus cabang (override storeLogo)
   dailyTargetOverride Decimal? @map("daily_target_override") @db.Decimal(15, 2) // null = auto dari beban bulanan ÷ hari
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at")
+  isActive            Boolean  @default(true) @map("is_active")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
 
   users                  User[]
   settings               BranchSettings?
@@ -1578,6 +1578,7 @@ model CompanyBranch {
   invoices               Invoice[]
   csRatingConfigs        CsRatingConfig[]
   csRatings              CsRatingResponse[]
+  printerDevices         PrinterDevice[]
 
   @@map("company_branches")
 }
@@ -1608,6 +1609,29 @@ model BranchSettings {
   branch CompanyBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@map("branch_settings")
+}
+
+// Perangkat printer relay per cabang (print server). Agen di komputer utama
+// konek WebSocket KELUAR ke backend pakai `token` (bukan JWT user); kasir cetak
+// lewat aplikasi https → backend rutekan job ESC/POS ke agen cabang yang online.
+// Koneksi agen ke printer: PILIHAN USB (COM) atau Bluetooth (RFCOMM/COM/BLE).
+model PrinterDevice {
+  id         Int       @id @default(autoincrement())
+  branchId   Int       @map("branch_id")
+  name       String    @db.VarChar(100)
+  token      String    @unique @db.VarChar(80) // rahasia agen (acak) — kredensial handshake
+  connection String    @default("usb") @db.VarChar(20) // pilihan user: "usb" | "bluetooth"
+  mode       String    @default("com") @db.VarChar(20) // teknis turunan: com | rfcomm | ble
+  target     String?   @db.VarChar(120) // USB→COM5 ; Bluetooth→MAC/COM (diisi agen/admin)
+  lastSeenAt DateTime? @map("last_seen_at") // update saat connect/disconnect (tampilan online)
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  branch CompanyBranch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([branchId])
+  @@map("printer_devices")
 }
 
 // Transfer stok antar cabang (1 baris = 1 transfer header).

@@ -6,6 +6,7 @@ import { buildThermalReceiptHTML } from './receipt-thermal';
 import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
 import { ensureConnected, sendBytes } from './bluetooth';
+import api from '../api/client';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
@@ -133,6 +134,44 @@ export const isBridgeAvailable = async (timeoutMs = 1200): Promise<boolean> => {
     return false;
   } finally {
     clearTimeout(t);
+  }
+};
+
+// --- Print Relay (via backend, satu origin https) ---
+// Jalur andal untuk https + banyak device: byte ESC/POS dikirim ke backend, lalu
+// diteruskan ke agen (komputer utama cabang) yang colok printer USB/Bluetooth.
+// Tak kena mixed-content (semua lewat aplikasi https), tanpa pairing per-device.
+
+/** Uint8Array → base64 (browser, aman untuk data besar). */
+const bytesToBase64 = (bytes: Uint8Array): string => {
+  let bin = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return btoa(bin);
+};
+
+/** Cek apakah printer server (relay) cabang ini online. Butuh login (JWT). */
+export const isRelayAvailable = async (): Promise<boolean> => {
+  try {
+    const { data } = await api.get('/printer-relay/status');
+    return !!data?.online;
+  } catch {
+    return false;
+  }
+};
+
+/** Cetak via print relay: render byte ESC/POS → kirim ke backend → agen cabang. */
+export const printThermalViaRelay = async (snap: ReceiptSnapshot, status: Status): Promise<void> => {
+  const bytes = await snapToEscpos(snap, status);
+  try {
+    await api.post('/printer-relay/jobs', { dataBase64: bytesToBase64(bytes) });
+  } catch (e: unknown) {
+    const msg =
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+      'Gagal mencetak via printer server.';
+    throw new Error(msg);
   }
 };
 

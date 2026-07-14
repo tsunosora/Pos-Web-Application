@@ -1,0 +1,201 @@
+#!/usr/bin/env python3
+"""
+Print Relay Agent — jembatan aplikasi (cloud/https) -> printer thermal lokal.
+
+Beda dengan bridge.py: bridge.py = HTTP server LAN (device menembak IP-nya, kena
+mixed-content saat app https). agent.py = "menelpon KELUAR" ke backend via HTTP
+long-poll, jadi:
+  * tak perlu buka port/firewall di komputer ini,
+  * tak kena mixed-content (semua lewat https backend),
+  * banyak kasir bisa cetak ke 1 printer ini tanpa pairing.
+
+Cara kerja: loop GET {AGENT_URL}/printer-relay/poll (ditahan ~25s oleh server).
+Kalau ada job (byte ESC/POS base64) -> cetak ke printer -> POST /printer-relay/ack.
+
+Koneksi ke printer (PILIHAN):
+  * USB (kabel)   : --com COM5           (Windows; pyserial bila ada, else raw)
+  * Bluetooth     : --mac 66:32:5C:..    (Linux RFCOMM; autodetect channel 1..6)
+                    di Windows, printer Bluetooth juga muncul sbg COM -> pakai --com
+
+Auth: token perangkat dari halaman Settings > Printer (bukan login user).
+
+Contoh:
+  # USB di Windows
+  python agent.py --url https://pos.domain.com --token <TOKEN> --com COM5
+  # Bluetooth di Linux
+  python agent.py --url https://pos.domain.com --token <TOKEN> --mac 66:32:5C:C4:3B:32
+
+Dependency: hanya `pyserial` (untuk USB Windows; `pip install pyserial`).
+HTTP & RFCOMM pakai stdlib.
+"""
+
+import argparse
+import base64
+import json
+import os
+import socket
+import sys
+import time
+import urllib.error
+import urllib.request
+
+# Timeout HTTP long-poll harus > lama server menahan (25s) + margin.
+POLL_HTTP_TIMEOUT = 35
+ACK_HTTP_TIMEOUT = 15
+RETRY_SLEEP = 3  # jeda saat backend tak terjangkau
+
+_known_channel = None  # cache channel RFCOMM yang berhasil
+
+
+def _send_via_com(port: str, payload: bytes) -> str:
+    """Kirim ke printer via COM port (USB / Bluetooth outgoing Windows)."""
+    try:
+        import serial  # pyserial
+        ser = serial.Serial(port=port, baudrate=9600, timeout=3, write_timeout=8)
+        try:
+            for i in range(0, len(payload), 180):
+                ser.write(payload[i:i + 180])
+                ser.flush()
+                time.sleep(0.02)
+            time.sleep(0.4)
+        finally:
+            ser.close()
+        return port
+    except ImportError:
+        # Fallback tanpa pyserial: tulis mentah ke device COM (Windows).
+        path = port if port.startswith("\\\\.\\") else ("\\\\.\\" + port)
+        with open(path, "wb", buffering=0) as f:
+            f.write(payload)
+        return port
+
+
+def _send_via_rfcomm(mac: str, payload: bytes) -> str:
+    """Kirim ke printer via RFCOMM (Linux Bluetooth). Return 'MAC ch<n>'."""
+    global _known_channel
+    channels = [_known_channel] if _known_channel else []
+    channels += [c for c in range(1, 7) if c not in channels]
+
+    last_err = None
+    for ch in channels:
+        try:
+            s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+            s.settimeout(10)
+            s.connect((mac, ch))
+            try:
+                for i in range(0, len(payload), 180):
+                    s.send(payload[i:i + 180])
+                    time.sleep(0.02)
+                time.sleep(0.4)
+            finally:
+                s.close()
+            _known_channel = ch
+            return f"{mac} ch{ch}"
+        except Exception as e:  # noqa: BLE001 — coba channel berikutnya
+            last_err = e
+            continue
+    raise RuntimeError(f"Gagal kirim ke printer {mac}: {last_err}")
+
+
+def _print_job(com: str, mac: str, payload: bytes) -> str:
+    if com:
+        return _send_via_com(com, payload)
+    return _send_via_rfcomm(mac, payload)
+
+
+def _poll(url: str, token: str):
+    """GET /printer-relay/poll — kembalikan job dict atau None (timeout normal)."""
+    req = urllib.request.Request(
+        url + "/printer-relay/poll",
+        headers={"x-printer-token": token},
+    )
+    with urllib.request.urlopen(req, timeout=POLL_HTTP_TIMEOUT) as r:
+        data = json.loads(r.read().decode("utf-8"))
+    return data.get("job")
+
+
+def _ack(url: str, token: str, job_id: str, ok: bool, target: str = "", error: str = ""):
+    body = json.dumps({"jobId": job_id, "ok": ok, "target": target, "error": error}).encode()
+    req = urllib.request.Request(
+        url + "/printer-relay/ack",
+        data=body,
+        headers={"x-printer-token": token, "content-type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=ACK_HTTP_TIMEOUT) as r:
+            r.read()
+    except Exception as e:  # noqa: BLE001 — ack gagal bukan fatal, job lain jalan
+        print(f"[agent] ack gagal (job {job_id[:8]}): {e}", file=sys.stderr)
+
+
+def run(url: str, token: str, com: str, mac: str):
+    target_label = com or mac
+    print(f"[agent] mulai — backend={url}  printer={'USB '+com if com else 'BT '+mac}")
+    print("[agent] menunggu job cetak... (Ctrl+C untuk berhenti)")
+    while True:
+        try:
+            job = _poll(url, token)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                print("[agent] TOKEN DITOLAK. Cek token di Settings > Printer.", file=sys.stderr)
+                time.sleep(RETRY_SLEEP)
+            else:
+                print(f"[agent] HTTP {e.code} saat poll — coba lagi.", file=sys.stderr)
+                time.sleep(RETRY_SLEEP)
+            continue
+        except (urllib.error.URLError, socket.timeout, TimeoutError):
+            # Timeout long-poll normal (tak ada job) ATAU backend sesaat tak
+            # terjangkau. Loop lagi; kalau memang down, jeda pendek.
+            time.sleep(1)
+            continue
+        except Exception as e:  # noqa: BLE001
+            print(f"[agent] error poll: {e} — coba lagi.", file=sys.stderr)
+            time.sleep(RETRY_SLEEP)
+            continue
+
+        if not job:
+            continue  # timeout normal, poll lagi
+
+        job_id = job.get("jobId", "")
+        try:
+            payload = base64.b64decode(job.get("dataBase64", ""))
+            where = _print_job(com, mac, payload)
+            print(f"[agent] cetak OK job {job_id[:8]} -> {where} ({len(payload)} byte)")
+            _ack(url, token, job_id, True, target=str(where))
+        except Exception as e:  # noqa: BLE001
+            print(f"[agent] cetak GAGAL job {job_id[:8]}: {e}", file=sys.stderr)
+            _ack(url, token, job_id, False, target=str(target_label), error=str(e))
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Print Relay Agent (long-poll -> printer USB/Bluetooth)")
+    ap.add_argument("--url", default=os.environ.get("AGENT_URL", ""),
+                    help="Base URL backend, mis. https://pos.domain.com")
+    ap.add_argument("--token", default=os.environ.get("PRINTER_TOKEN", ""),
+                    help="Token perangkat dari Settings > Printer")
+    ap.add_argument("--com", default=os.environ.get("PRINTER_COM", ""),
+                    help="USB/Bluetooth COM port (Windows), mis. COM5")
+    ap.add_argument("--mac", default=os.environ.get("PRINTER_MAC", ""),
+                    help="MAC printer Bluetooth (Linux RFCOMM)")
+    args = ap.parse_args()
+
+    url = args.url.strip().rstrip("/")
+    token = args.token.strip()
+    com = args.com.strip()
+    mac = args.mac.strip()
+
+    if not url or not token:
+        print("ERROR: wajib --url dan --token (atau env AGENT_URL / PRINTER_TOKEN).", file=sys.stderr)
+        sys.exit(2)
+    if not com and not mac:
+        print("ERROR: pilih target printer — USB: --com COM5 | Bluetooth: --mac <MAC>.", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        run(url, token, com, mac)
+    except KeyboardInterrupt:
+        print("\n[agent] berhenti.")
+
+
+if __name__ == "__main__":
+    main()
