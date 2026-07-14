@@ -34,6 +34,10 @@ const agentCmd = (d: PrinterDeviceDTO) =>
     `python agent.py --url ${backendUrl} --token ${d.token} ` +
     (d.connection === 'bluetooth' ? '--mac <MAC_PRINTER>' : '--com COM5');
 
+// Token = kredensial rahasia agen → jangan tampilkan penuh. Cukup awal+akhir
+// supaya owner bisa mencocokkan dengan baris TOKEN di .bat toko saat diagnosa 401.
+const maskToken = (t: string) => (t.length <= 12 ? t : `${t.slice(0, 6)}…${t.slice(-4)}`);
+
 // Bangun start-agent.bat yang: cek Python, pasang pyserial, unduh agent.py, lalu
 // jalan — token/URL/target sudah terisi. Di komputer toko cukup dobel-klik.
 // Selalu berakhir di :end + pause supaya jendela TAK menutup sendiri saat error.
@@ -72,13 +76,19 @@ const buildBat = (d: PrinterDeviceDTO): string => {
         '  echo Memasang pyserial...',
         '  python -m pip install pyserial',
         ')',
-        'if not exist "agent.py" (',
-        '  echo Mengunduh agent.py...',
-        `  powershell -NoProfile -Command "try{ Invoke-WebRequest -Uri '%AGENT_SRC%' -OutFile 'agent.py' }catch{ exit 1 }"`,
-        '  if errorlevel 1 (',
+        'REM Selalu ambil agent.py TERBARU (hindari agen basi). Kalau unduh gagal',
+        'REM tapi agent.py lama masih ada, pakai yang lama; kalau tak ada, berhenti.',
+        'echo Mengunduh agent.py terbaru...',
+        `powershell -NoProfile -Command "try{ Invoke-WebRequest -Uri '%AGENT_SRC%' -OutFile 'agent.py.new' }catch{ exit 1 }"`,
+        'if errorlevel 1 (',
+        '  if exist "agent.py" (',
+        '    echo [WARN] Gagal unduh versi terbaru - pakai agent.py yang sudah ada.',
+        '  ) else (',
         '    echo [ERROR] Gagal mengunduh agent.py dari %AGENT_SRC%',
         '    goto :end',
         '  )',
+        ') else (',
+        '  move /y "agent.py.new" "agent.py" >nul',
         ')',
         'echo Menjalankan agen... biarkan jendela ini TETAP TERBUKA.',
         'echo.',
@@ -329,6 +339,26 @@ export default function PrinterSettingsPage() {
                                     <Trash2 className="w-4 h-4 text-red-600" />
                                 </Button>
                             </div>
+                        </div>
+
+                        {/* Token (mask) — untuk mencocokkan dengan baris TOKEN di .bat saat diagnosa "token ditolak" */}
+                        <div className="flex items-center gap-2 text-[11px] flex-wrap">
+                            <span className="text-muted-foreground">Token:</span>
+                            <code className="font-mono bg-muted rounded px-2 py-0.5 border border-border">
+                                {maskToken(d.token)}
+                            </code>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2"
+                                onClick={() => copy(d.token)}
+                                title="Salin token penuh"
+                            >
+                                <Copy className="w-3 h-3 mr-1" /> Salin
+                            </Button>
+                            <span className="text-muted-foreground">
+                                (cocokkan dengan baris <code className="font-mono">TOKEN</code> di file .bat)
+                            </span>
                         </div>
 
                         {/* Cara pasang agen di komputer toko */}
