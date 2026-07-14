@@ -29,11 +29,11 @@ npm install --no-audit --no-fund
 rm -rf .next
 npm run build
 
-echo "==> [4/5] Restart pm2"
+echo "==> [4/5] Restart pm2 (HANYA proses pospro, jangan ganggu app lain di server)"
 cd "$ROOT"
-# Ganti 'all' dengan nama proses spesifik bila perlu (lihat: pm2 list).
-pm2 restart all --update-env || {
-  echo "!! pm2 restart gagal. Jalankan manual: pm2 restart <nama-proses>"
+# Server homelab menjalankan banyak app — restart hanya milik POS ini.
+pm2 restart pospro-backend pospro-frontend --update-env || {
+  echo "!! pm2 restart gagal. Jalankan manual: pm2 restart pospro-backend pospro-frontend"
   echo "!! Lihat daftar proses dengan: pm2 list"
 }
 
