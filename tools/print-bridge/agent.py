@@ -44,6 +44,11 @@ POLL_HTTP_TIMEOUT = 35
 ACK_HTTP_TIMEOUT = 15
 RETRY_SLEEP = 3  # jeda saat backend tak terjangkau
 
+# UA seperti browser: sebagian Cloudflare/WAF "Bot Fight Mode" memblokir default
+# Python-urllib (403) sebelum request sampai ke backend. Header ini menekan blok itu.
+USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+              "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+
 _known_channel = None  # cache channel RFCOMM yang berhasil
 
 
@@ -106,7 +111,7 @@ def _poll(url: str, token: str):
     """GET /printer-relay/poll - kembalikan job dict atau None (timeout normal)."""
     req = urllib.request.Request(
         url + "/printer-relay/poll",
-        headers={"x-printer-token": token},
+        headers={"x-printer-token": token, "user-agent": USER_AGENT},
     )
     with urllib.request.urlopen(req, timeout=POLL_HTTP_TIMEOUT) as r:
         data = json.loads(r.read().decode("utf-8"))
@@ -118,7 +123,8 @@ def _ack(url: str, token: str, job_id: str, ok: bool, target: str = "", error: s
     req = urllib.request.Request(
         url + "/printer-relay/ack",
         data=body,
-        headers={"x-printer-token": token, "content-type": "application/json"},
+        headers={"x-printer-token": token, "content-type": "application/json",
+                 "user-agent": USER_AGENT},
         method="POST",
     )
     try:
@@ -126,6 +132,42 @@ def _ack(url: str, token: str, job_id: str, ok: bool, target: str = "", error: s
             r.read()
     except Exception as e:  # noqa: BLE001 - ack gagal bukan fatal, job lain jalan
         print(f"[agent] ack gagal (job {job_id[:8]}): {e}", file=sys.stderr)
+
+
+def _report_http_error(e: urllib.error.HTTPError, url: str) -> None:
+    """Cetak diagnosa kaya saat poll ditolak - bedakan TOKEN (backend 401) vs
+    BLOKIR PROXY/Cloudflare (403/HTML) supaya tak salah kira soal token."""
+    server = ""
+    cf_ray = ""
+    try:
+        server = (e.headers.get("Server", "") or "")
+        cf_ray = (e.headers.get("CF-RAY", "") or "")
+    except Exception:  # noqa: BLE001
+        pass
+    body = ""
+    try:
+        raw = e.read(500)
+        body = raw.decode("utf-8", "replace").strip().replace("\n", " ")[:300]
+    except Exception:  # noqa: BLE001
+        pass
+
+    looks_proxy = ("cloudflare" in server.lower() or bool(cf_ray)
+                   or "<html" in body.lower() or "<!doctype" in body.lower())
+
+    if e.code == 401 and not looks_proxy:
+        print("[agent] TOKEN DITOLAK backend (401). Token salah / device dinonaktifkan - "
+              "download ulang .bat dari Settings > Printer.", file=sys.stderr)
+    elif e.code == 403 or looks_proxy:
+        print("[agent] DIBLOKIR proxy/Cloudflare (bukan soal token). Izinkan path "
+              "/printer-relay/* di Cloudflare/WAF (mis. matikan Bot Fight Mode utk path ini) "
+              "atau arahkan URL agen langsung ke backend.", file=sys.stderr)
+    else:
+        print(f"[agent] HTTP {e.code} saat poll - coba lagi.", file=sys.stderr)
+
+    print(f"[agent] detail: HTTP {e.code}  url={url}/printer-relay/poll  "
+          f"server={server or '-'}  cf-ray={cf_ray or '-'}", file=sys.stderr)
+    if body:
+        print(f"[agent] body: {body}", file=sys.stderr)
 
 
 def run(url: str, token: str, com: str, mac: str):
@@ -136,12 +178,8 @@ def run(url: str, token: str, com: str, mac: str):
         try:
             job = _poll(url, token)
         except urllib.error.HTTPError as e:
-            if e.code in (401, 403):
-                print("[agent] TOKEN DITOLAK. Cek token di Settings > Printer.", file=sys.stderr)
-                time.sleep(RETRY_SLEEP)
-            else:
-                print(f"[agent] HTTP {e.code} saat poll - coba lagi.", file=sys.stderr)
-                time.sleep(RETRY_SLEEP)
+            _report_http_error(e, url)
+            time.sleep(RETRY_SLEEP)
             continue
         except (urllib.error.URLError, socket.timeout, TimeoutError):
             # Timeout long-poll normal (tak ada job) ATAU backend sesaat tak
