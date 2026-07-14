@@ -5,7 +5,7 @@ import type { ReceiptSnapshot } from '../receipt';
 import { buildThermalReceiptHTML } from './receipt-thermal';
 import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
-import { disconnectPrinter, ensureConnected, sendBytes } from './bluetooth';
+import { ensureConnected, sendBytes } from './bluetooth';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
@@ -69,8 +69,13 @@ export const printThermalBluetooth = async (snap: ReceiptSnapshot, status: Statu
 /**
  * Cetak 1-tap: pastikan koneksi (pakai printer tersimpan bila ada, tanpa dialog),
  * baru kirim. Harus dipanggil dari gesture user (onClick) agar fallback dialog boleh muncul.
- * Setelah cetak, koneksi DILEPAS supaya 1 printer bisa dipakai bergantian oleh
- * beberapa device (Android/Windows) — koneksi ulang berikutnya tanpa dialog (getDevices).
+ * Koneksi SENGAJA dibiarkan hidup setelah cetak: printer thermal BLE murah (RPP02N)
+ * sering GAGAL di-connect ulang tepat setelah baru saja diputus (bonded/half-held),
+ * sehingga cetak ulang di device yang sama macet ("paired terus") padahal device
+ * bersih mulus. Kebutuhan "1 printer dipakai bergantian banyak device" ditangani
+ * oleh print bridge / print server LAN, bukan dengan melepas koneksi BLE tiap cetak.
+ * Bila printer benar-benar putus (idle/timeout), listener `gattserverdisconnected`
+ * mereset state → `ensureConnected()` menyambung ulang otomatis di cetak berikutnya.
  * @returns nama printer yang dipakai.
  */
 export const printThermalBluetoothAuto = async (
@@ -79,14 +84,7 @@ export const printThermalBluetoothAuto = async (
 ): Promise<string> => {
   // Siapkan byte dulu (paralel dgn kemungkinan reconnect) lalu kirim.
   const [bytes, name] = await Promise.all([snapToEscpos(snap, status), ensureConnected()]);
-  try {
-    await sendBytes(bytes);
-    // Beri jeda agar printer menyerap seluruh data sebelum link diputus.
-    await new Promise((r) => setTimeout(r, 400));
-  } finally {
-    // Lepas koneksi → printer bebas dipakai device lain (pemakaian bergantian).
-    disconnectPrinter();
-  }
+  await sendBytes(bytes);
   return name;
 };
 
