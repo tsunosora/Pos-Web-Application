@@ -14,7 +14,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Printer, Usb, Bluetooth, RotateCw, Trash2, Copy, Plus, Wifi, WifiOff, Download } from 'lucide-react';
+import { Printer, Usb, Bluetooth, RotateCw, Trash2, Copy, Plus, Wifi, WifiOff, Download, Pencil } from 'lucide-react';
 
 interface Branch {
     id: number;
@@ -137,7 +137,21 @@ export default function PrinterSettingsPage() {
     const [connection, setConnection] = useState<'usb' | 'bluetooth' | 'windows'>('windows');
     const [target, setTarget] = useState('');
 
+    // Edit device terdaftar (mis. ganti nama printer Windows yang beda tiap PC).
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editName, setEditName] = useState('');
+    const [editConn, setEditConn] = useState<'usb' | 'bluetooth' | 'windows'>('windows');
+    const [editTarget, setEditTarget] = useState('');
+
     const invalidate = () => qc.invalidateQueries({ queryKey: ['printer-devices', activeBranchId] });
+
+    const startEdit = (d: PrinterDeviceDTO) => {
+        setEditingId(d.id);
+        setEditName(d.name);
+        setEditConn((d.connection as 'usb' | 'bluetooth' | 'windows') ?? 'windows');
+        setEditTarget(d.target ?? '');
+    };
+    const cancelEdit = () => setEditingId(null);
 
     const createMut = useMutation({
         mutationFn: () =>
@@ -170,6 +184,20 @@ export default function PrinterSettingsPage() {
     const toggleMut = useMutation({
         mutationFn: (d: PrinterDeviceDTO) => updatePrinterDevice(d.id, { isActive: !d.isActive }),
         onSuccess: invalidate,
+        onError: (e: any) => alert(`❌ ${e?.response?.data?.message || e.message}`),
+    });
+
+    const updateMut = useMutation({
+        mutationFn: (id: number) =>
+            updatePrinterDevice(id, {
+                name: editName.trim() || 'Printer',
+                connection: editConn,
+                target: editTarget.trim() || null,
+            }),
+        onSuccess: () => {
+            setEditingId(null);
+            invalidate();
+        },
         onError: (e: any) => alert(`❌ ${e?.response?.data?.message || e.message}`),
     });
 
@@ -356,6 +384,14 @@ export default function PrinterSettingsPage() {
                                 <Button
                                     variant="ghost"
                                     size="sm"
+                                    onClick={() => (editingId === d.id ? cancelEdit() : startEdit(d))}
+                                    title="Edit printer (nama / koneksi / target)"
+                                >
+                                    <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
                                     onClick={() => toggleMut.mutate(d)}
                                     title={d.isActive ? 'Nonaktifkan' : 'Aktifkan'}
                                 >
@@ -384,6 +420,77 @@ export default function PrinterSettingsPage() {
                                 </Button>
                             </div>
                         </div>
+
+                        {/* Form edit device terdaftar (nama / koneksi / nama printer Windows) */}
+                        {editingId === d.id && (
+                            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-3">
+                                <div className="space-y-1.5">
+                                    <Label>Nama printer (label)</Label>
+                                    <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>Koneksi ke printer</Label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {([
+                                            { key: 'windows', label: 'Printer Windows', Icon: Printer },
+                                            { key: 'usb', label: 'USB (COM)', Icon: Usb },
+                                            { key: 'bluetooth', label: 'Bluetooth', Icon: Bluetooth },
+                                        ] as const).map(({ key, label, Icon }) => (
+                                            <button
+                                                key={key}
+                                                type="button"
+                                                onClick={() => setEditConn(key)}
+                                                className={
+                                                    'flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm transition-colors ' +
+                                                    (editConn === key
+                                                        ? 'bg-primary/10 border-primary text-primary'
+                                                        : 'bg-background border-border hover:bg-muted')
+                                                }
+                                            >
+                                                <Icon className="w-4 h-4" /> {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label>
+                                        {editConn === 'windows'
+                                            ? 'Nama printer Windows'
+                                            : editConn === 'usb'
+                                                ? 'COM port'
+                                                : 'MAC printer'}
+                                    </Label>
+                                    <Input
+                                        value={editTarget}
+                                        onChange={(e) => setEditTarget(e.target.value)}
+                                        placeholder={
+                                            editConn === 'windows'
+                                                ? 'mis. RP58 Printer (persis seperti di Windows > Printers)'
+                                                : editConn === 'usb'
+                                                    ? 'mis. COM5'
+                                                    : 'mis. 66:32:5C:C4:3B:32'
+                                        }
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        size="sm"
+                                        onClick={() => updateMut.mutate(d.id)}
+                                        disabled={updateMut.isPending}
+                                    >
+                                        Simpan
+                                    </Button>
+                                    <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                                        Batal
+                                    </Button>
+                                </div>
+                                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                                    Setelah ganti nama printer / koneksi, <b>download ulang .bat</b> di bawah
+                                    (atau buka .bat lama dgn Notepad & samakan baris <code className="font-mono">TARGET</code>),
+                                    lalu jalankan ulang di PC toko. Token tidak berubah.
+                                </p>
+                            </div>
+                        )}
 
                         {/* Token (mask) — untuk mencocokkan dengan baris TOKEN di .bat saat diagnosa "token ditolak" */}
                         <div className="flex items-center gap-2 text-[11px] flex-wrap">
@@ -423,6 +530,30 @@ export default function PrinterSettingsPage() {
                                         ? 'File .bat otomatis pasang pyserial & unduh agent.py. Kalau COM port bukan COM5, buka file .bat dgn Notepad & ganti baris TARGET.'
                                         : 'File .bat otomatis pasang pyserial & unduh agent.py. Buka .bat dgn Notepad & isi TARGET dengan MAC printer (atau COM outgoing di Windows).'}
                             </p>
+                            <details className="text-[11px]">
+                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                                    Jalan otomatis tiap komputer hidup (auto-start)
+                                </summary>
+                                <div className="mt-2 space-y-1.5 text-muted-foreground">
+                                    <p>Agar tak perlu dobel-klik manual tiap PC dinyalakan:</p>
+                                    <ol className="list-decimal ml-4 space-y-0.5">
+                                        <li>Tekan <b>Win + R</b> → ketik <code className="font-mono">shell:startup</code> → Enter (folder Startup terbuka).</li>
+                                        <li>Klik-kanan file <code className="font-mono">start-agent.bat</code> → buat <b>shortcut</b>.</li>
+                                        <li>Pindahkan shortcut itu ke folder Startup tadi. Selesai — agen jalan sendiri tiap login Windows.</li>
+                                    </ol>
+                                    <p>
+                                        Biarkan jendela agen terbuka (boleh di-<i>minimize</i>). Kalau ditutup, cetak-toko berhenti
+                                        (transaksi tetap jalan). Cukup <b>1 agen</b> di PC yang colok printer — bukan di tiap kasir.
+                                    </p>
+                                    <p>
+                                        Ingin tanpa jendela hitam? Buat file <code className="font-mono">start-agent-hidden.vbs</code> berisi:
+                                        <code className="block font-mono break-all bg-background rounded px-2 py-1.5 border border-border mt-1">
+                                            CreateObject(&quot;WScript.Shell&quot;).Run &quot;&quot;&quot;&quot; &amp; WScript.Arguments(0) &amp; &quot;&quot;&quot;&quot;, 0, False
+                                        </code>
+                                        lalu taruh shortcut yang menunjuk <code className="font-mono">wscript start-agent-hidden.vbs &quot;C:\path\start-agent.bat&quot;</code> di folder Startup.
+                                    </p>
+                                </div>
+                            </details>
                             <details className="text-[11px]">
                                 <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
                                     Cara manual (Linux / mahir)
