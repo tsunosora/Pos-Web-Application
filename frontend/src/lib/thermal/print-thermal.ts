@@ -41,6 +41,10 @@ const renderToCanvas = async (snap: ReceiptSnapshot, status: Status): Promise<HT
     ),
   );
   try {
+    // Kanvas TEPAT 384px (scale 1). Jangan supersample: scale>1 melipatgandakan luas
+    // kanvas (768×2H = 4×) & bisa menembus batas ukuran kanvas di tablet/HP POS murah
+    // → bagian bawah gagal ter-render / terpotong. Ketebalan teks ditangani via CSS
+    // (bold + ukuran lebih besar) + ambang mono, bukan lewat perbesaran kanvas.
     return await html2canvas(target, {
       width: PRINTER_DOTS,
       backgroundColor: '#fff',
@@ -58,7 +62,7 @@ const snapToEscpos = async (snap: ReceiptSnapshot, status: Status): Promise<Uint
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Gagal membuat gambar struk.');
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  const { mono, height } = imageDataToMono(img);
+  const { mono, height } = imageDataToMono(img, 170);
   return concatBytes(initPrinter(), rasterImage(mono, height), feedAndCut());
 };
 

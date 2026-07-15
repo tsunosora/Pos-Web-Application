@@ -142,7 +142,7 @@ export default function ThermalReceiptModal({
             title="Preview struk thermal"
             srcDoc={previewHtml}
             className="bg-white rounded-md shadow-sm"
-            style={{ width: 384, height: "58vh", border: 0 }}
+            style={{ width: 376, height: "58vh", border: 0 }}
           />
         </div>
 

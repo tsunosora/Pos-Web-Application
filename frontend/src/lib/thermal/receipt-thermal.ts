@@ -77,24 +77,27 @@ export const buildThermalReceiptBody = (
   </div>`;
 };
 
-// 58mm = 384px. Font monospace tebal supaya tajam saat di-raster jadi 1-bit.
+// Area cetak 48mm (kertas 55mm) → 376px (47mm, margin aman). Harus SAMA dgn PRINTER_DOTS
+// di escpos.ts, kalau tidak html2canvas akan meng-crop konten. Font monospace tebal supaya
+// tajam saat di-raster jadi 1-bit.
 export const THERMAL_CSS = `
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#fff; }
-  .receipt { width:384px; padding:8px 10px; font-family:'Courier New',monospace; color:#000; font-size:20px; line-height:1.35; }
-  .store { text-align:center; font-weight:800; font-size:26px; }
-  .sub { text-align:center; font-size:16px; word-break:break-word; }
+  .receipt { width:376px; padding:10px 11px; font-family:'Courier New',monospace; color:#000; font-size:21px; font-weight:600; line-height:1.4; }
+  .store { text-align:center; font-weight:800; font-size:27px; letter-spacing:.5px; }
+  .sub { text-align:center; font-size:17px; font-weight:600; word-break:break-word; }
   .logo { display:block; margin:0 auto 4px; max-width:200px; max-height:120px; object-fit:contain; filter:grayscale(1) contrast(1.4); }
   .hr { border-top:2px dashed #000; margin:6px 0; }
-  .row { display:flex; justify-content:space-between; gap:8px; }
-  .row span:last-child { text-align:right; }
+  .row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+  .row span:first-child { flex:0 0 auto; white-space:nowrap; }
+  .row span:last-child { flex:1 1 auto; min-width:0; text-align:right; overflow-wrap:anywhere; }
   .it { margin-bottom:4px; }
   .nm { font-weight:700; word-break:break-word; }
   .i { font-style:italic; }
   .b { font-weight:700; }
   .total { font-weight:800; font-size:24px; border-top:2px solid #000; border-bottom:2px solid #000; padding:2px 0; margin:2px 0; }
   .foot { text-align:center; font-size:16px; margin-top:6px; white-space:pre-wrap; }
-  @media print { @page { size:58mm auto; margin:0; } body { width:58mm; } .receipt { width:58mm; padding:2mm; font-size:9pt; } .store { font-size:12pt; } .total { font-size:11pt; } }
+  @media print { @page { size:55mm auto; margin:0; } body { width:55mm; } .receipt { width:47mm; margin:0 auto; padding:1mm 1.5mm; font-size:10pt; font-weight:600; } .store { font-size:13pt; } .total { font-size:12pt; } }
 `;
 
 /** HTML dokumen lengkap untuk browser-print 58mm (window.open). */

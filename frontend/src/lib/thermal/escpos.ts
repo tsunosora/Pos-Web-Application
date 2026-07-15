@@ -1,9 +1,11 @@
 // frontend/src/lib/thermal/escpos.ts
-// Encoder ESC/POS minimal untuk printer thermal 58mm (384 dot).
+// Encoder ESC/POS minimal untuk printer thermal 55mm (area cetak 48mm, 376 dot efektif).
 // Semua fungsi PURE: input angka/array → Uint8Array. Tidak menyentuh DOM/Bluetooth.
 
-export const PRINTER_DOTS = 384; // lebar cetak 58mm @203dpi
-export const BYTES_PER_ROW = PRINTER_DOTS / 8; // 48
+// Kertas 55mm, area cetak 48mm. 48mm @203dpi ≈ 384 dot (mepet tepi, tanpa margin →
+// kolom kanan rawan terpotong). Pakai 376 dot (47mm) agar ada ~1mm margin aman.
+export const PRINTER_DOTS = 376; // lebar cetak efektif (47mm dari area cetak 48mm)
+export const BYTES_PER_ROW = PRINTER_DOTS / 8; // 47
 
 const ESC = 0x1b;
 const GS = 0x1d;
