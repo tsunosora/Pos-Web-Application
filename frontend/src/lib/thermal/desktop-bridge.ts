@@ -56,6 +56,18 @@ export async function printEscposDesktop(bytesBase64: string): Promise<void> {
   if (!res.ok) throw new Error(res.error || "Gagal mencetak di printer lokal");
 }
 
+/** Kirim byte ESC/POS ke printer desktop TERTENTU (override config tersimpan).
+ *  Dipakai saat kasir memilih printer eksplisit dari menu cetak. */
+export async function printEscposDesktopWith(
+  bytesBase64: string,
+  cfg: ElectronPrinterConfig,
+): Promise<void> {
+  const el = api();
+  if (!el) throw new Error("Bukan lingkungan desktop");
+  const res = await el.printEscpos({ bytesBase64, connection: cfg.connection, target: cfg.target });
+  if (!res.ok) throw new Error(res.error || "Gagal mencetak di printer lokal");
+}
+
 /** Daftar printer OS (untuk dropdown pengaturan di mode desktop). */
 export async function listPrintersDesktop(): Promise<{ name: string }[]> {
   const el = api();

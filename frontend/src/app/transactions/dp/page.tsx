@@ -5,7 +5,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getTransactions, payOffTransaction, addDPTransaction, getSettings, getBankAccounts, getUsers } from '@/lib/api';
 import { mapTransactionToReceipt, handleShareWA } from '@/lib/receipt';
 import { useReceiptPrinter } from '@/lib/useReceiptPrinter';
-import { CreditCard, Banknote, Landmark, Wallet, CheckCircle2, X, Printer, MessageCircle, PenSquare, Search, PlusCircle } from "lucide-react";
+import ReceiptPrintMenu from '@/components/receipt/ReceiptPrintMenu';
+import { CreditCard, Banknote, Landmark, Wallet, CheckCircle2, X, MessageCircle, PenSquare, Search, PlusCircle } from "lucide-react";
 import dayjs from "dayjs";
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
@@ -255,13 +256,13 @@ export default function DPTransactionsPage() {
                                         </td>
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             <div className="flex items-center justify-center gap-1.5">
-                                                <button
-                                                    onClick={() => printReceipt(mapTransactionToReceipt(trx, settings), 'TAGIHAN')}
+                                                <ReceiptPrintMenu
                                                     title="Cetak Struk DP"
-                                                    className="p-1.5 bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-lg transition-colors outline-none"
-                                                >
-                                                    <Printer className="w-4 h-4" />
-                                                </button>
+                                                    defaultFormat={settings?.receiptDefaultFormat}
+                                                    snap={mapTransactionToReceipt(trx, settings)}
+                                                    status="TAGIHAN"
+                                                    bankAccounts={bankAccounts}
+                                                />
                                                 <button
                                                     onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)}
                                                     title="Kirim Struk WA"
@@ -353,9 +354,14 @@ export default function DPTransactionsPage() {
                                     <button onClick={() => openModal(trx)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-semibold transition-colors">
                                         <Wallet className="w-4 h-4" /> Bayar
                                     </button>
-                                    <button onClick={() => printReceipt(mapTransactionToReceipt(trx, settings), 'TAGIHAN')} title="Cetak" className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-lg transition-colors">
-                                        <Printer className="w-4 h-4" />
-                                    </button>
+                                    <ReceiptPrintMenu
+                                        title="Cetak"
+                                        defaultFormat={settings?.receiptDefaultFormat}
+                                        snap={mapTransactionToReceipt(trx, settings)}
+                                        status="TAGIHAN"
+                                        bankAccounts={bankAccounts}
+                                        className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-lg transition-colors"
+                                    />
                                     <button onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)} title="Kirim WA" className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-[#25D366]/10 hover:text-[#25D366] rounded-lg transition-colors">
                                         <MessageCircle className="w-4 h-4" />
                                     </button>

@@ -7,7 +7,7 @@ import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
 import { ensureConnected, sendBytes } from './bluetooth';
 import api from '../api/client';
-import { isDesktop, printEscposDesktop } from './desktop-bridge';
+import { isDesktop, printEscposDesktop, printEscposDesktopWith, type ElectronPrinterConfig } from './desktop-bridge';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
@@ -65,6 +65,17 @@ const snapToEscpos = async (snap: ReceiptSnapshot, status: Status): Promise<Uint
   const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const { mono, height } = imageDataToMono(img, 170);
   return concatBytes(initPrinter(), rasterImage(mono, height), feedAndCut());
+};
+
+/** Cetak thermal ke printer desktop TERTENTU (mode Electron), bukan config default.
+ *  Dipakai menu cetak agar kasir bisa memilih printer per cetak (tak terkunci 1). */
+export const printThermalDesktopTo = async (
+  snap: ReceiptSnapshot,
+  status: Status,
+  cfg: ElectronPrinterConfig,
+): Promise<void> => {
+  const b64 = bytesToBase64(await snapToEscpos(snap, status));
+  await printEscposDesktopWith(b64, cfg);
 };
 
 /** Cetak via printer Bluetooth (Android/Chrome). Printer harus sudah connect. */

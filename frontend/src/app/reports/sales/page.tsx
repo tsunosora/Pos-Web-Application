@@ -5,10 +5,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSalesSummary, getTransactions, getSettings, getBankAccounts } from '@/lib/api';
 import { updateTransactionPaymentMethod } from '@/lib/api/transactions';
 import { mapTransactionToReceipt, handleShareWA } from '@/lib/receipt';
-import { useReceiptPrinter } from '@/lib/useReceiptPrinter';
+import ReceiptPrintMenu from '@/components/receipt/ReceiptPrintMenu';
 import { exportSheetsToExcel, exportToPDF } from '@/lib/export';
 import {
-    Download, BarChart2, CreditCard, Banknote, Landmark, X, Receipt, Printer, MessageCircle,
+    Download, BarChart2, CreditCard, Banknote, Landmark, X, Receipt, MessageCircle,
     FileSpreadsheet, Pencil, Check, CalendarDays, PenSquare, TrendingUp, TrendingDown,
     Search, ChevronDown, ChevronRight, BarChart, Minus, Loader2
 } from "lucide-react";
@@ -95,7 +95,6 @@ export default function SalesReportPage() {
     });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts', activeBranchId], queryFn: getBankAccounts });
-    const { printReceipt, thermalModal } = useReceiptPrinter(settings, bankAccounts);
 
     const { isManager } = useCurrentUser();
     const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null);
@@ -994,12 +993,14 @@ export default function SalesReportPage() {
 
                         <div className="p-4 border-t border-border bg-muted/30 flex justify-between items-center">
                             <div className="flex gap-2">
-                                <button
-                                    onClick={() => printReceipt(mapTransactionToReceipt(selectedTransaction, settings), selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS')}
-                                    className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors outline-none"
-                                >
-                                    <Printer className="w-4 h-4" /> Cetak Struk
-                                </button>
+                                <ReceiptPrintMenu
+                                    label="Cetak Struk"
+                                    defaultFormat={settings?.receiptDefaultFormat}
+                                    snap={mapTransactionToReceipt(selectedTransaction, settings)}
+                                    status={selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS'}
+                                    bankAccounts={bankAccounts}
+                                    align="left"
+                                />
                                 <button
                                     onClick={() => handleShareWA(mapTransactionToReceipt(selectedTransaction, settings), selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
                                     className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-lg text-sm font-medium hover:bg-[#20bd5a] transition-colors outline-none"
@@ -1047,7 +1048,6 @@ export default function SalesReportPage() {
                 />
             )}
             </div>
-            {thermalModal}
         </div>
     );
 }

@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getTransactionById, getSettings } from "@/lib/api";
 import { mapTransactionToReceipt } from "@/lib/receipt";
-import { useReceiptPrinter } from "@/lib/useReceiptPrinter";
+import ReceiptPrintMenu from "@/components/receipt/ReceiptPrintMenu";
 import {
     ArrowLeft, Loader2, User, Phone, MapPin, Calendar,
     CreditCard, Hash, Package, Printer, CheckCircle, Clock, AlertCircle,
@@ -278,7 +278,6 @@ export default function TransactionDetailPage() {
     });
 
     const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
-    const { printReceipt, printThermal, thermalModal } = useReceiptPrinter(settings, undefined);
     const thermalSnap = useMemo(
         () => (trx ? mapTransactionToReceipt(trx, settings) : null),
         [trx, settings],
@@ -353,25 +352,18 @@ export default function TransactionDetailPage() {
                                 <StatusIcon className="w-4 h-4" />
                                 {statusCfg.label}
                             </span>
-                            <button
-                                onClick={() => thermalSnap && printReceipt(thermalSnap, trx.status === "PAID" ? "LUNAS" : "TAGIHAN")}
-                                className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
-                            >
-                                <Printer className="w-4 h-4" />
-                                Cetak Struk
-                            </button>
-                            <button
-                                onClick={() => thermalSnap && printThermal(thermalSnap, trx.status === "PAID" ? "LUNAS" : "TAGIHAN")}
-                                className="flex items-center gap-2 border-2 border-border bg-background px-4 py-2 rounded-lg text-sm font-medium hover:bg-muted hover:border-primary/30 transition-colors"
-                            >
-                                <Printer className="w-4 h-4 text-muted-foreground" />
-                                Thermal 58mm
-                            </button>
+                            {thermalSnap && (
+                                <ReceiptPrintMenu
+                                    label="Cetak Struk"
+                                    defaultFormat={settings?.receiptDefaultFormat}
+                                    snap={thermalSnap}
+                                    status={trx.status === "PAID" ? "LUNAS" : "TAGIHAN"}
+                                />
+                            )}
                         </div>
                     </div>
                 </div>
 
-                {thermalModal}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Left: Items table */}
