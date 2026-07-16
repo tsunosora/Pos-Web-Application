@@ -7,7 +7,7 @@ import {
     ShoppingCart, Package, Wallet, BarChart3, Printer,
     FileText, MessageSquare, Settings, HelpCircle,
     Banknote, Building2, CheckCircle, AlertCircle, Info,
-    TrendingDown, Sparkles, Store,
+    TrendingDown, Sparkles, Store, Monitor,
 } from "lucide-react";
 import { usePagination, PaginationBar } from "@/components/ui/pagination";
 
@@ -992,6 +992,11 @@ function SecFAQ() {
         { q: "Bagaimana mencatat potongan Shopee/Tokopedia?", a: "Di POS, gulir ke bawah form checkout → klik + Tambah Potongan → isi nama platform dan nominal. Bisa lebih dari satu baris. Cashflow otomatis split: INCOME (nett diterima) + EXPENSE Biaya Platform. Jika lupa diisi saat transaksi, bisa diisi saat pelunasan di menu DP & Piutang." },
         { q: "Potongan marketplace hanya untuk transaksi marketplace?", a: "Tidak wajib. Field ini bisa digunakan untuk potongan apapun — komisi agen, GoFood, GrabFood, dll. Isi sesuai kebutuhan." },
         { q: "Filter di Pipeline Produksi tidak berfungsi?", a: "Filter bekerja di sisi client — data sudah dimuat saat halaman dibuka. Klik Reset filter untuk memastikan semua filter bersih. Jika data tidak update, tunggu 60 detik (auto-refresh) atau reload halaman." },
+        { q: "Apakah kasir tetap jalan saat internet putus?", a: "Ya, jika memakai Aplikasi Desktop (Windows). Aplikasi desktop menjalankan database & backend-nya sendiri sehingga semua fitur (kasir, stok, laporan, CRM) tetap jalan 100% offline. Transaksi yang dibuat offline otomatis tersinkron ke server pusat begitu kembali online." },
+        { q: "Transaksi offline saya sudah aman belum?", a: "Transaksi offline baru benar-benar aman setelah tersinkron ke pusat. Pastikan perangkat online secara berkala. Aplikasi desktop juga auto-backup setiap dibuka (7 backup terakhir) dan bisa backup manual .sql kapan saja lewat menunya." },
+        { q: "Bagaimana cetak struk thermal 58mm?", a: "Saat mencetak nota, pilih format Thermal 58mm (format A5 lama tetap ada). Koneksi ke printer bisa via Bluetooth (Web Bluetooth di Chrome/Android), Aplikasi Desktop (langsung ke printer Windows/USB), Printer Relay (untuk cabang tanpa desktop app), atau fallback dialog print browser." },
+        { q: "Cetak Bluetooth tidak jalan di iPhone?", a: "Web Bluetooth tidak didukung di Safari iOS, jadi cetak thermal via Bluetooth langsung dari iPhone/iPad tidak bisa. Gunakan Aplikasi Desktop, Printer Relay, atau fallback print browser sebagai gantinya." },
+        { q: "Alur desainer (SO → Lead → Nota) jalan di aplikasi desktop offline?", a: "Ya, untuk KONVERSI. SalesOrder & Lead ikut ditarik ke perangkat desktop, jadi kasir bisa membuka SO/Lead, prefill keranjang, dan buat nota meski offline. Saat nota tersinkron ke pusat, SO otomatis jadi INVOICED dan lead jadi CLOSED_WON. Yang perlu online: MEMBUAT SO/Lead baru (portal desainer /so-designer & closing 'Buat Nota di Kasir' pada lead yang belum punya SO). Foto proof desain juga hanya tampil saat online (file gambar tidak ikut disinkron)." },
     ];
 
     // Paginasi — aktif saat FAQ melebihi 20 item
@@ -1306,6 +1311,134 @@ function SecAlurSistem() {
     );
 }
 
+function SecThermal() {
+    return (
+        <>
+            <H2 id="thermal">Cetak Nota Thermal 58mm</H2>
+            <P>
+                Selain nota A5 (PDF/browser), PosPro mendukung cetak <strong>struk thermal 58mm</strong> —
+                cocok untuk printer struk mini kasir. Struk dirender otomatis (logo, item, total, footer)
+                lalu dikirim ke printer. Format A5 lama tetap tersedia dan tidak berubah.
+            </P>
+
+            <H3>Cara Mengaktifkan</H3>
+            <Steps steps={[
+                { title: "Pilih format Thermal 58mm", desc: <>Saat mencetak nota, pilih opsi struk <strong>Thermal 58mm</strong> (default A5 tetap ada).</> },
+                { title: "Pilih metode koneksi printer", desc: "Sesuaikan dengan perangkat kamu — lihat tabel di bawah." },
+                { title: "Cetak", desc: "Struk otomatis dirender dan dikirim ke printer thermal." },
+            ]} />
+
+            <H3>Metode Koneksi Printer</H3>
+            <Table
+                headers={["Metode", "Kapan dipakai"]}
+                rows={[
+                    [<><strong>Bluetooth</strong> (Web Bluetooth)</>, "Printer thermal Bluetooth langsung dari HP/laptop (Chrome/Android). Struk dikirim sebagai gambar raster ESC/POS."],
+                    [<><strong>Aplikasi Desktop</strong></>, "Cetak langsung ke printer Windows (spooler RAW) atau USB/COM. Bisa juga dijadikan pusat cetak — melayani cetak dari device lain (lihat Aplikasi Desktop)."],
+                    [<><strong>Printer Relay</strong></>, "Untuk cabang tanpa aplikasi desktop: agen relay (di PC printer) meneruskan job cetak memakai token printer."],
+                    [<><strong>Browser (fallback)</strong></>, "Cetak lewat dialog print browser bila metode di atas tak tersedia."],
+                ]}
+            />
+
+            <Callout type="warning" title="Safari / iOS">
+                Web Bluetooth <strong>tidak didukung di Safari iOS</strong>. Untuk iPhone/iPad,
+                gunakan Aplikasi Desktop, Printer Relay, atau fallback browser.
+            </Callout>
+
+            <Callout type="tip" title="Nota panjang">
+                Struk dengan banyak item dikirim sebagai gambar raster yang bisa berukuran besar —
+                sistem sudah menaikkan batas ukuran kiriman agar nota panjang tidak gagal terkirim.
+            </Callout>
+        </>
+    );
+}
+
+function SecDesktop() {
+    return (
+        <>
+            <H2 id="desktop-app">Aplikasi Desktop (Offline)</H2>
+            <P>
+                PosPro tersedia sebagai <strong>aplikasi desktop Windows</strong> yang berjalan
+                <strong> 100% offline</strong> — seluruh fitur (kasir, stok, laporan, CRM) tetap jalan
+                tanpa internet. Data lokal otomatis tersinkron ke server pusat saat kembali online.
+            </P>
+
+            <Callout type="info" title="Kapan pakai versi desktop?">
+                Untuk kasir yang harus tetap jalan meski internet putus, atau cabang dengan koneksi
+                tidak stabil. Versi web/PWA tetap tersedia dan berbagi data yang sama.
+            </Callout>
+
+            <H3>Cara Kerja Offline</H3>
+            <P>
+                Aplikasi membawa database & backend-nya sendiri di dalam komputer. Setiap perangkat punya
+                salinan data lokal (model <em>single-device</em>) yang dijahit ke pusat:
+            </P>
+            <Ul>
+                <li><strong>Transaksi offline</strong> disimpan lokal, lalu <strong>dikirim ke pusat</strong> begitu online (otomatis tiap ±30 detik).</li>
+                <li><strong>Data master</strong> (produk, harga, user, pelanggan, supplier) yang diubah di pusat <strong>turun otomatis</strong> ke perangkat.</li>
+                <li>Cetak nota thermal jalan langsung ke printer — tanpa agen <Code>.bat</Code>/Python.</li>
+            </Ul>
+            <P>Operasi offline yang ikut tersinkron ke pusat:</P>
+            <Ul>
+                <li><strong>Transaksi jual</strong> + potong stok + cashflow-nya</li>
+                <li><strong>Kas manual</strong> (kas masuk/keluar/biaya)</li>
+                <li><strong>Pembelian / stok masuk</strong> dan <strong>stok opname</strong></li>
+                <li><strong>Transfer stok antar cabang</strong></li>
+            </Ul>
+            <Callout type="info" title="Selalu konsisten">
+                Stok & data keluar-masuk dijaga konsisten dua arah: setiap operasi diberi penanda unik
+                sehingga <strong>tidak terhitung ganda</strong> walau sinkron diulang, dan nilai stok
+                otoritatif dari pusat dikembalikan ke tiap perangkat.
+            </Callout>
+
+            <H3>Pemasangan Pertama (First-Run)</H3>
+            <Steps steps={[
+                { title: "Install aplikasi", desc: "Jalankan installer .exe. Database & backend sudah dibundel di dalamnya — tidak perlu install terpisah." },
+                { title: "Daftarkan perangkat ke pusat", desc: "Masukkan alamat server pusat + token pendaftaran (dari Owner). Perangkat mendapat device token permanen — aman meski database di-reset." },
+                { title: "Data awal terunduh", desc: "Produk, user, dan master data ditarik dari pusat. Setelah ini login & transaksi jalan penuh tanpa internet." },
+            ]} />
+
+            <H3>Backup, Recovery & Reset</H3>
+            <Table
+                headers={["Fitur", "Fungsi"]}
+                rows={[
+                    [<><strong>Auto-backup</strong></>, "Backup otomatis setiap aplikasi dibuka (menyimpan 7 backup terakhir)."],
+                    [<><strong>Backup manual</strong></>, "Simpan file backup .sql ke lokasi pilihan kapan saja."],
+                    [<><strong>Recovery</strong></>, "Bila database lokal rusak, aplikasi menawarkan pemulihan otomatis dari pusat."],
+                    [<><strong>Reset</strong></>, "Hapus data lokal & tarik ulang dari pusat. Device token dipertahankan (tidak membuat perangkat ganda)."],
+                ]}
+            />
+
+            <Callout type="warning" title="Sinkron sebelum perangkat hilang">
+                Transaksi yang dibuat offline <strong>baru benar-benar aman setelah tersinkron ke pusat</strong>.
+                Pastikan perangkat online secara berkala agar data tidak hilang bila komputer rusak atau hilang.
+            </Callout>
+
+            <H3>Jadikan Pusat Cetak (1 printer untuk banyak kasir)</H3>
+            <P>
+                Secara default aplikasi desktop hanya mencetak <strong>notanya sendiri</strong>. Namun PC yang
+                terhubung ke printer bisa dijadikan <strong>pusat cetak cabang</strong>: kasir lain (tablet/HP/PC,
+                cukup browser) mengirim nota, dan printer di PC ini yang mencetak — <strong>tanpa memasang apa pun
+                di device lain</strong>.
+            </P>
+            <Steps steps={[
+                { title: "Buat token printer di pusat", desc: <>Owner buka <Code>Settings → Printer</Code> di server pusat, tambahkan perangkat printer, lalu salin token-nya.</> },
+                { title: "Isikan token di PC printer", desc: <>Masukkan token ke konfigurasi aplikasi (<Code>printerRelayToken</Code>). Setelah itu aplikasi otomatis melayani cetak dari device lain.</> },
+                { title: "Kasir lain langsung cetak", desc: "Di device kasir lain, pilih metode Aplikasi Desktop/Printer Relay — nota tercetak di printer PC pusat." },
+            ]} />
+            <Callout type="warning" title="Syarat">
+                PC pusat cetak <strong>harus menyala</strong> dan aplikasi berjalan. Semua device harus di
+                <strong> cabang yang sama</strong>. Bila PC pusat mati, device lain tidak bisa mencetak.
+            </Callout>
+
+            <H3>Update Otomatis</H3>
+            <P>
+                Saat versi baru tersedia, aplikasi menampilkan <strong>banner notifikasi di dalam aplikasi</strong> —
+                cukup klik <strong>Unduh</strong> lalu <strong>Pasang</strong>. Tidak perlu mengunduh installer manual.
+            </P>
+        </>
+    );
+}
+
 // ─── NAVIGATION ──────────────────────────────────────────────────────────────
 
 const NAV_GROUPS = [
@@ -1344,6 +1477,7 @@ const NAV_GROUPS = [
         items: [
             { id: "produksi", label: "Antrian Produksi" },
             { id: "pipeline-produksi", label: "Pipeline & Filter" },
+            { id: "thermal", label: "Cetak Nota Thermal 58mm" },
         ],
     },
     {
@@ -1364,6 +1498,11 @@ const NAV_GROUPS = [
         label: "Multi-Cabang",
         icon: <Building2 size={14} />,
         items: [{ id: "multi-cabang", label: "Mode Cabang & Titip Cetak" }],
+    },
+    {
+        label: "Aplikasi Desktop",
+        icon: <Monitor size={14} />,
+        items: [{ id: "desktop-app", label: "Aplikasi Desktop (Offline)" }],
     },
     {
         label: "Pengaturan",
@@ -1483,7 +1622,7 @@ export default function HelpPage() {
                         <span className="hidden sm:inline text-muted-foreground text-sm ml-2">Manual Book &amp; Dokumentasi</span>
                     </div>
                 </div>
-                <span className="hidden sm:inline text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">v5.2</span>
+                <span className="hidden sm:inline text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full shrink-0">v5.3</span>
                 <button
                     className="lg:hidden p-2 rounded-lg hover:bg-muted text-muted-foreground"
                     onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -1518,10 +1657,12 @@ export default function HelpPage() {
                     <SecPiutang />
                     <SecLaporan />
                     <SecProduksi />
+                    <SecThermal />
                     <SecInvoice />
                     <SecCRM />
                     <SecWhatsApp />
                     <SecCabang />
+                    <SecDesktop />
                     <SecPengaturan />
                     <SecFAQ />
 

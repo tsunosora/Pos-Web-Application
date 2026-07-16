@@ -45,6 +45,8 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 23 | [📒 Buku Titipan Antar Cabang](buku-titipan.md) | **Buku Titipan** — auto-catat hutang/piutang antar cabang dari titip cetak, settle tunai/stok |
 | 24 | [🎨 Sales Order & Designer Portal](sales-orders.md) | **Designer portal** — workflow desainer freelance, broadcast SO ke grup WA per cabang |
 | 25 | [🎯 CRM — Lead Pipeline & Follow-Up](crm.md) | **CRM** — pipeline lead pra-jual, kanban drag-drop, auto follow-up after-sales/repeat order, template WA, convert ke Customer+SPK+Invoice |
+| 26 | [🖥️ Aplikasi Desktop Offline](desktop-offline.md) | **Desktop 100% offline** — installer bundel MariaDB+backend+frontend, sinkron dua arah lokal⟷pusat, auto-backup/recovery/reset, auto-update |
+| 27 | [🧾 Nota Thermal 58mm](nota-thermal-58mm.md) | **Cetak thermal 58mm** — Bluetooth (Web Bluetooth), printer Windows/USB via desktop, Printer Relay, fallback browser |
 
 ---
 

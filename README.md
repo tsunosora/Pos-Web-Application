@@ -8,6 +8,8 @@
 
 **Solusi kasir modern untuk toko kelontong, percetakan digital, café, dan usaha kecil menengah lainnya.**
 
+> 🆕 **Update Juli 2026 (v5.3)** — **🖥️ Aplikasi Desktop 100% Offline** (Windows/Electron): membundel **MariaDB + backend + frontend** di dalam satu installer sehingga seluruh fitur jalan **tanpa internet**; setiap perangkat punya database lokal (model *single-device local-primary*) yang **tersinkron dua arah** ke server pusat saat online (device-token permanen, tak perlu mint JWT), lengkap dengan **auto-backup + recovery + reset** dan **notifikasi auto-update di dalam aplikasi** (banner unduh→pasang). **🧾 Cetak Nota Thermal 58mm** — struk mini via **Bluetooth (Web Bluetooth)**, printer Windows/USB langsung dari aplikasi desktop, **Printer Relay** untuk cabang tanpa desktop app, atau fallback dialog browser (format A5 lama tetap ada).
+>
 > 🆕 **Update April 2026 (v5.1)** — **Mode Cabang Multi-Tenant Penuh**: kelola banyak toko cabang dalam 1 sistem (stok per cabang, kas terpisah, owner switcher), **🔁 Titip Cetak Antar Cabang** (toggle prominent di POS, routing job otomatis, badge titipan konsisten, popup notif real-time titipan masuk/cetakan siap), **📒 Buku Titipan / Inter-Branch Ledger** (auto-catat hutang-piutang antar cabang, settle dengan tunai 2 cashflow pair atau kirim stok bahan, fee configurable per cabang), **🎨 Sales Order & Designer Portal** (PIN login, paste screenshot Ctrl+V, broadcast WA per cabang dengan resolver token-based), **link nota & badge titipan di laporan stok**, **transfer stok antar cabang**. Backup v3.1 dengan 4 grup baru.
 >
 > 🆕 **Update Maret 2026 (v2.7)** — **Harga Bertingkat** (tiered pricing per varian, harga otomatis berubah sesuai qty di kasir), **Impor Produk Massal** (template Excel + preview sebelum simpan), **Kalkulator HPP Multi-Varian**, **Laporan Laba Kotor**, **Supplier Management**, **Backup & Restore**. Produk **Tanpa Lacak Stok** kini tidak pernah masuk daftar peringatan Stok Menipis.
@@ -195,6 +197,25 @@ Hitung fisik stok gudang dengan sistem link operator yang aman dan terstruktur.
 - Status SO: DRAFT → SENT → INVOICED → CANCELLED
 - **Convert SO ke Invoice** di POS dengan satu klik — auto-load items ke cart
 - 📖 [Wiki: Sales Order & Designer](docs/wiki/sales-orders.md)
+
+### 🖥️ 20. Aplikasi Desktop 100% Offline (Windows / Electron)
+- **Installer tunggal** membundel **MariaDB + backend NestJS + frontend** — tidak perlu instalasi terpisah
+- **Semua fitur jalan tanpa internet** — kasir, stok, laporan, CRM tetap penuh saat koneksi putus
+- **Sinkron dua arah lokal ⟷ pusat tiap ±30 detik**: master data (produk/harga/user/pelanggan/supplier) turun otomatis; mutasi offline naik ke pusat & diputar ulang idempoten (via `clientId`) — mencakup **transaksi jual, kas manual, pembelian/stok masuk, opname, dan transfer antar cabang** (stok dijaga konsisten, tak terhitung ganda)
+- **Device-token permanen** (`x-device-token`) menggantikan mint JWT — perangkat didaftarkan sekali via `POST /sync/register-device`
+- **Auto-backup** tiap start (rotasi 7 terakhir) + **backup manual `.sql`** + **recovery** korupsi + **reset** (tarik ulang dari pusat, device-token dipertahankan)
+- **Auto-update di dalam aplikasi** — banner notifikasi unduh→pasang (electron-updater)
+- Cetak thermal langsung ke printer Windows/USB **tanpa agen `.bat`/Python**
+- 📖 [Wiki: Aplikasi Desktop Offline](docs/wiki/desktop-offline.md)
+
+### 🧾 21. Cetak Nota Thermal 58mm
+- Struk thermal mini **58mm** — format A5 lama tetap tersedia dan tidak berubah
+- **Bluetooth (Web Bluetooth)** — cetak langsung dari HP/laptop Chrome/Android (raster ESC/POS)
+- **Aplikasi Desktop** — cetak langsung ke printer Windows (spooler RAW) atau USB/COM
+- **Printer Relay** — untuk cabang tanpa desktop app (agen long-poll dengan `x-printer-token`)
+- **Fallback dialog browser** bila metode di atas tak tersedia
+- ⚠️ Web Bluetooth **tidak didukung di Safari iOS** — pakai Desktop/Relay/browser
+- 📖 [Wiki: Nota Thermal 58mm](docs/wiki/nota-thermal-58mm.md)
 
 ---
 
