@@ -44,6 +44,8 @@ Diagnosa umum:
 - **401 "token ditolak"** — `x-printer-token` di agen tidak cocok dengan yang terdaftar di backend. Samakan token.
 - Ada **dua salinan `agent.py`** yang wajib sinkron — pastikan keduanya versi sama saat mengubah logika.
 
+> 📖 Panduan lengkap install agen di PC kasir, konfigurasi token/COM, dan **auto-run tersembunyi** (Startup folder / Task Scheduler): lihat [🖨️ Printer Relay Agent](printer-relay-agent.md).
+
 ### Aplikasi Desktop
 
 Di aplikasi desktop, cetak ESC/POS untuk **nota device itu sendiri** dikirim **langsung dari proses utama** (tanpa relay/agen):
