@@ -1,0 +1,46 @@
+appId: com.pospro.desktop
+productName: POS Pro
+copyright: POS Pro
+
+directories:
+  output: release
+  buildResources: build
+
+# Yang masuk ke app.asar (main process Electron).
+files:
+  - dist/**/*
+  - package.json
+
+# Frontend Next (output "standalone") disertakan sebagai resources, BUKAN di dalam asar.
+# Layout hasil: <resources>/frontend/server.js + node_modules + .next/{server,static} + public.
+# Dijalankan next-server.ts via Electron-as-Node. Standalone build WAJIB ada dulu
+# (node scripts/build-frontend.mjs).
+extraResources:
+  - from: ../frontend/.next/standalone
+    to: frontend
+    filter:
+      - "**/*"
+  - from: ../frontend/.next/static
+    to: frontend/.next/static
+    filter:
+      - "**/*"
+  - from: ../frontend/public
+    to: frontend/public
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - nsis
+  # icon: build/icon.ico   # taruh ikon di desktop/build/icon.ico (opsional)
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  shortcutName: POS Pro
+
+# Auto-update: isi provider (GitHub/generic) untuk mengaktifkan. Biarkan null bila
+# belum dipakai — installer tetap terbentuk, updater cuma tak menemukan update.
+publish: null

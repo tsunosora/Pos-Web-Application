@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
+import fs from "node:fs";
 import path from "node:path";
 import log from "electron-log";
 
@@ -20,21 +21,43 @@ export interface NextHandle {
   proc: ChildProcess;
 }
 
-// frontendDir: path absolut ke folder "frontend" yang SUDAH di-`next build`.
+// frontendDir:
+//  - Produksi (paket): root output "standalone" berisi server.js → dijalankan lewat
+//    Electron sebagai Node (ELECTRON_RUN_AS_NODE) di port bebas.
+//  - Dev: folder "frontend" repo (ada node_modules/.bin/next) → `next start`.
 export async function startNext(frontendDir: string): Promise<NextHandle> {
   const port = await freePort();
-  const bin = path.join(
-    frontendDir,
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "next.cmd" : "next",
-  );
-  const proc = spawn(bin, ["start", "-p", String(port), "-H", "127.0.0.1"], {
-    cwd: frontendDir,
-    env: { ...process.env, NODE_ENV: "production" },
-    stdio: "pipe",
-    shell: process.platform === "win32", // .cmd butuh shell di Windows
-  });
+  const serverJs = path.join(frontendDir, "server.js");
+  const standalone = fs.existsSync(serverJs);
+
+  let proc: ChildProcess;
+  if (standalone) {
+    proc = spawn(process.execPath, [serverJs], {
+      cwd: frontendDir,
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+        PORT: String(port),
+        HOSTNAME: "127.0.0.1",
+        ELECTRON_RUN_AS_NODE: "1",
+      },
+      stdio: "pipe",
+    });
+  } else {
+    const bin = path.join(
+      frontendDir,
+      "node_modules",
+      ".bin",
+      process.platform === "win32" ? "next.cmd" : "next",
+    );
+    proc = spawn(bin, ["start", "-p", String(port), "-H", "127.0.0.1"], {
+      cwd: frontendDir,
+      env: { ...process.env, NODE_ENV: "production" },
+      stdio: "pipe",
+      shell: process.platform === "win32",
+    });
+  }
+
   proc.stdout?.on("data", (d) => log.info("[next]", d.toString().trim()));
   proc.stderr?.on("data", (d) => log.warn("[next]", d.toString().trim()));
   proc.on("error", (e) => log.error("[next] spawn error", e));
@@ -48,8 +71,9 @@ async function waitForReady(url: string, timeoutMs = 30000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(url, { method: "HEAD" });
-      if (res.ok || res.status === 200 || res.status === 404) return;
+      // Respons apa pun (200/307/404/…) berarti server sudah listening.
+      await fetch(url, { method: "HEAD" });
+      return;
     } catch {
       /* belum siap */
     }

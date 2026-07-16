@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import log from "electron-log";
+import { autoUpdater } from "electron-updater";
 import { startNext, NextHandle } from "./next-server";
 import { getPrinterConfig, setPrinterConfig } from "./printer-config";
 import { printEscpos, listPrinters } from "./printing";
@@ -9,7 +10,9 @@ let win: BrowserWindow | null = null;
 let next: NextHandle | null = null;
 
 function frontendDir(): string {
-  // Dev: folder frontend di repo. Produksi: disertakan sbg extraResources.
+  // Override manual (debug/uji bundle standalone tanpa packaging).
+  if (process.env.POSPRO_FRONTEND_DIR) return process.env.POSPRO_FRONTEND_DIR;
+  // Dev: folder frontend di repo (next start). Produksi: standalone di resources.
   return process.env.POSPRO_DEV
     ? path.join(__dirname, "..", "..", "frontend")
     : path.join(process.resourcesPath, "frontend");
@@ -42,6 +45,12 @@ ipcMain.handle("print:escpos", (_e, payload) => printEscpos(payload));
 app
   .whenReady()
   .then(createWindow)
+  .then(() => {
+    // Auto-update hanya di app terpaket (bukan dev). Diam bila publish belum diatur.
+    if (!process.env.POSPRO_DEV && app.isPackaged) {
+      autoUpdater.checkForUpdatesAndNotify().catch((e) => log.warn("Cek update gagal:", e));
+    }
+  })
   .catch((e) => {
     log.error("Gagal start:", e);
     app.quit();
