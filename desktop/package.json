@@ -1,0 +1,26 @@
+{
+  "name": "pospro-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "POS Pro — aplikasi desktop Windows (Electron)",
+  "main": "dist/main.js",
+  "scripts": {
+    "clean": "rimraf dist",
+    "build:main": "tsc -p tsconfig.json",
+    "dev": "npm run build:main && cross-env POSPRO_DEV=1 electron .",
+    "start": "electron .",
+    "dist": "npm run clean && npm run build:main && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8",
+    "cross-env": "^7.0.3",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3",
+    "@types/node": "^22.0.0"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "electron-log": "^5.2.0"
+  }
+}
