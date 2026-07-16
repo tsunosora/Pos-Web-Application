@@ -25,4 +25,13 @@ contextBridge.exposeInMainWorld("electron", {
   // Backup & reset data lokal (mode 100% offline).
   backupDb: () => ipcRenderer.invoke("db:backup"),
   resetDb: () => ipcRenderer.invoke("db:reset"),
+  // Auto-update: dengarkan event + kontrol unduh/pasang.
+  onUpdaterEvent: (cb: (data: unknown) => void) => {
+    const listener = (_e: unknown, data: unknown) => cb(data);
+    ipcRenderer.on("updater:event", listener);
+    return () => ipcRenderer.removeListener("updater:event", listener);
+  },
+  checkUpdate: () => ipcRenderer.invoke("updater:check"),
+  downloadUpdate: () => ipcRenderer.invoke("updater:download"),
+  installUpdate: () => ipcRenderer.invoke("updater:install"),
 });

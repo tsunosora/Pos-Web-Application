@@ -14,6 +14,8 @@ let win: BrowserWindow | null = null;
 let next: NextHandle | null = null;
 let maria: MariaHandle | null = null;
 let backend: BackendHandle | null = null;
+let quitting = false;
+let installing = false;
 
 // Referensi untuk backup/reset (mode lokal).
 let mariaBin = "";
@@ -189,21 +191,43 @@ ipcMain.handle("db:reset", async () => {
   return { ok: choice === 0 };
 });
 
+// ---- Auto-update dengan notifikasi DI DALAM aplikasi ----
+function sendUpdater(payload: Record<string, unknown>) {
+  win?.webContents.send("updater:event", payload);
+}
+
+function setupAutoUpdater() {
+  if (process.env.POSPRO_DEV || !app.isPackaged) return;
+  autoUpdater.autoDownload = false; // unduh saat user klik → beri kendali
+  autoUpdater.logger = log;
+  autoUpdater.on("update-available", (info) => sendUpdater({ type: "available", version: info.version }));
+  autoUpdater.on("update-not-available", () => sendUpdater({ type: "none" }));
+  autoUpdater.on("download-progress", (p) => sendUpdater({ type: "progress", percent: Math.round(p.percent) }));
+  autoUpdater.on("update-downloaded", (info) => sendUpdater({ type: "ready", version: info.version }));
+  autoUpdater.on("error", (err) => sendUpdater({ type: "error", message: String(err?.message ?? err) }));
+
+  autoUpdater.checkForUpdates().catch((e) => log.warn("Cek update gagal:", e));
+  // Cek berkala tiap 3 jam.
+  setInterval(() => autoUpdater.checkForUpdates().catch(() => {}), 3 * 60 * 60 * 1000);
+}
+
+ipcMain.handle("updater:check", () => autoUpdater.checkForUpdates().catch((e) => ({ error: String(e) })));
+ipcMain.handle("updater:download", () => autoUpdater.downloadUpdate().catch((e) => ({ error: String(e) })));
+ipcMain.handle("updater:install", async () => {
+  installing = true;
+  await shutdown(); // matikan DB/backend lokal dengan rapi sebelum pasang versi baru
+  autoUpdater.quitAndInstall();
+});
+
 app
   .whenReady()
   .then(createWindow)
-  .then(() => {
-    if (!process.env.POSPRO_DEV && app.isPackaged) {
-      autoUpdater.checkForUpdatesAndNotify().catch((e) => log.warn("Cek update gagal:", e));
-    }
-  })
+  .then(() => setupAutoUpdater())
   .catch((e) => {
     log.error("Gagal start:", e);
     dialog.showErrorBox("POS Pro gagal start", String(e?.message ?? e));
     app.quit();
   });
-
-let quitting = false;
 
 async function shutdown() {
   next?.proc.kill();
@@ -222,6 +246,9 @@ app.on("window-all-closed", () => app.quit());
 // Cleanup sekali, lalu keluar paksa (app.exit tak memicu before-quit lagi → tak loop/nyangkut).
 app.on("before-quit", (e) => {
   if (quitting) return;
+  // Saat memasang update: shutdown sudah dilakukan di handler → biarkan quitAndInstall jalan
+  // (JANGAN app.exit, agar installer sempat mengganti file).
+  if (installing) return;
   quitting = true;
   e.preventDefault();
   shutdown().finally(() => app.exit(0));

@@ -18,11 +18,28 @@ interface ElectronAPI {
   listPrinters: () => Promise<{ name: string }[]>;
   getPrinterConfig: () => Promise<ElectronPrinterConfig>;
   setPrinterConfig: (cfg: ElectronPrinterConfig) => Promise<ElectronPrinterConfig>;
+  // Auto-update (opsional — hanya ada di app terpaket).
+  onUpdaterEvent?: (cb: (data: UpdaterEvent) => void) => () => void;
+  checkUpdate?: () => Promise<unknown>;
+  downloadUpdate?: () => Promise<unknown>;
+  installUpdate?: () => Promise<unknown>;
 }
+
+export type UpdaterEvent =
+  | { type: "none" }
+  | { type: "available"; version: string }
+  | { type: "progress"; percent: number }
+  | { type: "ready"; version: string }
+  | { type: "error"; message: string };
 
 function api(): ElectronAPI | null {
   if (typeof window === "undefined") return null;
   return (window as unknown as { electron?: ElectronAPI }).electron ?? null;
+}
+
+/** API Electron mentah (null bila bukan desktop). Dipakai fitur seperti auto-update. */
+export function getElectron(): ElectronAPI | null {
+  return api();
 }
 
 /** True bila web app sedang berjalan di dalam aplikasi desktop Electron. */

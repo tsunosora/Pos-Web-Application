@@ -4,6 +4,7 @@ import "./globals.css";
 import { MainLayout } from "@/components/layout/MainLayout";
 import Providers from "./providers";
 import { SyncManager } from "@/lib/SyncManager";
+import UpdateNotifier from "@/components/UpdateNotifier";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,6 +33,7 @@ export default function RootLayout({
         <Providers>
           <MainLayout>{children}</MainLayout>
           <SyncManager />
+          <UpdateNotifier />
         </Providers>
       </body>
     </html>

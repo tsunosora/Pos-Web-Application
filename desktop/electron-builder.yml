@@ -60,6 +60,9 @@ nsis:
   createDesktopShortcut: true
   shortcutName: POS Pro
 
-# Auto-update: isi provider (GitHub/generic) untuk mengaktifkan. Biarkan null bila
-# belum dipakai — installer tetap terbentuk, updater cuma tak menemukan update.
-publish: null
+# Auto-update: lokasi installer + latest.yml. GANTI url dengan server Anda (repo private
+# → pakai generic ke server sendiri, bukan GitHub, agar tak perlu token). Upload hasil
+# build (.exe + latest.yml) ke folder ini tiap rilis. electron-updater membaca latest.yml.
+publish:
+  provider: generic
+  url: https://GANTI-DENGAN-SERVER-ANDA/updates/
