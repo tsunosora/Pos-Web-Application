@@ -1,9 +1,16 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Struk thermal dikirim sebagai raster base64 (bisa >100kb untuk nota panjang)
+  // ke /printer-relay/jobs. Naikkan limit body-parser dari default 100kb → 10mb
+  // agar tidak ditolak "request entity too large" (PayloadTooLargeError).
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { extended: true, limit: '10mb' });
 
   // Header keamanan (X-Frame-Options, X-Content-Type-Options, dll).
   // CSP & COEP dimatikan, dan CORP di-set 'cross-origin': backend menyajikan
