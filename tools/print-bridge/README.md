@@ -38,6 +38,29 @@ python "C:\path\ke\tools\print-bridge\bridge.py" --com COM5
 ```
 Taruh shortcut-nya di folder **Startup** (`Win+R` → `shell:startup`).
 
+---
+
+## Relay agent (agent.py) — auto-run TERSEMBUNYI di kasir
+
+Untuk **relay agent** (`agent.py`, yang menelpon keluar ke backend — beda dari
+`bridge.py`), tersedia dua helper agar jalan otomatis tanpa jendela:
+
+- `agent-hidden.bat` — jalankan agent + tulis log ke `agent.log` (tanpa `pause`).
+- `run-hidden.vbs`   — launcher yang membuat jendelanya benar-benar hilang.
+
+Langkah (di PC kasir):
+1. Taruh `agent.py`, `agent-hidden.bat`, `run-hidden.vbs` di satu folder (mis. `C:\print-agent\`).
+2. Edit `agent-hidden.bat` → isi `URL`, `TOKEN` (dari **Settings → Printer**), dan `COM`.
+   (Printer USB yang muncul sbg antrean Windows → pakai `--printer "Nama Printer"` bukan `--com`.)
+3. Tes: dobel-klik `run-hidden.vbs` → tak ada jendela muncul = benar. Cek
+   **Task Manager → Details** ada `python.exe`, lalu coba cetak. Error? buka `agent.log`.
+4. Auto-run: `Win+R` → `shell:startup` → taruh **shortcut** `run-hidden.vbs` di folder itu
+   (klik-kanan → *Create shortcut*; jangan pindahkan .vbs aslinya, cukup shortcut-nya).
+
+Alternatif paling andal (auto-restart bila crash): **Task Scheduler** → trigger *At log on*,
+action `pythonw.exe agent.py --url … --token … --com COM5` (Start in = folder agent),
+centang **Hidden**, dan di *Settings* aktifkan *restart on failure*.
+
 ### 4. Pakai di aplikasi
 Buka aplikasi POS seperti biasa. Saat modal **Struk Thermal 58mm** muncul, akan ada
 tombol **"Cetak (Printer Server)"** (bridge terdeteksi otomatis). Klik → tercetak.
