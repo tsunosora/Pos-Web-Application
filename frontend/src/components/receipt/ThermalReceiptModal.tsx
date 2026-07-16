@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { X, Printer, Bluetooth, Loader2, Globe, Usb, Store } from "lucide-react";
+import { X, Printer, Bluetooth, Loader2, Globe, Usb, Store, Monitor } from "lucide-react";
 import type { ReceiptSnapshot } from "@/lib/receipt";
 import {
   buildThermalReceiptHTML,
@@ -16,6 +16,7 @@ import {
   printThermalViaBrowser,
   printThermalViaRelay,
 } from "@/lib/thermal";
+import { isDesktop } from "@/lib/thermal/desktop-bridge";
 
 type Status = "TAGIHAN" | "LUNAS";
 type Msg = { kind: "ok" | "err"; text: string } | null;
@@ -32,6 +33,7 @@ export default function ThermalReceiptModal({
   status: Status;
 }) {
   const btSupported = isWebBluetoothAvailable();
+  const desktop = isDesktop(); // berjalan di aplikasi desktop (Electron) → cetak langsung
   const [connected, setConnected] = useState(isPrinterConnected());
   const [printerName, setPrinterName] = useState<string | null>(getLastPrinterName());
   const [busy, setBusy] = useState<"connect" | "bt" | "bridge" | "relay" | null>(null);
@@ -67,7 +69,7 @@ export default function ThermalReceiptModal({
     setMsg(null);
     try {
       await printThermalViaRelay(snap, status);
-      setMsg({ kind: "ok", text: "Struk terkirim ke printer toko." });
+      setMsg({ kind: "ok", text: desktop ? "Struk tercetak di printer aplikasi." : "Struk terkirim ke printer toko." });
     } catch (e) {
       setMsg({ kind: "err", text: e instanceof Error ? e.message : "Gagal mencetak via printer toko." });
     } finally {
@@ -161,8 +163,25 @@ export default function ThermalReceiptModal({
 
         {/* Aksi */}
         <div className="p-4 border-t border-border space-y-3 shrink-0">
+          {/* Mode aplikasi desktop (Electron): cetak LANGSUNG ke printer lokal via IPC,
+              tanpa agen relay/agent.py/.bat. Diutamakan & menggantikan tombol lain. */}
+          {desktop && (
+            <button
+              onClick={handlePrintRelay}
+              disabled={busy !== null}
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base transition-all disabled:opacity-40"
+            >
+              {busy === "relay" ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Monitor className="w-5 h-5" />
+              )}
+              Cetak (Printer Aplikasi)
+            </button>
+          )}
+
           {/* Jalur paling andal (https + banyak device): printer server cabang via backend. */}
-          {relayReady && (
+          {!desktop && relayReady && (
             <button
               onClick={handlePrintRelay}
               disabled={busy !== null}
@@ -178,7 +197,7 @@ export default function ThermalReceiptModal({
           )}
 
           {/* Jalur bridge lokal (desktop yg jalankan bridge sendiri di localhost). */}
-          {bridgeReady && (
+          {!desktop && bridgeReady && (
             <button
               onClick={handlePrintBridge}
               disabled={busy !== null}
@@ -195,7 +214,7 @@ export default function ThermalReceiptModal({
 
           {/* Web Bluetooth disembunyikan bila ada printer server (relay/bridge) —
               lebih andal & menghindari status "paired" yang membingungkan. */}
-          {!relayReady && !bridgeReady && (btSupported ? (
+          {!desktop && !relayReady && !bridgeReady && (btSupported ? (
             <>
               {/* Tombol utama 1-tap: auto-sambung printer tersimpan lalu cetak */}
               <button

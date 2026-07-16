@@ -15,6 +15,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Printer, Usb, Bluetooth, RotateCw, Trash2, Copy, Plus, Wifi, WifiOff, Download, Pencil } from 'lucide-react';
+import DesktopPrinterPanel from '@/components/settings/DesktopPrinterPanel';
+import { isDesktop } from '@/lib/thermal/desktop-bridge';
 
 interface Branch {
     id: number;
@@ -234,6 +236,16 @@ export default function PrinterSettingsPage() {
                     </p>
                 </div>
             </div>
+
+            {/* Mode aplikasi desktop: cetak langsung tanpa agen relay/.bat */}
+            <DesktopPrinterPanel />
+
+            {isDesktop() && (
+                <p className="text-xs text-muted-foreground -mt-2">
+                    Pengaturan di bawah (Printer Server / agen relay) hanya untuk perangkat
+                    non-aplikasi (browser/tablet). Aplikasi desktop ini memakai panel di atas.
+                </p>
+            )}
 
             {/* Pilih cabang */}
             {branches.length > 1 && (

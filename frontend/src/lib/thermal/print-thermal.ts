@@ -7,6 +7,7 @@ import { imageDataToMono } from './raster';
 import { concatBytes, feedAndCut, initPrinter, rasterImage, PRINTER_DOTS } from './escpos';
 import { ensureConnected, sendBytes } from './bluetooth';
 import api from '../api/client';
+import { isDesktop, printEscposDesktop } from './desktop-bridge';
 
 type Status = 'TAGIHAN' | 'LUNAS';
 
@@ -169,8 +170,15 @@ export const isRelayAvailable = async (): Promise<boolean> => {
 /** Cetak via print relay: render byte ESC/POS → kirim ke backend → agen cabang. */
 export const printThermalViaRelay = async (snap: ReceiptSnapshot, status: Status): Promise<void> => {
   const bytes = await snapToEscpos(snap, status);
+  const b64 = bytesToBase64(bytes);
+  // Di aplikasi desktop (Electron): cetak langsung ke printer lokal via IPC —
+  // tanpa agen relay/agent.py/.bat. Browser biasa tetap lewat relay.
+  if (isDesktop()) {
+    await printEscposDesktop(b64);
+    return;
+  }
   try {
-    await api.post('/printer-relay/jobs', { dataBase64: bytesToBase64(bytes) });
+    await api.post('/printer-relay/jobs', { dataBase64: b64 });
   } catch (e: unknown) {
     const msg =
       (e as { response?: { data?: { message?: string } } })?.response?.data?.message ||
