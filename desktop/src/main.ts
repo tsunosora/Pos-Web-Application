@@ -9,6 +9,7 @@ import { startBackend, pushSchema, localJwtSecret, BackendHandle } from "./backe
 import { autoBackup, backupDb } from "./db-backup";
 import { getPrinterConfig, setPrinterConfig } from "./printer-config";
 import { printEscpos, listPrinters } from "./printing";
+import { startRelayAgent, stopRelayAgent } from "./relay-agent";
 
 let win: BrowserWindow | null = null;
 let next: NextHandle | null = null;
@@ -45,10 +46,38 @@ function loadCentralConfig(): void {
     if (cfg.bootstrapToken) process.env.POSPRO_CENTRAL_TOKEN = String(cfg.bootstrapToken);
     if (cfg.branchId != null) process.env.POSPRO_BRANCH_ID = String(cfg.branchId);
     if (cfg.deviceName) process.env.POSPRO_DEVICE_NAME = String(cfg.deviceName);
+    // Token printer-relay (opsional): bila diisi, PC ini jadi "pusat cetak" cabang —
+    // melayani job cetak dari device lain lewat server pusat. Lihat startRelayServing().
+    if (cfg.printerRelayToken) process.env.POSPRO_PRINTER_TOKEN = String(cfg.printerRelayToken);
     log.info("[config] pusat:", process.env.POSPRO_CENTRAL_URL || "(tak diset)");
   } catch {
     log.info("[config] pospro-config.json tak ada — lokal tanpa sync");
   }
+}
+
+// Bila token printer-relay diset, PC ini bertindak sebagai PUSAT CETAK cabang:
+// menjalankan agen relay internal (long-poll ke pusat) sehingga device lain
+// (browser/tablet) bisa cetak ke printer PC ini TANPA menjalankan agent.py.
+// Tanpa token → nonaktif; app tetap mencetak notanya sendiri via IPC seperti biasa.
+function startRelayServing(): void {
+  let url = process.env.POSPRO_CENTRAL_URL || "";
+  let token = process.env.POSPRO_PRINTER_TOKEN || "";
+  if (!url || !token) {
+    // Fallback: baca langsung dari file (mis. mode remote tak memanggil loadCentralConfig).
+    try {
+      const f = path.join(app.getPath("userData"), "pospro-config.json");
+      const cfg = JSON.parse(fs.readFileSync(f, "utf8"));
+      url = url || (cfg.centralUrl ? String(cfg.centralUrl) : "");
+      token = token || (cfg.printerRelayToken ? String(cfg.printerRelayToken) : "");
+    } catch {
+      /* file tak ada — biarkan kosong */
+    }
+  }
+  if (!url || !token) {
+    log.info("[relay] printerRelayToken tak diset — agen relay nonaktif (hanya cetak nota sendiri)");
+    return;
+  }
+  startRelayAgent({ url, token });
 }
 
 function frontendDir(): string {
@@ -223,6 +252,7 @@ app
   .whenReady()
   .then(createWindow)
   .then(() => setupAutoUpdater())
+  .then(() => startRelayServing())
   .catch((e) => {
     log.error("Gagal start:", e);
     dialog.showErrorBox("POS Pro gagal start", String(e?.message ?? e));
@@ -230,6 +260,7 @@ app
   });
 
 async function shutdown() {
+  stopRelayAgent();
   next?.proc.kill();
   next = null;
   backend?.proc.kill();

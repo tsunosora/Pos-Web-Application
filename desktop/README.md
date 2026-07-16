@@ -71,17 +71,38 @@ publish:
 ```
 
 Lalu rilis: naikkan `version` di `package.json`, `npm run dist`, unggah isi `release/`
-(termasuk `latest.yml`) ke GitHub Release. App terpasang akan menawarkan update saat start.
-Untuk update mulus tanpa peringatan SmartScreen, installer perlu ditandatangani (code signing).
+(termasuk `latest.yml`) ke GitHub Release.
+
+Saat versi baru terdeteksi, aplikasi menampilkan **banner notifikasi di dalam aplikasi**
+(alur unduh → pasang) — pengguna tak perlu mengunduh installer manual. Untuk update mulus
+tanpa peringatan SmartScreen, installer perlu ditandatangani (code signing).
 
 ## Cetak
 
-Aplikasi mencetak ESC/POS langsung dari proses utama:
+Aplikasi mencetak ESC/POS (nota device ini sendiri) langsung dari proses utama:
 - **Windows (spooler RAW)** — PowerShell P/Invoke `winspool.drv WritePrinter` (replika agen lama).
 - **USB (COM)** — `System.IO.Ports.SerialPort`.
 - Nol native module (tak perlu `electron-rebuild`). Detail: `docs/printing-spike.md`.
 
 Pengaturan printer di aplikasi: **Settings → Printer** → panel "Printer Aplikasi (Desktop)".
+
+### Mode pusat cetak (melayani cetak device lain)
+
+Secara default app hanya mencetak notanya sendiri. Isi **`printerRelayToken`** di
+`pospro-config.json` untuk menjalankan **agen relay internal** (`src/relay-agent.ts`):
+app long-poll ke server **pusat** (`centralUrl` + `/printer-relay/poll`, header
+`x-printer-token`) dan mencetak job dari device lain ke printer PC ini via jalur
+`printEscpos` yang sama — tanpa menjalankan `tools/print-bridge/agent.py` terpisah.
+
+```json
+{ "centralUrl": "https://pos-anda.com", "printerRelayToken": "<token Settings → Printer>" }
+```
+
+- Token = `x-printer-token` dari `PrinterDevice` (Settings → Printer di pusat), **bukan**
+  device-token sync. Bisa juga di-override via env `POSPRO_PRINTER_TOKEN`.
+- Poll ke **pusat** (bukan backend lokal) karena antrean relay device lain ada di pusat.
+- Start di `startRelayServing()` (setelah window siap), stop di `shutdown()`.
+- Tanpa token → nonaktif (log `[relay] ... nonaktif`), perilaku lama tak berubah.
 
 ---
 
