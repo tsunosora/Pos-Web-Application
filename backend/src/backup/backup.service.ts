@@ -104,7 +104,7 @@ export const BACKUP_GROUPS = {
     },
     sync: {
         label: 'Delta Sync Offline — jejak idempotensi',
-        tables: ['syncedOp', 'syncState', 'syncPush'],
+        tables: ['syncedOp', 'syncState', 'syncPush', 'device'],
     },
 } as const;
 
@@ -178,6 +178,7 @@ const RESTORE_ORDER = [
     'landingConfig',
     'article',
     // Delta-sync — standalone (branchId scalar, tanpa FK keras)
+    'device',
     'syncedOp',
     'syncState',
     'syncPush',

@@ -1994,6 +1994,22 @@ model SyncedOp {
   @@map("synced_ops")
 }
 
+// Perangkat (device) offline yang tersinkron ke pusat. Tiap instal aplikasi desktop =
+// 1 Device dengan token rahasia (x-device-token) untuk auth ke /sync/* — menggantikan
+// JWT user (tak kadaluarsa, ter-scope cabang, bisa dicabut).
+model Device {
+  id         Int       @id @default(autoincrement())
+  branchId   Int?      @map("branch_id") // cabang device (null = semua/owner)
+  name       String    @db.VarChar(120)
+  token      String    @unique @db.VarChar(80)
+  lastSyncAt DateTime? @map("last_sync_at")
+  isActive   Boolean   @default(true) @map("is_active")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([branchId])
+  @@map("devices")
+}
+
 // Dipakai HANYA di DB lokal (mode 100% offline). Di server pusat tetap ada tapi kosong.
 // Cursor & state sinkronisasi lokal⟷pusat.
 model SyncState {

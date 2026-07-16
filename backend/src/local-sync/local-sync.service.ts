@@ -15,22 +15,48 @@ export class LocalSyncService implements OnModuleInit {
   private running = false;
 
   private readonly centralUrl = (process.env.POSPRO_CENTRAL_URL || '').replace(/\/$/, '');
-  private readonly token = process.env.POSPRO_CENTRAL_TOKEN || '';
+  private readonly bootstrapJwt = process.env.POSPRO_CENTRAL_TOKEN || ''; // JWT sekali-pakai utk daftar device
   private readonly branchId = process.env.POSPRO_BRANCH_ID || '';
+  private deviceToken: string | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
   private get enabled(): boolean {
-    return !!process.env.POSPRO_LOCAL && !!this.centralUrl && !!this.token;
+    return !!process.env.POSPRO_LOCAL && !!this.centralUrl;
+  }
+
+  // Auth ke pusat pakai device token (bukan JWT). Registrasi sekali via JWT bootstrap,
+  // token disimpan di SyncState → dipakai selamanya (tak kadaluarsa, bisa dicabut pusat).
+  private async ensureDeviceToken(): Promise<string | null> {
+    if (this.deviceToken) return this.deviceToken;
+    const stored = await this.getState('deviceToken');
+    if (stored) {
+      this.deviceToken = stored;
+      return stored;
+    }
+    if (!this.bootstrapJwt) return null; // belum ada cara mendaftar
+    const res = await fetch(`${this.centralUrl}/sync/register-device`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.bootstrapJwt}`,
+        'Content-Type': 'application/json',
+        ...(this.branchId ? { 'X-Branch-Id': this.branchId } : {}),
+      },
+      body: JSON.stringify({
+        name: process.env.POSPRO_DEVICE_NAME || 'POS Desktop',
+        branchId: this.branchId ? Number(this.branchId) : undefined,
+      }),
+    });
+    if (!res.ok) throw new Error(`register-device HTTP ${res.status}`);
+    const data = (await res.json()) as { deviceId: number; token: string };
+    await this.setState('deviceToken', data.token);
+    this.deviceToken = data.token;
+    this.logger.log(`perangkat terdaftar di pusat (id=${data.deviceId})`);
+    return data.token;
   }
 
   private headers(): Record<string, string> {
-    const h: Record<string, string> = {
-      Authorization: `Bearer ${this.token}`,
-      'Content-Type': 'application/json',
-    };
-    if (this.branchId) h['X-Branch-Id'] = this.branchId;
-    return h;
+    return { 'x-device-token': this.deviceToken || '', 'Content-Type': 'application/json' };
   }
 
   async onModuleInit(): Promise<void> {
@@ -49,6 +75,11 @@ export class LocalSyncService implements OnModuleInit {
     if (!this.enabled || this.running) return;
     this.running = true;
     try {
+      const token = await this.ensureDeviceToken();
+      if (!token) {
+        this.logger.warn('device belum terdaftar (perlu POSPRO_CENTRAL_TOKEN sekali) → sync ditunda');
+        return;
+      }
       if (bootstrap && (await this.isEmpty())) {
         this.logger.log('DB lokal kosong → bootstrap full pull dari pusat…');
       }

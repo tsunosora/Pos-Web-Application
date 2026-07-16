@@ -33,6 +33,19 @@ export function isOwnerRole(roleName?: string | null): boolean {
 export const CurrentBranch = createParamDecorator(
     (_data: unknown, ctx: ExecutionContext): BranchContext => {
         const req = ctx.switchToHttp().getRequest();
+
+        // Request dari perangkat offline (SyncAuthGuard men-set req.device): scope cabang
+        // mengikuti device (branchId null = semua cabang / owner-level).
+        if (req.device) {
+            const branchId: number | null = req.device.branchId ?? null;
+            return {
+                branchId,
+                isOwner: branchId == null,
+                userBranchId: branchId,
+                roleName: 'DEVICE',
+            };
+        }
+
         const user = req.user ?? {};
         const roleName: string | null = user.roleName ?? null;
         const userBranchId: number | null =

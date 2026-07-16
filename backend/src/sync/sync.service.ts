@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionsService } from '../transactions/transactions.service';
 import type { BranchContext } from '../common/branch-context.decorator';
@@ -133,6 +134,19 @@ export class SyncService {
       default:
         throw new Error(`Tipe op tak dikenal: ${(op as PushOp).type}`);
     }
+  }
+
+  /** Daftarkan perangkat baru (dipanggil owner via JWT) → token device rahasia. */
+  async registerDevice(
+    branchCtx: BranchContext,
+    body: { name?: string; branchId?: number | null },
+  ): Promise<{ deviceId: number; token: string; branchId: number | null }> {
+    const branchId = body.branchId !== undefined ? body.branchId : branchCtx.branchId;
+    const token = randomBytes(24).toString('hex'); // 48 hex
+    const device = await this.prisma.device.create({
+      data: { name: (body.name || 'Perangkat').slice(0, 120), branchId: branchId ?? null, token },
+    });
+    return { deviceId: device.id, token, branchId: device.branchId };
   }
 
   private async recordOp(clientId: string, type: string, serverId: number, branchId: number): Promise<void> {
