@@ -1,4 +1,5 @@
 import api from './client';
+import { offlineCache } from '../offline/cache';
 
 // Categories
 export const getCategories = async () => (await api.get('/categories')).data;
@@ -12,8 +13,9 @@ export const createUnit = async (data: { name: string }) => (await api.post('/un
 export const updateUnit = async (id: number, data: { name: string }) => (await api.patch(`/units/${id}`, data)).data;
 export const deleteUnit = async (id: number) => (await api.delete(`/units/${id}`)).data;
 
-// Products
-export const getProducts = async () => (await api.get('/products')).data;
+// Products — cache offline agar katalog POS tetap tampil tanpa internet.
+export const getProducts = async () =>
+    offlineCache('products', async () => (await api.get('/products')).data);
 export const getProduct = async (id: number) => (await api.get(`/products/${id}`)).data;
 export const createProduct = async (data: any) => (await api.post('/products', data)).data;
 export const updateProduct = async (id: number, data: any) => (await api.patch(`/products/${id}`, data)).data;

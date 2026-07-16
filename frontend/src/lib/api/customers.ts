@@ -1,4 +1,5 @@
 import api from './client';
+import { offlineCache } from '../offline/cache';
 
 export interface CustomerRow {
     id: number;
@@ -17,7 +18,8 @@ export interface PagedCustomers {
     pageSize: number;
 }
 
-export const getCustomers = async () => (await api.get('/customers')).data;
+export const getCustomers = async () =>
+    offlineCache('customers', async () => (await api.get('/customers')).data);
 
 export const getCustomersWithStats = async (params?: { page?: number; pageSize?: number; search?: string }): Promise<PagedCustomers> => {
     const qs = new URLSearchParams();

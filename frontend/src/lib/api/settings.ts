@@ -1,7 +1,9 @@
 import api from './client';
+import { offlineCache } from '../offline/cache';
 
-// Store Settings
-export const getSettings = async () => (await api.get('/settings')).data;
+// Store Settings — cache offline (pajak & format struk dipakai POS tanpa internet).
+export const getSettings = async () =>
+    offlineCache('settings', async () => (await api.get('/settings')).data);
 export const updateSettings = async (data: any) => (await api.patch('/settings', data)).data;
 export const getPublicSettings = async () => {
     const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';

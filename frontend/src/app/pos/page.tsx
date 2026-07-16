@@ -572,8 +572,11 @@ function POSPageContent() {
         };
 
         if (!navigator.onLine) {
-            const { saveOfflineTransaction } = await import('@/lib/sync');
-            await saveOfflineTransaction(payload);
+            // Antre ke outbox (payload identik dg POST online). Mesin sync (SyncManager)
+            // mendorongnya idempoten saat online. Cetak tetap jalan via modal (di
+            // aplikasi desktop: langsung ke printer lokal, tanpa server).
+            const { enqueueOp } = await import('@/lib/offline/repo');
+            await enqueueOp('transaction.create', payload, effectiveBranchId ?? null);
             clearCart(); setCheckoutModalOpen(false);
             setPaymentMethod('CASH'); setSelectedBankId('');
             // Bersihkan mode SO juga (kalau nota offline ini dari SO)
