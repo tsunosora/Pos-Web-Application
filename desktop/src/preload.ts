@@ -22,4 +22,7 @@ contextBridge.exposeInMainWorld("electron", {
   // Simpan/baca konfigurasi printer lokal per-device (di userData).
   getPrinterConfig: () => ipcRenderer.invoke("printer-config:get"),
   setPrinterConfig: (cfg: unknown) => ipcRenderer.invoke("printer-config:set", cfg),
+  // Backup & reset data lokal (mode 100% offline).
+  backupDb: () => ipcRenderer.invoke("db:backup"),
+  resetDb: () => ipcRenderer.invoke("db:reset"),
 });

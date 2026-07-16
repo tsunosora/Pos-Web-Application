@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import * as fs from 'node:fs';
 import { PrismaService } from '../prisma/prisma.service';
 import { ENTITY_REGISTRY } from '../sync/dto';
 
@@ -17,6 +18,8 @@ export class LocalSyncService implements OnModuleInit {
   private readonly centralUrl = (process.env.POSPRO_CENTRAL_URL || '').replace(/\/$/, '');
   private readonly bootstrapJwt = process.env.POSPRO_CENTRAL_TOKEN || ''; // JWT sekali-pakai utk daftar device
   private readonly branchId = process.env.POSPRO_BRANCH_ID || '';
+  // File token device di userData → identitas device SELAMAT saat reset DB lokal.
+  private readonly tokenFile = process.env.POSPRO_DEVICE_TOKEN_FILE || '';
   private deviceToken: string | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
@@ -29,9 +32,22 @@ export class LocalSyncService implements OnModuleInit {
   // token disimpan di SyncState → dipakai selamanya (tak kadaluarsa, bisa dicabut pusat).
   private async ensureDeviceToken(): Promise<string | null> {
     if (this.deviceToken) return this.deviceToken;
+    // 1) File userData (survive reset DB). 2) SyncState (DB). 3) daftar baru.
+    if (this.tokenFile) {
+      try {
+        const t = fs.readFileSync(this.tokenFile, 'utf8').trim();
+        if (t) {
+          this.deviceToken = t;
+          return t;
+        }
+      } catch {
+        /* belum ada file */
+      }
+    }
     const stored = await this.getState('deviceToken');
     if (stored) {
       this.deviceToken = stored;
+      this.persistTokenFile(stored);
       return stored;
     }
     if (!this.bootstrapJwt) return null; // belum ada cara mendaftar
@@ -50,9 +66,19 @@ export class LocalSyncService implements OnModuleInit {
     if (!res.ok) throw new Error(`register-device HTTP ${res.status}`);
     const data = (await res.json()) as { deviceId: number; token: string };
     await this.setState('deviceToken', data.token);
+    this.persistTokenFile(data.token);
     this.deviceToken = data.token;
     this.logger.log(`perangkat terdaftar di pusat (id=${data.deviceId})`);
     return data.token;
+  }
+
+  private persistTokenFile(token: string): void {
+    if (!this.tokenFile) return;
+    try {
+      fs.writeFileSync(this.tokenFile, token, 'utf8');
+    } catch {
+      /* abaikan */
+    }
   }
 
   private headers(): Record<string, string> {
