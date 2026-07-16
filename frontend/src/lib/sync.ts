@@ -1,48 +1,20 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { withDB } from './offline/db';
 
-interface POSDB extends DBSchema {
-    'offline-transactions': {
-        key: number;
-        value: {
-            id?: number;
-            payload: any;
-            timestamp: number;
-        };
-        indexes: { 'by-timestamp': number };
-    };
-}
-
-let dbPromise: Promise<IDBPDatabase<POSDB>> | null = null;
-
-if (typeof window !== 'undefined') {
-    dbPromise = openDB<POSDB>('pos-offline-db', 1, {
-        upgrade(db) {
-            const store = db.createObjectStore('offline-transactions', {
-                keyPath: 'id',
-                autoIncrement: true,
-            });
-            store.createIndex('by-timestamp', 'timestamp');
-        },
-    });
-}
+// Store lama `offline-transactions` — dipertahankan untuk kompatibilitas. DB dibuka
+// terpusat di ./offline/db.ts (v2) yang juga punya mirror referensi + outbox baru.
+// Fase 5 akan menyatukan jalur ini ke outbox; untuk sekarang API lama tetap bekerja.
 
 export async function saveOfflineTransaction(payload: any) {
-    if (!dbPromise) return;
-    const db = await dbPromise;
-    await db.add('offline-transactions', {
-        payload,
-        timestamp: Date.now(),
-    });
+  await withDB(
+    (db) => db.add('offline-transactions', { payload, timestamp: Date.now() }).then(() => undefined),
+    undefined,
+  );
 }
 
 export async function getOfflineTransactions() {
-    if (!dbPromise) return [];
-    const db = await dbPromise;
-    return await db.getAllFromIndex('offline-transactions', 'by-timestamp');
+  return withDB((db) => db.getAllFromIndex('offline-transactions', 'by-timestamp'), []);
 }
 
 export async function clearOfflineTransaction(id: number) {
-    if (!dbPromise) return;
-    const db = await dbPromise;
-    await db.delete('offline-transactions', id);
+  await withDB((db) => db.delete('offline-transactions', id).then(() => undefined), undefined);
 }
