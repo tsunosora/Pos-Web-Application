@@ -16,6 +16,7 @@ files:
 # Dijalankan next-server.ts via Electron-as-Node. Standalone build WAJIB ada dulu
 # (node scripts/build-frontend.mjs).
 extraResources:
+  # Frontend (Next standalone)
   - from: ../frontend/.next/standalone
     to: frontend
     filter:
@@ -28,6 +29,24 @@ extraResources:
     to: frontend/public
     filter:
       - "**/*"
+  # Backend NestJS (mode 100% offline) — dist + node_modules + prisma engine + migrations.
+  # Entry dijalankan: <resources>/backend/dist/src/main.js (Electron-as-Node).
+  - from: ../backend/dist
+    to: backend/dist
+    filter: ["**/*"]
+  - from: ../backend/node_modules
+    to: backend/node_modules
+    filter: ["**/*"]
+  - from: ../backend/prisma
+    to: backend/prisma
+    filter: ["**/*"]
+  - from: ../backend/package.json
+    to: backend/package.json
+  # MariaDB portable per-OS. Taruh biner di desktop/mariadb/ (bin/ + sbin/ + share/).
+  # Windows: unduh "MariaDB xx.x ZIP" → ekstrak isinya ke desktop/mariadb/.
+  - from: mariadb
+    to: mariadb
+    filter: ["**/*"]
 
 win:
   target:

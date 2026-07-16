@@ -2,3 +2,6 @@ node_modules/
 dist/
 release/
 *.log
+
+# Biner MariaDB portable (per-OS, disediakan saat build, jangan di-commit)
+mariadb/

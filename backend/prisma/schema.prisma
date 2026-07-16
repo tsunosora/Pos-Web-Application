@@ -6,6 +6,9 @@
 
 generator client {
   provider = "prisma-client-js"
+  // Sertakan engine Windows agar backend bisa dipaket & jalan di aplikasi desktop
+  // Windows (mode 100% offline). "native" = OS build/dev; tambah target lain bila perlu.
+  binaryTargets = ["native", "windows"]
 }
 
 datasource db {

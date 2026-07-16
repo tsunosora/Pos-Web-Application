@@ -10,7 +10,8 @@
     "dev": "npm run build:main && cross-env POSPRO_DEV=1 electron .",
     "start": "electron .",
     "build:frontend": "node scripts/build-frontend.mjs",
-    "dist": "npm run clean && npm run build:frontend && npm run build:main && electron-builder --config electron-builder.yml --win nsis"
+    "build:all": "node scripts/build-all.mjs",
+    "dist": "npm run clean && npm run build:all && npm run build:main && electron-builder --config electron-builder.yml --win nsis"
   },
   "devDependencies": {
     "electron": "^33.0.0",

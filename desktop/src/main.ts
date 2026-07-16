@@ -26,8 +26,27 @@ function stamp(): string {
 }
 
 // Mode "100% offline": jalankan MariaDB + backend LOKAL di dalam app.
+// Default: aktif di app terpaket. POSPRO_LOCAL=0 memaksa mode remote (dev/lama).
 function localMode(): boolean {
-  return !!process.env.POSPRO_LOCAL;
+  if (process.env.POSPRO_LOCAL === "0") return false;
+  return !!process.env.POSPRO_LOCAL || app.isPackaged;
+}
+
+// Konfigurasi pusat (untuk bootstrap + sync) dari file userData/pospro-config.json.
+// Ditulis oleh layar setup first-run (atau admin). Bila absen → app tetap jalan lokal
+// tapi tanpa sync (dan first-run tak bisa bootstrap → DB kosong).
+function loadCentralConfig(): void {
+  try {
+    const f = path.join(app.getPath("userData"), "pospro-config.json");
+    const cfg = JSON.parse(fs.readFileSync(f, "utf8"));
+    if (cfg.centralUrl) process.env.POSPRO_CENTRAL_URL = String(cfg.centralUrl);
+    if (cfg.bootstrapToken) process.env.POSPRO_CENTRAL_TOKEN = String(cfg.bootstrapToken);
+    if (cfg.branchId != null) process.env.POSPRO_BRANCH_ID = String(cfg.branchId);
+    if (cfg.deviceName) process.env.POSPRO_DEVICE_NAME = String(cfg.deviceName);
+    log.info("[config] pusat:", process.env.POSPRO_CENTRAL_URL || "(tak diset)");
+  } catch {
+    log.info("[config] pospro-config.json tak ada — lokal tanpa sync");
+  }
 }
 
 function frontendDir(): string {
@@ -56,6 +75,7 @@ async function bootLocalStack(): Promise<string> {
   dbDataDir = path.join(stateDir, "db");
   backupsDir = path.join(stateDir, "backups");
   mariaBin = mariaBinDir();
+  loadCentralConfig(); // set POSPRO_CENTRAL_* dari file → dipakai backend lokal utk sync
   // Identitas device disimpan di file userData → selamat saat reset DB lokal.
   process.env.POSPRO_DEVICE_TOKEN_FILE = path.join(stateDir, "device-token");
 

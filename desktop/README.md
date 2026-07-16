@@ -82,3 +82,76 @@ Aplikasi mencetak ESC/POS langsung dari proses utama:
 - Nol native module (tak perlu `electron-rebuild`). Detail: `docs/printing-spike.md`.
 
 Pengaturan printer di aplikasi: **Settings → Printer** → panel "Printer Aplikasi (Desktop)".
+
+---
+
+## Mode "100% offline" (backend + database lokal)
+
+Aplikasi terpaket menjalankan **stack penuh secara lokal** di dalam Electron:
+`MariaDB (embedded) → NestJS backend → frontend`. Semua fitur jalan tanpa internet;
+data lokal tersinkron ke server pusat (model *single-device local-primary*).
+
+Aktif otomatis di app terpaket (`app.isPackaged`). Untuk dev, set `POSPRO_LOCAL=1`.
+Paksa mode remote (lama) dengan `POSPRO_LOCAL=0`.
+
+### Menyiapkan biner MariaDB (WAJIB untuk paket)
+1. Unduh **MariaDB ZIP** (Windows x86_64) dari mariadb.org/download.
+2. Ekstrak isinya ke `desktop/mariadb/` sehingga ada `desktop/mariadb/bin/mariadbd.exe`,
+   `mariadb-install-db.exe`, `mariadb.exe`, `mariadb-admin.exe`, `mariadb-dump.exe` +
+   `share/`. (Folder `mariadb/` di-`.gitignore` — tidak ikut repo.)
+3. `npm run dist` menyalinnya ke installer via `extraResources`.
+
+Dev di Linux: pakai biner sistem lewat `POSPRO_MARIADB_DIR=/opt/lampp` (atau path lain
+yang punya `bin/`+`sbin/`).
+
+### Konfigurasi pusat (first-run)
+Backend lokal butuh tahu server pusat untuk bootstrap awal + sync. Sediakan file
+`pospro-config.json` di folder userData aplikasi:
+```json
+{
+  "centralUrl": "https://pos-anda.com",
+  "bootstrapToken": "<JWT owner sekali-pakai untuk mendaftarkan perangkat>",
+  "branchId": 1,
+  "deviceName": "Kasir Depan"
+}
+```
+- `bootstrapToken` (JWT) dipakai SEKALI untuk memanggil `POST /sync/register-device` →
+  perangkat dapat **device token** permanen (disimpan di `userData/device-token`, aman
+  saat reset DB). Sesudah itu semua sync pakai device token, bukan JWT.
+- Tanpa `centralUrl`, app tetap jalan lokal tapi **tanpa sync**, dan first-run tak bisa
+  bootstrap (DB kosong → tak bisa login). → Layar setup first-run (menulis file ini)
+  adalah pekerjaan lanjutan yang direkomendasikan.
+
+### Build installer
+```bash
+cd desktop && npm install && npm run dist
+```
+`dist` menjalankan `scripts/build-all.mjs`: build backend (`nest build` + `prisma
+generate` dengan engine Windows via `binaryTargets`), build frontend standalone, cek
+biner MariaDB, lalu `electron-builder --win nsis`. Hasil di `desktop/release/`.
+
+> **Ukuran** installer besar (~200–350MB): MariaDB (~150MB) + backend `node_modules` +
+> Prisma engine + frontend. Optimasi backend (nft/esbuild bundling) = pekerjaan lanjutan.
+
+> **Prisma engine:** `schema.prisma` generator `binaryTargets = ["native","windows"]`
+> agar `query_engine-windows.dll.node` ikut. Salah engine → backend gagal start di Windows.
+
+### Backup, recovery & reset (mode lokal)
+- **Auto-backup** tiap start (sebelum migrasi) ke `userData/backups/` (rotasi 7 terakhir).
+- **Backup manual**: `window.electron.backupDb()` → dialog simpan `.sql` (mariadb-dump).
+- **Reset**: `window.electron.resetDb()` → konfirmasi → hapus DB lokal → relaunch →
+  bootstrap ulang dari pusat. Device token dipertahankan (tak bikin device ganda).
+- **Recovery**: bila DB lokal gagal start (korupsi), app menawarkan reset otomatis.
+
+### Env flags (dev/uji)
+- `POSPRO_LOCAL=1` — paksa mode lokal (dev). `=0` paksa remote.
+- `POSPRO_MARIADB_DIR` — folder biner MariaDB (dev; default: `resources/mariadb`).
+- `POSPRO_CENTRAL_URL` / `POSPRO_CENTRAL_TOKEN` / `POSPRO_BRANCH_ID` — override config pusat.
+- `POSPRO_FRONTEND_DIR` / `POSPRO_BACKEND_DIR` — override lokasi (debug).
+
+Contoh uji lokal penuh di Linux:
+```bash
+POSPRO_LOCAL=1 POSPRO_DEV=1 POSPRO_MARIADB_DIR=/opt/lampp \
+POSPRO_CENTRAL_URL=http://localhost:3001 POSPRO_CENTRAL_TOKEN=<jwt> POSPRO_BRANCH_ID=1 \
+npm start
+```
