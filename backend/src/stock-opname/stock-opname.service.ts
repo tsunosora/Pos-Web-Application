@@ -153,6 +153,63 @@ export class StockOpnameService {
         return { message: 'Stok opname selesai', updated: confirmedItems.length };
     }
 
+    // ─── Sync offline: terapkan koreksi stok tanpa sesi ───────────────────────
+    // Dipakai SyncService saat memutar ulang opname yang diselesaikan di device
+    // offline. Sesi opname lokal tak ada di pusat, jadi kita hanya menerapkan
+    // EFEK STOK-nya: set absolut per varian di cabang device + StockMovement ADJUST.
+    // Idempoten (set absolut) & sudah dijaga dedup clientId di applyOp.
+    async applyOfflineFinish(
+        branchId: number,
+        confirmedItems: { productVariantId: number; confirmedStock: number }[],
+        ref = 'offline',
+    ) {
+        const variantIds = confirmedItems.map(i => i.productVariantId);
+        const branchStocks = await (this.prisma as any).branchStock.findMany({
+            where: { branchId, productVariantId: { in: variantIds } },
+            select: { productVariantId: true, stock: true },
+        });
+        const bsMap = new Map<number, number>(branchStocks.map((b: any) => [b.productVariantId, Number(b.stock)]));
+
+        const variants = await this.prisma.productVariant.findMany({
+            where: { id: { in: variantIds } },
+            select: { id: true, stock: true },
+        });
+        const globalMap = new Map(variants.map(v => [v.id, Number(v.stock)]));
+
+        for (const item of confirmedItems) {
+            const currentBranchStock = bsMap.get(item.productVariantId) ?? 0;
+            const diff = item.confirmedStock - currentBranchStock;
+            const currentGlobal = globalMap.get(item.productVariantId) ?? 0;
+
+            await this.prisma.productVariant.update({
+                where: { id: item.productVariantId },
+                data: { stock: currentGlobal + diff },
+            });
+
+            await (this.prisma as any).branchStock.upsert({
+                where: { branchId_productVariantId: { branchId, productVariantId: item.productVariantId } },
+                update: { stock: item.confirmedStock },
+                create: { branchId, productVariantId: item.productVariantId, stock: item.confirmedStock },
+            });
+
+            if (diff !== 0) {
+                await this.prisma.stockMovement.create({
+                    data: {
+                        productVariantId: item.productVariantId,
+                        type: 'ADJUST',
+                        quantity: Math.abs(diff),
+                        reason: `Stok Opname (offline) — ${diff > 0 ? '+' : ''}${diff}`,
+                        balanceAfter: item.confirmedStock,
+                        referenceId: `opname-${ref.slice(0, 8)}`,
+                        branchId,
+                    } as any,
+                });
+            }
+        }
+
+        return { updated: confirmedItems.length };
+    }
+
     // ─── Public: validasi token ────────────────────────────────────────────────
     async verifyToken(token: string) {
         const session = await this.prisma.stockOpnameSession.findUnique({

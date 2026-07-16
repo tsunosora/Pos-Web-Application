@@ -2,6 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionsService } from '../transactions/transactions.service';
+import { StockPurchasesService } from '../stock-purchases/stock-purchases.service';
+import { StockTransfersService } from '../stock-transfers/stock-transfers.service';
+import { StockOpnameService } from '../stock-opname/stock-opname.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { requireBranch } from '../common/branch-where.helper';
 import {
@@ -21,6 +24,9 @@ export class SyncService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionsService,
+    private readonly stockPurchases: StockPurchasesService,
+    private readonly stockTransfers: StockTransfersService,
+    private readonly stockOpname: StockOpnameService,
   ) {}
 
   /**
@@ -131,6 +137,28 @@ export class SyncService {
         await this.recordOp(op.clientId, op.type, cf.id, branchId);
         return { clientId: op.clientId, status: 'applied', serverId: cf.id };
       }
+      case 'stockPurchase.create': {
+        // REUSE StockPurchasesService.create → stok +delta (BranchStock & agregat),
+        // StockPurchaseItem, StockMovement IN. branchId dari device.
+        const p = await this.stockPurchases.create(op.payload, branchCtx);
+        await this.recordOp(op.clientId, op.type, p?.id ?? null, branchId);
+        return { clientId: op.clientId, status: 'applied', serverId: p?.id };
+      }
+      case 'stockTransfer.create': {
+        // REUSE StockTransfersService.createTransfer → pindah stok antar cabang +
+        // 2 StockMovement (OUT/IN). Hasilnya referenceId (bukan id numerik) → serverId null.
+        await this.stockTransfers.createTransfer(op.payload, branchCtx);
+        await this.recordOp(op.clientId, op.type, null, branchId);
+        return { clientId: op.clientId, status: 'applied' };
+      }
+      case 'stockOpname.finish': {
+        // Sesi opname lokal tak ada di pusat → terapkan koreksi stok langsung
+        // (set absolut per varian + StockMovement ADJUST). Idempoten (set absolut).
+        const items = op.payload?.confirmedItems ?? [];
+        await this.stockOpname.applyOfflineFinish(branchId, items, String(op.payload?.sessionId ?? 'offline'));
+        await this.recordOp(op.clientId, op.type, null, branchId);
+        return { clientId: op.clientId, status: 'applied' };
+      }
       default:
         throw new Error(`Tipe op tak dikenal: ${(op as PushOp).type}`);
     }
@@ -149,7 +177,12 @@ export class SyncService {
     return { deviceId: device.id, token, branchId: device.branchId };
   }
 
-  private async recordOp(clientId: string, type: string, serverId: number, branchId: number): Promise<void> {
+  private async recordOp(
+    clientId: string,
+    type: string,
+    serverId: number | null,
+    branchId: number,
+  ): Promise<void> {
     await this.prisma.syncedOp.create({ data: { clientId, type, serverId, branchId } });
   }
 

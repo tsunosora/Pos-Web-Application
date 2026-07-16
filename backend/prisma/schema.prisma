@@ -1502,6 +1502,7 @@ model SalesOrderItem {
   pcs              Int?
   customPrice      Float?  @map("custom_price")
   note             String? @db.Text
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") // delta-sync offline
 
   salesOrder     SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id])
@@ -1924,6 +1925,7 @@ model LeadItem {
   unitType         String?  @map("unit_type") @db.VarChar(10)
   note             String?  @db.Text
   createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") // delta-sync offline
 
   lead           Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
   productVariant ProductVariant? @relation("LeadItemVariant", fields: [productVariantId], references: [id], onDelete: SetNull)

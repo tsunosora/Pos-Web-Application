@@ -30,6 +30,19 @@ export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
   productVariants: { delegate: 'productVariant', hasUpdatedAt: true },
   variantPriceTiers: { delegate: 'variantPriceTier', hasUpdatedAt: true },
   customers: { delegate: 'customer', hasUpdatedAt: true },
+  // Supplier & item-nya = referensi pembelian offline (global, tak ter-scope cabang).
+  // Urutan: supplier dulu (parent) baru supplierItem (FK ke supplier + productVariant).
+  suppliers: { delegate: 'supplier', hasUpdatedAt: true },
+  supplierItems: { delegate: 'supplierItem', hasUpdatedAt: true },
+  // Alur desainer: SalesOrder (dibuat di pusat, id stabil) → Lead → Nota. Ditarik ke
+  // lokal agar kasir bisa buka & prefill SO/Lead lalu buat nota offline. Nota membawa
+  // salesOrderId (id pusat) → saat push, pusat menandai SO=INVOICED & Lead=CLOSED_WON
+  // otomatis (tak perlu remap FK). Item tak punya updatedAt → selalu pull penuh.
+  // Urutan FK: SalesOrder → SalesOrderItem; Lead (FK convertedSalesOrderId) → LeadItem.
+  salesOrders: { delegate: 'salesOrder', hasUpdatedAt: true },
+  salesOrderItems: { delegate: 'salesOrderItem', hasUpdatedAt: true },
+  leads: { delegate: 'lead', hasUpdatedAt: true },
+  leadItems: { delegate: 'leadItem', hasUpdatedAt: true },
   branchStocks: { delegate: 'branchStock', hasUpdatedAt: true, branchField: 'branchId' },
 };
 
@@ -37,7 +50,12 @@ export const PULLABLE_ENTITIES = Object.keys(ENTITY_REGISTRY);
 export type PullableEntity = string;
 
 // ---- PUSH: klien mengirim mutasi transaksional yang dibuat saat offline ----
-export type PushOpType = 'transaction.create' | 'cashflow.create';
+export type PushOpType =
+  | 'transaction.create'
+  | 'cashflow.create'
+  | 'stockPurchase.create'
+  | 'stockOpname.finish'
+  | 'stockTransfer.create';
 
 export interface PushOp {
   clientId: string; // UUID v4 dari device (kunci idempotensi)
