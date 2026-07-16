@@ -27,7 +27,11 @@ echo "==> [3/5] Frontend: dependencies + build bersih"
 cd "$ROOT/frontend"
 npm install --no-audit --no-fund
 rm -rf .next
-npm run build
+# NODE_ENV WAJIB production saat build: bila shell mewarisi NODE_ENV=development,
+# worker prerender Next memuat React build dev → gagal "Cannot read properties of
+# null (reading 'useContext')" di /_not-found & /_global-error. Scope hanya ke
+# build (bukan npm install di atas, yang butuh devDependencies utk next build).
+NODE_ENV=production npm run build
 
 echo "==> [4/5] Restart pm2 (HANYA proses pospro, jangan ganggu app lain di server)"
 cd "$ROOT"
