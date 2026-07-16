@@ -646,17 +646,20 @@ export class SalesOrdersService {
             }
             estimate += Math.round(price * units * qty * pcs);
 
-            // Baris LeadItem yang setara (LeadItem tidak punya kolom pcs → simpan di note)
+            // Baris LeadItem yang setara. LeadItem tidak punya kolom pcs → lipat pcs
+            // ke dalam quantity (quantity = pengali TOTAL = qty × pcs). Konvensi ini
+            // sama dengan yang diasumsikan calcItemSubtotal (Daftar Produk Order) &
+            // jalur convert lead→nota, sehingga ESTIMASI (yang juga × pcs) konsisten
+            // dengan Total daftar produk. Tanpa ini, item pcs>1 tampil qty 1 & Total
+            // < ESTIMASI (dan nota hasil convert kurang tagih).
             const pv: any = it.productVariant;
             const baseName = pv?.product?.name || 'Item';
             const vName = pv?.variantName && pv.variantName !== baseName ? ` (${pv.variantName})` : '';
-            const note = pcs > 1
-                ? `${it.note ? it.note + ' ' : ''}[${pcs} pcs]`
-                : (it.note ?? null);
+            const note = it.note ?? null;
             leadItemRows.push({
                 productVariantId: it.productVariantId ?? null,
                 description: `${baseName}${vName}`.slice(0, 255),
-                quantity: qty,
+                quantity: qty * pcs,
                 unitPrice: price,
                 widthCm: it.widthCm ?? null,
                 heightCm: it.heightCm ?? null,
