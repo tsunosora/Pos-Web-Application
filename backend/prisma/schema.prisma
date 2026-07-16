@@ -1993,3 +1993,28 @@ model SyncedOp {
   @@index([branchId])
   @@map("synced_ops")
 }
+
+// Dipakai HANYA di DB lokal (mode 100% offline). Di server pusat tetap ada tapi kosong.
+// Cursor & state sinkronisasi lokal⟷pusat.
+model SyncState {
+  key       String   @id @db.VarChar(60) // mis. "pullCursor"
+  value     String   @db.Text
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("sync_state")
+}
+
+// Antrean push: mutasi transaksional yang dibuat di device lokal, menunggu didorong
+// ke pusat. Diisi oleh interceptor saat POST /transactions berhasil (mode lokal).
+model SyncPush {
+  clientId  String    @id @map("client_id") @db.VarChar(64) // UUID (idempotensi ke pusat)
+  type      String    @db.VarChar(40) // transaction.create | cashflow.create
+  payload   Json // payload create asli (bentuk persis yang dikirim frontend)
+  localId   Int?      @map("local_id") // id record di DB lokal
+  centralId Int?      @map("central_id") // id hasil di pusat (setelah push)
+  pushedAt  DateTime? @map("pushed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([pushedAt])
+  @@map("sync_push")
+}

@@ -44,7 +44,9 @@ async function bootLocalStack(): Promise<string> {
   const stateDir = app.getPath("userData");
 
   maria = await startMaria({ binDir: mariaBinDir(), dataDir, dbName: "pospro" });
-  const databaseUrl = `mysql://root@127.0.0.1:${maria.port}/pospro`;
+  // connection_limit=1: DB lokal single-user → 1 koneksi. Juga membuat `SET
+  // FOREIGN_KEY_CHECKS` (dipakai sync saat apply pull) persist antar-query.
+  const databaseUrl = `mysql://root@127.0.0.1:${maria.port}/pospro?connection_limit=1`;
 
   pushSchema(backendDir(), databaseUrl); // first run: buat skema; upgrade: sinkron
   const jwtSecret = localJwtSecret(stateDir);

@@ -104,7 +104,7 @@ export const BACKUP_GROUPS = {
     },
     sync: {
         label: 'Delta Sync Offline — jejak idempotensi',
-        tables: ['syncedOp'],
+        tables: ['syncedOp', 'syncState', 'syncPush'],
     },
 } as const;
 
@@ -179,6 +179,8 @@ const RESTORE_ORDER = [
     'article',
     // Delta-sync — standalone (branchId scalar, tanpa FK keras)
     'syncedOp',
+    'syncState',
+    'syncPush',
 ];
 
 // Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)

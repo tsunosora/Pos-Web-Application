@@ -8,15 +8,33 @@ export interface PullResult {
   changes: Record<string, unknown[]>; // { products: [...], customers: [...], ... }
 }
 
-// Entitas referensi yang boleh di-pull (server-authoritative, pull-only).
-export const PULLABLE_ENTITIES = [
-  'products',
-  'productVariants',
-  'categories',
-  'customers',
-  'branchStocks',
-] as const;
-export type PullableEntity = (typeof PULLABLE_ENTITIES)[number];
+// Registry entitas master yang bisa di-pull (server-authoritative, pull-only).
+// URUTAN = urutan dependensi FK → dipakai apa adanya untuk seed DB lokal (parent dulu).
+export interface EntitySpec {
+  delegate: string; // nama delegate PrismaClient (this.prisma[delegate])
+  hasUpdatedAt: boolean; // punya kolom updatedAt (untuk delta)? kalau tidak → selalu full
+  branchField?: string; // kalau ter-scope cabang (mis. branchStocks.branchId)
+}
+
+export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
+  roles: { delegate: 'role', hasUpdatedAt: false },
+  units: { delegate: 'unit', hasUpdatedAt: true },
+  categories: { delegate: 'category', hasUpdatedAt: true },
+  productionCategories: { delegate: 'productionCategory', hasUpdatedAt: true },
+  companyBranches: { delegate: 'companyBranch', hasUpdatedAt: true },
+  storeSettings: { delegate: 'storeSettings', hasUpdatedAt: true },
+  branchSettings: { delegate: 'branchSettings', hasUpdatedAt: true },
+  users: { delegate: 'user', hasUpdatedAt: true }, // termasuk passwordHash → login offline
+  bankAccounts: { delegate: 'bankAccount', hasUpdatedAt: true },
+  products: { delegate: 'product', hasUpdatedAt: true },
+  productVariants: { delegate: 'productVariant', hasUpdatedAt: true },
+  variantPriceTiers: { delegate: 'variantPriceTier', hasUpdatedAt: true },
+  customers: { delegate: 'customer', hasUpdatedAt: true },
+  branchStocks: { delegate: 'branchStock', hasUpdatedAt: true, branchField: 'branchId' },
+};
+
+export const PULLABLE_ENTITIES = Object.keys(ENTITY_REGISTRY);
+export type PullableEntity = string;
 
 // ---- PUSH: klien mengirim mutasi transaksional yang dibuat saat offline ----
 export type PushOpType = 'transaction.create' | 'cashflow.create';

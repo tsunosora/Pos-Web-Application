@@ -4,6 +4,7 @@ import { TransactionsService } from '../transactions/transactions.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { requireBranch } from '../common/branch-where.helper';
 import {
+  ENTITY_REGISTRY,
   PULLABLE_ENTITIES,
   type PullableEntity,
   type PullResult,
@@ -58,30 +59,25 @@ export class SyncService {
 
   private async pullEntity(
     entity: PullableEntity,
-    updatedWhere: Record<string, unknown>,
+    _updatedWhere: Record<string, unknown>,
     sinceDate: Date | null,
     branchCtx: BranchContext,
   ): Promise<unknown[]> {
-    switch (entity) {
-      case 'products':
-        return this.prisma.product.findMany({ where: updatedWhere });
-      case 'productVariants':
-        return this.prisma.productVariant.findMany({ where: updatedWhere });
-      case 'categories':
-        return this.prisma.category.findMany({ where: updatedWhere });
-      case 'customers':
-        return this.prisma.customer.findMany({ where: updatedWhere });
-      case 'branchStocks': {
-        // Stok per cabang: device hanya menarik stok cabangnya sendiri.
-        // Owner tanpa cabang aktif (branchId null) menarik semua cabang.
-        const branchWhere = branchCtx.branchId != null ? { branchId: branchCtx.branchId } : {};
-        return this.prisma.branchStock.findMany({
-          where: { ...branchWhere, ...(sinceDate ? { updatedAt: { gt: sinceDate } } : {}) },
-        });
-      }
-      default:
-        return [];
+    const spec = ENTITY_REGISTRY[entity];
+    if (!spec) return [];
+    const where: Record<string, unknown> = {};
+    // Scope cabang (mis. branchStocks) — device hanya tarik cabangnya; owner null = semua.
+    if (spec.branchField && branchCtx.branchId != null) {
+      where[spec.branchField] = branchCtx.branchId;
     }
+    // Delta hanya untuk model ber-updatedAt; model tanpa updatedAt (mis. roles) selalu full.
+    if (spec.hasUpdatedAt && sinceDate) {
+      where.updatedAt = { gt: sinceDate };
+    }
+    const delegate = (this.prisma as unknown as Record<string, { findMany: (a: unknown) => Promise<unknown[]> }>)[
+      spec.delegate
+    ];
+    return delegate.findMany({ where });
   }
 
   /**
