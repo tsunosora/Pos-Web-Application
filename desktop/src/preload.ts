@@ -1,9 +1,15 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+// Base URL API diteruskan dari main via additionalArguments (--pospro-api-base=...).
+// Di mode "100% offline" ini menunjuk backend LOKAL; di mode lama = remote/kosong.
+const apiArg = process.argv.find((a) => a.startsWith("--pospro-api-base="));
+const apiBaseUrl = apiArg ? apiArg.slice("--pospro-api-base=".length) : "";
+
 // Kontrak API yang diekspos ke renderer. Renderer mengenali "sedang di Electron"
 // dengan mengecek keberadaan window.electron.
 contextBridge.exposeInMainWorld("electron", {
   platform: process.platform,
+  apiBaseUrl,
   appVersion: () => ipcRenderer.invoke("app:version"),
   // Cetak ESC/POS lokal. bytesBase64 = ESC/POS biner base64 (sama seperti relay).
   printEscpos: (payload: {

@@ -1,8 +1,16 @@
 import axios from 'axios';
 import { getActiveBranchId } from '@/store/branch-store';
 
+// Di aplikasi desktop, main process menyuntik base URL API lewat preload
+// (window.electron.apiBaseUrl). Mode "100% offline" → backend LOKAL. Fallback ke
+// env build-time (web) lalu localhost.
+const desktopApiBase =
+    typeof window !== 'undefined'
+        ? (window as unknown as { electron?: { apiBaseUrl?: string } }).electron?.apiBaseUrl
+        : undefined;
+
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
+    baseURL: desktopApiBase || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
     headers: {
         'Content-Type': 'application/json',
     },
