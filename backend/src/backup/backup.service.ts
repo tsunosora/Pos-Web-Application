@@ -102,6 +102,10 @@ export const BACKUP_GROUPS = {
         label: 'Penilaian CS — Poling Ya/Tidak + Bintang',
         tables: ['csRatingConfig', 'csRatingResponse'],
     },
+    sync: {
+        label: 'Delta Sync Offline — jejak idempotensi',
+        tables: ['syncedOp'],
+    },
 } as const;
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
@@ -173,6 +177,8 @@ const RESTORE_ORDER = [
     // Website — standalone (tanpa FK)
     'landingConfig',
     'article',
+    // Delta-sync — standalone (branchId scalar, tanpa FK keras)
+    'syncedOp',
 ];
 
 // Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)

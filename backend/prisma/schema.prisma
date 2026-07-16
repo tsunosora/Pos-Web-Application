@@ -99,6 +99,7 @@ model Category {
   children           Category[]          @relation("SubCategories")
   productionCategory ProductionCategory? @relation(fields: [productionCategoryId], references: [id], onDelete: SetNull)
 
+  @@index([updatedAt]) // delta-sync: pull "where updatedAt > since"
   @@map("categories")
 }
 
@@ -139,6 +140,7 @@ model Product {
   hppWorksheets HppWorksheet[]
   clickRate     ClickRate?       @relation(fields: [clickRateId], references: [id], onDelete: SetNull)
 
+  @@index([updatedAt]) // delta-sync: pull "where updatedAt > since"
   @@map("products")
 }
 
@@ -183,6 +185,7 @@ model ProductVariant {
   branchStocks            BranchStock[]
   transferItems           StockTransferItem[]
 
+  @@index([updatedAt]) // delta-sync: pull "where updatedAt > since"
   @@map("product_variants")
 }
 
@@ -857,6 +860,7 @@ model Customer {
   followUps   FollowUp[]         @relation("CustomerFollowUps")
 
   @@index([assignedCsId])
+  @@index([updatedAt]) // delta-sync: pull "where updatedAt > since"
   @@map("customers")
 }
 
@@ -1972,4 +1976,20 @@ model FollowUp {
   @@index([branchId, status])
   @@index([customerId, type])
   @@map("follow_ups")
+}
+
+// Jejak idempotensi delta-sync offline. Tiap mutasi yang dibuat device saat offline
+// punya clientId (UUID v4) unik. Saat push, server cek clientId dulu: kalau sudah ada
+// → balas serverId lama (idempoten, retry/duplikat tak menggandakan transaksi).
+// Tanpa relasi FK ke CompanyBranch (branchId scalar) supaya additif & tak menyentuh model lain.
+model SyncedOp {
+  id        Int      @id @default(autoincrement())
+  clientId  String   @unique @map("client_id") @db.VarChar(64) // UUID v4 dari device
+  type      String   @db.VarChar(40) // transaction.create | cashflow.create
+  serverId  Int?     @map("server_id") // PK record hasil buat di server (dipetakan balik ke klien)
+  branchId  Int?     @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([branchId])
+  @@map("synced_ops")
 }
