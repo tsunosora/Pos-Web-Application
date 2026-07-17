@@ -63,15 +63,18 @@ export const buildThermalReceiptBody = (
     ${snap.productionBranchLabel ? `<div class="sub b">Diambil di: ${esc(snap.productionBranchLabel)}</div>` : ''}
     <div class="hr"></div>
     ${items}
-    <div class="hr"></div>
-    <div class="row"><span>Subtotal</span><span>${rp(snap.subtotal)}</span></div>
-    ${snap.discount ? `<div class="row"><span>Diskon</span><span>-${rp(snap.discount)}</span></div>` : ''}
-    ${snap.taxAmount ? `<div class="row"><span>Pajak ${snap.taxRate.toFixed(0)}%</span><span>${rp(snap.taxAmount)}</span></div>` : ''}
-    ${snap.shippingCost ? `<div class="row"><span>Ongkir</span><span>${rp(snap.shippingCost)}</span></div>` : ''}
-    <div class="row total"><span>TOTAL</span><span>${rp(snap.grandTotal)}</span></div>
-    ${dpRows}
-    <div class="row"><span>Bayar</span><span>${esc(pm)}</span></div>
-    <div class="row b"><span>Status</span><span>${status}</span></div>
+    <div class="summary">
+      <div class="hr"></div>
+      <div class="row"><span>Subtotal</span><span>${rp(snap.subtotal)}</span></div>
+      ${snap.discount ? `<div class="row"><span>Diskon</span><span>-${rp(snap.discount)}</span></div>` : ''}
+      ${snap.taxAmount ? `<div class="row"><span>Pajak ${snap.taxRate.toFixed(0)}%</span><span>${rp(snap.taxAmount)}</span></div>` : ''}
+      ${snap.shippingCost ? `<div class="row"><span>Ongkir</span><span>${rp(snap.shippingCost)}</span></div>` : ''}
+      <div class="row total"><span>TOTAL</span><span>${rp(snap.grandTotal)}</span></div>
+      ${dpRows}
+      <div class="row"><span>Bayar</span><span>${esc(pm)}</span></div>
+      <div class="row b"><span>Status</span><span>${esc(status)}</span></div>
+      ${status === 'LUNAS' ? `<div class="stamp" aria-label="LUNAS">LUNAS</div>` : ''}
+    </div>
     <div class="hr"></div>
     <div class="foot">${esc(snap.notaFooter || 'Terima kasih!')}</div>
   </div>`;
@@ -83,21 +86,28 @@ export const buildThermalReceiptBody = (
 export const THERMAL_CSS = `
   * { margin:0; padding:0; box-sizing:border-box; }
   body { background:#fff; }
-  .receipt { width:376px; padding:10px 11px; font-family:'Courier New',monospace; color:#000; font-size:21px; font-weight:600; line-height:1.4; }
-  .store { text-align:center; font-weight:800; font-size:27px; letter-spacing:.5px; }
-  .sub { text-align:center; font-size:17px; font-weight:600; word-break:break-word; }
-  .logo { display:block; margin:0 auto 4px; max-width:200px; max-height:120px; object-fit:contain; filter:grayscale(1) contrast(1.4); }
-  .hr { border-top:2px dashed #000; margin:6px 0; }
-  .row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+  .receipt { position:relative; width:376px; padding:12px 12px 14px; font-family:'Courier New',monospace; color:#000; font-size:21px; font-weight:600; line-height:1.5; }
+  .store { text-align:center; font-weight:800; font-size:27px; letter-spacing:.5px; margin-bottom:3px; }
+  .sub { text-align:center; font-size:17px; font-weight:600; word-break:break-word; line-height:1.45; }
+  .logo { display:block; margin:0 auto 6px; max-width:200px; max-height:120px; object-fit:contain; filter:grayscale(1) contrast(1.4); }
+  .hr { border-top:2px dashed #000; margin:11px 0; }
+  .row { display:flex; justify-content:space-between; gap:12px; align-items:baseline; padding:2px 0; }
   .row span:first-child { flex:0 0 auto; white-space:nowrap; }
   .row span:last-child { flex:1 1 auto; min-width:0; text-align:right; overflow-wrap:anywhere; }
-  .it { margin-bottom:4px; }
-  .nm { font-weight:700; word-break:break-word; }
+  .it { margin-bottom:9px; }
+  .it:last-child { margin-bottom:2px; }
+  .nm { font-weight:700; word-break:break-word; margin-bottom:1px; }
   .i { font-style:italic; }
   .b { font-weight:700; }
-  .total { font-weight:800; font-size:24px; border-top:2px solid #000; border-bottom:2px solid #000; padding:2px 0; margin:2px 0; }
-  .foot { text-align:center; font-size:16px; margin-top:6px; white-space:pre-wrap; }
-  @media print { @page { size:55mm auto; margin:0; } body { width:55mm; } .receipt { width:47mm; margin:0 auto; padding:1mm 1.5mm; font-size:10pt; font-weight:600; } .store { font-size:13pt; } .total { font-size:12pt; } }
+  .summary { position:relative; }
+  .total { font-weight:800; font-size:24px; border-top:2px solid #000; border-bottom:2px solid #000; padding:8px 0; margin:9px 0; }
+  .stamp { position:absolute; left:50%; top:56%; transform:translate(-50%,-50%) rotate(-14deg);
+           display:inline-block; padding:5px 22px; border:5px double #c81e1e; border-radius:8px;
+           color:#c81e1e; font-family:'Arial Black','Arial',sans-serif; font-weight:900; font-size:38px;
+           letter-spacing:7px; text-transform:uppercase; opacity:.82; pointer-events:none; white-space:nowrap;
+           text-shadow:0 0 1px #c81e1e; }
+  .foot { text-align:center; font-size:16px; margin-top:12px; white-space:pre-wrap; }
+  @media print { @page { size:55mm auto; margin:0; } body { width:55mm; } .receipt { width:47mm; margin:0 auto; padding:1mm 1.5mm 2mm; font-size:10pt; font-weight:600; line-height:1.5; } .store { font-size:13pt; } .total { font-size:12pt; padding:2mm 0; } .hr { margin:2.4mm 0; } .stamp { font-size:17pt; letter-spacing:2px; padding:1px 10px; border-width:3px; } }
 `;
 
 /** HTML dokumen lengkap untuk browser-print 58mm (window.open). */
