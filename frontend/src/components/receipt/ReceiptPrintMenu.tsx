@@ -37,7 +37,12 @@ export default function ReceiptPrintMenu({
   align?: "left" | "right";
 }) {
   const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const [pos, setPos] = useState<{
+    top?: number;
+    bottom?: number;
+    left: number;
+    maxHeight: number;
+  } | null>(null);
   const [targets, setTargets] = useState<PrintTarget[] | null>(null);
   const [toast, setToast] = useState<Toast>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -62,10 +67,25 @@ export default function ReceiptPrintMenu({
   useLayoutEffect(() => {
     if (!open || !btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
+    const M = 8; // jarak aman dari tepi layar
+    const GAP = 6; // celah antara tombol dan menu
     const left = align === "right" ? r.right - MENU_W : r.left;
+
+    // Ruang tersedia di bawah vs di atas tombol. Buka ke atas bila ruang bawah
+    // sempit dan ruang atas lebih lega — supaya menu tak terpotong tepi bawah.
+    const spaceBelow = window.innerHeight - r.bottom - GAP - M;
+    const spaceAbove = r.top - GAP - M;
+    const openUp = spaceBelow < 260 && spaceAbove > spaceBelow;
+    const avail = openUp ? spaceAbove : spaceBelow;
+    // Tinggi menu dibatasi ruang yang ada (min 160px agar tetap berguna),
+    // dengan pagu 70vh; sisanya di-scroll internal.
+    const maxHeight = Math.max(160, Math.min(avail, Math.round(window.innerHeight * 0.7)));
+
     setPos({
-      top: r.bottom + 6,
-      left: Math.max(8, Math.min(left, window.innerWidth - MENU_W - 8)),
+      top: openUp ? undefined : r.bottom + GAP,
+      bottom: openUp ? window.innerHeight - r.top + GAP : undefined,
+      left: Math.max(M, Math.min(left, window.innerWidth - MENU_W - M)),
+      maxHeight,
     });
   }, [open, align, targets]);
 
@@ -139,8 +159,15 @@ export default function ReceiptPrintMenu({
           <div
             ref={menuRef}
             role="menu"
-            style={{ position: "fixed", top: pos.top, left: pos.left, width: MENU_W }}
-            className="z-[600] rounded-xl border border-border bg-background/95 backdrop-blur-md shadow-xl p-1.5 max-h-[70vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
+            style={{
+              position: "fixed",
+              top: pos.top,
+              bottom: pos.bottom,
+              left: pos.left,
+              width: MENU_W,
+              maxHeight: pos.maxHeight,
+            }}
+            className="z-[600] rounded-xl border border-border bg-background/95 backdrop-blur-md shadow-xl p-1.5 overflow-y-auto animate-in fade-in zoom-in-95 duration-150"
           >
             <p className="px-2.5 pt-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
               Pilih format &amp; printer
