@@ -1338,12 +1338,14 @@ export class TransactionsService {
     }
 
     async getSummaryReport(branchCtx: BranchContext | undefined, startDate?: string, endDate?: string, sortBy: 'qty' | 'revenue' = 'qty', limit: number = 20) {
-        // Gunakan updatedAt sebagai acuan tanggal, bukan createdAt.
-        // Nota PENDING yang dibuat hari X tapi dibayar hari Y akan masuk ke laporan hari Y (updatedAt berubah saat status → PAID).
+        // Gunakan paidAt (tanggal pembayaran/checkout) sebagai acuan, bukan createdAt/updatedAt.
+        // Nota PENDING yang dibuat hari X tapi dibayar hari Y masuk ke laporan hari Y.
+        // JANGAN pakai updatedAt: ia berubah pada setiap edit/koreksi/migrasi, sehingga
+        // nota lama ikut tertarik ke periode berjalan dengan nilai penuh.
         const bw = branchCtx ? branchWhere(branchCtx) : {};
         const whereClause: any = { status: TransactionStatus.PAID, ...bw };
         if (startDate && endDate) {
-            whereClause.updatedAt = {
+            whereClause.paidAt = {
                 gte: new Date(startDate),
                 lte: new Date(endDate + 'T23:59:59.999Z')
             };
@@ -1367,7 +1369,7 @@ export class TransactionsService {
             const prevTransactions = await this.prisma.transaction.findMany({
                 where: {
                     status: TransactionStatus.PAID,
-                    updatedAt: { gte: prevStart, lte: prevEnd },
+                    paidAt: { gte: prevStart, lte: prevEnd },
                     ...(branchCtx ? branchWhere(branchCtx) : {}),
                 },
                 include: {
@@ -1590,7 +1592,7 @@ export class TransactionsService {
 
         // Ambil semua transaksi PAID dalam rentang tanggal (berdasarkan waktu lunas)
         const transactions = await this.prisma.transaction.findMany({
-            where: { updatedAt: { gte: start, lte: end }, status: TransactionStatus.PAID, ...bw },
+            where: { paidAt: { gte: start, lte: end }, status: TransactionStatus.PAID, ...bw },
             select: { cashierName: true, checkoutCashierName: true, grandTotal: true },
         });
 
@@ -1620,7 +1622,7 @@ export class TransactionsService {
         const [
             todaySalesAgg,     // Revenue hari ini (berdasarkan waktu bayar)
             yesterdaySalesAgg, // Revenue kemarin
-            todayTxCount,      // Jumlah transaksi lunas hari ini (berdasarkan updatedAt)
+            todayTxCount,      // Jumlah transaksi lunas hari ini (berdasarkan paidAt)
             yesterdayTxCount,  // Jumlah transaksi lunas kemarin
             todayCashflow,     // Total cashflow masuk hari ini (semua, untuk card cashflow)
             yesterdayCashflow, // Total cashflow masuk kemarin
@@ -1635,12 +1637,12 @@ export class TransactionsService {
                 where: { createdAt: { gte: yesterdayStart, lt: todayStart }, type: CashflowType.INCOME, userId: null, ...bw },
                 _sum: { amount: true },
             }),
-            // Tx count: hitung transaksi yang statusnya PAID dan updatedAt hari ini
+            // Tx count: hitung transaksi yang statusnya PAID dan dibayar (paidAt) hari ini
             this.prisma.transaction.count({
-                where: { updatedAt: { gte: todayStart }, status: TransactionStatus.PAID, ...bw },
+                where: { paidAt: { gte: todayStart }, status: TransactionStatus.PAID, ...bw },
             }),
             this.prisma.transaction.count({
-                where: { updatedAt: { gte: yesterdayStart, lt: todayStart }, status: TransactionStatus.PAID, ...bw },
+                where: { paidAt: { gte: yesterdayStart, lt: todayStart }, status: TransactionStatus.PAID, ...bw },
             }),
             // Cashflow card: semua income hari ini (termasuk manual)
             this.prisma.cashflow.aggregate({
