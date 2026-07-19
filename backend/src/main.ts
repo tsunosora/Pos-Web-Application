@@ -1,10 +1,20 @@
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Validasi & sanitasi payload untuk DTO ber-decorator (class-validator).
+  // whitelist: buang field tak dikenal; forbidNonWhitelisted: tolak bila ada
+  // field asing; transform: koersi tipe (string->number) & jadikan instance DTO.
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+  }));
 
   // Struk thermal dikirim sebagai raster base64 (bisa >100kb untuk nota panjang)
   // ke /printer-relay/jobs. Naikkan limit body-parser dari default 100kb → 10mb
