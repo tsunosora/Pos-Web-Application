@@ -2,12 +2,18 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@n
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+
+// Hanya OWNER/SUPERADMIN yang boleh membuat/mengubah/menghapus user & role.
+const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'] as const;
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
   @Post()
   create(@Body() createUserDto: CreateUserDto) {
     return this.usersService.create(createUserDto);
@@ -25,31 +31,36 @@ export class UsersController {
     return this.usersService.fetchRoles();
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
   @Patch(':id')
   updateUser(@Param('id') id: string, @Body() data: { name?: string, roleId?: number, phone?: string, password?: string }) {
     return this.usersService.updateUser(+id, data);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
   @Delete(':id')
   deleteUser(@Param('id') id: string) {
     return this.usersService.deleteUser(+id);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
   @Post('roles')
   createRole(@Body() data: { name: string }) {
     return this.usersService.createRole(data.name);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
   @Patch('roles/:id')
   updateRole(@Param('id') id: string, @Body() data: { name: string }) {
     return this.usersService.updateRole(+id, data.name);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
   @Delete('roles/:id')
   deleteRole(@Param('id') id: string) {
     return this.usersService.deleteRole(+id);
