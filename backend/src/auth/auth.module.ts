@@ -15,9 +15,10 @@ import { getJwtSecret } from './jwt-secret.util';
     JwtModule.register({
       global: true,
       secret: getJwtSecret(),
-      // Masa berlaku bisa diatur via JWT_EXPIRES; default tetap 30d (jaga UX).
+      // Masa berlaku bisa diatur via JWT_EXPIRES; default 1d (selaras cookie
+      // frontend & lebih aman — jendela token bocor lebih pendek).
       // cast: tipe expiresIn adalah template-literal `ms`, string env perlu di-cast.
-      signOptions: { expiresIn: (process.env.JWT_EXPIRES || '30d') as any },
+      signOptions: { expiresIn: (process.env.JWT_EXPIRES || '1d') as any },
     }),
   ],
   controllers: [AuthController],
