@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import * as bcrypt from 'bcrypt';
@@ -8,6 +8,14 @@ export class UsersService {
   constructor(private prisma: PrismaService) { }
 
   async create(createUserDto: any) {
+    // Cegah email duplikat dengan pesan jelas (409) alih-alih error Prisma mentah (500).
+    const existing = await this.prisma.user.findUnique({
+      where: { email: createUserDto.email },
+    });
+    if (existing) {
+      throw new ConflictException('Email sudah terdaftar.');
+    }
+
     const salt = await bcrypt.genSalt();
     const passwordHash = await bcrypt.hash(createUserDto.password, salt);
 
@@ -22,7 +30,7 @@ export class UsersService {
       const roleName = role?.name?.toUpperCase() ?? '';
       const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
       if (!isOwner && branchId == null) {
-        throw new Error('Cabang wajib dipilih untuk role non-Owner.');
+        throw new BadRequestException('Cabang wajib dipilih untuk role non-Owner.');
       }
       if (isOwner) branchId = null; // Owner selalu null
     }
@@ -101,7 +109,7 @@ export class UsersService {
         const roleName = role?.name?.toUpperCase() ?? '';
         const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
         if (!isOwner && branchId == null) {
-          throw new Error('Cabang wajib dipilih untuk role non-Owner.');
+          throw new BadRequestException('Cabang wajib dipilih untuk role non-Owner.');
         }
         if (isOwner) branchId = null;
       }
