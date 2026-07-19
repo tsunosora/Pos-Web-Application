@@ -59,6 +59,7 @@ model User {
   passwordHash String    @map("password_hash") @db.VarChar(200)
   roleId       Int?      @map("role_id")
   branchId     Int?      @map("branch_id") // Cabang tempat user ditugaskan; null = Owner/SuperAdmin (akses semua cabang)
+  isActive     Boolean   @default(true) @map("is_active") // false = akun dinonaktifkan (tak bisa login, token dicabut)
   createdAt    DateTime? @default(now()) @map("created_at")
   updatedAt    DateTime? @default(now()) @map("updated_at")
 
