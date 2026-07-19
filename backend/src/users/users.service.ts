@@ -62,6 +62,7 @@ export class UsersService {
         name: true,
         email: true,
         branchId: true,
+        isActive: true,
         role: { select: { id: true, name: true } },
         branch: { select: { id: true, name: true, code: true } },
       },

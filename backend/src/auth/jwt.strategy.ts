@@ -1,6 +1,6 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { getJwtSecret } from './jwt-secret.util';
 
@@ -19,6 +19,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // user harus logout & login ulang.
     async validate(payload: any) {
         const user = await this.usersService.findById(payload.sub);
+        if (!user || (user as any).isActive === false) {
+            throw new UnauthorizedException('Akun tidak aktif.');
+        }
         return {
             userId: payload.sub,
             email: payload.email,
