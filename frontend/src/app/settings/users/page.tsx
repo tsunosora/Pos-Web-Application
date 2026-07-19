@@ -119,6 +119,13 @@ export default function UserManagementSettings() {
                 return alert("Cabang wajib dipilih untuk role non-Owner.");
             }
 
+            // Validasi password selaras aturan backend (min 8, ada huruf & angka).
+            // Berlaku untuk user baru, atau saat mengganti password user lama.
+            const isStrongPassword = (p: string) => p.length >= 8 && /[A-Za-z]/.test(p) && /\d/.test(p);
+            if ((userModal.mode === 'add' || userModal.password) && !isStrongPassword(userModal.password)) {
+                return alert("Password minimal 8 karakter dan harus mengandung huruf dan angka.");
+            }
+
             if (userModal.mode === 'add') {
                 if (!userModal.password) return alert("Password wajib untuk user baru!");
                 await createUser(payload);
@@ -374,7 +381,7 @@ export default function UserManagementSettings() {
                             <div className="space-y-1.5 border-t border-dashed border-border pt-4 mt-2">
                                 <label className="text-sm font-medium text-muted-foreground">{userModal.mode === 'add' ? 'Password Akses' : 'Ganti Password (Opsional)'}</label>
                                 <div className="relative">
-                                    <input type="password" value={userModal.password} onChange={e => setUserModal({ ...userModal, password: e.target.value })} placeholder={userModal.mode === 'edit' ? "Kosongkan jika tidak ingin mereset sandi" : "Minimal 6 karakter..."}
+                                    <input type="password" value={userModal.password} onChange={e => setUserModal({ ...userModal, password: e.target.value })} placeholder={userModal.mode === 'edit' ? "Kosongkan jika tidak ingin mereset sandi" : "Min 8 karakter, ada huruf & angka"}
                                         className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg outline-none text-sm focus:border-primary" />
                                     <Key className="w-4 h-4 text-muted-foreground absolute left-3 top-2.5" />
                                 </div>
