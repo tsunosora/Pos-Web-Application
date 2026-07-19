@@ -5,8 +5,9 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 
-// Hanya OWNER/SUPERADMIN yang boleh membuat/mengubah/menghapus user & role.
-const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'] as const;
+// Hanya OWNER/SUPERADMIN/ADMIN yang boleh membuat/mengubah/menghapus user & role.
+// (RolesGuard mencocokkan case-insensitive, jadi cocok dengan role "Owner"/"Admin" di DB.)
+const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
 
 @Controller('users')
 export class UsersController {
