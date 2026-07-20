@@ -7,12 +7,20 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // Validasi & sanitasi payload untuk DTO ber-decorator (class-validator).
-  // whitelist: buang field tak dikenal; forbidNonWhitelisted: tolak bila ada
-  // field asing; transform: koersi tipe (string->number) & jadikan instance DTO.
+  // Validasi & sanitasi payload. transform: koersi tipe & jadikan instance DTO.
+  //
+  // CATATAN: whitelist + forbidNonWhitelisted SENGAJA dimatikan. Hampir semua DTO
+  // di proyek ini (leads, auth, users update, dll) belum punya decorator
+  // class-validator, seharusnya. Dengan whitelist:true, ValidationPipe menganggap
+  // SEMUA properti tanpa decorator sebagai "field asing" -> forbidNonWhitelisted
+  // menolak seluruh request (regresi commit b450731: "property X should not exist").
+  // JANGAN nyalakan whitelist tanpa forbidNonWhitelisted: itu justru membuang
+  // semua field diam-diam (silent data loss) -> update tersimpan kosong.
+  // Untuk mengaktifkan kembali keduanya: tambahkan decorator (@IsOptional,
+  // @IsString, @IsEnum, @ValidateNested, dst) ke SEMUA DTO lebih dulu, per modul.
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
+    whitelist: false,
+    forbidNonWhitelisted: false,
     transform: true,
   }));
 
