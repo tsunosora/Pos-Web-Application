@@ -3,6 +3,8 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { CloudApiService } from './cloud-api.service';
 import { WhatsappCloudService } from './whatsapp-cloud.service';
 import { WhatsappCloudController } from './whatsapp-cloud.controller';
+import { WhatsappWebhookController } from './webhook.controller';
+import { InboxService } from './inbox.service';
 
 /**
  * WhatsApp CRM via Cloud API resmi Meta (Graph API).
@@ -11,8 +13,8 @@ import { WhatsappCloudController } from './whatsapp-cloud.controller';
  */
 @Module({
   imports: [PrismaModule],
-  controllers: [WhatsappCloudController],
-  providers: [CloudApiService, WhatsappCloudService],
-  exports: [CloudApiService, WhatsappCloudService],
+  controllers: [WhatsappCloudController, WhatsappWebhookController],
+  providers: [CloudApiService, WhatsappCloudService, InboxService],
+  exports: [CloudApiService, WhatsappCloudService, InboxService],
 })
 export class WhatsappCloudModule {}

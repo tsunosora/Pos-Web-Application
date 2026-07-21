@@ -5,7 +5,10 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  // rawBody: true → menyimpan Buffer body mentah (req.rawBody) untuk verifikasi
+  // signature webhook WhatsApp Meta (X-Hub-Signature-256). Kompatibel dengan
+  // useBodyParser kustom di bawah.
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
 
   // Validasi & sanitasi payload. transform: koersi tipe & jadikan instance DTO.
   //
