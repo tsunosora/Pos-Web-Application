@@ -32,6 +32,17 @@ export function phoneKey(raw?: string | null): string {
     return toWaPhone(raw) ?? '';
 }
 
+/**
+ * Kunci pencocokan ke Lead.phoneNormalized: konvensi TANPA prefix '62'
+ * (mis. '81234567890'). Dipakai modul WhatsApp CRM agar waId dari Meta ('62…')
+ * bisa dicocokkan ke Lead/Customer yang menyimpan nomor tanpa 62.
+ * @returns '81xxx' atau null kalau input tak valid.
+ */
+export function toLeadKey(raw?: string | null): string | null {
+    const wa = toWaPhone(raw);
+    return wa ? wa.replace(/^62/, '') : null;
+}
+
 /** Apakah dua nomor identik secara kanonik (untuk dedup). */
 export function samePhone(a?: string | null, b?: string | null): boolean {
     const ka = phoneKey(a);

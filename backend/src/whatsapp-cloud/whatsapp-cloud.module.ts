@@ -1,5 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { CloudApiService } from './cloud-api.service';
+import { WhatsappCloudService } from './whatsapp-cloud.service';
+import { WhatsappCloudController } from './whatsapp-cloud.controller';
 
 /**
  * WhatsApp CRM via Cloud API resmi Meta (Graph API).
@@ -8,8 +11,8 @@ import { PrismaModule } from '../prisma/prisma.module';
  */
 @Module({
   imports: [PrismaModule],
-  controllers: [],
-  providers: [],
-  exports: [],
+  controllers: [WhatsappCloudController],
+  providers: [CloudApiService, WhatsappCloudService],
+  exports: [CloudApiService, WhatsappCloudService],
 })
 export class WhatsappCloudModule {}
