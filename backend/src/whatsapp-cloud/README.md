@@ -1,8 +1,10 @@
 # WhatsApp Cloud API (resmi Meta) — Modul `whatsapp-cloud`
 
-Modul ini memakai **WhatsApp Business Cloud API resmi dari Meta** (Graph API).
-**TERPISAH** dari modul lama `src/whatsapp/` (berbasis `whatsapp-web.js`, tidak resmi,
-`WHATSAPP_ENABLED=false`). Jangan campur keduanya.
+Modul ini memakai **WhatsApp Business Cloud API resmi dari Meta** (Graph API, default
+**v23.0**). **TERPISAH** dari modul lama `src/whatsapp/` (berbasis `whatsapp-web.js`,
+tidak resmi, `WHATSAPP_ENABLED=false`). Jangan campur keduanya.
+
+Referensi resmi: https://developers.facebook.com/documentation/business-messaging/whatsapp/get-started
 
 ## Ruang lingkup rilis pertama (Fase 0–4)
 
@@ -22,8 +24,8 @@ mengelola semua nomor di bawah Business yang sama, jadi cukup **satu** webhook.
    masing-masing (nanti dimasukkan ke `WaChannel` lewat UI/settings, bukan env).
 3. Buat **App** (type: Business) di developers.facebook.com → tambah produk **WhatsApp**.
 4. Buat **System User** level-Business dengan **permanent access token**, scope:
-   `whatsapp_business_messaging`, `whatsapp_business_management`. Assign asset WABA ke user ini.
-   → isi `WA_ACCESS_TOKEN`.
+   `whatsapp_business_messaging`, `whatsapp_business_management`, `business_management`
+   (sesuai dok resmi Meta). Assign asset WABA ke user ini. → isi `WA_ACCESS_TOKEN`.
 5. Salin **App Secret** (App → Settings → Basic) → isi `WA_APP_SECRET`
    (untuk verifikasi signature `X-Hub-Signature-256`).
 6. Buat string acak sendiri untuk `WA_VERIFY_TOKEN` (mis. `openssl rand -hex 16`).

@@ -27,7 +27,7 @@ export class CloudApiService {
     }
 
     private get version(): string {
-        return process.env.WA_GRAPH_VERSION || 'v21.0';
+        return process.env.WA_GRAPH_VERSION || 'v23.0';
     }
 
     private get token(): string {
