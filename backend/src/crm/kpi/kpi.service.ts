@@ -1809,7 +1809,7 @@ export class KpiService {
                 transactionId: true, pipelineStage: true,
                 transactionItem: {
                     select: {
-                        quantity: true,
+                        quantity: true, pcs: true,
                         productVariant: { select: { product: { select: { category: { select: { countsAsPcs: true } } } } } },
                     },
                 },
@@ -1828,7 +1828,10 @@ export class KpiService {
 
             // Item add-on (kerah/lengan/rib — countsAsPcs=false) bukan barang terpisah → 0 pcs.
             const isAddon = j.transactionItem?.productVariant?.product?.category?.countsAsPcs === false;
-            const qty = isAddon ? 0 : (Number(j.transactionItem?.quantity) || 0);
+            // Jumlah fisik = quantity × pcs. Item AREA_BASED (banner) disimpan quantity=1,
+            // pcs=jumlah kopi → tanpa ×pcs, banner 9 kopi salah terhitung 1. UNIT: pcs=1 (tak berubah).
+            const itemQty = (Number(j.transactionItem?.quantity) || 0) * (Number(j.transactionItem?.pcs) || 1);
+            const qty = isAddon ? 0 : itemQty;
             const p = pcsByTx.get(txId) ?? { inTransit: 0, delivered: 0 };
             if (stage === 'SELESAI') p.delivered += qty;
             else p.inTransit += qty;
