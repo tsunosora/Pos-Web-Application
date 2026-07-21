@@ -124,9 +124,22 @@ export function isItemActive(pathname: string, href: string): boolean {
     return pathname === href || pathname.startsWith(href + '/');
 }
 
-/** Section yang memuat route saat ini (untuk highlight kategori & sub-nav header). */
+/** Section yang memuat route saat ini (untuk highlight kategori & sub-nav header).
+ *  Pakai match PALING SPESIFIK (href terpanjang) — supaya /crm/whatsapp masuk ke
+ *  section "WhatsApp CRM", bukan tertangkap "/crm" (CRM Dashboard) di section
+ *  Pelanggan yang cuma cocok sebagai prefix. */
 export function getActiveSection(pathname: string): NavSection | undefined {
-    return SECTIONS.find(s => s.items.some(it => isItemActive(pathname, it.href)));
+    let best: NavSection | undefined;
+    let bestLen = -1;
+    for (const s of SECTIONS) {
+        for (const it of s.items) {
+            if (isItemActive(pathname, it.href) && it.href.length > bestLen) {
+                bestLen = it.href.length;
+                best = s;
+            }
+        }
+    }
+    return best;
 }
 
 /** Item pertama yang boleh diakses user (untuk tujuan klik kategori). */
