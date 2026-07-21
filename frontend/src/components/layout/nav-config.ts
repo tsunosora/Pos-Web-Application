@@ -76,6 +76,7 @@ export const SECTIONS: NavSection[] = [
             { name: "Leads CRM", href: "/crm/leads", icon: Sparkles, badgeKey: 'crmLeadsNew' },
             { name: "Tugas Follow-up", href: "/crm/follow-ups", icon: ClipboardList, badgeKey: 'crmFuPending' },
             { name: "Template Pesan", href: "/crm/templates", icon: MessageSquare },
+            { name: "WhatsApp CRM", href: "/crm/whatsapp", icon: Inbox },
             { name: "Invoice & Penawaran", href: "/invoices", icon: FileText },
             { name: "Sales Order", href: "/sales-orders", icon: FileSignature, badgeKey: 'pendingInvoice' },
             { name: "Order Cabang", href: "/branch-orders", icon: Building2 },
