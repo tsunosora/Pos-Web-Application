@@ -778,7 +778,7 @@ export class ProductionService {
     ) {
         // Load existing untuk dapat fromStage di audit
         const existing = await (this.prisma as any).productionJob.findUnique({
-            where: { id }, select: { pipelineStage: true, branchId: true },
+            where: { id }, select: { pipelineStage: true, branchId: true, shippedAt: true },
         });
         const updateData: any = {};
         if (data.pipelineStage !== undefined) {
@@ -811,7 +811,10 @@ export class ProductionService {
         if (data.pipelineStage === 'QC_PACKING' && data.qcNote !== undefined) {
             updateData.qcNote = data.qcNote || null;
         }
-        if (data.pipelineStage === 'KIRIM') {
+        // shippedAt = tanggal barang dikirim. Terisi saat masuk KIRIM, ATAU saat
+        // langsung ke SELESAI (operator kerap men-skip KIRIM — SELESAI = sudah terkirim).
+        // Hanya set kalau belum pernah terisi, biar tanggal kirim asli tak tertimpa.
+        if ((data.pipelineStage === 'KIRIM' || data.pipelineStage === 'SELESAI') && !existing?.shippedAt) {
             updateData.shippedAt = new Date();
         }
         if (data.pipelineStage === 'RETUR') {

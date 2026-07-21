@@ -57,3 +57,50 @@ describe('ProductionService.startJob — Sub Order tidak potong bahan', () => {
         expect(tx.stockMovement.create).toHaveBeenCalled();
     });
 });
+
+/**
+ * Pipeline: shippedAt harus terisi saat job masuk KIRIM ATAU langsung ke SELESAI
+ * (operator kerap men-skip KIRIM). Leaderboard "pcs dikirim" berbasis shippedAt,
+ * jadi job SELESAI tanpa shippedAt tidak akan terhitung dikirim.
+ */
+describe('ProductionService.updatePipelineStage — shippedAt saat KIRIM/SELESAI', () => {
+    function buildService(existing: any) {
+        const productionJob = {
+            findUnique: jest.fn().mockResolvedValue(existing),
+            update: jest.fn().mockImplementation(({ data }: any) => Promise.resolve({ id: 1, ...data })),
+        };
+        const productionJobActivity = { createMany: jest.fn().mockResolvedValue({}) };
+        const prisma: any = { productionJob, productionJobActivity };
+        return { svc: new ProductionService(prisma as any, {} as any), productionJob };
+    }
+
+    it('JAHIT → SELESAI langsung (skip KIRIM): shippedAt TERISI', async () => {
+        const { svc, productionJob } = buildService({ pipelineStage: 'JAHIT', branchId: 1, shippedAt: null });
+
+        await svc.updatePipelineStage(1, { pipelineStage: 'SELESAI' }, { name: 'Op', role: 'OPERATOR' });
+
+        expect(productionJob.update).toHaveBeenCalled();
+        const data = productionJob.update.mock.calls[0][0].data;
+        expect(data.shippedAt).toBeInstanceOf(Date);
+    });
+
+    it('masuk KIRIM: shippedAt TERISI', async () => {
+        const { svc, productionJob } = buildService({ pipelineStage: 'QC_PACKING', branchId: 1, shippedAt: null });
+
+        await svc.updatePipelineStage(1, { pipelineStage: 'KIRIM' }, { name: 'Op', role: 'OPERATOR' });
+
+        const data = productionJob.update.mock.calls[0][0].data;
+        expect(data.shippedAt).toBeInstanceOf(Date);
+    });
+
+    it('KIRIM → SELESAI: shippedAt asli TIDAK tertimpa', async () => {
+        const original = new Date('2026-07-01T00:00:00Z');
+        const { svc, productionJob } = buildService({ pipelineStage: 'KIRIM', branchId: 1, shippedAt: original });
+
+        await svc.updatePipelineStage(1, { pipelineStage: 'SELESAI' }, { name: 'Op', role: 'OPERATOR' });
+
+        const data = productionJob.update.mock.calls[0][0].data;
+        // Tidak menulis ulang shippedAt (dijaga tanggal kirim asli)
+        expect(data.shippedAt).toBeUndefined();
+    });
+});
