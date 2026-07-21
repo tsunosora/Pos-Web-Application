@@ -3,6 +3,7 @@ import {
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
+    MessageCircle, Settings,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -76,11 +77,18 @@ export const SECTIONS: NavSection[] = [
             { name: "Leads CRM", href: "/crm/leads", icon: Sparkles, badgeKey: 'crmLeadsNew' },
             { name: "Tugas Follow-up", href: "/crm/follow-ups", icon: ClipboardList, badgeKey: 'crmFuPending' },
             { name: "Template Pesan", href: "/crm/templates", icon: MessageSquare },
-            { name: "WhatsApp CRM", href: "/crm/whatsapp", icon: Inbox },
             { name: "Invoice & Penawaran", href: "/invoices", icon: FileText },
             { name: "Sales Order", href: "/sales-orders", icon: FileSignature, badgeKey: 'pendingInvoice' },
             { name: "Order Cabang", href: "/branch-orders", icon: Building2 },
             { name: "Permintaan Edit", href: "/transactions/edit-requests", icon: ClipboardEdit, badgeKey: 'pendingEdit', managerOnly: true },
+        ],
+    },
+    {
+        key: 'whatsapp', label: 'WhatsApp CRM', icon: MessageCircle,
+        items: [
+            { name: "Inbox Chat", href: "/crm/whatsapp", icon: Inbox },
+            // Fitur menyusul (Fase 5+): Broadcast, Template Meta, Auto-reply, Analitik.
+            { name: "Pengaturan Channel", href: "/crm/whatsapp/settings", icon: Settings, managerOnly: true },
         ],
     },
     {
