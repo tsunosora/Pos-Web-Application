@@ -2340,3 +2340,32 @@ model WaAutoReplyRule {
   @@index([channelId, isActive])
   @@map("wa_auto_reply_rules")
 }
+
+// Konfigurasi reminder otomatis per jenis event POS (Fase 8). Satu baris per
+// eventType: ORDER_READY | PAYMENT_DUE | FOLLOWUP_DUE.
+model WaReminderConfig {
+  id         Int      @id @default(autoincrement())
+  eventType  String   @unique @map("event_type") @db.VarChar(30)
+  enabled    Boolean  @default(false)
+  channelId  Int?     @map("channel_id")
+  templateId Int?     @map("template_id") // WaTemplate APPROVED yang dipakai
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("wa_reminder_configs")
+}
+
+// Log + dedup reminder terkirim (1 reminder per event per referensi).
+model WaReminderLog {
+  id          Int      @id @default(autoincrement())
+  eventType   String   @map("event_type") @db.VarChar(30)
+  refId       Int      @map("ref_id") // id transaksi / follow-up
+  contactId   Int?     @map("contact_id")
+  waMessageId String?  @map("wa_message_id") @db.VarChar(128)
+  status      String   @db.VarChar(20) // SENT | SKIPPED | FAILED
+  detail      String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([eventType, refId])
+  @@map("wa_reminder_logs")
+}

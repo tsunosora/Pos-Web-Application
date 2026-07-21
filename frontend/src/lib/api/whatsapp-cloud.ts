@@ -286,6 +286,31 @@ export const updateAutoReply = async (id: number, data: Partial<AutoReplyBody>):
 export const deleteAutoReply = async (id: number): Promise<{ ok: boolean }> =>
     (await api.delete(`/whatsapp/auto-replies/${id}`)).data;
 
+// ─── Reminder POS ──────────────────────────────────────────────────────────
+
+export type ReminderEvent = 'ORDER_READY' | 'PAYMENT_DUE' | 'FOLLOWUP_DUE';
+
+export interface WaReminderConfig {
+    eventType: ReminderEvent;
+    enabled: boolean;
+    channelId: number | null;
+    templateId: number | null;
+}
+
+export const REMINDER_EVENT_LABEL: Record<ReminderEvent, string> = {
+    ORDER_READY: 'Pesanan siap diambil',
+    PAYMENT_DUE: 'Pengingat pembayaran',
+    FOLLOWUP_DUE: 'Follow-up jatuh tempo',
+};
+
+export const getReminderConfigs = async (): Promise<WaReminderConfig[]> =>
+    (await api.get('/whatsapp/reminders/config')).data;
+
+export const setReminderConfig = async (
+    eventType: ReminderEvent,
+    data: { enabled?: boolean; channelId?: number | null; templateId?: number | null },
+): Promise<WaReminderConfig> => (await api.patch(`/whatsapp/reminders/config/${eventType}`, data)).data;
+
 /** Apakah percakapan masih dalam jendela layanan 24 jam (boleh kirim teks bebas). */
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();

@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
+import { RemindersService } from '../whatsapp-cloud/reminders.service';
 
 /**
  * Branch Inbox Service
@@ -19,7 +20,10 @@ import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
  */
 @Injectable()
 export class BranchInboxService {
-    constructor(private prisma: PrismaService) { }
+    constructor(
+        private prisma: PrismaService,
+        private reminders: RemindersService,
+    ) { }
 
     /**
      * Strict — wajib branch spesifik. Dipakai untuk WRITE (acknowledge, markReady,
@@ -268,6 +272,8 @@ export class BranchInboxService {
                  handover_ack_at = COALESCE(handover_ack_at, NOW())
              WHERE id = ${safeId}`,
         );
+        // Reminder WhatsApp "pesanan siap ambil" (best-effort, tak blok respons).
+        void this.reminders.sendOrderReady(safeId).catch(() => undefined);
         return { ok: true };
     }
 

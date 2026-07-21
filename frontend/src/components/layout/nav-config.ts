@@ -3,7 +3,7 @@ import {
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
-    MessageCircle, Settings, Megaphone, Bot,
+    MessageCircle, Settings, Megaphone, Bot, BellRing,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -89,6 +89,7 @@ export const SECTIONS: NavSection[] = [
             { name: "Inbox Chat", href: "/crm/whatsapp", icon: Inbox },
             { name: "Broadcast", href: "/crm/whatsapp/broadcast", icon: Megaphone },
             { name: "Balasan Otomatis", href: "/crm/whatsapp/auto-reply", icon: Bot },
+            { name: "Reminder POS", href: "/crm/whatsapp/reminders", icon: BellRing, managerOnly: true },
             { name: "Template Meta", href: "/crm/whatsapp/templates", icon: FileText },
             // Fitur menyusul (Fase 9): Analitik.
             { name: "Pengaturan Channel", href: "/crm/whatsapp/settings", icon: Settings, managerOnly: true },

@@ -24,6 +24,7 @@ import { InboxService } from './inbox.service';
 import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } from './templates.service';
 import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './broadcast.service';
 import { AutoReplyService, type CreateRuleInput } from './auto-reply.service';
+import { RemindersService, type ReminderEvent, type SetReminderConfigInput } from './reminders.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
@@ -38,6 +39,7 @@ export class WhatsappCloudController {
         private readonly templates: TemplatesService,
         private readonly broadcasts: BroadcastService,
         private readonly autoReplies: AutoReplyService,
+        private readonly reminders: RemindersService,
     ) {}
 
     /** Verifikasi kredensial Cloud API tiap channel aktif (tanpa kirim pesan). */
@@ -120,6 +122,30 @@ export class WhatsappCloudController {
     @Post('templates/:id/submit')
     submitTemplate(@Param('id', ParseIntPipe) id: number, @Body() body: { channelId: number }) {
         return this.templates.submit(id, body.channelId);
+    }
+
+    // ─── Reminder POS (Owner/Admin/Marketing) ───────────────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('reminders/config')
+    reminderConfigs() {
+        return this.reminders.getConfigs();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Patch('reminders/config/:eventType')
+    setReminderConfig(@Param('eventType') eventType: ReminderEvent, @Body() body: SetReminderConfigInput) {
+        return this.reminders.setConfig(eventType, body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Post('reminders/order-ready/:transactionId')
+    async triggerOrderReady(@Param('transactionId', ParseIntPipe) transactionId: number) {
+        await this.reminders.sendOrderReady(transactionId);
+        return { ok: true };
     }
 
     // ─── Auto-reply (Owner/Admin/Marketing) ─────────────────────────────────
