@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings } from "lucide-react";
 import {
-    listWaConversations, getWaMessages, replyWaText, updateWaConversation,
-    isWindowOpen, WA_STATUS_LABEL,
-    type WaConversation, type WaMessage, type WaConversationStatus,
+    listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
+    listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -109,6 +109,31 @@ export default function WhatsappInboxPage() {
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
             qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+        },
+    });
+
+    // Template APPROVED — dipakai saat jendela 24 jam tutup.
+    const [tplId, setTplId] = useState<number | null>(null);
+    const { data: templates = [] } = useQuery({
+        queryKey: ["wa-templates-approved"],
+        queryFn: listWaTemplates,
+        enabled: selectedId != null,
+        select: (all: WaTemplate[]) => all.filter((t) => t.status === "APPROVED"),
+    });
+    const templateReplyMut = useMutation({
+        mutationFn: () => {
+            const tpl = templates.find((t) => t.id === tplId);
+            if (!tpl) throw new Error("Template belum dipilih");
+            return replyWaTemplate(selectedId as number, { name: tpl.name, language: tpl.language, previewText: tpl.bodyText });
+        },
+        onSuccess: () => {
+            setTplId(null);
+            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+            qc.invalidateQueries({ queryKey: ["wa-convos"] });
+        },
+        onError: (e: unknown) => {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            alert(msg || "Gagal mengirim template");
         },
     });
 
@@ -306,9 +331,36 @@ export default function WhatsappInboxPage() {
                                 </button>
                             </form>
                         ) : (
-                            <div className="p-3 border-t border-border text-sm text-center text-amber-600 bg-amber-500/5">
-                                ⏰ Di luar jendela 24 jam. Balasan teks bebas tidak diizinkan Meta — perlu pesan
-                                <b> template</b> (fitur template menyusul di fase berikutnya).
+                            <div className="p-3 border-t border-border bg-amber-500/5 space-y-2">
+                                <div className="text-xs text-amber-600 text-center">
+                                    ⏰ Di luar jendela 24 jam — hanya boleh kirim pesan <b>template</b> yang disetujui Meta.
+                                </div>
+                                {templates.length === 0 ? (
+                                    <div className="text-xs text-center opacity-70">
+                                        Belum ada template disetujui.{" "}
+                                        <Link href="/crm/whatsapp/templates" className="underline">Kelola template →</Link>
+                                    </div>
+                                ) : (
+                                    <div className="flex items-end gap-2">
+                                        <select
+                                            value={tplId ?? ""}
+                                            onChange={(e) => setTplId(e.target.value ? +e.target.value : null)}
+                                            className="flex-1 rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none"
+                                        >
+                                            <option value="">Pilih template…</option>
+                                            {templates.map((t) => (
+                                                <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
+                                            ))}
+                                        </select>
+                                        <button
+                                            onClick={() => tplId && templateReplyMut.mutate()}
+                                            disabled={!tplId || templateReplyMut.isPending}
+                                            className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 transition"
+                                        >
+                                            <Send className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </>

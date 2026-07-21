@@ -140,6 +140,60 @@ export const updateWaChannel = async (id: number, data: UpdateChannelBody): Prom
 export const deleteWaChannel = async (id: number): Promise<{ ok: boolean }> =>
     (await api.delete(`/whatsapp/channels/${id}`)).data;
 
+// ─── Template Meta ─────────────────────────────────────────────────────────
+
+export type WaTemplateStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED';
+
+export interface WaTemplate {
+    id: number;
+    name: string;
+    language: string;
+    category: string;
+    status: WaTemplateStatus;
+    bodyText: string;
+    headerText: string | null;
+    footerText: string | null;
+    buttonsJson: unknown;
+    variableSample: unknown;
+    metaTemplateId: string | null;
+    submittedWabaId: string | null;
+    rejectedReason: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface TemplateBody {
+    name: string;
+    language?: string;
+    category?: string;
+    bodyText: string;
+    headerText?: string | null;
+    footerText?: string | null;
+    variableSample?: string[] | null;
+}
+
+export const WA_TEMPLATE_STATUS_LABEL: Record<WaTemplateStatus, string> = {
+    DRAFT: 'Draf', PENDING: 'Menunggu Review', APPROVED: 'Disetujui',
+    REJECTED: 'Ditolak', PAUSED: 'Dijeda', DISABLED: 'Dinonaktifkan',
+};
+
+export const listWaTemplates = async (): Promise<WaTemplate[]> => (await api.get('/whatsapp/templates')).data;
+
+export const createWaTemplate = async (data: TemplateBody): Promise<WaTemplate> =>
+    (await api.post('/whatsapp/templates', data)).data;
+
+export const updateWaTemplate = async (id: number, data: Partial<TemplateBody>): Promise<WaTemplate> =>
+    (await api.patch(`/whatsapp/templates/${id}`, data)).data;
+
+export const deleteWaTemplate = async (id: number): Promise<{ ok: boolean }> =>
+    (await api.delete(`/whatsapp/templates/${id}`)).data;
+
+export const submitWaTemplate = async (id: number, channelId: number): Promise<WaTemplate> =>
+    (await api.post(`/whatsapp/templates/${id}/submit`, { channelId })).data;
+
+export const syncWaTemplates = async (channelId: number): Promise<{ fetched: number; updated: number }> =>
+    (await api.post('/whatsapp/templates/sync', { channelId })).data;
+
 /** Apakah percakapan masih dalam jendela layanan 24 jam (boleh kirim teks bebas). */
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();

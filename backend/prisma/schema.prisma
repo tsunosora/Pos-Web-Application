@@ -2204,3 +2204,39 @@ model WaWebhookEvent {
   @@index([processed])
   @@map("wa_webhook_events")
 }
+
+// Status template mengikuti Meta (approval wajib sebelum dipakai broadcast/luar 24 jam).
+enum WaTemplateStatus {
+  DRAFT // baru dibuat lokal, belum dikirim ke Meta
+  PENDING // sudah submit, menunggu review Meta
+  APPROVED
+  REJECTED
+  PAUSED
+  DISABLED
+}
+
+// Template pesan resmi Meta (Fase 5). Dipakai untuk balasan di LUAR jendela 24
+// jam & broadcast. CATATAN: template bersifat per-WABA; MVP menyimpan satu status
+// (WABA tempat terakhir submit di submittedWabaId). Bila multi-WABA, submit ulang
+// per WABA. `MessageTemplate` lama (crm) untuk teks internal bebas tetap terpisah.
+model WaTemplate {
+  id              Int              @id @default(autoincrement())
+  name            String           @db.VarChar(120) // nama Meta: a-z 0-9 _ (snake_case)
+  language        String           @default("id") @db.VarChar(10)
+  category        String           @default("UTILITY") @db.VarChar(20) // MARKETING|UTILITY|AUTHENTICATION
+  status          WaTemplateStatus @default(DRAFT)
+  bodyText        String           @map("body_text") @db.Text // placeholder {{1}}, {{2}}
+  headerText      String?          @map("header_text") @db.Text
+  footerText      String?          @map("footer_text") @db.VarChar(120)
+  buttonsJson     Json?            @map("buttons_json")
+  variableSample  Json?            @map("variable_sample") // contoh nilai variabel utk preview
+  metaTemplateId  String?          @map("meta_template_id") @db.VarChar(64)
+  submittedWabaId String?          @map("submitted_waba_id") @db.VarChar(50)
+  rejectedReason  String?          @map("rejected_reason") @db.Text
+  createdById     Int?             @map("created_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  @@unique([name, language])
+  @@map("wa_templates")
+}

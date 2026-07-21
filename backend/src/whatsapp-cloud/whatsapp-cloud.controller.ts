@@ -21,16 +21,19 @@ import {
     type UpdateChannelInput,
 } from './whatsapp-cloud.service';
 import { InboxService } from './inbox.service';
+import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } from './templates.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
 const INBOX_ROLES = [...ADMIN_ROLES, 'CS', 'MARKETING'] as const;
+const TEMPLATE_ROLES = [...ADMIN_ROLES, 'MARKETING'] as const;
 
 @Controller('whatsapp')
 export class WhatsappCloudController {
     constructor(
         private readonly service: WhatsappCloudService,
         private readonly inbox: InboxService,
+        private readonly templates: TemplatesService,
     ) {}
 
     /** Verifikasi kredensial Cloud API tiap channel aktif (tanpa kirim pesan). */
@@ -69,6 +72,50 @@ export class WhatsappCloudController {
     @Delete('channels/:id')
     deleteChannel(@Param('id', ParseIntPipe) id: number) {
         return this.service.deleteChannel(id);
+    }
+
+    // ─── Template Meta (Owner/Admin/Marketing) ──────────────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('templates')
+    listTemplates() {
+        return this.templates.list();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('templates')
+    createTemplate(@Req() req: any, @Body() body: CreateTemplateInput) {
+        return this.templates.create(body, req.user?.userId);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('templates/sync')
+    syncTemplates(@Body() body: { channelId: number }) {
+        return this.templates.syncFromMeta(body.channelId);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Patch('templates/:id')
+    updateTemplate(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateTemplateInput) {
+        return this.templates.update(id, body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Delete('templates/:id')
+    deleteTemplate(@Param('id', ParseIntPipe) id: number) {
+        return this.templates.remove(id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('templates/:id/submit')
+    submitTemplate(@Param('id', ParseIntPipe) id: number, @Body() body: { channelId: number }) {
+        return this.templates.submit(id, body.channelId);
     }
 
     // ─── Inbox ───────────────────────────────────────────────────────────────

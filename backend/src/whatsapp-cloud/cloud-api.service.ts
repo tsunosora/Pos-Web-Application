@@ -111,4 +111,23 @@ export class CloudApiService {
             displayNumber: json?.display_phone_number,
         };
     }
+
+    // ─── Manajemen Template (per WABA) ───────────────────────────────────────
+
+    /** Ajukan template baru ke Meta (butuh review). @returns { id, status, category }. */
+    async createTemplate(
+        wabaId: string,
+        payload: { name: string; language: string; category: string; components: any[] },
+    ): Promise<{ id: string; status: string; category: string }> {
+        return this.graph('POST', `${wabaId}/message_templates`, payload);
+    }
+
+    /** Ambil semua template di WABA (untuk sinkron status). */
+    async listTemplates(wabaId: string): Promise<any[]> {
+        const json = await this.graph(
+            'GET',
+            `${wabaId}/message_templates?fields=name,status,category,language,rejected_reason,id&limit=200`,
+        );
+        return json?.data ?? [];
+    }
 }

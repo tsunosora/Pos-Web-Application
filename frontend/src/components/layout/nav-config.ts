@@ -87,7 +87,8 @@ export const SECTIONS: NavSection[] = [
         key: 'whatsapp', label: 'WhatsApp CRM', icon: MessageCircle,
         items: [
             { name: "Inbox Chat", href: "/crm/whatsapp", icon: Inbox },
-            // Fitur menyusul (Fase 5+): Broadcast, Template Meta, Auto-reply, Analitik.
+            { name: "Template Meta", href: "/crm/whatsapp/templates", icon: FileText },
+            // Fitur menyusul (Fase 6+): Broadcast, Auto-reply, Analitik.
             { name: "Pengaturan Channel", href: "/crm/whatsapp/settings", icon: Settings, managerOnly: true },
         ],
     },
