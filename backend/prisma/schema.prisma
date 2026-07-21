@@ -5,7 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   // Sertakan engine Windows agar backend bisa dipaket & jalan di aplikasi desktop
   // Windows (mode 100% offline). "native" = OS build/dev; tambah target lain bila perlu.
   binaryTargets = ["native", "windows"]
@@ -79,6 +79,9 @@ model User {
   followUpsAssigned FollowUp[]               @relation("FollowUpAssignee")
   followUpsCreated  FollowUp[]               @relation("FollowUpCreatedBy")
   csRatings         CsRatingResponse[]
+  // WhatsApp CRM
+  waConversations   WaConversation[]         @relation("WaConversationAssignee")
+  waMessagesSent    WaMessage[]              @relation("WaMessageSender")
 
   @@index([branchId])
   @@map("users")
@@ -862,6 +865,7 @@ model Customer {
   fromLeads   Lead[]             @relation("LeadConvertedCustomer")
   activities  LeadActivity[]     @relation("CustomerActivities")
   followUps   FollowUp[]         @relation("CustomerFollowUps")
+  waContacts  WaContact[]
 
   @@index([assignedCsId])
   @@index([updatedAt]) // delta-sync: pull "where updatedAt > since"
@@ -1493,16 +1497,16 @@ model SalesOrder {
 }
 
 model SalesOrderItem {
-  id               Int     @id @default(autoincrement())
-  salesOrderId     Int     @map("sales_order_id")
-  productVariantId Int     @map("product_variant_id")
+  id               Int      @id @default(autoincrement())
+  salesOrderId     Int      @map("sales_order_id")
+  productVariantId Int      @map("product_variant_id")
   quantity         Int
-  widthCm          Float?  @map("width_cm")
-  heightCm         Float?  @map("height_cm")
-  unitType         String? @map("unit_type") @db.VarChar(10)
+  widthCm          Float?   @map("width_cm")
+  heightCm         Float?   @map("height_cm")
+  unitType         String?  @map("unit_type") @db.VarChar(10)
   pcs              Int?
-  customPrice      Float?  @map("custom_price")
-  note             String? @db.Text
+  customPrice      Float?   @map("custom_price")
+  note             String?  @db.Text
   updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") // delta-sync offline
 
   salesOrder     SalesOrder     @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
@@ -1588,6 +1592,7 @@ model CompanyBranch {
   csRatingConfigs        CsRatingConfig[]
   csRatings              CsRatingResponse[]
   printerDevices         PrinterDevice[]
+  waChannels             WaChannel[]
 
   @@map("company_branches")
 }
@@ -1872,6 +1877,7 @@ model Lead {
   followUps         FollowUp[]
   items             LeadItem[]
   images            LeadImage[]
+  waContacts        WaContact[]
 
   @@index([status, followUpDate])
   @@index([assignedToId, status])
@@ -2039,4 +2045,162 @@ model SyncPush {
 
   @@index([pushedAt])
   @@map("sync_push")
+}
+
+// ─── WhatsApp CRM (Cloud API resmi Meta) — modul whatsapp-cloud ───────────────
+// TERPISAH dari bot lama whatsapp-web.js (src/whatsapp). PER CABANG: tiap
+// WaChannel = 1 nomor (phone_number_id dari Meta). Rilis pertama (Fase 0-4):
+// inbox multi-agen + sinkron chat ke Lead/Customer. Broadcast/template/auto-reply
+// (Fase 5+) ditambahkan pada fasenya masing-masing.
+
+enum WaDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum WaMessageType {
+  TEXT
+  IMAGE
+  DOCUMENT
+  AUDIO
+  VIDEO
+  STICKER
+  TEMPLATE
+  LOCATION
+  CONTACT
+  INTERACTIVE
+  UNKNOWN
+}
+
+enum WaMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum WaConversationStatus {
+  OPEN
+  PENDING
+  SNOOZED
+  CLOSED
+}
+
+// Satu nomor WhatsApp Business terdaftar (per cabang). phone_number_id & waba_id
+// dari Meta; token/app_secret TIDAK di sini (ada di env, Business-level).
+model WaChannel {
+  id            Int      @id @default(autoincrement())
+  label         String   @db.VarChar(100) // "CS Pusat", "Cabang Betoyo"
+  phoneNumberId String   @unique @map("phone_number_id") @db.VarChar(50) // dari Meta (rute webhook)
+  wabaId        String   @map("waba_id") @db.VarChar(50)
+  displayNumber String?  @map("display_number") @db.VarChar(30) // 628xxx (info tampilan)
+  branchId      Int?     @map("branch_id") // null = global (semua cabang)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  branch        CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  conversations WaConversation[]
+  messages      WaMessage[]
+
+  @@index([branchId])
+  @@map("wa_channels")
+}
+
+// Identitas kontak WA <-> tautan CRM. waId = 62xxx (toWaPhone), phoneNormalized =
+// 81xxx (samakan Lead.phoneNormalized via toLeadKey) untuk pencocokan.
+model WaContact {
+  id              Int       @id @default(autoincrement())
+  waId            String    @unique @map("wa_id") @db.VarChar(30)
+  phoneNormalized String    @map("phone_normalized") @db.VarChar(30)
+  profileName     String?   @map("profile_name") @db.VarChar(200)
+  leadId          Int?      @map("lead_id")
+  customerId      Int?      @map("customer_id")
+  optedOut        Boolean   @default(false) @map("opted_out")
+  optedOutAt      DateTime? @map("opted_out_at")
+  lastInboundAt   DateTime? @map("last_inbound_at") // basis jendela layanan 24 jam
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  lead          Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer      Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversations WaConversation[]
+  messages      WaMessage[]
+
+  @@index([phoneNormalized])
+  @@index([leadId])
+  @@index([customerId])
+  @@map("wa_contacts")
+}
+
+// Thread percakapan inbox (per channel + contact). windowExpiresAt = lastInbound+24j.
+model WaConversation {
+  id              Int                  @id @default(autoincrement())
+  channelId       Int                  @map("channel_id")
+  contactId       Int                  @map("contact_id")
+  status          WaConversationStatus @default(OPEN)
+  assignedToId    Int?                 @map("assigned_to_id")
+  lastMessageAt   DateTime?            @map("last_message_at")
+  windowExpiresAt DateTime?            @map("window_expires_at")
+  unreadCount     Int                  @default(0) @map("unread_count")
+  snoozedUntil    DateTime?            @map("snoozed_until")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+
+  channel    WaChannel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  contact    WaContact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedTo User?       @relation("WaConversationAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages   WaMessage[]
+
+  @@index([status])
+  @@index([assignedToId])
+  @@index([channelId, lastMessageAt])
+  @@map("wa_conversations")
+}
+
+// Pesan masuk/keluar. waMessageId (id Meta) unik = idempotensi anti-duplikat webhook.
+model WaMessage {
+  id             Int             @id @default(autoincrement())
+  channelId      Int             @map("channel_id")
+  conversationId Int             @map("conversation_id")
+  contactId      Int             @map("contact_id")
+  waMessageId    String?         @unique @map("wa_message_id") @db.VarChar(128)
+  direction      WaDirection
+  type           WaMessageType   @default(TEXT)
+  status         WaMessageStatus @default(QUEUED)
+  body           String?         @db.Text // teks / caption
+  templateName   String?         @map("template_name") @db.VarChar(120)
+  mediaUrl       String?         @map("media_url") @db.Text
+  mediaMimeType  String?         @map("media_mime_type") @db.VarChar(100)
+  payloadJson    Json?           @map("payload_json") // raw payload utk audit/interaktif
+  errorCode      String?         @map("error_code") @db.VarChar(40)
+  errorMessage   String?         @map("error_message") @db.Text
+  sentById       Int?            @map("sent_by_id") // User agen (outbound manual)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  channel      WaChannel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact      WaContact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sentBy       User?          @relation("WaMessageSender", fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([status])
+  @@map("wa_messages")
+}
+
+// Log mentah webhook Meta (audit + retry aman). Bukan idempotensi (bisa banyak
+// status per pesan) — dedup pembuatan pesan pakai WaMessage.waMessageId.
+model WaWebhookEvent {
+  id          Int      @id @default(autoincrement())
+  eventType   String   @map("event_type") @db.VarChar(30) // "message" | "status"
+  waMessageId String?  @map("wa_message_id") @db.VarChar(128)
+  payloadJson Json     @map("payload_json")
+  processed   Boolean  @default(false)
+  error       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([processed])
+  @@map("wa_webhook_events")
 }

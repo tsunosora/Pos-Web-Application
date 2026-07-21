@@ -106,6 +106,12 @@ export const BACKUP_GROUPS = {
         label: 'Delta Sync Offline — jejak idempotensi',
         tables: ['syncedOp', 'syncState', 'syncPush', 'device'],
     },
+    whatsapp: {
+        label: 'WhatsApp CRM — channel, kontak, percakapan, pesan',
+        // Cloud API resmi (modul whatsapp-cloud). Fase 5+ (broadcast/template)
+        // akan menambah tabelnya sendiri di sini saat dibuat.
+        tables: ['waChannel', 'waContact', 'waConversation', 'waMessage', 'waWebhookEvent'],
+    },
 } as const;
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
@@ -122,7 +128,7 @@ export function storeSlug(name?: string | null): string {
 }
 
 // Urutan restore — penting untuk FK integrity
-const RESTORE_ORDER = [
+export const RESTORE_ORDER = [
     'role', 'storeSettings', 'discordConfig', 'productionCategory', 'category', 'unit', 'branch', 'competitor',
     'companyBranch',                            // tenant root — sebelum semua model operasional ber-branchId
     'bankAccount',                              // FK → companyBranch
@@ -182,6 +188,12 @@ const RESTORE_ORDER = [
     'syncedOp',
     'syncState',
     'syncPush',
+    // WhatsApp CRM — setelah companyBranch, user, lead, customer (semua FK-nya).
+    'waChannel',                                // FK → companyBranch (nullable)
+    'waContact',                                // FK → lead, customer (nullable)
+    'waConversation',                           // FK → waChannel, waContact, user
+    'waMessage',                                // FK → waChannel, waConversation, waContact, user
+    'waWebhookEvent',                           // standalone (audit log)
 ];
 
 // Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)
