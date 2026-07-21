@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
     X, Settings, FileText, Megaphone, Bot, BellRing, BarChart3, Inbox, ArrowRight, CheckCircle2,
 } from "lucide-react";
@@ -23,18 +24,31 @@ const FEATURES: Array<{ icon: typeof Inbox; name: string; roles: string; desc: s
 ];
 
 export function WhatsappGuideModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+    // Portal hanya di klien (hindari mismatch SSR).
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => setMounted(true), []);
+
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
         window.addEventListener("keydown", onKey);
-        return () => window.removeEventListener("keydown", onKey);
+        // Kunci scroll body selama modal terbuka.
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            window.removeEventListener("keydown", onKey);
+            document.body.style.overflow = prev;
+        };
     }, [open, onClose]);
 
-    if (!open) return null;
+    if (!open || !mounted) return null;
 
-    return (
+    // Portal ke <body> agar tidak terpotong/terkurung oleh panel inbox yang
+    // punya `overflow-hidden` + `backdrop-blur` (backdrop-filter membuat
+    // containing block baru untuk elemen position:fixed).
+    return createPortal(
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
             onClick={onClose}
         >
             <div
@@ -103,6 +117,7 @@ export function WhatsappGuideModal({ open, onClose }: { open: boolean; onClose: 
                     <p className="text-[11px] opacity-40">Panduan lengkap: backend/src/whatsapp-cloud/README.md</p>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
