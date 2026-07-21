@@ -1,6 +1,7 @@
 import {
     Body,
     Controller,
+    Delete,
     Get,
     Param,
     ParseIntPipe,
@@ -14,7 +15,11 @@ import { WaConversationStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { WhatsappCloudService } from './whatsapp-cloud.service';
+import {
+    WhatsappCloudService,
+    type CreateChannelInput,
+    type UpdateChannelInput,
+} from './whatsapp-cloud.service';
 import { InboxService } from './inbox.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
@@ -34,6 +39,36 @@ export class WhatsappCloudController {
     @Get('health')
     health() {
         return this.service.healthCheck();
+    }
+
+    // ─── Manajemen Channel (nomor per cabang) — Owner/Admin ──────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Get('channels')
+    listChannels() {
+        return this.service.listChannels();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('channels')
+    createChannel(@Body() body: CreateChannelInput) {
+        return this.service.createChannel(body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Patch('channels/:id')
+    updateChannel(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateChannelInput) {
+        return this.service.updateChannel(id, body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Delete('channels/:id')
+    deleteChannel(@Param('id', ParseIntPipe) id: number) {
+        return this.service.deleteChannel(id);
     }
 
     // ─── Inbox ───────────────────────────────────────────────────────────────

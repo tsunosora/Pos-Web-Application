@@ -106,6 +106,40 @@ export interface WaHealth {
 
 export const getWaHealth = async (): Promise<WaHealth> => (await api.get('/whatsapp/health')).data;
 
+// ─── Channel (nomor per cabang) ────────────────────────────────────────────
+
+export interface WaChannel {
+    id: number;
+    label: string;
+    phoneNumberId: string;
+    wabaId: string;
+    displayNumber: string | null;
+    branchId: number | null;
+    isActive: boolean;
+    branch?: { id: number; name: string } | null;
+    _count?: { conversations: number };
+}
+
+export interface CreateChannelBody {
+    label: string;
+    phoneNumberId: string;
+    wabaId: string;
+    displayNumber?: string | null;
+    branchId?: number | null;
+}
+export type UpdateChannelBody = Partial<Omit<CreateChannelBody, 'phoneNumberId'>> & { isActive?: boolean };
+
+export const listWaChannels = async (): Promise<WaChannel[]> => (await api.get('/whatsapp/channels')).data;
+
+export const createWaChannel = async (data: CreateChannelBody): Promise<WaChannel> =>
+    (await api.post('/whatsapp/channels', data)).data;
+
+export const updateWaChannel = async (id: number, data: UpdateChannelBody): Promise<WaChannel> =>
+    (await api.patch(`/whatsapp/channels/${id}`, data)).data;
+
+export const deleteWaChannel = async (id: number): Promise<{ ok: boolean }> =>
+    (await api.delete(`/whatsapp/channels/${id}`)).data;
+
 /** Apakah percakapan masih dalam jendela layanan 24 jam (boleh kirim teks bebas). */
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings } from "lucide-react";
 import {
     listWaConversations, getWaMessages, replyWaText, updateWaConversation,
     isWindowOpen, WA_STATUS_LABEL,
@@ -121,6 +122,9 @@ export default function WhatsappInboxPage() {
                     <div className="flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-emerald-500" />
                         <h1 className="font-semibold">WhatsApp CRM</h1>
+                        <Link href="/crm/whatsapp/settings" title="Pengaturan channel" className="ml-auto p-1.5 rounded-lg hover:bg-muted">
+                            <Settings className="w-4 h-4 opacity-70" />
+                        </Link>
                     </div>
                     <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50" />
