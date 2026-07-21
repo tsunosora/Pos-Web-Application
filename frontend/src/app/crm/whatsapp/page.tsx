@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, HelpCircle } from "lucide-react";
+import { WhatsappGuideModal } from "@/components/whatsapp/WhatsappGuideModal";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
@@ -89,6 +90,7 @@ export default function WhatsappInboxPage() {
         if (selectedId != null) qc.invalidateQueries({ queryKey: ["wa-convos"] });
     }, [msgData, selectedId, qc]);
 
+    const [showGuide, setShowGuide] = useState(false);
     const [draft, setDraft] = useState("");
     const replyMut = useMutation({
         mutationFn: (text: string) => replyWaText(selectedId as number, text),
@@ -141,13 +143,17 @@ export default function WhatsappInboxPage() {
 
     return (
         <div className="flex h-[calc(100vh-8rem)] gap-3 p-3">
+            <WhatsappGuideModal open={showGuide} onClose={() => setShowGuide(false)} />
             {/* ─── Panel kiri: daftar chat ─── */}
             <aside className="w-full max-w-sm flex flex-col rounded-2xl border border-border bg-card/60 backdrop-blur overflow-hidden">
                 <div className="p-3 border-b border-border space-y-2">
                     <div className="flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-emerald-500" />
                         <h1 className="font-semibold">WhatsApp CRM</h1>
-                        <Link href="/crm/whatsapp/settings" title="Pengaturan channel" className="ml-auto p-1.5 rounded-lg hover:bg-muted">
+                        <button onClick={() => setShowGuide(true)} title="Panduan penggunaan" className="ml-auto p-1.5 rounded-lg hover:bg-muted">
+                            <HelpCircle className="w-4 h-4 opacity-70" />
+                        </button>
+                        <Link href="/crm/whatsapp/settings" title="Pengaturan channel" className="p-1.5 rounded-lg hover:bg-muted">
                             <Settings className="w-4 h-4 opacity-70" />
                         </Link>
                     </div>

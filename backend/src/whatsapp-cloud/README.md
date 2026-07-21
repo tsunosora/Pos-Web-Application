@@ -59,3 +59,53 @@ WA_VERIFY_TOKEN, WA_BROADCAST_RATE_PER_SEC
 - **Signature webhook gagal:** pastikan raw body aktif & `WA_APP_SECRET` benar.
 - **Template ditolak:** cek kategori (MARKETING/UTILITY/AUTHENTICATION) & isi; lihat alasan di dashboard Meta.
 - **Rate limit / quality turun:** kurangi laju broadcast (`WA_BROADCAST_RATE_PER_SEC`), hormati opt-out.
+
+---
+
+## Alur Penggunaan (Setup → Fitur → Peran)
+
+> Versi ringkas juga tersedia in-app: tombol **Panduan (?)** di header Inbox.
+
+### Peran & akses
+```
+ Fitur / Halaman          │ Owner/Admin │ Marketing │  CS  │ Operator
+ ─────────────────────────┼─────────────┼───────────┼──────┼─────────
+ Pengaturan Channel       │     ✅      │    ✖      │  ✖   │   ✖
+ Template Meta            │     ✅      │    ✅     │  ✖   │   ✖
+ Broadcast                │     ✅      │    ✅     │  ✖   │   ✖
+ Balasan Otomatis         │     ✅      │    ✅     │  ✖   │   ✖
+ Reminder POS             │     ✅      │    ✅     │  ✖   │   ✖
+ Analitik                 │     ✅      │    ✖      │  ✖   │   ✖
+ Inbox Chat (balas)       │     ✅      │    ✅     │  ✅  │   ✖
+```
+Guard backend: `ADMIN_ROLES` (Owner/Admin) · `TEMPLATE_ROLES` (+Marketing) · `INBOX_ROLES` (+CS).
+
+### Setup awal (sekali — Owner/Admin)
+```
+ Meta Business + App ─▶ WABA + nomor tiap cabang ─▶ System User token permanen
+   ─▶ isi .env (WA_ACCESS_TOKEN/APP_SECRET/VERIFY_TOKEN, WA_CLOUD_ENABLED=true) ─▶ restart
+   ─▶ set Webhook Meta /whatsapp/webhook (field: messages)
+   ─▶ UI "Pengaturan Channel": daftar phone_number_id per cabang ─▶ "Cek koneksi" ✅
+```
+
+### Alur pesan masuk (otomatis)
+```
+ Pelanggan ─▶ Meta ─▶ [webhook cek tanda tangan] ─▶ route cabang (phone_number_id)
+   ─▶ simpan pesan (idempoten) ─▶ tautkan Lead / AUTO-CREATE Lead WHATSAPP
+   ─▶ percakapan OPEN (24 jam) + auto-reply ─▶ muncul di INBOX ─▶ agen balas
+```
+
+### Alur tiap fitur
+```
+ Inbox      : pilih chat ─▶ Ambil ─▶ (dalam 24 jam) teks / (luar) template ─▶ Selesai
+ Template   : buat draf ─▶ Submit Meta ─▶ Sinkron ─▶ APPROVED/REJECTED
+ Broadcast  : template APPROVED + segmen (opt-out dikecualikan) + variabel ─▶ preview ─▶ (jadwal) ─▶ kirim ⏸▶✖
+ Auto-reply : KEYWORD ─▶ GREETING(chat baru) ─▶ DEFAULT ; "STOP" = opt-out ; skip bila agen aktif <30mnt
+ Reminder   : ORDER_READY (saat SIAP AMBIL) · PAYMENT_DUE · FOLLOWUP_DUE (cron 15mnt) — template, dedup
+ Analitik   : rentang 7/30/90 hari + filter channel ─▶ kartu metrik + grafik harian
+```
+
+### Ingat
+- Di luar **jendela 24 jam** hanya boleh **template** APPROVED.
+- Kontak **opt-out** (balas STOP) otomatis dilewati di semua fitur.
+- Broadcast & reminder wajib template ber-status **APPROVED**.
