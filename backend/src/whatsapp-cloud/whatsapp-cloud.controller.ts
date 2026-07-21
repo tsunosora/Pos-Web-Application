@@ -22,6 +22,7 @@ import {
 } from './whatsapp-cloud.service';
 import { InboxService } from './inbox.service';
 import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } from './templates.service';
+import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './broadcast.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
@@ -34,6 +35,7 @@ export class WhatsappCloudController {
         private readonly service: WhatsappCloudService,
         private readonly inbox: InboxService,
         private readonly templates: TemplatesService,
+        private readonly broadcasts: BroadcastService,
     ) {}
 
     /** Verifikasi kredensial Cloud API tiap channel aktif (tanpa kirim pesan). */
@@ -116,6 +118,64 @@ export class WhatsappCloudController {
     @Post('templates/:id/submit')
     submitTemplate(@Param('id', ParseIntPipe) id: number, @Body() body: { channelId: number }) {
         return this.templates.submit(id, body.channelId);
+    }
+
+    // ─── Broadcast (Owner/Admin/Marketing) ──────────────────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('broadcasts')
+    listBroadcasts() {
+        return this.broadcasts.list();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('broadcasts/preview')
+    previewBroadcast(@Body() body: { segment?: SegmentDef }) {
+        return this.broadcasts.preview(body.segment);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('broadcasts')
+    createBroadcast(@Req() req: any, @Body() body: CreateBroadcastInput) {
+        return this.broadcasts.create(body, req.user?.userId);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('broadcasts/:id')
+    broadcastReport(@Param('id', ParseIntPipe) id: number) {
+        return this.broadcasts.report(id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('broadcasts/:id/run')
+    runBroadcast(@Param('id', ParseIntPipe) id: number) {
+        return this.broadcasts.run(id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('broadcasts/:id/pause')
+    pauseBroadcast(@Param('id', ParseIntPipe) id: number) {
+        return this.broadcasts.pause(id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('broadcasts/:id/resume')
+    resumeBroadcast(@Param('id', ParseIntPipe) id: number) {
+        return this.broadcasts.resume(id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('broadcasts/:id/cancel')
+    cancelBroadcast(@Param('id', ParseIntPipe) id: number) {
+        return this.broadcasts.cancel(id);
     }
 
     // ─── Inbox ───────────────────────────────────────────────────────────────

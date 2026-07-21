@@ -2103,6 +2103,7 @@ model WaChannel {
   branch        CompanyBranch?   @relation(fields: [branchId], references: [id], onDelete: SetNull)
   conversations WaConversation[]
   messages      WaMessage[]
+  broadcasts    WaBroadcast[]
 
   @@index([branchId])
   @@map("wa_channels")
@@ -2123,10 +2124,11 @@ model WaContact {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  lead          Lead?            @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  customer      Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  conversations WaConversation[]
-  messages      WaMessage[]
+  lead                Lead?                  @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer            Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversations       WaConversation[]
+  messages            WaMessage[]
+  broadcastRecipients WaBroadcastRecipient[]
 
   @@index([phoneNormalized])
   @@index([leadId])
@@ -2177,6 +2179,7 @@ model WaMessage {
   errorCode      String?         @map("error_code") @db.VarChar(40)
   errorMessage   String?         @map("error_message") @db.Text
   sentById       Int?            @map("sent_by_id") // User agen (outbound manual)
+  broadcastId    Int?            @map("broadcast_id") // pesan hasil broadcast (null = chat biasa)
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
 
@@ -2184,9 +2187,11 @@ model WaMessage {
   conversation WaConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   contact      WaContact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
   sentBy       User?          @relation("WaMessageSender", fields: [sentById], references: [id], onDelete: SetNull)
+  broadcast    WaBroadcast?   @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
 
   @@index([conversationId, createdAt])
   @@index([status])
+  @@index([broadcastId])
   @@map("wa_messages")
 }
 
@@ -2237,6 +2242,76 @@ model WaTemplate {
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
 
+  broadcasts WaBroadcast[]
+
   @@unique([name, language])
   @@map("wa_templates")
+}
+
+// Status kampanye broadcast (blast template ke banyak kontak).
+enum WaBroadcastStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// Status pengiriman per penerima broadcast.
+enum WaRecipientStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SKIPPED
+}
+
+// Kampanye broadcast: kirim satu template ke segmen kontak (opt-out dihormati).
+model WaBroadcast {
+  id              Int               @id @default(autoincrement())
+  name            String            @db.VarChar(150)
+  channelId       Int               @map("channel_id")
+  templateId      Int               @map("template_id")
+  status          WaBroadcastStatus @default(DRAFT)
+  scheduledAt     DateTime?         @map("scheduled_at")
+  startedAt       DateTime?         @map("started_at")
+  completedAt     DateTime?         @map("completed_at")
+  segmentJson     Json?             @map("segment_json") // definisi filter segmen
+  variableMapJson Json?             @map("variable_map_json") // mapping variabel template
+  totalCount      Int               @default(0) @map("total_count")
+  sentCount       Int               @default(0) @map("sent_count")
+  failedCount     Int               @default(0) @map("failed_count")
+  createdById     Int?              @map("created_by_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  channel    WaChannel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  template   WaTemplate             @relation(fields: [templateId], references: [id])
+  recipients WaBroadcastRecipient[]
+  messages   WaMessage[]
+
+  @@index([status])
+  @@map("wa_broadcasts")
+}
+
+model WaBroadcastRecipient {
+  id           Int               @id @default(autoincrement())
+  broadcastId  Int               @map("broadcast_id")
+  contactId    Int               @map("contact_id")
+  waId         String            @map("wa_id") @db.VarChar(30)
+  status       WaRecipientStatus @default(PENDING)
+  waMessageId  String?           @map("wa_message_id") @db.VarChar(128)
+  errorMessage String?           @map("error_message") @db.Text
+  sentAt       DateTime?         @map("sent_at")
+  createdAt    DateTime          @default(now()) @map("created_at")
+
+  broadcast WaBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   WaContact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, contactId])
+  @@index([status])
+  @@map("wa_broadcast_recipients")
 }

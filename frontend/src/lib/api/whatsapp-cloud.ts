@@ -194,6 +194,64 @@ export const submitWaTemplate = async (id: number, channelId: number): Promise<W
 export const syncWaTemplates = async (channelId: number): Promise<{ fetched: number; updated: number }> =>
     (await api.post('/whatsapp/templates/sync', { channelId })).data;
 
+// ─── Broadcast ─────────────────────────────────────────────────────────────
+
+export type WaBroadcastStatus = 'DRAFT' | 'SCHEDULED' | 'RUNNING' | 'PAUSED' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+
+export interface SegmentDef {
+    onlyLinked?: boolean;
+    leadStatus?: string;
+}
+export interface VariableMapItem {
+    source: 'profileName' | 'static';
+    value?: string;
+}
+export interface WaBroadcast {
+    id: number;
+    name: string;
+    channelId: number;
+    templateId: number;
+    status: WaBroadcastStatus;
+    scheduledAt: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    totalCount: number;
+    sentCount: number;
+    failedCount: number;
+    createdAt: string;
+    channel?: { id: number; label: string };
+    template?: { id: number; name: string; status: string };
+}
+export interface CreateBroadcastBody {
+    name: string;
+    channelId: number;
+    templateId: number;
+    segment?: SegmentDef;
+    variableMap?: VariableMapItem[];
+    scheduledAt?: string | null;
+}
+
+export const WA_BROADCAST_STATUS_LABEL: Record<WaBroadcastStatus, string> = {
+    DRAFT: 'Draf', SCHEDULED: 'Terjadwal', RUNNING: 'Berjalan', PAUSED: 'Dijeda',
+    COMPLETED: 'Selesai', FAILED: 'Gagal', CANCELLED: 'Dibatalkan',
+};
+
+export const listWaBroadcasts = async (): Promise<WaBroadcast[]> => (await api.get('/whatsapp/broadcasts')).data;
+
+export const previewBroadcast = async (segment?: SegmentDef): Promise<{ count: number }> =>
+    (await api.post('/whatsapp/broadcasts/preview', { segment })).data;
+
+export const createWaBroadcast = async (data: CreateBroadcastBody): Promise<WaBroadcast> =>
+    (await api.post('/whatsapp/broadcasts', data)).data;
+
+export const getWaBroadcastReport = async (id: number): Promise<{ broadcast: WaBroadcast; counts: Record<string, number> }> =>
+    (await api.get(`/whatsapp/broadcasts/${id}`)).data;
+
+export const runWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/run`)).data;
+export const pauseWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/pause`)).data;
+export const resumeWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/resume`)).data;
+export const cancelWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/cancel`)).data;
+
 /** Apakah percakapan masih dalam jendela layanan 24 jam (boleh kirim teks bebas). */
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();

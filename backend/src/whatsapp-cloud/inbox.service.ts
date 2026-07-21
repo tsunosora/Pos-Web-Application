@@ -241,8 +241,12 @@ export class InboxService {
         }
         const existing = await this.prisma.waMessage.findUnique({ where: { waMessageId } });
         if (!existing) {
-            // Status untuk pesan yang belum tercatat (mis. balasan out via jalur lain) — simpan audit saja.
-            await this.logEvent('status', waMessageId, st, 'pesan tak ditemukan utk status ini');
+            // Pesan broadcast tidak menyimpan WaMessage — update status recipient by waMessageId.
+            const upd = await this.prisma.waBroadcastRecipient.updateMany({
+                where: { waMessageId },
+                data: { status: mapped as any },
+            });
+            await this.logEvent('status', waMessageId, st, upd.count ? undefined : 'pesan tak ditemukan utk status ini');
             return;
         }
 
