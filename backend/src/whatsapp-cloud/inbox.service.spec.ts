@@ -44,7 +44,7 @@ const textPayload = (over: any = {}) => ({
 describe('InboxService.ingestWebhook', () => {
     it('pesan pertama: buat kontak, percakapan (jendela 24 jam), & pesan masuk', async () => {
         const prisma = makePrisma();
-        const service = new InboxService(prisma as any);
+        const service = new InboxService(prisma as any, {} as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -75,7 +75,7 @@ describe('InboxService.ingestWebhook', () => {
     it('idempoten: pesan yg sudah tersimpan dilewati', async () => {
         const prisma = makePrisma();
         prisma.waMessage.findUnique.mockResolvedValue({ id: 99, waMessageId: 'wamid.1' });
-        const service = new InboxService(prisma as any);
+        const service = new InboxService(prisma as any, {} as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -85,7 +85,7 @@ describe('InboxService.ingestWebhook', () => {
 
     it('channel tak dikenal: catat error, jangan buat data', async () => {
         const prisma = makePrisma({ waChannel: { findUnique: jest.fn().mockResolvedValue(null) } });
-        const service = new InboxService(prisma as any);
+        const service = new InboxService(prisma as any, {} as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -98,7 +98,7 @@ describe('InboxService.ingestWebhook', () => {
         const prisma = makePrisma();
         prisma.lead.findFirst.mockResolvedValue({ id: 5, convertedCustomerId: 7 });
         prisma.waContact.upsert.mockResolvedValue({ id: 20, leadId: 5, customerId: 7 });
-        const service = new InboxService(prisma as any);
+        const service = new InboxService(prisma as any, {} as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -116,7 +116,7 @@ describe('InboxService.ingestWebhook', () => {
     it('percakapan lama yg terbuka dipakai ulang & jendela diperbarui', async () => {
         const prisma = makePrisma();
         prisma.waConversation.findFirst.mockResolvedValue({ id: 33, status: 'OPEN' });
-        const service = new InboxService(prisma as any);
+        const service = new InboxService(prisma as any, {} as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -144,7 +144,7 @@ describe('InboxService.ingestWebhook', () => {
         it('read → update status pesan jadi READ', async () => {
             const prisma = makePrisma();
             prisma.waMessage.findUnique.mockResolvedValue({ id: 1, waMessageId: 'wamid.OUT', status: 'DELIVERED' });
-            const service = new InboxService(prisma as any);
+            const service = new InboxService(prisma as any, {} as any);
 
             await service.ingestWebhook(statusPayload('read'));
 
@@ -155,11 +155,77 @@ describe('InboxService.ingestWebhook', () => {
         it('tidak memundurkan status (READ lalu delivered → tak update)', async () => {
             const prisma = makePrisma();
             prisma.waMessage.findUnique.mockResolvedValue({ id: 1, waMessageId: 'wamid.OUT', status: 'READ' });
-            const service = new InboxService(prisma as any);
+            const service = new InboxService(prisma as any, {} as any);
 
             await service.ingestWebhook(statusPayload('delivered'));
 
             expect(prisma.waMessage.update).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('InboxService.replyText — guard jendela 24 jam', () => {
+    const HOUR = 3600 * 1000;
+    const baseConv = (windowExpiresAt: Date | null, optedOut = false) => ({
+        id: 1, channelId: 10, contactId: 20, windowExpiresAt,
+        channel: { phoneNumberId: 'PN1' },
+        contact: { waId: '6281234567890', optedOut },
+    });
+
+    function makeReplyPrisma(conv: any) {
+        return {
+            waConversation: {
+                findUnique: jest.fn().mockResolvedValue(conv),
+                update: jest.fn().mockResolvedValue({}),
+            },
+            waMessage: { create: jest.fn().mockResolvedValue({ id: 77 }) },
+        };
+    }
+
+    it('mengirim teks & simpan OUTBOUND saat jendela masih terbuka', async () => {
+        const prisma = makeReplyPrisma(baseConv(new Date(Date.now() + 2 * HOUR)));
+        const cloud = { sendText: jest.fn().mockResolvedValue({ waMessageId: 'wamid.OUT' }) };
+        const service = new InboxService(prisma as any, cloud as any);
+
+        const msg = await service.replyText(1, 99, 'Baik kak');
+
+        expect(cloud.sendText).toHaveBeenCalledWith('PN1', '6281234567890', 'Baik kak');
+        expect(prisma.waMessage.create.mock.calls[0][0].data).toMatchObject({
+            direction: 'OUTBOUND', type: 'TEXT', status: 'SENT', body: 'Baik kak',
+            sentById: 99, waMessageId: 'wamid.OUT',
+        });
+        expect(msg).toEqual({ id: 77 });
+    });
+
+    it('menolak (409) saat di luar jendela 24 jam', async () => {
+        const prisma = makeReplyPrisma(baseConv(new Date(Date.now() - HOUR)));
+        const cloud = { sendText: jest.fn() };
+        const service = new InboxService(prisma as any, cloud as any);
+
+        await expect(service.replyText(1, 99, 'telat')).rejects.toThrow(/24 jam|template/i);
+        expect(cloud.sendText).not.toHaveBeenCalled();
+    });
+
+    it('menolak saat kontak opt-out', async () => {
+        const prisma = makeReplyPrisma(baseConv(new Date(Date.now() + HOUR), true));
+        const cloud = { sendText: jest.fn() };
+        const service = new InboxService(prisma as any, cloud as any);
+
+        await expect(service.replyText(1, 99, 'x')).rejects.toThrow(/opt-out/i);
+        expect(cloud.sendText).not.toHaveBeenCalled();
+    });
+
+    it('replyTemplate mengirim template tanpa guard 24 jam', async () => {
+        const prisma = makeReplyPrisma(baseConv(new Date(Date.now() - 10 * HOUR)));
+        const cloud = { sendTemplate: jest.fn().mockResolvedValue({ waMessageId: 'wamid.TPL' }) };
+        const service = new InboxService(prisma as any, cloud as any);
+
+        const msg = await service.replyTemplate(1, 99, { name: 'followup', language: 'id' });
+
+        expect(cloud.sendTemplate).toHaveBeenCalledWith('PN1', '6281234567890', 'followup', 'id', []);
+        expect(prisma.waMessage.create.mock.calls[0][0].data).toMatchObject({
+            direction: 'OUTBOUND', type: 'TEMPLATE', templateName: 'followup', sentById: 99,
+        });
+        expect(msg).toEqual({ id: 77 });
     });
 });

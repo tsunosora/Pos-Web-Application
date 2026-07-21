@@ -1,7 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
+import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma, WaConversationStatus, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudApiService } from './cloud-api.service';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
+
+export interface ListConversationsOpts {
+    status?: WaConversationStatus;
+    assignedToId?: number;
+    channelId?: number;
+    branchId?: number;
+    q?: string;
+    cursor?: number;
+    take?: number;
+}
 
 const WINDOW_MS = 24 * 60 * 60 * 1000; // jendela layanan 24 jam Meta
 
@@ -36,7 +47,10 @@ const STATUS_MAP: Record<string, WaMessageStatus> = {
 export class InboxService {
     private readonly logger = new Logger(InboxService.name);
 
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        private readonly cloud: CloudApiService,
+    ) {}
 
     /** Titik masuk: iterasi entry/changes payload webhook. Tak pernah melempar
      *  (webhook wajib balas 200) — error di-log & disimpan di WaWebhookEvent. */
@@ -249,5 +263,166 @@ export class InboxService {
             },
         });
         await this.logEvent('status', waMessageId, st);
+    }
+
+    // ─── Query & aksi inbox (Fase 4) ─────────────────────────────────────────
+
+    private static readonly CONTACT_SELECT = {
+        id: true, waId: true, profileName: true, phoneNormalized: true,
+        leadId: true, customerId: true, optedOut: true,
+    };
+
+    /** Daftar percakapan dgn filter + paginasi cursor (lastMessageAt desc). */
+    async listConversations(opts: ListConversationsOpts) {
+        const take = Math.min(Math.max(opts.take ?? 30, 1), 100);
+        const where: Prisma.WaConversationWhereInput = {};
+        if (opts.status) where.status = opts.status;
+        if (opts.assignedToId !== undefined) where.assignedToId = opts.assignedToId;
+        if (opts.channelId) where.channelId = opts.channelId;
+        if (opts.branchId) where.channel = { branchId: opts.branchId };
+        if (opts.q) {
+            where.contact = {
+                OR: [
+                    { profileName: { contains: opts.q } },
+                    { waId: { contains: opts.q } },
+                    { phoneNormalized: { contains: opts.q } },
+                ],
+            };
+        }
+        const rows = await this.prisma.waConversation.findMany({
+            where,
+            take: take + 1,
+            ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+            orderBy: [{ lastMessageAt: 'desc' }, { id: 'desc' }],
+            include: {
+                contact: { select: InboxService.CONTACT_SELECT },
+                assignedTo: { select: { id: true, name: true } },
+                channel: { select: { id: true, label: true, branchId: true } },
+            },
+        });
+        const hasMore = rows.length > take;
+        const items = hasMore ? rows.slice(0, take) : rows;
+        return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
+    }
+
+    async getConversation(id: number) {
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id },
+            include: {
+                contact: { select: InboxService.CONTACT_SELECT },
+                assignedTo: { select: { id: true, name: true } },
+                channel: { select: { id: true, label: true, branchId: true } },
+            },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        return conv;
+    }
+
+    /** Pesan sebuah percakapan (asc) + reset unread. Cursor = id pesan tertua. */
+    async getMessages(conversationId: number, opts: { cursor?: number; take?: number } = {}) {
+        const take = Math.min(Math.max(opts.take ?? 50, 1), 100);
+        await this.prisma.waConversation.update({
+            where: { id: conversationId },
+            data: { unreadCount: 0 },
+        });
+        const rows = await this.prisma.waMessage.findMany({
+            where: { conversationId },
+            take: take + 1,
+            ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+            orderBy: { id: 'desc' },
+            include: { sentBy: { select: { id: true, name: true } } },
+        });
+        const hasMore = rows.length > take;
+        const slice = hasMore ? rows.slice(0, take) : rows;
+        return { items: slice.reverse(), nextCursor: hasMore ? slice[0].id : null };
+    }
+
+    /** Assign agen dan/atau ubah status percakapan. */
+    async updateConversation(
+        id: number,
+        data: { assignedToId?: number | null; status?: WaConversationStatus; snoozedUntil?: Date | null },
+    ) {
+        await this.getConversation(id); // 404 bila tak ada
+        return this.prisma.waConversation.update({
+            where: { id },
+            data: {
+                ...(data.assignedToId !== undefined ? { assignedToId: data.assignedToId } : {}),
+                ...(data.status ? { status: data.status } : {}),
+                ...(data.snoozedUntil !== undefined ? { snoozedUntil: data.snoozedUntil } : {}),
+            },
+        });
+    }
+
+    /** Balas teks — HANYA sah di dalam jendela layanan 24 jam. */
+    async replyText(conversationId: number, userId: number, text: string) {
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            include: { channel: true, contact: true },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        if (conv.contact.optedOut) throw new ConflictException('Kontak sudah opt-out (berhenti berlangganan)');
+        const expired = !conv.windowExpiresAt || conv.windowExpiresAt.getTime() < Date.now();
+        if (expired) {
+            throw new ConflictException('Di luar jendela 24 jam — gunakan pesan template');
+        }
+        const { waMessageId } = await this.cloud.sendText(conv.channel.phoneNumberId, conv.contact.waId, text);
+        return this.persistOutbound(conv, userId, {
+            waMessageId,
+            type: WaMessageType.TEXT,
+            body: text,
+        });
+    }
+
+    /** Balas via template pra-approve Meta — sah kapan pun (termasuk luar 24 jam). */
+    async replyTemplate(
+        conversationId: number,
+        userId: number,
+        input: { name: string; language?: string; components?: any[]; previewText?: string },
+    ) {
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            include: { channel: true, contact: true },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        if (conv.contact.optedOut) throw new ConflictException('Kontak sudah opt-out (berhenti berlangganan)');
+        const { waMessageId } = await this.cloud.sendTemplate(
+            conv.channel.phoneNumberId,
+            conv.contact.waId,
+            input.name,
+            input.language ?? 'id',
+            input.components ?? [],
+        );
+        return this.persistOutbound(conv, userId, {
+            waMessageId,
+            type: WaMessageType.TEMPLATE,
+            body: input.previewText ?? `[template: ${input.name}]`,
+            templateName: input.name,
+        });
+    }
+
+    private async persistOutbound(
+        conv: { id: number; channelId: number; contactId: number },
+        userId: number,
+        m: { waMessageId: string | null; type: WaMessageType; body: string; templateName?: string },
+    ) {
+        const msg = await this.prisma.waMessage.create({
+            data: {
+                channelId: conv.channelId,
+                conversationId: conv.id,
+                contactId: conv.contactId,
+                waMessageId: m.waMessageId,
+                direction: WaDirection.OUTBOUND,
+                type: m.type,
+                status: WaMessageStatus.SENT,
+                body: m.body,
+                templateName: m.templateName ?? null,
+                sentById: userId,
+            },
+        });
+        await this.prisma.waConversation.update({
+            where: { id: conv.id },
+            data: { lastMessageAt: new Date() },
+        });
+        return msg;
     }
 }
