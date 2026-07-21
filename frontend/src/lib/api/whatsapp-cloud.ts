@@ -252,6 +252,40 @@ export const pauseWaBroadcast = async (id: number) => (await api.post(`/whatsapp
 export const resumeWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/resume`)).data;
 export const cancelWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/cancel`)).data;
 
+// ─── Auto-reply ────────────────────────────────────────────────────────────
+
+export type WaAutoReplyTrigger = 'KEYWORD' | 'GREETING' | 'AWAY' | 'DEFAULT';
+
+export interface WaAutoReplyRule {
+    id: number;
+    channelId: number | null;
+    trigger: WaAutoReplyTrigger;
+    keywords: string[] | null;
+    replyText: string;
+    isActive: boolean;
+    priority: number;
+}
+export interface AutoReplyBody {
+    channelId?: number | null;
+    trigger: WaAutoReplyTrigger;
+    keywords?: string[] | null;
+    replyText: string;
+    priority?: number;
+    isActive?: boolean;
+}
+
+export const WA_TRIGGER_LABEL: Record<WaAutoReplyTrigger, string> = {
+    KEYWORD: 'Kata kunci', GREETING: 'Salam pembuka', AWAY: 'Di luar jam', DEFAULT: 'Default',
+};
+
+export const listAutoReplies = async (): Promise<WaAutoReplyRule[]> => (await api.get('/whatsapp/auto-replies')).data;
+export const createAutoReply = async (data: AutoReplyBody): Promise<WaAutoReplyRule> =>
+    (await api.post('/whatsapp/auto-replies', data)).data;
+export const updateAutoReply = async (id: number, data: Partial<AutoReplyBody>): Promise<WaAutoReplyRule> =>
+    (await api.patch(`/whatsapp/auto-replies/${id}`, data)).data;
+export const deleteAutoReply = async (id: number): Promise<{ ok: boolean }> =>
+    (await api.delete(`/whatsapp/auto-replies/${id}`)).data;
+
 /** Apakah percakapan masih dalam jendela layanan 24 jam (boleh kirim teks bebas). */
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();

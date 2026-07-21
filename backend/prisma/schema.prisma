@@ -2315,3 +2315,28 @@ model WaBroadcastRecipient {
   @@index([status])
   @@map("wa_broadcast_recipients")
 }
+
+// Jenis pemicu balasan otomatis (Fase 7).
+enum WaAutoReplyTrigger {
+  KEYWORD // cocokkan kata kunci di pesan masuk
+  GREETING // pesan pertama percakapan baru
+  AWAY // fallback (mis. di luar jam kerja)
+  DEFAULT // fallback umum bila tak ada yg cocok
+}
+
+// Aturan balasan otomatis rule-based (bukan AI). Dievaluasi saat pesan masuk;
+// selalu dalam jendela 24 jam (pesan baru saja masuk) → aman kirim teks.
+model WaAutoReplyRule {
+  id        Int                @id @default(autoincrement())
+  channelId Int?               @map("channel_id") // null = berlaku semua channel
+  trigger   WaAutoReplyTrigger
+  keywords  Json? // ["harga","lokasi"] untuk trigger KEYWORD
+  replyText String             @map("reply_text") @db.Text
+  isActive  Boolean            @default(true) @map("is_active")
+  priority  Int                @default(0) // makin besar makin diprioritaskan
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  @@index([channelId, isActive])
+  @@map("wa_auto_reply_rules")
+}

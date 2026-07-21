@@ -23,6 +23,7 @@ import {
 import { InboxService } from './inbox.service';
 import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } from './templates.service';
 import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './broadcast.service';
+import { AutoReplyService, type CreateRuleInput } from './auto-reply.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
@@ -36,6 +37,7 @@ export class WhatsappCloudController {
         private readonly inbox: InboxService,
         private readonly templates: TemplatesService,
         private readonly broadcasts: BroadcastService,
+        private readonly autoReplies: AutoReplyService,
     ) {}
 
     /** Verifikasi kredensial Cloud API tiap channel aktif (tanpa kirim pesan). */
@@ -118,6 +120,36 @@ export class WhatsappCloudController {
     @Post('templates/:id/submit')
     submitTemplate(@Param('id', ParseIntPipe) id: number, @Body() body: { channelId: number }) {
         return this.templates.submit(id, body.channelId);
+    }
+
+    // ─── Auto-reply (Owner/Admin/Marketing) ─────────────────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('auto-replies')
+    listAutoReplies() {
+        return this.autoReplies.listRules();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('auto-replies')
+    createAutoReply(@Body() body: CreateRuleInput) {
+        return this.autoReplies.createRule(body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Patch('auto-replies/:id')
+    updateAutoReply(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<CreateRuleInput>) {
+        return this.autoReplies.updateRule(id, body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Delete('auto-replies/:id')
+    deleteAutoReply(@Param('id', ParseIntPipe) id: number) {
+        return this.autoReplies.removeRule(id);
     }
 
     // ─── Broadcast (Owner/Admin/Marketing) ──────────────────────────────────

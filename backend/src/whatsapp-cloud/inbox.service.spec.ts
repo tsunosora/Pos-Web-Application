@@ -1,9 +1,14 @@
 import { InboxService } from './inbox.service';
 
+const autoReplyMock = () => ({ handleInbound: jest.fn().mockResolvedValue(undefined) });
+
 function makePrisma(overrides: any = {}) {
     return {
         waChannel: { findUnique: jest.fn().mockResolvedValue({ id: 10 }) },
-        lead: { findFirst: jest.fn().mockResolvedValue(null) },
+        lead: {
+            findFirst: jest.fn().mockResolvedValue(null),
+            create: jest.fn().mockResolvedValue({ id: 5, convertedCustomerId: null }),
+        },
         waContact: { upsert: jest.fn().mockResolvedValue({ id: 20, leadId: null, customerId: null }) },
         waConversation: {
             findFirst: jest.fn().mockResolvedValue(null),
@@ -42,9 +47,12 @@ const textPayload = (over: any = {}) => ({
 });
 
 describe('InboxService.ingestWebhook', () => {
+    beforeEach(() => { process.env.WA_AUTO_CREATE_LEAD = 'false'; }); // uji perilaku dasar tanpa auto-create
+    afterAll(() => { delete process.env.WA_AUTO_CREATE_LEAD; });
+
     it('pesan pertama: buat kontak, percakapan (jendela 24 jam), & pesan masuk', async () => {
         const prisma = makePrisma();
-        const service = new InboxService(prisma as any, {} as any);
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -75,7 +83,7 @@ describe('InboxService.ingestWebhook', () => {
     it('idempoten: pesan yg sudah tersimpan dilewati', async () => {
         const prisma = makePrisma();
         prisma.waMessage.findUnique.mockResolvedValue({ id: 99, waMessageId: 'wamid.1' });
-        const service = new InboxService(prisma as any, {} as any);
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -85,7 +93,7 @@ describe('InboxService.ingestWebhook', () => {
 
     it('channel tak dikenal: catat error, jangan buat data', async () => {
         const prisma = makePrisma({ waChannel: { findUnique: jest.fn().mockResolvedValue(null) } });
-        const service = new InboxService(prisma as any, {} as any);
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -98,7 +106,7 @@ describe('InboxService.ingestWebhook', () => {
         const prisma = makePrisma();
         prisma.lead.findFirst.mockResolvedValue({ id: 5, convertedCustomerId: 7 });
         prisma.waContact.upsert.mockResolvedValue({ id: 20, leadId: 5, customerId: 7 });
-        const service = new InboxService(prisma as any, {} as any);
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
         await service.ingestWebhook(textPayload());
 
@@ -116,13 +124,38 @@ describe('InboxService.ingestWebhook', () => {
     it('percakapan lama yg terbuka dipakai ulang & jendela diperbarui', async () => {
         const prisma = makePrisma();
         prisma.waConversation.findFirst.mockResolvedValue({ id: 33, status: 'OPEN' });
-        const service = new InboxService(prisma as any, {} as any);
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
         await service.ingestWebhook(textPayload());
 
         expect(prisma.waConversation.create).not.toHaveBeenCalled();
         expect(prisma.waConversation.update).toHaveBeenCalledTimes(1);
         expect(prisma.waConversation.update.mock.calls[0][0].data.unreadCount).toEqual({ increment: 1 });
+    });
+
+    it('auto-create lead: chat baru tanpa lead → buat Lead WHATSAPP + FIRST_CONTACT', async () => {
+        process.env.WA_AUTO_CREATE_LEAD = 'true';
+        const prisma = makePrisma();
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
+
+        await service.ingestWebhook(textPayload());
+
+        expect(prisma.lead.create).toHaveBeenCalledTimes(1);
+        expect(prisma.lead.create.mock.calls[0][0].data).toMatchObject({
+            source: 'WHATSAPP', status: 'NEW', phoneNormalized: '81234567890', name: 'Budi',
+        });
+        expect(prisma.leadActivity.create.mock.calls.some((c: any) => c[0].data.kind === 'FIRST_CONTACT')).toBe(true);
+    });
+
+    it('memanggil auto-reply dgn konteks jendela terbuka', async () => {
+        const prisma = makePrisma();
+        const autoReply = autoReplyMock();
+        const service = new InboxService(prisma as any, {} as any, autoReply as any);
+
+        await service.ingestWebhook(textPayload());
+
+        expect(autoReply.handleInbound).toHaveBeenCalledTimes(1);
+        expect(autoReply.handleInbound.mock.calls[0][0]).toMatchObject({ conversationId: 30, isNew: true, body: 'Halo' });
     });
 
     describe('status callback', () => {
@@ -144,7 +177,7 @@ describe('InboxService.ingestWebhook', () => {
         it('read → update status pesan jadi READ', async () => {
             const prisma = makePrisma();
             prisma.waMessage.findUnique.mockResolvedValue({ id: 1, waMessageId: 'wamid.OUT', status: 'DELIVERED' });
-            const service = new InboxService(prisma as any, {} as any);
+            const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
             await service.ingestWebhook(statusPayload('read'));
 
@@ -155,7 +188,7 @@ describe('InboxService.ingestWebhook', () => {
         it('tidak memundurkan status (READ lalu delivered → tak update)', async () => {
             const prisma = makePrisma();
             prisma.waMessage.findUnique.mockResolvedValue({ id: 1, waMessageId: 'wamid.OUT', status: 'READ' });
-            const service = new InboxService(prisma as any, {} as any);
+            const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any);
 
             await service.ingestWebhook(statusPayload('delivered'));
 
@@ -185,7 +218,7 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
     it('mengirim teks & simpan OUTBOUND saat jendela masih terbuka', async () => {
         const prisma = makeReplyPrisma(baseConv(new Date(Date.now() + 2 * HOUR)));
         const cloud = { sendText: jest.fn().mockResolvedValue({ waMessageId: 'wamid.OUT' }) };
-        const service = new InboxService(prisma as any, cloud as any);
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any);
 
         const msg = await service.replyText(1, 99, 'Baik kak');
 
@@ -200,7 +233,7 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
     it('menolak (409) saat di luar jendela 24 jam', async () => {
         const prisma = makeReplyPrisma(baseConv(new Date(Date.now() - HOUR)));
         const cloud = { sendText: jest.fn() };
-        const service = new InboxService(prisma as any, cloud as any);
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any);
 
         await expect(service.replyText(1, 99, 'telat')).rejects.toThrow(/24 jam|template/i);
         expect(cloud.sendText).not.toHaveBeenCalled();
@@ -209,7 +242,7 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
     it('menolak saat kontak opt-out', async () => {
         const prisma = makeReplyPrisma(baseConv(new Date(Date.now() + HOUR), true));
         const cloud = { sendText: jest.fn() };
-        const service = new InboxService(prisma as any, cloud as any);
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any);
 
         await expect(service.replyText(1, 99, 'x')).rejects.toThrow(/opt-out/i);
         expect(cloud.sendText).not.toHaveBeenCalled();
@@ -218,7 +251,7 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
     it('replyTemplate mengirim template tanpa guard 24 jam', async () => {
         const prisma = makeReplyPrisma(baseConv(new Date(Date.now() - 10 * HOUR)));
         const cloud = { sendTemplate: jest.fn().mockResolvedValue({ waMessageId: 'wamid.TPL' }) };
-        const service = new InboxService(prisma as any, cloud as any);
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any);
 
         const msg = await service.replyTemplate(1, 99, { name: 'followup', language: 'id' });
 

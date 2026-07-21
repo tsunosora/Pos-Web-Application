@@ -2,6 +2,7 @@ import { ConflictException, Injectable, Logger, NotFoundException } from '@nestj
 import { Prisma, WaConversationStatus, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { AutoReplyService } from './auto-reply.service';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
 export interface ListConversationsOpts {
@@ -50,7 +51,13 @@ export class InboxService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
+        private readonly autoReply: AutoReplyService,
     ) {}
+
+    /** Auto-create Lead dari chat WA baru (default aktif; matikan via env). */
+    private get autoCreateLead(): boolean {
+        return (process.env.WA_AUTO_CREATE_LEAD || 'true').toLowerCase() !== 'false';
+    }
 
     /** Titik masuk: iterasi entry/changes payload webhook. Tak pernah melempar
      *  (webhook wajib balas 200) — error di-log & disimpan di WaWebhookEvent. */
@@ -149,11 +156,27 @@ export class InboxService {
         const now = new Date();
 
         // 1) Upsert kontak + tautan CRM (cari Lead by phoneNormalized).
-        const lead = await this.prisma.lead.findFirst({
+        let lead = await this.prisma.lead.findFirst({
             where: { phoneNormalized },
             orderBy: { updatedAt: 'desc' },
             select: { id: true, convertedCustomerId: true },
         });
+        // Auto-create Lead untuk prospek WA baru (dedup: hanya bila belum ada lead).
+        let createdLead = false;
+        if (!lead && this.autoCreateLead) {
+            lead = await this.prisma.lead.create({
+                data: {
+                    name: profileName || `WA ${waId}`,
+                    phone: from ?? waId,
+                    phoneNormalized,
+                    source: 'WHATSAPP',
+                    status: 'NEW',
+                    branchId: channel.branchId ?? null,
+                },
+                select: { id: true, convertedCustomerId: true },
+            });
+            createdLead = true;
+        }
 
         const contact = await this.prisma.waContact.upsert({
             where: { waId },
@@ -217,6 +240,11 @@ export class InboxService {
         });
 
         // 4) Jejak aktivitas CRM (timeline lead/customer).
+        if (createdLead && lead) {
+            await this.prisma.leadActivity.create({
+                data: { leadId: lead.id, kind: 'FIRST_CONTACT', text: 'Prospek baru via WhatsApp', meta: { source: 'whatsapp' } },
+            });
+        }
         if (contact.leadId || contact.customerId) {
             await this.prisma.leadActivity.create({
                 data: {
@@ -230,6 +258,15 @@ export class InboxService {
         }
 
         await this.logEvent('message', waMessageId, msg);
+
+        // 5) Balasan otomatis (rule-based) — aman: masih dalam jendela 24 jam.
+        await this.autoReply.handleInbound({
+            channel: { id: channel.id, phoneNumberId: channel.phoneNumberId },
+            contact: { id: contact.id, waId: contact.waId, optedOut: contact.optedOut },
+            conversationId: conversation.id,
+            body: this.extractBody(msg),
+            isNew: !openConv,
+        });
     }
 
     private async handleStatus(st: any): Promise<void> {
