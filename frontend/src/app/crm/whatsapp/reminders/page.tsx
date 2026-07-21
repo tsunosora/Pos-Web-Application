@@ -7,6 +7,7 @@ import {
     getReminderConfigs, setReminderConfig, listWaChannels, listWaTemplates,
     REMINDER_EVENT_LABEL, type WaReminderConfig, type ReminderEvent, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
+import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const HINTS: Record<ReminderEvent, string> = {
     ORDER_READY: "Terkirim otomatis saat titipan/pesanan ditandai SIAP AMBIL.",
@@ -37,6 +38,7 @@ export default function WhatsappRemindersPage() {
                 <Link href="/crm/whatsapp" className="p-1.5 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></Link>
                 <BellRing className="w-5 h-5 text-emerald-500" />
                 <h1 className="text-lg font-semibold">Reminder Otomatis</h1>
+                <WhatsappGuideButton />
             </div>
             <p className="text-sm opacity-60">
                 Kirim <b>template</b> otomatis untuk event POS. Perlu template <b>APPROVED</b> &amp; channel aktif.

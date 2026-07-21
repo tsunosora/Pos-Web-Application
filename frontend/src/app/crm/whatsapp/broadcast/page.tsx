@@ -11,6 +11,7 @@ import {
     type WaBroadcast, type WaBroadcastStatus, type VariableMapItem, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
+import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const STATUS_TONE: Record<WaBroadcastStatus, BadgeTone> = {
     DRAFT: "neutral", SCHEDULED: "info", RUNNING: "warning", PAUSED: "info",
@@ -82,6 +83,7 @@ export default function WhatsappBroadcastPage() {
                 <div className="flex items-center gap-2">
                     <Link href="/crm/whatsapp" className="p-1.5 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></Link>
                     <h1 className="text-lg font-semibold">Broadcast WhatsApp</h1>
+                    <WhatsappGuideButton />
                 </div>
                 <button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground">
                     <Plus className="w-4 h-4" /> Buat broadcast

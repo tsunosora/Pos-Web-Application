@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, MessageSquare, Send, CheckCheck, Users, UserPlus, Megaphone, TrendingUp } from "lucide-react";
 import { getWaAnalytics, listWaChannels } from "@/lib/api/whatsapp-cloud";
+import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const PRESETS = [
     { label: "7 hari", days: 7 },
@@ -49,6 +50,7 @@ export default function WhatsappAnalyticsPage() {
                     <Link href="/crm/whatsapp" className="p-1.5 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></Link>
                     <TrendingUp className="w-5 h-5 text-emerald-500" />
                     <h1 className="text-lg font-semibold">Analitik WhatsApp</h1>
+                    <WhatsappGuideButton />
                 </div>
                 <div className="flex items-center gap-2">
                     <select value={channelId ?? ""} onChange={(e) => setChannelId(e.target.value ? +e.target.value : null)}

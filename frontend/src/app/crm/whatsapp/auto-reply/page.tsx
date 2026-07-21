@@ -10,6 +10,7 @@ import {
     type WaAutoReplyRule, type WaAutoReplyTrigger, type AutoReplyBody,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const TRIGGERS: WaAutoReplyTrigger[] = ["GREETING", "KEYWORD", "AWAY", "DEFAULT"];
 const EMPTY: AutoReplyBody = { trigger: "GREETING", replyText: "", keywords: [], priority: 0, channelId: null };
@@ -49,6 +50,7 @@ export default function WhatsappAutoReplyPage() {
                     <Link href="/crm/whatsapp" className="p-1.5 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></Link>
                     <Bot className="w-5 h-5 text-emerald-500" />
                     <h1 className="text-lg font-semibold">Balasan Otomatis</h1>
+                    <WhatsappGuideButton />
                 </div>
                 <button onClick={() => setShowForm((s) => !s)} className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground">
                     <Plus className="w-4 h-4" /> Tambah aturan

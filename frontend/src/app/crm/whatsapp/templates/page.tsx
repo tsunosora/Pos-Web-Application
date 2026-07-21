@@ -10,6 +10,7 @@ import {
     type WaTemplate, type WaTemplateStatus, type TemplateBody,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
+import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const STATUS_TONE: Record<WaTemplateStatus, BadgeTone> = {
     DRAFT: "neutral", PENDING: "warning", APPROVED: "success", REJECTED: "danger", PAUSED: "info", DISABLED: "neutral",
@@ -61,6 +62,7 @@ export default function WhatsappTemplatesPage() {
                 <div className="flex items-center gap-2">
                     <Link href="/crm/whatsapp" className="p-1.5 rounded-lg hover:bg-muted"><ArrowLeft className="w-4 h-4" /></Link>
                     <h1 className="text-lg font-semibold">Template Pesan Meta</h1>
+                    <WhatsappGuideButton />
                 </div>
                 <div className="flex items-center gap-2">
                     <select
