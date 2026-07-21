@@ -473,6 +473,13 @@ export interface KpiLeaderboardEntry {
     walkinValue: number;
     // Jumlah nota yang berhasil terkirim (job produksi mencapai stage KIRIM, non-retur) dalam periode
     notasShipped: number;
+    // Pecahan status kirim per stage saat ini: KIRIM = sedang dikirim, SELESAI = sudah terkirim.
+    notasInTransit: number;   // Sedang Dikirim (job masih di tahap KIRIM)
+    notasDelivered: number;   // Sudah Terkirim (job sudah di tahap SELESAI)
+    // Jumlah PCS yang dikirim (per item, basis tanggal shippedAt) — pecah per stage.
+    pcsShipped: number;       // total pcs dikirim = pcsInTransit + pcsDelivered
+    pcsInTransit: number;     // pcs job yang masih di tahap KIRIM
+    pcsDelivered: number;     // pcs job yang sudah di tahap SELESAI
     omzetShare: number;   // bagian omzet nota utk CS (nota dibagi per peran)
     closingRate: number;
     avgResponseHrs: number | null;

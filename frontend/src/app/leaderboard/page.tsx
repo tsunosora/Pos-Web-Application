@@ -175,7 +175,7 @@ export default function LeaderboardPage() {
     const champCuan = topByOf(csRows, x => x.wonValue + x.walkinValue);
     const champClose = topByOf(csRows, x => x.dealsClosed);
     const champLead = topByOf(csRows, x => x.leadsHandled);
-    const champKirim = topByOf(csRows, x => x.notasShipped);
+    const champKirim = topByOf(csRows, x => x.notasDelivered);
     const champResp = (() => {
         const withResp = csRows.filter(x => x.avgResponseHrs != null);
         if (!withResp.length) return null;
@@ -299,7 +299,7 @@ export default function LeaderboardPage() {
                                         <table className="w-full text-sm min-w-[900px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
-                                                <Th right>Rate</Th><Th right>Pcs</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
+                                                <Th right>Rate</Th><Th right>Pcs</Th><Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -310,7 +310,14 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-red-600 dark:text-red-300">{r.dealsLost || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{(r.pcsOrdered + r.walkinPcs) || '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-sky-600 dark:text-sky-300 font-semibold">{r.notasShipped || '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300 font-semibold">
+                                                            {r.notasInTransit || '—'}
+                                                            {r.pcsInTransit > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsInTransit} pcs</span>}
+                                                        </td>
+                                                        <td className="py-2 px-2 text-right font-mono text-sky-600 dark:text-sky-300 font-semibold">
+                                                            {r.notasDelivered || '—'}
+                                                            {r.pcsDelivered > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsDelivered} pcs</span>}
+                                                        </td>
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{fmtRp(r.wonValue + r.walkinValue)}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</td>
@@ -327,7 +334,7 @@ export default function LeaderboardPage() {
                                 <p><b>Leads</b> = jumlah lead yang di-assign ke orang ini & dibuat dalam periode.</p>
                                 <p><b>Closing</b> = lead berstatus <b>CLOSED_WON</b>. <b>Lost</b> = <b>CLOSED_LOST</b>. <b>Rate</b> = Closing ÷ Leads.</p>
                                 <p><b>Pcs</b> = jumlah barang yang diorder — dari nota lead closing <i>+</i> transaksi POS walk-in yang ia tangani (kategori add-on tidak dihitung).</p>
-                                <p><b>Terkirim</b> = jumlah <b>nota</b> yang pesanannya <b>berhasil dikirim</b> — job produksinya mencapai tahap <b>KIRIM</b> di pipeline dalam periode ini. Dihitung sekali per nota (bukan per job) dan diatribusikan ke CS yang menangani nota tersebut (lead ⟶ CS assign, atau walk-in ⟶ kasir). Basis waktu = tanggal kirim. Nota yang di-<b>retur</b> tidak dihitung.</p>
+                                <p><b>Dikirim</b> (sedang dikirim) = jumlah <b>nota</b> yang pesanannya sudah diberangkatkan tetapi <b>belum sampai</b> — job produksinya masih di tahap <b>KIRIM</b> di pipeline. <b>Terkirim</b> (sudah sampai) = nota yang job produksinya sudah mencapai tahap <b>SELESAI</b> — barang sudah diterima pelanggan. Keduanya berbasis nota yang <b>shippedAt</b>-nya jatuh di periode ini (dihitung sekali per nota, bukan per job) dan diatribusikan ke CS yang menangani nota tersebut (lead ⟶ CS assign, atau walk-in ⟶ kasir). Satu nota dihitung <b>Terkirim</b> hanya bila <b>semua</b> job-nya sudah SELESAI; kalau masih ada yang di KIRIM → masuk <b>Dikirim</b>. Nota yang di-<b>retur</b> tidak dihitung. Angka kecil <b>“… pcs”</b> di bawahnya = jumlah barang yang dikirim (dihitung <b>per item</b>, jadi satu nota bisa menyumbang pcs ke Dikirim & Terkirim sekaligus), basis tanggal kirim yang sama.</p>
                                 <p><b>Cuan (net)</b> = Nilai deal lead yang closing (estimatedValue) <i>+</i> omzet transaksi POS walk-in yang ia tangani — keduanya <b>sudah dikurangi biaya platform</b> (fee marketplace). Ini omzet <b>penuh</b> penjualan yang ia bawa.</p>
                                 <p><b>Omzet (bagian)</b> = porsi <b>adil</b> CS dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Dipakai board <b>Tim / Cabang</b> agar nota lintas cabang terbagi ke tiap cabang home.</p>
                                 <p><b>Akan Datang</b> = sisa tagihan (piutang) transaksi yang masih PENDING/PARTIAL.</p>

@@ -1691,12 +1691,15 @@ export class KpiService {
             walkinTx: number; walkinPcs: number; walkinValue: number;
             respSum: number; respCount: number;
             notasShipped: number;
+            notasInTransit: number; notasDelivered: number;
+            pcsShipped: number; pcsInTransit: number; pcsDelivered: number;
         };
         const zeroStat = (): CsStat => ({
             leadsHandled: 0, dealsClosed: 0, dealsLost: 0, invalidLeads: 0,
             pcsOrdered: 0, wonValue: 0, lostValue: 0, pendingValue: 0,
             walkinTx: 0, walkinPcs: 0, walkinValue: 0, respSum: 0, respCount: 0,
-            notasShipped: 0,
+            notasShipped: 0, notasInTransit: 0, notasDelivered: 0,
+            pcsShipped: 0, pcsInTransit: 0, pcsDelivered: 0,
         });
         const byAssignee = new Map<number, CsStat>();
         for (const l of leadsInPeriod) {
@@ -1791,13 +1794,47 @@ export class KpiService {
         //   1. Nota dari lead  → Lead.assignedToId
         //   2. Nota walk-in    → Transaction.cashierName == User.name
         // returnedAt: null → nota yang di-RETUR setelah kirim DIKECUALIKAN.
+        //
+        // Pecah per stage SEKARANG (pakai pipelineStage): job masih di KIRIM =
+        // "sedang dikirim", job sudah di SELESAI = "sudah terkirim". Per nota:
+        // dianggap SUDAH terkirim hanya jika SEMUA job shipped-nya berstatus
+        // SELESAI; kalau masih ada yang di KIRIM → nota itu "sedang dikirim".
+        // Jumlah PCS yang dikirim dihitung PER JOB (tiap job = 1 TransactionItem).
+        // Basis waktu = shippedAt job (bukan tgl nota/lead), jadi nota Juni yang baru
+        // dikirim Juli masuk hitungan Juli. pcs pakai `quantity` item & konsisten dgn
+        // computeTxPcsMap: item kategori add-on (countsAsPcs=false) TIDAK dihitung.
         const shippedJobs: any[] = await (this.prisma as any).productionJob.findMany({
             where: { ...branchScope, shippedAt: { gte: start, lte: end }, returnedAt: null },
-            select: { transactionId: true },
+            select: {
+                transactionId: true, pipelineStage: true,
+                transactionItem: {
+                    select: {
+                        quantity: true,
+                        productVariant: { select: { product: { select: { category: { select: { countsAsPcs: true } } } } } },
+                    },
+                },
+            },
         });
-        const shippedTxIds = Array.from(new Set<number>(
-            shippedJobs.map(j => Number(j.transactionId)).filter((n: number) => Number.isFinite(n)),
-        ));
+        const stagesByTx = new Map<number, string[]>();
+        // pcs kirim per nota, dipecah stage saat ini (SELESAI=terkirim, selain itu=sedang dikirim).
+        const pcsByTx = new Map<number, { inTransit: number; delivered: number }>();
+        for (const j of shippedJobs) {
+            const txId = Number(j.transactionId);
+            if (!Number.isFinite(txId)) continue;
+            const stage = j.pipelineStage || 'KIRIM';
+            const arr = stagesByTx.get(txId) ?? [];
+            arr.push(stage);
+            stagesByTx.set(txId, arr);
+
+            // Item add-on (kerah/lengan/rib — countsAsPcs=false) bukan barang terpisah → 0 pcs.
+            const isAddon = j.transactionItem?.productVariant?.product?.category?.countsAsPcs === false;
+            const qty = isAddon ? 0 : (Number(j.transactionItem?.quantity) || 0);
+            const p = pcsByTx.get(txId) ?? { inTransit: 0, delivered: 0 };
+            if (stage === 'SELESAI') p.delivered += qty;
+            else p.inTransit += qty;
+            pcsByTx.set(txId, p);
+        }
+        const shippedTxIds = Array.from(stagesByTx.keys());
         if (shippedTxIds.length > 0) {
             // txId → CS: lead.assignedToId (utama), fallback cashierName walk-in.
             const shippedLeads: any[] = await this.lead.findMany({
@@ -1820,10 +1857,19 @@ export class KpiService {
                     if (u) csByShippedTx.set(Number(t.id), u.id);
                 }
             }
-            for (const [, uid] of csByShippedTx) {
+            for (const [txId, uid] of csByShippedTx) {
                 if (csId && uid !== csId) continue; // hormati filter staff aktif
                 const entry = byAssignee.get(uid) || zeroStat();
                 entry.notasShipped++;
+                const stages = stagesByTx.get(txId) ?? [];
+                const delivered = stages.length > 0 && stages.every(s => s === 'SELESAI');
+                if (delivered) entry.notasDelivered++;
+                else entry.notasInTransit++;
+                // pcs dikirim (per item, basis shippedAt) → atribusi ke CS yang sama.
+                const p = pcsByTx.get(txId) ?? { inTransit: 0, delivered: 0 };
+                entry.pcsInTransit += p.inTransit;
+                entry.pcsDelivered += p.delivered;
+                entry.pcsShipped += p.inTransit + p.delivered;
                 byAssignee.set(uid, entry);
             }
         }
@@ -1847,6 +1893,11 @@ export class KpiService {
                     walkinPcs: stat.walkinPcs,
                     walkinValue: stat.walkinValue,
                     notasShipped: stat.notasShipped,
+                    notasInTransit: stat.notasInTransit,
+                    notasDelivered: stat.notasDelivered,
+                    pcsShipped: stat.pcsShipped,
+                    pcsInTransit: stat.pcsInTransit,
+                    pcsDelivered: stat.pcsDelivered,
                     // Bagian omzet nota utk CS ini (nota dibagi per peran) → kolom leaderboard.
                     omzetShare: Math.round(csShareByUser.get(userId) || 0),
                     closingRate: stat.leadsHandled > 0 ? stat.dealsClosed / stat.leadsHandled : 0,
