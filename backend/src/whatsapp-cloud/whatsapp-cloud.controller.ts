@@ -25,6 +25,7 @@ import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } 
 import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './broadcast.service';
 import { AutoReplyService, type CreateRuleInput } from './auto-reply.service';
 import { RemindersService, type ReminderEvent, type SetReminderConfigInput } from './reminders.service';
+import { AnalyticsService } from './analytics.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
@@ -40,7 +41,21 @@ export class WhatsappCloudController {
         private readonly broadcasts: BroadcastService,
         private readonly autoReplies: AutoReplyService,
         private readonly reminders: RemindersService,
+        private readonly analytics: AnalyticsService,
     ) {}
+
+    // ─── Analitik (Owner/Admin/Marketing) ────────────────────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('analytics')
+    getAnalytics(@Query() query: Record<string, string>) {
+        return this.analytics.overview({
+            from: query.from || undefined,
+            to: query.to || undefined,
+            channelId: query.channelId ? +query.channelId : undefined,
+        });
+    }
 
     /** Verifikasi kredensial Cloud API tiap channel aktif (tanpa kirim pesan). */
     @UseGuards(JwtAuthGuard, RolesGuard)

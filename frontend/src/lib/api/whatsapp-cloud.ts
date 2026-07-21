@@ -311,6 +311,23 @@ export const setReminderConfig = async (
     data: { enabled?: boolean; channelId?: number | null; templateId?: number | null },
 ): Promise<WaReminderConfig> => (await api.patch(`/whatsapp/reminders/config/${eventType}`, data)).data;
 
+// ─── Analitik ──────────────────────────────────────────────────────────────
+
+export interface WaAnalytics {
+    summary: {
+        range: { from: string; to: string };
+        messages: { inbound: number; outbound: number; delivered: number; read: number; failed: number };
+        conversations: { new: number; open: number };
+        contacts: { total: number; optedOut: number };
+        leadsFromWa: number;
+        broadcasts: { count: number; sent: number; failed: number };
+    };
+    series: Array<{ date: string; inbound: number; outbound: number }>;
+}
+
+export const getWaAnalytics = async (params: { from?: string; to?: string; channelId?: number } = {}): Promise<WaAnalytics> =>
+    (await api.get('/whatsapp/analytics', { params })).data;
+
 /** Apakah percakapan masih dalam jendela layanan 24 jam (boleh kirim teks bebas). */
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();

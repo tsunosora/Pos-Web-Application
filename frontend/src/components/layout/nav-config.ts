@@ -91,7 +91,7 @@ export const SECTIONS: NavSection[] = [
             { name: "Balasan Otomatis", href: "/crm/whatsapp/auto-reply", icon: Bot },
             { name: "Reminder POS", href: "/crm/whatsapp/reminders", icon: BellRing, managerOnly: true },
             { name: "Template Meta", href: "/crm/whatsapp/templates", icon: FileText },
-            // Fitur menyusul (Fase 9): Analitik.
+            { name: "Analitik", href: "/crm/whatsapp/analytics", icon: BarChart3, managerOnly: true },
             { name: "Pengaturan Channel", href: "/crm/whatsapp/settings", icon: Settings, managerOnly: true },
         ],
     },
