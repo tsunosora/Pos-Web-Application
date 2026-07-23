@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FollowUpsService } from '../crm/follow-ups/follow-ups.service';
 
 @Injectable()
 export class ProductionService {
+    private readonly logger = new Logger(ProductionService.name);
+
     constructor(
         private prisma: PrismaService,
         private followUps: FollowUpsService,
@@ -621,46 +623,79 @@ export class ProductionService {
     ] as const;
 
     async getPipelineJobs(branchId?: number) {
-        // Hanya tampilkan: (1) job non-terminal di stage apapun, (2) job terminal (SELESAI/RETUR)
-        // yang baru di-update dalam 14 hari terakhir. Ini cegah ratusan job lama membebani kanban.
+        // Tampilkan: (1) job aktif (non-terminal) di stage apapun, (2) job terminal (SELESAI/RETUR)
+        // yang baru di-update dalam 14 hari terakhir. Riwayat terminal dibatasi supaya kanban tak berat.
+        //
+        // PENTING: query dipecah jadi 2 bucket dengan cap terpisah. Dulu satu query `take: 500`
+        // mencampur job aktif + riwayat terminal; saat total > 500 (riwayat SELESAI menumpuk),
+        // job aktif TERBARU ikut terpotong diam-diam dan hilang dari pipeline. Job aktif adalah
+        // inti operasional — tidak boleh pernah di-drop oleh cap. Cap hanya untuk riwayat terminal.
         const cutoff = new Date();
         cutoff.setDate(cutoff.getDate() - 14);
 
-        const where: any = {
-            ...(branchId ? { branchId } : {}),
+        const branchWhere = branchId ? { branchId } : {};
+        const baseWhere = {
+            ...branchWhere,
             cancelledAt: null, // job batal di-hide dari kanban aktif (tetap dihitung di leaderboard)
-            OR: [
-                { pipelineStage: null },                                                 // belum di-stage → tampil di DESIGN
-                { pipelineStage: { notIn: ['SELESAI', 'RETUR'] } },                     // masih aktif
-                { pipelineStage: { in: ['SELESAI', 'RETUR'] }, updatedAt: { gte: cutoff } }, // baru selesai/retur
-            ],
         };
-        const jobs = await (this.prisma as any).productionJob.findMany({
-            where,
-            orderBy: [{ priority: 'desc' }, { deadline: 'asc' }, { createdAt: 'asc' }],
-            include: {
-                transaction: {
-                    select: {
-                        id: true, invoiceNumber: true, customerName: true, customerPhone: true,
-                    },
+        const include = {
+            transaction: {
+                select: {
+                    id: true, invoiceNumber: true, customerName: true, customerPhone: true,
                 },
-                transactionItem: {
-                    select: {
-                        id: true, quantity: true, widthCm: true, heightCm: true, unitType: true,
-                        productVariant: {
-                            select: {
-                                id: true, variantName: true,
-                                product: { select: { id: true, name: true } },
-                            },
+            },
+            transactionItem: {
+                select: {
+                    id: true, quantity: true, widthCm: true, heightCm: true, unitType: true,
+                    productVariant: {
+                        select: {
+                            id: true, variantName: true,
+                            product: { select: { id: true, name: true } },
                         },
                     },
                 },
-                branch: { select: { id: true, name: true, code: true } },
-                proofs: { orderBy: { position: 'asc' }, select: { id: true, filename: true, caption: true } },
             },
-            take: 500, // hard cap supaya FE tidak overload
+            branch: { select: { id: true, name: true, code: true } },
+            proofs: { orderBy: { position: 'asc' }, select: { id: true, filename: true, caption: true } },
+        };
+
+        // Bucket 1 — job aktif (non-terminal). Tidak dibatasi cap fungsional; `take` di sini hanya
+        // pengaman ekstrem kalau backlog WIP meledak (realistis jauh di bawah ini). Job terbaru
+        // tetap masuk karena kita tidak lagi bersaing dengan ratusan riwayat SELESAI.
+        const ACTIVE_SAFETY_CAP = 2000;
+        const activeJobs = await (this.prisma as any).productionJob.findMany({
+            where: {
+                ...baseWhere,
+                OR: [
+                    { pipelineStage: null },                            // belum di-stage → tampil di DESIGN
+                    { pipelineStage: { notIn: ['SELESAI', 'RETUR'] } }, // masih aktif
+                ],
+            },
+            orderBy: [{ priority: 'desc' }, { deadline: 'asc' }, { createdAt: 'asc' }],
+            include,
+            take: ACTIVE_SAFETY_CAP,
         });
-        return jobs;
+        if (activeJobs.length >= ACTIVE_SAFETY_CAP) {
+            // Cap pengaman tersentuh — jangan sampai job aktif terpotong diam-diam lagi.
+            this.logger.warn(
+                `getPipelineJobs: job aktif mencapai cap pengaman ${ACTIVE_SAFETY_CAP} (branch=${branchId ?? 'ALL'}). Backlog WIP perlu ditinjau.`,
+            );
+        }
+
+        // Bucket 2 — riwayat terminal (SELESAI/RETUR) 14 hari terakhir. Dibatasi & diurut terbaru
+        // dulu supaya kolom SELESAI/RETUR menampilkan yang paling relevan tanpa membebani FE.
+        const terminalJobs = await (this.prisma as any).productionJob.findMany({
+            where: {
+                ...baseWhere,
+                pipelineStage: { in: ['SELESAI', 'RETUR'] },
+                updatedAt: { gte: cutoff },
+            },
+            orderBy: [{ updatedAt: 'desc' }],
+            include,
+            take: 300,
+        });
+
+        return [...activeJobs, ...terminalJobs];
     }
 
     async addProof(jobId: number, filename: string, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }, designerName?: string) {
