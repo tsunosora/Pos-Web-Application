@@ -1,0 +1,15 @@
+# SEO Machine endpoint — teruskan header Authorization ke PHP.
+# Apache secara default MEMBUANG header "Authorization: Bearer <key>",
+# sehingga $_SERVER['HTTP_AUTHORIZATION'] kosong dan auth Bearer gagal.
+# Baris di bawah mengembalikannya (SEO Machine mengirim via Bearer).
+# (Fallback header X-API-Key tetap jalan tanpa file ini.)
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+</IfModule>
+
+<IfModule mod_setenvif.c>
+    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
+</IfModule>

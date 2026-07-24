@@ -25,6 +25,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Simpan integrasi SEO Machine (receiver artikel dari pipeline eksternal)
+    if ($action === 'seomachine') {
+        cfg_set('seomachine_enabled', isset($_POST['seomachine_enabled']) ? '1' : '0');
+        cfg_set('seomachine_default_status', ($_POST['seomachine_default_status'] ?? 'draft') === 'publish' ? 'publish' : 'draft');
+        if (($_POST['do'] ?? '') === 'generate') {
+            cfg_set('seomachine_api_key', bin2hex(random_bytes(32)));  // key baru 64-hex
+        } else {
+            $k = trim($_POST['seomachine_api_key'] ?? '');
+            if ($k !== '') {
+                if (!preg_match('/^[A-Fa-f0-9]{32,128}$/', $k)) { header('Location: settings.php?badkey=1'); exit; }
+                cfg_set('seomachine_api_key', $k);
+            }
+            // kosong → pertahankan key lama
+        }
+        header('Location: settings.php?saved=1');
+        exit;
+    }
+
     // Simpan nilai API (berlaku untuk Simpan maupun Tes)
     $apiIn = rtrim(trim($_POST['pospro_api'] ?? ''), '/');
     if ($apiIn !== '' && (!preg_match('#^https?://#i', $apiIn) || !filter_var($apiIn, FILTER_VALIDATE_URL))) {
@@ -55,6 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['saved']))  { $msg = 'Setelan tersimpan.'; }
 if (isset($_GET['cats']))   { $msg = 'Kategori toko diperbarui.'; }
 if (isset($_GET['badurl'])) { $msg = 'URL API tidak valid — harus diawali http:// atau https://. Setelan tidak diubah.'; $msgType = 'err'; }
+if (isset($_GET['badkey'])) { $msg = 'API key SEO Machine tidak valid — harus 32–128 karakter heksadesimal. Setelan tidak diubah.'; $msgType = 'err'; }
+
+// SEO Machine (receiver artikel)
+$smEnabled  = ((string)cfg('seomachine_enabled', '0')) === '1';
+$smKey      = (string)cfg('seomachine_api_key', '');
+$smStatus   = ((string)cfg('seomachine_default_status', 'draft')) === 'publish' ? 'publish' : 'draft';
+$smEndpoint = abs_url('api/seo-publish.php');
 
 $apiUrl   = cfg('pospro_api', API_BASE);
 $apiEmail = cfg('pospro_email', '');
@@ -159,6 +184,60 @@ include __DIR__ . '/admin_header.php';
         </form>
     </div>
 
+    <!-- SEO Machine (receiver artikel) -->
+    <div class="bg-white rounded-3xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-1">
+            <span class="h-10 w-10 rounded-2xl bg-brand/10 text-brand grid place-items-center">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </span>
+            <div>
+                <h3 class="font-bold text-slate-900">SEO Machine</h3>
+                <p class="text-xs text-slate-400">Terima artikel SEO otomatis dari pipeline eksternal (POST + API key) langsung ke menu Artikel.</p>
+            </div>
+            <span class="ml-auto px-2.5 py-1 rounded-full text-xs font-semibold <?= $smEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' ?>"><?= $smEnabled ? 'Aktif' : 'Nonaktif' ?></span>
+        </div>
+
+        <form method="post" class="mt-5 space-y-4">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="seomachine">
+
+            <label class="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" name="seomachine_enabled" value="1" <?= $smEnabled ? 'checked' : '' ?> class="w-5 h-5 accent-brand">
+                <span class="text-sm font-semibold text-slate-700">Aktifkan penerimaan artikel</span>
+            </label>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Endpoint URL <span class="text-slate-400 font-normal">(pasang di SEO Machine)</span></label>
+                <div class="flex gap-2">
+                    <input id="smEndpoint" type="text" readonly value="<?= h($smEndpoint) ?>" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm">
+                    <button type="button" data-copy="smEndpoint" class="shrink-0 px-4 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition text-sm">Salin</button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">API Key <span class="text-slate-400 font-normal">(64 hex)</span></label>
+                <div class="flex gap-2">
+                    <input id="smKey" type="text" name="seomachine_api_key" value="<?= h($smKey) ?>" placeholder="<?= $smKey ? '' : 'klik Generate untuk membuat' ?>" spellcheck="false" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand/50">
+                    <button type="button" data-copy="smKey" class="shrink-0 px-4 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition text-sm">Salin</button>
+                </div>
+                <p class="mt-1 text-xs text-slate-400">Shared secret. Harus sama dengan <code>PHP_SITE_API_KEY</code> di SEO Machine. Kosongkan saat menyimpan untuk mempertahankan key lama.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Status default artikel masuk</label>
+                <select name="seomachine_default_status" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                    <option value="draft" <?= $smStatus === 'draft' ? 'selected' : '' ?>>Draft (perlu ditinjau dulu — disarankan)</option>
+                    <option value="publish" <?= $smStatus === 'publish' ? 'selected' : '' ?>>Publish (langsung tayang)</option>
+                </select>
+            </div>
+
+            <div class="flex gap-3 pt-1">
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Simpan</button>
+                <button type="submit" name="do" value="generate" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">Generate Key Baru</button>
+            </div>
+        </form>
+    </div>
+
     <!-- Kategori tampil di toko -->
     <div class="bg-white rounded-3xl border border-slate-200 p-6">
         <div class="flex items-center gap-3 mb-1">
@@ -191,5 +270,18 @@ include __DIR__ . '/admin_header.php';
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(function (b) {
+    b.addEventListener('click', function () {
+        var el = document.getElementById(b.dataset.copy);
+        if (!el) return;
+        el.select(); el.setSelectionRange(0, 99999);
+        if (navigator.clipboard) navigator.clipboard.writeText(el.value); else document.execCommand('copy');
+        var t = b.textContent; b.textContent = 'Tersalin ✓';
+        setTimeout(function () { b.textContent = t; }, 1200);
+    });
+});
+</script>
 
 <?php include __DIR__ . '/admin_footer.php'; ?>
