@@ -177,7 +177,7 @@ else                { $hTitle = 'Semua Produk'; $hSub = count($list) . ' produk 
             </div>
         <?php else: ?>
             <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                <?php foreach ($pageList as $i => $p) echo product_card_html($p, $i, $shop, false); ?>
+                <?php foreach ($pageList as $i => $p) echo bs_card_html($p, $i); ?>
             </div>
 
             <?php if ($totalPages > 1): ?>

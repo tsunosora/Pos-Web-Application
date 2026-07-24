@@ -15,8 +15,8 @@ $products = public_products();
 // Isi tiap section diatur lewat Dashboard → Konten.
 sec_hero();                    // hero kaca (foto + statistik)
 sec_categories($products);     // grid kategori (kartu kaca + ikon gradient)
-sec_products_grid($products);  // grid produk (harga biru + tombol Keranjang)
-sec_services();                // 3 kartu keunggulan
+sec_products_grid($products);  // grid best-seller (kartu gaya referensi)
+// sec_services() dihapus dari beranda — value-props sudah ada di strip trust hero
 sec_tentang();                 // tentang kami (band kaca)
 sec_portofolio(['limit' => 8]);// karya kami (galeri + lightbox)
 sec_statistik();               // angka pencapaian

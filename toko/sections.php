@@ -48,46 +48,65 @@ function sec_hero(): void {
     $slides = array_values(array_filter($c['slides'] ?? [], fn($s) => !empty($s['title'])));
     if (!$slides) return;
     $stats = array_slice(parse_items($c['stats'] ?? ''), 0, 3);
+    $hs = settings();
+    $wa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $hs['storePhone'] ?? ''));
     ?>
-    <section class="pk-hero glass" data-reveal>
-        <div class="hero-swiper swiper" data-hero-swiper>
-            <div class="swiper-wrapper">
-                <?php foreach ($slides as $s): $img = trim($s['image'] ?? ''); ?>
-                    <div class="swiper-slide !h-auto">
-                        <div class="pk-hero-slide">
-                            <div class="pk-hero-copy">
-                                <span class="co-kicker"><?= h($c['kicker'] ?? '') ?></span>
-                                <h1 class="pk-hero-title"><?= co_title_html($s['title'], $s['accent'] ?? '') ?></h1>
-                                <?php if (!empty($s['subtitle'])): ?><p class="pk-hero-sub"><?= h($s['subtitle']) ?></p><?php endif; ?>
-                                <div class="pk-hero-actions">
-                                    <?php if (!empty($s['btn1Text'])): ?><a href="<?= h($s['btn1Link'] ?: '#order-cepat') ?>" class="co-btn co-btn--solid"><?= h($s['btn1Text']) ?><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></a><?php endif; ?>
-                                    <?php if (!empty($s['btn2Text'])): ?><a href="<?= h($s['btn2Link'] ?: 'produk.php') ?>" class="co-btn pk-btn-ghost"><?= h($s['btn2Text']) ?></a><?php endif; ?>
-                                </div>
-                                <?php if ($stats): ?>
-                                    <div class="pk-hero-stats">
-                                        <?php foreach ($stats as $it): ?>
-                                            <div>
-                                                <span class="pk-stat-num" data-count="<?= h($it[0]) ?>"><?= h($it[0]) ?></span>
-                                                <span class="pk-stat-lbl"><?= h($it[1] ?? '') ?></span>
-                                            </div>
-                                        <?php endforeach; ?>
+    <section class="pk-herosplit" data-reveal>
+        <div class="pk-hs-main">
+            <div class="hero-swiper swiper" data-hero-swiper>
+                <div class="swiper-wrapper">
+                    <?php foreach ($slides as $s): $img = trim($s['image'] ?? ''); ?>
+                        <div class="swiper-slide !h-auto">
+                            <div class="pk-hs-slide">
+                                <div class="pk-hs-copy">
+                                    <?php if (!empty($c['kicker'])): ?><span class="pk-hs-kicker"><?= h($c['kicker']) ?></span><?php endif; ?>
+                                    <h1 class="pk-hs-title"><?= co_title_html($s['title'], $s['accent'] ?? '') ?></h1>
+                                    <?php if (!empty($s['subtitle'])): ?><p class="pk-hs-sub"><?= h($s['subtitle']) ?></p><?php endif; ?>
+                                    <div class="pk-hs-actions">
+                                        <?php if (!empty($s['btn1Text'])): ?><a href="<?= h($s['btn1Link'] ?: '#order-cepat') ?>" class="pk-hs-btn pk-hs-btn--cta"><?= h($s['btn1Text']) ?><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></a><?php endif; ?>
+                                        <?php if (!empty($s['btn2Text'])): ?><a href="<?= h($s['btn2Link'] ?: 'produk.php') ?>" class="pk-hs-btn pk-hs-btn--ghost"><?= h($s['btn2Text']) ?></a><?php endif; ?>
                                     </div>
-                                <?php endif; ?>
-                            </div>
-                            <div class="pk-hero-media">
-                                <?php if ($img): ?><img src="<?= h($img) ?>" alt="<?= h($s['title']) ?>"><?php endif; ?>
+                                    <?php if ($stats): ?>
+                                        <div class="pk-hs-stats">
+                                            <?php foreach ($stats as $it): ?>
+                                                <div class="pk-hs-stat"><b data-count="<?= h($it[0]) ?>"><?= h($it[0]) ?></b><span><?= h($it[1] ?? '') ?></span></div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="pk-hs-media">
+                                    <?php if ($img): ?>
+                                        <img class="pk-hs-photo" src="<?= h($img) ?>" alt="<?= h($s['title']) ?>" onerror="this.style.display='none';var f=this.parentNode.querySelector('.pk-hs-fallback');if(f)f.style.display='grid';">
+                                    <?php endif; ?>
+                                    <div class="pk-hs-fallback" aria-hidden="true"<?= $img ? ' style="display:none"' : '' ?>>
+                                        <div class="pk-hf-core">
+                                            <?php if (!empty($hs['logoImageUrl'])): ?>
+                                                <img src="<?= h(img_url($hs['logoImageUrl'])) ?>" alt="">
+                                            <?php else: ?>
+                                                <span class="pk-hf-init"><?= h(strtoupper(mb_substr($hs['storeName'] ?? 'T', 0, 1))) ?></span>
+                                            <?php endif; ?>
+                                            <span class="pk-hf-label">Percetakan Digital</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-            <?php if (count($slides) > 1): ?>
-                <div class="swiper-pagination"></div>
-                <div class="pk-hero-nav">
-                    <button type="button" class="hero2-prev pk-arrow" aria-label="Slide sebelumnya"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
-                    <button type="button" class="hero2-next pk-arrow" aria-label="Slide berikutnya"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+                    <?php endforeach; ?>
                 </div>
-            <?php endif; ?>
+                <?php if (count($slides) > 1): ?>
+                    <div class="swiper-pagination"></div>
+                    <div class="pk-hs-swnav">
+                        <button type="button" class="hero2-prev pk-arrow" aria-label="Slide sebelumnya"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg></button>
+                        <button type="button" class="hero2-next pk-arrow" aria-label="Slide berikutnya"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div class="pk-hs-trust">
+                <div class="pk-hs-trust-item"><span class="pk-hs-trust-ico"><i class="fa-solid fa-bolt"></i></span><div><div class="pk-hs-trust-t">Pengerjaan Cepat</div><div class="pk-hs-trust-d">Bisa siap di hari yang sama</div></div></div>
+                <div class="pk-hs-trust-item"><span class="pk-hs-trust-ico"><i class="fa-solid fa-tags"></i></span><div><div class="pk-hs-trust-t">Bisa Satuan</div><div class="pk-hs-trust-d">Tanpa minimal order</div></div></div>
+                <div class="pk-hs-trust-item"><span class="pk-hs-trust-ico"><i class="fa-solid fa-pen-ruler"></i></span><div><div class="pk-hs-trust-t">Dibantu Desain</div><div class="pk-hs-trust-d">Konsultasi gratis</div></div></div>
+                <div class="pk-hs-trust-item"><span class="pk-hs-trust-ico"><i class="fa-solid fa-shield-halved"></i></span><div><div class="pk-hs-trust-t">Kualitas Terjaga</div><div class="pk-hs-trust-d">Mesin &amp; bahan premium</div></div></div>
+            </div>
         </div>
     </section>
     <?php
@@ -784,22 +803,30 @@ function pk_cat_icon(string $name): string {
     return 'fa-print';
 }
 
-/** Grid kategori — kartu glass + ikon gradient (kategori asli dari katalog). */
+/** Shop by Category — baris kartu kategori (ikon + nama + jumlah), gaya referensi. */
 function sec_categories(array $products): void {
-    $cats = [];
+    $cats = []; $counts = [];
     foreach ($products as $p) {
         $c = $p['category'] ?? null;
-        if ($c && !isset($cats[$c['id']])) $cats[$c['id']] = $c['name'];
+        if ($c && !empty($c['id'])) { $cats[$c['id']] = $c['name']; $counts[$c['id']] = ($counts[$c['id']] ?? 0) + 1; }
     }
     if (!$cats) return;
+    $cats = array_slice($cats, 0, 12, true);
     ?>
     <section id="kategori" class="pk-sec" data-reveal>
-        <h2 class="pk-section-title">Kategori Layanan</h2>
-        <div class="pk-cat-grid">
+        <div class="pk-shead">
+            <div class="pk-shead-l">
+                <span class="pk-shead-ico"><i class="fa-solid fa-grip"></i></span>
+                <h2 class="pk-shead-title">Belanja per Kategori</h2>
+            </div>
+            <a href="produk.php" class="pk-shead-more">Lihat semua <i class="fa-solid fa-arrow-right" style="font-size:.8em"></i></a>
+        </div>
+        <div class="pk-catrow">
             <?php foreach ($cats as $id => $name): ?>
-                <a href="produk.php?cat=<?= h($id) ?>" class="glass pk-cat-card" data-reveal-item>
-                    <i class="fa-solid <?= h(pk_cat_icon($name)) ?> pk-cat-icon"></i>
-                    <span class="pk-cat-name"><?= h($name) ?></span>
+                <a href="produk.php?cat=<?= h($id) ?>" class="pk-catcard" data-reveal-item>
+                    <span class="pk-catcard-ico"><i class="fa-solid <?= h(pk_cat_icon($name)) ?>"></i></span>
+                    <span class="pk-catcard-name"><?= h($name) ?></span>
+                    <span class="pk-catcard-count"><?= (int)($counts[$id] ?? 0) ?> produk</span>
                 </a>
             <?php endforeach; ?>
         </div>
@@ -820,11 +847,17 @@ function sec_products_grid(array $products): void {
     if (!count($list)) return;
     ?>
     <section id="produk" class="pk-sec" data-reveal>
-        <h2 class="pk-section-title"><?= h($c['title'] ?? 'Rekomendasi Terlaris') ?></h2>
-        <div class="pk-prod-grid">
-            <?php foreach ($list as $i => $p) echo product_card_html($p, $i); ?>
+        <div class="pk-shead">
+            <div class="pk-shead-l">
+                <span class="pk-shead-ico"><i class="fa-solid fa-fire"></i></span>
+                <h2 class="pk-shead-title"><?= h($c['title'] ?? 'Produk Terlaris') ?></h2>
+            </div>
+            <a href="produk.php" class="pk-shead-more">Lihat semua <i class="fa-solid fa-arrow-right" style="font-size:.8em"></i></a>
         </div>
-        <div style="text-align:center"><a href="produk.php" class="co-btn pk-btn-ghost">Lihat Semua Produk <i class="fa-solid fa-arrow-right" style="font-size:.8em"></i></a></div>
+        <div class="pk-bs-grid">
+            <?php foreach ($list as $i => $p) echo bs_card_html($p, $i, $i < 3); ?>
+        </div>
+        <div style="text-align:center;margin-top:1.8rem"><a href="produk.php" class="co-btn pk-btn-ghost">Lihat Semua Produk <i class="fa-solid fa-arrow-right" style="font-size:.8em"></i></a></div>
     </section>
     <?php
 }

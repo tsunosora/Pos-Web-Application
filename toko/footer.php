@@ -7,7 +7,7 @@ $ftAddr  = $ft['storeAddress'] ?? ($ft['address'] ?? '');
 $ftWa    = preg_replace('/^0/', '62', preg_replace('/\D/', '', $ftPhone));
 ?>
 <footer class="mt-12 text-slate-300" style="background:#0E0E10">
-    <div class="max-w-6xl mx-auto px-4 py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-9">
+    <div class="max-w-[96rem] mx-auto px-4 py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-9">
         <div>
             <div class="flex items-center gap-2.5 mb-3.5">
                 <?php if (!empty($ft['logoImageUrl'])): ?>
@@ -65,7 +65,7 @@ $ftWa    = preg_replace('/^0/', '62', preg_replace('/\D/', '', $ftPhone));
         </div>
     </div>
     <div class="border-t border-white/10">
-        <div class="max-w-6xl mx-auto px-4 py-4 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div class="max-w-[96rem] mx-auto px-4 py-4 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
             <span>&copy; <?= date('Y') ?> <?= h($ftName) ?>. Semua hak dilindungi.</span>
             <a href="<?= is_admin() ? 'dashboard.php' : 'login.php' ?>" class="hover:text-slate-300 transition">Admin</a>
         </div>

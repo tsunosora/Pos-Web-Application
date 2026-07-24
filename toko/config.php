@@ -22,9 +22,9 @@ defined('APP_KEY') || define('APP_KEY', getenv('TOKO_APP_KEY') ?: 'ganti-kunci-i
 // URL backend PosPro default (fallback sebelum dikonfigurasi via dashboard).
 defined('API_BASE') || define('API_BASE', rtrim(getenv('POSPRO_API') ?: 'http://localhost:3001', '/'));
 
-// Warna brand (dipakai Tailwind di layout) — biru azure cerah & bersih,
-// satu keluarga dengan cyan logo Voliko tapi lebih hidup (tidak keruh).
-defined('BRAND_COLOR') || define('BRAND_COLOR', getenv('TOKO_BRAND') ?: '#0EA5E9');
+// Warna brand (dipakai Tailwind di layout) — BIRU solid clean modern (#2563EB),
+// dipadu CTA hijau untuk aksi beli/order. Bisa dioverride via Dashboard → Tampilan.
+defined('BRAND_COLOR') || define('BRAND_COLOR', getenv('TOKO_BRAND') ?: '#2563EB');
 
 if (session_status() === PHP_SESSION_NONE) {
     // Cookie session aman: HttpOnly (tak bisa dibaca JS), SameSite=Lax (cookie

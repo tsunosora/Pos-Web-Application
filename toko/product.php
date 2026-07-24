@@ -119,63 +119,73 @@ if ($cid !== '') {
 }
 ?>
 
-<nav class="text-sm text-slate-400 mb-7 flex items-center gap-2 flex-wrap">
-    <a href="index.php" class="hover:text-brand transition-colors">Beranda</a><span class="text-slate-300">/</span>
-    <a href="produk.php" class="hover:text-brand transition-colors">Produk</a>
-    <?php if (!empty($p['category']['name'])): ?><span class="text-slate-300">/</span><a href="produk.php?cat=<?= h($cid) ?>" class="hover:text-brand transition-colors"><?= h($p['category']['name']) ?></a><?php endif; ?>
-    <span class="text-slate-300">/</span><span class="text-slate-600 truncate max-w-[200px]"><?= h($p['name']) ?></span>
+<?php
+$price = product_price($p);
+$old = 0;
+foreach (['priceOld', 'compareAtPrice', 'oldPrice', 'strikePrice'] as $k) { if (!empty($p[$k]) && (float)$p[$k] > $price) { $old = (float)$p[$k]; break; } }
+$disc   = $old ? (int)round(100 - ($price / $old * 100)) : 0;
+$rating = isset($p['rating']) ? (float)$p['rating'] : 0;
+$rcount = $p['ratingCount'] ?? $p['reviewCount'] ?? 0;
+$rr = (int)round($rating);
+?>
+<nav class="pd-crumb">
+    <a href="index.php">Beranda</a><span class="sep">/</span>
+    <a href="produk.php">Produk</a>
+    <?php if (!empty($p['category']['name'])): ?><span class="sep">/</span><a href="produk.php?cat=<?= h($cid) ?>"><?= h($p['category']['name']) ?></a><?php endif; ?>
+    <span class="sep">/</span><span class="cur"><?= h($p['name']) ?></span>
 </nav>
 
-<div class="grid md:grid-cols-2 gap-8 lg:gap-14">
-    <div>
-        <div class="aspect-square rounded-xl bg-slate-50 border border-slate-200 overflow-hidden">
-            <?php if ($gallery): ?>
-                <img id="mainImg" src="<?= h($gallery[0]) ?>" alt="<?= h($p['name']) ?>" class="w-full h-full object-cover">
-            <?php else: ?>
-                <div class="w-full h-full grid place-items-center text-slate-300">
-                    <svg class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/></svg>
-                </div>
-            <?php endif; ?>
-        </div>
+<div class="pd-grid">
+    <div class="pd-gallery">
         <?php if (count($gallery) > 1): ?>
-            <div class="mt-3 flex gap-2 overflow-x-auto pb-1">
+            <div class="pd-thumbs">
                 <?php foreach ($gallery as $gi => $g): ?>
-                    <button type="button" data-thumb="<?= h($g) ?>" class="thumb shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 <?= $gi === 0 ? 'border-brand' : 'border-transparent hover:border-slate-300' ?> transition">
-                        <img src="<?= h($g) ?>" alt="" class="w-full h-full object-cover">
+                    <button type="button" data-thumb="<?= h($g) ?>" class="thumb pd-thumb <?= $gi === 0 ? 'border-brand' : '' ?>">
+                        <img src="<?= h($g) ?>" alt="">
                     </button>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+        <div class="pd-stage">
+            <?php if ($disc > 0): ?><span class="pd-badge">-<?= $disc ?>%</span><?php endif; ?>
+            <?php if ($gallery): ?>
+                <img id="mainImg" src="<?= h($gallery[0]) ?>" alt="<?= h($p['name']) ?>">
+            <?php else: ?>
+                <svg class="ph w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 19.5h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z"/></svg>
+            <?php endif; ?>
+        </div>
     </div>
 
-    <div class="flex flex-col">
-        <?php if (!empty($p['category']['name'])): ?>
-            <span class="text-[11px] font-semibold uppercase tracking-widest text-slate-400 mb-3"><?= h($p['category']['name']) ?></span>
+    <div class="pd-info">
+        <?php if (!empty($p['category']['name'])): ?><span class="pd-cat"><?= h($p['category']['name']) ?></span><?php endif; ?>
+        <h1 class="pd-title"><?= h($p['name']) ?></h1>
+        <?php if ($rating > 0): ?>
+            <div class="pd-rate"><span class="stars"><?= str_repeat('★', $rr) . str_repeat('☆', max(0, 5 - $rr)) ?></span><span class="c"><?= number_format($rating, 1) ?><?= $rcount ? ' (' . (int)$rcount . ' ulasan)' : '' ?></span></div>
         <?php endif; ?>
-        <h1 class="font-head text-3xl sm:text-4xl font-extrabold text-slate-900 leading-[1.1] tracking-tight"><?= h($p['name']) ?></h1>
-        <div class="mt-4 flex items-baseline gap-2 pb-6 border-b border-slate-200">
-            <?php if (count($variants) > 1): ?><span class="text-xs font-semibold uppercase tracking-wide text-slate-400">Mulai</span><?php endif; ?>
-            <span id="prc" class="font-head text-3xl sm:text-4xl font-extrabold text-brand" data-base="<?= product_price($p) ?>"><?= rupiah(product_price($p)) ?></span>
-            <?php if ($isArea): ?><span class="text-sm font-bold text-slate-400">/m²</span><?php endif; ?>
+        <div class="pd-price-row">
+            <?php if (count($variants) > 1): ?><span class="pd-unit">Mulai</span><?php endif; ?>
+            <span id="prc" class="pd-price" data-base="<?= $price ?>"><?= rupiah($price) ?></span>
+            <?php if ($isArea): ?><span class="pd-unit">/m²</span><?php endif; ?>
+            <?php if ($old): ?><span class="pd-old"><?= rupiah($old) ?></span><span class="pd-save">Hemat <?= rupiah($old - $price) ?></span><?php endif; ?>
         </div>
         <?php if (isset($_GET['err']) && $_GET['err'] === 'ukuran'): ?>
-            <div class="mt-4 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm font-medium">Mohon isi ukuran (panjang &times; lebar) yang valid dulu ya.</div>
+            <div class="mt-4 px-4 py-3 rounded-xl text-sm font-semibold" style="background:rgba(225,29,72,.08);border:1px solid rgba(225,29,72,.25);color:#be123c">Mohon isi ukuran (panjang &times; lebar) yang valid dulu ya.</div>
         <?php endif; ?>
         <?php if (!empty($p['description'])): ?>
-            <p class="mt-5 text-slate-600 leading-relaxed"><?= nl2br(h($p['description'])) ?></p>
+            <p class="pd-desc"><?= nl2br(h($p['description'])) ?></p>
         <?php endif; ?>
 
-        <form method="post" class="mt-7 pt-7 border-t border-slate-200 space-y-6">
+        <form method="post" class="pd-form">
             <?php if (count($variants) === 1): ?><input type="hidden" name="variant" value="<?= h($variants[0]['id']) ?>"><?php endif; ?>
             <?php if (count($variants) > 1): ?>
                 <div>
-                    <label class="co-label !mb-2.5">Pilih Varian</label>
-                    <div class="flex flex-wrap gap-2">
+                    <label class="pd-label">Pilih Varian</label>
+                    <div class="pd-variants">
                         <?php foreach ($variants as $k => $v): ?>
                             <label class="cursor-pointer">
                                 <input type="radio" name="variant" value="<?= h($v['id']) ?>" data-price="<?= (float)$v['price'] ?>" <?= $k === 0 ? 'checked' : '' ?> class="peer sr-only">
-                                <span class="inline-flex flex-col px-4 py-2.5 rounded-lg border border-slate-200 text-sm text-slate-700 peer-checked:border-brand peer-checked:bg-brand peer-checked:text-white hover:border-slate-400 transition">
-                                    <span class="font-semibold"><?= h($v['variantName'] ?: $p['name']) ?></span>
+                                <span class="inline-flex flex-col px-4 py-2.5 rounded-xl border border-slate-200 text-sm peer-checked:border-brand peer-checked:bg-brand peer-checked:text-white hover:border-slate-400 transition" style="color:var(--pk-text)">
+                                    <span class="font-bold"><?= h($v['variantName'] ?: $p['name']) ?></span>
                                     <span class="text-xs opacity-70"><?= rupiah($v['price']) ?></span>
                                 </span>
                             </label>
@@ -185,75 +195,72 @@ if ($cid !== '') {
             <?php endif; ?>
 
             <?php if ($hasTiers && !$isArea): ?>
-                <!-- Tabel harga grosir varian terpilih (isi via JS) -->
-                <div id="tierBox" class="hidden rounded-xl border border-slate-200 overflow-hidden">
-                    <div class="px-4 py-2.5 bg-slate-50 text-xs font-bold uppercase tracking-wide text-slate-500">Harga Grosir</div>
+                <div id="tierBox" class="pd-tier hidden">
+                    <div class="pd-tier-h">Harga Grosir</div>
                     <table class="w-full text-sm"><tbody id="tierRows" class="divide-y divide-slate-100"></tbody></table>
                 </div>
             <?php endif; ?>
 
             <?php if ($isArea): ?>
                 <div>
-                    <label class="co-label !mb-2.5">Ukuran (cm)</label>
-                    <div class="flex items-center gap-2">
-                        <input id="szW" type="number" name="width" min="1" step="any" required placeholder="Panjang" class="w-28 h-11 px-3 text-center font-semibold rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
-                        <span class="text-slate-400 font-bold">&times;</span>
-                        <input id="szH" type="number" name="height" min="1" step="any" required placeholder="Lebar" class="w-28 h-11 px-3 text-center font-semibold rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
-                        <span class="text-sm text-slate-400">cm</span>
+                    <label class="pd-label">Ukuran (cm)</label>
+                    <div class="pd-size">
+                        <input id="szW" type="number" name="width" min="1" step="any" required placeholder="Panjang">
+                        <span class="font-bold" style="color:var(--pk-soft)">&times;</span>
+                        <input id="szH" type="number" name="height" min="1" step="any" required placeholder="Lebar">
+                        <span class="text-sm" style="color:var(--pk-soft)">cm</span>
                     </div>
-                    <p id="areaInfo" class="mt-2 text-xs text-slate-400">Harga dihitung dari luas: panjang &times; lebar (cm) &divide; 10.000 = m².</p>
+                    <p id="areaInfo" class="mt-2 text-xs" style="color:var(--pk-soft)">Harga dihitung dari luas: panjang &times; lebar (cm) &divide; 10.000 = m².</p>
                 </div>
             <?php endif; ?>
 
             <div>
-                <label class="co-label !mb-2.5"><?= $isArea ? 'Jumlah (pcs)' : 'Jumlah' ?></label>
-                <div class="flex items-center rounded-lg border border-slate-200 overflow-hidden w-fit">
-                    <button type="button" data-step="-1" class="h-11 w-11 grid place-items-center text-slate-500 hover:bg-brand hover:text-white transition text-lg font-bold" aria-label="Kurangi">&minus;</button>
-                    <input id="qty" type="number" name="qty" value="1" min="1" class="w-16 h-11 text-center font-semibold border-x border-slate-200 focus:outline-none">
-                    <button type="button" data-step="1" class="h-11 w-11 grid place-items-center text-slate-500 hover:bg-brand hover:text-white transition text-lg font-bold" aria-label="Tambah">+</button>
+                <label class="pd-label"><?= $isArea ? 'Jumlah (pcs)' : 'Jumlah' ?></label>
+                <div class="pd-qty">
+                    <button type="button" data-step="-1" aria-label="Kurangi">&minus;</button>
+                    <input id="qty" type="number" name="qty" value="1" min="1">
+                    <button type="button" data-step="1" aria-label="Tambah">+</button>
                 </div>
             </div>
 
             <?php if ($isArea || $hasTiers): ?>
-                <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-slate-50 border border-slate-200">
-                    <span class="text-sm font-semibold text-slate-500">Estimasi total</span>
-                    <span id="estTotal" class="font-head text-lg font-extrabold text-slate-900"><?= $isArea ? '—' : rupiah(product_price($p)) ?></span>
+                <div class="pd-est">
+                    <span class="pd-est-l">Estimasi total</span>
+                    <span id="estTotal" class="pd-est-v"><?= $isArea ? '—' : rupiah($price) ?></span>
                 </div>
             <?php endif; ?>
 
-            <div class="flex flex-col sm:flex-row gap-3">
-                <button type="submit" class="co-btn co-btn--dark flex-1 justify-center !py-3.5">
+            <div class="pd-actions">
+                <button type="submit" class="pd-btn pd-btn--primary">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293A1 1 0 005.414 17H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     Tambah ke Keranjang
                 </button>
                 <?php if ($waNum): ?>
-                    <a href="https://wa.me/<?= h($waNum) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="flex-1 justify-center inline-flex items-center gap-2 px-6 py-3.5 rounded-full border border-slate-200 text-slate-700 font-bold hover:border-brand transition">
-                        <svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.87 9.87 0 004.74 1.21c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2zm0 18.13a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 01-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24 2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 012.41 5.83c0 4.54-3.7 8.23-8.23 8.23zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.16 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.27z"/></svg>
-                        Tanya via WhatsApp
+                    <a href="https://wa.me/<?= h($waNum) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="pd-btn pd-btn--wa">
+                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.87 9.87 0 004.74 1.21c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0012.04 2zm0 18.13a8.2 8.2 0 01-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 01-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24 2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 012.41 5.83c0 4.54-3.7 8.23-8.23 8.23zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.25-.64.8-.78.97-.14.16-.29.18-.54.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.51.11-.11.25-.29.37-.43.12-.14.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.41-.42-.56-.43h-.48c-.16 0-.43.06-.66.31-.22.25-.86.85-.86 2.07 0 1.22.89 2.4 1.01 2.56.12.17 1.75 2.67 4.23 3.74.59.26 1.05.41 1.41.52.59.19 1.13.16 1.56.1.48-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.27z"/></svg>
+                        Pesan via WhatsApp
                     </a>
                 <?php endif; ?>
-            </div>
-
-            <div class="grid grid-cols-2 gap-y-2.5 gap-x-4 pt-4 border-t border-slate-200">
-                <?php foreach (['Respon cepat', 'Kualitas terjaga', 'Bisa custom desain', 'Antar & kirim'] as $f): ?>
-                    <div class="flex items-center gap-2.5 text-xs text-slate-500"><svg class="w-4 h-4 text-slate-900 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg><?= h($f) ?></div>
-                <?php endforeach; ?>
             </div>
         </form>
     </div>
 </div>
 
+<div class="pd-trust">
+    <div class="pd-trust-item"><span class="pd-trust-ico"><i class="fa-solid fa-bolt"></i></span><div><div class="pd-trust-t">Respon Cepat</div><div class="pd-trust-d">Dibalas &amp; dikerjakan cepat</div></div></div>
+    <div class="pd-trust-item"><span class="pd-trust-ico"><i class="fa-solid fa-medal"></i></span><div><div class="pd-trust-t">Kualitas Terjaga</div><div class="pd-trust-d">Mesin &amp; bahan premium</div></div></div>
+    <div class="pd-trust-item"><span class="pd-trust-ico"><i class="fa-solid fa-pen-ruler"></i></span><div><div class="pd-trust-t">Bisa Custom</div><div class="pd-trust-d">Desain dibantu gratis</div></div></div>
+    <div class="pd-trust-item"><span class="pd-trust-ico"><i class="fa-solid fa-truck"></i></span><div><div class="pd-trust-t">Antar &amp; Kirim</div><div class="pd-trust-d">Ambil di tempat / dikirim</div></div></div>
+</div>
+
 <?php if ($related): ?>
-    <section class="mt-16 pt-10 border-t border-slate-200">
-        <div class="co-head">
-            <div>
-                <span class="co-kicker">Katalog</span>
-                <h2 class="co-h2">Produk Serupa</h2>
-            </div>
-            <a href="produk.php?cat=<?= h($cid) ?>" class="co-more">Lihat kategori <span class="co-more-ico"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 17L17 7M17 7H8m9 0v9"/></svg></span></a>
+    <section class="pk-sec" style="margin-top:3.5rem">
+        <div class="pk-shead">
+            <div class="pk-shead-l"><span class="pk-shead-ico"><i class="fa-solid fa-grip"></i></span><h2 class="pk-shead-title">Produk Serupa</h2></div>
+            <a href="produk.php?cat=<?= h($cid) ?>" class="pk-shead-more">Lihat kategori <i class="fa-solid fa-arrow-right" style="font-size:.8em"></i></a>
         </div>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-            <?php foreach ($related as $i => $rp) echo product_card_html($rp, $i, $st['storeName'] ?? ''); ?>
+        <div class="pk-bs-grid">
+            <?php foreach ($related as $i => $rp) echo bs_card_html($rp, $i); ?>
         </div>
     </section>
 <?php endif; ?>

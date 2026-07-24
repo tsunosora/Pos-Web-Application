@@ -208,6 +208,40 @@ function product_card_html(array $p, int $i = 0, string $shop = '', bool $badge 
     <?php return ob_get_clean();
 }
 
+/**
+ * Kartu produk gaya "best-seller" (referensi SoundHub): gambar atas, badge diskon/Terlaris,
+ * wishlist, judul, rating bintang (bila ada), harga + harga coret, tombol cart hijau.
+ * Dipakai bersama di homepage (sec_products_grid), katalog (produk.php), & produk serupa.
+ */
+function bs_card_html(array $p, int $i = 0, bool $badge = false): string {
+    $im = product_image($p); $vc = count($p['variants'] ?? []);
+    $price = product_price($p); $old = 0;
+    foreach (['priceOld', 'compareAtPrice', 'oldPrice', 'strikePrice'] as $k) { if (!empty($p[$k]) && (float)$p[$k] > $price) { $old = (float)$p[$k]; break; } }
+    $disc   = $old ? (int)round(100 - ($price / $old * 100)) : 0;
+    $rating = isset($p['rating']) ? (float)$p['rating'] : 0;
+    $rcount = $p['ratingCount'] ?? $p['reviewCount'] ?? 0;
+    $rr = (int)round($rating);
+    ob_start(); ?>
+    <div class="pk-bs-card card-in" style="animation-delay:<?= ($i % 8) * 55 ?>ms" data-reveal-item>
+        <a href="product.php?id=<?= h($p['id']) ?>" class="pk-bs-media <?= $im ? '' : 'pk-bs-media--empty' ?>">
+            <?php if ($disc > 0): ?><span class="pk-bs-badge pk-bs-badge--disc">-<?= $disc ?>%</span>
+            <?php elseif ($badge): ?><span class="pk-bs-badge">Terlaris</span><?php endif; ?>
+            <span class="pk-bs-fav" aria-hidden="true"><i class="fa-regular fa-heart"></i></span>
+            <?php if ($im): ?><img src="<?= h($im) ?>" alt="<?= h($p['name']) ?>" loading="lazy"><?php else: ?><i class="fa-solid fa-image"></i><?php endif; ?>
+        </a>
+        <div class="pk-bs-body">
+            <?php if (!empty($p['category']['name'])): ?><span class="pk-bs-cat"><?= h($p['category']['name']) ?></span><?php endif; ?>
+            <a href="product.php?id=<?= h($p['id']) ?>" class="pk-bs-title"><?= h($p['name']) ?></a>
+            <?php if ($rating > 0): ?><div class="pk-bs-rate"><span class="pk-bs-stars"><?= str_repeat('★', $rr) . str_repeat('☆', max(0, 5 - $rr)) ?></span><span class="pk-bs-rate-c"><?= number_format($rating, 1) ?><?= $rcount ? ' (' . (int)$rcount . ')' : '' ?></span></div><?php endif; ?>
+            <div class="pk-bs-foot">
+                <span class="pk-bs-price"><small><?= $vc > 1 ? 'Mulai' : 'Harga' ?></small><span class="pk-bs-price-row"><b><?= rupiah($price) ?><?= product_is_area($p) ? '<small class="font-semibold opacity-70">/m²</small>' : '' ?></b><?php if ($old): ?><span class="pk-bs-oldprice"><?= rupiah($old) ?></span><?php endif; ?></span></span>
+                <a href="product.php?id=<?= h($p['id']) ?>" class="pk-bs-cart" aria-label="Lihat produk"><i class="fa-solid fa-plus"></i></a>
+            </div>
+        </div>
+    </div>
+    <?php return ob_get_clean();
+}
+
 // ── Render satu blok ke HTML ─────────────────────────────────────────────────
 function render_home_block(array $b, array $ctx): string {
     if (($b['enabled'] ?? true) === false) return '';

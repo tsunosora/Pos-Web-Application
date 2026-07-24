@@ -42,7 +42,7 @@ $hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?
     <script>tailwind.config = { theme: { extend: { colors: { brand: '<?= h(brand_color()) ?>' } } } };</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Fraunces:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <link rel="stylesheet" href="assets/voliko.css?v=<?= @filemtime(__DIR__ . '/assets/voliko.css') ?: '1' ?>">
@@ -70,7 +70,7 @@ $hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?
 <div class="pk-blob pk-blob-2"></div>
 <div class="pk-blob pk-blob-3"></div>
 <header class="nav-glass sticky top-0 z-40">
-    <div class="nav-inner max-w-6xl mx-auto px-4 flex items-center gap-3 sm:gap-5">
+    <div class="nav-inner max-w-[96rem] mx-auto px-4 flex items-center gap-3 sm:gap-5">
         <a href="index.php" class="flex items-center gap-2 font-extrabold text-lg text-slate-900 shrink-0 font-head">
             <?php if (!empty($st['logoImageUrl'])): ?>
                 <img src="<?= h(img_url($st['logoImageUrl'])) ?>" alt="" class="h-9 w-9 rounded-xl object-cover">
@@ -101,7 +101,7 @@ $hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?
                 <?php if ($cc > 0): ?><span class="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[11px] font-bold grid place-items-center"><?= $cc ?></span><?php endif; ?>
             </a>
             <?php if ($hdrWa): ?>
-                <a href="https://wa.me/<?= h($hdrWa) ?>" target="_blank" rel="noopener" class="btn-pill btn-pill--dark !py-2 !px-4 text-sm hidden sm:inline-flex">
+                <a href="https://wa.me/<?= h($hdrWa) ?>" target="_blank" rel="noopener" class="btn-pill btn-pill--accent !py-2 !px-4 text-sm hidden sm:inline-flex">
                     Order via WA
                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
                 </a>
@@ -113,7 +113,7 @@ $hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?
     </div>
     <!-- Menu mobile -->
     <div id="mnav" class="lg:hidden hidden border-t border-white/40 bg-white/85 backdrop-blur-xl">
-        <nav class="max-w-6xl mx-auto px-4 py-3 grid grid-cols-2 gap-1">
+        <nav class="max-w-[96rem] mx-auto px-4 py-3 grid grid-cols-2 gap-1">
             <a href="produk.php" class="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-white">Produk</a>
             <a href="portofolio.php" class="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-white">Portofolio</a>
             <a href="profil.php" class="px-3 py-2.5 rounded-xl text-sm font-semibold text-slate-700 hover:bg-white">Profil</a>
@@ -123,9 +123,9 @@ $hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?
                        class="w-full px-4 py-2.5 rounded-full border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand/40 text-sm">
             </form>
             <?php if ($hdrWa): ?>
-                <a href="https://wa.me/<?= h($hdrWa) ?>" target="_blank" rel="noopener" class="col-span-2 btn-pill btn-pill--dark justify-center text-sm mt-1">Order via WA</a>
+                <a href="https://wa.me/<?= h($hdrWa) ?>" target="_blank" rel="noopener" class="col-span-2 btn-pill btn-pill--accent justify-center text-sm mt-1">Order via WA</a>
             <?php endif; ?>
         </nav>
     </div>
 </header>
-<main class="flex-1 max-w-6xl w-full mx-auto px-4 py-6">
+<main class="flex-1 max-w-[96rem] w-full mx-auto px-4 py-6">

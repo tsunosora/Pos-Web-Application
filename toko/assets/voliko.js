@@ -18,9 +18,10 @@
         var slides = el.querySelectorAll('.swiper-slide').length;
         new Swiper(el, {
             loop: slides > 1,
-            speed: 700,
-            effect: 'fade',
-            fadeEffect: { crossFade: true },
+            speed: 650,
+            effect: 'slide',
+            slidesPerView: 1,
+            autoHeight: false,
             autoplay: slides > 1 && !reduced ? { delay: 6000, pauseOnMouseEnter: true, disableOnInteraction: false } : false,
             pagination: { el: el.querySelector('.swiper-pagination'), clickable: true },
             navigation: { nextEl: el.querySelector('.hero2-next'), prevEl: el.querySelector('.hero2-prev') },
