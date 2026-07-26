@@ -483,10 +483,20 @@ export interface KpiLeaderboardEntry {
     omzetShare: number;   // bagian omzet nota utk CS (nota dibagi per peran)
     closingRate: number;
     avgResponseHrs: number | null;
+    // Nilai metrik produk custom (owner-defined) → { "<metricId>": nilai }
+    customMetrics?: Record<string, number>;
+}
+
+/** Definisi kolom metrik produk custom yang ikut di response leaderboard. */
+export interface CustomMetricDef {
+    id: number;
+    label: string;
+    countMode: 'PCS' | 'QTY' | 'OMZET' | 'NOTA';
 }
 
 export interface KpiReport {
     period: { start: string; end: string };
+    customMetricDefs?: CustomMetricDef[];
     totals: {
         totalLeads: number;
         closedWon: number;

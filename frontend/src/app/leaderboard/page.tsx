@@ -144,6 +144,9 @@ export default function LeaderboardPage() {
         return r.sort((a, b) => cuan(b) - cuan(a));
     }, [kpi.data, roleFilter, kw]);
 
+    // Kolom metrik produk custom (owner-defined) utk leaderboard CS.
+    const csCustomDefs = kpi.data?.customMetricDefs ?? [];
+
     const dcRows = useMemo(() => {
         let r = [...(kpi.data?.designCheckLeaderboard ?? [])];
         if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
@@ -299,7 +302,9 @@ export default function LeaderboardPage() {
                                         <table className="w-full text-sm min-w-[900px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
-                                                <Th right>Rate</Th><Th right>Pcs</Th><Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
+                                                <Th right>Rate</Th><Th right>Pcs</Th>
+                                                {csCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
+                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -310,6 +315,14 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-red-600 dark:text-red-300">{r.dealsLost || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{(r.pcsOrdered + r.walkinPcs) || '—'}</td>
+                                                        {csCustomDefs.map(d => {
+                                                            const v = r.customMetrics?.[String(d.id)] ?? 0;
+                                                            return (
+                                                                <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
+                                                                    {v ? (d.countMode === 'OMZET' ? fmtRp(v) : v.toLocaleString('id-ID')) : '—'}
+                                                                </td>
+                                                            );
+                                                        })}
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300 font-semibold">
                                                             {r.notasInTransit || '—'}
                                                             {r.pcsInTransit > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsInTransit} pcs</span>}
