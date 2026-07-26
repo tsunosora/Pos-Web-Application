@@ -27,6 +27,7 @@ import {
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { BonusPanel } from "./BonusPanel";
+import { CustomMetricPanel } from "./CustomMetricPanel";
 import { CsRatingSection } from "@/components/owner/CsRatingSection";
 import { badgeToneClass } from "@/components/ui/status-badge";
 
@@ -541,6 +542,9 @@ export default function OwnerDashboardPage() {
 
                         {/* Bonus Karyawan (target, pencapaian, toggle manual) */}
                         <BonusPanel branches={branches || []} activeBranchId={activeBranchId} />
+
+                        {/* Metrik Produk Custom (kolom produk khusus di leaderboard) */}
+                        <CustomMetricPanel />
 
                         <CaraHitung>
                             <p><b>Omzet</b> = penjualan netto transaksi <b>lunas</b> (total − diskon). <b>HPP</b> = modal barang terjual. <b>Laba Kotor</b> = Omzet − HPP.</p>
