@@ -293,6 +293,33 @@ model ProductionCategory {
   @@map("production_categories")
 }
 
+/// Metrik produk custom untuk leaderboard — owner mendefinisikan 1+ "produk khusus"
+/// yang dihitung sebagai kolom tersendiri (mis. "Jersey Kantor", "Stiker Premium").
+/// Aturan match OR: item cocok bila memenuhi salah satu dari variant/kategori/keyword.
+model CustomProductMetric {
+  id           Int     @id @default(autoincrement())
+  name         String  @db.VarChar(120) // nama internal (untuk owner)
+  label        String  @db.VarChar(40) // header kolom pendek di leaderboard
+  isActive     Boolean @default(true) @map("is_active")
+  displayOrder Int     @default(0) @map("display_order")
+
+  // Aturan match (OR di antara ketiganya). Simpan sebagai JSON array.
+  productVariantIds Json? @map("product_variant_ids") // number[]
+  categoryIds       Json? @map("category_ids") // number[]
+  nameKeywords      Json? @map("name_keywords") // string[] (contains, case-insensitive)
+
+  // Cara menghitung item yang cocok: PCS | QTY | OMZET | NOTA
+  countMode String @default("PCS") @map("count_mode") @db.VarChar(10)
+
+  // Leaderboard yang menampilkan kolom ini: ["CS","DESIGNER","OPERATOR"]
+  roles Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("custom_product_metrics")
+}
+
 model StockMovement {
   id               Int          @id @default(autoincrement())
   productVariantId Int          @map("product_variant_id")
