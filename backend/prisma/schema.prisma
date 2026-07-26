@@ -1915,6 +1915,20 @@ model Lead {
   @@map("leads")
 }
 
+// Master data sumber lead "CUSTOM" (mis. "Shopee", "Brosur Pameran").
+// Dipakai bersama semua CS/cabang untuk mencegah penumpukan nama yang sama
+// beda huruf besar/kecil: dedup lewat normalizedName (lowercase+trim) @unique.
+model LeadSourceOption {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(150) // nama tampilan (casing pertama yang dipakai)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(150) // kunci dedup
+  usageCount     Int      @default(0) @map("usage_count") // berapa kali dipakai — untuk urutan populer
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("lead_source_options")
+}
+
 model LeadActivity {
   id          Int      @id @default(autoincrement())
   leadId      Int?     @map("lead_id")

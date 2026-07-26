@@ -258,6 +258,23 @@ export const createLead = async (data: CreateLeadInput): Promise<Lead> =>
 export const updateLead = async (id: number, data: UpdateLeadInput): Promise<Lead> =>
     (await api.patch(`/crm/leads/${id}`, data)).data;
 
+// ─── Master sumber lead CUSTOM (dedup case-insensitive, dipakai bersama) ────────
+
+export interface LeadSourceOption {
+    id: number;
+    name: string;
+    normalizedName: string;
+    usageCount: number;
+}
+
+/** Daftar sumber lead tersimpan untuk dropdown (populer di atas). */
+export const getLeadSourceOptions = async (): Promise<LeadSourceOption[]> =>
+    (await api.get('/crm/lead-sources')).data;
+
+/** Simpan/pakai sumber lead — backend men-dedup varian huruf besar/kecil. */
+export const saveLeadSourceOption = async (name: string): Promise<LeadSourceOption> =>
+    (await api.post('/crm/lead-sources', { name })).data;
+
 export const addLeadActivity = async (
     leadId: number,
     data: { kind: string; text?: string; meta?: Record<string, unknown> },

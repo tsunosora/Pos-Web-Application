@@ -84,8 +84,8 @@ export const BACKUP_GROUPS = {
     },
     crm: {
         label: 'CRM — Leads, Follow-ups, Templates',
-        // Lead + items + images + activities + follow-ups + message templates
-        tables: ['lead', 'leadItem', 'leadImage', 'leadActivity', 'followUp', 'messageTemplate'],
+        // Lead + items + images + activities + follow-ups + message templates + master sumber lead
+        tables: ['lead', 'leadItem', 'leadImage', 'leadActivity', 'followUp', 'messageTemplate', 'leadSourceOption'],
     },
     ownerFinance: {
         label: 'Biaya Owner — Beban Tetap, Iklan & Bonus',
@@ -178,6 +178,7 @@ export const RESTORE_ORDER = [
     'leadImage',                                // FK → lead
     'leadActivity',                             // FK → lead, customer, user
     'followUp',                                 // FK → lead, customer, user, branch, messageTemplate
+    'leadSourceOption',                         // standalone (master sumber lead CUSTOM, tanpa FK)
     // Penilaian CS — config dulu, lalu response (FK → customer, user, salesOrder, transaction, companyBranch)
     'csRatingConfig',
     'csRatingResponse',
@@ -261,7 +262,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '4.0', // v4.0: + branchMonthlyClosing & centralTreasuryEntry (grup Biaya Owner — konsolidasi tutup buku + kas pusat), + grup Penilaian CS: csRatingConfig & csRatingResponse. v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
+                version: '4.1', // v4.1: + leadSourceOption (grup CRM — master sumber lead CUSTOM, dedup case-insensitive). v4.0: + branchMonthlyClosing & centralTreasuryEntry (grup Biaya Owner — konsolidasi tutup buku + kas pusat), + grup Penilaian CS: csRatingConfig & csRatingResponse. v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

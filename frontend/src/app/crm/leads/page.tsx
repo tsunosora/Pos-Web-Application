@@ -7,6 +7,7 @@ import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
     addLeadActivity, convertLead, closeLeadLost, markLeadInvalid, linkLeadToSalesOrder,
     getMessageTemplates, renderTemplate,
+    getLeadSourceOptions, saveLeadSourceOption,
     uploadLeadImage, resolveLeadImageUrl, lookupCustomerByPhone, lookupCustomerByName, type CustomerLookupResult,
     type Lead, type LeadItem, type LeadStatus, type LeadSource, type LeadLevel, type MessageTemplate,
     LEAD_SOURCE_LABEL, LEAD_STATUS_LABEL, LEAD_LEVEL_LABEL,
@@ -513,23 +514,23 @@ function LeadFormModal({
     const [phoneChecked, setPhoneChecked] = useState(false);
     const [nameMatches, setNameMatches] = useState<CustomerLookupResult[]>([]);
     const [nameListOpen, setNameListOpen] = useState(false);
-    const [savedCustomSources, setSavedCustomSources] = useState<string[]>([]);
-
-    // Load custom sources dari localStorage, juga tambahkan sourceDetail lead yang sedang diedit
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem("crm_custom_sources");
-            const stored: string[] = raw ? JSON.parse(raw) : [];
-            const initCustom = initial?.source === "CUSTOM" && initial.sourceDetail ? initial.sourceDetail : null;
-            if (initCustom && !stored.includes(initCustom)) {
-                const updated = [initCustom, ...stored].slice(0, 20);
-                try { localStorage.setItem("crm_custom_sources", JSON.stringify(updated)); } catch {}
-                setSavedCustomSources(updated);
-            } else {
-                setSavedCustomSources(stored);
-            }
-        } catch {}
-    }, []);
+    const queryClient = useQueryClient();
+    // Sumber lead tersimpan dari master server (dedup case-insensitive, dipakai
+    // bersama semua CS/perangkat) — menggantikan localStorage per-browser.
+    const { data: sourceOptions } = useQuery({
+        queryKey: ["lead-source-options"],
+        queryFn: getLeadSourceOptions,
+        staleTime: 60_000,
+    });
+    // Sertakan sourceDetail lead yang sedang diedit meski belum tersimpan, agar tetap terpilih.
+    const savedCustomSources = useMemo(() => {
+        const names = (sourceOptions ?? []).map(o => o.name);
+        const initCustom = initial?.source === "CUSTOM" && initial.sourceDetail ? initial.sourceDetail : null;
+        if (initCustom && !names.some(n => n.toLowerCase() === initCustom.toLowerCase())) {
+            return [initCustom, ...names];
+        }
+        return names;
+    }, [sourceOptions, initial]);
 
     // Nilai select sumber: kalau CUSTOM+sourceDetail ada di list (case-insensitive) → pakai nama tersimpan, kalau baru → "CUSTOM_NEW"
     const matchedSavedSource = form.source === "CUSTOM"
@@ -643,13 +644,11 @@ function LeadFormModal({
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        // Simpan custom source ke localStorage supaya bisa dipilih lagi
+        // Simpan custom source ke master server (dedup case-insensitive) supaya bisa dipilih lagi
         if (form.source === "CUSTOM" && form.sourceDetail.trim()) {
-            const label = form.sourceDetail.trim();
-            const labelLower = label.toLowerCase();
-            const updated = [label, ...savedCustomSources.filter(s => s.toLowerCase() !== labelLower)].slice(0, 20);
-            setSavedCustomSources(updated);
-            try { localStorage.setItem("crm_custom_sources", JSON.stringify(updated)); } catch {}
+            saveLeadSourceOption(form.sourceDetail.trim())
+                .then(() => queryClient.invalidateQueries({ queryKey: ["lead-source-options"] }))
+                .catch(() => { /* best-effort — jangan blok pembuatan lead */ });
         }
         onSubmit({
             ...form,
@@ -1833,13 +1832,58 @@ function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
     const [source, setSource] = useState<string>(isPlaceholderSource ? "" : lead.source);
     const [sourceDetail, setSourceDetail] = useState<string>(isPlaceholderSource ? "" : (lead.sourceDetail || ""));
 
+    const queryClient = useQueryClient();
     const { data: users } = useQuery({
         queryKey: ["users-for-cs-assign"],
         queryFn: async () => (await api.get("/users")).data as { id: number; name: string | null; email: string }[],
         staleTime: 5 * 60_000,
     });
 
+    // Sumber lead tersimpan dari master server — sama seperti di form lead, agar
+    // CS memilih dari daftar (tidak ketik ulang) & tidak menumpuk nama serupa.
+    const { data: sourceOptions } = useQuery({
+        queryKey: ["lead-source-options"],
+        queryFn: getLeadSourceOptions,
+        staleTime: 60_000,
+    });
+    const savedCustomSources = useMemo(() => (sourceOptions ?? []).map(o => o.name), [sourceOptions]);
+
+    // Nilai select: CUSTOM+detail yang cocok (case-insensitive) → nama tersimpan; kalau baru → "CUSTOM_NEW"
+    const matchedSavedSource = source === "CUSTOM"
+        ? savedCustomSources.find(s => s.toLowerCase() === sourceDetail.toLowerCase())
+        : undefined;
+    const selectSourceValue = source === "CUSTOM"
+        ? (matchedSavedSource ? `CUSTOM:${matchedSavedSource}` : "CUSTOM_NEW")
+        : source;
+
+    const handleSourceChange = (value: string) => {
+        if (value.startsWith("CUSTOM:")) {
+            setSource("CUSTOM");
+            setSourceDetail(value.slice(7));
+        } else if (value === "CUSTOM_NEW") {
+            setSource("CUSTOM");
+            setSourceDetail("");
+        } else {
+            setSource(value);
+            setSourceDetail("");
+        }
+    };
+
     const canSubmit = !!assignedToId && !!source && (source !== "CUSTOM" || sourceDetail.trim().length > 0);
+
+    const handleConfirm = () => {
+        // Simpan sumber baru ke master (dedup case-insensitive) untuk dipilih lain kali
+        if (source === "CUSTOM" && sourceDetail.trim()) {
+            saveLeadSourceOption(sourceDetail.trim())
+                .then(() => queryClient.invalidateQueries({ queryKey: ["lead-source-options"] }))
+                .catch(() => { /* best-effort — jangan blok pembuatan nota */ });
+        }
+        onSubmit({
+            assignedToId: Number(assignedToId),
+            source: source as LeadSource,
+            sourceDetail: source === "CUSTOM" ? sourceDetail.trim() : (sourceDetail.trim() || null),
+        });
+    };
 
     return (
         <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4" onClick={onClose}>
@@ -1874,35 +1918,41 @@ function PreNotaModal({ lead, onClose, onSubmit, submitting }: {
                             Sumber lead <span className="text-red-500">*</span>
                         </label>
                         <select
-                            value={source}
-                            onChange={(e) => setSource(e.target.value)}
+                            value={selectSourceValue}
+                            onChange={(e) => handleSourceChange(e.target.value)}
                             className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
                         >
                             <option value="">— customer ini tahu dari mana? —</option>
-                            {SOURCE_OPTIONS.map((s) => (
-                                <option key={s} value={s}>
-                                    {s === "CUSTOM" ? "Lainnya (isi sendiri)" : LEAD_SOURCE_LABEL[s]}
-                                </option>
+                            {SOURCE_OPTIONS.filter(s => s !== "CUSTOM").map((s) => (
+                                <option key={s} value={s}>{LEAD_SOURCE_LABEL[s]}</option>
                             ))}
+                            {savedCustomSources.length > 0 && (
+                                <optgroup label="— Sumber Tersimpan —">
+                                    {savedCustomSources.map(s => (
+                                        <option key={`CUSTOM:${s}`} value={`CUSTOM:${s}`}>{s}</option>
+                                    ))}
+                                </optgroup>
+                            )}
+                            <option value="CUSTOM_NEW">+ Tambah Sumber Baru...</option>
                         </select>
                     </div>
-                    {source === "CUSTOM" && (
-                        <input
-                            value={sourceDetail}
-                            onChange={(e) => setSourceDetail(e.target.value)}
-                            placeholder="Tulis sumber lead, mis. pameran, rekomendasi toko"
-                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
-                        />
+                    {source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" && (
+                        <div>
+                            <input
+                                autoFocus
+                                value={sourceDetail}
+                                onChange={(e) => setSourceDetail(e.target.value)}
+                                placeholder='mis. "Shopee", "Brosur Pameran", "Event Kampus"'
+                                className="w-full border border-indigo-400 rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"
+                            />
+                            <p className="text-[10px] text-indigo-600 mt-1">Nama ini akan tersimpan & bisa dipilih langsung lain kali.</p>
+                        </div>
                     )}
                 </div>
                 <div className="flex gap-2 mt-4">
                     <button onClick={onClose} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
                     <button
-                        onClick={() => onSubmit({
-                            assignedToId: Number(assignedToId),
-                            source: source as LeadSource,
-                            sourceDetail: source === "CUSTOM" ? sourceDetail.trim() : (sourceDetail.trim() || null),
-                        })}
+                        onClick={handleConfirm}
                         disabled={!canSubmit || submitting}
                         className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                     >
