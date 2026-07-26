@@ -30,6 +30,16 @@ const TOOLTIP_STYLE = { background: 'var(--card)', border: '1px solid var(--bord
 const AXIS_TICK = { fill: 'var(--muted-foreground)', fontSize: 12 } as const;
 
 const fmtRp = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+
+// Format nilai metrik produk custom + keterangan satuan sesuai cara hitung.
+const fmtCustomMetric = (v: number, mode?: string) => {
+    if (!v) return '—';
+    const n = v.toLocaleString('id-ID');
+    if (mode === 'OMZET') return fmtRp(v);
+    if (mode === 'QTY') return `${n} qty`;
+    if (mode === 'NOTA') return `${n} nota`;
+    return `${n} pcs`; // default & mode PCS
+};
 const fmtM2 = (v: number) => v > 0 ? `${(Math.round(v * 100) / 100).toLocaleString('id-ID')} m²` : '—';
 const initials = (name?: string | null) => {
     const p = (name || '').trim().split(/\s+/);
@@ -319,14 +329,11 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-red-600 dark:text-red-300">{r.dealsLost || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{(r.pcsOrdered + r.walkinPcs) || '—'}</td>
-                                                        {csCustomDefs.map(d => {
-                                                            const v = r.customMetrics?.[String(d.id)] ?? 0;
-                                                            return (
-                                                                <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
-                                                                    {v ? (d.countMode === 'OMZET' ? fmtRp(v) : v.toLocaleString('id-ID')) : '—'}
-                                                                </td>
-                                                            );
-                                                        })}
+                                                        {csCustomDefs.map(d => (
+                                                            <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
+                                                                {fmtCustomMetric(r.customMetrics?.[String(d.id)] ?? 0, d.countMode)}
+                                                            </td>
+                                                        ))}
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300 font-semibold">
                                                             {r.notasInTransit || '—'}
                                                             {r.pcsInTransit > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsInTransit} pcs</span>}
@@ -461,10 +468,9 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono">{r.selesai || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-orange-500">{r.express || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pcs || '—'}</td>
-                                                        {dgCustomDefs.map(d => {
-                                                            const v = r.customMetrics?.[String(d.id)] ?? 0;
-                                                            return <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{v ? (d.countMode === 'OMZET' ? fmtRp(v) : v.toLocaleString('id-ID')) : '—'}</td>;
-                                                        })}
+                                                        {dgCustomDefs.map(d => (
+                                                            <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{fmtCustomMetric(r.customMetrics?.[String(d.id)] ?? 0, d.countMode)}</td>
+                                                        ))}
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                     </tr>
                                                 ))}
@@ -511,10 +517,9 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{r.prodJobs || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.prodDone || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{r.total || '—'}</td>
-                                                        {opCustomDefs.map(d => {
-                                                            const v = r.customMetrics?.[String(d.id)] ?? 0;
-                                                            return <td key={d.id} className="py-2 px-2 text-right font-mono text-purple-600 dark:text-purple-300 font-semibold">{v ? (d.countMode === 'OMZET' ? fmtRp(v) : v.toLocaleString('id-ID')) : '—'}</td>;
-                                                        })}
+                                                        {opCustomDefs.map(d => (
+                                                            <td key={d.id} className="py-2 px-2 text-right font-mono text-purple-600 dark:text-purple-300 font-semibold">{fmtCustomMetric(r.customMetrics?.[String(d.id)] ?? 0, d.countMode)}</td>
+                                                        ))}
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                     </tr>
                                                 ))}

@@ -16,7 +16,8 @@ import {
 import { getCategories, getProducts } from "@/lib/api/products";
 
 interface CategoryOpt { id: number; name: string }
-interface ProductOpt { id: number; name: string; variantCount: number }
+// Tiap varian = satu item terpisah (nama beda → produk beda menurut owner).
+interface VariantOpt { id: number; label: string; productName: string }
 
 const COUNT_MODES: { v: CustomMetricCountMode; label: string; hint: string }[] = [
     { v: "PCS", label: "Pcs (jumlah barang)", hint: "Σ qty × pcs" },
@@ -53,12 +54,21 @@ export function CustomMetricPanel() {
         () => (catQ.data ?? []).map((c: any) => ({ id: c.id, name: c.name })),
         [catQ.data],
     );
-    const products: ProductOpt[] = useMemo(
-        () => (prodQ.data ?? [])
-            .map((p: any) => ({ id: p.id, name: p.name, variantCount: (p.variants?.length ?? 0) }))
-            .sort((a: ProductOpt, b: ProductOpt) => a.name.localeCompare(b.name)),
-        [prodQ.data],
-    );
+    // Flat list varian: tiap varian jadi baris tersendiri, label = "Produk — Varian".
+    const variants: VariantOpt[] = useMemo(() => {
+        const out: VariantOpt[] = [];
+        for (const p of (prodQ.data ?? [])) {
+            for (const v of (p.variants ?? [])) {
+                const vn = (v.variantName ?? "").trim();
+                out.push({
+                    id: v.id,
+                    productName: p.name,
+                    label: vn ? `${p.name} — ${vn}` : p.name,
+                });
+            }
+        }
+        return out.sort((a, b) => a.label.localeCompare(b.label));
+    }, [prodQ.data]);
 
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
@@ -136,11 +146,11 @@ export function CustomMetricPanel() {
         else createMut.mutate(body);
     }
 
-    function toggleProduct(id: number) {
+    function toggleVariant(id: number) {
         setForm(f => {
-            const set = new Set(f.productIds ?? []);
+            const set = new Set(f.productVariantIds ?? []);
             if (set.has(id)) set.delete(id); else set.add(id);
-            return { ...f, productIds: Array.from(set) };
+            return { ...f, productVariantIds: Array.from(set) };
         });
     }
     function toggleCat(id: number) {
@@ -220,40 +230,36 @@ export function CustomMetricPanel() {
                         </div>
                     </div>
 
-                    {/* Pilih produk dari inventori (aturan utama) */}
+                    {/* Pilih varian dari inventori (aturan utama) — tiap varian item terpisah */}
                     <div>
                         <label className="text-[10px] text-muted-foreground block mb-1">
-                            Produk dari inventori <span className="text-foreground font-medium">· {(form.productIds ?? []).length} dipilih</span>
+                            Produk / varian dari inventori <span className="text-foreground font-medium">· {(form.productVariantIds ?? []).length} dipilih</span>
                         </label>
                         <input value={prodSearch} onChange={e => setProdSearch(e.target.value)}
-                            placeholder="Cari produk…"
+                            placeholder="Cari produk / varian…"
                             className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground mb-1.5" />
                         <div className="border border-border rounded-lg max-h-52 overflow-y-auto divide-y divide-border/60">
                             {prodQ.isLoading && <div className="p-3 grid place-items-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
-                            {!prodQ.isLoading && products.length === 0 && (
-                                <p className="text-[11px] text-muted-foreground p-3 text-center">Belum ada produk di inventori.</p>
+                            {!prodQ.isLoading && variants.length === 0 && (
+                                <p className="text-[11px] text-muted-foreground p-3 text-center">Belum ada produk/varian di inventori.</p>
                             )}
-                            {products
-                                .filter(p => p.name.toLowerCase().includes(prodSearch.trim().toLowerCase()))
-                                .map(p => {
-                                    const on = (form.productIds ?? []).includes(p.id);
-                                    const disabled = p.variantCount === 0;
+                            {variants
+                                .filter(v => v.label.toLowerCase().includes(prodSearch.trim().toLowerCase()))
+                                .map(v => {
+                                    const on = (form.productVariantIds ?? []).includes(v.id);
                                     return (
-                                        <button type="button" key={p.id} disabled={disabled}
-                                            onClick={() => toggleProduct(p.id)}
-                                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors ${on ? "bg-indigo-500/10" : "hover:bg-accent"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}>
+                                        <button type="button" key={v.id}
+                                            onClick={() => toggleVariant(v.id)}
+                                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors ${on ? "bg-indigo-500/10" : "hover:bg-accent"}`}>
                                             <span className={`h-3.5 w-3.5 rounded border grid place-items-center shrink-0 ${on ? "bg-indigo-500 border-indigo-500 text-white" : "border-border"}`}>
                                                 {on && <Check className="h-2.5 w-2.5" />}
                                             </span>
-                                            <span className="flex-1 truncate text-foreground">{p.name}</span>
-                                            <span className="text-[10px] text-muted-foreground shrink-0">
-                                                {disabled ? "tanpa varian" : `${p.variantCount} varian`}
-                                            </span>
+                                            <span className="flex-1 truncate text-foreground">{v.label}</span>
                                         </button>
                                     );
                                 })}
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-1">Pilih produk terdaftar — semua variannya (termasuk varian baru) otomatis ikut dihitung.</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Tiap varian dihitung terpisah. Centang varian yang ingin dilacak.</p>
                     </div>
 
                     {/* Aturan lanjutan (opsional): kategori & kata kunci */}
@@ -324,6 +330,7 @@ export function CustomMetricPanel() {
                                 <div className="text-[10px] text-muted-foreground flex flex-wrap gap-x-2 mt-0.5">
                                     <span>{COUNT_MODES.find(c => c.v === m.countMode)?.label ?? m.countMode}</span>
                                     <span>· {(m.roles ?? []).join("/")}</span>
+                                    {(m.productVariantIds?.length ?? 0) > 0 && <span>· {m.productVariantIds.length} varian</span>}
                                     {(m.productIds?.length ?? 0) > 0 && <span>· {m.productIds.length} produk</span>}
                                     {(m.categoryIds?.length ?? 0) > 0 && <span>· {m.categoryIds.length} kategori</span>}
                                     {(m.nameKeywords?.length ?? 0) > 0 && <span>· kata: {m.nameKeywords.join(", ")}</span>}
