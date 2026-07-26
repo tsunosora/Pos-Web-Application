@@ -4,6 +4,13 @@ import { branchWhere } from '../../common/branch-where.helper';
 import { matchBranchId } from '../../common/branch-name.util';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { DiscordService } from '../../discord/discord.service';
+import {
+    aggregateByTx,
+    buildMatchWhere,
+    valueByItemId,
+    type CountMode,
+    type RawItem,
+} from './custom-metric.util';
 
 export type KpiPeriod = 'today' | 'week' | 'month' | 'custom';
 
@@ -150,6 +157,50 @@ export class KpiService {
         });
         for (const g of groups) map.set(g.transactionId, Number(g._sum?.quantity) || 0);
         return map;
+    }
+
+    // ── Metrik produk custom (owner-defined) ───────────────────────────────
+    /** Ambil metrik custom aktif untuk sebuah peran (CS/DESIGNER/OPERATOR). */
+    private async getActiveCustomMetrics(role: string): Promise<any[]> {
+        const all: any[] = await (this.prisma as any).customProductMetric.findMany({
+            where: { isActive: true },
+            orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }],
+        });
+        return all.filter((m) => Array.isArray(m.roles) && m.roles.includes(role));
+    }
+
+    /** Map<txId, nilai> untuk satu metrik atas himpunan txIds (atribusi level-transaksi). */
+    private async computeCustomMetricByTx(txIds: number[], metric: any): Promise<Map<number, number>> {
+        const empty = new Map<number, number>();
+        if (txIds.length === 0) return empty;
+        const where = buildMatchWhere({
+            productVariantIds: metric.productVariantIds ?? [],
+            categoryIds: metric.categoryIds ?? [],
+            nameKeywords: metric.nameKeywords ?? [],
+        });
+        if (!where) return empty; // metrik tanpa aturan → nol (defensif)
+        const items: RawItem[] = await (this.prisma as any).transactionItem.findMany({
+            where: { transactionId: { in: txIds }, ...where },
+            select: { transactionId: true, quantity: true, pcs: true, priceAtTime: true },
+        });
+        return aggregateByTx(items, (metric.countMode as CountMode) || 'PCS');
+    }
+
+    /** Map<itemId, nilai> untuk satu metrik atas himpunan TransactionItem.id (atribusi level-item). */
+    private async computeCustomMetricByItemIds(itemIds: number[], metric: any): Promise<Map<number, number>> {
+        const empty = new Map<number, number>();
+        if (itemIds.length === 0) return empty;
+        const where = buildMatchWhere({
+            productVariantIds: metric.productVariantIds ?? [],
+            categoryIds: metric.categoryIds ?? [],
+            nameKeywords: metric.nameKeywords ?? [],
+        });
+        if (!where) return empty;
+        const items: any[] = await (this.prisma as any).transactionItem.findMany({
+            where: { id: { in: itemIds }, ...where },
+            select: { id: true, transactionId: true, quantity: true, pcs: true, priceAtTime: true },
+        });
+        return valueByItemId(items, (metric.countMode as CountMode) || 'PCS');
     }
 
     async report(ctx: BranchContext, params: KpiParams, csId?: number) {
@@ -1702,6 +1753,14 @@ export class KpiService {
             pcsShipped: 0, pcsInTransit: 0, pcsDelivered: 0,
         });
         const byAssignee = new Map<number, CsStat>();
+        // txId yang jadi milik tiap CS (won-converted + walk-in) → utk metrik produk custom.
+        const txByUser = new Map<number, Set<number>>();
+        const addTxToUser = (uid: number, txId: number | null | undefined) => {
+            if (!uid || txId == null || !Number.isFinite(Number(txId))) return;
+            const set = txByUser.get(uid) ?? new Set<number>();
+            set.add(Number(txId));
+            txByUser.set(uid, set);
+        };
         for (const l of leadsInPeriod) {
             if (!l.assignedToId) continue;
             const entry = byAssignee.get(l.assignedToId) || zeroStat();
@@ -1720,6 +1779,7 @@ export class KpiService {
                 entry.pendingValue += leadPendingMap.get(l.id) ?? 0;
                 if (txId != null) {
                     entry.pcsOrdered += txPcsMap.get(txId) ?? 0;
+                    addTxToUser(l.assignedToId, txId);
                 }
             }
             if (l.status === 'CLOSED_LOST') {
@@ -1777,6 +1837,7 @@ export class KpiService {
             const entry = byAssignee.get(u.id) || zeroStat();
             entry.walkinTx++;
             entry.walkinPcs += walkinPcsMap.get(t.id) ?? 0;
+            addTxToUser(u.id, t.id);
             // Pendapatan bersih: harga jual dikurangi biaya platform.
             entry.walkinValue += Math.max(0, (Number(t.grandTotal) || 0) - (Number((t as any).marketplaceFee) || 0));
             // Sisa piutang tx PENDING/PARTIAL → Nilai Akan Datang (gabung dgn pending lead)
@@ -1877,12 +1938,35 @@ export class KpiService {
             }
         }
 
+        // ── Metrik produk custom (owner-defined) per CS ────────────────────
+        const csCustomMetrics = await this.getActiveCustomMetrics('CS');
+        const customMetricDefs = csCustomMetrics.map((m) => ({ id: m.id, label: m.label, countMode: m.countMode }));
+        // Map<userId, Record<metricId, nilai>>
+        const customByUser = new Map<number, Record<string, number>>();
+        if (csCustomMetrics.length > 0) {
+            const allTxIds = Array.from(new Set(
+                Array.from(txByUser.values()).flatMap((s) => Array.from(s)),
+            ));
+            for (const metric of csCustomMetrics) {
+                const byTx = await this.computeCustomMetricByTx(allTxIds, metric);
+                for (const [uid, txs] of txByUser) {
+                    let sum = 0;
+                    for (const txId of txs) sum += byTx.get(txId) ?? 0;
+                    if (sum === 0 && metric.countMode !== 'NOTA') continue;
+                    const rec = customByUser.get(uid) ?? {};
+                    rec[String(metric.id)] = Math.round(sum);
+                    customByUser.set(uid, rec);
+                }
+            }
+        }
+
         const leaderboard = Array.from(byAssignee.entries())
             .map(([userId, stat]) => {
                 const u = userMap.get(userId);
                 return {
                     userId,
                     name: u?.name || u?.email || `User #${userId}`,
+                    customMetrics: customByUser.get(userId) ?? {},
                     roleName: u?.role?.name || null,
                     leadsHandled: stat.leadsHandled,
                     dealsClosed: stat.dealsClosed,
@@ -1946,6 +2030,7 @@ export class KpiService {
 
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
+            customMetricDefs, // [{ id, label, countMode }] — kolom produk custom utk leaderboard CS
             totals: {
                 totalLeads,
                 closedWon,
