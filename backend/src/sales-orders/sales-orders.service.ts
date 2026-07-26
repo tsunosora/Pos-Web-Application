@@ -700,6 +700,12 @@ export class SalesOrdersService {
                     phoneNormalized,
                     needs: so.notes ?? null,
                     estimatedValue: estimate > 0 ? estimate : null,
+                    // Desainer pembuat SO = desainer lead ini. Isi bila masih kosong,
+                    // jangan timpa bila CS sudah mengoreksi manual. Sudah jadi SO =
+                    // desain sudah lolos → hasil cek otomatis "BISA" (bila belum dicek).
+                    designerName: existing.designerName ?? so.designerName ?? null,
+                    designVerdict: existing.designVerdict ?? 'BISA',
+                    designCheckedAt: existing.designCheckedAt ?? new Date(),
                 },
             });
             await this.syncLeadImagesFromSO(so, existing.id);
@@ -777,6 +783,11 @@ export class SalesOrdersService {
                         phoneNormalized: csLead.phoneNormalized ?? phoneNormalized,
                         needs: csLead.needs ?? (so.notes ?? null),
                         estimatedValue: csLead.estimatedValue ?? (estimate > 0 ? estimate : null),
+                        // Desainer pembuat SO — isi bila lead CS belum menentukan desainer.
+                        // Sudah jadi SO = desain lolos → hasil cek "BISA" (bila belum dicek).
+                        designerName: csLead.designerName ?? so.designerName ?? null,
+                        designVerdict: csLead.designVerdict ?? 'BISA',
+                        designCheckedAt: csLead.designCheckedAt ?? new Date(),
                     },
                 });
                 await this.syncLeadImagesFromSO(so, csLead.id);
@@ -824,6 +835,11 @@ export class SalesOrdersService {
                 needs: so.notes ?? null,
                 estimatedValue: estimate > 0 ? estimate : null,
                 branchId,
+                // Desainer pembuat SO otomatis jadi desainer lead — CS tak perlu isi ulang.
+                // Sudah jadi SO = desain sudah lolos → hasil cek otomatis "BISA".
+                designerName: so.designerName ?? null,
+                designVerdict: 'BISA',
+                designCheckedAt: new Date(),
                 intakeAt: new Date(),
                 convertedSalesOrderId: so.id,
             },

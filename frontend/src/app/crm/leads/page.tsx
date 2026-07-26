@@ -2016,7 +2016,7 @@ function ConvertModal({
 }) {
     const [createCustomer, setCreateCustomer] = useState(true);
     const [notes, setNotes] = useState(lead.needs ?? "");
-    const [designerName, setDesignerName] = useState("");
+    const [designerName, setDesignerName] = useState(lead.designerName ?? "");
     const [isExpress, setIsExpress] = useState(false);
 
     // ── Customer picker (when createCustomer=false) ──────────────────────
