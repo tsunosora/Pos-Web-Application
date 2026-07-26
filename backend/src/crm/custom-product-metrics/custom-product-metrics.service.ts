@@ -8,6 +8,7 @@ export class CustomProductMetricsService {
 
     private ensureHasRule(dto: UpsertCustomProductMetricDto) {
         const hasRule =
+            (dto.productIds?.length ?? 0) > 0 ||
             (dto.productVariantIds?.length ?? 0) > 0 ||
             (dto.categoryIds?.length ?? 0) > 0 ||
             (dto.nameKeywords?.filter((k) => k.trim()).length ?? 0) > 0;
@@ -49,6 +50,7 @@ export class CustomProductMetricsService {
             label: dto.label.trim(),
             isActive: dto.isActive ?? true,
             displayOrder: dto.displayOrder ?? 0,
+            productIds: dto.productIds ?? [],
             productVariantIds: dto.productVariantIds ?? [],
             categoryIds: dto.categoryIds ?? [],
             nameKeywords: (dto.nameKeywords ?? []).map((k) => k.trim()).filter(Boolean),

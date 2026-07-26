@@ -32,6 +32,11 @@ export class UpsertCustomProductMetricDto {
     @IsOptional()
     @IsArray()
     @IsInt({ each: true })
+    productIds?: number[];
+
+    @IsOptional()
+    @IsArray()
+    @IsInt({ each: true })
     productVariantIds?: number[];
 
     @IsOptional()

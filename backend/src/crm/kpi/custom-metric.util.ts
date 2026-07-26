@@ -1,6 +1,7 @@
 export type CountMode = 'PCS' | 'QTY' | 'OMZET' | 'NOTA';
 
 export interface MatchRule {
+    productIds?: number[] | null;
     productVariantIds?: number[] | null;
     categoryIds?: number[] | null;
     nameKeywords?: string[] | null;
@@ -32,6 +33,9 @@ export function computeItemValue(item: RawItem, mode: CountMode): number {
 /** Where Prisma untuk TransactionItem yang cocok (OR). Null bila tak ada aturan. */
 export function buildMatchWhere(rule: MatchRule): { OR: any[] } | null {
     const or: any[] = [];
+    if (rule.productIds?.length) {
+        or.push({ productVariant: { productId: { in: rule.productIds } } });
+    }
     if (rule.productVariantIds?.length) {
         or.push({ productVariantId: { in: rule.productVariantIds } });
     }

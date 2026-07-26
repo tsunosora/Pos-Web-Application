@@ -9,6 +9,7 @@ export interface CustomProductMetric {
     label: string;
     isActive: boolean;
     displayOrder: number;
+    productIds: number[];
     productVariantIds: number[];
     categoryIds: number[];
     nameKeywords: string[];
@@ -21,6 +22,7 @@ export type UpsertCustomProductMetric = {
     label: string;
     isActive?: boolean;
     displayOrder?: number;
+    productIds?: number[];
     productVariantIds?: number[];
     categoryIds?: number[];
     nameKeywords?: string[];

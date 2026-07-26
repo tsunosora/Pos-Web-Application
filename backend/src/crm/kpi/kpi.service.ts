@@ -174,6 +174,7 @@ export class KpiService {
         const empty = new Map<number, number>();
         if (txIds.length === 0) return empty;
         const where = buildMatchWhere({
+            productIds: metric.productIds ?? [],
             productVariantIds: metric.productVariantIds ?? [],
             categoryIds: metric.categoryIds ?? [],
             nameKeywords: metric.nameKeywords ?? [],
@@ -191,6 +192,7 @@ export class KpiService {
         const empty = new Map<number, number>();
         if (itemIds.length === 0) return empty;
         const where = buildMatchWhere({
+            productIds: metric.productIds ?? [],
             productVariantIds: metric.productVariantIds ?? [],
             categoryIds: metric.categoryIds ?? [],
             nameKeywords: metric.nameKeywords ?? [],

@@ -303,7 +303,8 @@ model CustomProductMetric {
   isActive     Boolean @default(true) @map("is_active")
   displayOrder Int     @default(0) @map("display_order")
 
-  // Aturan match (OR di antara ketiganya). Simpan sebagai JSON array.
+  // Aturan match (OR di antara keempatnya). Simpan sebagai JSON array.
+  productIds        Json? @map("product_ids") // number[] — produk terdaftar (semua variannya match)
   productVariantIds Json? @map("product_variant_ids") // number[]
   categoryIds       Json? @map("category_ids") // number[]
   nameKeywords      Json? @map("name_keywords") // string[] (contains, case-insensitive)

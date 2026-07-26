@@ -13,9 +13,10 @@ import {
     type CustomMetricCountMode,
     type CustomMetricRole,
 } from "@/lib/api/custom-product-metrics";
-import { getCategories } from "@/lib/api/products";
+import { getCategories, getProducts } from "@/lib/api/products";
 
 interface CategoryOpt { id: number; name: string }
+interface ProductOpt { id: number; name: string; variantCount: number }
 
 const COUNT_MODES: { v: CustomMetricCountMode; label: string; hint: string }[] = [
     { v: "PCS", label: "Pcs (jumlah barang)", hint: "Σ qty × pcs" },
@@ -35,6 +36,7 @@ const EMPTY: UpsertCustomProductMetric = {
     label: "",
     isActive: true,
     displayOrder: 0,
+    productIds: [],
     productVariantIds: [],
     categoryIds: [],
     nameKeywords: [],
@@ -46,15 +48,24 @@ export function CustomMetricPanel() {
     const qc = useQueryClient();
     const listQ = useQuery({ queryKey: ["custom-metrics"], queryFn: getCustomProductMetrics });
     const catQ = useQuery({ queryKey: ["categories-for-metric"], queryFn: getCategories });
+    const prodQ = useQuery({ queryKey: ["products-for-metric"], queryFn: getProducts });
     const categories: CategoryOpt[] = useMemo(
         () => (catQ.data ?? []).map((c: any) => ({ id: c.id, name: c.name })),
         [catQ.data],
+    );
+    const products: ProductOpt[] = useMemo(
+        () => (prodQ.data ?? [])
+            .map((p: any) => ({ id: p.id, name: p.name, variantCount: (p.variants?.length ?? 0) }))
+            .sort((a: ProductOpt, b: ProductOpt) => a.name.localeCompare(b.name)),
+        [prodQ.data],
     );
 
     const [open, setOpen] = useState(false);
     const [editId, setEditId] = useState<number | null>(null);
     const [form, setForm] = useState<UpsertCustomProductMetric>(EMPTY);
     const [keywordText, setKeywordText] = useState("");
+    const [prodSearch, setProdSearch] = useState("");
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [err, setErr] = useState<string | null>(null);
 
     const invalidate = () => {
@@ -89,19 +100,22 @@ export function CustomMetricPanel() {
     function toBody(m: CustomProductMetric): UpsertCustomProductMetric {
         return {
             name: m.name, label: m.label, isActive: m.isActive, displayOrder: m.displayOrder,
+            productIds: m.productIds ?? [],
             productVariantIds: m.productVariantIds ?? [], categoryIds: m.categoryIds ?? [],
             nameKeywords: m.nameKeywords ?? [], countMode: m.countMode, roles: m.roles ?? [],
         };
     }
 
     function reset() {
-        setForm(EMPTY); setEditId(null); setKeywordText(""); setErr(null); setOpen(false);
+        setForm(EMPTY); setEditId(null); setKeywordText(""); setProdSearch(""); setShowAdvanced(false); setErr(null); setOpen(false);
     }
     function startNew() {
-        setForm(EMPTY); setEditId(null); setKeywordText(""); setErr(null); setOpen(true);
+        setForm(EMPTY); setEditId(null); setKeywordText(""); setProdSearch(""); setShowAdvanced(false); setErr(null); setOpen(true);
     }
     function startEdit(m: CustomProductMetric) {
         setForm(toBody(m)); setEditId(m.id); setKeywordText((m.nameKeywords ?? []).join(", "));
+        setProdSearch("");
+        setShowAdvanced((m.categoryIds?.length ?? 0) > 0 || (m.nameKeywords?.length ?? 0) > 0);
         setErr(null); setOpen(true);
     }
 
@@ -114,14 +128,21 @@ export function CustomMetricPanel() {
         setErr(null);
         const keywords = parseKeywords(keywordText);
         const body: UpsertCustomProductMetric = { ...form, nameKeywords: keywords };
-        const hasRule = (body.categoryIds?.length ?? 0) > 0 || keywords.length > 0 || (body.productVariantIds?.length ?? 0) > 0;
+        const hasRule = (body.productIds?.length ?? 0) > 0 || (body.categoryIds?.length ?? 0) > 0 || keywords.length > 0 || (body.productVariantIds?.length ?? 0) > 0;
         if (!body.name.trim() || !body.label.trim()) { setErr("Nama & label wajib diisi."); return; }
-        if (!hasRule) { setErr("Minimal satu aturan: pilih kategori atau isi kata kunci nama."); return; }
+        if (!hasRule) { setErr("Pilih minimal satu produk (atau kategori/kata kunci)."); return; }
         if (!body.roles.length) { setErr("Pilih minimal satu leaderboard (role)."); return; }
         if (editId != null) updateMut.mutate({ id: editId, body });
         else createMut.mutate(body);
     }
 
+    function toggleProduct(id: number) {
+        setForm(f => {
+            const set = new Set(f.productIds ?? []);
+            if (set.has(id)) set.delete(id); else set.add(id);
+            return { ...f, productIds: Array.from(set) };
+        });
+    }
     function toggleCat(id: number) {
         setForm(f => {
             const set = new Set(f.categoryIds ?? []);
@@ -199,28 +220,74 @@ export function CustomMetricPanel() {
                         </div>
                     </div>
 
+                    {/* Pilih produk dari inventori (aturan utama) */}
                     <div>
-                        <label className="text-[10px] text-muted-foreground block mb-0.5">Kata kunci nama produk (pisah koma)</label>
-                        <input value={keywordText} onChange={e => setKeywordText(e.target.value)}
-                            placeholder="mis. jersey, kaos kantor"
-                            className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground" />
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Cocokkan nama produk/varian atau nama item custom (mengandung kata, tak peduli huruf besar/kecil).</p>
+                        <label className="text-[10px] text-muted-foreground block mb-1">
+                            Produk dari inventori <span className="text-foreground font-medium">· {(form.productIds ?? []).length} dipilih</span>
+                        </label>
+                        <input value={prodSearch} onChange={e => setProdSearch(e.target.value)}
+                            placeholder="Cari produk…"
+                            className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground mb-1.5" />
+                        <div className="border border-border rounded-lg max-h-52 overflow-y-auto divide-y divide-border/60">
+                            {prodQ.isLoading && <div className="p-3 grid place-items-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>}
+                            {!prodQ.isLoading && products.length === 0 && (
+                                <p className="text-[11px] text-muted-foreground p-3 text-center">Belum ada produk di inventori.</p>
+                            )}
+                            {products
+                                .filter(p => p.name.toLowerCase().includes(prodSearch.trim().toLowerCase()))
+                                .map(p => {
+                                    const on = (form.productIds ?? []).includes(p.id);
+                                    const disabled = p.variantCount === 0;
+                                    return (
+                                        <button type="button" key={p.id} disabled={disabled}
+                                            onClick={() => toggleProduct(p.id)}
+                                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-left text-xs transition-colors ${on ? "bg-indigo-500/10" : "hover:bg-accent"} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}>
+                                            <span className={`h-3.5 w-3.5 rounded border grid place-items-center shrink-0 ${on ? "bg-indigo-500 border-indigo-500 text-white" : "border-border"}`}>
+                                                {on && <Check className="h-2.5 w-2.5" />}
+                                            </span>
+                                            <span className="flex-1 truncate text-foreground">{p.name}</span>
+                                            <span className="text-[10px] text-muted-foreground shrink-0">
+                                                {disabled ? "tanpa varian" : `${p.variantCount} varian`}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-1">Pilih produk terdaftar — semua variannya (termasuk varian baru) otomatis ikut dihitung.</p>
                     </div>
 
+                    {/* Aturan lanjutan (opsional): kategori & kata kunci */}
                     <div>
-                        <label className="text-[10px] text-muted-foreground block mb-1">Kategori (opsional — pilih satu/lebih)</label>
-                        <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
-                            {catQ.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                            {categories.map(c => {
-                                const on = (form.categoryIds ?? []).includes(c.id);
-                                return (
-                                    <button type="button" key={c.id} onClick={() => toggleCat(c.id)}
-                                        className={`text-[11px] px-2 py-1 rounded-md border inline-flex items-center gap-1 ${on ? "bg-indigo-500/15 text-indigo-500 border-indigo-500/40" : "border-border text-muted-foreground"}`}>
-                                        <Tag className="h-3 w-3" /> {c.name}
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        <button type="button" onClick={() => setShowAdvanced(v => !v)}
+                            className="text-[11px] text-muted-foreground hover:text-foreground underline">
+                            {showAdvanced ? "Sembunyikan" : "Aturan lanjutan (kategori / kata kunci)"}
+                        </button>
+                        {showAdvanced && (
+                            <div className="mt-2 space-y-3">
+                                <div>
+                                    <label className="text-[10px] text-muted-foreground block mb-1">Kategori (opsional)</label>
+                                    <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+                                        {catQ.isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+                                        {categories.map(c => {
+                                            const on = (form.categoryIds ?? []).includes(c.id);
+                                            return (
+                                                <button type="button" key={c.id} onClick={() => toggleCat(c.id)}
+                                                    className={`text-[11px] px-2 py-1 rounded-md border inline-flex items-center gap-1 ${on ? "bg-indigo-500/15 text-indigo-500 border-indigo-500/40" : "border-border text-muted-foreground"}`}>
+                                                    <Tag className="h-3 w-3" /> {c.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-muted-foreground block mb-0.5">Kata kunci nama (pisah koma)</label>
+                                    <input value={keywordText} onChange={e => setKeywordText(e.target.value)}
+                                        placeholder="mis. jersey, kaos kantor"
+                                        className="w-full border border-border rounded px-2 py-1 text-xs bg-background text-foreground" />
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">Cocokkan nama produk/varian atau item custom (mengandung kata).</p>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {err && <p className="text-[11px] text-red-500">{err}</p>}
@@ -257,8 +324,9 @@ export function CustomMetricPanel() {
                                 <div className="text-[10px] text-muted-foreground flex flex-wrap gap-x-2 mt-0.5">
                                     <span>{COUNT_MODES.find(c => c.v === m.countMode)?.label ?? m.countMode}</span>
                                     <span>· {(m.roles ?? []).join("/")}</span>
-                                    {(m.nameKeywords?.length ?? 0) > 0 && <span>· kata: {m.nameKeywords.join(", ")}</span>}
+                                    {(m.productIds?.length ?? 0) > 0 && <span>· {m.productIds.length} produk</span>}
                                     {(m.categoryIds?.length ?? 0) > 0 && <span>· {m.categoryIds.length} kategori</span>}
+                                    {(m.nameKeywords?.length ?? 0) > 0 && <span>· kata: {m.nameKeywords.join(", ")}</span>}
                                 </div>
                             </div>
                             <button onClick={() => toggleMut.mutate({ m, isActive: !m.isActive })}

@@ -15,14 +15,19 @@ describe('computeItemValue', () => {
 });
 
 describe('buildMatchWhere', () => {
-    it('gabung OR dari variant/kategori/keyword', () => {
+    it('gabung OR dari produk/variant/kategori/keyword', () => {
         const w = buildMatchWhere({
+            productIds: [7],
             productVariantIds: [1, 2],
             categoryIds: [5],
             nameKeywords: ['jersey'],
         });
         expect(Array.isArray(w!.OR)).toBe(true);
-        expect(w!.OR.length).toBe(3); // variant + kategori + 1 keyword
+        expect(w!.OR.length).toBe(4); // produk + variant + kategori + 1 keyword
+    });
+    it('match per produk pakai productVariant.productId', () => {
+        const w = buildMatchWhere({ productIds: [7, 8] });
+        expect(w!.OR[0]).toEqual({ productVariant: { productId: { in: [7, 8] } } });
     });
     it('kembalikan null bila tak ada aturan (jangan match semua)', () => {
         expect(
