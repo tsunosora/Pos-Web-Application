@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, Pencil, Trash2, Check, X, Tag, Target } from "lucide-react";
 import {
@@ -180,7 +181,10 @@ export function CustomMetricPanel() {
                     <div className="h-8 w-8 rounded-lg bg-indigo-500/15 text-indigo-500 grid place-items-center"><Target className="h-4 w-4" /></div>
                     <div>
                         <h3 className="text-sm font-semibold text-foreground">Metrik Produk Custom</h3>
-                        <p className="text-[11px] text-muted-foreground">Kolom produk khusus di leaderboard (CS / Designer / Operator).</p>
+                        <p className="text-[11px] text-muted-foreground">
+                            Kolom produk khusus di leaderboard (CS / Designer / Operator).{" "}
+                            <Link href="/help#metrik-custom" className="text-indigo-500 hover:underline">Panduan</Link>
+                        </p>
                     </div>
                 </div>
                 {!open && (

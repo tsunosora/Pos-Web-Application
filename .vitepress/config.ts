@@ -55,6 +55,7 @@ export default defineConfig({
           { text: '📜 Riwayat Tutup Shift', link: '/riwayat-shift' },
           { text: '🧮 Kalkulator HPP', link: '/hpp-calculator' },
           { text: '🗺️ Peta Cuan Lokasi', link: '/peta-cuan' },
+          { text: '🏆 Leaderboard & Metrik Custom', link: '/leaderboard' },
         ]
       },
       {

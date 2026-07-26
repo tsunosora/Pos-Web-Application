@@ -48,6 +48,7 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 26 | [🖥️ Aplikasi Desktop Offline](desktop-offline.md) | **Desktop 100% offline** — installer bundel MariaDB+backend+frontend, sinkron dua arah lokal⟷pusat, auto-backup/recovery/reset, auto-update |
 | 27 | [🧾 Nota Thermal 58mm](nota-thermal-58mm.md) | **Cetak thermal 58mm** — Bluetooth (Web Bluetooth), printer Windows/USB via desktop, Printer Relay, fallback browser |
 | 28 | [🖨️ Printer Relay Agent](printer-relay-agent.md) | **Agen relay `agent.py`** — install di PC kasir, konfigurasi token/COM, auto-run tersembunyi (Startup / Task Scheduler), troubleshooting |
+| 29 | [🏆 Leaderboard & Metrik Custom](leaderboard.md) | **Papan peringkat** CS/Designer/Operator/Cabang + **Metrik Produk Custom** — Owner buat kolom pelacak produk/varian tertentu (PCS/QTY/OMZET/NOTA) |
 
 ---
 

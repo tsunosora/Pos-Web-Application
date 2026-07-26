@@ -363,6 +363,9 @@ export default function LeaderboardPage() {
                                 <p><b>Omzet (bagian)</b> = porsi <b>adil</b> CS dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Dipakai board <b>Tim / Cabang</b> agar nota lintas cabang terbagi ke tiap cabang home.</p>
                                 <p><b>Akan Datang</b> = sisa tagihan (piutang) transaksi yang masih PENDING/PARTIAL.</p>
                                 <p><b>Respon</b> = rata-rata jam dari lead masuk sampai aktivitas pertama CS.</p>
+                                {csCustomDefs.length > 0 && (
+                                    <p><b>{csCustomDefs.map(d => d.label).join(', ')}</b> = kolom <b>Metrik Produk Custom</b> (diatur Owner di <i>/owner → Metrik Produk Custom</i>). Menghitung produk/varian tertentu dari nota yang ditangani CS ini, sesuai cara hitung yang dipilih (pcs/qty/omzet/nota).</p>
+                                )}
                             </CaraHitung>
                         </SectionCard>
                     )}
@@ -484,6 +487,9 @@ export default function LeaderboardPage() {
                                     <p><b>Omzet (bagian)</b> = bagian desainer dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Bukan lagi seluruh grandTotal, tapi porsi adilnya. Lihat board <b>Tim / Cabang</b>.</p>
                                     <p><b>Nunggu ACC</b> = desain sudah di-upload, card di stage <b>ACC</b> menunggu approve customer (belum masuk cetak).</p>
                                     <p><b>Job/ACC/Selesai/Express</b> = dari job produksi (tanggal job dibuat). ACC = sudah lolos approve & masuk tahap cetak (PRINT..SELESAI); Selesai = sampai KIRIM/SELESAI.</p>
+                                    {dgCustomDefs.length > 0 && (
+                                        <p><b>{dgCustomDefs.map(d => d.label).join(', ')}</b> = kolom <b>Metrik Produk Custom</b> (diatur Owner di <i>/owner → Metrik Produk Custom</i>). Menghitung produk/varian tertentu dari nota SO yang dibuat desainer ini.</p>
+                                    )}
                                     <p className="text-[11px] italic">Catatan: designer bisa muncul walau Omzet 0 — kalau ia baru membuat SO yang belum jadi nota (kolom "SO Dibuat" tetap kehitung).</p>
                                 </CaraHitung>
                             </SectionCard>
@@ -567,6 +573,9 @@ export default function LeaderboardPage() {
                                 <p><b>Total Job</b> = Cetak + Produksi. Operator dicocokkan berdasarkan <b>nama</b> yang ia isi saat login board/cetak.</p>
                                 <p><b>Breakdown per kategori</b>: tiap <b>kategori produksi</b> (bisa ditambah/edit/hapus di <b>Manajemen Kategori → Kategori Produksi</b>) punya <b>sumber</b> sendiri — <b>Cetak</b> (dihitung dari bahan cetak/antrian cetak) atau <b>Produksi</b> (dari antrian produksi/kanban, sekali per job saat KIRIM/SELESAI). Kategori dilekatkan ke kategori barang lewat pilihan <b>Tipe Produksi</b>. Satuan mengikuti setelan kategori: <b>m²</b> (luas) atau <b>pcs</b>. <b>Rp</b> = nilai line item.</p>
                                 <p className="text-[11px] italic">Produksi terhitung dari kedua board: kanban /produksi/board maupun antrian /produksi (mode-status) — keduanya kini mencatat nama operator saat menyelesaikan job.</p>
+                                {opCustomDefs.length > 0 && (
+                                    <p><b>{opCustomDefs.map(d => d.label).join(', ')}</b> = kolom <b>Metrik Produk Custom</b> (diatur Owner di <i>/owner → Metrik Produk Custom</i>). Menghitung produk/varian tertentu dari item job cetak/produksi yang dikerjakan operator ini.</p>
+                                )}
                             </CaraHitung>
                         </SectionCard>
                     )}

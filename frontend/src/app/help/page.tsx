@@ -472,6 +472,66 @@ function SecLaporan() {
     );
 }
 
+function SecLeaderboard() {
+    return (
+        <>
+            <H2 id="leaderboard">Leaderboard Kinerja</H2>
+            <P>Papan peringkat kinerja tim di <Code>/leaderboard</Code>. Angka dihitung otomatis dari data nota, lead, SO, dan job produksi — tidak ada input manual. Filter periode dan cabang berlaku untuk semua divisi sekaligus.</P>
+            <Table
+                headers={["Divisi", "Isi utama"]}
+                rows={[
+                    ["Tim / Cabang", "Omzet nota dibagi rata per peran → diakumulasi per cabang home"],
+                    ["CS / Sales", "Leads, closing, pcs, cuan (net), omzet (bagian), pengiriman, respon"],
+                    ["Designer", "Cek desain, produktivitas jasa desain, SO dibuat, nota, ACC, omzet"],
+                    ["Operator", "Job cetak, lembar, job produksi, selesai, breakdown per kategori"],
+                ]}
+            />
+            <P>Setiap section punya panel <strong>“Cara Hitung &amp; Sumber Angka”</strong> yang bisa dibuka untuk melihat rumus tiap kolom.</P>
+
+            <H2 id="metrik-custom">Metrik Produk Custom ⭐</H2>
+            <P>Fitur untuk <strong>Owner</strong>: buat kolom sendiri di leaderboard yang menghitung <strong>produk khusus</strong> — misal “Roll Up Banner F340” atau “Jersey Kantor”. Kolom ini terpisah dari metrik bawaan, jadi tidak mengubah/menggandakan angka yang sudah ada. Bisa membuat lebih dari satu metrik (tiap metrik = satu kolom).</P>
+
+            <H3>Cara membuat</H3>
+            <Steps steps={[
+                { title: "Buka Owner Dashboard", desc: <>Masuk <Code>/owner</Code> → gulir ke panel <strong>“Metrik Produk Custom”</strong> → klik <strong>Tambah</strong>.</> },
+                { title: "Isi Nama & Label", desc: "Nama = keterangan internal (mis. Roll Up Banner F340). Label = teks pendek yang muncul sebagai judul kolom di leaderboard (mis. Roll Up)." },
+                { title: "Pilih Cara Hitung", desc: "PCS (default), QTY, OMZET, atau NOTA — menentukan angka apa yang muncul di kolom." },
+                { title: "Pilih Tampil di Leaderboard", desc: "Centang CS, Designer, dan/atau Operator — kolom hanya muncul di divisi yang dipilih." },
+                { title: "Pilih Produk / Varian dari Inventori", desc: "Cari & centang varian yang ingin dilacak. Tiap varian dihitung terpisah (karena namanya beda) — mis. hanya varian F340, bukan F300." },
+                { title: "Simpan", desc: "Kolom langsung muncul di /leaderboard pada divisi yang dipilih. Bisa diedit, dinonaktifkan, atau dihapus kapan saja." },
+            ]} />
+
+            <H3>Cara hitung (countMode)</H3>
+            <Table
+                headers={["Mode", "Yang dihitung", "Tampil sebagai"]}
+                rows={[
+                    ["PCS", "Σ jumlah barang (qty × pcs)", "“5 pcs”"],
+                    ["QTY", "Σ baris quantity", "“5 qty”"],
+                    ["OMZET", "Σ harga × qty", "“Rp …”"],
+                    ["NOTA", "Berapa nota mengandung produk itu", "“5 nota”"],
+                ]}
+            />
+
+            <H3>Atribusi ke siapa</H3>
+            <Table
+                headers={["Divisi", "Dihitung dari"]}
+                rows={[
+                    ["CS", "Nota lead closing yang ia pegang + transaksi walk-in yang ia layani"],
+                    ["Designer", "Nota dari SO (Sales Order) yang ia buat"],
+                    ["Operator", "Item dari job cetak/produksi yang ia kerjakan sampai selesai"],
+                ]}
+            />
+
+            <Callout type="tip" title="Tiap varian = produk berbeda">
+                Karena nama varian berbeda, tiap varian diperlakukan sebagai item tersendiri. Pilih varian yang tepat — hanya varian yang dicentang yang dihitung.
+            </Callout>
+            <Callout type="tip" title="Aturan lanjutan (opsional)">
+                Selain memilih varian, bisa juga mencocokkan berdasarkan <strong>kategori</strong> atau <strong>kata kunci nama</strong> (mis. “jersey”) lewat bagian “Aturan lanjutan”. Cocok bila produknya banyak dan ingin cakupan luas.
+            </Callout>
+        </>
+    );
+}
+
 function SecProduksi() {
     return (
         <>
@@ -1469,6 +1529,8 @@ const NAV_GROUPS = [
             { id: "cashflow", label: "Cashflow" },
             { id: "laporan-laba", label: "Laporan Laba Kotor" },
             { id: "laporan-stok", label: "Laporan Stok" },
+            { id: "leaderboard", label: "Leaderboard Kinerja" },
+            { id: "metrik-custom", label: "Metrik Produk Custom" },
         ],
     },
     {
@@ -1656,6 +1718,7 @@ export default function HelpPage() {
                     <SecInventori />
                     <SecPiutang />
                     <SecLaporan />
+                    <SecLeaderboard />
                     <SecProduksi />
                     <SecThermal />
                     <SecInvoice />
