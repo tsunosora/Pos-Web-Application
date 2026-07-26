@@ -110,7 +110,9 @@ export function CustomMetricPanel() {
     function toBody(m: CustomProductMetric): UpsertCustomProductMetric {
         return {
             name: m.name, label: m.label, isActive: m.isActive, displayOrder: m.displayOrder,
-            productIds: m.productIds ?? [],
+            // productIds (level-produk) sudah tidak dipakai — pencocokan murni per varian.
+            // Selalu dikosongkan supaya metrik lama tak lagi mencocokkan SEMUA varian produk.
+            productIds: [],
             productVariantIds: m.productVariantIds ?? [], categoryIds: m.categoryIds ?? [],
             nameKeywords: m.nameKeywords ?? [], countMode: m.countMode, roles: m.roles ?? [],
         };
@@ -137,8 +139,9 @@ export function CustomMetricPanel() {
         ev.preventDefault();
         setErr(null);
         const keywords = parseKeywords(keywordText);
-        const body: UpsertCustomProductMetric = { ...form, nameKeywords: keywords };
-        const hasRule = (body.productIds?.length ?? 0) > 0 || (body.categoryIds?.length ?? 0) > 0 || keywords.length > 0 || (body.productVariantIds?.length ?? 0) > 0;
+        // productIds selalu kosong: pencocokan per varian (productVariantIds) saja.
+        const body: UpsertCustomProductMetric = { ...form, productIds: [], nameKeywords: keywords };
+        const hasRule = (body.categoryIds?.length ?? 0) > 0 || keywords.length > 0 || (body.productVariantIds?.length ?? 0) > 0;
         if (!body.name.trim() || !body.label.trim()) { setErr("Nama & label wajib diisi."); return; }
         if (!hasRule) { setErr("Pilih minimal satu produk (atau kategori/kata kunci)."); return; }
         if (!body.roles.length) { setErr("Pilih minimal satu leaderboard (role)."); return; }
