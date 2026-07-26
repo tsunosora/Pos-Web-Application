@@ -610,10 +610,12 @@ export interface DesignerLeaderboardEntry {
     omzetShare: number;   // bagian omzet nota utk desainer (nota dibagi per peran)
     pcs: number;          // total pcs dari nota tsb
     avgDesignHrs: number | null;
+    customMetrics?: Record<string, number>;
 }
 
 export interface DesignerLeaderboardReport {
     period: { start: string; end: string };
+    customMetricDefs?: CustomMetricDef[];
     leaderboard: DesignerLeaderboardEntry[];
     totals: { assignment: number; acc: number; nungguAcc: number; wip: number; retur: number; selesai: number; batal: number; express: number; soCreated: number; soInvoiced: number; omzet: number; pcs: number };
 }
@@ -656,6 +658,12 @@ export interface OperatorLeaderboardEntry {
     total: number;       // printJobs + prodJobs (jumlah job)
     // breakdown produksi per kategori — keyed by id ProductionCategory (dinamis)
     production?: Record<string, { jobs: number; pcs: number; areaM2: number; omzet: number }>;
+    customMetrics?: Record<string, number>;
+}
+
+export interface OperatorLeaderboardReport {
+    leaderboard: OperatorLeaderboardEntry[];
+    customMetricDefs?: CustomMetricDef[];
 }
 
 export const getOperatorLeaderboard = async (params: {
@@ -663,7 +671,7 @@ export const getOperatorLeaderboard = async (params: {
     start?: string;
     end?: string;
     branchId?: number | 'all';
-}): Promise<OperatorLeaderboardEntry[]> =>
+}): Promise<OperatorLeaderboardReport> =>
     (await api.get('/crm/kpi/operator-leaderboard', { params })).data;
 
 // ── Leaderboard Tim / Cabang (omzet nota dibagi per peran → per cabang home) ──

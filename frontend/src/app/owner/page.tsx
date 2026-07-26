@@ -191,7 +191,7 @@ export default function OwnerDashboardPage() {
         const arr = designerQ.data?.leaderboard || [];
         return [...arr].sort((a: any, b: any) => b.omzet - a.omzet || b.acc - a.acc);
     }, [designerQ.data]);
-    const operatorRows = useMemo(() => [...(operatorQ.data || [])], [operatorQ.data]);
+    const operatorRows = useMemo(() => [...(operatorQ.data?.leaderboard || [])], [operatorQ.data]);
 
     const branchName = (id: number | null) => id == null ? "Pusat / Semua" : (branches?.find(b => b.id === id)?.name || `Cabang #${id}`);
     const branchLabel = activeBranchId == null ? "Semua Cabang" : branchName(activeBranchId);

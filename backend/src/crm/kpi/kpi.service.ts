@@ -812,6 +812,7 @@ export class KpiService {
             },
             select: {
                 operatorName: true, coOperators: true, quantity: true,
+                transactionItemId: true,
                 transactionItem: {
                     select: {
                         priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
@@ -880,12 +881,13 @@ export class KpiService {
         };
 
         // Info per production job selesai (omzet + kategori + pcs + luas) untuk breakdown.
-        const prodJobInfo = new Map<number, { omzet: number; catId: number | null; pcs: number; areaM2: number }>();
+        const prodJobInfo = new Map<number, { omzet: number; catId: number | null; pcs: number; areaM2: number; itemId: number | null }>();
         if (doneJobIds.length) {
             const pj: any[] = await (this.prisma as any).productionJob.findMany({
                 where: { id: { in: doneJobIds } },
                 select: {
                     id: true,
+                    transactionItemId: true,
                     transactionItem: {
                         select: {
                             priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
@@ -901,16 +903,17 @@ export class KpiService {
                     catId: catIdOf(ti),
                     pcs: Number(ti?.quantity) || (Number(ti?.pcs) || 1),
                     areaM2: areaM2Of(ti),
+                    itemId: j.transactionItemId != null ? Number(j.transactionItemId) : null,
                 });
             }
         }
 
         // prodDoneJobs: jobId → bobot kredit (1/N bila kerja sama). Keterlibatan (prodJobs)
         // TIDAK dibagi; metrik kredit (omzet/pcs/kategori/prodDone) dibagi via bobot.
-        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDoneJobs: Map<number, number>; cats: Map<number, CatMetric> };
+        type Row = { name: string; printJobs: number; printPcs: number; printOmzet: number; prodJobs: Set<number>; prodDoneJobs: Map<number, number>; cats: Map<number, CatMetric>; items: Set<number> };
         const map = new Map<string, Row>();
         const ensure = (n: string) => {
-            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDoneJobs: new Map(), cats: new Map() });
+            if (!map.has(n)) map.set(n, { name: n, printJobs: 0, printPcs: 0, printOmzet: 0, prodJobs: new Set(), prodDoneJobs: new Map(), cats: new Map(), items: new Set() });
             return map.get(n)!;
         };
 
@@ -927,10 +930,12 @@ export class KpiService {
             const qty = Number(p.quantity) || 0;
             const cid = catIdOf(ti);
             const isCetakCat = cid && prodCatSource.get(cid) === 'CETAK';
+            const itemId = p.transactionItemId != null ? Number(p.transactionItemId) : null;
             for (const name of all) {
                 const e = ensure(name);
                 e.printJobs++;                       // keterlibatan: tak dibagi
                 e.printPcs += qty * w;               // kredit: bagi 1/N
+                if (itemId != null) e.items.add(itemId); // utk metrik produk custom
                 if (ti) e.printOmzet += lineOmzet(ti) * w;
                 if (isCetakCat) {
                     bump(e.cats, cid!, { jobs: w, pcs: qty * w, areaM2: areaM2Of(ti) * w, omzet: lineOmzet(ti) * w });
@@ -950,8 +955,37 @@ export class KpiService {
             }
         }
 
+        // ── Metrik produk custom (owner-defined) per operator (level-item) ──
+        // Item yang dikreditkan ke operator: item PrintJob + item ProductionJob yang
+        // ia bawa sampai DONE (konsisten dgn kredit prodDone). Kredit penuh (tanpa 1/N).
+        for (const e of map.values()) {
+            for (const jid of e.prodDoneJobs.keys()) {
+                const itemId = prodJobInfo.get(jid)?.itemId;
+                if (itemId != null) e.items.add(itemId);
+            }
+        }
+        const opCustomMetrics = await this.getActiveCustomMetrics('OPERATOR');
+        const customMetricDefs = opCustomMetrics.map((m) => ({ id: m.id, label: m.label, countMode: m.countMode }));
+        const customByOperator = new Map<string, Record<string, number>>();
+        if (opCustomMetrics.length > 0) {
+            const allItemIds = Array.from(new Set(
+                Array.from(map.values()).flatMap((e) => Array.from(e.items)),
+            ));
+            for (const metric of opCustomMetrics) {
+                const byItem = await this.computeCustomMetricByItemIds(allItemIds, metric);
+                for (const e of map.values()) {
+                    let sum = 0;
+                    for (const itemId of e.items) sum += byItem.get(itemId) ?? 0;
+                    if (sum === 0 && metric.countMode !== 'NOTA') continue;
+                    const rec = customByOperator.get(e.name) ?? {};
+                    rec[String(metric.id)] = Math.round(sum);
+                    customByOperator.set(e.name, rec);
+                }
+            }
+        }
+
         const round2 = (v: number) => Math.round(v * 100) / 100;
-        return Array.from(map.values())
+        const leaderboard = Array.from(map.values())
             .map(e => {
                 let prodOmzet = 0, prodDone = 0;
                 for (const [id, w] of e.prodDoneJobs) {
@@ -972,6 +1006,7 @@ export class KpiService {
                 prodOmzet = round2(prodOmzet);
                 return {
                     name: e.name,
+                    customMetrics: customByOperator.get(e.name) ?? {},
                     printJobs: e.printJobs,
                     printPcs,
                     printOmzet,
@@ -986,6 +1021,8 @@ export class KpiService {
                 };
             })
             .sort((a, b) => b.omzet - a.omzet || b.total - a.total || b.printPcs - a.printPcs);
+
+        return { leaderboard, customMetricDefs };
     }
 
     async designerLeaderboard(ctx: BranchContext, params: KpiParams) {
@@ -1079,6 +1116,8 @@ export class KpiService {
         const soTxPcsMap = await this.computeTxPcsMap(invoicedSos.map(so => Number(so.transactionId)));
         type SoStat = { invoiced: number; omzet: number; pcs: number };
         const soNotaByDesigner = new Map<string, SoStat>();
+        // txId nota per desainer → utk metrik produk custom (atribusi level-transaksi).
+        const txByDesigner = new Map<string, Set<number>>();
         for (const so of invoicedSos) {
             const name = (so.designerName || '').trim();
             if (!name) continue;
@@ -1087,6 +1126,33 @@ export class KpiService {
             st.omzet += Number(so.transaction?.grandTotal || 0);
             st.pcs += soTxPcsMap.get(Number(so.transactionId)) ?? 0;
             soNotaByDesigner.set(name, st);
+            const txId = Number(so.transactionId);
+            if (Number.isFinite(txId)) {
+                const set = txByDesigner.get(name) ?? new Set<number>();
+                set.add(txId);
+                txByDesigner.set(name, set);
+            }
+        }
+
+        // ── Metrik produk custom (owner-defined) per designer ──────────────
+        const dgCustomMetrics = await this.getActiveCustomMetrics('DESIGNER');
+        const customMetricDefs = dgCustomMetrics.map((m) => ({ id: m.id, label: m.label, countMode: m.countMode }));
+        const customByDesigner = new Map<string, Record<string, number>>();
+        if (dgCustomMetrics.length > 0) {
+            const allTxIds = Array.from(new Set(
+                Array.from(txByDesigner.values()).flatMap((s) => Array.from(s)),
+            ));
+            for (const metric of dgCustomMetrics) {
+                const byTx = await this.computeCustomMetricByTx(allTxIds, metric);
+                for (const [name, txs] of txByDesigner) {
+                    let sum = 0;
+                    for (const txId of txs) sum += byTx.get(txId) ?? 0;
+                    if (sum === 0 && metric.countMode !== 'NOTA') continue;
+                    const rec = customByDesigner.get(name) ?? {};
+                    rec[String(metric.id)] = Math.round(sum);
+                    customByDesigner.set(name, rec);
+                }
+            }
         }
 
         // Union nama: designer dari production job + designer yang hanya punya SO
@@ -1102,6 +1168,7 @@ export class KpiService {
                 const denom = s.assignment - s.batal;
                 return {
                     name,
+                    customMetrics: customByDesigner.get(name) ?? {},
                     assignment: s.assignment,
                     acc: s.acc,
                     accRate: denom > 0 ? s.acc / denom : 0,
@@ -1140,6 +1207,7 @@ export class KpiService {
 
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
+            customMetricDefs,
             leaderboard,
             totals,
         };

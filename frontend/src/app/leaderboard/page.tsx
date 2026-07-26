@@ -165,10 +165,14 @@ export default function LeaderboardPage() {
     }, [designer.data, kw]);
 
     const opRows = useMemo(() => {
-        let r = [...(operatorQ.data ?? [])];
+        let r = [...(operatorQ.data?.leaderboard ?? [])];
         if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
         return r.sort((a, b) => b.total - a.total || b.printPcs - a.printPcs);
     }, [operatorQ.data, kw]);
+
+    // Kolom metrik produk custom per divisi.
+    const dgCustomDefs = designer.data?.customMetricDefs ?? [];
+    const opCustomDefs = operatorQ.data?.customMetricDefs ?? [];
 
     const teamRows = useMemo(() => [...(teamQ.data?.leaderboard ?? [])].sort((a, b) => b.omzet - a.omzet), [teamQ.data]);
 
@@ -441,7 +445,9 @@ export default function LeaderboardPage() {
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm min-w-[860px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                                <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>Nunggu ACC</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th><Th right>Omzet (bagian)</Th>
+                                                <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>Nunggu ACC</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th>
+                                                {dgCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
+                                                <Th right>Omzet (bagian)</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {dgRows.map((r, i) => (
@@ -455,6 +461,10 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono">{r.selesai || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-orange-500">{r.express || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pcs || '—'}</td>
+                                                        {dgCustomDefs.map(d => {
+                                                            const v = r.customMetrics?.[String(d.id)] ?? 0;
+                                                            return <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">{v ? (d.countMode === 'OMZET' ? fmtRp(v) : v.toLocaleString('id-ID')) : '—'}</td>;
+                                                        })}
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                     </tr>
                                                 ))}
@@ -488,7 +498,9 @@ export default function LeaderboardPage() {
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm min-w-[760px]">
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                                <Th>Operator</Th><Th right>Cetak (job)</Th><Th right>Lembar</Th><Th right>Produksi (job)</Th><Th right>Selesai</Th><Th right>Total Job</Th><Th right>Omzet (bagian)</Th>
+                                                <Th>Operator</Th><Th right>Cetak (job)</Th><Th right>Lembar</Th><Th right>Produksi (job)</Th><Th right>Selesai</Th><Th right>Total Job</Th>
+                                                {opCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
+                                                <Th right>Omzet (bagian)</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {opRows.map((r, i) => (
@@ -499,6 +511,10 @@ export default function LeaderboardPage() {
                                                         <td className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{r.prodJobs || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.prodDone || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{r.total || '—'}</td>
+                                                        {opCustomDefs.map(d => {
+                                                            const v = r.customMetrics?.[String(d.id)] ?? 0;
+                                                            return <td key={d.id} className="py-2 px-2 text-right font-mono text-purple-600 dark:text-purple-300 font-semibold">{v ? (d.countMode === 'OMZET' ? fmtRp(v) : v.toLocaleString('id-ID')) : '—'}</td>;
+                                                        })}
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
                                                     </tr>
                                                 ))}
