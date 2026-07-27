@@ -20,12 +20,40 @@
 
 declare(strict_types=1);
 
+/* ---------- Mode uji: muat definisi fungsi saja (handler TAK dijalankan) ----------
+ * Dipakai tests/slug-resolution.test.php agar logika INTI anti-timpa bisa diuji
+ * tanpa DB. Deklarasi fungsi tetap ter-hoist walau eksekusi dihentikan di sini. */
+if (PHP_SAPI === 'cli' && getenv('SEO_ENDPOINT_TEST') === '1') {
+    return;
+}
+
 /* ---------- Helper respons JSON ---------- */
 function seo_respond(int $code, array $data): void {
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+/* ---------- Slug: normalisasi & resolusi bentrok (INTI anti-timpa) ---------- */
+function seo_normalize_slug(string $s): string {
+    $s = strtolower(trim($s));
+    $s = preg_replace('/[^a-z0-9]+/', '-', $s);
+    return trim($s, '-');
+}
+
+/**
+ * Kembalikan slug bebas pertama. Bila $base sudah dipakai, tambahkan akhiran
+ * -2, -3, … sampai menemukan yang belum ada — sehingga artikel lama TIDAK
+ * tertimpa (kebijakan on_duplicate="new"). $exists(slug):bool = penanda DB.
+ */
+function seo_next_free_slug(string $base, callable $exists): string {
+    if (!$exists($base)) return $base;
+    for ($i = 2; $i < 100000; $i++) {
+        $cand = $base . '-' . $i;
+        if (!$exists($cand)) return $cand;
+    }
+    return $base . '-' . substr(md5($base . uniqid('', true)), 0, 8);
 }
 
 /* ---------- Muat koneksi & config toko (memberi db(), cfg()) ---------- */
@@ -120,13 +148,7 @@ if ($CONFIG['require_https'] && !$https) {
     seo_respond(400, ['success' => false, 'error' => 'HTTPS wajib digunakan.']);
 }
 
-/* ---------- 2. Hanya POST ---------- */
-if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
-    header('Allow: POST');
-    seo_respond(405, ['success' => false, 'error' => 'Hanya menerima POST.']);
-}
-
-/* ---------- 3. Autentikasi API key (timing-safe) ---------- */
+/* ---------- 2. Autentikasi API key (timing-safe) — berlaku untuk semua method ---------- */
 $provided = '';
 $auth = $_SERVER['HTTP_AUTHORIZATION'] ?? ($_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '');
 if (stripos($auth, 'Bearer ') === 0) {
@@ -139,6 +161,40 @@ if ($seo['api_key'] === '') {
 }
 if ($provided === '' || !hash_equals($seo['api_key'], $provided)) {
     seo_respond(401, ['success' => false, 'error' => 'API key tidak valid.']);
+}
+
+/* ---------- 2b. Rute cek-slug (GET, read-only) — deteksi bentrok TERMASUK draft ----------
+ * GET {endpoint}?slug=<slug> → { success, slug, exists, status(publish|draft|null), url|null }
+ * Dashboard memakai ini SEBELUM publish agar slug berstatus draft pun terdeteksi
+ * (artikel draft 404 di halaman publik → tak bisa dideteksi lewat URL biasa). */
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET') {
+    $qslug = seo_normalize_slug((string)($_GET['slug'] ?? ''));
+    if ($qslug === '') {
+        seo_respond(400, ['success' => false, 'error' => 'Parameter slug wajib.']);
+    }
+    try {
+        $stmt = db()->prepare("SELECT status FROM articles WHERE slug = :s LIMIT 1");
+        $stmt->execute([':s' => $qslug]);
+        $row = $stmt->fetch();
+    } catch (Throwable $e) {
+        error_log('[seo-machine] cek-slug gagal: ' . $e->getMessage());
+        seo_respond(500, ['success' => false, 'error' => 'Gagal memeriksa slug.']);
+    }
+    if (!$row) {
+        seo_respond(200, ['success' => true, 'slug' => $qslug, 'exists' => false, 'status' => null, 'url' => null]);
+    }
+    $isPub = (strtoupper((string)$row['status']) === 'PUBLISHED');
+    seo_respond(200, [
+        'success' => true, 'slug' => $qslug, 'exists' => true,
+        'status'  => $isPub ? 'publish' : 'draft',           // SCHEDULED/DRAFT → "draft" (belum publik)
+        'url'     => $isPub ? (rtrim($CONFIG['public_base'], '/') . '?slug=' . rawurlencode($qslug)) : null,
+    ]);
+}
+
+/* ---------- 2c. Selain GET/POST ditolak ---------- */
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    header('Allow: GET, POST');
+    seo_respond(405, ['success' => false, 'error' => 'Hanya menerima GET (cek-slug) atau POST.']);
 }
 
 /* ---------- 4. Baca & validasi body JSON ---------- */
@@ -174,16 +230,16 @@ if ($title === '' || $content === '') {
 }
 
 /* slug */
-$slug = trim((string)($body['slug'] ?? ''));
-if ($slug === '') $slug = $title;
-$slug = strtolower($slug);
-$slug = preg_replace('/[^a-z0-9]+/', '-', $slug);
-$slug = trim($slug, '-');
+$slug = seo_normalize_slug(((string)($body['slug'] ?? '')) ?: $title);
 if ($slug === '') $slug = 'artikel-' . date('YmdHis');
 
 /* status: draft|publish → toko UPPERCASE DRAFT|PUBLISHED */
 $reqStatus = in_array(($body['status'] ?? ''), ['draft', 'publish'], true) ? (string)$body['status'] : $CONFIG['default_status'];
 $statusDb  = ($reqStatus === 'publish') ? 'PUBLISHED' : 'DRAFT';
+
+/* kebijakan slug bentrok (INTI anti-timpa) — default "new" bila tak dikirim */
+$onDup = strtolower(trim((string)($body['on_duplicate'] ?? 'new')));
+if (!in_array($onDup, ['new', 'update', 'skip'], true)) $onDup = 'new';
 
 $article = [
     'slug'             => $slug,
@@ -231,38 +287,75 @@ if ($imgUrl !== '' || $imgBase64 !== '') {
     }
 }
 
-/* ---------- 6. Simpan ---------- */
+/* ---------- 6. Simpan (patuhi on_duplicate) ---------- */
 try {
-    $result = seo_save_to_db(db(), $article);
+    $result = seo_save_to_db(db(), $article, $onDup);
 } catch (Throwable $e) {
     error_log('[seo-machine] gagal menyimpan artikel: ' . $e->getMessage());
     seo_respond(500, ['success' => false, 'error' => 'Gagal menyimpan artikel.']);
 }
 
-/* ---------- 7. Respons sukses ---------- */
+/* ---------- 7. Respons sukses (slug FINAL + renamed) ---------- */
+$finalSlug = $result['slug'];
 seo_respond(200, [
     'success'  => true,
-    'action'   => $result['action'],
+    'action'   => $result['action'],                 // created | updated | skipped
     'id'       => $result['id'] ?? null,
-    'slug'     => $article['slug'],
+    'slug'     => $finalSlug,
+    'renamed'  => (bool)($result['renamed'] ?? false),
     'status'   => $reqStatus,
-    'url'      => rtrim($CONFIG['public_base'], '/') . '?slug=' . rawurlencode($article['slug']),
+    'url'      => rtrim($CONFIG['public_base'], '/') . '?slug=' . rawurlencode($finalSlug),
     'featured' => $article['featured_image'] ?: null,
 ]);
 
 
 /* =========================================================================
- *  Penyimpanan DB (adaptif, upsert berdasarkan slug) — disesuaikan skema toko
+ *  Penyimpanan DB (disesuaikan skema toko), PATUH kebijakan on_duplicate:
+ *   - "new"    : slug bentrok → buat BARU dgn akhiran -2/-3 (artikel lama utuh)
+ *   - "update" : timpa artikel lama (edit sengaja)
+ *   - "skip"   : tak menulis apa pun
  *  articles(content, cover_url, seo_keyword, status VARCHAR uppercase, published_at)
+ *  Return: ['action'=>created|updated|skipped, 'id'=>int, 'slug'=>final, 'renamed'=>bool]
  * ========================================================================= */
-function seo_save_to_db(PDO $pdo, array $a): array {
+function seo_save_to_db(PDO $pdo, array $a, string $onDup): array {
     $t = 'articles';
     $existing = [];
     foreach ($pdo->query("SHOW COLUMNS FROM `$t`")->fetchAll() as $c) {
         $existing[strtolower($c['Field'])] = strtolower($c['Type']);
     }
 
-    // nilai kanonik → kandidat kolom (alias) sesuai skema toko
+    // Penanda eksistensi slug di DB (dipakai untuk resolusi -2/-3 & cek bentrok)
+    $slugExists = function (string $s) use ($pdo, $t): bool {
+        $q = $pdo->prepare("SELECT 1 FROM `$t` WHERE `slug` = :s LIMIT 1");
+        $q->execute([':s' => $s]);
+        return (bool) $q->fetchColumn();
+    };
+
+    // Cari baris eksisting berdasarkan slug asli (abaikan status: draft & publish sama dihitung "ada")
+    $row = null;
+    if (isset($existing['slug'])) {
+        $stmt = $pdo->prepare("SELECT id FROM `$t` WHERE `slug` = :s LIMIT 1");
+        $stmt->execute([':s' => $a['slug']]);
+        $row = $stmt->fetch();
+    }
+
+    // ---- Terapkan kebijakan on_duplicate SEBELUM membangun query ----
+    $renamed = false;
+    if ($row) {
+        if ($onDup === 'skip') {
+            return ['action' => 'skipped', 'id' => (int)$row['id'], 'slug' => $a['slug'], 'renamed' => false];
+        }
+        if ($onDup === 'new') {
+            // INTI anti-timpa: JANGAN sentuh artikel lama; buat slug baru -2/-3/…
+            $newSlug = seo_next_free_slug($a['slug'], $slugExists);
+            $renamed = ($newSlug !== $a['slug']);
+            $a['slug'] = $newSlug;
+            $row = null;                 // paksa jalur INSERT (artikel BARU)
+        }
+        // $onDup === 'update' → biarkan $row terisi → jalur UPDATE (timpa sengaja)
+    }
+
+    // nilai kanonik (slug sudah FINAL) → kandidat kolom (alias) sesuai skema toko
     $vals = [
         'slug'         => $a['slug'],
         'title'        => $a['title'],
@@ -286,7 +379,7 @@ function seo_save_to_db(PDO $pdo, array $a): array {
         'cover'        => ['cover_url', 'featured_image', 'image', 'thumbnail', 'cover', 'image_url', 'gambar'],
     ];
 
-    $assign = []; $used = [];
+    $assign = []; $used = []; $slugCol = null;
     foreach ($aliases as $canon => $cands) {
         foreach ($cands as $col) {
             if (isset($existing[$col]) && empty($used[$col])) {
@@ -295,6 +388,7 @@ function seo_save_to_db(PDO $pdo, array $a): array {
                 if ($canon === 'cover' && $v === '') { $used[$col] = true; break; }
                 $assign[$col] = $v;
                 $used[$col] = true;
+                if ($canon === 'slug') $slugCol = $col;
                 break;
             }
         }
@@ -306,29 +400,36 @@ function seo_save_to_db(PDO $pdo, array $a): array {
     $hasUpdatedAt   = isset($existing['updated_at']);
     $hasCreatedAt   = isset($existing['created_at']);
 
-    // cek eksisting by slug
-    $row = null;
-    if (isset($existing['slug'])) {
-        $stmt = $pdo->prepare("SELECT id FROM `$t` WHERE `slug` = :s LIMIT 1");
-        $stmt->execute([':s' => $a['slug']]);
-        $row = $stmt->fetch();
-    }
-
+    // ---- UPDATE (hanya on_duplicate="update") ----
     if ($row) {
         $set = []; $params = [':id' => $row['id']];
         foreach ($assign as $col => $v) { $set[] = "`$col` = :$col"; $params[":$col"] = $v; }
         if ($hasUpdatedAt)   $set[] = "`updated_at` = NOW()";
         if ($isPublished && $hasPublishedAt) $set[] = "`published_at` = COALESCE(`published_at`, NOW())";
         $pdo->prepare("UPDATE `$t` SET " . implode(', ', $set) . " WHERE id = :id")->execute($params);
-        return ['action' => 'updated', 'id' => (int)$row['id']];
+        return ['action' => 'updated', 'id' => (int)$row['id'], 'slug' => $a['slug'], 'renamed' => false];
     }
 
-    $colNames = []; $place = []; $params = [];
-    foreach ($assign as $col => $v) { $colNames[] = "`$col`"; $place[] = ":$col"; $params[":$col"] = $v; }
-    if ($isPublished && $hasPublishedAt) { $colNames[] = "`published_at`"; $place[] = "NOW()"; }
-    if ($hasCreatedAt) { $colNames[] = "`created_at`"; $place[] = "NOW()"; }
-    if ($hasUpdatedAt) { $colNames[] = "`updated_at`"; $place[] = "NOW()"; }
-    $sql = "INSERT INTO `$t` (" . implode(', ', $colNames) . ") VALUES (" . implode(', ', $place) . ")";
-    $pdo->prepare($sql)->execute($params);
-    return ['action' => 'created', 'id' => (int)$pdo->lastInsertId()];
+    // ---- INSERT (artikel baru). Retry bila balapan UNIQUE(slug) untuk kebijakan "new". ----
+    for ($attempt = 0; ; $attempt++) {
+        $colNames = []; $place = []; $params = [];
+        foreach ($assign as $col => $v) { $colNames[] = "`$col`"; $place[] = ":$col"; $params[":$col"] = $v; }
+        if ($isPublished && $hasPublishedAt) { $colNames[] = "`published_at`"; $place[] = "NOW()"; }
+        if ($hasCreatedAt) { $colNames[] = "`created_at`"; $place[] = "NOW()"; }
+        if ($hasUpdatedAt) { $colNames[] = "`updated_at`"; $place[] = "NOW()"; }
+        $sql = "INSERT INTO `$t` (" . implode(', ', $colNames) . ") VALUES (" . implode(', ', $place) . ")";
+        try {
+            $pdo->prepare($sql)->execute($params);
+            return ['action' => 'created', 'id' => (int)$pdo->lastInsertId(), 'slug' => $a['slug'], 'renamed' => $renamed];
+        } catch (PDOException $e) {
+            // 23000 = pelanggaran UNIQUE (slug keburu dipakai proses lain di antara cek & insert)
+            if ($onDup === 'new' && $e->getCode() === '23000' && $slugCol !== null && $attempt < 3) {
+                $a['slug'] = seo_next_free_slug($a['slug'], $slugExists);
+                $renamed = true;
+                $assign[$slugCol] = $a['slug'];
+                continue;
+            }
+            throw $e;
+        }
+    }
 }
