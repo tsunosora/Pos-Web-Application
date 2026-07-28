@@ -43,5 +43,17 @@ check('collision → -3', seo_next_free_slug('uji', $taken(['uji', 'uji-2'])), '
 // lompatan berurutan sampai yang bebas
 check('collision → -4', seo_next_free_slug('uji', $taken(['uji', 'uji-2', 'uji-3'])), 'uji-4');
 
+/* ---- seo_col_maxlen / seo_fit (anti 1406 "Data too long") ---- */
+check('maxlen varchar', seo_col_maxlen('varchar(300)'), 300);
+check('maxlen char',    seo_col_maxlen('char(20)'), 20);
+check('maxlen text=0',  seo_col_maxlen('mediumtext'), 0);
+
+// nilai lebih panjang dari kolom → dipotong tepat ke lebar kolom
+check('fit truncates',  seo_fit(str_repeat('x', 500), 'varchar(300)'), str_repeat('x', 300));
+// nilai lebih pendek → utuh
+check('fit keeps short', seo_fit('halo', 'varchar(300)'), 'halo');
+// kolom TEXT (tanpa batas) → tak dipotong
+check('fit text untouched', seo_fit(str_repeat('y', 1000), 'mediumtext'), str_repeat('y', 1000));
+
 echo "\n" . ($fail === 0 ? "OK" : "FAILED") . ": $pass passed, $fail failed\n";
 exit($fail === 0 ? 0 : 1);

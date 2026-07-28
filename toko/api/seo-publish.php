@@ -56,6 +56,18 @@ function seo_next_free_slug(string $base, callable $exists): string {
     return $base . '-' . substr(md5($base . uniqid('', true)), 0, 8);
 }
 
+/* ---------- Batas panjang kolom (anti "Data too long" / MySQL error 1406) ----------
+ * SEO Machine kerap mengirim meta_description/keyword/judul yang lebih panjang dari
+ * lebar kolom VARCHAR. Di MySQL strict mode (STRICT_TRANS_TABLES) itu = error 1406
+ * → seluruh publish GAGAL (500). Potong nilai ke lebar kolom agar artikel tetap terbit. */
+function seo_col_maxlen(string $colType): int {
+    return preg_match('/^\s*(?:var)?char\s*\(\s*(\d+)\s*\)/i', $colType, $m) ? (int) $m[1] : 0;
+}
+function seo_fit(string $val, string $colType): string {
+    $max = seo_col_maxlen($colType);
+    return ($max > 0 && mb_strlen($val) > $max) ? mb_substr($val, 0, $max) : $val;
+}
+
 /* ---------- Muat koneksi & config toko (memberi db(), cfg()) ---------- */
 require_once __DIR__ . '/../db.php';
 
@@ -233,8 +245,11 @@ if ($title === '' || $content === '') {
 $slug = seo_normalize_slug(((string)($body['slug'] ?? '')) ?: $title);
 if ($slug === '') $slug = 'artikel-' . date('YmdHis');
 
-/* status: draft|publish → toko UPPERCASE DRAFT|PUBLISHED */
-$reqStatus = in_array(($body['status'] ?? ''), ['draft', 'publish'], true) ? (string)$body['status'] : $CONFIG['default_status'];
+/* status: draft|publish → toko UPPERCASE DRAFT|PUBLISHED.
+ * $statusProvided menandai apakah pengirim EKSPLISIT mengirim status; bila tidak,
+ * pada on_duplicate=update status LAMA dipertahankan (anti turun-derajat ke draft). */
+$statusProvided = in_array(($body['status'] ?? ''), ['draft', 'publish'], true);
+$reqStatus = $statusProvided ? (string)$body['status'] : $CONFIG['default_status'];
 $statusDb  = ($reqStatus === 'publish') ? 'PUBLISHED' : 'DRAFT';
 
 /* kebijakan slug bentrok (INTI anti-timpa) — default "new" bila tak dikirim */
@@ -289,21 +304,23 @@ if ($imgUrl !== '' || $imgBase64 !== '') {
 
 /* ---------- 6. Simpan (patuhi on_duplicate) ---------- */
 try {
-    $result = seo_save_to_db(db(), $article, $onDup);
+    $result = seo_save_to_db(db(), $article, $onDup, $statusProvided);
 } catch (Throwable $e) {
     error_log('[seo-machine] gagal menyimpan artikel: ' . $e->getMessage());
     seo_respond(500, ['success' => false, 'error' => 'Gagal menyimpan artikel.']);
 }
 
 /* ---------- 7. Respons sukses (slug FINAL + renamed) ---------- */
-$finalSlug = $result['slug'];
+$finalSlug   = $result['slug'];
+// Status FINAL yang benar-benar tersimpan (mis. update tanpa status → status lama dipertahankan).
+$finalStatus = (strtoupper((string)($result['status'] ?? $statusDb)) === 'PUBLISHED') ? 'publish' : 'draft';
 seo_respond(200, [
     'success'  => true,
     'action'   => $result['action'],                 // created | updated | skipped
     'id'       => $result['id'] ?? null,
     'slug'     => $finalSlug,
     'renamed'  => (bool)($result['renamed'] ?? false),
-    'status'   => $reqStatus,
+    'status'   => $finalStatus,
     'url'      => rtrim($CONFIG['public_base'], '/') . '?slug=' . rawurlencode($finalSlug),
     'featured' => $article['featured_image'] ?: null,
 ]);
@@ -317,11 +334,20 @@ seo_respond(200, [
  *  articles(content, cover_url, seo_keyword, status VARCHAR uppercase, published_at)
  *  Return: ['action'=>created|updated|skipped, 'id'=>int, 'slug'=>final, 'renamed'=>bool]
  * ========================================================================= */
-function seo_save_to_db(PDO $pdo, array $a, string $onDup): array {
+function seo_save_to_db(PDO $pdo, array $a, string $onDup, bool $statusProvided = true): array {
     $t = 'articles';
     $existing = [];
     foreach ($pdo->query("SHOW COLUMNS FROM `$t`")->fetchAll() as $c) {
         $existing[strtolower($c['Field'])] = strtolower($c['Type']);
+    }
+
+    // Batasi slug ke lebar kolom (sisakan ruang untuk akhiran -2/-3/…) sebelum resolusi
+    // bentrok & INSERT, agar judul sangat panjang tak memicu 1406 "Data too long".
+    if (isset($existing['slug'])) {
+        $slugLen = seo_col_maxlen($existing['slug']);
+        if ($slugLen > 0 && mb_strlen($a['slug']) > $slugLen - 8) {
+            $a['slug'] = rtrim(mb_substr($a['slug'], 0, max(1, $slugLen - 8)), '-') ?: $a['slug'];
+        }
     }
 
     // Penanda eksistensi slug di DB (dipakai untuk resolusi -2/-3 & cek bentrok)
@@ -334,16 +360,18 @@ function seo_save_to_db(PDO $pdo, array $a, string $onDup): array {
     // Cari baris eksisting berdasarkan slug asli (abaikan status: draft & publish sama dihitung "ada")
     $row = null;
     if (isset($existing['slug'])) {
-        $stmt = $pdo->prepare("SELECT id FROM `$t` WHERE `slug` = :s LIMIT 1");
+        $selCols = 'id' . (isset($existing['status']) ? ', status' : '');
+        $stmt = $pdo->prepare("SELECT $selCols FROM `$t` WHERE `slug` = :s LIMIT 1");
         $stmt->execute([':s' => $a['slug']]);
         $row = $stmt->fetch();
     }
+    $existingStatus = $row['status'] ?? null;   // status LAMA (untuk dipertahankan saat update tanpa status)
 
     // ---- Terapkan kebijakan on_duplicate SEBELUM membangun query ----
     $renamed = false;
     if ($row) {
         if ($onDup === 'skip') {
-            return ['action' => 'skipped', 'id' => (int)$row['id'], 'slug' => $a['slug'], 'renamed' => false];
+            return ['action' => 'skipped', 'id' => (int)$row['id'], 'slug' => $a['slug'], 'renamed' => false, 'status' => (string)$existingStatus];
         }
         if ($onDup === 'new') {
             // INTI anti-timpa: JANGAN sentuh artikel lama; buat slug baru -2/-3/…
@@ -379,16 +407,19 @@ function seo_save_to_db(PDO $pdo, array $a, string $onDup): array {
         'cover'        => ['cover_url', 'featured_image', 'image', 'thumbnail', 'cover', 'image_url', 'gambar'],
     ];
 
-    $assign = []; $used = []; $slugCol = null;
+    $assign = []; $used = []; $slugCol = null; $statusCol = null;
     foreach ($aliases as $canon => $cands) {
         foreach ($cands as $col) {
             if (isset($existing[$col]) && empty($used[$col])) {
                 $v = $vals[$canon];
                 // Kolom kosong ('') untuk cover → biarkan NULL (jangan timpa dgn string kosong)
                 if ($canon === 'cover' && $v === '') { $used[$col] = true; break; }
+                // Potong ke lebar kolom (VARCHAR/CHAR) agar tak 1406 "Data too long".
+                $v = seo_fit((string)$v, $existing[$col]);
                 $assign[$col] = $v;
                 $used[$col] = true;
-                if ($canon === 'slug') $slugCol = $col;
+                if ($canon === 'slug')   $slugCol = $col;
+                if ($canon === 'status') $statusCol = $col;
                 break;
             }
         }
@@ -402,12 +433,17 @@ function seo_save_to_db(PDO $pdo, array $a, string $onDup): array {
 
     // ---- UPDATE (hanya on_duplicate="update") ----
     if ($row) {
+        // Bila pengirim TIDAK menyertakan status, JANGAN sentuh kolom status →
+        // artikel yang sudah PUBLISHED tetap tayang saat kontennya diperbarui.
+        if (!$statusProvided && $statusCol !== null) unset($assign[$statusCol]);
+        $effPublished = $statusProvided ? $isPublished : (strtoupper((string)$existingStatus) === 'PUBLISHED');
         $set = []; $params = [':id' => $row['id']];
         foreach ($assign as $col => $v) { $set[] = "`$col` = :$col"; $params[":$col"] = $v; }
         if ($hasUpdatedAt)   $set[] = "`updated_at` = NOW()";
-        if ($isPublished && $hasPublishedAt) $set[] = "`published_at` = COALESCE(`published_at`, NOW())";
+        if ($effPublished && $hasPublishedAt) $set[] = "`published_at` = COALESCE(`published_at`, NOW())";
         $pdo->prepare("UPDATE `$t` SET " . implode(', ', $set) . " WHERE id = :id")->execute($params);
-        return ['action' => 'updated', 'id' => (int)$row['id'], 'slug' => $a['slug'], 'renamed' => false];
+        $finalStatus = $statusProvided ? (string)$a['status'] : (string)$existingStatus;
+        return ['action' => 'updated', 'id' => (int)$row['id'], 'slug' => $a['slug'], 'renamed' => false, 'status' => $finalStatus];
     }
 
     // ---- INSERT (artikel baru). Retry bila balapan UNIQUE(slug) untuk kebijakan "new". ----
@@ -420,7 +456,7 @@ function seo_save_to_db(PDO $pdo, array $a, string $onDup): array {
         $sql = "INSERT INTO `$t` (" . implode(', ', $colNames) . ") VALUES (" . implode(', ', $place) . ")";
         try {
             $pdo->prepare($sql)->execute($params);
-            return ['action' => 'created', 'id' => (int)$pdo->lastInsertId(), 'slug' => $a['slug'], 'renamed' => $renamed];
+            return ['action' => 'created', 'id' => (int)$pdo->lastInsertId(), 'slug' => $a['slug'], 'renamed' => $renamed, 'status' => (string)$a['status']];
         } catch (PDOException $e) {
             // 23000 = pelanggaran UNIQUE (slug keburu dipakai proses lain di antara cek & insert)
             if ($onDup === 'new' && $e->getCode() === '23000' && $slugCol !== null && $attempt < 3) {
