@@ -561,6 +561,60 @@ export const getKpiReport = async (params: {
 }): Promise<KpiReport> =>
     (await api.get('/crm/kpi', { params })).data;
 
+// ── Leaderboard metric drill-down (modal detail) ─────────────────────────
+export type KpiDivision = 'cs' | 'designer' | 'operator';
+
+export type KpiMetricKey =
+    | 'leads' | 'closing' | 'lost' | 'rate' | 'pcs'
+    | 'shipped' | 'delivered' | 'cuan' | 'omzet' | 'custom' // CS
+    | 'dicek' | 'designClosing'                             // Designer
+    | 'printJobs' | 'printPcs' | 'prodJobs' | 'prodDone';   // Operator
+
+export interface KpiDetailItem {
+    name: string;
+    qty: number;
+    pcs: number;
+    price: number;
+}
+
+export interface KpiDetailRow {
+    kind: 'lead' | 'walkin' | 'job';
+    refId: number;                 // leadId / transactionId / jobId
+    invoiceNumber: string | null;  // nomor nota bila ada
+    customerName: string | null;
+    customerPhone: string | null;
+    sourceLabel: string;           // "WhatsApp" | "Instagram" | "Walk-in (POS)" | nama custom
+    sourceDetail: string | null;   // kasir walk-in / detail custom
+    status: string | null;         // status lead / status tx / stage job
+    date: string | null;           // ISO
+    value: number;                 // kontribusi nilai (Rp) baris ini ke metrik
+    pcs: number;                   // kontribusi pcs baris ini ke metrik
+    items: KpiDetailItem[];        // rincian item nota (opsional, bisa [])
+}
+
+export interface KpiMetricDetail {
+    person: { userId: number; name: string; roleName: string | null };
+    division: KpiDivision;
+    metric: KpiMetricKey;
+    metricLabel: string;           // label tampilan, mis "Closing", "Metrik Custom: Jersey"
+    valueMode: 'count' | 'pcs' | 'money' | 'percent';
+    period: { start: string; end: string };
+    totals: { rows: number; value: number; pcs: number };
+    rows: KpiDetailRow[];
+}
+
+export const getKpiMetricDetail = async (params: {
+    division: KpiDivision;
+    metric: KpiMetricKey;
+    userId: number;
+    metricId?: number;            // wajib bila metric === 'custom'
+    period?: string;
+    start?: string;
+    end?: string;
+    branchId?: string | number;
+}): Promise<KpiMetricDetail> =>
+    (await api.get('/crm/kpi/detail', { params })).data;
+
 // ── Tren Produk ──────────────────────────────────────────────────────────
 export interface ProductTrendGroup {
     series: string[];                              // nama seri (kategori / produk) untuk garis chart
