@@ -7,8 +7,10 @@ import {
     getTeamLeaderboard, getProductionCategories, type ProductionCategory,
     type KpiPeriod, type KpiLeaderboardEntry, type DesignCheckEntry,
     type DesignerLeaderboardEntry, type DesignOutputEntry, type OperatorLeaderboardEntry,
+    type KpiDivision, type KpiMetricKey,
 } from "@/lib/api";
 import api from "@/lib/api/client";
+import MetricDetailModal from "@/components/leaderboard/MetricDetailModal";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
     Trophy, Crown, Target, Phone, Zap, Search, Palette, Factory, Award,
@@ -109,6 +111,42 @@ const Rank = ({ i, name }: { i: number; name: string }) => (
     </div>
 );
 
+// Pemicu modal detail metrik (angka yang diklik).
+type DetailTrigger = {
+    division: KpiDivision;
+    metric: KpiMetricKey;
+    metricId?: number;
+    userId: number;
+    personName: string;
+    metricLabel: string;
+} | null;
+
+// Sel angka yang bisa diklik → buka modal rincian. Angka 0/"—" tidak clickable.
+function MetricCell({ value, colorClass, onClick, children }: {
+    value: number | string;
+    colorClass?: string;
+    onClick?: () => void;
+    children?: React.ReactNode;
+}) {
+    const empty = value === "—" || value === 0 || value === "" || value == null;
+    const clickable = !!onClick && !empty;
+    return (
+        <td className="py-2 px-2 text-right font-mono">
+            {clickable ? (
+                <button
+                    onClick={onClick}
+                    className={`cursor-pointer rounded px-1 underline decoration-dotted decoration-muted-foreground/40 underline-offset-4 hover:decoration-current hover:bg-accent/60 transition ${colorClass || ""}`}
+                    title="Klik untuk rincian"
+                >
+                    {children ?? value}
+                </button>
+            ) : (
+                <span className={colorClass}>{children ?? value}</span>
+            )}
+        </td>
+    );
+}
+
 export default function LeaderboardPage() {
     const { isOwner } = useCurrentUser();
     const [period, setPeriod] = useState<KpiPeriod>("month");
@@ -117,6 +155,7 @@ export default function LeaderboardPage() {
     const [branchSel, setBranchSel] = useState<number | "all">("all");
     const [divisi, setDivisi] = useState<string>("Semua");   // Semua | <roleName> | Designer
     const [karyawan, setKaryawan] = useState<string>("");     // filter nama (CS/designer)
+    const [detail, setDetail] = useState<DetailTrigger>(null); // modal drill-down metrik
 
     const branchId = branchSel === "all" ? undefined : branchSel;
     const common = { period, start: period === "custom" ? cStart : undefined, end: period === "custom" ? cEnd : undefined, branchId } as const;
@@ -324,26 +363,33 @@ export default function LeaderboardPage() {
                                                 {csRows.map((r, i) => (
                                                     <tr key={r.userId} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
                                                         <td className="py-2 px-2"><Rank i={i} name={r.name} />{r.roleName && <span className="ml-1 text-[10px] text-muted-foreground">· {r.roleName}</span>}</td>
-                                                        <td className="py-2 px-2 text-right font-mono">{r.leadsHandled}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.dealsClosed}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-red-600 dark:text-red-300">{r.dealsLost || '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{(r.pcsOrdered + r.walkinPcs) || '—'}</td>
+                                                        <MetricCell value={r.leadsHandled}
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'leads', userId: r.userId, personName: r.name, metricLabel: 'Leads' })} />
+                                                        <MetricCell value={r.dealsClosed} colorClass="text-emerald-600 dark:text-emerald-300"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'closing', userId: r.userId, personName: r.name, metricLabel: 'Closing' })} />
+                                                        <MetricCell value={r.dealsLost} colorClass="text-red-600 dark:text-red-300"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'lost', userId: r.userId, personName: r.name, metricLabel: 'Lost' })}>{r.dealsLost || '—'}</MetricCell>
+                                                        <MetricCell value={r.leadsHandled} colorClass="font-semibold"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'rate', userId: r.userId, personName: r.name, metricLabel: 'Closing Rate' })}>{`${(r.closingRate * 100).toFixed(0)}%`}</MetricCell>
+                                                        <MetricCell value={r.pcsOrdered + r.walkinPcs} colorClass="text-muted-foreground"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'pcs', userId: r.userId, personName: r.name, metricLabel: 'Pcs Diorder' })}>{(r.pcsOrdered + r.walkinPcs) || '—'}</MetricCell>
                                                         {csCustomDefs.map(d => (
-                                                            <td key={d.id} className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300 font-semibold">
-                                                                {fmtCustomMetric(r.customMetrics?.[String(d.id)] ?? 0, d.countMode)}
-                                                            </td>
+                                                            <MetricCell key={d.id} value={r.customMetrics?.[String(d.id)] ?? 0}
+                                                                colorClass="text-indigo-600 dark:text-indigo-300 font-semibold"
+                                                                onClick={() => setDetail({ division: 'cs', metric: 'custom', metricId: d.id, userId: r.userId, personName: r.name, metricLabel: d.label })}>{fmtCustomMetric(r.customMetrics?.[String(d.id)] ?? 0, d.countMode)}</MetricCell>
                                                         ))}
-                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300 font-semibold">
-                                                            {r.notasInTransit || '—'}
-                                                            {r.pcsInTransit > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsInTransit} pcs</span>}
-                                                        </td>
-                                                        <td className="py-2 px-2 text-right font-mono text-sky-600 dark:text-sky-300 font-semibold">
-                                                            {r.notasDelivered || '—'}
-                                                            {r.pcsDelivered > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsDelivered} pcs</span>}
-                                                        </td>
-                                                        <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{fmtRp(r.wonValue + r.walkinValue)}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</td>
+                                                        <MetricCell value={r.notasInTransit} colorClass="text-amber-600 dark:text-amber-300 font-semibold"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'shipped', userId: r.userId, personName: r.name, metricLabel: 'Sedang Dikirim' })}>
+                                                            {r.notasInTransit || '—'}{r.pcsInTransit > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsInTransit} pcs</span>}
+                                                        </MetricCell>
+                                                        <MetricCell value={r.notasDelivered} colorClass="text-sky-600 dark:text-sky-300 font-semibold"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'delivered', userId: r.userId, personName: r.name, metricLabel: 'Terkirim' })}>
+                                                            {r.notasDelivered || '—'}{r.pcsDelivered > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsDelivered} pcs</span>}
+                                                        </MetricCell>
+                                                        <MetricCell value={r.wonValue + r.walkinValue} colorClass="text-amber-600 dark:text-amber-300"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'cuan', userId: r.userId, personName: r.name, metricLabel: 'Cuan (net)' })}>{fmtRp(r.wonValue + r.walkinValue)}</MetricCell>
+                                                        <MetricCell value={r.omzetShare} colorClass="text-emerald-600 dark:text-emerald-300"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'omzet', userId: r.userId, personName: r.name, metricLabel: 'Omzet (bagian)' })}>{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</MetricCell>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
                                                     </tr>
@@ -580,6 +626,19 @@ export default function LeaderboardPage() {
                         </SectionCard>
                     )}
                 </>
+            )}
+
+            {detail && (
+                <MetricDetailModal
+                    division={detail.division}
+                    metric={detail.metric}
+                    metricId={detail.metricId}
+                    userId={detail.userId}
+                    personName={detail.personName}
+                    metricLabel={detail.metricLabel}
+                    query={common}
+                    onClose={() => setDetail(null)}
+                />
             )}
         </div>
     );
