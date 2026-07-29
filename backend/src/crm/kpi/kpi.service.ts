@@ -257,11 +257,15 @@ export class KpiService {
         return (source && map[source]) || source || 'Tidak diketahui';
     }
 
-    /** pcs sebuah nota dari item-nya (add-on countsAsPcs=false → 0), konsisten computeTxPcsMap. */
+    /**
+     * pcs kolom leaderboard sebuah nota dari item-nya — HARUS identik dengan
+     * computeTxPcsMap: jumlah `quantity` item non-add-on (countsAsPcs=false → 0),
+     * TANPA ×pcs (beda dgn pcs pengiriman yang pakai quantity×pcs).
+     */
     private txItemsPcs(items: any[]): number {
         return (items ?? []).reduce((s: number, it: any) => {
             const addon = it.productVariant?.product?.category?.countsAsPcs === false;
-            return s + (addon ? 0 : (Number(it.quantity) || 0) * (Number(it.pcs) || 1));
+            return s + (addon ? 0 : (Number(it.quantity) || 0));
         }, 0);
     }
 
@@ -456,8 +460,8 @@ export class KpiService {
         return Array.from(ids);
     }
 
-    /** Baris dari daftar txId murni (tanpa lead), value/pcs dioverride dari peta. */
-    private async buildTxRows(txIds: number[], valueByTx: Map<number, number>): Promise<KpiDetailRow[]> {
+    /** Baris dari daftar txId murni (tanpa lead), value dioverride dari peta. `asPcs` → nilai juga dianggap pcs. */
+    private async buildTxRows(txIds: number[], valueByTx: Map<number, number>, asPcs = false): Promise<KpiDetailRow[]> {
         if (txIds.length === 0) return [];
         const txs: any[] = await this.tx.findMany({ where: { id: { in: txIds } }, select: this.txDetailSelect });
         // Sumber: cari lead untuk nota ini bila ada, else walk-in.
@@ -480,7 +484,7 @@ export class KpiService {
                 status: t.status ?? null,
                 date: t.createdAt ? new Date(t.createdAt).toISOString() : null,
                 value: valueByTx.get(t.id) ?? 0,
-                pcs: valueByTx.get(t.id) ?? 0,
+                pcs: asPcs ? (valueByTx.get(t.id) ?? 0) : 0,
                 items: this.mapTxItems(t.items),
             };
         });
@@ -568,7 +572,7 @@ export class KpiService {
             const txIds = await this.collectUserTxIds(ctx, params, uid);
             const byTx = await this.computeCustomMetricByTx(txIds, def);
             const contributing = txIds.filter(id => (byTx.get(id) ?? 0) > 0);
-            const rows = await this.buildTxRows(contributing, byTx);
+            const rows = await this.buildTxRows(contributing, byTx, def.countMode === 'PCS');
             const modeToValueMode: Record<string, string> = { OMZET: 'money', PCS: 'pcs', QTY: 'count', NOTA: 'count' };
             return this.finishDetail(base, `Metrik Custom: ${def.label}`, modeToValueMode[def.countMode] || 'count', rows);
         }

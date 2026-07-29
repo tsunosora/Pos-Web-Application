@@ -35,12 +35,6 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
     });
     const d = q.data;
     const valueMode = d?.valueMode ?? "count";
-    const fmtVal = (n: number) =>
-        valueMode === "money"
-            ? fmtRp(n)
-            : valueMode === "percent"
-              ? `${(n * 100).toFixed(0)}%`
-              : String(Math.round(n));
 
     return (
         <div
@@ -79,15 +73,17 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                             {/* Ringkasan */}
                             <div className="mb-4 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
                                 <Stat label="Jumlah" value={String(d.totals.rows)} />
-                                {valueMode !== "count" && valueMode !== "pcs" && (
-                                    <Stat label="Total" value={fmtVal(d.totals.value)} />
+                                {valueMode === "percent" && (
+                                    <Stat label="Closing Rate" value={`${((countStatus(d.rows, "CLOSED_WON") / Math.max(1, d.totals.rows)) * 100).toFixed(0)}%`} />
                                 )}
-                                {(valueMode === "pcs" || d.totals.pcs > 0) && (
-                                    <Stat label="Total Pcs" value={String(d.totals.pcs)} />
+                                {valueMode !== "pcs" && d.totals.value > 0 && (
+                                    <Stat label="Total Nilai" value={fmtRp(d.totals.value)} />
                                 )}
+                                {d.totals.pcs > 0 && <Stat label="Total Pcs" value={String(d.totals.pcs)} />}
                             </div>
 
-                            {/* Breakdown sumber */}
+                            {/* Breakdown status (berguna utk Leads/Rate) + sumber */}
+                            <StatusBreakdown rows={d.rows} />
                             <SourceBreakdown rows={d.rows} />
 
                             {/* Tabel rincian */}
@@ -124,7 +120,7 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                                                     <StatusLabel status={r.status} />
                                                 </td>
                                                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
-                                                    {valueMode === "pcs" ? `${r.pcs} pcs` : fmtVal(r.value)}
+                                                    {valueMode === "pcs" ? `${r.pcs} pcs` : fmtRp(r.value)}
                                                 </td>
                                             </tr>
                                         ))}
@@ -163,6 +159,29 @@ const STATUS_LABEL: Record<string, string> = {
 function StatusLabel({ status }: { status: string | null }) {
     if (!status) return <span className="text-muted-foreground">—</span>;
     return <span>{STATUS_LABEL[status] ?? status}</span>;
+}
+
+function countStatus(rows: KpiDetailRow[], status: string): number {
+    return rows.reduce((n, r) => n + (r.status === status ? 1 : 0), 0);
+}
+
+function StatusBreakdown({ rows }: { rows: KpiDetailRow[] }) {
+    const map = new Map<string, number>();
+    for (const r of rows) {
+        const s = r.status || "—";
+        map.set(s, (map.get(s) || 0) + 1);
+    }
+    const entries = Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    if (entries.length <= 1) return null;
+    return (
+        <div className="mb-3 flex flex-wrap gap-2">
+            {entries.map(([s, c]) => (
+                <span key={s} className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-xs">
+                    {STATUS_LABEL[s] ?? s}: <b>{c}</b>
+                </span>
+            ))}
+        </div>
+    );
 }
 
 function SourceBreakdown({ rows }: { rows: KpiDetailRow[] }) {
