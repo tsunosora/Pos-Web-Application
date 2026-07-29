@@ -20,6 +20,30 @@ export interface KpiParams {
     end?: string;
 }
 
+export type KpiDivision = 'cs' | 'designer' | 'operator';
+
+export interface KpiDetailOpts {
+    division: KpiDivision;
+    metric: string;
+    userId: number;
+    metricId?: number;
+}
+
+export interface KpiDetailRow {
+    kind: 'lead' | 'walkin' | 'job';
+    refId: number;
+    invoiceNumber: string | null;
+    customerName: string | null;
+    customerPhone: string | null;
+    sourceLabel: string;
+    sourceDetail: string | null;
+    status: string | null;
+    date: string | null;
+    value: number;
+    pcs: number;
+    items: Array<{ name: string; qty: number; pcs: number; price: number }>;
+}
+
 const MONTHS_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 function ymd(d: Date): string {
@@ -213,6 +237,343 @@ export class KpiService {
             console.error('[kpi.report] failed:', err?.message, err?.stack);
             throw err;
         }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // Drill-down detail: rincian nota/lead penyusun satu angka leaderboard.
+    // Angka (jumlah baris / total nilai / pcs) HARUS sama dengan sel leaderboard
+    // → memakai where & helper yang sama dengan _report()/operatorLeaderboard().
+    // ════════════════════════════════════════════════════════════════════════
+
+    /** Label sumber lead yang manusiawi (mirror leadsBySource di _report). */
+    private sourceLabel(source: string | null, sourceDetail: string | null): string {
+        if (source === 'CUSTOM') return sourceDetail || 'Custom';
+        const map: Record<string, string> = {
+            WHATSAPP: 'WhatsApp', INSTAGRAM: 'Instagram', FACEBOOK: 'Facebook',
+            TIKTOK: 'TikTok', MARKETPLACE: 'Marketplace', REFERRAL: 'Referral',
+            WEBSITE: 'Website', WALK_IN: 'Walk-in', REPEAT_ORDER: 'Repeat Order',
+            OTHER: 'Lainnya',
+        };
+        return (source && map[source]) || source || 'Tidak diketahui';
+    }
+
+    /** pcs sebuah nota dari item-nya (add-on countsAsPcs=false → 0), konsisten computeTxPcsMap. */
+    private txItemsPcs(items: any[]): number {
+        return (items ?? []).reduce((s: number, it: any) => {
+            const addon = it.productVariant?.product?.category?.countsAsPcs === false;
+            return s + (addon ? 0 : (Number(it.quantity) || 0) * (Number(it.pcs) || 1));
+        }, 0);
+    }
+
+    private mapTxItems(items: any[]): Array<{ name: string; qty: number; pcs: number; price: number }> {
+        return (items ?? []).map((it: any) => ({
+            name: it.customName || it.productVariant?.product?.name || 'Item',
+            qty: Number(it.quantity) || 0,
+            pcs: Number(it.pcs) || 1,
+            price: Number(it.priceAtTime) || 0,
+        }));
+    }
+
+    private readonly txDetailSelect = {
+        id: true, invoiceNumber: true, grandTotal: true, marketplaceFee: true,
+        status: true, customerName: true, customerPhone: true, cashierName: true, createdAt: true,
+        items: {
+            select: {
+                customName: true, quantity: true, pcs: true, priceAtTime: true,
+                productVariant: { select: { product: { select: { name: true, category: { select: { countsAsPcs: true } } } } } },
+            },
+        },
+    } as any;
+
+    /** Ubah daftar lead (dengan nota converted) → baris detail. */
+    private async buildLeadRows(leads: any[]): Promise<KpiDetailRow[]> {
+        const txIds = leads.map(l => l.convertedTransactionId).filter(Boolean).map(Number);
+        const txMap = new Map<number, any>();
+        if (txIds.length) {
+            const txs: any[] = await this.tx.findMany({ where: { id: { in: txIds } }, select: this.txDetailSelect });
+            for (const t of txs) txMap.set(t.id, t);
+        }
+        return leads.map((l): KpiDetailRow => {
+            const t = l.convertedTransactionId ? txMap.get(Number(l.convertedTransactionId)) : null;
+            const gross = t ? Number(t.grandTotal) || 0 : (Number(l.estimatedValue) || 0);
+            const fee = t ? Number(t.marketplaceFee) || 0 : 0;
+            return {
+                kind: 'lead',
+                refId: l.id,
+                invoiceNumber: t?.invoiceNumber ?? null,
+                customerName: t?.customerName || l.name || null,
+                customerPhone: t?.customerPhone || l.phone || null,
+                sourceLabel: this.sourceLabel(l.source, l.sourceDetail),
+                sourceDetail: l.sourceDetail ?? null,
+                status: l.status ?? null,
+                date: l.createdAt ? new Date(l.createdAt).toISOString() : null,
+                value: Math.max(0, gross - fee),
+                pcs: t ? this.txItemsPcs(t.items) : 0,
+                items: t ? this.mapTxItems(t.items) : [],
+            };
+        });
+    }
+
+    /** Baris walk-in POS (non-lead) yang ditangani user — mirror _report 1870-1918. */
+    private async buildWalkinRows(ctx: BranchContext, params: KpiParams, uid: number): Promise<KpiDetailRow[]> {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const user = await this.prisma.user.findUnique({ where: { id: uid }, select: { name: true } });
+        const uname = (user?.name || '').trim().toLowerCase();
+        if (!uname) return [];
+
+        const leadTxIds: number[] = (await this.lead.findMany({
+            where: { ...branchScope, convertedTransactionId: { not: null } },
+            select: { convertedTransactionId: true },
+        })).map((l: any) => Number(l.convertedTransactionId));
+        const leadTxSet = new Set<number>(leadTxIds);
+
+        const txs: any[] = await this.tx.findMany({
+            where: { ...branchScope, status: { not: 'FAILED' }, createdAt: { gte: start, lte: end }, cashierName: { not: null } },
+            select: this.txDetailSelect,
+        });
+        return txs
+            .filter(t => !leadTxSet.has(t.id) && (t.cashierName || '').trim().toLowerCase() === uname)
+            .map((t): KpiDetailRow => ({
+                kind: 'walkin',
+                refId: t.id,
+                invoiceNumber: t.invoiceNumber ?? null,
+                customerName: t.customerName ?? null,
+                customerPhone: t.customerPhone ?? null,
+                sourceLabel: 'Walk-in (POS)',
+                sourceDetail: t.cashierName ?? null,
+                status: t.status ?? null,
+                date: t.createdAt ? new Date(t.createdAt).toISOString() : null,
+                value: Math.max(0, (Number(t.grandTotal) || 0) - (Number(t.marketplaceFee) || 0)),
+                pcs: this.txItemsPcs(t.items),
+                items: this.mapTxItems(t.items),
+            }));
+    }
+
+    /** Baris pengiriman (Dikirim/Terkirim) untuk user — mirror _report 1937-2009. */
+    private async buildShipmentRows(ctx: BranchContext, params: KpiParams, uid: number, deliveredOnly: boolean): Promise<KpiDetailRow[]> {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const shippedJobs: any[] = await (this.prisma as any).productionJob.findMany({
+            where: { ...branchScope, shippedAt: { gte: start, lte: end }, returnedAt: null },
+            select: {
+                transactionId: true, pipelineStage: true,
+                transactionItem: {
+                    select: {
+                        quantity: true, pcs: true,
+                        productVariant: { select: { product: { select: { category: { select: { countsAsPcs: true } } } } } },
+                    },
+                },
+            },
+        });
+        const stagesByTx = new Map<number, string[]>();
+        const pcsByTx = new Map<number, { inTransit: number; delivered: number }>();
+        for (const j of shippedJobs) {
+            const txId = Number(j.transactionId);
+            if (!Number.isFinite(txId)) continue;
+            const stage = j.pipelineStage || 'KIRIM';
+            const arr = stagesByTx.get(txId) ?? [];
+            arr.push(stage);
+            stagesByTx.set(txId, arr);
+            const isAddon = j.transactionItem?.productVariant?.product?.category?.countsAsPcs === false;
+            const itemQty = (Number(j.transactionItem?.quantity) || 0) * (Number(j.transactionItem?.pcs) || 1);
+            const qty = isAddon ? 0 : itemQty;
+            const p = pcsByTx.get(txId) ?? { inTransit: 0, delivered: 0 };
+            if (stage === 'SELESAI') p.delivered += qty; else p.inTransit += qty;
+            pcsByTx.set(txId, p);
+        }
+        const shippedTxIds = Array.from(stagesByTx.keys());
+        if (shippedTxIds.length === 0) return [];
+
+        // Atribusi txId → CS: lead.assignedToId (utama), fallback cashierName walk-in.
+        const shippedLeads: any[] = await this.lead.findMany({
+            where: { convertedTransactionId: { in: shippedTxIds } },
+            select: { convertedTransactionId: true, assignedToId: true },
+        });
+        const csByTx = new Map<number, number>();
+        for (const l of shippedLeads) if (l.assignedToId) csByTx.set(Number(l.convertedTransactionId), l.assignedToId);
+        const missing = shippedTxIds.filter(id => !csByTx.has(id));
+        const user = await this.prisma.user.findUnique({ where: { id: uid }, select: { name: true } });
+        const uname = (user?.name || '').trim().toLowerCase();
+        if (missing.length && uname) {
+            const missTxs: any[] = await this.tx.findMany({ where: { id: { in: missing } }, select: { id: true, cashierName: true } });
+            for (const t of missTxs) {
+                if ((t.cashierName || '').trim().toLowerCase() === uname) csByTx.set(Number(t.id), uid);
+            }
+        }
+
+        // txId milik user & sesuai flag (delivered = semua stage SELESAI).
+        const mine = shippedTxIds.filter(txId => {
+            if (csByTx.get(txId) !== uid) return false;
+            const stages = stagesByTx.get(txId) ?? [];
+            const delivered = stages.length > 0 && stages.every(s => s === 'SELESAI');
+            return deliveredOnly ? delivered : !delivered;
+        });
+        if (mine.length === 0) return [];
+
+        const txs: any[] = await this.tx.findMany({ where: { id: { in: mine } }, select: this.txDetailSelect });
+        const txById = new Map<number, any>(txs.map(t => [t.id, t]));
+        // Sumber: dari lead → pakai source lead; walk-in → "Walk-in (POS)".
+        const leadByTx = new Map<number, any>();
+        const srcLeads: any[] = await this.lead.findMany({
+            where: { convertedTransactionId: { in: mine } },
+            select: { convertedTransactionId: true, source: true, sourceDetail: true, name: true, phone: true },
+        });
+        for (const l of srcLeads) leadByTx.set(Number(l.convertedTransactionId), l);
+
+        return mine.map((txId): KpiDetailRow => {
+            const t = txById.get(txId);
+            const lead = leadByTx.get(txId);
+            const p = pcsByTx.get(txId) ?? { inTransit: 0, delivered: 0 };
+            return {
+                kind: lead ? 'lead' : 'walkin',
+                refId: txId,
+                invoiceNumber: t?.invoiceNumber ?? null,
+                customerName: t?.customerName || lead?.name || null,
+                customerPhone: t?.customerPhone || lead?.phone || null,
+                sourceLabel: lead ? this.sourceLabel(lead.source, lead.sourceDetail) : 'Walk-in (POS)',
+                sourceDetail: lead ? lead.sourceDetail ?? null : (t?.cashierName ?? null),
+                status: deliveredOnly ? 'Terkirim' : 'Sedang dikirim',
+                date: t?.createdAt ? new Date(t.createdAt).toISOString() : null,
+                value: t ? Math.max(0, (Number(t.grandTotal) || 0) - (Number(t.marketplaceFee) || 0)) : 0,
+                pcs: deliveredOnly ? p.delivered : p.inTransit,
+                items: t ? this.mapTxItems(t.items) : [],
+            };
+        });
+    }
+
+    /** Kumpulkan txId milik user (won-converted lead + walk-in) — utk metrik custom. */
+    private async collectUserTxIds(ctx: BranchContext, params: KpiParams, uid: number): Promise<number[]> {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const wonLeads: any[] = await this.lead.findMany({
+            where: { ...branchScope, assignedToId: uid, status: 'CLOSED_WON', createdAt: { gte: start, lte: end }, convertedTransactionId: { not: null } },
+            select: { convertedTransactionId: true },
+        });
+        const ids = new Set<number>(wonLeads.map(l => Number(l.convertedTransactionId)));
+        const walkin = await this.buildWalkinRows(ctx, params, uid);
+        for (const r of walkin) ids.add(r.refId);
+        return Array.from(ids);
+    }
+
+    /** Baris dari daftar txId murni (tanpa lead), value/pcs dioverride dari peta. */
+    private async buildTxRows(txIds: number[], valueByTx: Map<number, number>): Promise<KpiDetailRow[]> {
+        if (txIds.length === 0) return [];
+        const txs: any[] = await this.tx.findMany({ where: { id: { in: txIds } }, select: this.txDetailSelect });
+        // Sumber: cari lead untuk nota ini bila ada, else walk-in.
+        const leads: any[] = await this.lead.findMany({
+            where: { convertedTransactionId: { in: txIds } },
+            select: { convertedTransactionId: true, source: true, sourceDetail: true },
+        });
+        const leadByTx = new Map<number, any>();
+        for (const l of leads) leadByTx.set(Number(l.convertedTransactionId), l);
+        return txs.map((t): KpiDetailRow => {
+            const lead = leadByTx.get(t.id);
+            return {
+                kind: lead ? 'lead' : 'walkin',
+                refId: t.id,
+                invoiceNumber: t.invoiceNumber ?? null,
+                customerName: t.customerName ?? null,
+                customerPhone: t.customerPhone ?? null,
+                sourceLabel: lead ? this.sourceLabel(lead.source, lead.sourceDetail) : 'Walk-in (POS)',
+                sourceDetail: lead ? lead.sourceDetail ?? null : (t.cashierName ?? null),
+                status: t.status ?? null,
+                date: t.createdAt ? new Date(t.createdAt).toISOString() : null,
+                value: valueByTx.get(t.id) ?? 0,
+                pcs: valueByTx.get(t.id) ?? 0,
+                items: this.mapTxItems(t.items),
+            };
+        });
+    }
+
+    private finishDetail(base: any, metricLabel: string, valueMode: string, rows: KpiDetailRow[]) {
+        const totals = {
+            rows: rows.length,
+            value: rows.reduce((s, r) => s + (r.value || 0), 0),
+            pcs: rows.reduce((s, r) => s + (r.pcs || 0), 0),
+        };
+        return { ...base, metricLabel, valueMode, totals, rows };
+    }
+
+    async detail(ctx: BranchContext, params: KpiParams, opts: KpiDetailOpts) {
+        const { start, end } = resolvePeriod(params);
+        const user = await this.prisma.user.findUnique({
+            where: { id: opts.userId },
+            select: { id: true, name: true, email: true, role: { select: { name: true } } },
+        });
+        const person = {
+            userId: opts.userId,
+            name: user?.name || user?.email || `User #${opts.userId}`,
+            roleName: user?.role?.name ?? null,
+        };
+        const base = {
+            person,
+            division: opts.division,
+            metric: opts.metric,
+            period: { start: start.toISOString(), end: end.toISOString() },
+        };
+        if (opts.division === 'cs') return this.csDetail(ctx, params, opts, base);
+        // designer/operator → Phase 3
+        return this.finishDetail(base, opts.metric, 'count', []);
+    }
+
+    private async csDetail(ctx: BranchContext, params: KpiParams, opts: KpiDetailOpts, base: any) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const uid = opts.userId;
+        const metric = opts.metric;
+        const leadSelect = { id: true, name: true, phone: true, source: true, sourceDetail: true, status: true, estimatedValue: true, convertedTransactionId: true, createdAt: true } as any;
+
+        // ── Metrik berbasis lead ──────────────────────────────────────────
+        if (['leads', 'closing', 'lost', 'rate', 'pcs', 'cuan'].includes(metric)) {
+            const leadWhere: any = { ...branchScope, assignedToId: uid, createdAt: { gte: start, lte: end } };
+            if (metric === 'closing' || metric === 'pcs' || metric === 'cuan') leadWhere.status = 'CLOSED_WON';
+            else if (metric === 'lost') leadWhere.status = 'CLOSED_LOST';
+            // 'leads' & 'rate' → semua status (rate: frontend kelompokkan by status).
+
+            const leads: any[] = await this.lead.findMany({ where: leadWhere, select: leadSelect, orderBy: { createdAt: 'desc' } });
+            let rows = await this.buildLeadRows(leads);
+
+            if (metric === 'pcs' || metric === 'cuan') {
+                const walkin = await this.buildWalkinRows(ctx, params, uid);
+                rows = [...rows, ...walkin];
+            }
+            const label: Record<string, string> = {
+                leads: 'Leads', closing: 'Closing', lost: 'Lost', rate: 'Closing Rate', pcs: 'Pcs Diorder', cuan: 'Cuan (net)',
+            };
+            const valueMode = metric === 'pcs' ? 'pcs' : metric === 'cuan' ? 'money' : metric === 'rate' ? 'percent' : 'count';
+            return this.finishDetail(base, label[metric], valueMode, rows);
+        }
+
+        // ── Pengiriman ────────────────────────────────────────────────────
+        if (metric === 'shipped' || metric === 'delivered') {
+            const rows = await this.buildShipmentRows(ctx, params, uid, metric === 'delivered');
+            return this.finishDetail(base, metric === 'delivered' ? 'Terkirim (sampai)' : 'Sedang Dikirim', 'pcs', rows);
+        }
+
+        // ── Omzet (bagian) — porsi adil per nota ──────────────────────────
+        if (metric === 'omzet') {
+            const { csRows } = await this.computeNotaSplits(params, { collectCsRowsFor: uid });
+            const txIds = csRows.map(r => r.txId);
+            const shareByTx = new Map<number, number>(csRows.map(r => [r.txId, r.share]));
+            const rows = await this.buildTxRows(txIds, shareByTx);
+            return this.finishDetail(base, 'Omzet (bagian)', 'money', rows);
+        }
+
+        // ── Metrik produk custom ──────────────────────────────────────────
+        if (metric === 'custom' && opts.metricId) {
+            const defs = await this.getActiveCustomMetrics('CS');
+            const def = defs.find(d => d.id === opts.metricId);
+            if (!def) return this.finishDetail(base, 'Metrik Custom', 'count', []);
+            const txIds = await this.collectUserTxIds(ctx, params, uid);
+            const byTx = await this.computeCustomMetricByTx(txIds, def);
+            const contributing = txIds.filter(id => (byTx.get(id) ?? 0) > 0);
+            const rows = await this.buildTxRows(contributing, byTx);
+            const modeToValueMode: Record<string, string> = { OMZET: 'money', PCS: 'pcs', QTY: 'count', NOTA: 'count' };
+            return this.finishDetail(base, `Metrik Custom: ${def.label}`, modeToValueMode[def.countMode] || 'count', rows);
+        }
+
+        return this.finishDetail(base, metric, 'count', []);
     }
 
     // ── Dashboard Marketing PUBLIK (PIN-only, semua cabang) ────────────────────
@@ -1231,11 +1592,12 @@ export class KpiService {
      * TIDAK di-scope cabang (board Tim membandingkan semua cabang; peta per-orang
      * di-lookup by id/nama oleh leaderboard peran masing-masing).
      */
-    private async computeNotaSplits(params: KpiParams): Promise<{
+    private async computeNotaSplits(params: KpiParams, opts?: { collectCsRowsFor?: number }): Promise<{
         team: Map<number | 'none', { csShare: number; designerShare: number; operatorShare: number; omzet: number }>;
         csShareByUser: Map<number, number>;
         designerShareByName: Map<string, number>;
         operatorShareByName: Map<string, number>;
+        csRows: Array<{ txId: number; share: number }>;
     }> {
         const { start, end } = resolvePeriod(params);
         const empty = {
@@ -1243,6 +1605,7 @@ export class KpiService {
             csShareByUser: new Map<number, number>(),
             designerShareByName: new Map<string, number>(),
             operatorShareByName: new Map<string, number>(),
+            csRows: [] as Array<{ txId: number; share: number }>,
         };
 
         const txs: any[] = await (this.prisma as any).transaction.findMany({
@@ -1346,6 +1709,7 @@ export class KpiService {
         const csShareByUser = empty.csShareByUser;
         const designerShareByName = empty.designerShareByName;
         const operatorShareByName = empty.operatorShareByName;
+        const csRows = empty.csRows;
 
         for (const t of txs) {
             const gross = Number(t.grandTotal) || 0;
@@ -1378,6 +1742,9 @@ export class KpiService {
             if (hasCs) {
                 csShareByUser.set(csUser!, (csShareByUser.get(csUser!) || 0) + share);
                 bump(csBranch, 'cs', share);
+                if (opts?.collectCsRowsFor != null && csUser === opts.collectCsRowsFor) {
+                    csRows.push({ txId: t.id, share });
+                }
             }
             if (hasDesigner) {
                 designerShareByName.set(dName, (designerShareByName.get(dName) || 0) + share);
@@ -1393,7 +1760,7 @@ export class KpiService {
             }
         }
 
-        return { team, csShareByUser, designerShareByName, operatorShareByName };
+        return { team, csShareByUser, designerShareByName, operatorShareByName, csRows };
     }
 
     /**

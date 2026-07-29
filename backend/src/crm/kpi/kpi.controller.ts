@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { KpiPeriod, KpiService } from './kpi.service';
+import type { KpiDivision } from './kpi.service';
 
 /**
  * Override cabang dari query (?branchId=) — HANYA untuk Owner/SuperAdmin;
@@ -172,6 +173,31 @@ export class KpiController {
             {
                 csId: parseId(csId),
                 statuses,
+            },
+        );
+    }
+
+    /** Drill-down rincian satu angka leaderboard (untuk modal detail). */
+    @Get('detail')
+    detail(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('division') division?: string,
+        @Query('metric') metric?: string,
+        @Query('userId') userId?: string,
+        @Query('metricId') metricId?: string,
+        @Query('period') period?: string,
+        @Query('start') start?: string,
+        @Query('end') end?: string,
+        @Query('branchId') branchId?: string,
+    ) {
+        return this.kpi.detail(
+            scopeBranch(ctx, branchId),
+            { period: (period as KpiPeriod) || 'month', start, end },
+            {
+                division: (division as KpiDivision) || 'cs',
+                metric: metric || 'leads',
+                userId: parseId(userId) ?? 0,
+                metricId: parseId(metricId),
             },
         );
     }
