@@ -26,6 +26,7 @@ export interface KpiDetailOpts {
     division: KpiDivision;
     metric: string;
     userId: number;
+    name?: string;        // dipakai divisi designer/operator (di-key per nama, bukan userId)
     metricId?: number;
 }
 
@@ -510,14 +511,17 @@ export class KpiService {
             name: user?.name || user?.email || `User #${opts.userId}`,
             roleName: user?.role?.name ?? null,
         };
+        // Divisi designer/operator di-key per NAMA (bukan userId).
+        const personByName = { userId: 0, name: opts.name || '', roleName: opts.division === 'operator' ? 'Operator' : 'Designer' };
         const base = {
-            person,
+            person: opts.division === 'cs' ? person : personByName,
             division: opts.division,
             metric: opts.metric,
             period: { start: start.toISOString(), end: end.toISOString() },
         };
         if (opts.division === 'cs') return this.csDetail(ctx, params, opts, base);
-        // designer/operator → Phase 3
+        if (opts.division === 'designer') return this.designerDetail(ctx, params, opts, base);
+        if (opts.division === 'operator') return this.operatorDetail(ctx, params, opts, base);
         return this.finishDetail(base, opts.metric, 'count', []);
     }
 
@@ -578,6 +582,153 @@ export class KpiService {
         }
 
         return this.finishDetail(base, metric, 'count', []);
+    }
+
+    // ── Detail Designer (Cek Desain — berbasis lead, di-key designerName) ──────
+    private async designerDetail(ctx: BranchContext, params: KpiParams, opts: KpiDetailOpts, base: any) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const target = (opts.name || '').trim().toLowerCase();
+        if (!target) return this.finishDetail(base, opts.metric, 'count', []);
+
+        if (opts.metric === 'dicek' || opts.metric === 'designClosing') {
+            const where: any = { ...branchScope, designerName: { not: null }, createdAt: { gte: start, lte: end } };
+            if (opts.metric === 'designClosing') where.status = 'CLOSED_WON';
+            const leads: any[] = await this.lead.findMany({
+                where,
+                select: { id: true, name: true, phone: true, source: true, sourceDetail: true, status: true, estimatedValue: true, convertedTransactionId: true, createdAt: true, designerName: true } as any,
+                orderBy: { createdAt: 'desc' },
+            });
+            const mine = leads.filter(l => (l.designerName || '').trim().toLowerCase() === target);
+            const rows = await this.buildLeadRows(mine);
+            return this.finishDetail(base, opts.metric === 'dicek' ? 'Desain Dicek' : 'Closing (desain)', 'count', rows);
+        }
+        return this.finishDetail(base, opts.metric, 'count', []);
+    }
+
+    // ── Detail Operator (antrian cetak & produksi, di-key nama operator) ───────
+    private lineOmzetOf(ti: any): number {
+        const areaM2 = (Number(ti?.areaCm2) || 0) / 10000 * (Number(ti?.pcs) || 1);
+        return areaM2 > 0
+            ? Number(ti?.priceAtTime || 0) * areaM2
+            : Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
+    }
+
+    /** Baris nota dari transaksi terkait job; sumber = lead bila ada, else walk-in. */
+    private async enrichJobRows(rows: Array<KpiDetailRow & { _txId: number | null }>): Promise<KpiDetailRow[]> {
+        const txIds = Array.from(new Set(rows.map(r => r._txId).filter((x): x is number => x != null)));
+        const leadByTx = new Map<number, any>();
+        if (txIds.length) {
+            const leads: any[] = await this.lead.findMany({
+                where: { convertedTransactionId: { in: txIds } },
+                select: { convertedTransactionId: true, source: true, sourceDetail: true },
+            });
+            for (const l of leads) leadByTx.set(Number(l.convertedTransactionId), l);
+        }
+        return rows.map(({ _txId, ...r }) => {
+            const lead = _txId != null ? leadByTx.get(_txId) : null;
+            return {
+                ...r,
+                sourceLabel: lead ? this.sourceLabel(lead.source, lead.sourceDetail) : r.sourceLabel,
+                sourceDetail: lead ? lead.sourceDetail ?? null : r.sourceDetail,
+            };
+        });
+    }
+
+    private async operatorDetail(ctx: BranchContext, params: KpiParams, opts: KpiDetailOpts, base: any) {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const target = (opts.name || '').trim().toLowerCase();
+        if (!target) return this.finishDetail(base, opts.metric, 'count', []);
+        const metric = opts.metric;
+
+        const tiSelect = {
+            priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
+            transaction: { select: { id: true, invoiceNumber: true, customerName: true, customerPhone: true, status: true, createdAt: true } },
+        };
+
+        // ── Antrian CETAK (PrintJob) ──────────────────────────────────────
+        if (metric === 'printJobs' || metric === 'printPcs') {
+            const printJobs: any[] = await (this.prisma as any).printJob.findMany({
+                where: { ...branchScope, status: { in: ['SELESAI', 'DIAMBIL'] }, operatorName: { not: null }, finishedAt: { gte: start, lte: end } },
+                select: { id: true, operatorName: true, coOperators: true, quantity: true, finishedAt: true, transactionItem: { select: tiSelect } },
+            });
+            const rows: Array<KpiDetailRow & { _txId: number | null }> = [];
+            for (const p of printJobs) {
+                const primary = (p.operatorName || '').trim();
+                const partners = (Array.isArray(p.coOperators) ? p.coOperators : []).map((n: any) => String(n || '').trim()).filter((n: string) => n && n !== primary);
+                const all = Array.from(new Set([primary, ...partners]));
+                const allLower = all.map(n => n.toLowerCase());
+                if (!allLower.includes(target)) continue;
+                const w = 1 / all.length;
+                const ti = p.transactionItem;
+                const tx = ti?.transaction;
+                const qty = Number(p.quantity) || 0;
+                rows.push({
+                    kind: 'job', refId: p.id,
+                    invoiceNumber: tx?.invoiceNumber ?? null,
+                    customerName: tx?.customerName ?? null,
+                    customerPhone: tx?.customerPhone ?? null,
+                    sourceLabel: 'Cetak (paper)', sourceDetail: partners.length ? `1/${all.length} (kerja sama)` : null,
+                    status: tx?.status ?? null,
+                    date: p.finishedAt ? new Date(p.finishedAt).toISOString() : null,
+                    value: ti ? this.lineOmzetOf(ti) * w : 0,
+                    pcs: qty * w, // fractional bila kerja sama; total = round2(Σ qty×w) = kolom Lembar
+                    items: [],
+                    _txId: tx?.id != null ? Number(tx.id) : null,
+                });
+            }
+            const enriched = await this.enrichJobRows(rows);
+            return this.finishDetail(base, metric === 'printPcs' ? 'Lembar Cetak' : 'Cetak (job)', metric === 'printPcs' ? 'pcs' : 'count', enriched);
+        }
+
+        // ── Antrian PRODUKSI (ProductionJobActivity STAGE_CHANGE oleh OPERATOR) ──
+        // prodJobs = distinct job yang operator ini geser tahapannya (keterlibatan,
+        // tak dibagi) → rows.length == kolom "Produksi (job)". (prodDone/"Selesai" =
+        // job-share berbobot Σw, tak dipetakan ke baris → sel itu non-clickable.)
+        if (metric === 'prodJobs') {
+            const acts: any[] = await (this.prisma as any).productionJobActivity.findMany({
+                where: { action: 'STAGE_CHANGE', actorRole: 'OPERATOR', actorName: { not: null }, createdAt: { gte: start, lte: end } },
+                select: { jobId: true, actorName: true, toStage: true },
+            });
+            const DONE = new Set(['KIRIM', 'SELESAI']);
+            const jobIsDone = new Set<number>();
+            const myJobIds = new Set<number>();
+            for (const a of acts) {
+                if ((a.actorName || '').trim().toLowerCase() !== target) continue;
+                const jid = Number(a.jobId);
+                myJobIds.add(jid);
+                if (DONE.has(a.toStage)) jobIsDone.add(jid);
+            }
+            const jobIds = Array.from(myJobIds);
+            if (jobIds.length === 0) return this.finishDetail(base, 'Produksi (job)', 'count', []);
+            const jobs: any[] = await (this.prisma as any).productionJob.findMany({
+                where: { id: { in: jobIds }, ...branchScope },
+                select: { id: true, transactionId: true, transactionItem: { select: tiSelect } },
+            });
+            const rows: Array<KpiDetailRow & { _txId: number | null }> = jobs.map(j => {
+                const ti = j.transactionItem;
+                const tx = ti?.transaction;
+                const qty = Number(ti?.quantity) || (Number(ti?.pcs) || 1);
+                return {
+                    kind: 'job' as const, refId: j.id,
+                    invoiceNumber: tx?.invoiceNumber ?? null,
+                    customerName: tx?.customerName ?? null,
+                    customerPhone: tx?.customerPhone ?? null,
+                    sourceLabel: 'Produksi', sourceDetail: null,
+                    status: jobIsDone.has(j.id) ? 'Selesai' : (tx?.status ?? null),
+                    date: null,
+                    value: ti ? this.lineOmzetOf(ti) : 0,
+                    pcs: qty,
+                    items: [],
+                    _txId: tx?.id != null ? Number(tx.id) : (j.transactionId != null ? Number(j.transactionId) : null),
+                };
+            });
+            const enriched = await this.enrichJobRows(rows);
+            return this.finishDetail(base, 'Produksi (job)', 'count', enriched);
+        }
+
+        return this.finishDetail(base, opts.metric, 'count', []);
     }
 
     // ── Dashboard Marketing PUBLIK (PIN-only, semua cabang) ────────────────────

@@ -111,12 +111,13 @@ const Rank = ({ i, name }: { i: number; name: string }) => (
     </div>
 );
 
-// Pemicu modal detail metrik (angka yang diklik).
+// Pemicu modal detail metrik (angka yang diklik). CS di-key userId; designer/operator di-key name.
 type DetailTrigger = {
     division: KpiDivision;
     metric: KpiMetricKey;
     metricId?: number;
-    userId: number;
+    userId?: number;
+    name?: string;
     personName: string;
     metricLabel: string;
 } | null;
@@ -435,8 +436,10 @@ export default function LeaderboardPage() {
                                                 {dcRows.map((r, i) => (
                                                     <tr key={r.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50">
                                                         <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
-                                                        <td className="py-2 px-2 text-right font-mono">{r.dicek}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.closing}</td>
+                                                        <MetricCell value={r.dicek}
+                                                            onClick={() => setDetail({ division: 'designer', metric: 'dicek', name: r.name, personName: r.name, metricLabel: 'Desain Dicek' })} />
+                                                        <MetricCell value={r.closing} colorClass="text-emerald-600 dark:text-emerald-300"
+                                                            onClick={() => setDetail({ division: 'designer', metric: 'designClosing', name: r.name, personName: r.name, metricLabel: 'Closing (desain)' })} />
                                                         <td className="py-2 px-2 text-right font-mono text-red-600 dark:text-red-300">{r.batal || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono text-amber-600 dark:text-amber-300">{r.batalTeknis || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{(r.closingRate * 100).toFixed(0)}%</td>
@@ -564,9 +567,12 @@ export default function LeaderboardPage() {
                                                 {opRows.map((r, i) => (
                                                     <tr key={r.name} className="border-b border-border/60 last:border-0 hover:bg-accent/50 transition-colors">
                                                         <td className="py-2 px-2"><Rank i={i} name={r.name} /></td>
-                                                        <td className="py-2 px-2 text-right font-mono text-cyan-600 dark:text-cyan-300">{r.printJobs || '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.printPcs || '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono text-indigo-600 dark:text-indigo-300">{r.prodJobs || '—'}</td>
+                                                        <MetricCell value={r.printJobs} colorClass="text-cyan-600 dark:text-cyan-300"
+                                                            onClick={() => setDetail({ division: 'operator', metric: 'printJobs', name: r.name, personName: r.name, metricLabel: 'Cetak (job)' })} />
+                                                        <MetricCell value={r.printPcs} colorClass="text-muted-foreground"
+                                                            onClick={() => setDetail({ division: 'operator', metric: 'printPcs', name: r.name, personName: r.name, metricLabel: 'Lembar Cetak' })} />
+                                                        <MetricCell value={r.prodJobs} colorClass="text-indigo-600 dark:text-indigo-300"
+                                                            onClick={() => setDetail({ division: 'operator', metric: 'prodJobs', name: r.name, personName: r.name, metricLabel: 'Produksi (job)' })} />
                                                         <td className="py-2 px-2 text-right font-mono text-emerald-600 dark:text-emerald-300">{r.prodDone || '—'}</td>
                                                         <td className="py-2 px-2 text-right font-mono font-semibold">{r.total || '—'}</td>
                                                         {opCustomDefs.map(d => (
@@ -634,6 +640,7 @@ export default function LeaderboardPage() {
                     metric={detail.metric}
                     metricId={detail.metricId}
                     userId={detail.userId}
+                    name={detail.name}
                     personName={detail.personName}
                     metricLabel={detail.metricLabel}
                     query={common}

@@ -184,6 +184,7 @@ export class KpiController {
         @Query('division') division?: string,
         @Query('metric') metric?: string,
         @Query('userId') userId?: string,
+        @Query('name') name?: string,
         @Query('metricId') metricId?: string,
         @Query('period') period?: string,
         @Query('start') start?: string,
@@ -197,6 +198,7 @@ export class KpiController {
                 division: (division as KpiDivision) || 'cs',
                 metric: metric || 'leads',
                 userId: parseId(userId) ?? 0,
+                name,
                 metricId: parseId(metricId),
             },
         );

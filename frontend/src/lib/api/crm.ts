@@ -606,7 +606,8 @@ export interface KpiMetricDetail {
 export const getKpiMetricDetail = async (params: {
     division: KpiDivision;
     metric: KpiMetricKey;
-    userId: number;
+    userId?: number;              // divisi CS (di-key userId)
+    name?: string;                // divisi designer/operator (di-key nama)
     metricId?: number;            // wajib bila metric === 'custom'
     period?: string;
     start?: string;

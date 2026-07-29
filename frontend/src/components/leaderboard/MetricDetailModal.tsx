@@ -12,7 +12,8 @@ export interface MetricDetailModalProps {
     division: KpiDivision;
     metric: KpiMetricKey;
     metricId?: number;
-    userId: number;
+    userId?: number;        // divisi CS
+    name?: string;          // divisi designer/operator
     personName: string;
     metricLabel: string; // label awal (fallback sebelum data datang)
     query: { period?: string; start?: string; end?: string; branchId?: string | number };
@@ -23,13 +24,14 @@ const fmtRp = (n: number) => "Rp" + Math.round(n).toLocaleString("id-ID");
 
 export default function MetricDetailModal(p: MetricDetailModalProps) {
     const q = useQuery({
-        queryKey: ["lb-detail", p.division, p.metric, p.metricId, p.userId, p.query],
+        queryKey: ["lb-detail", p.division, p.metric, p.metricId, p.userId, p.name, p.query],
         queryFn: () =>
             getKpiMetricDetail({
                 division: p.division,
                 metric: p.metric,
                 metricId: p.metricId,
                 userId: p.userId,
+                name: p.name,
                 ...p.query,
             }),
     });
@@ -79,7 +81,7 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                                 {valueMode !== "pcs" && d.totals.value > 0 && (
                                     <Stat label="Total Nilai" value={fmtRp(d.totals.value)} />
                                 )}
-                                {d.totals.pcs > 0 && <Stat label="Total Pcs" value={String(d.totals.pcs)} />}
+                                {d.totals.pcs > 0 && <Stat label="Total Pcs" value={String(Math.round(d.totals.pcs))} />}
                             </div>
 
                             {/* Breakdown status (berguna utk Leads/Rate) + sumber */}
@@ -120,7 +122,7 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                                                     <StatusLabel status={r.status} />
                                                 </td>
                                                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
-                                                    {valueMode === "pcs" ? `${r.pcs} pcs` : fmtRp(r.value)}
+                                                    {valueMode === "pcs" ? `${Math.round(r.pcs)} pcs` : fmtRp(r.value)}
                                                 </td>
                                             </tr>
                                         ))}
