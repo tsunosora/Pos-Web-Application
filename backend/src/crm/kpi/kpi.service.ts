@@ -355,6 +355,88 @@ export class KpiService {
             }));
     }
 
+    /**
+     * Baris "Akan Datang" (piutang) untuk user — nota PENDING/PARTIAL, value =
+     * sisa tagihan (grandTotal − downPayment). Mirror _report: won-lead pending
+     * (leadPendingMap) + walk-in pending. Satu nota = lead XOR walk-in (tak dobel).
+     */
+    private async buildPendingRows(ctx: BranchContext, params: KpiParams, uid: number): Promise<KpiDetailRow[]> {
+        const { start, end } = resolvePeriod(params);
+        const branchScope: any = branchWhere(ctx);
+        const pendSelect = {
+            id: true, invoiceNumber: true, grandTotal: true, downPayment: true, status: true,
+            customerName: true, customerPhone: true, cashierName: true, createdAt: true,
+            items: {
+                select: {
+                    customName: true, quantity: true, pcs: true, priceAtTime: true,
+                    productVariant: { select: { product: { select: { name: true, category: { select: { countsAsPcs: true } } } } } },
+                },
+            },
+        } as any;
+        const rows: KpiDetailRow[] = [];
+
+        // 1) Nota dari lead CLOSED_WON milik user yang tx-nya PENDING/PARTIAL.
+        const wonLeads: any[] = await this.lead.findMany({
+            where: { ...branchScope, assignedToId: uid, status: 'CLOSED_WON', createdAt: { gte: start, lte: end }, convertedTransactionId: { not: null } },
+            select: { id: true, name: true, phone: true, source: true, sourceDetail: true, convertedTransactionId: true, createdAt: true } as any,
+            orderBy: { createdAt: 'desc' },
+        });
+        const wonTxIds = wonLeads.map(l => Number(l.convertedTransactionId));
+        const pendTxMap = new Map<number, any>();
+        if (wonTxIds.length) {
+            const txs: any[] = await this.tx.findMany({ where: { id: { in: wonTxIds }, status: { in: ['PENDING', 'PARTIAL'] } }, select: pendSelect });
+            for (const t of txs) pendTxMap.set(t.id, t);
+        }
+        for (const l of wonLeads) {
+            const t = pendTxMap.get(Number(l.convertedTransactionId));
+            if (!t) continue;
+            const outstanding = Math.max(0, (Number(t.grandTotal) || 0) - (Number(t.downPayment) || 0));
+            if (outstanding <= 0) continue;
+            rows.push({
+                kind: 'lead', refId: l.id,
+                invoiceNumber: t.invoiceNumber ?? null,
+                customerName: t.customerName || l.name || null,
+                customerPhone: t.customerPhone || l.phone || null,
+                sourceLabel: this.sourceLabel(l.source, l.sourceDetail),
+                sourceDetail: l.sourceDetail ?? null,
+                status: t.status ?? null,
+                date: t.createdAt ? new Date(t.createdAt).toISOString() : null,
+                value: outstanding, pcs: 0, items: this.mapTxItems(t.items),
+            });
+        }
+
+        // 2) Nota walk-in (non-lead) yang ia tangani & PENDING/PARTIAL.
+        const user = await this.prisma.user.findUnique({ where: { id: uid }, select: { name: true } });
+        const uname = (user?.name || '').trim().toLowerCase();
+        if (uname) {
+            const leadTxSet = new Set<number>((await this.lead.findMany({
+                where: { ...branchScope, convertedTransactionId: { not: null } },
+                select: { convertedTransactionId: true },
+            })).map((l: any) => Number(l.convertedTransactionId)));
+            const wtxs: any[] = await this.tx.findMany({
+                where: { ...branchScope, status: { in: ['PENDING', 'PARTIAL'] }, createdAt: { gte: start, lte: end }, cashierName: { not: null } },
+                select: pendSelect,
+            });
+            for (const t of wtxs) {
+                if (leadTxSet.has(t.id)) continue;
+                if ((t.cashierName || '').trim().toLowerCase() !== uname) continue;
+                const outstanding = Math.max(0, (Number(t.grandTotal) || 0) - (Number(t.downPayment) || 0));
+                if (outstanding <= 0) continue;
+                rows.push({
+                    kind: 'walkin', refId: t.id,
+                    invoiceNumber: t.invoiceNumber ?? null,
+                    customerName: t.customerName ?? null,
+                    customerPhone: t.customerPhone ?? null,
+                    sourceLabel: 'Walk-in (POS)', sourceDetail: t.cashierName ?? null,
+                    status: t.status ?? null,
+                    date: t.createdAt ? new Date(t.createdAt).toISOString() : null,
+                    value: outstanding, pcs: 0, items: this.mapTxItems(t.items),
+                });
+            }
+        }
+        return rows;
+    }
+
     /** Baris pengiriman (Dikirim/Terkirim) untuk user — mirror _report 1937-2009. */
     private async buildShipmentRows(ctx: BranchContext, params: KpiParams, uid: number, deliveredOnly: boolean): Promise<KpiDetailRow[]> {
         const { start, end } = resolvePeriod(params);
@@ -566,6 +648,12 @@ export class KpiService {
             const shareByTx = new Map<number, number>(csRows.map(r => [r.txId, r.share]));
             const rows = await this.buildTxRows(txIds, shareByTx);
             return this.finishDetail(base, 'Omzet (bagian)', 'money', rows);
+        }
+
+        // ── Akan Datang (piutang tx PENDING/PARTIAL) ──────────────────────
+        if (metric === 'pending') {
+            const rows = await this.buildPendingRows(ctx, params, uid);
+            return this.finishDetail(base, 'Akan Datang (piutang)', 'money', rows);
         }
 
         // ── Metrik produk custom ──────────────────────────────────────────

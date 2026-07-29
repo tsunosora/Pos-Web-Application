@@ -566,7 +566,7 @@ export type KpiDivision = 'cs' | 'designer' | 'operator';
 
 export type KpiMetricKey =
     | 'leads' | 'closing' | 'lost' | 'rate' | 'pcs'
-    | 'shipped' | 'delivered' | 'cuan' | 'omzet' | 'custom' // CS
+    | 'shipped' | 'delivered' | 'cuan' | 'omzet' | 'pending' | 'custom' // CS
     | 'dicek' | 'designClosing'                             // Designer
     | 'printJobs' | 'printPcs' | 'prodJobs' | 'prodDone';   // Operator
 

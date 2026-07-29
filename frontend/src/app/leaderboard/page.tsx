@@ -391,7 +391,8 @@ export default function LeaderboardPage() {
                                                             onClick={() => setDetail({ division: 'cs', metric: 'cuan', userId: r.userId, personName: r.name, metricLabel: 'Cuan (net)' })}>{fmtRp(r.wonValue + r.walkinValue)}</MetricCell>
                                                         <MetricCell value={r.omzetShare} colorClass="text-emerald-600 dark:text-emerald-300"
                                                             onClick={() => setDetail({ division: 'cs', metric: 'omzet', userId: r.userId, personName: r.name, metricLabel: 'Omzet (bagian)' })}>{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</MetricCell>
-                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</td>
+                                                        <MetricCell value={r.pendingValue} colorClass="text-muted-foreground"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'pending', userId: r.userId, personName: r.name, metricLabel: 'Akan Datang' })}>{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</MetricCell>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
                                                     </tr>
                                                 ))}
