@@ -107,6 +107,7 @@ export const SECTIONS: NavSection[] = [
         items: [
             { name: "Peta Cuan Lokasi", href: "/maps", icon: MapPin },
             { name: "Kalkulator HPP", href: "/reports/hpp", icon: Calculator },
+            { name: "Rumus HPP per Produk", href: "/owner/hpp-produk", icon: Calculator, ownerOnly: true },
         ],
     },
     {

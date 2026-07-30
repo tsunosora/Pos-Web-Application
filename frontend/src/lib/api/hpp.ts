@@ -16,3 +16,51 @@ export const applyHppVariantsCustom = async (
 ) => (await api.post(`/hpp/${worksheetId}/apply-variants-custom`, { variants })).data;
 export const deleteHppWorksheet = async (id: number) => (await api.delete(`/hpp/${id}`)).data;
 export const getHppWorksheetByProduct = async (productId: number) => (await api.get(`/hpp/by-product/${productId}`)).data;
+
+// ----- Ringkasan rumus HPP per produk (halaman owner) ----- //
+export interface HppOverviewBomRow {
+    name: string;
+    quantity: number;
+    unit?: string;
+    price: number;
+    isServiceCost?: boolean;
+    subtotal: number;
+}
+export interface HppOverviewWorksheet {
+    id: number;
+    targetVolume: number;
+    targetMargin: number;
+    appliedAt: string | null;
+    variableCosts: { name: string; usageAmount: number; usageUnit: string; unitPrice: number; subtotal: number }[];
+    fixedCosts: { name: string; amount: number }[];
+    totalVariable: number;
+    totalFixedMonthly: number;
+    allocatedFixed: number;
+    hppPerUnit: number;
+    suggestedPrice: number;
+}
+export interface HppOverviewVariant {
+    variantId: number;
+    variantName: string;
+    sku: string;
+    price: number;
+    storedHpp: number;
+    variantBom: HppOverviewBomRow[];
+    variantBomHpp: number | null;
+    worksheet: HppOverviewWorksheet | null;
+    effectiveHpp: number;
+    source: 'variant-bom' | 'flat' | 'none';
+    margin: number | null;
+}
+export interface HppOverviewProduct {
+    productId: number;
+    productName: string;
+    category: { id: number; name: string } | null;
+    productBom: HppOverviewBomRow[];
+    productBomHpp: number;
+    variants: HppOverviewVariant[];
+}
+export const getHppOverview = async (categoryId?: number) =>
+    (await api.get('/hpp/overview', {
+        params: categoryId ? { categoryId } : undefined,
+    })).data as HppOverviewProduct[];
