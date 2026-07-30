@@ -221,6 +221,72 @@ export class HppService {
         return { message: `HPP berhasil diterapkan ke ${variants.length} varian.`, count: variants.length };
     }
 
+    /**
+     * Terapkan BOM eksplisit per varian (bahan bisa BERBEDA tiap varian).
+     * - Replace VariantIngredient milik tiap varian dengan daftar baru.
+     * - Set variant.hpp = Σ(price × quantity) semua item, agar konsisten dgn logika
+     *   transaksi & overview yang memprioritaskan BOM varian.
+     * - rawMaterialVariantId dipertahankan agar stok bahan terpotong saat transaksi.
+     * worksheetId opsional (0 = apply langsung tanpa stamp worksheet).
+     */
+    async applyVariantsBom(
+        worksheetId: number,
+        variants: {
+            variantId: number;
+            items: {
+                name: string;
+                quantity: number;
+                unit: string;
+                price: number;
+                isServiceCost?: boolean;
+                isShared?: boolean;
+                rawMaterialVariantId?: number | null;
+            }[];
+        }[],
+    ) {
+        if (!variants || variants.length === 0) {
+            throw new BadRequestException('Tidak ada varian untuk diterapkan.');
+        }
+
+        await Promise.all(variants.map(async ({ variantId, items }) => {
+            const total = items.reduce(
+                (s, it) => s + Number(it.price) * Number(it.quantity),
+                0,
+            );
+
+            await this.prisma.$transaction([
+                this.prisma.variantIngredient.deleteMany({ where: { variantId } }),
+                this.prisma.variantIngredient.createMany({
+                    data: items.map((it) => ({
+                        variantId,
+                        name: it.name,
+                        quantity: it.quantity,
+                        unit: it.unit,
+                        price: it.price,
+                        isServiceCost: it.isServiceCost ?? false,
+                        isShared: it.isShared ?? false,
+                        rawMaterialVariantId: it.rawMaterialVariantId ?? null,
+                    })),
+                }),
+                this.prisma.productVariant.update({
+                    where: { id: variantId },
+                    data: { hpp: total },
+                }),
+            ]);
+        }));
+
+        if (worksheetId) {
+            await this.prisma.hppWorksheet
+                .update({ where: { id: worksheetId }, data: { appliedAt: new Date() } })
+                .catch(() => void 0); // worksheetId bisa absen bila apply langsung
+        }
+
+        return {
+            message: `BOM per-varian diterapkan ke ${variants.length} varian.`,
+            count: variants.length,
+        };
+    }
+
     async applyToVariants(worksheetId: number, variantIds: number[], hppPerUnit: number) {
         if (!variantIds || variantIds.length === 0) {
             throw new BadRequestException('Pilih minimal satu varian.');

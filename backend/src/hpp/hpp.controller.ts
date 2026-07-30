@@ -3,6 +3,7 @@ import { HppService } from './hpp.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { ApplyVariantsBomDto } from './dto/apply-variants-bom.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('hpp')
@@ -73,6 +74,16 @@ export class HppController {
         @Body() body: { variants: { variantId: number; hppPerUnit: number; scaleFactor: number }[] }
     ) {
         return this.hppService.applyVariantsCustom(id, body.variants);
+    }
+
+    // Terapkan BOM eksplisit per varian (bahan bisa berbeda tiap varian).
+    // worksheetId boleh 0 untuk apply langsung tanpa worksheet.
+    @Post(':id/apply-variants-bom')
+    applyVariantsBom(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: ApplyVariantsBomDto,
+    ) {
+        return this.hppService.applyVariantsBom(id, body.variants);
     }
 
     @Post(':id/apply-to-variants')

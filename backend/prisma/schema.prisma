@@ -1262,6 +1262,7 @@ model VariantIngredient {
   unit                 String    @db.VarChar(50)
   price                Decimal   @default(0) @db.Decimal(15, 2)
   isServiceCost        Boolean   @default(false) @map("is_service_cost")
+  isShared             Boolean   @default(false) @map("is_shared")
   rawMaterialVariantId Int?      @map("raw_material_variant_id")
   createdAt            DateTime? @default(now()) @map("created_at")
   updatedAt            DateTime? @default(now()) @updatedAt @map("updated_at")
