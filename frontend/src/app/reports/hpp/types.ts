@@ -22,3 +22,16 @@ export interface FixedCost {
     name: string;
     amount: number;
 }
+
+// Bahan KHUSUS per varian (mis. jenis banner berbeda tiap varian).
+// Berbeda dari VariableCost (bahan BERSAMA) — ini melekat ke satu baris varian.
+export interface VariantCustomItem {
+    id: string; // tmp ui id
+    name: string;
+    quantity: number;
+    unit: string;
+    price: number; // harga per unit bahan
+    isServiceCost?: boolean; // true = biaya jasa (tidak potong stok)
+    rawMaterialVariantId?: number | null; // link bahan baku utk potong stok
+    isCustom?: boolean; // true = nama diketik manual, false = dipilih dari stok
+}

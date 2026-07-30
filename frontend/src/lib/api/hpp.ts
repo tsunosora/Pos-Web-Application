@@ -14,6 +14,21 @@ export const applyHppVariantsCustom = async (
     worksheetId: number,
     variants: { variantId: number; hppPerUnit: number; scaleFactor: number }[]
 ) => (await api.post(`/hpp/${worksheetId}/apply-variants-custom`, { variants })).data;
+
+// BOM eksplisit per varian: tiap varian punya daftar bahan sendiri (bisa berbeda).
+export interface VariantBomItemPayload {
+    name: string;
+    quantity: number;
+    unit: string;
+    price: number;
+    isServiceCost?: boolean;
+    isShared?: boolean;
+    rawMaterialVariantId?: number | null;
+}
+export const applyHppVariantsBom = async (
+    worksheetId: number,
+    variants: { variantId: number; items: VariantBomItemPayload[] }[]
+) => (await api.post(`/hpp/${worksheetId}/apply-variants-bom`, { variants })).data;
 export const deleteHppWorksheet = async (id: number) => (await api.delete(`/hpp/${id}`)).data;
 export const getHppWorksheetByProduct = async (productId: number) => (await api.get(`/hpp/by-product/${productId}`)).data;
 
@@ -24,6 +39,7 @@ export interface HppOverviewBomRow {
     unit?: string;
     price: number;
     isServiceCost?: boolean;
+    isShared?: boolean;
     subtotal: number;
 }
 export interface HppOverviewWorksheet {

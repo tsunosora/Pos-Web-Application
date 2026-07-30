@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PageHeader } from '@/components/ui/page-header';
-import { getHppWorksheets, createHppWorksheet, updateHppWorksheet, deleteHppWorksheet, getHppWorksheetByProduct, getProducts, createProduct, updateProduct, getCategories, getUnits, uploadProductImage, uploadProductImages, addProductVariant, updateProductVariant, applyHppToVariant, applyHppToVariants, applyHppVariantsCustom, uploadVariantImage, replaceVariantPriceTiers, getClickRates } from "@/lib/api";
-import { VariableCost, FixedCost } from "./types";
+import { getHppWorksheets, createHppWorksheet, updateHppWorksheet, deleteHppWorksheet, getHppWorksheetByProduct, getProducts, createProduct, updateProduct, getCategories, getUnits, uploadProductImage, uploadProductImages, addProductVariant, updateProductVariant, applyHppToVariant, applyHppToVariants, applyHppVariantsCustom, applyHppVariantsBom, uploadVariantImage, replaceVariantPriceTiers, getClickRates } from "@/lib/api";
+import { VariableCost, FixedCost, VariantCustomItem } from "./types";
 import { CustomNameInput, VariantCombobox } from "./HppInputs";
 
 function HppCalculatorContent() {
@@ -101,6 +101,8 @@ function HppCalculatorContent() {
         showTierEditor?: boolean;
         clickRateId?: number | null;
         clicksPerUnit?: number;
+        customItems?: VariantCustomItem[]; // bahan KHUSUS varian ini (jenis banner dll)
+        showBomEditor?: boolean;
     }
     const [variantCalcRows, setVariantCalcRows] = useState<VariantCalcRow[]>([]);
     const [variantCalcMode, setVariantCalcMode] = useState<'area' | 'unit'>('area');
@@ -433,13 +435,140 @@ function HppCalculatorContent() {
         return Number(rate.pricePerClick) * (row.clicksPerUnit ?? 1);
     };
 
+    // Total biaya bahan KHUSUS varian ini (jenis banner berbeda dll)
+    const calcRowCustomCost = (row: VariantCalcRow): number =>
+        (row.customItems || []).reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.quantity) || 0), 0);
+
     const calcHppFinal = (row: VariantCalcRow) => {
         const scaleFactor = variantCalcMode === 'area'
             ? (parseFloat(row.widthM) || 0) * (parseFloat(row.heightM) || 0)
             : (parseFloat(row.multiplier) || 1);
         const hppBase = scaleFactor > 0 && hppPerPcs > 0 ? Math.round(hppPerPcs * scaleFactor) : 0;
         const rowClickCost = Math.round(calcRowClickCost(row));
-        return { scaleFactor, hppBase, rowClickCost, hppFinal: hppBase + rowClickCost + (row.additionalCost || 0) };
+        const customCost = Math.round(calcRowCustomCost(row));
+        return { scaleFactor, hppBase, rowClickCost, customCost, hppFinal: hppBase + rowClickCost + customCost + (row.additionalCost || 0) };
+    };
+
+    // Buat produk baru untuk baris isNew; kembalikan map rowId -> variantId baru.
+    // return null bila validasi gagal (kategori/unit belum dipilih).
+    const createNewVariantRows = async (): Promise<Record<string, number> | null> => {
+        const createdVariantIds: Record<string, number> = {};
+        const newRows = variantCalcRows.filter(r => r.isNew && r.newProductName?.trim());
+        for (const row of newRows) {
+            const { scaleFactor, hppFinal } = calcHppFinal(row);
+            if (scaleFactor <= 0) continue;
+            const categoryId = row.newCategoryId || dbCategories[0]?.id || null;
+            const unitId = row.newUnitId || dbUnits.find((u: any) => u.name === 'pcs')?.id || dbUnits[0]?.id || null;
+            if (!categoryId || !unitId) {
+                alert(`Baris "${row.newProductName}" membutuhkan kategori dan satuan. Silakan pilih terlebih dahulu.`);
+                return null;
+            }
+            const suggestedPrice = Math.round(hppFinal * (1 + targetMargin / 100));
+            const sellingPrice = row.customPrice && row.customPrice > 0 ? row.customPrice : suggestedPrice;
+            const initials = (row.newProductName || 'NEW').trim().split(/\s+/).map((w: string) => w[0] || '').join('').toUpperCase().substring(0, 5);
+            const rand = Math.floor(1000 + Math.random() * 9000);
+            const newProduct = await createProduct({
+                name: row.newProductName!.trim(),
+                categoryId,
+                unitId,
+                pricingMode: 'UNIT',
+                variants: [{
+                    sku: `HPP-${initials}-${rand}`,
+                    variantName: row.newVariantName?.trim() || null,
+                    price: sellingPrice,
+                    hpp: hppFinal,
+                    stock: 0,
+                    priceTiers: buildTiersPayload(row),
+                    clickRateId: row.clickRateId ?? null,
+                    clicksPerUnit: row.clickRateId ? (row.clicksPerUnit ?? 1) : null,
+                }]
+            });
+            const createdVariantId = newProduct?.variants?.[0]?.id;
+            if (createdVariantId) {
+                createdVariantIds[row.id] = createdVariantId;
+            }
+        }
+        return createdVariantIds;
+    };
+
+    // Bangun daftar BOM lengkap 1 varian = bahan BERSAMA (di-scale) + bahan KHUSUS varian.
+    const buildVariantBomItems = (row: VariantCalcRow, scaleFactor: number) => {
+        const sharedItems = variableCosts.map(vc => {
+            const pUnitNumMatch = vc.priceUnit?.match(/\d+/);
+            const pUnitNum = pUnitNumMatch ? parseInt(pUnitNumMatch[0]) : 1;
+            const unitPrice = pUnitNum > 0 ? (Number(vc.price) || 0) / pUnitNum : (Number(vc.price) || 0);
+            return {
+                name: vc.name,
+                quantity: (Number(vc.usageAmount) || 0) * (scaleFactor > 0 ? scaleFactor : 1),
+                unit: vc.usageUnit || vc.priceUnit || 'unit',
+                price: unitPrice,
+                isServiceCost: false,
+                isShared: true,
+                rawMaterialVariantId: vc.productVariantId ?? null,
+            };
+        });
+        const customItems = (row.customItems || [])
+            .filter(it => it.name?.trim() && (Number(it.quantity) || 0) > 0)
+            .map(it => ({
+                name: it.name.trim(),
+                quantity: Number(it.quantity) || 0,
+                unit: it.unit || 'unit',
+                price: Number(it.price) || 0,
+                isServiceCost: it.isServiceCost ?? false,
+                isShared: false,
+                rawMaterialVariantId: it.rawMaterialVariantId ?? null,
+            }));
+        return [...sharedItems, ...customItems];
+    };
+
+    // Terapkan BOM per-varian: tulis VariantIngredient (bahan bersama + khusus) tiap varian,
+    // set variant.hpp = total bahan, dan siapkan potong stok per bahan. Cocok untuk
+    // varian yang bahannya BERBEDA (mis. jenis banner F280 vs F440).
+    const handleApplyVariantsBom = async () => {
+        if (!hasCalculated) return alert('Lakukan kalkulasi HPP terlebih dahulu (klik Refresh Kalkulasi).');
+        const rowsWithCustom = variantCalcRows.filter(r => (r.customItems || []).some(it => it.name?.trim() && (Number(it.quantity) || 0) > 0));
+        if (rowsWithCustom.length === 0) {
+            return alert('Belum ada bahan khusus per varian. Tambahkan "Bahan Khusus Varian" di minimal satu varian terlebih dahulu.');
+        }
+
+        setIsSavingVariantCalc(true);
+        try {
+            const createdVariantIds = await createNewVariantRows();
+            if (createdVariantIds === null) { setIsSavingVariantCalc(false); return; }
+
+            const payload = variantCalcRows
+                .map(r => {
+                    const variantId = r.linkedVariantId ?? createdVariantIds[r.id] ?? null;
+                    if (!variantId) return null;
+                    const { scaleFactor } = calcHppFinal(r);
+                    return { variantId, items: buildVariantBomItems(r, scaleFactor) };
+                })
+                .filter((r): r is { variantId: number; items: ReturnType<typeof buildVariantBomItems> } => r !== null && r.items.length > 0);
+
+            if (payload.length === 0) {
+                alert('Tidak ada varian valid. Pilih varian yang sudah ada atau isi nama produk baru.');
+                setIsSavingVariantCalc(false);
+                return;
+            }
+
+            const result = await applyHppVariantsBom(activeWorksheetId ?? 0, payload);
+
+            // Update harga jual bila diisi manual (konsisten dgn flow scaleFactor)
+            const priceUpdateRows = variantCalcRows.filter(r => r.linkedVariantId && r.customPrice && r.customPrice > 0);
+            await Promise.all(priceUpdateRows.map(r => updateProductVariant(r.linkedVariantId!, { price: r.customPrice })));
+
+            await refreshProductData();
+            setVariantCalcRows(rows => rows.map(r => {
+                const newVId = createdVariantIds[r.id];
+                if (newVId) return { ...r, isNew: false, linkedVariantId: newVId, newProductName: '', newVariantName: '' };
+                return r;
+            }));
+            alert(result.message);
+        } catch (e: any) {
+            alert(e?.response?.data?.message || 'Gagal menyimpan BOM per-varian.');
+        } finally {
+            setIsSavingVariantCalc(false);
+        }
     };
 
     const handleSaveVariantCalc = async () => {
@@ -449,43 +578,8 @@ function HppCalculatorContent() {
         setIsSavingVariantCalc(true);
         try {
             // Step 1: Create new products for rows with isNew = true
-            const createdVariantIds: Record<string, number> = {};
-            const newRows = variantCalcRows.filter(r => r.isNew && r.newProductName?.trim());
-            for (const row of newRows) {
-                const { scaleFactor, hppFinal } = calcHppFinal(row);
-                if (scaleFactor <= 0) continue;
-                const categoryId = row.newCategoryId || dbCategories[0]?.id || null;
-                const unitId = row.newUnitId || dbUnits.find((u: any) => u.name === 'pcs')?.id || dbUnits[0]?.id || null;
-                if (!categoryId || !unitId) {
-                    alert(`Baris "${row.newProductName}" membutuhkan kategori dan satuan. Silakan pilih terlebih dahulu.`);
-                    setIsSavingVariantCalc(false);
-                    return;
-                }
-                const suggestedPrice = Math.round(hppFinal * (1 + targetMargin / 100));
-                const sellingPrice = row.customPrice && row.customPrice > 0 ? row.customPrice : suggestedPrice;
-                const initials = (row.newProductName || 'NEW').trim().split(/\s+/).map((w: string) => w[0] || '').join('').toUpperCase().substring(0, 5);
-                const rand = Math.floor(1000 + Math.random() * 9000);
-                const newProduct = await createProduct({
-                    name: row.newProductName!.trim(),
-                    categoryId,
-                    unitId,
-                    pricingMode: 'UNIT',
-                    variants: [{
-                        sku: `HPP-${initials}-${rand}`,
-                        variantName: row.newVariantName?.trim() || null,
-                        price: sellingPrice,
-                        hpp: hppFinal,
-                        stock: 0,
-                        priceTiers: buildTiersPayload(row),
-                        clickRateId: row.clickRateId ?? null,
-                        clicksPerUnit: row.clickRateId ? (row.clicksPerUnit ?? 1) : null,
-                    }]
-                });
-                const createdVariantId = newProduct?.variants?.[0]?.id;
-                if (createdVariantId) {
-                    createdVariantIds[row.id] = createdVariantId;
-                }
-            }
+            const createdVariantIds = await createNewVariantRows();
+            if (createdVariantIds === null) { setIsSavingVariantCalc(false); return; }
 
             // Step 2: Build toSave with existing + newly created variant IDs (using hppFinal)
             const toSave = variantCalcRows
@@ -1001,6 +1095,49 @@ function HppCalculatorContent() {
         ));
     };
 
+    // ----- Bahan KHUSUS per varian (customItems) ----- //
+    const addCustomItem = (rowId: string) => {
+        setVariantCalcRows(rows => rows.map(r => r.id === rowId ? {
+            ...r,
+            customItems: [...(r.customItems || []), {
+                id: `ci-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                name: '', quantity: 1, unit: 'pcs', price: 0, isServiceCost: false, isCustom: true,
+            }],
+        } : r));
+    };
+    const removeCustomItem = (rowId: string, itemId: string) => {
+        setVariantCalcRows(rows => rows.map(r => r.id === rowId ? {
+            ...r, customItems: (r.customItems || []).filter(it => it.id !== itemId),
+        } : r));
+    };
+    const updateCustomItem = (rowId: string, itemId: string, patch: Partial<VariantCustomItem>) => {
+        setVariantCalcRows(rows => rows.map(r => r.id === rowId ? {
+            ...r, customItems: (r.customItems || []).map(it => it.id === itemId ? { ...it, ...patch } : it),
+        } : r));
+    };
+    // rowId komposit "rowId::itemId" agar cocok dgn signature VariantCombobox.
+    const selectCustomItemVariant = (compositeId: string, variantIdStr: string) => {
+        if (!variantIdStr) return;
+        const [rowId, itemId] = compositeId.split('::');
+        let foundVariant: any = null, foundProduct: any = null;
+        for (const p of dbProducts) {
+            const va = p.variants?.find((vx: any) => vx.id.toString() === variantIdStr);
+            if (va) { foundVariant = va; foundProduct = p; break; }
+        }
+        if (!foundVariant || !foundProduct) return;
+        updateCustomItem(rowId, itemId, {
+            name: foundVariant.variantName ? `${foundProduct.name} - ${foundVariant.variantName}` : foundProduct.name,
+            price: Number(foundVariant.price) || 0,
+            unit: foundProduct.unit?.name || 'pcs',
+            rawMaterialVariantId: foundVariant.id,
+            isCustom: false,
+        });
+    };
+    const selectCustomItemManual = (compositeId: string, initialName?: string) => {
+        const [rowId, itemId] = compositeId.split('::');
+        updateCustomItem(rowId, itemId, { isCustom: true, rawMaterialVariantId: null, name: initialName || '' });
+    };
+
     // Three pricing tiers
     const priceTiers = {
         kompetitif: { label: 'Kompetitif', margin: Math.max(targetMargin - 15, 5), color: 'blue', description: 'Harga bersaing, margin tipis' },
@@ -1386,7 +1523,7 @@ function HppCalculatorContent() {
                                     {variantCalcRows.length > 0 && (
                                         <div className="space-y-3">
                                             {variantCalcRows.map((row, idx) => {
-                                                const { scaleFactor, hppBase: _hppBaseRaw, rowClickCost, hppFinal: _hppFinalRaw } = calcHppFinal(row);
+                                                const { scaleFactor, hppBase: _hppBaseRaw, rowClickCost, customCost, hppFinal: _hppFinalRaw } = calcHppFinal(row);
                                                 const hppBase = _hppBaseRaw > 0 ? _hppBaseRaw : null;
                                                 const hppFinal = _hppFinalRaw > 0 ? _hppFinalRaw : null;
                                                 const suggestedPrice = hppFinal ? Math.round(hppFinal * (1 + targetMargin / 100)) : null;
@@ -1533,6 +1670,9 @@ function HppCalculatorContent() {
                                                                 {rowClickCost > 0 && (
                                                                     <p className="text-[10px] text-indigo-500 mt-0.5 font-medium">(termasuk klik: Rp {rowClickCost.toLocaleString('id-ID')})</p>
                                                                 )}
+                                                                {customCost > 0 && (
+                                                                    <p className="text-[10px] text-emerald-600 mt-0.5 font-medium">(termasuk bahan khusus: Rp {customCost.toLocaleString('id-ID')})</p>
+                                                                )}
                                                             </div>
                                                             <div>
                                                                 <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">
@@ -1567,6 +1707,82 @@ function HppCalculatorContent() {
                                                                 {tierCount > 0 ? `${tierCount} Tier Harga — Klik untuk edit` : '+ Tambah Tier Harga'}
                                                             </button>
                                                         </div>
+
+                                                        {/* Baris 5.5: Bahan Khusus Varian Ini (BOM per-varian) */}
+                                                        <div className="px-3 pb-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setVariantCalcRows(rows => rows.map(r => r.id === row.id ? { ...r, showBomEditor: !r.showBomEditor, customItems: r.customItems ?? [] } : r))}
+                                                                className={cn(
+                                                                    "w-full py-2 text-[12px] font-bold rounded-[8px] border transition-colors",
+                                                                    (row.customItems?.length || 0) > 0
+                                                                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700"
+                                                                        : "border-border text-muted-foreground hover:border-emerald-400 hover:text-emerald-500 bg-muted/40"
+                                                                )}
+                                                            >
+                                                                {(row.customItems?.length || 0) > 0
+                                                                    ? `${row.customItems!.length} Bahan Khusus (+Rp ${calcRowCustomCost(row).toLocaleString('id-ID')}) — klik edit`
+                                                                    : '+ Bahan Khusus Varian (jenis banner dll)'}
+                                                            </button>
+                                                        </div>
+                                                        {row.showBomEditor && (
+                                                            <div className="px-3 pb-3 pt-1 border-t border-emerald-200/50 dark:border-emerald-800/30 bg-emerald-50/40 dark:bg-emerald-950/10 space-y-2">
+                                                                <p className="text-[11px] text-muted-foreground">
+                                                                    Bahan yang BERBEDA khusus varian ini (mis. jenis banner F280/F440). Bahan bersama (rangka kayu dll) diambil dari daftar <b>Biaya Variabel</b> di bawah &amp; di-scale otomatis saat &quot;Simpan BOM per-Varian&quot;.
+                                                                </p>
+                                                                {(row.customItems || []).map((it) => (
+                                                                    <div key={it.id} className="bg-background border border-emerald-200/50 dark:border-emerald-800/30 rounded-lg p-2 space-y-2">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <div className="flex-1 min-w-0">
+                                                                                {it.isCustom ? (
+                                                                                    <CustomNameInput
+                                                                                        value={it.name}
+                                                                                        onChange={(val) => updateCustomItem(row.id, it.id, { name: val })}
+                                                                                        onSwitchToStock={() => updateCustomItem(row.id, it.id, { isCustom: false, name: '', rawMaterialVariantId: null })}
+                                                                                    />
+                                                                                ) : (
+                                                                                    <VariantCombobox
+                                                                                        rowId={`${row.id}::${it.id}`}
+                                                                                        currentVariantId={it.rawMaterialVariantId ?? undefined}
+                                                                                        currentName={it.name}
+                                                                                        dbProducts={dbProducts}
+                                                                                        onSelectVariant={selectCustomItemVariant}
+                                                                                        onSelectManual={selectCustomItemManual}
+                                                                                    />
+                                                                                )}
+                                                                            </div>
+                                                                            <button type="button" onClick={() => removeCustomItem(row.id, it.id)} className="p-1 text-destructive/60 hover:text-destructive transition-colors shrink-0">
+                                                                                <X className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-3 gap-2">
+                                                                            <input type="number" min="0" step="0.001" value={it.quantity}
+                                                                                onChange={e => updateCustomItem(row.id, it.id, { quantity: parseFloat(e.target.value) || 0 })}
+                                                                                placeholder="Qty" className="w-full px-2 py-1.5 bg-background border border-border rounded text-xs outline-none focus:border-primary" />
+                                                                            <input type="text" value={it.unit}
+                                                                                onChange={e => updateCustomItem(row.id, it.id, { unit: e.target.value })}
+                                                                                placeholder="Satuan" className="w-full px-2 py-1.5 bg-background border border-border rounded text-xs outline-none focus:border-primary" />
+                                                                            <input type="number" min="0" value={it.price}
+                                                                                onChange={e => updateCustomItem(row.id, it.id, { price: parseFloat(e.target.value) || 0 })}
+                                                                                placeholder="Harga/unit" className="w-full px-2 py-1.5 bg-background border border-border rounded text-xs outline-none focus:border-primary" />
+                                                                        </div>
+                                                                        <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer">
+                                                                            <input type="checkbox" checked={it.isServiceCost ?? false}
+                                                                                onChange={e => updateCustomItem(row.id, it.id, { isServiceCost: e.target.checked })}
+                                                                                className="rounded" />
+                                                                            Biaya jasa (tidak potong stok)
+                                                                            <span className="ml-auto font-semibold text-foreground">
+                                                                                = Rp {((Number(it.price) || 0) * (Number(it.quantity) || 0)).toLocaleString('id-ID')}
+                                                                            </span>
+                                                                        </label>
+                                                                    </div>
+                                                                ))}
+                                                                <button type="button" onClick={() => addCustomItem(row.id)}
+                                                                    className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors">
+                                                                    <Plus className="w-3.5 h-3.5" /> Tambah Bahan Khusus
+                                                                </button>
+                                                            </div>
+                                                        )}
 
                                                         {/* Baris 6: Link Varian */}
                                                         <div className="px-3 pb-3">
@@ -1731,11 +1947,27 @@ function HppCalculatorContent() {
                                             <Plus className="w-4 h-4" /> Tambah Baris
                                         </button>
 
+                                        {variantCalcRows.some(r => (r.customItems || []).some(it => it.name?.trim() && (Number(it.quantity) || 0) > 0)) && (
+                                            <button
+                                                type="button"
+                                                onClick={handleApplyVariantsBom}
+                                                disabled={isSavingVariantCalc || !hasCalculated || !variantCalcRows.some(r => r.linkedVariantId || (r.isNew && r.newProductName?.trim()))}
+                                                title="Tulis bahan (bersama + khusus) tiap varian sebagai BOM; HPP & stok mengikuti bahan"
+                                                className="ml-auto flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-lg disabled:opacity-40 hover:bg-emerald-700 transition-colors"
+                                            >
+                                                {isSavingVariantCalc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                                                Simpan BOM per-Varian
+                                            </button>
+                                        )}
+
                                         <button
                                             type="button"
                                             onClick={handleSaveVariantCalc}
                                             disabled={isSavingVariantCalc || !hasCalculated || !activeWorksheetId || !variantCalcRows.some(r => r.linkedVariantId || (r.isNew && r.newProductName?.trim()))}
-                                            className="ml-auto flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg disabled:opacity-40 hover:bg-primary/90 transition-colors"
+                                            className={cn(
+                                                "flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg disabled:opacity-40 hover:bg-primary/90 transition-colors",
+                                                !variantCalcRows.some(r => (r.customItems || []).some(it => it.name?.trim() && (Number(it.quantity) || 0) > 0)) && "ml-auto"
+                                            )}
                                         >
                                             {isSavingVariantCalc ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                                             Simpan &amp; Terapkan Semua ({variantCalcRows.filter(r => r.linkedVariantId || (r.isNew && r.newProductName?.trim())).length} varian)
