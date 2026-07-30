@@ -191,11 +191,18 @@ function VariantRow({ v }: { v: HppOverviewVariant }) {
                             </tr>
                         </thead>
                         <tbody>
-                            {v.variantBom.map((b, i) => (
+                            {(() => {
+                                const showShared = v.variantBom.some(b => b.isShared) && v.variantBom.some(b => !b.isShared);
+                                return v.variantBom.map((b, i) => (
                                 <tr key={i}>
                                     <td className="py-0.5">
                                         {b.name}
                                         {b.isServiceCost ? " (jasa)" : ""}
+                                        {showShared && (
+                                            <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold ${b.isShared ? "bg-muted text-muted-foreground" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"}`}>
+                                                {b.isShared ? "Bersama" : "Khusus"}
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="text-right">{fmtRp(b.price)}</td>
                                     <td className="text-right">
@@ -203,7 +210,8 @@ function VariantRow({ v }: { v: HppOverviewVariant }) {
                                     </td>
                                     <td className="text-right font-medium">{fmtRp(b.subtotal)}</td>
                                 </tr>
-                            ))}
+                            ));
+                            })()}
                             <tr className="border-t border-border">
                                 <td colSpan={3} className="py-0.5 text-right font-semibold">
                                     Total HPP

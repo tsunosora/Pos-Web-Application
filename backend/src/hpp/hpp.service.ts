@@ -436,6 +436,7 @@ export class HppService {
                     unit: ing.unit,
                     price: num(ing.price),
                     isServiceCost: !!ing.isServiceCost,
+                    isShared: !!ing.isShared,
                     subtotal: num(ing.price) * num(ing.quantity),
                 }));
                 const variantBomHpp = variantBom.length
