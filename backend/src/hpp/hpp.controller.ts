@@ -1,15 +1,37 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ForbiddenException } from '@nestjs/common';
 import { HppService } from './hpp.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 
 @UseGuards(JwtAuthGuard)
 @Controller('hpp')
 export class HppController {
     constructor(private readonly hppService: HppService) { }
 
+    private assertOwner(ctx: BranchContext) {
+        if (!ctx?.isOwner) {
+            throw new ForbiddenException('Hanya owner yang boleh mengakses ringkasan HPP.');
+        }
+    }
+
     @Post()
     create(@Body() data: any) {
         return this.hppService.create(data);
+    }
+
+    // Ringkasan rumus HPP tiap produk (owner-only). HARUS sebelum @Get(':id').
+    @Get('overview')
+    getOverview(
+        @CurrentBranch() ctx: BranchContext,
+        @Query('categoryId') categoryId?: string,
+        @Query('includeArchived') includeArchived?: string,
+    ) {
+        this.assertOwner(ctx);
+        return this.hppService.getProductHppOverview({
+            categoryId: categoryId ? Number(categoryId) : undefined,
+            includeArchived: includeArchived === 'true' || includeArchived === '1',
+        });
     }
 
     @Get()

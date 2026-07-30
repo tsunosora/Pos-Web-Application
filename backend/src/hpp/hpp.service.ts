@@ -320,4 +320,151 @@ export class HppService {
             count: variantIds.length
         };
     }
+
+    /**
+     * Ringkasan rumus HPP tiap produk untuk halaman owner (read-only).
+     * Sumber HPP efektif mengikuti logika transaksi: BOM varian > flat variant.hpp.
+     * Worksheet (biaya variabel + tetap) ditampilkan sebagai info tambahan; biaya klik
+     * iklan sengaja TIDAK dimasukkan ke HPP efektif agar tak drift dengan variant.hpp.
+     */
+    async getProductHppOverview(params?: { categoryId?: number; includeArchived?: boolean }) {
+        const num = (v: any) => Number(v) || 0;
+
+        const products = await this.prisma.product.findMany({
+            where: {
+                ...(params?.categoryId ? { categoryId: params.categoryId } : {}),
+                ...(params?.includeArchived ? {} : { isActive: true }),
+            },
+            orderBy: { name: 'asc' },
+            include: {
+                category: { select: { id: true, name: true } },
+                ingredients: true,
+                variants: {
+                    orderBy: { id: 'asc' },
+                    include: {
+                        variantIngredients: true,
+                        hppWorksheets: {
+                            orderBy: { id: 'desc' },
+                            include: worksheetInclude,
+                        },
+                    },
+                },
+            },
+        });
+
+        return products.map((p: any) => {
+            const productBom = (p.ingredients || []).map((ing: any) => ({
+                name: ing.name,
+                quantity: num(ing.quantity),
+                unit: ing.unit,
+                price: num(ing.price),
+                subtotal: num(ing.price) * num(ing.quantity),
+            }));
+            const productBomHpp = productBom.reduce((s: number, x: any) => s + x.subtotal, 0);
+
+            const variants = (p.variants || []).map((v: any) => {
+                // 1) BOM varian
+                const variantBom = (v.variantIngredients || []).map((ing: any) => ({
+                    name: ing.name,
+                    quantity: num(ing.quantity),
+                    unit: ing.unit,
+                    price: num(ing.price),
+                    isServiceCost: !!ing.isServiceCost,
+                    subtotal: num(ing.price) * num(ing.quantity),
+                }));
+                const variantBomHpp = variantBom.length
+                    ? variantBom.reduce((s: number, x: any) => s + x.subtotal, 0)
+                    : null;
+
+                // 2) flat tersimpan
+                const storedHpp = num(v.hpp);
+
+                // 3) worksheet terbaru (jika ada) — subtotal dihitung sama seperti /reports/hpp
+                const ws = (v.hppWorksheets || [])[0];
+                let worksheet: any = null;
+                if (ws) {
+                    const variableCosts = (ws.variableCosts || []).map((c: any) => {
+                        const isCustom = !c.productVariantId;
+                        const price = isCustom ? num(c.customPrice) : num(c.productVariant?.price);
+                        const priceUnitName = isCustom
+                            ? 'unit'
+                            : (c.productVariant?.product?.unit?.name || 'unit');
+                        const pUnitMatch = String(priceUnitName).match(/\d+/);
+                        const pUnitNum = pUnitMatch ? parseInt(pUnitMatch[0]) || 1 : 1;
+                        const subtotal =
+                            price === 0 || num(c.usageAmount) === 0
+                                ? 0
+                                : (price / pUnitNum) * num(c.usageAmount);
+                        return {
+                            name: isCustom
+                                ? (c.customMaterialName || 'Bahan')
+                                : (c.productVariant?.product?.name || `Varian #${c.productVariantId}`),
+                            usageAmount: num(c.usageAmount),
+                            usageUnit: c.usageUnit,
+                            unitPrice: price,
+                            subtotal,
+                        };
+                    });
+                    const totalVariable = variableCosts.reduce((s: number, x: any) => s + x.subtotal, 0);
+                    const fixedCosts = (ws.fixedCosts || []).map((f: any) => ({
+                        name: f.name,
+                        amount: num(f.amount),
+                    }));
+                    const totalFixedMonthly = fixedCosts.reduce((s: number, x: any) => s + x.amount, 0);
+                    const targetVolume = Math.max(1, num(ws.targetVolume) || 1);
+                    const allocatedFixed = totalFixedMonthly / targetVolume;
+                    const targetMargin = num(ws.targetMargin);
+                    const hppPerUnit = totalVariable + allocatedFixed;
+                    const suggestedPrice =
+                        targetMargin >= 0 && targetMargin < 100
+                            ? Math.round(hppPerUnit / (1 - targetMargin / 100))
+                            : Math.round(hppPerUnit);
+                    worksheet = {
+                        id: ws.id,
+                        targetVolume,
+                        targetMargin,
+                        appliedAt: ws.appliedAt,
+                        variableCosts,
+                        fixedCosts,
+                        totalVariable,
+                        totalFixedMonthly,
+                        allocatedFixed,
+                        hppPerUnit,
+                        suggestedPrice,
+                    };
+                }
+
+                // HPP efektif = BOM varian jika ada, else flat tersimpan
+                const effectiveHpp = variantBomHpp != null ? variantBomHpp : storedHpp;
+                const source: 'variant-bom' | 'flat' | 'none' =
+                    variantBomHpp != null ? 'variant-bom' : storedHpp > 0 ? 'flat' : 'none';
+
+                const price = num(v.price);
+                const margin = price > 0 ? ((price - effectiveHpp) / price) * 100 : null;
+
+                return {
+                    variantId: v.id,
+                    variantName: v.variantName || v.sku || `Varian #${v.id}`,
+                    sku: v.sku,
+                    price,
+                    storedHpp,
+                    variantBom,
+                    variantBomHpp,
+                    worksheet,
+                    effectiveHpp,
+                    source,
+                    margin,
+                };
+            });
+
+            return {
+                productId: p.id,
+                productName: p.name,
+                category: p.category ? { id: p.category.id, name: p.category.name } : null,
+                productBom,
+                productBomHpp,
+                variants,
+            };
+        });
+    }
 }
