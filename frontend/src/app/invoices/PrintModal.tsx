@@ -22,6 +22,11 @@ export function PrintModal({ doc, settings, onClose }: { doc: Invoice; settings:
     const total = parseFloat(doc.total);
     const taxRate = parseFloat(doc.taxRate);
 
+    // Surat Penawaran (format surat) — data turunan
+    const letterDate = dayjs(doc.date).format("DD MMMM YYYY");
+    const offering = doc.items.map(i => i.description).filter(Boolean).join(", ") || "produk dan jasa kami";
+    const signName = doc.signatoryName || settings?.storeName || "";
+
     const handlePrint = () => {
         const content = printRef.current?.innerHTML ?? "";
         const win = window.open("", "_blank", "width=900,height=700");
@@ -56,6 +61,87 @@ export function PrintModal({ doc, settings, onClose }: { doc: Invoice; settings:
                 </div>
                 <div className="overflow-y-auto grow p-8">
                     <div ref={printRef} className="bg-white text-gray-900 p-8 rounded-lg max-w-2xl mx-auto shadow-sm">
+                    {isQuotation ? (
+                        /* ===== FORMAT SURAT PENAWARAN (mengikuti contoh PDF) ===== */
+                        <div style={{ fontFamily: "Arial, sans-serif", color: "#111", fontSize: "11pt", lineHeight: 1.6 }}>
+                            {/* Kop surat */}
+                            <div style={{ display: "flex", alignItems: "center", gap: "16px", borderBottom: "3px solid #111", paddingBottom: "12px", marginBottom: "28px" }}>
+                                {logoUrl && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={logoUrl} alt="Logo" style={{ height: "56px", width: "auto", objectFit: "contain" }} />
+                                )}
+                                <div>
+                                    <p style={{ fontSize: "15pt", fontWeight: 700, margin: 0 }}>{settings?.storeName ?? "Nama Toko"}</p>
+                                    {settings?.address && <p style={{ fontSize: "10pt", color: "#374151", margin: "2px 0 0" }}>{settings.address}</p>}
+                                    {settings?.phone && <p style={{ fontSize: "10pt", color: "#374151", margin: 0 }}>Telp. {settings.phone}</p>}
+                                </div>
+                            </div>
+
+                            {/* Kota, tanggal + nomor + hal */}
+                            <div style={{ marginBottom: "24px" }}>
+                                <p style={{ margin: 0 }}>{doc.letterCity ? `${doc.letterCity}, ` : ""}{letterDate}</p>
+                                <p style={{ margin: "4px 0 0" }}><span style={{ display: "inline-block", width: "48px" }}>Nomor</span>: {doc.invoiceNumber}</p>
+                                <p style={{ margin: 0 }}><span style={{ display: "inline-block", width: "48px" }}>Hal</span>: Surat Penawaran</p>
+                            </div>
+
+                            {/* Kepada */}
+                            <div style={{ marginBottom: "24px" }}>
+                                <p style={{ margin: 0 }}>Kepada</p>
+                                <p style={{ margin: "4px 0 0" }}>Yth. <b>{doc.clientName}</b></p>
+                                {doc.clientCompany && <p style={{ margin: 0 }}>{doc.clientCompany}</p>}
+                                {doc.clientAddress && <p style={{ margin: 0 }}>{doc.clientAddress}</p>}
+                            </div>
+
+                            {/* Pembuka */}
+                            <div style={{ marginBottom: "20px" }}>
+                                <p style={{ margin: 0 }}>Dengan Hormat,</p>
+                                <p style={{ margin: "4px 0 0", textAlign: "justify" }}>
+                                    Bersama ini kami dari {settings?.storeName ?? "perusahaan kami"} ingin mengajukan penawaran {offering}. Di bawah ini kami sertakan detail produk beserta harga:
+                                </p>
+                            </div>
+
+                            {/* Tabel produk */}
+                            <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "20px", fontSize: "10.5pt" }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ border: "1px solid #111", padding: "6px 10px", textAlign: "center", fontWeight: 700, background: "#fff" }}>Nama Produk</th>
+                                        <th style={{ border: "1px solid #111", padding: "6px 10px", textAlign: "center", fontWeight: 700, background: "#fff" }}>Ukuran</th>
+                                        <th style={{ border: "1px solid #111", padding: "6px 10px", textAlign: "center", fontWeight: 700, background: "#fff" }}>Jumlah</th>
+                                        <th style={{ border: "1px solid #111", padding: "6px 10px", textAlign: "center", fontWeight: 700, background: "#fff" }}>Harga</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {doc.items.map((item, i) => (
+                                        <tr key={i}>
+                                            <td style={{ border: "1px solid #111", padding: "6px 10px" }}>{item.description}</td>
+                                            <td style={{ border: "1px solid #111", padding: "6px 10px" }}>{item.width && item.height ? `${item.width} × ${item.height}` : "-"}</td>
+                                            <td style={{ border: "1px solid #111", padding: "6px 10px" }}>{Number(item.quantity).toLocaleString("id-ID")} {item.unit || ""}</td>
+                                            <td style={{ border: "1px solid #111", padding: "6px 10px" }}>@ {fmt(Number(item.price))},-</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+
+                            {/* Catatan (opsional) */}
+                            {doc.notes && (
+                                <p style={{ margin: "0 0 20px", whiteSpace: "pre-wrap" }}>{doc.notes}</p>
+                            )}
+
+                            {/* Penutup */}
+                            <p style={{ margin: "0 0 44px", textAlign: "justify" }}>
+                                Demikian surat penawaran barang ini kami sampaikan. Kami berharap surat ini dapat menjadi sarana memperkenalkan perusahaan sekaligus menjalin hubungan kerja sama yang baik. Atas perhatian Bapak/Ibu kami ucapkan terima kasih.
+                            </p>
+
+                            {/* Tanda tangan */}
+                            <div>
+                                <p style={{ margin: 0 }}>Hormat Kami,</p>
+                                <div style={{ height: "56px" }} />
+                                <p style={{ margin: 0, fontWeight: 700 }}>{signName}</p>
+                                {doc.signatoryPhone && <p style={{ margin: 0 }}>{doc.signatoryPhone}</p>}
+                            </div>
+                        </div>
+                    ) : (
+                      <>
                         {/* Header */}
                         <div className="flex justify-between items-start mb-8">
                             <div>
@@ -151,6 +237,8 @@ export function PrintModal({ doc, settings, onClose }: { doc: Invoice; settings:
                                 ? "Dokumen ini adalah penawaran harga yang tidak mengikat hingga dikonfirmasi secara tertulis."
                                 : "Terima kasih atas kepercayaan Anda. Mohon segera lakukan pembayaran sebelum jatuh tempo."}
                         </p>
+                      </>
+                    )}
                     </div>
                 </div>
             </div>

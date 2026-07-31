@@ -568,6 +568,10 @@ model Invoice {
   discount      Decimal       @default(0) @db.Decimal(15, 2) // Diskon (Rp)
   total         Decimal       @default(0) @db.Decimal(15, 2) // Grand Total (Subtotal + PPN - Diskon)
   notes         String?       @db.Text // Syarat & Ketentuan, Garansi, dll
+  // Surat Penawaran (QUOTATION): kota pengirim & data penanda tangan surat
+  letterCity     String?      @map("letter_city") @db.VarChar(120) // Kota pengirim, mis. "Bantul"
+  signatoryName  String?      @map("signatory_name") @db.VarChar(120) // Nama penanda tangan
+  signatoryPhone String?      @map("signatory_phone") @db.VarChar(50) // No. HP penanda tangan
   branchId      Int?          @map("branch_id") // Cabang pemilik invoice (multi-cabang). Null = warisan (di-backfill ke Pusat)
   createdAt     DateTime?     @default(now()) @map("created_at")
   updatedAt     DateTime?     @default(now()) @updatedAt @map("updated_at")

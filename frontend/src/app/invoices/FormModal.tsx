@@ -53,6 +53,10 @@ export function FormModal({
     const [taxRate, setTaxRate] = useState(String(parseFloat(initial?.taxRate ?? "0")));
     const [discount, setDiscount] = useState(String(parseFloat(initial?.discount ?? "0")));
     const [notes, setNotes] = useState(initial?.notes ?? "");
+    // Surat Penawaran (QUOTATION): kota pengirim & penanda tangan
+    const [letterCity, setLetterCity] = useState(initial?.letterCity ?? "");
+    const [signatoryName, setSignatoryName] = useState(initial?.signatoryName ?? "");
+    const [signatoryPhone, setSignatoryPhone] = useState(initial?.signatoryPhone ?? "");
     const [items, setItems] = useState<InvoiceItem[]>(
         initial?.items?.length
             ? initial.items.map(i => ({ description: i.description, unit: i.unit ?? "pcs", quantity: i.quantity, price: Number(i.price), isAreaBased: false }))
@@ -188,6 +192,9 @@ export function FormModal({
             subtotal,
             total,
             notes,
+            letterCity: isQuotation ? (letterCity || null) : null,
+            signatoryName: isQuotation ? (signatoryName || null) : null,
+            signatoryPhone: isQuotation ? (signatoryPhone || null) : null,
             items: items.map(i => ({
                 description: i.isAreaBased && i.width && i.height
                     ? `${i.description} (${i.width}m × ${i.height}m)`
@@ -264,6 +271,30 @@ export function FormModal({
                                 </div>
                             )}
                         </div>
+
+                        {/* Data Surat Penawaran (khusus QUOTATION) */}
+                        {isQuotation && (
+                            <div>
+                                <h4 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+                                    <Building2 className="h-4 w-4 text-primary" /> Data Surat Penawaran
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-muted-foreground">Kota Pengirim</label>
+                                        <input value={letterCity} onChange={e => setLetterCity(e.target.value)} placeholder="mis. Bantul" className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-muted-foreground">Nama Penanda Tangan</label>
+                                        <input value={signatoryName} onChange={e => setSignatoryName(e.target.value)} placeholder="mis. Abdul Haris" className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-medium text-muted-foreground">No. HP Penanda Tangan</label>
+                                        <input value={signatoryPhone} onChange={e => setSignatoryPhone(e.target.value)} placeholder="mis. 0818xxxxxxx" className="w-full bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
+                                    </div>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-2">Muncul di kop tanggal (&quot;{letterCity || "Kota"}, tgl&quot;) dan blok tanda tangan surat penawaran.</p>
+                            </div>
+                        )}
 
                         {/* Items */}
                         <div>

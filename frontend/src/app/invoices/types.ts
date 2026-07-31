@@ -34,6 +34,10 @@ export type Invoice = {
     discount: string;
     total: string;
     notes?: string;
+    // Surat Penawaran (QUOTATION): kota pengirim & data penanda tangan
+    letterCity?: string;
+    signatoryName?: string;
+    signatoryPhone?: string;
     items: InvoiceItem[];
 };
 
