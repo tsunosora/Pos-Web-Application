@@ -23,3 +23,4 @@ export * from './api/work-orders';
 export * from './api/discord';
 export * from './api/landing';
 export * from './api/articles';
+export * from './api/task-board';
