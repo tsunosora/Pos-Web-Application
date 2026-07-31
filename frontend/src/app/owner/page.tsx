@@ -29,6 +29,7 @@ import { useBranchStore } from "@/store/branch-store";
 import { BonusPanel } from "./BonusPanel";
 import { CustomMetricPanel } from "./CustomMetricPanel";
 import { CsRatingSection } from "@/components/owner/CsRatingSection";
+import { TaskLoadPanel } from "@/components/owner/TaskLoadPanel";
 import { badgeToneClass } from "@/components/ui/status-badge";
 
 dayjs.locale("id");
@@ -545,6 +546,9 @@ export default function OwnerDashboardPage() {
 
                         {/* Metrik Produk Custom (kolom produk khusus di leaderboard) */}
                         <CustomMetricPanel />
+
+                        {/* Beban tugas karyawan — deteksi idle & tugas terlambat */}
+                        <TaskLoadPanel enabled={isOwner} />
 
                         <CaraHitung>
                             <p><b>Omzet</b> = penjualan netto transaksi <b>lunas</b> (total − diskon). <b>HPP</b> = modal barang terjual. <b>Laba Kotor</b> = Omzet − HPP.</p>
