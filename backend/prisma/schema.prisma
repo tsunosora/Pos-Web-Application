@@ -63,25 +63,30 @@ model User {
   createdAt    DateTime? @default(now()) @map("created_at")
   updatedAt    DateTime? @default(now()) @map("updated_at")
 
-  role              Role?                    @relation(fields: [roleId], references: [id])
-  branch            CompanyBranch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  cashflows         Cashflow[]
-  cashflowRequests  CashflowChangeRequest[]  @relation("CashflowRequests")
-  cashflowReviews   CashflowChangeRequest[]  @relation("CashflowReviews")
-  editRequests      TransactionEditRequest[] @relation("EditRequests")
-  editReviews       TransactionEditRequest[] @relation("EditReviews")
-  stockTransfers    StockTransfer[]
+  role                  Role?                    @relation(fields: [roleId], references: [id])
+  branch                CompanyBranch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  cashflows             Cashflow[]
+  cashflowRequests      CashflowChangeRequest[]  @relation("CashflowRequests")
+  cashflowReviews       CashflowChangeRequest[]  @relation("CashflowReviews")
+  editRequests          TransactionEditRequest[] @relation("EditRequests")
+  editReviews           TransactionEditRequest[] @relation("EditReviews")
+  stockTransfers        StockTransfer[]
   // CRM relations
-  leadsAssigned     Lead[]                   @relation("LeadAssignedTo")
-  leadsCreated      Lead[]                   @relation("LeadCreatedBy")
-  customersAssigned Customer[]               @relation("CustomerAssignedCs")
-  activitiesCreated LeadActivity[]           @relation("ActivityCreatedBy")
-  followUpsAssigned FollowUp[]               @relation("FollowUpAssignee")
-  followUpsCreated  FollowUp[]               @relation("FollowUpCreatedBy")
-  csRatings         CsRatingResponse[]
+  leadsAssigned         Lead[]                   @relation("LeadAssignedTo")
+  leadsCreated          Lead[]                   @relation("LeadCreatedBy")
+  customersAssigned     Customer[]               @relation("CustomerAssignedCs")
+  activitiesCreated     LeadActivity[]           @relation("ActivityCreatedBy")
+  followUpsAssigned     FollowUp[]               @relation("FollowUpAssignee")
+  followUpsCreated      FollowUp[]               @relation("FollowUpCreatedBy")
+  csRatings             CsRatingResponse[]
   // WhatsApp CRM
-  waConversations   WaConversation[]         @relation("WaConversationAssignee")
-  waMessagesSent    WaMessage[]              @relation("WaMessageSender")
+  waConversations       WaConversation[]         @relation("WaConversationAssignee")
+  waMessagesSent        WaMessage[]              @relation("WaMessageSender")
+  // Papan Tugas Karyawan
+  taskSchedulesAssigned TaskSchedule[]           @relation("TaskScheduleAssignee")
+  taskSchedulesCreated  TaskSchedule[]           @relation("TaskScheduleCreatedBy")
+  taskItemsAssigned     TaskItem[]               @relation("TaskItemAssignee")
+  taskItemsCompleted    TaskItem[]               @relation("TaskItemCompletedBy")
 
   @@index([branchId])
   @@map("users")
@@ -550,31 +555,31 @@ enum InvoiceType {
 }
 
 model Invoice {
-  id            Int           @id @default(autoincrement())
-  invoiceNumber String        @unique @map("invoice_number") @db.VarChar(100)
-  type          InvoiceType   @default(INVOICE)
-  clientName    String        @map("client_name") @db.VarChar(200)
-  clientCompany String?       @map("client_company") @db.VarChar(200) // Instansi/PT
-  clientAddress String?       @map("client_address") @db.Text // Alamat Lengkap
-  clientPhone   String?       @map("client_phone") @db.VarChar(50) // No. HP/Telp
-  clientEmail   String?       @map("client_email") @db.VarChar(150) // Email Perusahaan
-  date          DateTime      @default(now())
-  dueDate       DateTime?     @map("due_date")
-  validUntil    DateTime?     @map("valid_until") // Quotation: masa berlaku penawaran
-  status        InvoiceStatus @default(DRAFT)
-  subtotal      Decimal       @default(0) @db.Decimal(15, 2)
-  taxRate       Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 2) // % PPN
-  taxAmount     Decimal       @default(0) @map("tax_amount") @db.Decimal(15, 2) // Rp PPN
-  discount      Decimal       @default(0) @db.Decimal(15, 2) // Diskon (Rp)
-  total         Decimal       @default(0) @db.Decimal(15, 2) // Grand Total (Subtotal + PPN - Diskon)
-  notes         String?       @db.Text // Syarat & Ketentuan, Garansi, dll
+  id             Int           @id @default(autoincrement())
+  invoiceNumber  String        @unique @map("invoice_number") @db.VarChar(100)
+  type           InvoiceType   @default(INVOICE)
+  clientName     String        @map("client_name") @db.VarChar(200)
+  clientCompany  String?       @map("client_company") @db.VarChar(200) // Instansi/PT
+  clientAddress  String?       @map("client_address") @db.Text // Alamat Lengkap
+  clientPhone    String?       @map("client_phone") @db.VarChar(50) // No. HP/Telp
+  clientEmail    String?       @map("client_email") @db.VarChar(150) // Email Perusahaan
+  date           DateTime      @default(now())
+  dueDate        DateTime?     @map("due_date")
+  validUntil     DateTime?     @map("valid_until") // Quotation: masa berlaku penawaran
+  status         InvoiceStatus @default(DRAFT)
+  subtotal       Decimal       @default(0) @db.Decimal(15, 2)
+  taxRate        Decimal       @default(0) @map("tax_rate") @db.Decimal(5, 2) // % PPN
+  taxAmount      Decimal       @default(0) @map("tax_amount") @db.Decimal(15, 2) // Rp PPN
+  discount       Decimal       @default(0) @db.Decimal(15, 2) // Diskon (Rp)
+  total          Decimal       @default(0) @db.Decimal(15, 2) // Grand Total (Subtotal + PPN - Diskon)
+  notes          String?       @db.Text // Syarat & Ketentuan, Garansi, dll
   // Surat Penawaran (QUOTATION): kota pengirim & data penanda tangan surat
-  letterCity     String?      @map("letter_city") @db.VarChar(120) // Kota pengirim, mis. "Bantul"
-  signatoryName  String?      @map("signatory_name") @db.VarChar(120) // Nama penanda tangan
-  signatoryPhone String?      @map("signatory_phone") @db.VarChar(50) // No. HP penanda tangan
-  branchId      Int?          @map("branch_id") // Cabang pemilik invoice (multi-cabang). Null = warisan (di-backfill ke Pusat)
-  createdAt     DateTime?     @default(now()) @map("created_at")
-  updatedAt     DateTime?     @default(now()) @updatedAt @map("updated_at")
+  letterCity     String?       @map("letter_city") @db.VarChar(120) // Kota pengirim, mis. "Bantul"
+  signatoryName  String?       @map("signatory_name") @db.VarChar(120) // Nama penanda tangan
+  signatoryPhone String?       @map("signatory_phone") @db.VarChar(50) // No. HP penanda tangan
+  branchId       Int?          @map("branch_id") // Cabang pemilik invoice (multi-cabang). Null = warisan (di-backfill ke Pusat)
+  createdAt      DateTime?     @default(now()) @map("created_at")
+  updatedAt      DateTime?     @default(now()) @updatedAt @map("updated_at")
 
   items  InvoiceItem[]
   branch CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -1626,6 +1631,8 @@ model CompanyBranch {
   csRatings              CsRatingResponse[]
   printerDevices         PrinterDevice[]
   waChannels             WaChannel[]
+  taskSchedules          TaskSchedule[]
+  taskItems              TaskItem[]
 
   @@map("company_branches")
 }
@@ -2415,4 +2422,67 @@ model WaReminderLog {
 
   @@unique([eventType, refId])
   @@map("wa_reminder_logs")
+}
+
+// ===== PAPAN TUGAS KARYAWAN (Kanban + jadwal berulang) =====
+model TaskSchedule {
+  id           Int       @id @default(autoincrement())
+  title        String    @db.VarChar(255)
+  description  String?   @db.Text
+  frequency    String    @db.VarChar(20) // ONCE | DAILY | WEEKLY | MONTHLY
+  daysOfWeek   String?   @map("days_of_week") @db.VarChar(20) // CSV ISO "1,3,5" (1=Sen..7=Min), utk WEEKLY
+  dayOfMonth   Int?      @map("day_of_month") // 1-28, utk MONTHLY
+  skipWeekends Boolean   @default(false) @map("skip_weekends") // utk DAILY
+  timeOfDay    String?   @map("time_of_day") @db.VarChar(5) // "09:00" (jam jatuh tempo)
+  priority     String    @default("NORMAL") @db.VarChar(20) // LOW | NORMAL | HIGH | URGENT
+  startDate    DateTime? @map("start_date")
+  endDate      DateTime? @map("end_date")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  assigneeId  Int?     @map("assignee_id") // user spesifik (null = pakai targetRole / seluruh cabang)
+  targetRole  String?  @map("target_role") @db.VarChar(20) // mis. "OPERATOR" → semua operator cabang
+  branchId    Int?     @map("branch_id") // null = global (semua cabang)
+  createdById Int?     @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  assignee  User?          @relation("TaskScheduleAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  branch    CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  createdBy User?          @relation("TaskScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items     TaskItem[]
+
+  @@index([branchId])
+  @@index([isActive])
+  @@map("task_schedules")
+}
+
+model TaskItem {
+  id                Int       @id @default(autoincrement())
+  scheduleId        Int?      @map("schedule_id") // null = tugas ad-hoc (sekali)
+  title             String    @db.VarChar(255) // snapshot dari schedule
+  description       String?   @db.Text
+  priority          String    @default("NORMAL") @db.VarChar(20)
+  status            String    @default("TODO") @db.VarChar(20) // TODO | IN_PROGRESS | DONE
+  index             Int       @default(0) // urutan dalam kolom (pola kan: integer index)
+  periodKey         String?   @map("period_key") @db.VarChar(20) // "YYYY-MM-DD" occurrence (idempoten)
+  dueDate           DateTime? @map("due_date")
+  note              String?   @db.Text // catatan karyawan
+  assigneeId        Int?      @map("assignee_id")
+  branchId          Int?      @map("branch_id")
+  completedAt       DateTime? @map("completed_at")
+  completedById     Int?      @map("completed_by")
+  verifiedByOwnerAt DateTime? @map("verified_by_owner_at")
+  createdById       Int?      @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  schedule    TaskSchedule?  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  assignee    User?          @relation("TaskItemAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  branch      CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  completedBy User?          @relation("TaskItemCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
+
+  @@unique([scheduleId, assigneeId, periodKey])
+  @@index([branchId, status])
+  @@index([assigneeId, status])
+  @@map("task_items")
 }

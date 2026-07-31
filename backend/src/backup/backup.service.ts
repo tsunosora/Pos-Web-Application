@@ -94,6 +94,12 @@ export const BACKUP_GROUPS = {
         // bonusTarget/bonusAdjustment: target & penyesuaian bonus karyawan.
         tables: ['fixedExpense', 'marketingSpend', 'bonusTarget', 'bonusAdjustment', 'branchMonthlyClosing', 'centralTreasuryEntry'],
     },
+    taskBoard: {
+        label: 'Papan Tugas Karyawan',
+        // taskSchedule: aturan jadwal berulang (harian/mingguan/bulanan).
+        // taskItem: kartu tugas instance di papan Kanban.
+        tables: ['taskSchedule', 'taskItem'],
+    },
     website: {
         label: 'Website — Landing Page & Artikel',
         tables: ['landingConfig', 'article'],
@@ -165,6 +171,9 @@ export const RESTORE_ORDER = [
     'bonusTarget', 'bonusAdjustment',           // bonus karyawan — branchId scalar, tanpa FK keras
     'branchMonthlyClosing',                     // tutup buku bulanan per cabang — branchId scalar, tanpa FK keras
     'centralTreasuryEntry',                     // kas pusat (dompet owner) — branchId scalar, tanpa FK keras
+
+    'taskSchedule',                             // jadwal tugas berulang — FK → user, companyBranch
+    'taskItem',                                 // kartu tugas — FK → taskSchedule, user, companyBranch
 
     // CRM — diletakkan paling akhir karena bisa reference banyak entity:
     //   lead.assignedToId → user
