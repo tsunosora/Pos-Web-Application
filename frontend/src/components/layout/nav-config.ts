@@ -3,7 +3,7 @@ import {
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
-    MessageCircle, Settings, Megaphone, Bot, BellRing,
+    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -114,6 +114,8 @@ export const SECTIONS: NavSection[] = [
         key: 'team', label: 'Tim & Kinerja', icon: Trophy,
         items: [
             { name: "Leaderboard", href: "/leaderboard", icon: Award },
+            { name: "Papan Tugas", href: "/tugas", icon: ClipboardList },
+            { name: "Jadwal Tugas", href: "/tugas/jadwal", icon: CalendarClock, managerOnly: true },
         ],
     },
 ];
