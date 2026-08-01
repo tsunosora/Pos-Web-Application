@@ -290,6 +290,15 @@ export default function GeneralSettings() {
                         />
                         <p className="text-xs text-muted-foreground">Bagikan link: <strong>[domain]/marketing</strong> + PIN ini ke tim marketing.</p>
                     </div>
+                    <div className="pt-3 border-t border-border/60 space-y-2">
+                        <p className="text-sm text-muted-foreground">PIN yang sama juga membuka <strong>Papan Juara TV</strong> di <strong>/tv/leaderboard</strong> — leaderboard satu layar penuh untuk ditampilkan di LCD/TV, dilihat seluruh karyawan tanpa login.</p>
+                        <a
+                            href="/tv/leaderboard" target="_blank" rel="noopener"
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors"
+                        >
+                            🖥️ Buka Papan Juara TV
+                        </a>
+                    </div>
                 </div>
 
                 <button
