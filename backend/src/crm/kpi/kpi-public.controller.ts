@@ -26,6 +26,18 @@ export class KpiPublicController {
         }, body.branchId ?? null);
     }
 
+    /** Data leaderboard PUBLIK untuk display TV (PIN-only, satu request agregat). */
+    @Post('leaderboard')
+    async leaderboard(@Body() body: { pin?: string; period?: string; start?: string; end?: string; branchId?: number | null }) {
+        const ok = await this.kpi.verifyMarketingPin(body?.pin || '');
+        if (!ok) throw new BadRequestException('PIN tidak valid');
+        return this.kpi.publicLeaderboard({
+            period: (body.period as KpiPeriod) || 'today',
+            start: body.start,
+            end: body.end,
+        }, body.branchId ?? null);
+    }
+
     /** Tim marketing input biaya iklan (PIN-gated). */
     @Post('spend')
     async addSpend(@Body() body: { pin?: string; date?: string; source: string; amount: number; note?: string; branchId?: number | null }) {
