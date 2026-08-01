@@ -302,3 +302,58 @@
     .animate-in { animation: none; }
   }
 }
+
+/* ── Animasi khusus Papan Juara TV (kiosk) ───────────────────────────────────
+   Tujuan: layar terlihat "hidup" & menarik perhatian dari jauh, tanpa
+   mengganggu keterbacaan. Sengaja TETAP jalan walau prefers-reduced-motion
+   karena ini display pasif (bukan UI interaktif). */
+@keyframes tv-aurora {
+  0%   { transform: translate3d(0, 0, 0) scale(1); }
+  50%  { transform: translate3d(4%, -3%, 0) scale(1.15); }
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes tv-shine {
+  0%   { transform: translateX(-120%) skewX(-20deg); opacity: 0; }
+  40%  { opacity: 0.85; }
+  100% { transform: translateX(320%) skewX(-20deg); opacity: 0; }
+}
+@keyframes tv-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 197, 24, 0); }
+  50%      { box-shadow: 0 0 28px 4px rgba(245, 197, 24, 0.45); }
+}
+@keyframes tv-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-4px); }
+}
+@keyframes tv-bounce {
+  0%, 100% { transform: translateY(0) rotate(-6deg); }
+  50%      { transform: translateY(-3px) rotate(6deg); }
+}
+@keyframes tv-clock-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+@keyframes tv-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@layer utilities {
+  .tv-aurora   { animation: tv-aurora 14s ease-in-out infinite; }
+  .tv-glow     { animation: tv-glow 2.6s ease-in-out infinite; }
+  .tv-float    { animation: tv-float 3.2s ease-in-out infinite; }
+  .tv-bounce   { animation: tv-bounce 1.6s ease-in-out infinite; display: inline-block; }
+  .tv-clock-colon { animation: tv-clock-pulse 1s steps(1, end) infinite; }
+  /* Sapuan cahaya untuk kartu juara — elemen overlay absolute di dalamnya. */
+  .tv-shine::after {
+    content: "";
+    position: absolute;
+    top: 0; bottom: 0; left: 0;
+    width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    animation: tv-shine 3.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .dark .tv-shine::after { background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.22), transparent); }
+  .tv-marquee-track { animation: tv-marquee 32s linear infinite; }
+}

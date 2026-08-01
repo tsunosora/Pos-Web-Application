@@ -13,6 +13,7 @@ export default function DivisionPanel(props: {
   sortKey: string;             // kolom untuk menentukan juara & urutan
   topN?: number;               // default 5
   nameKey?: string;            // default 'name'
+  refreshKey?: number | string; // ganti nilai → baris re-animasi (denyut tiap refresh)
 }) {
   const nameKey = props.nameKey ?? 'name';
   const topN = props.topN ?? 5;
@@ -34,12 +35,12 @@ export default function DivisionPanel(props: {
         <div className="flex-1 min-h-0 flex flex-col">
           {/* Kartu Juara */}
           {champ && champCol && (
-            <div className="flex items-center justify-between px-4 py-2 bg-amber-400/15">
+            <div className="tv-shine tv-glow relative flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-amber-400/25 to-amber-300/10 overflow-hidden rounded-lg mx-2 mt-2">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-2xl">🥇</span>
+                <span className="tv-bounce text-2xl">🥇</span>
                 <span className="text-lg font-extrabold truncate">{champ[nameKey]}</span>
               </div>
-              <span className="text-xl font-black text-amber-600 dark:text-amber-300 tabular-nums">
+              <span className="tv-float text-2xl font-black text-amber-600 dark:text-amber-300 tabular-nums">
                 {champCol.fmt ? champCol.fmt(champ[champCol.key], champ) : champ[champCol.key]}
               </span>
             </div>
@@ -56,9 +57,11 @@ export default function DivisionPanel(props: {
                   ))}
                 </tr>
               </thead>
-              <tbody>
+              <tbody key={props.refreshKey}>
                 {top.map((r, i) => (
-                  <tr key={(r[nameKey] ?? i) + ''} className="border-t border-border/40">
+                  <tr key={(r[nameKey] ?? i) + ''}
+                    className="border-t border-border/40 animate-in fade-in slide-in-from-bottom-2"
+                    style={{ animationDelay: `${i * 90}ms`, animationDuration: '500ms' }}>
                     <td className="px-3 py-1 tabular-nums">{MEDAL[i] ?? i + 1}</td>
                     <td className="px-1 py-1 font-semibold truncate max-w-[10rem]">{r[nameKey]}</td>
                     {props.columns.map(c => (

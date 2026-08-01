@@ -4,6 +4,8 @@ import { Maximize2, Moon, Sun, RefreshCw } from 'lucide-react';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import type { TvPeriod } from '@/lib/api/leaderboard-tv';
 
+const pad = (n: number) => String(n).padStart(2, '0');
+
 const PERIODS: { key: TvPeriod; label: string }[] = [
   { key: 'today', label: 'Hari Ini' },
   { key: 'week', label: '7 Hari' },
@@ -65,14 +67,24 @@ export default function TvHeader(props: {
         <button onClick={goFullscreen} className="p-2 rounded-lg border border-border" title="Layar penuh">
           <Maximize2 className="w-4 h-4" />
         </button>
-        <div className="text-right tabular-nums ml-3 min-w-[150px]">
-          <div className="text-4xl font-black leading-none">{now ? now.toLocaleTimeString('id-ID') : '--:--:--'}</div>
-          <div className="flex items-center gap-2 justify-end mt-1">
-            <span className="text-sm font-semibold text-muted-foreground">
-              {now ? now.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
+        <div className="text-right tabular-nums ml-3 min-w-[210px]">
+          <div className="text-6xl font-black leading-none tracking-tight text-primary drop-shadow-sm">
+            {now ? (
+              <>
+                <span>{pad(now.getHours())}</span>
+                <span className="tv-clock-colon">:</span>
+                <span>{pad(now.getMinutes())}</span>
+                <span className="tv-clock-colon text-primary/70">:</span>
+                <span className="text-primary/70">{pad(now.getSeconds())}</span>
+              </>
+            ) : '--:--:--'}
+          </div>
+          <div className="flex items-center gap-2 justify-end mt-1.5">
+            <span className="text-base font-semibold text-muted-foreground">
+              {now ? now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }) : '—'}
             </span>
             <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className="w-3 h-3 tv-float" />
               {props.lastUpdated ? props.lastUpdated.toLocaleTimeString('id-ID') : '—'}
             </span>
           </div>
