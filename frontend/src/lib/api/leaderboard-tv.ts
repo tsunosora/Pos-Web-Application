@@ -18,6 +18,19 @@ export interface TvLeaderboard {
   operator: { leaderboard: any[]; customMetricDefs?: any[] };
   team: { leaderboard: any[]; totals: Record<string, number> };
   designOutput: { leaderboard: any[] };
+  dailyTarget: {
+    today: string;
+    daysInMonth: number;
+    branches: {
+      branchId: number;
+      branchName: string;
+      dailyTarget: number;
+      todayOmzet: number;
+      pct: number;
+      met: boolean;
+      shortfall: number;
+    }[];
+  } | null;
 }
 
 export const verifyTvPin = async (pin: string): Promise<{ valid: boolean }> =>

@@ -6,6 +6,7 @@ import { getTvLeaderboard, type TvPeriod } from '@/lib/api/leaderboard-tv';
 import { getPublicBranches } from '@/lib/api/production';
 import TvHeader from './TvHeader';
 import DivisionPanel, { type TvColumn } from './DivisionPanel';
+import DailyTargetBar from './DailyTargetBar';
 
 const fmtRp = (n: number) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
 const REFRESH_MS = 30_000;
@@ -81,6 +82,7 @@ export default function TvLeaderboardView({ pin, onLogout }: { pin: string; onLo
           branches={branches} branchId={branchId} onBranch={setBranchId}
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
         />
+        <DailyTargetBar data={data?.dailyTarget ?? null} branchId={branchId} />
         <main className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3">
           {panels.map((p, i) => (
             <div key={p.title} className="min-h-0 flex animate-in fade-in zoom-in-95 slide-in-from-bottom-4"

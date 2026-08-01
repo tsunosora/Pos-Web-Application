@@ -4,6 +4,7 @@ import { branchWhere } from '../../common/branch-where.helper';
 import { matchBranchId } from '../../common/branch-name.util';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { DiscordService } from '../../discord/discord.service';
+import { ReportsService } from '../../reports/reports.service';
 import {
     aggregateByTx,
     buildMatchWhere,
@@ -100,6 +101,7 @@ export class KpiService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly discord: DiscordService,
+        private readonly reports: ReportsService,
     ) {}
 
     private periodLabel(p: KpiParams): string {
@@ -968,12 +970,13 @@ export class KpiService {
     async publicLeaderboard(params: KpiParams, branchId?: number | null) {
         const bid = branchId != null ? Number(branchId) : null;
         const ctx: any = { branchId: bid, isOwner: true };
-        const [cs, designer, operator, team, designOutput] = await Promise.all([
+        const [cs, designer, operator, team, designOutput, dailyTarget] = await Promise.all([
             this.report(ctx, params),
             this.designerLeaderboard(ctx, params),
             this.operatorLeaderboard(ctx, params),
             this.teamLeaderboard(ctx, params),
             this.designOutput(ctx, params),
+            this.reports.getDailyTargetStatus(ctx).catch(() => null),
         ]);
         return {
             period: cs.period,
@@ -983,6 +986,7 @@ export class KpiService {
             operator,               // { leaderboard, customMetricDefs? }
             team,                   // { leaderboard, totals }
             designOutput,           // { leaderboard }
+            dailyTarget,            // { today, daysInMonth, branches:[{branchName,dailyTarget,todayOmzet,pct,met,...}] } | null
         };
     }
 
