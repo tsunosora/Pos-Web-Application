@@ -65,11 +65,16 @@ export default function TvHeader(props: {
         <button onClick={goFullscreen} className="p-2 rounded-lg border border-border" title="Layar penuh">
           <Maximize2 className="w-4 h-4" />
         </button>
-        <div className="text-right tabular-nums ml-2 min-w-[92px]">
-          <div className="text-lg font-bold leading-none">{now ? now.toLocaleTimeString('id-ID') : '--:--:--'}</div>
-          <div className="text-[11px] text-muted-foreground flex items-center gap-1 justify-end">
-            <RefreshCw className="w-3 h-3" />
-            {props.lastUpdated ? props.lastUpdated.toLocaleTimeString('id-ID') : '—'}
+        <div className="text-right tabular-nums ml-3 min-w-[150px]">
+          <div className="text-4xl font-black leading-none">{now ? now.toLocaleTimeString('id-ID') : '--:--:--'}</div>
+          <div className="flex items-center gap-2 justify-end mt-1">
+            <span className="text-sm font-semibold text-muted-foreground">
+              {now ? now.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short' }) : '—'}
+            </span>
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <RefreshCw className="w-3 h-3" />
+              {props.lastUpdated ? props.lastUpdated.toLocaleTimeString('id-ID') : '—'}
+            </span>
           </div>
         </div>
       </div>
