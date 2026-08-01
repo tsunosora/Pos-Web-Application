@@ -24,9 +24,9 @@ export default function DivisionPanel(props: {
 
   return (
     <section className="flex-1 w-full h-full flex flex-col rounded-2xl border border-border bg-card/70 overflow-hidden min-h-0">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60 bg-primary/5">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/60 bg-primary/5">
         {props.icon}
-        <h2 className="text-base font-bold uppercase tracking-wide">{props.title}</h2>
+        <h2 className="text-sm font-bold uppercase tracking-wide">{props.title}</h2>
       </div>
 
       {!top.length ? (
@@ -35,12 +35,12 @@ export default function DivisionPanel(props: {
         <div className="flex-1 min-h-0 flex flex-col">
           {/* Kartu Juara */}
           {champ && champCol && (
-            <div className="tv-shine tv-glow relative flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-amber-400/25 to-amber-300/10 overflow-hidden rounded-lg mx-2 mt-2">
+            <div className="tv-shine tv-glow relative flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-amber-400/25 to-amber-300/10 overflow-hidden rounded-lg mx-1.5 mt-1.5">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="tv-bounce text-2xl">🥇</span>
-                <span className="text-lg font-extrabold truncate">{champ[nameKey]}</span>
+                <span className="tv-bounce text-xl">🥇</span>
+                <span className="text-base font-extrabold truncate">{champ[nameKey]}</span>
               </div>
-              <span className="tv-float text-2xl font-black text-amber-600 dark:text-amber-300 tabular-nums">
+              <span className="tv-float text-xl font-black text-amber-600 dark:text-amber-300 tabular-nums">
                 {champCol.fmt ? champCol.fmt(champ[champCol.key], champ) : champ[champCol.key]}
               </span>
             </div>

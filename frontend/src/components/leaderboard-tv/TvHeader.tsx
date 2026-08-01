@@ -35,9 +35,9 @@ export default function TvHeader(props: {
   };
 
   return (
-    <header className="flex items-center justify-between gap-4 px-6 py-3 border-b border-border bg-card/60 backdrop-blur">
+    <header className="flex items-center justify-between gap-4 px-5 py-1.5 border-b border-border bg-card/60 backdrop-blur">
       <div className="flex items-center gap-3">
-        <span className="text-2xl font-black tracking-tight text-primary">🏆 Papan Juara</span>
+        <span className="text-xl font-black tracking-tight text-primary">🏆 Papan Juara</span>
         <span className="text-sm text-muted-foreground hidden xl:inline">
           {props.branchId == null ? 'Semua Cabang' : props.branches.find(b => b.id === props.branchId)?.name}
         </span>
@@ -67,8 +67,8 @@ export default function TvHeader(props: {
         <button onClick={goFullscreen} className="p-2 rounded-lg border border-border" title="Layar penuh">
           <Maximize2 className="w-4 h-4" />
         </button>
-        <div className="text-right tabular-nums ml-3 min-w-[210px]">
-          <div className="text-6xl font-black leading-none tracking-tight text-primary drop-shadow-sm">
+        <div className="text-right tabular-nums ml-3 min-w-[170px]">
+          <div className="text-4xl font-black leading-none tracking-tight text-primary drop-shadow-sm">
             {now ? (
               <>
                 <span>{pad(now.getHours())}</span>
@@ -79,8 +79,8 @@ export default function TvHeader(props: {
               </>
             ) : '--:--:--'}
           </div>
-          <div className="flex items-center gap-2 justify-end mt-1.5">
-            <span className="text-base font-semibold text-muted-foreground">
+          <div className="flex items-center gap-2 justify-end mt-0.5">
+            <span className="text-xs font-semibold text-muted-foreground">
               {now ? now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }) : '—'}
             </span>
             <span className="text-[11px] text-muted-foreground flex items-center gap-1">

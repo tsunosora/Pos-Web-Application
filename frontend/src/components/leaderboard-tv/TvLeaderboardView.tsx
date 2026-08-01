@@ -83,7 +83,7 @@ export default function TvLeaderboardView({ pin, onLogout }: { pin: string; onLo
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
         />
         <DailyTargetBar data={data?.dailyTarget ?? null} branchId={branchId} />
-        <main className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-3 p-3">
+        <main className="flex-1 min-h-0 grid grid-cols-2 grid-rows-2 gap-2 p-2">
           {panels.map((p, i) => (
             <div key={p.title} className="min-h-0 flex animate-in fade-in zoom-in-95 slide-in-from-bottom-4"
               style={{ animationDelay: `${i * 120}ms`, animationDuration: '600ms' }}>
@@ -97,10 +97,10 @@ export default function TvLeaderboardView({ pin, onLogout }: { pin: string; onLo
 
         {/* Ticker berjalan — highlight juara tiap divisi, gerakan konstan */}
         {highlights.length > 0 && (
-          <div className="relative z-10 overflow-hidden border-t border-border bg-card/70 backdrop-blur py-2">
+          <div className="relative z-10 overflow-hidden border-t border-border bg-card/70 backdrop-blur py-1.5">
             <div className="tv-marquee-track flex w-max gap-10 whitespace-nowrap px-4">
               {[...highlights, ...highlights].map((h, i) => (
-                <span key={i} className="inline-flex items-center gap-2 text-sm font-semibold">
+                <span key={i} className="inline-flex items-center gap-2 text-xs font-semibold">
                   <span className="text-amber-500">🥇</span>
                   <span className="text-muted-foreground uppercase text-xs tracking-wider">{h.label}</span>
                   <span className="font-extrabold">{h.name}</span>
