@@ -23,6 +23,22 @@ export class TaskBoardService {
     return this.prisma as any;
   }
 
+  /** Cabang efektif kartu: kalau ada penerima spesifik, ikut cabang penerima
+   *  (biar tugas muncul di papan orang itu). Kalau tidak, pakai fallback. */
+  private async branchForAssignee(
+    assigneeId: number | null | undefined,
+    fallback: number | null,
+  ): Promise<number | null> {
+    if (assigneeId) {
+      const u = await this.db.user.findUnique({
+        where: { id: assigneeId },
+        select: { branchId: true },
+      });
+      if (u?.branchId != null) return u.branchId;
+    }
+    return fallback;
+  }
+
   private assertManager(ctx: BranchContext) {
     const r = String(ctx.roleName ?? '').toUpperCase();
     const ok =
@@ -56,9 +72,10 @@ export class TaskBoardService {
     userId: number,
   ) {
     this.assertManager(ctx);
-    const branchId = ctx.isOwner
+    const fallback = ctx.isOwner
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
+    const branchId = await this.branchForAssignee(dto.assigneeId, fallback);
     const sched = await this.db.taskSchedule.create({
       data: {
         title: dto.title,
@@ -135,6 +152,9 @@ export class TaskBoardService {
     const assignees = await this.resolveAssignees(sched);
     let created = 0;
     for (const assigneeId of assignees) {
+      // Kartu ikut cabang penerima (untuk targetRole lintas-cabang tiap user
+      // dapat kartu di cabangnya sendiri). Fallback = cabang schedule.
+      const branchId = await this.branchForAssignee(assigneeId, sched.branchId);
       try {
         await this.db.taskItem.create({
           data: {
@@ -146,7 +166,7 @@ export class TaskBoardService {
             periodKey,
             dueDate: this.dueDateFor(date, sched.timeOfDay),
             assigneeId,
-            branchId: sched.branchId,
+            branchId,
             createdById: sched.createdById,
           },
         });
@@ -198,10 +218,15 @@ export class TaskBoardService {
     opts: { assigneeId?: number; mine?: boolean; userId?: number },
   ) {
     const where: any = {};
-    if (!ctx.isOwner) where.branchId = ctx.branchId;
-    else if (ctx.branchId != null) where.branchId = ctx.branchId;
-    if (opts.mine && opts.userId) where.assigneeId = opts.userId;
-    else if (opts.assigneeId) where.assigneeId = opts.assigneeId;
+    if (opts.mine && opts.userId) {
+      // "Tugas Saya": tugas milikku muncul apa pun cabangnya (assign lintas-cabang
+      // tetap kelihatan oleh penerimanya).
+      where.assigneeId = opts.userId;
+    } else {
+      if (!ctx.isOwner) where.branchId = ctx.branchId;
+      else if (ctx.branchId != null) where.branchId = ctx.branchId;
+      if (opts.assigneeId) where.assigneeId = opts.assigneeId;
+    }
     return this.db.taskItem.findMany({
       where,
       orderBy: [{ status: 'asc' }, { index: 'asc' }, { dueDate: 'asc' }],
@@ -211,9 +236,10 @@ export class TaskBoardService {
 
   async createItem(ctx: BranchContext, dto: CreateTaskItemDto, userId: number) {
     this.assertManager(ctx);
-    const branchId = ctx.isOwner
+    const fallback = ctx.isOwner
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
+    const branchId = await this.branchForAssignee(dto.assigneeId, fallback);
     return this.db.taskItem.create({
       data: {
         scheduleId: null,

@@ -14,6 +14,7 @@ function makeMockPrisma(schedules: any[]) {
     },
     user: {
       findMany: jest.fn(async () => [{ id: 10 }, { id: 11 }]),
+      findUnique: jest.fn(async ({ where }: any) => ({ id: where.id, branchId: 1 })),
     },
     taskItem: {
       create: jest.fn(async ({ data }: any) => {
