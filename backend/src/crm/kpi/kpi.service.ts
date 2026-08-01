@@ -960,6 +960,32 @@ export class KpiService {
         return { report, leads, adSpend };
     }
 
+    /**
+     * Data leaderboard PUBLIK untuk display TV (PIN-only). Menggabungkan seluruh
+     * leaderboard (CS/team/designer/operator/design-output) dalam SATU response
+     * agar halaman TV cukup 1 request. branchId null = semua cabang.
+     */
+    async publicLeaderboard(params: KpiParams, branchId?: number | null) {
+        const bid = branchId != null ? Number(branchId) : null;
+        const ctx: any = { branchId: bid, isOwner: true };
+        const [cs, designer, operator, team, designOutput] = await Promise.all([
+            this.report(ctx, params),
+            this.designerLeaderboard(ctx, params),
+            this.operatorLeaderboard(ctx, params),
+            this.teamLeaderboard(ctx, params),
+            this.designOutput(ctx, params),
+        ]);
+        return {
+            period: cs.period,
+            branchId: bid,
+            cs,                     // { totals, metrics, leaderboard, designCheckLeaderboard, customMetricDefs? }
+            designer,               // { leaderboard, totals, customMetricDefs? }
+            operator,               // { leaderboard, customMetricDefs? }
+            team,                   // { leaderboard, totals }
+            designOutput,           // { leaderboard }
+        };
+    }
+
     async addMarketingSpend(data: { date?: string; source: string; amount: number; note?: string; branchId?: number | null }) {
         if (!data.source) throw new BadRequestException('Sumber wajib diisi');
         const amount = Number(data.amount);
