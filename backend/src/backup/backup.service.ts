@@ -96,9 +96,10 @@ export const BACKUP_GROUPS = {
     },
     taskBoard: {
         label: 'Papan Tugas Karyawan',
+        // taskGroup/taskGroupMember: grup tim kustom (beberapa karyawan terpilih).
         // taskSchedule: aturan jadwal berulang (harian/mingguan/bulanan).
         // taskItem: kartu tugas instance di papan Kanban.
-        tables: ['taskSchedule', 'taskItem'],
+        tables: ['taskGroup', 'taskGroupMember', 'taskSchedule', 'taskItem'],
     },
     website: {
         label: 'Website — Landing Page & Artikel',
@@ -172,7 +173,9 @@ export const RESTORE_ORDER = [
     'branchMonthlyClosing',                     // tutup buku bulanan per cabang — branchId scalar, tanpa FK keras
     'centralTreasuryEntry',                     // kas pusat (dompet owner) — branchId scalar, tanpa FK keras
 
-    'taskSchedule',                             // jadwal tugas berulang — FK → user, companyBranch
+    'taskGroup',                                // grup tim kustom — FK → companyBranch
+    'taskGroupMember',                          // anggota grup — FK → taskGroup, user
+    'taskSchedule',                             // jadwal tugas berulang — FK → user, companyBranch, taskGroup
     'taskItem',                                 // kartu tugas — FK → taskSchedule, user, companyBranch
 
     // CRM — diletakkan paling akhir karena bisa reference banyak entity:

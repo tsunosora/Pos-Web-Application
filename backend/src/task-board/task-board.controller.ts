@@ -21,6 +21,8 @@ import {
   CreateTaskItemDto,
   UpdateTaskItemDto,
   MoveTaskItemDto,
+  CreateGroupDto,
+  UpdateGroupDto,
 } from './task-board.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -120,5 +122,37 @@ export class TaskBoardController {
   @Get('summary')
   summary(@CurrentBranch() ctx: BranchContext) {
     return this.svc.summary(ctx);
+  }
+
+  // Grup tim kustom
+  @Get('groups')
+  listGroups(@CurrentBranch() ctx: BranchContext) {
+    return this.svc.listGroups(ctx);
+  }
+
+  @Post('groups')
+  createGroup(
+    @CurrentBranch() ctx: BranchContext,
+    @Body() dto: CreateGroupDto,
+    @Req() req: any,
+  ) {
+    return this.svc.createGroup(ctx, dto, req.user.userId);
+  }
+
+  @Patch('groups/:id')
+  updateGroup(
+    @CurrentBranch() ctx: BranchContext,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateGroupDto,
+  ) {
+    return this.svc.updateGroup(ctx, id, dto);
+  }
+
+  @Delete('groups/:id')
+  deleteGroup(
+    @CurrentBranch() ctx: BranchContext,
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.svc.deleteGroup(ctx, id);
   }
 }

@@ -39,19 +39,58 @@ export class TaskBoardService {
     return fallback;
   }
 
-  private assertManager(ctx: BranchContext) {
+  /** Boleh memberi/mengelola tugas? Hanya Owner + Manajer (Admin TIDAK boleh). */
+  canAssign(ctx: BranchContext): boolean {
     const r = String(ctx.roleName ?? '').toUpperCase();
-    const ok =
+    return (
       ctx.isOwner ||
-      r === 'ADMIN' ||
       r.includes('MANAJER') ||
       r.includes('MANAGER') ||
       r.includes('SUPERVISOR') ||
-      r.includes('KEPALA');
-    if (!ok)
+      r.includes('KEPALA')
+    );
+  }
+
+  private assertManager(ctx: BranchContext) {
+    if (!this.canAssign(ctx))
       throw new ForbiddenException(
-        'Hanya owner/admin yang boleh mengelola jadwal tugas.',
+        'Hanya owner/manajer yang boleh memberi & mengelola tugas.',
       );
+  }
+
+  /** Resolusi daftar penerima dari sebuah target (assignee/grup/role/semua).
+   *  Mengembalikan array userId (personal). [null] = kartu cabang tanpa penerima. */
+  private async resolveTargetUserIds(
+    t: { assigneeId?: number | null; groupId?: number | null; targetRole?: string | null; targetAll?: boolean | null },
+    branchId: number | null,
+  ): Promise<(number | null)[]> {
+    if (t.assigneeId) return [t.assigneeId];
+    if (t.groupId) {
+      const members = await this.db.taskGroupMember.findMany({
+        where: { groupId: t.groupId, user: { isActive: true } },
+        select: { userId: true },
+      });
+      return members.map((m: any) => m.userId);
+    }
+    if (t.targetRole) {
+      const users = await this.db.user.findMany({
+        where: {
+          isActive: true,
+          role: { name: { equals: t.targetRole } },
+          ...(branchId != null ? { branchId } : {}),
+        },
+        select: { id: true },
+      });
+      return users.map((u: any) => u.id);
+    }
+    if (t.targetAll) {
+      const users = await this.db.user.findMany({
+        where: { isActive: true, ...(branchId != null ? { branchId } : {}) },
+        select: { id: true },
+      });
+      return users.map((u: any) => u.id);
+    }
+    return [null];
   }
 
   // ---- SCHEDULE (aturan berulang) ----
@@ -62,7 +101,10 @@ export class TaskBoardService {
     return this.db.taskSchedule.findMany({
       where,
       orderBy: [{ isActive: 'desc' }, { createdAt: 'desc' }],
-      include: { assignee: { select: { id: true, name: true } } },
+      include: {
+        assignee: { select: { id: true, name: true } },
+        group: { select: { id: true, name: true } },
+      },
     });
   }
 
@@ -89,7 +131,9 @@ export class TaskBoardService {
         startDate: dto.startDate ? new Date(dto.startDate) : null,
         endDate: dto.endDate ? new Date(dto.endDate) : null,
         assigneeId: dto.assigneeId ?? null,
+        groupId: dto.groupId ?? null,
         targetRole: dto.targetRole ?? null,
+        targetAll: dto.targetAll ?? false,
         branchId,
         createdById: userId,
         isActive: true,
@@ -130,26 +174,9 @@ export class TaskBoardService {
   }
 
   // ---- MATERIALISASI (dipakai cron & tombol "generate sekarang") ----
-  /** Resolusi daftar assignee utk sebuah schedule (spesifik / per-role / null). */
-  private async resolveAssignees(sched: any): Promise<(number | null)[]> {
-    if (sched.assigneeId) return [sched.assigneeId];
-    if (sched.targetRole) {
-      const users = await this.db.user.findMany({
-        where: {
-          isActive: true,
-          role: { name: { equals: sched.targetRole } },
-          ...(sched.branchId != null ? { branchId: sched.branchId } : {}),
-        },
-        select: { id: true },
-      });
-      return users.length ? users.map((u: any) => u.id) : [];
-    }
-    return [null]; // satu kartu tak-ter-assign utk cabang
-  }
-
   private async materializeSchedule(sched: any, date: Date): Promise<number> {
     const periodKey = periodKeyFor(date);
-    const assignees = await this.resolveAssignees(sched);
+    const assignees = await this.resolveTargetUserIds(sched, sched.branchId);
     let created = 0;
     for (const assigneeId of assignees) {
       // Kartu ikut cabang penerima (untuk targetRole lintas-cabang tiap user
@@ -218,11 +245,14 @@ export class TaskBoardService {
     opts: { assigneeId?: number; mine?: boolean; userId?: number },
   ) {
     const where: any = {};
-    if (opts.mine && opts.userId) {
-      // "Tugas Saya": tugas milikku muncul apa pun cabangnya (assign lintas-cabang
-      // tetap kelihatan oleh penerimanya).
+    const canAssign = this.canAssign(ctx);
+    if (!canAssign || (opts.mine && opts.userId)) {
+      // Non-manajer (atau mode "Tugas Saya"): HANYA tugas miliknya — privat,
+      // tugas personal karyawan lain tidak terlihat. Apa pun cabangnya.
+      if (!opts.userId) return Promise.resolve([]);
       where.assigneeId = opts.userId;
     } else {
+      // Owner/Manajer lihat semua di cabang aktif.
       if (!ctx.isOwner) where.branchId = ctx.branchId;
       else if (ctx.branchId != null) where.branchId = ctx.branchId;
       if (opts.assigneeId) where.assigneeId = opts.assigneeId;
@@ -239,29 +269,47 @@ export class TaskBoardService {
     const fallback = ctx.isOwner
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
-    const branchId = await this.branchForAssignee(dto.assigneeId, fallback);
-    return this.db.taskItem.create({
-      data: {
-        scheduleId: null,
-        title: dto.title,
-        description: dto.description ?? null,
-        priority: dto.priority ?? 'NORMAL',
-        status: 'TODO',
-        periodKey: null,
-        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
-        assigneeId: dto.assigneeId ?? null,
-        branchId,
-        createdById: userId,
-      },
-    });
+    // Ekspansi target → 1 kartu PERSONAL per orang (grup/divisi/semua).
+    const targets = await this.resolveTargetUserIds(dto, fallback);
+    const items: any[] = [];
+    for (const assigneeId of targets) {
+      const branchId = await this.branchForAssignee(assigneeId, fallback);
+      items.push(
+        await this.db.taskItem.create({
+          data: {
+            scheduleId: null,
+            title: dto.title,
+            description: dto.description ?? null,
+            priority: dto.priority ?? 'NORMAL',
+            status: 'TODO',
+            periodKey: null,
+            dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+            assigneeId,
+            branchId,
+            createdById: userId,
+          },
+        }),
+      );
+    }
+    return { created: items.length, items };
   }
 
-  private async getItemScoped(ctx: BranchContext, id: number) {
+  private async getItemScoped(
+    ctx: BranchContext,
+    id: number,
+    userId?: number,
+  ) {
     const it = await this.db.taskItem.findUnique({ where: { id } });
     if (!it) throw new NotFoundException('Tugas tidak ditemukan.');
-    if (!ctx.isOwner && it.branchId !== ctx.branchId)
-      throw new ForbiddenException('Bukan cabang Anda.');
-    return it;
+    if (ctx.isOwner) return it;
+    if (this.canAssign(ctx)) {
+      if (it.branchId !== ctx.branchId)
+        throw new ForbiddenException('Bukan cabang Anda.');
+      return it;
+    }
+    // Karyawan biasa hanya boleh menyentuh tugasnya sendiri.
+    if (userId != null && it.assigneeId === userId) return it;
+    throw new ForbiddenException('Anda hanya bisa mengubah tugas Anda sendiri.');
   }
 
   async updateItem(
@@ -270,7 +318,7 @@ export class TaskBoardService {
     dto: UpdateTaskItemDto,
     userId: number,
   ) {
-    const it = await this.getItemScoped(ctx, id);
+    const it = await this.getItemScoped(ctx, id, userId);
     const data: any = { ...dto };
     delete data.verified;
     if (dto.status && dto.status !== it.status) {
@@ -296,7 +344,7 @@ export class TaskBoardService {
     dto: MoveTaskItemDto,
     userId: number,
   ) {
-    const it = await this.getItemScoped(ctx, id);
+    const it = await this.getItemScoped(ctx, id, userId);
     const data: any = { status: dto.status, index: dto.index };
     if (dto.status === 'DONE' && it.status !== 'DONE') {
       data.completedAt = new Date();
@@ -344,5 +392,75 @@ export class TaskBoardService {
         byUser[key].overdue++;
     }
     return Object.values(byUser);
+  }
+
+  // ---- GRUP TIM KUSTOM ----
+  listGroups(ctx: BranchContext) {
+    const where: any = {};
+    if (!ctx.isOwner) where.branchId = ctx.branchId;
+    else if (ctx.branchId != null) where.branchId = ctx.branchId;
+    return this.db.taskGroup.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      include: { members: { include: { user: { select: { id: true, name: true } } } } },
+    });
+  }
+
+  async createGroup(
+    ctx: BranchContext,
+    dto: { name: string; memberIds?: number[]; branchId?: number },
+    userId: number,
+  ) {
+    this.assertManager(ctx);
+    const branchId = ctx.isOwner
+      ? (dto.branchId ?? ctx.branchId ?? null)
+      : ctx.branchId;
+    return this.db.taskGroup.create({
+      data: {
+        name: dto.name,
+        branchId,
+        createdById: userId,
+        members: {
+          create: (dto.memberIds ?? []).map((uid) => ({ userId: uid })),
+        },
+      },
+      include: { members: true },
+    });
+  }
+
+  private async getGroupScoped(ctx: BranchContext, id: number) {
+    const g = await this.db.taskGroup.findUnique({ where: { id } });
+    if (!g) throw new NotFoundException('Grup tidak ditemukan.');
+    if (!ctx.isOwner && g.branchId !== ctx.branchId)
+      throw new ForbiddenException('Bukan cabang Anda.');
+    return g;
+  }
+
+  async updateGroup(
+    ctx: BranchContext,
+    id: number,
+    dto: { name?: string; memberIds?: number[] },
+  ) {
+    this.assertManager(ctx);
+    await this.getGroupScoped(ctx, id);
+    if (dto.memberIds) {
+      // Ganti total anggota.
+      await this.db.taskGroupMember.deleteMany({ where: { groupId: id } });
+      await this.db.taskGroupMember.createMany({
+        data: dto.memberIds.map((uid) => ({ groupId: id, userId: uid })),
+        skipDuplicates: true,
+      });
+    }
+    return this.db.taskGroup.update({
+      where: { id },
+      data: { ...(dto.name != null ? { name: dto.name } : {}) },
+      include: { members: { include: { user: { select: { id: true, name: true } } } } },
+    });
+  }
+
+  async deleteGroup(ctx: BranchContext, id: number) {
+    this.assertManager(ctx);
+    await this.getGroupScoped(ctx, id);
+    return this.db.taskGroup.delete({ where: { id } }); // cascade hapus member
   }
 }

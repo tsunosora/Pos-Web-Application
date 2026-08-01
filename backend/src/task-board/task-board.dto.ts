@@ -8,6 +8,7 @@ import {
   Min,
   Max,
   IsDateString,
+  IsArray,
 } from 'class-validator';
 
 const FREQ = ['ONCE', 'DAILY', 'WEEKLY', 'MONTHLY'];
@@ -26,7 +27,9 @@ export class CreateScheduleDto {
   @IsOptional() @IsDateString() startDate?: string;
   @IsOptional() @IsDateString() endDate?: string;
   @IsOptional() @IsInt() assigneeId?: number;
+  @IsOptional() @IsInt() groupId?: number;
   @IsOptional() @IsString() @MaxLength(20) targetRole?: string;
+  @IsOptional() @IsBoolean() targetAll?: boolean;
   @IsOptional() @IsInt() branchId?: number; // owner boleh set; staff diabaikan
 }
 
@@ -39,8 +42,22 @@ export class CreateTaskItemDto {
   @IsOptional() @IsString() description?: string;
   @IsOptional() @IsIn(PRIO) priority?: string;
   @IsOptional() @IsInt() assigneeId?: number;
+  @IsOptional() @IsInt() groupId?: number;
+  @IsOptional() @IsString() @MaxLength(20) targetRole?: string;
+  @IsOptional() @IsBoolean() targetAll?: boolean;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsInt() branchId?: number;
+}
+
+export class CreateGroupDto {
+  @IsString() @MaxLength(100) name!: string;
+  @IsOptional() @IsArray() @IsInt({ each: true }) memberIds?: number[];
+  @IsOptional() @IsInt() branchId?: number;
+}
+
+export class UpdateGroupDto {
+  @IsOptional() @IsString() @MaxLength(100) name?: string;
+  @IsOptional() @IsArray() @IsInt({ each: true }) memberIds?: number[];
 }
 
 export class UpdateTaskItemDto {

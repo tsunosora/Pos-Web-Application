@@ -87,6 +87,7 @@ model User {
   taskSchedulesCreated  TaskSchedule[]           @relation("TaskScheduleCreatedBy")
   taskItemsAssigned     TaskItem[]               @relation("TaskItemAssignee")
   taskItemsCompleted    TaskItem[]               @relation("TaskItemCompletedBy")
+  taskGroupMemberships  TaskGroupMember[]
 
   @@index([branchId])
   @@map("users")
@@ -1633,6 +1634,7 @@ model CompanyBranch {
   waChannels             WaChannel[]
   taskSchedules          TaskSchedule[]
   taskItems              TaskItem[]
+  taskGroups             TaskGroup[]
 
   @@map("company_branches")
 }
@@ -2439,14 +2441,17 @@ model TaskSchedule {
   endDate      DateTime? @map("end_date")
   isActive     Boolean   @default(true) @map("is_active")
 
-  assigneeId  Int?     @map("assignee_id") // user spesifik (null = pakai targetRole / seluruh cabang)
+  assigneeId  Int?     @map("assignee_id") // user spesifik (personal, privat)
+  groupId     Int?     @map("group_id") // grup tim kustom (beberapa karyawan terpilih)
   targetRole  String?  @map("target_role") @db.VarChar(20) // mis. "OPERATOR" → semua operator cabang
+  targetAll   Boolean  @default(false) @map("target_all") // broadcast ke semua karyawan (tim)
   branchId    Int?     @map("branch_id") // null = global (semua cabang)
   createdById Int?     @map("created_by")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   assignee  User?          @relation("TaskScheduleAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  group     TaskGroup?     @relation(fields: [groupId], references: [id], onDelete: SetNull)
   branch    CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
   createdBy User?          @relation("TaskScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   items     TaskItem[]
@@ -2485,4 +2490,32 @@ model TaskItem {
   @@index([branchId, status])
   @@index([assigneeId, status])
   @@map("task_items")
+}
+
+model TaskGroup {
+  id          Int      @id @default(autoincrement())
+  name        String   @db.VarChar(100)
+  branchId    Int?     @map("branch_id") // null = global (owner)
+  createdById Int?     @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  branch    CompanyBranch?    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  members   TaskGroupMember[]
+  schedules TaskSchedule[]
+
+  @@index([branchId])
+  @@map("task_groups")
+}
+
+model TaskGroupMember {
+  id      Int @id @default(autoincrement())
+  groupId Int @map("group_id")
+  userId  Int @map("user_id")
+
+  group TaskGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@map("task_group_members")
 }
