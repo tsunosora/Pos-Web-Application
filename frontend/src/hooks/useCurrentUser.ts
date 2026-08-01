@@ -32,9 +32,24 @@ export function useCurrentUser() {
         return OWNER_ROLE_NAMES.includes(n);
     }, [data]);
 
+    // Boleh memberi/mengelola tugas (Papan Tugas): Owner + Manajer SAJA.
+    // Admin biasa TIDAK termasuk (beda dengan isManager yang memasukkan admin).
+    const canAssignTasks = useMemo(() => {
+        if (!data?.role) return false;
+        const n = data.role.name.toLowerCase();
+        return (
+            OWNER_ROLE_NAMES.includes(n) ||
+            n === 'pemilik' ||
+            n.includes('manajer') ||
+            n.includes('manager') ||
+            n.includes('supervisor') ||
+            n.includes('kepala')
+        );
+    }, [data]);
+
     const branchId = data?.branchId ?? null;
     const branchName = data?.branch?.name ?? null;
     const branchCode = data?.branch?.code ?? null;
 
-    return { currentUser: data, isManager, isOwner, branchId, branchName, branchCode };
+    return { currentUser: data, isManager, isOwner, canAssignTasks, branchId, branchName, branchCode };
 }

@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getTaskItems, moveTaskItem, updateTaskItem, createTaskItem, deleteTaskItem,
-    getUsers, type TaskItem, type TaskStatus, type TaskPriority,
+    type TaskItem, type TaskStatus, type TaskPriority,
 } from "@/lib/api";
 import { TaskKanbanBoard, PRIORITY_LABEL } from "@/components/tugas/TaskKanbanBoard";
+import { TargetSelector, targetPayload, targetValid, emptyTarget, type TaskTarget } from "@/components/tugas/TargetSelector";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
@@ -22,10 +23,10 @@ const STATUS_LABEL: Record<TaskStatus, string> = {
 const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 
 export default function TugasPage() {
-    const { isManager, currentUser } = useCurrentUser();
+    const { canAssignTasks, currentUser } = useCurrentUser();
     const qc = useQueryClient();
     const [scope, setScope] = useState<"mine" | "all">("mine");
-    const mine = !isManager || scope === "mine";
+    const mine = !canAssignTasks || scope === "mine";
 
     const [detail, setDetail] = useState<TaskItem | null>(null);
     const [showCreate, setShowCreate] = useState(false);
@@ -70,7 +71,7 @@ export default function TugasPage() {
                 description="Jadwal & tugas harian, mingguan, bulanan karyawan."
                 icon={ClipboardList}
                 actions={
-                    isManager ? (
+                    canAssignTasks ? (
                         <div className="flex items-center gap-2">
                             <Button variant="outline" size="sm" asChild>
                                 <Link href="/tugas/jadwal"><CalendarClock className="h-4 w-4" /> Jadwal Rutin</Link>
@@ -83,7 +84,7 @@ export default function TugasPage() {
                 }
             />
 
-            {isManager && (
+            {canAssignTasks && (
                 <div className="mb-4 inline-flex rounded-lg border border-border bg-card p-0.5 text-sm">
                     <button
                         onClick={() => setScope("mine")}
@@ -104,7 +105,7 @@ export default function TugasPage() {
                 <div className="text-center py-20 text-muted-foreground">
                     <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-40" />
                     <p className="text-sm">Belum ada tugas.</p>
-                    {isManager && <p className="text-xs mt-1">Buat tugas baru atau atur jadwal rutin.</p>}
+                    {canAssignTasks && <p className="text-xs mt-1">Buat tugas baru atau atur jadwal rutin.</p>}
                 </div>
             ) : (
                 <TaskKanbanBoard
@@ -117,12 +118,12 @@ export default function TugasPage() {
             {detail && (
                 <TaskDetailModal
                     item={detail}
-                    isManager={isManager}
+                    canAssignTasks={canAssignTasks}
                     onClose={() => setDetail(null)}
                     onSaved={() => { invalidate(); setDetail(null); }}
                 />
             )}
-            {showCreate && isManager && (
+            {showCreate && canAssignTasks && (
                 <CreateTaskModal onClose={() => setShowCreate(false)} onSaved={() => { invalidate(); setShowCreate(false); }} />
             )}
         </div>
@@ -130,8 +131,8 @@ export default function TugasPage() {
 }
 
 // ─── Modal detail ───────────────────────────────────────────────────────────
-function TaskDetailModal({ item, isManager, onClose, onSaved }: {
-    item: TaskItem; isManager: boolean; onClose: () => void; onSaved: () => void;
+function TaskDetailModal({ item, canAssignTasks, onClose, onSaved }: {
+    item: TaskItem; canAssignTasks: boolean; onClose: () => void; onSaved: () => void;
 }) {
     const [note, setNote] = useState(item.note ?? "");
     const [status, setStatus] = useState<TaskStatus>(item.status);
@@ -185,7 +186,7 @@ function TaskDetailModal({ item, isManager, onClose, onSaved }: {
 
             <div className="flex items-center justify-between gap-2">
                 <div className="flex gap-2">
-                    {isManager && (
+                    {canAssignTasks && (
                         <>
                             <Button variant={item.verifiedByOwnerAt ? "outline" : "secondary"} size="sm"
                                 onClick={() => verifyMut.mutate(!item.verifiedByOwnerAt)} disabled={verifyMut.isPending}>
@@ -205,23 +206,21 @@ function TaskDetailModal({ item, isManager, onClose, onSaved }: {
     );
 }
 
-// ─── Modal buat tugas (manager) ───────────────────────────────────────────────
+// ─── Modal buat tugas (owner/manajer) ─────────────────────────────────────────
 function CreateTaskModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [priority, setPriority] = useState<TaskPriority>("NORMAL");
-    const [assigneeId, setAssigneeId] = useState<string>("");
     const [dueDate, setDueDate] = useState("");
-
-    const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: getUsers });
+    const [target, setTarget] = useState<TaskTarget>(emptyTarget());
 
     const createMut = useMutation({
         mutationFn: () => createTaskItem({
             title,
             description: description || null,
             priority,
-            assigneeId: assigneeId ? Number(assigneeId) : null,
             dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+            ...targetPayload(target),
         } as Partial<TaskItem>),
         onSuccess: onSaved,
     });
@@ -243,6 +242,7 @@ function CreateTaskModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
                     <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
                 </div>
+                <TargetSelector target={target} setTarget={setTarget} />
                 <div className="grid grid-cols-2 gap-3">
                     <div>
                         <label className="block text-xs font-medium text-foreground mb-1">Prioritas</label>
@@ -252,23 +252,15 @@ function CreateTaskModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
                         </select>
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-foreground mb-1">Penanggung jawab</label>
-                        <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}
-                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-                            <option value="">— Siapa saja —</option>
-                            {users.map((u: { id: number; name: string | null }) => <option key={u.id} value={u.id}>{u.name || `User #${u.id}`}</option>)}
-                        </select>
+                        <label className="block text-xs font-medium text-foreground mb-1">Jatuh tempo</label>
+                        <input type="datetime-local" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
+                            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
                     </div>
-                </div>
-                <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Jatuh tempo</label>
-                    <input type="datetime-local" value={dueDate} onChange={(e) => setDueDate(e.target.value)}
-                        className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
                 </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
                 <Button variant="outline" size="sm" onClick={onClose}>Batal</Button>
-                <Button size="sm" onClick={() => createMut.mutate()} disabled={!title || createMut.isPending}>
+                <Button size="sm" onClick={() => createMut.mutate()} disabled={!title || !targetValid(target) || createMut.isPending}>
                     {createMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Simpan
                 </Button>
             </div>

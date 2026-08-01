@@ -5,15 +5,18 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getTaskSchedules, createTaskSchedule, updateTaskSchedule, deleteTaskSchedule, generateTasksNow,
-    getUsers, getRoles,
-    type TaskSchedule, type TaskFrequency, type TaskPriority,
+    getTaskGroups, createTaskGroup, updateTaskGroup, deleteTaskGroup, getUsers,
+    type TaskSchedule, type TaskFrequency, type TaskPriority, type TaskGroup,
 } from "@/lib/api";
 import { PRIORITY_LABEL } from "@/components/tugas/TaskKanbanBoard";
+import {
+    TargetSelector, targetPayload, targetValid, targetFromSchedule, emptyTarget, type TaskTarget,
+} from "@/components/tugas/TargetSelector";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
-    CalendarClock, Plus, Loader2, Lock, ArrowLeft, X, Trash2, Zap, Repeat, Power,
+    CalendarClock, Plus, Loader2, Lock, ArrowLeft, X, Trash2, Zap, Repeat, Power, Users2,
 } from "lucide-react";
 
 const FREQ_LABEL: Record<TaskFrequency, string> = {
@@ -36,17 +39,25 @@ function scheduleSummary(s: TaskSchedule): string {
     if (s.frequency === "MONTHLY") return `Tanggal ${s.dayOfMonth ?? "?"} tiap bulan`;
     return "";
 }
+function targetLabel(s: TaskSchedule): string {
+    if (s.assignee?.name) return s.assignee.name;
+    if (s.group?.name) return `Grup ${s.group.name}`;
+    if (s.targetRole) return `Divisi ${s.targetRole}`;
+    if (s.targetAll) return "Semua karyawan";
+    return "Seluruh cabang";
+}
 
 export default function JadwalTugasPage() {
-    const { isManager, currentUser } = useCurrentUser();
+    const { canAssignTasks, currentUser } = useCurrentUser();
     const qc = useQueryClient();
     const [editing, setEditing] = useState<TaskSchedule | null>(null);
     const [showForm, setShowForm] = useState(false);
+    const [showGroups, setShowGroups] = useState(false);
 
     const { data: schedules = [], isLoading } = useQuery({
         queryKey: ["task-schedules"],
         queryFn: getTaskSchedules,
-        enabled: isManager,
+        enabled: canAssignTasks,
     });
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["task-schedules"] });
@@ -60,12 +71,12 @@ export default function JadwalTugasPage() {
     if (currentUser === undefined) {
         return <div className="flex items-center justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;
     }
-    if (!isManager) {
+    if (!canAssignTasks) {
         return (
             <div className="flex flex-col items-center justify-center py-24 text-center px-4">
                 <div className="h-14 w-14 rounded-2xl bg-amber-500/15 text-amber-500 flex items-center justify-center mb-4"><Lock className="h-7 w-7" /></div>
-                <h1 className="text-xl font-bold text-foreground">Khusus Owner / Admin</h1>
-                <p className="text-sm text-muted-foreground mt-1 max-w-sm">Pengelolaan jadwal tugas hanya untuk owner atau admin.</p>
+                <h1 className="text-xl font-bold text-foreground">Khusus Owner / Manajer</h1>
+                <p className="text-sm text-muted-foreground mt-1 max-w-sm">Pemberian & pengelolaan jadwal tugas hanya untuk owner atau manajer.</p>
                 <Link href="/tugas" className="mt-5 inline-flex items-center gap-1.5 text-sm text-primary hover:underline"><ArrowLeft className="h-4 w-4" /> Kembali ke papan tugas</Link>
             </div>
         );
@@ -79,7 +90,8 @@ export default function JadwalTugasPage() {
                 icon={CalendarClock}
                 breadcrumbs={[{ label: "Papan Tugas", href: "/tugas" }, { label: "Jadwal Rutin" }]}
                 actions={
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setShowGroups(true)}><Users2 className="h-4 w-4" /> Grup Tim</Button>
                         <Button variant="outline" size="sm" onClick={() => genMut.mutate()} disabled={genMut.isPending}>
                             {genMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} Buat Kartu Sekarang
                         </Button>
@@ -112,8 +124,7 @@ export default function JadwalTugasPage() {
                                     <span className="text-[10px] rounded-full border border-border px-1.5 py-0.5 text-muted-foreground">{PRIORITY_LABEL[s.priority]}</span>
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-0.5">
-                                    {scheduleSummary(s)}{s.timeOfDay ? ` • ${s.timeOfDay}` : ""}
-                                    {s.assignee?.name ? ` • ${s.assignee.name}` : s.targetRole ? ` • semua ${s.targetRole}` : " • seluruh cabang"}
+                                    {scheduleSummary(s)}{s.timeOfDay ? ` • ${s.timeOfDay}` : ""} • {targetLabel(s)}
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
@@ -138,6 +149,7 @@ export default function JadwalTugasPage() {
                     onSaved={() => { invalidate(); setShowForm(false); }}
                 />
             )}
+            {showGroups && <GroupsModal onClose={() => setShowGroups(false)} />}
         </div>
     );
 }
@@ -153,14 +165,7 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
     const [skipWeekends, setSkipWeekends] = useState(editing?.skipWeekends ?? false);
     const [timeOfDay, setTimeOfDay] = useState(editing?.timeOfDay ?? "");
     const [priority, setPriority] = useState<TaskPriority>(editing?.priority ?? "NORMAL");
-    const [target, setTarget] = useState<"user" | "role" | "branch">(
-        editing?.assigneeId ? "user" : editing?.targetRole ? "role" : "branch",
-    );
-    const [assigneeId, setAssigneeId] = useState<string>(editing?.assigneeId ? String(editing.assigneeId) : "");
-    const [targetRole, setTargetRole] = useState<string>(editing?.targetRole ?? "");
-
-    const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: getUsers });
-    const { data: roles = [] } = useQuery({ queryKey: ["roles"], queryFn: getRoles });
+    const [target, setTarget] = useState<TaskTarget>(editing ? targetFromSchedule(editing) : emptyTarget());
 
     const toggleDay = (iso: number) =>
         setDays((d) => (d.includes(iso) ? d.filter((x) => x !== iso) : [...d, iso].sort()));
@@ -174,8 +179,7 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
         skipWeekends: frequency === "DAILY" ? skipWeekends : false,
         timeOfDay: timeOfDay || null,
         priority,
-        assigneeId: target === "user" && assigneeId ? Number(assigneeId) : null,
-        targetRole: target === "role" && targetRole ? targetRole : null,
+        ...targetPayload(target),
     });
 
     const saveMut = useMutation({
@@ -183,7 +187,7 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
         onSuccess: onSaved,
     });
 
-    const valid = title.trim() && (frequency !== "WEEKLY" || days.length > 0) && (target !== "role" || targetRole);
+    const valid = title.trim() && (frequency !== "WEEKLY" || days.length > 0) && targetValid(target);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -260,29 +264,7 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
                         </div>
                     </div>
 
-                    <div>
-                        <label className="block text-xs font-medium text-foreground mb-1">Penerima tugas</label>
-                        <div className="grid grid-cols-3 gap-1.5 mb-2">
-                            {([["user", "Karyawan"], ["role", "Per Divisi"], ["branch", "Seluruh Cabang"]] as const).map(([v, l]) => (
-                                <button key={v} onClick={() => setTarget(v)}
-                                    className={`text-xs py-1.5 rounded-md border transition ${target === v ? "border-primary bg-accent text-accent-foreground font-medium" : "border-border text-muted-foreground"}`}>{l}</button>
-                            ))}
-                        </div>
-                        {target === "user" && (
-                            <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)}
-                                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-                                <option value="">— Pilih karyawan —</option>
-                                {users.map((u: { id: number; name: string | null }) => <option key={u.id} value={u.id}>{u.name || `User #${u.id}`}</option>)}
-                            </select>
-                        )}
-                        {target === "role" && (
-                            <select value={targetRole} onChange={(e) => setTargetRole(e.target.value)}
-                                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
-                                <option value="">— Pilih divisi —</option>
-                                {roles.map((r: { id: number; name: string }) => <option key={r.id} value={r.name}>{r.name}</option>)}
-                            </select>
-                        )}
-                    </div>
+                    <TargetSelector target={target} setTarget={setTarget} />
                 </div>
 
                 <div className="flex justify-end gap-2 mt-4">
@@ -291,6 +273,103 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
                         {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Simpan
                     </Button>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Kelola Grup Tim ──────────────────────────────────────────────────────────
+function GroupsModal({ onClose }: { onClose: () => void }) {
+    const qc = useQueryClient();
+    const [editing, setEditing] = useState<TaskGroup | null>(null);
+    const [creating, setCreating] = useState(false);
+
+    const { data: groups = [], isLoading } = useQuery({ queryKey: ["task-groups"], queryFn: getTaskGroups });
+    const invalidate = () => qc.invalidateQueries({ queryKey: ["task-groups"] });
+    const delMut = useMutation({ mutationFn: (id: number) => deleteTaskGroup(id), onSuccess: invalidate });
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+            <div className="w-full max-w-md rounded-xl border border-border bg-card p-4 shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-lg font-bold text-foreground flex items-center gap-2"><Users2 className="h-5 w-5" /> Grup Tim</h2>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
+                </div>
+
+                {editing || creating ? (
+                    <GroupForm
+                        group={editing}
+                        onClose={() => { setEditing(null); setCreating(false); }}
+                        onSaved={() => { invalidate(); setEditing(null); setCreating(false); }}
+                    />
+                ) : (
+                    <>
+                        <Button size="sm" className="mb-3" onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> Grup Baru</Button>
+                        {isLoading ? (
+                            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                        ) : groups.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">Belum ada grup.</p>
+                        ) : (
+                            <div className="space-y-2">
+                                {groups.map((g) => (
+                                    <div key={g.id} className="rounded-lg border border-border p-2.5 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <div className="text-sm font-medium text-foreground truncate">{g.name}</div>
+                                            <div className="text-xs text-muted-foreground truncate">
+                                                {g.members.length} anggota: {g.members.map((m) => m.user?.name || `#${m.userId}`).join(", ") || "—"}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <Button variant="ghost" size="sm" onClick={() => setEditing(g)}>Edit</Button>
+                                            <Button variant="ghost" size="icon-sm" onClick={() => { if (confirm("Hapus grup ini?")) delMut.mutate(g.id); }}>
+                                                <Trash2 className="h-4 w-4 text-red-500" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function GroupForm({ group, onClose, onSaved }: { group: TaskGroup | null; onClose: () => void; onSaved: () => void }) {
+    const [name, setName] = useState(group?.name ?? "");
+    const [memberIds, setMemberIds] = useState<number[]>(group?.members.map((m) => m.userId) ?? []);
+    const { data: users = [] } = useQuery({ queryKey: ["users"], queryFn: getUsers });
+
+    const toggle = (id: number) => setMemberIds((m) => (m.includes(id) ? m.filter((x) => x !== id) : [...m, id]));
+    const saveMut = useMutation({
+        mutationFn: () => group ? updateTaskGroup(group.id, { name, memberIds }) : createTaskGroup({ name, memberIds }),
+        onSuccess: onSaved,
+    });
+
+    return (
+        <div className="space-y-3">
+            <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Nama grup *</label>
+                <input value={name} onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" placeholder="mis. Tim Toko Pusat" />
+            </div>
+            <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Anggota</label>
+                <div className="max-h-52 overflow-y-auto rounded-md border border-border divide-y divide-border/60">
+                    {users.map((u: { id: number; name: string | null }) => (
+                        <label key={u.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent/50">
+                            <input type="checkbox" checked={memberIds.includes(u.id)} onChange={() => toggle(u.id)} />
+                            {u.name || `User #${u.id}`}
+                        </label>
+                    ))}
+                </div>
+            </div>
+            <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={onClose}>Batal</Button>
+                <Button size="sm" onClick={() => saveMut.mutate()} disabled={!name.trim() || memberIds.length === 0 || saveMut.isPending}>
+                    {saveMut.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Simpan
+                </Button>
             </div>
         </div>
     );

@@ -34,8 +34,23 @@ export interface TaskSchedule {
   endDate: string | null;
   isActive: boolean;
   assigneeId: number | null;
+  groupId: number | null;
   targetRole: string | null;
+  targetAll: boolean;
   assignee?: { id: number; name: string | null } | null;
+  group?: { id: number; name: string } | null;
+}
+
+export interface TaskGroupMember {
+  id: number;
+  userId: number;
+  user?: { id: number; name: string | null } | null;
+}
+export interface TaskGroup {
+  id: number;
+  name: string;
+  branchId: number | null;
+  members: TaskGroupMember[];
 }
 
 export interface TaskSummaryRow {
@@ -85,3 +100,13 @@ export const deleteTaskSchedule = async (id: number) =>
 
 export const generateTasksNow = async () =>
   (await api.post('/task-board/schedules/generate-now')).data as { created: number; scanned: number };
+
+// ---- Grup tim kustom ----
+export const getTaskGroups = async () =>
+  (await api.get('/task-board/groups')).data as TaskGroup[];
+export const createTaskGroup = async (data: { name: string; memberIds?: number[] }) =>
+  (await api.post('/task-board/groups', data)).data;
+export const updateTaskGroup = async (id: number, data: { name?: string; memberIds?: number[] }) =>
+  (await api.patch(`/task-board/groups/${id}`, data)).data;
+export const deleteTaskGroup = async (id: number) =>
+  (await api.delete(`/task-board/groups/${id}`)).data;
