@@ -23,7 +23,7 @@ export default function DivisionPanel(props: {
   const champCol = props.columns.find(c => c.primary) ?? props.columns.find(c => c.key === props.sortKey);
 
   return (
-    <section className="flex flex-col rounded-2xl border border-border bg-card/70 overflow-hidden min-h-0">
+    <section className="flex-1 w-full h-full flex flex-col rounded-2xl border border-border bg-card/70 overflow-hidden min-h-0">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border/60 bg-primary/5">
         {props.icon}
         <h2 className="text-base font-bold uppercase tracking-wide">{props.title}</h2>
