@@ -58,10 +58,13 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isNilaiPublic = pathname.startsWith("/nilai/");
     // Dashboard Owner — halaman full-screen terpisah (login app, tanpa sidebar).
     const isOwnerPage = pathname.startsWith("/owner");
-    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage;
+    // Papan Juara TV (publik PIN, fullscreen kiosk) — tanpa sidebar/nav.
+    const isTvPage = pathname.startsWith("/tv");
+    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage || isTvPage;
     // Toggle dark mode mengambang untuk halaman publik INTERNAL (staff/operator),
     // BUKAN halaman login & bukan halaman storefront publik (landing/artikel/produk).
-    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic;
+    // /tv punya toggle dark sendiri di TvHeader → jangan dobel.
+    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic && !isTvPage;
 
     if (isStandalone) {
         return (
