@@ -1882,10 +1882,11 @@ export class KpiService {
         };
 
         const txs: any[] = await (this.prisma as any).transaction.findMany({
-            // Omzet papan = pendapatan LUNAS saja, agar cocok dgn dashboard staff
-            // (yg berbasis cashflow nota PAID). Nota PENDING/PARTIAL (belum lunas)
-            // TIDAK dihitung. FAILED juga otomatis tereksklusi.
-            where: { createdAt: { gte: start, lte: end }, status: 'PAID' },
+            // Omzet papan = pendapatan LUNAS saja, diakui berdasarkan TANGGAL BAYAR
+            // (paidAt) — bukan tanggal nota dibuat — agar cocok dgn "Penjualan Hari
+            // Ini" dashboard yg berbasis cashflow nota PAID. Nota PENDING/PARTIAL
+            // (belum lunas) TIDAK dihitung; FAILED juga otomatis tereksklusi.
+            where: { paidAt: { gte: start, lte: end }, status: 'PAID' },
             select: {
                 id: true, grandTotal: true, cashierName: true, branchId: true,
                 salesOrder: { select: { designerName: true, branchName: true } },
