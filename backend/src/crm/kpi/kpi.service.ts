@@ -974,7 +974,7 @@ export class KpiService {
             this.report(ctx, params),
             this.designerLeaderboard(ctx, params),
             this.operatorLeaderboard(ctx, params),
-            this.teamLeaderboard(ctx, params),
+            this.teamOmzetCashflow(ctx, params), // omzet TV = cashflow, sama persis dashboard
             this.designOutput(ctx, params),
             this.reports.getDailyTargetStatus(ctx).catch(() => null),
         ]);
@@ -2075,6 +2075,45 @@ export class KpiService {
             operatorShare: t.operatorShare + r.operatorShare,
             omzet: t.omzet + r.omzet,
         }), { csShare: 0, designerShare: 0, operatorShare: 0, omzet: 0 });
+        return { period: { start: start.toISOString(), end: end.toISOString() }, leaderboard: rows, totals };
+    }
+
+    /**
+     * Omzet per cabang KHUSUS papan TV — diambil LANGSUNG dari cashflow auto-income
+     * (userId null, type INCOME), sumber & query yang SAMA PERSIS dgn "Penjualan
+     * Hari Ini" dashboard halaman utama. Sengaja TIDAK memakai atribusi per peran
+     * (grandTotal dibagi CS/desainer/operator) — itu hanya untuk halaman web
+     * /leaderboard. Tujuan: angka omzet TV === angka pendapatan dashboard.
+     */
+    private async teamOmzetCashflow(ctx: BranchContext, params: KpiParams) {
+        const { start, end } = resolvePeriod(params);
+        const bid = ctx.branchId != null ? Number(ctx.branchId) : null;
+        const rowsAgg: { branchId: number | null; _sum: { amount: any } }[] =
+            await (this.prisma as any).cashflow.groupBy({
+                by: ['branchId'],
+                where: {
+                    createdAt: { gte: start, lte: end },
+                    type: 'INCOME',
+                    userId: null, // auto-entry sistem saat nota PAID = uang masuk nyata
+                    ...(bid != null ? { branchId: bid } : {}),
+                },
+                _sum: { amount: true },
+            });
+        const branches: any[] = await (this.prisma as any).companyBranch.findMany({
+            select: { id: true, name: true, code: true },
+        });
+        const bMap = new Map<number, any>(branches.map(b => [b.id, b]));
+        const rows = rowsAgg.map((r) => {
+            const b = r.branchId != null ? bMap.get(r.branchId) : null;
+            return {
+                branchId: r.branchId ?? null,
+                name: b ? (b.code ? `[${b.code}] ${b.name}` : b.name) : 'Tak diketahui',
+                csShare: 0, designerShare: 0, operatorShare: 0,
+                omzet: Math.round(Number(r._sum.amount || 0)),
+            };
+        }).sort((a, b) => b.omzet - a.omzet);
+        const totals = rows.reduce((t, r) => ({ ...t, omzet: t.omzet + r.omzet }),
+            { csShare: 0, designerShare: 0, operatorShare: 0, omzet: 0 });
         return { period: { start: start.toISOString(), end: end.toISOString() }, leaderboard: rows, totals };
     }
 

@@ -7,7 +7,7 @@ describe('KpiService.publicLeaderboard', () => {
     (svc as any).report = jest.fn(async (ctx: any) => { calls.report = ctx; return { period: { start: 's', end: 'e' }, totals: {}, metrics: {}, leaderboard: [{ name: 'A' }], designCheckLeaderboard: [] }; });
     (svc as any).designerLeaderboard = jest.fn(async (ctx: any) => { calls.designer = ctx; return { leaderboard: [], totals: {} }; });
     (svc as any).operatorLeaderboard = jest.fn(async (ctx: any) => { calls.operator = ctx; return { leaderboard: [] }; });
-    (svc as any).teamLeaderboard = jest.fn(async (ctx: any) => { calls.team = ctx; return { leaderboard: [], totals: {} }; });
+    (svc as any).teamOmzetCashflow = jest.fn(async (ctx: any) => { calls.team = ctx; return { leaderboard: [], totals: {} }; });
     (svc as any).designOutput = jest.fn(async (ctx: any) => { calls.designOutput = ctx; return { leaderboard: [] }; });
     (svc as any).reports = { getDailyTargetStatus: jest.fn(async (ctx: any) => { calls.dailyTarget = ctx; return { today: '2026-08-01', daysInMonth: 31, branches: [] }; }) };
 
@@ -31,7 +31,7 @@ describe('KpiService.publicLeaderboard', () => {
     (svc as any).report = jest.fn(async (ctx: any) => { seen = ctx; return { period: { start: 's', end: 'e' }, totals: {}, metrics: {}, leaderboard: [], designCheckLeaderboard: [] }; });
     (svc as any).designerLeaderboard = jest.fn(async () => ({ leaderboard: [], totals: {} }));
     (svc as any).operatorLeaderboard = jest.fn(async () => ({ leaderboard: [] }));
-    (svc as any).teamLeaderboard = jest.fn(async () => ({ leaderboard: [], totals: {} }));
+    (svc as any).teamOmzetCashflow = jest.fn(async () => ({ leaderboard: [], totals: {} }));
     (svc as any).designOutput = jest.fn(async () => ({ leaderboard: [] }));
     (svc as any).reports = { getDailyTargetStatus: jest.fn(async () => ({ today: '2026-08-01', daysInMonth: 31, branches: [] })) };
     await svc.publicLeaderboard({ period: 'month' }, null);
@@ -43,7 +43,7 @@ describe('KpiService.publicLeaderboard', () => {
     (svc as any).report = jest.fn(async () => ({ period: { start: 's', end: 'e' }, totals: {}, metrics: {}, leaderboard: [], designCheckLeaderboard: [] }));
     (svc as any).designerLeaderboard = jest.fn(async () => ({ leaderboard: [], totals: {} }));
     (svc as any).operatorLeaderboard = jest.fn(async () => ({ leaderboard: [] }));
-    (svc as any).teamLeaderboard = jest.fn(async () => ({ leaderboard: [], totals: {} }));
+    (svc as any).teamOmzetCashflow = jest.fn(async () => ({ leaderboard: [], totals: {} }));
     (svc as any).designOutput = jest.fn(async () => ({ leaderboard: [] }));
     (svc as any).reports = { getDailyTargetStatus: jest.fn(async () => { throw new Error('boom'); }) };
     const res = await svc.publicLeaderboard({ period: 'today' }, 1);
