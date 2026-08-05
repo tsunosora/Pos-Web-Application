@@ -299,7 +299,20 @@ function AuthedApp() {
             {brandParts().lead && <>{brandParts().lead} </>}<span className="text-accent">{brandParts().accent}</span>
             <span className="inline-flex text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded bg-accent text-white mono font-bold">LIVE</span>
           </div>
-          <div className="text-[9px] sm:text-[10px] text-text-dim mono uppercase tracking-widest">{CONFIG.tagline}</div>
+          <div className="text-[9px] sm:text-[10px] text-text-dim mono uppercase tracking-widest flex items-center gap-1.5">
+            <span>{CONFIG.tagline}</span>
+            <span className="text-text-dim">·</span>
+            <a
+              href="https://app.faicando.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="normal-case tracking-normal text-text-mut hover:text-accent transition-colors"
+              title="Dibuat oleh faicando — app.faicando.com"
+            >
+              Dibuat oleh <span className="text-accent font-semibold">faicando</span>
+              <span className="hidden sm:inline"> · app.faicando.com</span>
+            </a>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setTutorialOpen(true)} className="btn-ghost text-xs !py-1.5 !px-3" title="Video tutorial">
