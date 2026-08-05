@@ -1262,6 +1262,80 @@ export class ReportsService {
         };
     }
 
+    /**
+     * Distribusi jumlah orderan per JAM MULAI (jam pembuatan order = createdAt), untuk
+     * memantau KAPAN order ramai vs sepi. Hanya order LUNAS (PAID). 24 bucket jam (0–23).
+     * Timezone = waktu lokal server (WIB). Tiap jam diklasifikasi 'ramai'|'normal'|'sepi'|'tutup',
+     * plus rentang ramai/sepi + jam puncak/tersepi.
+     */
+    async getOrdersByHour(branchCtx: BranchContext, startDate?: string, endDate?: string) {
+        const where: any = { status: 'PAID', ...branchWhere(branchCtx) };
+        if (startDate && endDate) {
+            where.createdAt = {
+                gte: new Date(`${startDate}T00:00:00`),
+                lte: new Date(`${endDate}T23:59:59.999`),
+            };
+        }
+        const txs: { createdAt: Date | null; grandTotal: any }[] =
+            await this.prisma.transaction.findMany({
+                where,
+                select: { createdAt: true, grandTotal: true },
+            });
+
+        type Level = 'ramai' | 'normal' | 'sepi' | 'tutup';
+        const byHour = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0, revenue: 0, level: 'tutup' as Level }));
+        let totalOrders = 0;
+        for (const t of txs) {
+            if (!t.createdAt) continue;
+            const hour = new Date(t.createdAt).getHours();
+            byHour[hour].count++;
+            byHour[hour].revenue += Number(t.grandTotal || 0);
+            totalOrders++;
+        }
+
+        // Jam operasi = rentang dari jam-aktif-pertama s/d jam-aktif-terakhir.
+        const activeHours = byHour.filter((h) => h.count > 0).map((h) => h.hour);
+        const opFrom = activeHours.length ? Math.min(...activeHours) : null;
+        const opTo = activeHours.length ? Math.max(...activeHours) : null;
+        const peak = Math.max(0, ...byHour.map((h) => h.count));
+
+        let peakHour: number | null = null;
+        let quietHour: number | null = null;
+        let busyRange: { from: number; to: number } | null = null;
+        let quietRange: { from: number; to: number } | null = null;
+        let avgPerHour = 0;
+
+        if (opFrom !== null && opTo !== null) {
+            const operating = byHour.filter((h) => h.hour >= opFrom && h.hour <= opTo);
+            avgPerHour = operating.reduce((s, h) => s + h.count, 0) / operating.length;
+            const busyThreshold = Math.max(avgPerHour, peak * 0.66);
+            const quietThreshold = Math.max(1, avgPerHour * 0.5);
+
+            for (const h of operating) {
+                h.level = h.count >= busyThreshold ? 'ramai' : h.count <= quietThreshold ? 'sepi' : 'normal';
+            }
+            peakHour = operating.reduce((a, b) => (b.count > a.count ? b : a)).hour;
+            quietHour = operating.reduce((a, b) => (b.count < a.count ? b : a)).hour;
+
+            const ramai = operating.filter((h) => h.level === 'ramai').map((h) => h.hour);
+            const sepi = operating.filter((h) => h.level === 'sepi').map((h) => h.hour);
+            if (ramai.length) busyRange = { from: Math.min(...ramai), to: Math.max(...ramai) };
+            if (sepi.length) quietRange = { from: Math.min(...sepi), to: Math.max(...sepi) };
+        }
+
+        return {
+            period: { startDate: startDate ?? null, endDate: endDate ?? null },
+            totalOrders,
+            byHour,
+            operating: opFrom !== null ? { from: opFrom, to: opTo } : null,
+            avgPerHour: Math.round(avgPerHour * 10) / 10,
+            peakHour,
+            quietHour,
+            busyRange,
+            quietRange,
+        };
+    }
+
     /** Jurnal harian keuangan: event uang terurut waktu + running balance, dikelompokkan per hari. */
     async getFinanceJournal(branchCtx: BranchContext, startDate: string, endDate: string, includeFixed = true) {
         if (!branchCtx.isOwner) throw new ForbiddenException('Analisa keuangan hanya untuk owner.');

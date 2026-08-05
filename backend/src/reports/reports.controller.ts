@@ -67,6 +67,15 @@ export class ReportsController {
         return this.reportsService.getProfitReport(branchCtx, startDate, endDate);
     }
 
+    @Get('orders-by-hour')
+    async getOrdersByHour(
+        @CurrentBranch() branchCtx: BranchContext,
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.reportsService.getOrdersByHour(branchCtx, startDate, endDate);
+    }
+
     @Get('closing')
     async getMonthlyClosing(
         @CurrentBranch() branchCtx: BranchContext,
