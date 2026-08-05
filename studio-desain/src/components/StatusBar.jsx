@@ -1,5 +1,4 @@
 import { CATEGORIES } from '../data/categories.js';
-import { CONFIG } from '../config.js';
 
 const VERSION = 'v2.1';
 
@@ -35,7 +34,17 @@ export default function StatusBar({ mode }) {
         <span className="hidden sm:inline">{CATEGORIES.length} templates</span>
       </div>
       <div className="flex items-center gap-3">
-        <span className="hidden md:inline">{CONFIG.brandName}</span>
+        <a
+          href="https://app.faicando.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="normal-case tracking-normal text-text-mut hover:text-accent transition-colors"
+          title="Dibuat oleh faicando — app.faicando.com"
+        >
+          <span className="hidden sm:inline">Dibuat oleh </span>
+          <span className="font-semibold text-accent">faicando</span>
+          <span className="hidden md:inline text-text-dim"> · app.faicando.com</span>
+        </a>
         <span>{VERSION}</span>
       </div>
     </footer>
