@@ -37,7 +37,10 @@ export default function DesainerPage() {
     return (
         <div className="h-screen w-screen overflow-hidden bg-black">
             <iframe
-                src="/studio-desain/"
+                // Path file eksplisit: Next menyajikan public/ tanpa resolusi index
+                // direktori, jadi "/studio-desain/" bisa 404. Aset internal tetap
+                // absolut (/studio-desain/assets/...) sehingga resolve dengan benar.
+                src="/studio-desain/index.html"
                 title="Studio Desain"
                 className="h-full w-full border-0"
                 allow="clipboard-write; clipboard-read"
