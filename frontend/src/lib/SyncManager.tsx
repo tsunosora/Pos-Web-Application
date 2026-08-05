@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { getOfflineTransactions, clearOfflineTransaction } from "./sync";
 import { enqueueOp, countOutbox } from "./offline/repo";
 import { startAutoSync, syncNow } from "./offline/sync-engine";
@@ -23,8 +24,14 @@ async function migrateLegacyOffline(): Promise<number> {
 export function SyncManager() {
   const [isOnline, setIsOnline] = useState(true);
   const [pending, setPending] = useState(0);
+  const pathname = usePathname();
+  // Studio Desain (/desainer) = halaman mandiri (login sendiri, bukan sesi POS).
+  // Jangan jalankan sync offline POS di sini → cegah 401 background (yg melempar
+  // ke /login) + hilangkan beban loading.
+  const disabled = !!pathname && pathname.startsWith("/desainer");
 
   useEffect(() => {
+    if (disabled) return;
     setIsOnline(navigator.onLine);
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -50,7 +57,9 @@ export function SyncManager() {
       window.clearInterval(poll);
       stop?.();
     };
-  }, []);
+  }, [disabled]);
+
+  if (disabled) return null;
 
   if (!isOnline) {
     return (

@@ -102,8 +102,13 @@ export default function DesainerPage() {
             <div className="w-full max-w-sm rounded-2xl border border-blue-500/20 bg-white/[0.03] p-7 shadow-2xl backdrop-blur-xl">
                 <div className="mb-6 flex flex-col items-center text-center">
                     <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-xl bg-white/5 p-2 ring-1 ring-blue-500/30 shadow-[0_0_20px_rgba(37,99,235,0.35)]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/studio-desain/faicando-logo.svg" alt="faicando" className="h-full w-full object-contain" />
+                        {/* Logo faicando di-INLINE (bukan <img src=/studio-desain/...>) karena
+                            path /studio-desain diproteksi middleware → 404/redirect saat belum login. */}
+                        <svg viewBox="1163 0 6817 9145" fill="#fff" aria-label="faicando" className="h-full w-full">
+                            <path d="M1475.21 27.35l2994.74 1672.99c65.26,36.46 138.83,36.46 204.09,0l2994.73 -1672.99c66.62,-37.22 142.13,-36.42 207.95,2.21 65.81,38.62 103.33,104.15 103.33,180.46l0 1423.35c0,78.49 -39.91,145.83 -108.75,183.52l-6397.65 3502.89c-66.66,36.49 -141.76,35.22 -207.15,-3.53 -65.38,-38.73 -102.57,-104 -102.57,-180l0 -4926.24c0,-76.31 37.53,-141.83 103.35,-180.46 65.81,-38.62 141.31,-39.42 207.93,-2.2z" />
+                            <path d="M3473.38 5057.58l-2199.94 1192.68c-69.27,37.55 -109.51,105.14 -109.51,183.94l0 2499.77c0,76.08 37.28,141.41 102.77,180.12 65.5,38.71 140.71,39.86 207.36,3.18l2199.94 -1210.97c68.62,-37.78 108.34,-104.98 108.34,-183.3l0 -2481.49c0,-75.84 -37.03,-140.98 -102.2,-179.78 -65.17,-38.8 -140.08,-40.3 -206.76,-4.15z" />
+                            <path d="M4881.72 6458.62l1849.93 -1012.89c68.85,-37.7 108.75,-105.04 108.75,-183.53l0 -1791.31c0,-76 -37.2,-141.27 -102.58,-180 -65.38,-38.75 -140.49,-40.02 -207.15,-3.53l-1849.93 1012.9c-68.84,37.69 -108.74,105.03 -108.74,183.52l0 1791.31c0,76 37.19,141.27 102.57,180.01 65.39,38.74 140.5,40.02 207.15,3.52z" />
+                        </svg>
                     </div>
                     <h1 className="text-lg font-bold text-white">Studio Desain</h1>
                     <p className="mt-1 text-xs text-slate-400">Masuk dengan akun kasir (POS) Anda</p>

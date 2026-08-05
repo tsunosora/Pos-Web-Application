@@ -54,6 +54,13 @@ api.interceptors.response.use(
     (error) => {
         if (typeof window !== 'undefined') {
             if (error?.response?.status === 401) {
+                // Halaman Studio Desain (/desainer) mengelola auth-nya SENDIRI
+                // (login sendiri pakai akun POS). Jangan auto-logout/redirect global
+                // dari sini — kalau tidak, 401 background (SyncManager dll) melempar
+                // user ke /login POS.
+                if (window.location.pathname.startsWith('/desainer')) {
+                    return Promise.reject(error);
+                }
                 localStorage.removeItem('token');
                 sessionStorage.removeItem('token');
                 // Hapus juga cookie token. Middleware (server) mengizinkan akses
