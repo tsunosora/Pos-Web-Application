@@ -36,9 +36,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-# Sub-app Studio Desain (feeds-auto) — hasil build, di-generate saat deploy
-/public/studio-desain/
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
