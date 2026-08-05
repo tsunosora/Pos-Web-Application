@@ -66,6 +66,30 @@ export function buildBanner(s = {}) {
   };
 }
 
+/**
+ * Versi PROMPT TEKS (natural-language) untuk mode banner — cocok ditempel ke
+ * image model mentah (Midjourney/Stable Diffusion) yang tidak suka JSON.
+ * @param {object} s
+ * @returns {string}
+ */
+export function buildBannerText(s = {}) {
+  const feats = Array.isArray(s.features) ? s.features.filter(Boolean) : [];
+  const ratio = (s.ratio || '4:5').split(' ')[0];
+  const lines = [
+    `A professional promotional banner for ${s.brand || 'the brand'}${s.style ? ` in a ${s.style} style` : ''}, aspect ratio ${ratio}.`,
+    s.headline && `Headline: "${s.headline}".`,
+    s.tagline && `Subheadline: "${s.tagline}".`,
+    s.description && `${s.description}.`,
+    feats.length && `Highlight features: ${feats.join(', ')}.`,
+    s.cta && `Include a premium modern CTA button: "${s.cta}".`,
+    (LIGHTING_DESC[s.lighting] || s.lighting) && `Lighting: ${LIGHTING_DESC[s.lighting] || s.lighting}.`,
+    `Color palette: primary ${s.primaryColor || '#2dd4bf'}, secondary ${s.secondaryColor || '#ffffff'}.`,
+    `Seamlessly integrate the product image(s) with accurate shadows and reflections. Clean modern typography, clear visual hierarchy, premium presentation, ultra-realistic 8k.`,
+    `Avoid: misspelled text, warped products, cluttered background, watermark, low resolution.`,
+  ].filter(Boolean);
+  return lines.join(' ');
+}
+
 export const INITIAL_BANNER = {
   brand: '', headline: '', tagline: '', description: '', cta: '',
   features: [],

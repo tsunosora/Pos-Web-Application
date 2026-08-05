@@ -31,6 +31,7 @@ export const CONFIG = {
 
   // Tombol setelah Copy: link ChatGPT biasa + Custom GPT (kosong = sembunyikan tombol GPT).
   chatgptUrl: pick(cfg.chatgptUrl, 'https://chatgpt.com/'),
+  geminiUrl:  pick(cfg.geminiUrl, 'https://gemini.google.com/app'),
   gptUrl:     pick(cfg.gptUrl, ''),
 
   // ── Social (footer) ───────────────────────────────────────

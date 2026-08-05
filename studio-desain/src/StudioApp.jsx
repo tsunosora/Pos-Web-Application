@@ -31,8 +31,8 @@ import LogoAffiliateMode from './modes/LogoAffiliateMode.jsx';
 import TryOnAffiliateMode from './modes/TryOnAffiliateMode.jsx';
 import ReviewAffiliateMode from './modes/ReviewAffiliateMode.jsx';
 import StoryboardAffiliateMode from './modes/StoryboardAffiliateMode.jsx';
-import { buildBanner, INITIAL_BANNER } from './prompts/buildBanner.js';
-import { buildBannerCetak, INITIAL_BANNERCETAK } from './prompts/buildBannerCetak.js';
+import { buildBanner, buildBannerText, INITIAL_BANNER } from './prompts/buildBanner.js';
+import { buildBannerCetak, buildBannerCetakText, INITIAL_BANNERCETAK } from './prompts/buildBannerCetak.js';
 import { generateCarouselPrompts, INITIAL_CAROUSEL } from './prompts/buildCarousel.js';
 import { buildGridFeed, INITIAL_GRIDFEED } from './prompts/buildGridFeed.js';
 import { buildThumbnail, INITIAL_THUMBNAIL } from './prompts/buildThumbnail.js';
@@ -147,6 +147,13 @@ function AuthedApp() {
     if (mode === 'tryonaffiliate')      return buildTryOnAffiliate(deferredState);
     if (mode === 'reviewaffiliate')     return buildReviewAffiliate(deferredState);
     if (mode === 'storyboardaffiliate') return buildStoryboardAffiliate(deferredState);
+    return null;
+  }, [mode, deferredState]);
+
+  // Versi teks natural-language (opsional) — utk image model mentah (Midjourney/SD).
+  const naturalText = useMemo(() => {
+    if (mode === 'banner')      return buildBannerText(deferredState);
+    if (mode === 'bannercetak') return buildBannerCetakText(deferredState);
     return null;
   }, [mode, deferredState]);
 
@@ -384,6 +391,7 @@ function AuthedApp() {
                   <PromptPanel
                     mode={mode}
                     promptText={prompt}
+                    naturalText={naturalText}
                     onGenerate={handleGenerate}
                     onRestoreHistory={handleRestore}
                     onCopied={() => setCopyModalOpen(true)}

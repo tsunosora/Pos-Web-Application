@@ -21,6 +21,7 @@ window.__AF_CONFIG = {
   // Mode "9 Feed Konsisten" - link ChatGPT untuk tombol setelah Copy & tutorial.
   // chatgptUrl = ChatGPT biasa. gptUrl = Custom GPT kamu sendiri (kosong "" = tombol GPT disembunyikan).
   chatgptUrl: "https://chatgpt.com/",
+  geminiUrl:  "https://gemini.google.com/app",
   gptUrl:     "",
 
   /* -- 2b. SOCIAL (footer) ------------------------------------------- */

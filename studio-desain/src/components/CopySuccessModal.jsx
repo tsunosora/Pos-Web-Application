@@ -122,6 +122,14 @@ export default function CopySuccessModal({ open, onClose, kind = 'image' }) {
             >
               Buka ChatGPT <ExternalLink className="w-3.5 h-3.5" />
             </a>
+            <a
+              href={CONFIG.geminiUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary !py-2.5 !px-4 flex-1 sm:flex-none justify-center whitespace-nowrap"
+            >
+              Buka Gemini <ExternalLink className="w-3.5 h-3.5" />
+            </a>
             {CONFIG.gptUrl && (
               <a
                 href={CONFIG.gptUrl}
@@ -162,11 +170,11 @@ const STEPS_CAROUSEL = [
 ];
 
 const DETAIL_IMAGE = [
-  'Klik tombol <strong class="text-text">Buka ChatGPT</strong> di kanan bawah.',
-  'Aktifkan mode <strong class="text-text">image generation</strong> di ChatGPT (icon gambar).',
-  'Upload foto produk yang ingin diolah AI.',
+  'Klik <strong class="text-text">Buka ChatGPT</strong> atau <strong class="text-text">Buka Gemini</strong> di kanan bawah (keduanya bisa generate gambar dari prompt).',
+  'Pastikan mode <strong class="text-text">image generation</strong> aktif (ikon gambar). Tanpa ini AI hanya membalas teks.',
+  'Upload foto produk yang ingin diolah AI (opsional).',
   'Tekan <kbd class="px-1 py-0.5 rounded bg-bg-deep border border-border mono text-[10px]">Ctrl+V</kbd> — prompt sudah otomatis tersalin.',
-  'Kirim pesan, biarkan AI render desainmu.',
+  'Kirim pesan, biarkan AI render desainmu. Untuk Midjourney/Stable Diffusion, ganti format output ke <strong class="text-text">Teks</strong> dulu.',
 ];
 
 const DETAIL_COPY = [

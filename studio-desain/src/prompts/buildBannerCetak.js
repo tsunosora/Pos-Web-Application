@@ -79,6 +79,45 @@ export function buildBannerCetak(s = {}) {
   };
 }
 
+/**
+ * Versi PROMPT TEKS (natural-language) untuk mode bannercetak — cocok ditempel
+ * ke image model mentah (Midjourney/Stable Diffusion) yang tidak suka JSON.
+ * @param {object} s
+ * @returns {string}
+ */
+export function buildBannerCetakText(s = {}) {
+  const size = s.size === 'Custom (ukuran manual)'
+    ? `${s.customWidth || '?'} x ${s.customHeight || '?'} cm`
+    : (s.size || '');
+  const feats = Array.isArray(s.features) ? s.features.filter(Boolean) : [];
+  const contacts = [
+    s.phone   && `phone/WhatsApp ${s.phone}`,
+    s.address && `address ${s.address}`,
+    s.social  && `social media ${s.social}`,
+    s.website && `website ${s.website}`,
+  ].filter(Boolean);
+
+  const lines = [
+    `A print-ready ${(s.productType || 'banner').toLowerCase()} promotional design${size ? `, size ${size}` : ''}${s.orientation ? `, ${s.orientation.toLowerCase()} orientation` : ''}${s.material ? `, printed on ${s.material.replace(/\s*\(.*?\)/, '')}` : ''}.`,
+    (STYLE_AESTHETIC[s.style] || s.style) && `Style: ${STYLE_AESTHETIC[s.style] || s.style}.`,
+    s.brand && `Brand/business name "${s.brand}" with space reserved for its logo.`,
+    s.headline && `Big bold headline text: "${s.headline}".`,
+    s.subheadline && `Subheadline: "${s.subheadline}".`,
+    s.offer && `Promo/offer: "${s.offer}".`,
+    s.price && `Price: "${s.price}".`,
+    s.description && `${s.description}.`,
+    feats.length && `Highlight: ${feats.join(', ')}.`,
+    s.cta && `Call to action: "${s.cta}".`,
+    contacts.length && `Contact info: ${contacts.join('; ')}.`,
+    `Color palette: primary ${s.primaryColor || '#2563EB'}, secondary ${s.secondaryColor || '#ffffff'}, high contrast for readability.`,
+    `Large, bold, perfectly-spelled typography readable from a distance, strong visual hierarchy.`,
+    `Print specifications: 300 DPI, CMYK print-safe colors, 2cm bleed, safe margins, ultra-sharp, high resolution.`,
+    `Avoid: blurry, low resolution, misspelled or gibberish text, cluttered layout, watermark.`,
+  ].filter(Boolean);
+
+  return lines.join(' ');
+}
+
 export const INITIAL_BANNERCETAK = {
   productType: 'Spanduk (Horizontal)',
   size: 'Spanduk 400 x 100 cm',

@@ -17,9 +17,11 @@ export default function PromptPanel({
   onCopied,        // fires when main Copy Prompt button is clicked
   restoreSignal = 0, // increment to auto-show prompt after history restore
   autoShow = false,  // true when panel mounts due to a cross-mode history restore
+  naturalText = null, // optional natural-language version (cocok utk Midjourney/SD)
 }) {
   const [showHistory, setShowHistory] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
+  const [format, setFormat] = useState('json'); // 'json' | 'text' (jika naturalText ada)
   const [hasGenerated, setHasGenerated] = useState(autoShow);
   const [streaming, setStreaming] = useState(false);
   const [streamedText, setStreamedText] = useState('');
@@ -57,7 +59,10 @@ export default function PromptPanel({
   // Normalize prompt
   let fullText = '';
   let sections = null;
-  if (mode === 'typography' && promptText && typeof promptText === 'object' && promptText.sections) {
+  const showText = format === 'text' && naturalText;
+  if (showText) {
+    fullText = naturalText;
+  } else if (mode === 'typography' && promptText && typeof promptText === 'object' && promptText.sections) {
     fullText = JSON.stringify(promptText.json, null, 2);
     sections = promptText.sections;
   } else if (typeof promptText === 'object' && promptText !== null) {
@@ -129,9 +134,19 @@ export default function PromptPanel({
             </div>
           </div>
         </div>
-        <button onClick={() => setShowHistory((s) => !s)} className="btn-ghost" title="Riwayat">
-          <Clock className="w-3.5 h-3.5" /> {showHistory ? 'Tutup' : 'Riwayat'}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {naturalText && (
+            <div className="flex rounded-md overflow-hidden border border-border" title="Format output prompt">
+              <button type="button" onClick={() => setFormat('json')} data-active={format === 'json'}
+                className="tab !px-2 !py-1 !text-[10px] mono uppercase tracking-widest">JSON</button>
+              <button type="button" onClick={() => setFormat('text')} data-active={format === 'text'}
+                className="tab !px-2 !py-1 !text-[10px] mono uppercase tracking-widest">Teks</button>
+            </div>
+          )}
+          <button onClick={() => setShowHistory((s) => !s)} className="btn-ghost" title="Riwayat">
+            <Clock className="w-3.5 h-3.5" /> {showHistory ? 'Tutup' : 'Riwayat'}
+          </button>
+        </div>
       </div>
 
       {/* Section tabs (Typography only) */}
