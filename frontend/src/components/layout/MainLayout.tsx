@@ -60,11 +60,14 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isOwnerPage = pathname.startsWith("/owner");
     // Papan Juara TV (publik PIN, fullscreen kiosk) — tanpa sidebar/nav.
     const isTvPage = pathname.startsWith("/tv");
-    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage || isTvPage;
+    // Studio Desain (iframe feeds-auto) — full-screen tanpa chrome dashboard.
+    const isDesainerPage = pathname.startsWith("/desainer");
+    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage || isTvPage || isDesainerPage;
     // Toggle dark mode mengambang untuk halaman publik INTERNAL (staff/operator),
     // BUKAN halaman login & bukan halaman storefront publik (landing/artikel/produk).
-    // /tv punya toggle dark sendiri di TvHeader → jangan dobel.
-    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic && !isTvPage;
+    // /tv punya toggle dark sendiri di TvHeader → jangan dobel. /desainer = iframe
+    // (studio punya tema sendiri) → jangan tampilkan toggle POS.
+    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic && !isTvPage && !isDesainerPage;
 
     if (isStandalone) {
         return (
