@@ -4,6 +4,7 @@ const VERSION = 'v2.1';
 
 const MODE_LABEL = {
   banner:      'Design Feeds',
+  bannercetak: 'Banner Cetak',
   carousel:    'Carousel Feeds',
   gridfeed:    '9 Feed Konsisten',
   thumbnail:   'Youtube Thumbnail',

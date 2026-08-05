@@ -3,13 +3,14 @@ import { createPortal } from 'react-dom';
 import {
   Image, Youtube, Megaphone, PencilLine, ScanFace, UtensilsCrossed,
   Wand2, Settings, PlayCircle, Sparkles, DollarSign, GalleryHorizontalEnd, HandCoins,
-  Sparkles as LogoIcon, Shirt, Star, Film, Video, ChevronRight, Store, Grid3x3,
+  Sparkles as LogoIcon, Shirt, Star, Film, Video, ChevronRight, Store, Grid3x3, Printer,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle.jsx';
 import { CONFIG } from '../config.js';
 
 const MODES = [
   { id: 'banner',      icon: Image,            label: 'Design Feeds' },
+  { id: 'bannercetak', icon: Printer,          label: 'Banner Cetak' },
   { id: 'carousel',    icon: GalleryHorizontalEnd, label: 'Carousel Feeds' },
   { id: 'gridfeed',    icon: Grid3x3,          label: '9 Feed Konsisten' },
   { id: 'thumbnail',   icon: Youtube,          label: 'Youtube' },

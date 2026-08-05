@@ -18,6 +18,7 @@ import SettingsModal from './components/SettingsModal.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 import BannerMode from './modes/BannerMode.jsx';
+import BannerCetakMode from './modes/BannerCetakMode.jsx';
 import CarouselMode from './modes/CarouselMode.jsx';
 import CarouselOutput from './components/CarouselOutput.jsx';
 import GridFeedMode from './modes/GridFeedMode.jsx';
@@ -31,6 +32,7 @@ import TryOnAffiliateMode from './modes/TryOnAffiliateMode.jsx';
 import ReviewAffiliateMode from './modes/ReviewAffiliateMode.jsx';
 import StoryboardAffiliateMode from './modes/StoryboardAffiliateMode.jsx';
 import { buildBanner, INITIAL_BANNER } from './prompts/buildBanner.js';
+import { buildBannerCetak, INITIAL_BANNERCETAK } from './prompts/buildBannerCetak.js';
 import { generateCarouselPrompts, INITIAL_CAROUSEL } from './prompts/buildCarousel.js';
 import { buildGridFeed, INITIAL_GRIDFEED } from './prompts/buildGridFeed.js';
 import { buildThumbnail, INITIAL_THUMBNAIL } from './prompts/buildThumbnail.js';
@@ -56,6 +58,7 @@ function modeReducer(state, action) {
 
 const TITLES = {
   banner:      { name: 'Design Feeds', desc: 'Isi detail produk untuk menghasilkan desain feed profesional siap pakai.' },
+  bannercetak: { name: 'Banner Cetak', desc: 'Desain siap cetak untuk percetakan — spanduk, x-banner, roll-up, baliho, poster, brosur. Prompt sudah 300 DPI / CMYK / bleed.' },
   carousel:    { name: 'Carousel Feeds', desc: 'Pilih tipe template carousel & jumlah slide — sistem menyusun story flow, objektif tiap slide, dan variasi layout jadi satu rangkaian konten.' },
   gridfeed:    { name: '9 Feed Konsisten', desc: 'Isi info produk → sistem susun konsep 9 feed konsisten satu campaign, tiap feed beda peran (hero, fitur, harga, testimoni, CTA, dll). Ikuti video tutorial untuk hasilkan visualnya.' },
   thumbnail:   { name: 'Youtube Thumbnail', desc: 'Isi detail video untuk menghasilkan thumbnail YouTube profesional siap pakai.' },
@@ -70,7 +73,7 @@ const TITLES = {
 };
 
 const HAS_MOCKUP = {
-  banner: true, carousel: true, gridfeed: false, thumbnail: true, typography: true,
+  banner: true, bannercetak: false, carousel: true, gridfeed: false, thumbnail: true, typography: true,
   copywriting: false, facecard: false, menufb: false,
   logoaffiliate: false, tryonaffiliate: false, reviewaffiliate: true,
   storyboardaffiliate: false,
@@ -101,6 +104,7 @@ function AuthedApp() {
   const changeMode = (m) => { setRestoredMode(null); setMode(m); };
 
   const [banner, dispatchBanner]           = useReducer(modeReducer, INITIAL_BANNER);
+  const [bannercetak, dispatchBannercetak] = useReducer(modeReducer, INITIAL_BANNERCETAK);
   const [carousel, dispatchCarousel]       = useReducer(modeReducer, INITIAL_CAROUSEL);
   const [gridfeed, dispatchGridfeed]       = useReducer(modeReducer, INITIAL_GRIDFEED);
   const [thumbnail, dispatchThumbnail]     = useReducer(modeReducer, INITIAL_THUMBNAIL);
@@ -115,6 +119,7 @@ function AuthedApp() {
 
   const activeState =
     mode === 'banner'              ? banner :
+    mode === 'bannercetak'         ? bannercetak :
     mode === 'carousel'            ? carousel :
     mode === 'gridfeed'            ? gridfeed :
     mode === 'thumbnail'           ? thumbnail :
@@ -130,6 +135,7 @@ function AuthedApp() {
 
   const prompt = useMemo(() => {
     if (mode === 'banner')              return buildBanner(deferredState);
+    if (mode === 'bannercetak')         return buildBannerCetak(deferredState);
     if (mode === 'carousel')            return generateCarouselPrompts(deferredState);
     if (mode === 'gridfeed')            return buildGridFeed(deferredState);
     if (mode === 'thumbnail')           return buildThumbnail(deferredState);
@@ -146,6 +152,7 @@ function AuthedApp() {
 
   const promptLabel = (() => {
     if (mode === 'banner')      return activeState.brand || activeState.headline || 'Banner Prompt';
+    if (mode === 'bannercetak') return activeState.headline || activeState.brand || 'Banner Cetak';
     if (mode === 'carousel') {
       if (activeState.templateType === 'news') {
         const twoWords = (activeState.newsContent || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
@@ -270,6 +277,7 @@ function AuthedApp() {
     // versions have default values, preventing crashes on old history entries.
     const safe = (initial, snap) => ({ ...initial, ...(snap || {}) });
     if (entry.mode === 'banner')           dispatchBanner({ type: 'RESET_TO', state: safe(INITIAL_BANNER, entry.snapshot) });
+    else if (entry.mode === 'bannercetak') dispatchBannercetak({ type: 'RESET_TO', state: safe(INITIAL_BANNERCETAK, entry.snapshot) });
     else if (entry.mode === 'carousel')    dispatchCarousel({ type: 'RESET_TO', state: safe(INITIAL_CAROUSEL, entry.snapshot) });
     else if (entry.mode === 'gridfeed')    dispatchGridfeed({ type: 'RESET_TO', state: safe(INITIAL_GRIDFEED, entry.snapshot) });
     else if (entry.mode === 'thumbnail')   dispatchThumbnail({ type: 'RESET_TO', state: safe(INITIAL_THUMBNAIL, entry.snapshot) });
@@ -346,6 +354,7 @@ function AuthedApp() {
               <p className="text-xs text-text-mut mt-1">{t.desc}</p>
             </div>
             {mode === 'banner'              && <BannerMode              state={banner}        dispatch={dispatchBanner} />}
+            {mode === 'bannercetak'         && <BannerCetakMode         state={bannercetak}   dispatch={dispatchBannercetak} />}
             {mode === 'carousel'            && <CarouselMode            state={carousel}      dispatch={dispatchCarousel} />}
             {mode === 'gridfeed'            && <GridFeedMode            state={gridfeed}      dispatch={dispatchGridfeed} />}
             {mode === 'thumbnail'           && <ThumbnailMode           state={thumbnail}     dispatch={dispatchThumbnail} />}
