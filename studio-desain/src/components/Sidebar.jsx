@@ -135,7 +135,7 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
         <img
           src={CONFIG.logoUrl}
           alt={CONFIG.brandName}
-          className="w-full h-full object-contain"
+          className="brand-logo w-full h-full object-contain"
           onError={(e) => {
             e.currentTarget.style.display = 'none';
             const parent = e.currentTarget.parentElement;

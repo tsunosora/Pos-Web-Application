@@ -40,6 +40,10 @@
   color-scheme: light;
 }
 
+/* Logo faicando monokrom PUTIH → balik jadi HITAM saat tema terang
+   (invert 1 pada #FEFEFE ≈ #010101). Loader selalu berlatar gelap → tak kena. */
+:root.theme-light .brand-logo { filter: invert(1); }
+
 html, body, #root { height: 100%; }
 /* html ikut theme juga — cegah area gelap nyangkut di light mode (mobile overscroll/area kosong) */
 html {
