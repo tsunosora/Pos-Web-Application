@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Loader2, Eye, EyeOff, LogIn } from "lucide-react";
+import { Loader2, Eye, EyeOff, LogIn, LogOut } from "lucide-react";
 
 // Halaman Studio Desain — MANDIRI dengan login sendiri.
 // Autentikasi memakai akun yang terdaftar di aplikasi kasir (POS) via
@@ -73,14 +73,44 @@ export default function DesainerPage() {
         }
     };
 
+    const logout = () => {
+        clearTokenEverywhere();
+        setEmail("");
+        setPassword("");
+        setError(null);
+        setStatus("needLogin");
+    };
+
     // ── Studio siap ────────────────────────────────────────────────
     if (status === "authed") {
         return (
-            <div className="h-screen w-screen overflow-hidden bg-black">
+            <div className="flex h-screen w-screen flex-col overflow-hidden bg-black">
+                {/* Bar tipis: identitas + tombol Keluar (Studio tak punya logout sendiri) */}
+                <div
+                    className="flex h-9 shrink-0 items-center justify-between px-3"
+                    style={{ background: "#0B1120", borderBottom: "1px solid rgba(37,99,235,0.22)" }}
+                >
+                    <div className="flex items-center gap-2 text-slate-300">
+                        <svg viewBox="1163 0 6817 9145" fill="#fff" aria-hidden className="h-4 w-4">
+                            <path d="M1475.21 27.35l2994.74 1672.99c65.26,36.46 138.83,36.46 204.09,0l2994.73 -1672.99c66.62,-37.22 142.13,-36.42 207.95,2.21 65.81,38.62 103.33,104.15 103.33,180.46l0 1423.35c0,78.49 -39.91,145.83 -108.75,183.52l-6397.65 3502.89c-66.66,36.49 -141.76,35.22 -207.15,-3.53 -65.38,-38.73 -102.57,-104 -102.57,-180l0 -4926.24c0,-76.31 37.53,-141.83 103.35,-180.46 65.81,-38.62 141.31,-39.42 207.93,-2.2z" />
+                            <path d="M3473.38 5057.58l-2199.94 1192.68c-69.27,37.55 -109.51,105.14 -109.51,183.94l0 2499.77c0,76.08 37.28,141.41 102.77,180.12 65.5,38.71 140.71,39.86 207.36,3.18l2199.94 -1210.97c68.62,-37.78 108.34,-104.98 108.34,-183.3l0 -2481.49c0,-75.84 -37.03,-140.98 -102.2,-179.78 -65.17,-38.8 -140.08,-40.3 -206.76,-4.15z" />
+                            <path d="M4881.72 6458.62l1849.93 -1012.89c68.85,-37.7 108.75,-105.04 108.75,-183.53l0 -1791.31c0,-76 -37.2,-141.27 -102.58,-180 -65.38,-38.75 -140.49,-40.02 -207.15,-3.53l-1849.93 1012.9c-68.84,37.69 -108.74,105.03 -108.74,183.52l0 1791.31c0,76 37.19,141.27 102.57,180.01 65.39,38.74 140.5,40.02 207.15,3.52z" />
+                        </svg>
+                        <span className="text-xs font-semibold">Studio Desain</span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={logout}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-slate-300 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300"
+                        title="Keluar dari Studio Desain"
+                    >
+                        <LogOut className="h-3.5 w-3.5" /> Keluar
+                    </button>
+                </div>
                 <iframe
                     src="/studio-desain/index.html"
                     title="Studio Desain"
-                    className="h-full w-full border-0"
+                    className="w-full flex-1 border-0"
                     allow="clipboard-write; clipboard-read"
                 />
             </div>
