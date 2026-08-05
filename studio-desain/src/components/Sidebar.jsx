@@ -174,58 +174,6 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
       {/* Divider */}
       <div className="w-7 h-px bg-border my-1" />
 
-      {/* Affiliate parent menu — clickable to open flyout */}
-      <div className="relative w-full flex justify-center" ref={affiliateRef}>
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setAffiliateOpen((v) => !v)}
-          data-active={isAffiliateActive || affiliateOpen}
-          className="side-btn group"
-          title="Affiliate"
-        >
-          <DollarSign className="w-5 h-5" />
-          <span className="absolute left-[52px] top-1/2 -translate-y-1/2 px-2 py-1 rounded-md text-[10px] uppercase tracking-widest bg-bg-panel border border-border text-text opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition mono z-50">
-            Affiliate
-          </span>
-          {/* Active dot indicator */}
-          {isAffiliateActive && (
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent shadow-[0_0_6px_rgba(var(--accent-rgb),0.8)]" />
-          )}
-        </button>
-
-        {/* Submenu affiliate — di-PORTAL ke body biar lepas dari containing-block sidebar.
-            HP = modal tengah (cegah ketutupan/kosong), desktop = flyout samping. */}
-        {affiliateOpen && createPortal(
-          isMobile ? (
-            <>
-              <div className="fixed inset-0 z-[9998] bg-black/55 backdrop-blur-sm animate-fade-in" onClick={() => setAffiliateOpen(false)} />
-              {/* Flex wrapper buat centering (animasi transform gak bisa ganggu posisi) */}
-              <div className="fixed inset-0 z-[9999] flex items-start justify-center px-4 pt-16 pointer-events-none">
-                <div
-                  ref={flyoutRef}
-                  className="w-full max-w-[340px] max-h-[80vh] overflow-y-auto surface shadow-panel rounded-xl animate-slide-up pointer-events-auto"
-                >
-                  {affiliateMenuInner}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div
-              ref={flyoutRef}
-              className="fixed z-[9999] w-[280px] surface shadow-panel rounded-lg overflow-hidden animate-fade-in"
-              style={{ top: flyoutPos.top, left: flyoutPos.left, animation: 'fade-in 0.15s ease-out' }}
-            >
-              {affiliateMenuInner}
-            </div>
-          ),
-          document.body
-        )}
-      </div>
-
-      {/* Divider */}
-      <div className="w-7 h-px bg-border my-1" />
-
       {/* Demo trigger */}
       <button onClick={onOpenDemo} className="side-btn group" title="Randomize Demo">
         <Wand2 className="w-5 h-5" />
@@ -236,14 +184,7 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
 
       <div className="flex-1" />
 
-      {/* Bottom: affiliate + settings + theme */}
-      <button onClick={onOpenAffiliateProgram} className="side-btn group relative ring-1 ring-accent/40" title="Jadi Affiliate AI">
-        <HandCoins className="w-5 h-5 text-accent" />
-        <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-accent animate-pulse shadow-[0_0_6px_rgba(var(--accent-rgb),0.8)]" />
-        <span className="absolute left-[52px] top-1/2 -translate-y-1/2 px-2 py-1 rounded-md text-[10px] uppercase tracking-widest bg-bg-panel border border-border text-text opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition mono z-50">
-          Jadi Affiliate
-        </span>
-      </button>
+      {/* Bottom: settings + theme */}
       {/* Hak Jual Kembali (lisensi reseller) — tampil hanya bila diaktifkan di config */}
       {CONFIG.showResellerTier && CONFIG.resellerPaymentUrl && (
         <button
