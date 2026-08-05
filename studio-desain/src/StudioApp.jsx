@@ -255,7 +255,7 @@ function AuthedApp() {
     add({
       mode,
       label: promptLabel,
-      primaryColor: activeState.primaryColor || activeState.colorPrimary || '#ef4444',
+      primaryColor: activeState.primaryColor || activeState.colorPrimary || '#2563EB',
       prompt: text,
       snapshot: activeState,
     });

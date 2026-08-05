@@ -42,10 +42,10 @@ export default function MockupPreview({ mode, state }) {
       secondary = state.newsTextBgAuto ? '#0f172a' : (state.newsTextBg || '#0f172a');
     } else if (state.colorMoodCustom) {
       // Override: pakai warna custom user (Tema Warna)
-      primary = state.colorPrimary || '#ef4444';
+      primary = state.colorPrimary || '#2563EB';
       secondary = state.colorSecondary || '#0f172a';
     } else {
-      primary = '#ef4444';   // aksen brand
+      primary = '#2563EB';   // aksen brand
       secondary = '#0f172a'; // dark
     }
   } else {
@@ -272,7 +272,7 @@ function luminance(hex) {
 function renderReviewBanner(W, H, s) {
   const [bg] = reviewColors(s);
   const ink = luminance(bg) > 0.55 ? '#1f2937' : '#ffffff'; // dark ink on light bg, light on dark
-  const ACC = '#ef4444';
+  const ACC = '#2563EB';
   const rvProduct = (k, x, y, w, h) => ([
     <rect key={k} x={x} y={y} width={w} height={h} rx={8} fill={ink} fillOpacity={0.08} stroke={ink} strokeOpacity={0.32} strokeWidth={1} filter="url(#softShadow)" />,
     <circle key={k + 'c'} cx={x + w/2} cy={y + h/2} r={Math.min(w, h)*0.16} fill={ink} fillOpacity={0.16} />,
@@ -441,11 +441,11 @@ function renderCarouselCover(W, H, s) {
   const ink = (s.templateType === 'news' && s.newsTextColor) ? s.newsTextColor : 'white';
   const e = [];
   // Category tag (kiri atas) + slide indicator (kanan atas) + source bar (bawah)
-  e.push(<rect key="cat" x={14} y={12} width={54} height={15} rx={4} fill="#ef4444" filter="url(#softShadow)" />);
+  e.push(<rect key="cat" x={14} y={12} width={54} height={15} rx={4} fill="#2563EB" filter="url(#softShadow)" />);
   e.push(<rect key="cat2" x={20} y={17} width={32} height={5} rx={2} fill="white" fillOpacity={0.95} />);
   e.push(<rect key="ind" x={W - 44} y={12} width={30} height={14} rx={7} fill="rgba(255,255,255,0.22)" stroke="rgba(255,255,255,0.4)" strokeWidth={1} />);
   e.push(<rect key="src" x={14} y={H - 22} width={W - 28} height={10} rx={5} fill="rgba(255,255,255,0.16)" />);
-  e.push(<circle key="srcd" cx={23} cy={H - 17} r={3} fill="#ef4444" />);
+  e.push(<circle key="srcd" cx={23} cy={H - 17} r={3} fill="#2563EB" />);
 
   const top = 40, bottom = H - 32, ch = bottom - top;
   if (layout === 'image-top') {

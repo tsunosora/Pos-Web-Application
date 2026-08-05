@@ -52,7 +52,7 @@ export default class ErrorBoundary extends React.Component {
     return (
       <div style={{
         minHeight: '100vh',
-        background: '#0a0405',
+        background: '#0B1120',
         color: '#fafafa',
         fontFamily: 'Inter, system-ui, sans-serif',
         display: 'flex',

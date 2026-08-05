@@ -134,7 +134,7 @@ function StudioScene({ demo: d, phase }) {
   const hlCopy      = phase === 'cursor-to-copy' || phase === 'click-copy';
 
   return (
-    <div className="absolute inset-0 bg-[#0a0405] flex flex-col">
+    <div className="absolute inset-0 bg-[#0B1120] flex flex-col">
       <BrowserChrome url="app.brandmu.id/studio" live />
 
       <div className="flex flex-1 min-h-0">
@@ -229,7 +229,7 @@ function StudioScene({ demo: d, phase }) {
 // ═══════════════════════ SCENE 2: BROWSER SWITCH ═══════════════════════
 function BrowserSwitchScene({ demo: d }) {
   return (
-    <div className="absolute inset-0 bg-[#0a0405] flex flex-col items-center justify-center gap-4 overflow-hidden">
+    <div className="absolute inset-0 bg-[#0B1120] flex flex-col items-center justify-center gap-4 overflow-hidden">
       <div className="absolute inset-x-0 h-20 dissolve-scanline pointer-events-none"
            style={{
              background: `linear-gradient(180deg, transparent, ${d.accent}80, transparent)`,
@@ -681,7 +681,7 @@ function Cursor({ x, y, clicking, accent }) {
       {clicking && (
         <div
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full cursor-click-pulse"
-          style={{ background: `radial-gradient(circle, ${accent || '#ef4444'} 0%, transparent 70%)` }}
+          style={{ background: `radial-gradient(circle, ${accent || '#2563EB'} 0%, transparent 70%)` }}
         />
       )}
     </div>

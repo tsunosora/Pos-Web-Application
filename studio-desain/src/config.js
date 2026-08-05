@@ -15,9 +15,9 @@ const pick = (v, d) => (v === undefined || v === null || v === '' ? d : v);
 
 export const CONFIG = {
   // ── Branding ──────────────────────────────────────────────
-  brandName: pick(cfg.brandName, 'Auto Feeds'),
+  brandName: pick(cfg.brandName, 'Studio Desain'),
   tagline:   pick(cfg.tagline, 'AI Design Studio · v2.1'),
-  logoUrl:   pick(cfg.logoUrl, '/studio-desain/studio-desain/landing/brand/logo.png'),
+  logoUrl:   pick(cfg.logoUrl, '/studio-desain/faicando-logo.svg'),
 
   // ── Warna (opsional; kosong = pakai default merah/gelap) ──
   // accentColor : warna utama brand (tombol, link, glow). Hex, mis "#7c3aed".
