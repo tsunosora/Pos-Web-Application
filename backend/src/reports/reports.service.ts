@@ -1285,12 +1285,15 @@ export class ReportsService {
         type Level = 'ramai' | 'normal' | 'sepi' | 'tutup';
         const byHour = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0, revenue: 0, level: 'tutup' as Level }));
         let totalOrders = 0;
+        let totalRevenue = 0;
         for (const t of txs) {
             if (!t.createdAt) continue;
             const hour = new Date(t.createdAt).getHours();
+            const amount = Number(t.grandTotal || 0);
             byHour[hour].count++;
-            byHour[hour].revenue += Number(t.grandTotal || 0);
+            byHour[hour].revenue += amount;
             totalOrders++;
+            totalRevenue += amount;
         }
 
         // Jam operasi = rentang dari jam-aktif-pertama s/d jam-aktif-terakhir.
@@ -1326,6 +1329,7 @@ export class ReportsService {
         return {
             period: { startDate: startDate ?? null, endDate: endDate ?? null },
             totalOrders,
+            totalRevenue,
             byHour,
             operating: opFrom !== null ? { from: opFrom, to: opTo } : null,
             avgPerHour: Math.round(avgPerHour * 10) / 10,

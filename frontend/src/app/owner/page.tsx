@@ -201,6 +201,7 @@ export default function OwnerDashboardPage() {
         [ordersHour],
     );
     const ordersTotal = ordersHour?.totalOrders ?? 0;
+    const ordersRevenue = ordersHour?.totalRevenue ?? 0;
 
     // ── Leads & Leaderboard Karyawan ──────────────────────────────────────────
     const kpiTotals = kpiQ.data?.totals;
@@ -421,6 +422,11 @@ export default function OwnerDashboardPage() {
                                 <Empty />
                             ) : (
                                 <>
+                                    {/* Ringkasan total: jumlah order + nominal seluruh omzet pada periode ini */}
+                                    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 mb-3 text-sm">
+                                        <span className="text-muted-foreground">Total order: <b className="text-foreground font-mono">{ordersTotal}</b></span>
+                                        <span className="text-muted-foreground">Total omzet: <b className="text-foreground font-mono">{fmtRp(ordersRevenue)}</b></span>
+                                    </div>
                                     {/* Panel insight ringkas */}
                                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
                                         <InsightCell tone="ramai" label="Jam Puncak" value={hhmm(ordersHour?.peakHour)} />
@@ -436,7 +442,11 @@ export default function OwnerDashboardPage() {
                                             <Tooltip
                                                 contentStyle={CHART_TOOLTIP_STYLE}
                                                 cursor={{ fill: "var(--muted)", opacity: 0.4 }}
-                                                formatter={(v: any) => [`${v} order`, "Jumlah"]}
+                                                formatter={(v: any, _n: any, item: any) => {
+                                                    const rev = Number(item?.payload?.revenue ?? 0);
+                                                    const pct = ordersTotal ? (Number(v) / ordersTotal) * 100 : 0;
+                                                    return [`${v} order · ${pct.toFixed(1)}% dari total · ${fmtRp(rev)}`, "Jumlah"];
+                                                }}
                                                 labelFormatter={(l: any) => `Pukul ${l}:00`}
                                             />
                                             <Bar dataKey="Order" radius={[6, 6, 0, 0]}>

@@ -49,6 +49,7 @@ export type OrderHourLevel = 'ramai' | 'normal' | 'sepi' | 'tutup';
 export type OrdersByHourReport = {
     period: { startDate: string | null; endDate: string | null };
     totalOrders: number;
+    totalRevenue: number;
     byHour: { hour: number; count: number; revenue: number; level: OrderHourLevel }[];
     operating: { from: number; to: number } | null;
     avgPerHour: number;
