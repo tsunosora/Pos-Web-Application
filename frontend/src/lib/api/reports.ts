@@ -44,6 +44,29 @@ export const getProfitReport = async (startDate?: string, endDate?: string) => {
     return (await api.get(`/reports/profit?${params.toString()}`)).data;
 };
 
+// Distribusi orderan (LUNAS) per jam mulai — untuk memantau kapan ramai/sepi.
+export type OrderHourLevel = 'ramai' | 'normal' | 'sepi' | 'tutup';
+export type OrdersByHourReport = {
+    period: { startDate: string | null; endDate: string | null };
+    totalOrders: number;
+    byHour: { hour: number; count: number; revenue: number; level: OrderHourLevel }[];
+    operating: { from: number; to: number } | null;
+    avgPerHour: number;
+    peakHour: number | null;
+    quietHour: number | null;
+    busyRange: { from: number; to: number } | null;
+    quietRange: { from: number; to: number } | null;
+};
+export const getOrdersByHour = async (
+    startDate?: string,
+    endDate?: string,
+): Promise<OrdersByHourReport> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return (await api.get(`/reports/orders-by-hour?${params.toString()}`)).data;
+};
+
 // Laporan Tutup Buku bulanan (basis kas) — pendapatan per kanal, pengeluaran
 // per kategori, laba, piutang. Cabang mengikuti header X-Branch-Id (branch store).
 export interface MonthlyClosing {
