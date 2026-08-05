@@ -1,0 +1,121 @@
+# ═══════════════════════════════════════════════════════
+#   AI Design Studio — Apache .htaccess for Hostinger
+#   SPA fallback · HTTPS · Caching · Compression · Security
+# ═══════════════════════════════════════════════════════
+
+# Default charset
+AddDefaultCharset UTF-8
+
+# ─────────────────────────────────────────
+# 1) Force HTTPS (redirect HTTP → HTTPS)
+# ─────────────────────────────────────────
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  RewriteCond %{HTTPS} off
+  RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+  # ─────────────────────────────────────────
+  # 2) SPA fallback — semua route ke index.html
+  #    Kecuali file/folder asli (image, JS, CSS, dst)
+  # ─────────────────────────────────────────
+  RewriteRule ^index\.html$ - [L]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule . /index.html [L]
+</IfModule>
+
+# ─────────────────────────────────────────
+# 3) Aggressive caching untuk static assets
+#    (hemat bandwidth + load lebih cepat)
+# ─────────────────────────────────────────
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresDefault                          "access plus 1 month"
+
+  # Images — cache 1 tahun (hash di nama file handle invalidation)
+  ExpiresByType image/jpeg                "access plus 1 year"
+  ExpiresByType image/png                 "access plus 1 year"
+  ExpiresByType image/webp                "access plus 1 year"
+  ExpiresByType image/svg+xml             "access plus 1 year"
+  ExpiresByType image/x-icon              "access plus 1 year"
+
+  # JS/CSS hash-named bundle — cache 1 tahun
+  ExpiresByType application/javascript    "access plus 1 year"
+  ExpiresByType text/javascript           "access plus 1 year"
+  ExpiresByType text/css                  "access plus 1 year"
+
+  # Fonts
+  ExpiresByType application/font-woff2    "access plus 1 year"
+  ExpiresByType font/woff2                "access plus 1 year"
+
+  # HTML JANGAN di-cache sama sekali — selalu revalidate ke server.
+  # Penting agar saat deploy versi baru, user langsung dapat HTML baru
+  # (yang reference ke JS bundle baru). Asset di /assets/* sudah hash-named
+  # jadi aman cache lama.
+  ExpiresByType text/html                 "access plus 0 seconds"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Hash-named assets are immutable
+  <FilesMatch "\.(js|css|woff2|jpg|jpeg|png|webp|svg|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  # HTML must ALWAYS revalidate to server — no stale HTML pointing to
+  # missing/old JS bundles after deploy.
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+  # config.js berubah tiap update (harga/brand/link) → JANGAN di-cache.
+  # (kalau ikut aturan .js immutable di atas, perubahan harga tidak akan muncul
+  #  ke pengunjung karena config.js lama ke-cache 1 tahun.)
+  <FilesMatch "^config\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  # Security headers
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options        "SAMEORIGIN"
+  Header set Referrer-Policy        "strict-origin-when-cross-origin"
+  Header set Permissions-Policy     "payment=(self \"https://*.mayar.id\" \"https://*.myr.id\" \"https://aiautomation.myr.id\")"
+</IfModule>
+
+# ─────────────────────────────────────────
+# 4) Compression — gzip/brotli (hemat bandwidth)
+# ─────────────────────────────────────────
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE text/javascript
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/json
+  AddOutputFilterByType DEFLATE image/svg+xml
+  AddOutputFilterByType DEFLATE application/xml
+</IfModule>
+
+# ─────────────────────────────────────────
+# 5) Block akses sensitive files
+# ─────────────────────────────────────────
+<FilesMatch "\.(env|env\.local|env\.example|git|log|md|json|lock)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
+
+# Block file lain yang gak butuh diakses public
+<FilesMatch "^(package|tsconfig|vite\.config|tailwind\.config|postcss\.config)\.">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
+
+# Disable directory listing
+Options -Indexes
+
+# ─────────────────────────────────────────
+# 6) Custom error pages → SPA
+# ─────────────────────────────────────────
+ErrorDocument 404 /index.html

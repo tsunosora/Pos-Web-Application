@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="id" class="theme-dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/landing/brand/logo.png" />
+    <link rel="apple-touch-icon" href="/landing/brand/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto Feeds — Studio Visual Instan</title>
+    <meta name="description" content="Visual iklan profesional dalam hitungan detik. Banner, thumbnail YouTube, story TikTok, dan typography ads — tanpa Canva, tanpa Photoshop, tanpa desainer." />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type"        content="website" />
+    <meta property="og:title"       content="Auto Feeds — Studio Visual Instan" />
+    <meta property="og:description" content="Buat banner, thumbnail YouTube, dan typography ads profesional dalam hitungan detik. Tanpa designer, tanpa Canva." />
+    <meta property="og:image"       content="/landing/brand/logo.png" />
+    <meta property="og:site_name"   content="Auto Feeds" />
+    <meta property="og:locale"      content="id_ID" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card"        content="summary_large_image" />
+    <meta name="twitter:title"       content="Auto Feeds — Studio Visual Instan" />
+    <meta name="twitter:description" content="Konten desain profesional dalam hitungan detik. Tanpa designer." />
+    <meta name="twitter:image"       content="/landing/brand/logo.png" />
+
+    <meta name="theme-color" content="#ef4444" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+    <!-- Initial loader — simple "Loading..." splash, removed by React on mount -->
+    <style>
+      :root { color-scheme: dark; }
+      html, body { background: #0a0405; margin: 0; }
+      #initial-loader {
+        position: fixed; inset: 0; z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 20px;
+        background: #0a0405;
+        font-family: Inter, system-ui, -apple-system, sans-serif;
+        transition: opacity 0.25s ease;
+      }
+      #initial-loader.is-hiding { opacity: 0; pointer-events: none; }
+      #initial-loader .il-logo {
+        width: 56px; height: 56px;
+        background: linear-gradient(135deg, #ef4444, #b91c1c);
+        border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        color: #fff; font-weight: 900; font-size: 22px;
+        box-shadow: 0 0 24px rgba(239,68,68,0.55);
+        animation: il-pulse 1.4s ease-in-out infinite;
+      }
+      #initial-loader .il-loading {
+        display: inline-flex; align-items: baseline;
+        font-size: 13px;
+        font-weight: 500;
+        color: rgba(255,255,255,0.7);
+        letter-spacing: 0.05em;
+      }
+      #initial-loader .il-loading .il-dots-text {
+        display: inline-flex;
+        margin-left: 2px;
+      }
+      #initial-loader .il-loading .il-dots-text span {
+        opacity: 0;
+        animation: il-dot-fade 1.4s ease-in-out infinite;
+      }
+      #initial-loader .il-loading .il-dots-text span:nth-child(1) { animation-delay: 0s; }
+      #initial-loader .il-loading .il-dots-text span:nth-child(2) { animation-delay: 0.2s; }
+      #initial-loader .il-loading .il-dots-text span:nth-child(3) { animation-delay: 0.4s; }
+
+      @keyframes il-pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 24px rgba(239,68,68,0.55); }
+        50%      { transform: scale(1.08); box-shadow: 0 0 36px rgba(239,68,68,0.8); }
+      }
+      @keyframes il-dot-fade {
+        0%, 100% { opacity: 0; }
+        40%, 60% { opacity: 1; }
+      }
+    </style>
+    <!-- tracking dikosongkan untuk paket reseller -->
+  </head>
+  <body>
+    <!-- KONFIGURASI white-label (edit /config.js, tanpa build). Dimuat SEBELUM
+         bundle agar window.__AF_CONFIG sudah siap saat app jalan. -->
+    <script src="/config.js?v=2"></script>
+    <script>
+      // Set judul tab + WARNA brand dari config. Override di-inject sebagai
+      // <style> yang HANYA menarget DARK mode (:root:not(.theme-light)) →
+      // landing (selalu dark) & /app dark ikut warna config; LIGHT mode di /app
+      // tetap pakai tema default (teal/putih). Dijalankan sebelum bundle → no flash.
+      (function () {
+        try {
+          var cfg = window.__AF_CONFIG || {};
+          if (cfg.brandName) document.title = cfg.brandName + ' — Instant Design Studio';
+
+          var hexToRgb = function (hex) {
+            var h = String(hex).replace('#', '').trim();
+            if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+            if (!/^[0-9a-fA-F]{6}$/.test(h)) return null;
+            return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+          };
+          var clamp = function (n) { return Math.max(0, Math.min(255, Math.round(n))); };
+          var rgbStr = function (a) { return a[0] + ', ' + a[1] + ', ' + a[2]; };
+          var lighten = function (a, p) { return [clamp(a[0] + (255 - a[0]) * p), clamp(a[1] + (255 - a[1]) * p), clamp(a[2] + (255 - a[2]) * p)]; };
+          var darken = function (a, p) { return [clamp(a[0] * (1 - p)), clamp(a[1] * (1 - p)), clamp(a[2] * (1 - p))]; };
+          var toRgb = function (a) { return 'rgb(' + a[0] + ',' + a[1] + ',' + a[2] + ')'; };
+
+          var rules = [];
+          // ACCENT
+          var ac = hexToRgb(cfg.accentColor);
+          if (ac) {
+            // pakai rgb() (selalu valid) — tahan walau user lupa tanda '#'
+            rules.push('--accent:' + toRgb(ac) + ';');
+            rules.push('--accent-rgb:' + rgbStr(ac) + ';');
+            rules.push('--accent-hover:' + toRgb(lighten(ac, 0.18)) + ';');
+            rules.push('--accent-deep:' + toRgb(darken(ac, 0.30)) + ';');
+            rules.push('--accent-soft:rgba(' + rgbStr(ac) + ',0.20);');
+            rules.push('--border:rgba(' + rgbStr(ac) + ',0.22);');
+            rules.push('--border-strong:rgba(' + rgbStr(ac) + ',0.42);');
+          }
+          // BACKGROUND (warna gelap; turunkan 4 shade dari 1 warna dasar)
+          var bg = hexToRgb(cfg.bgColor);
+          if (bg) {
+            rules.push('--bg:' + toRgb(bg) + ';');
+            rules.push('--bg-deep:' + toRgb(darken(bg, 0.4)) + ';');
+            rules.push('--bg-panel:' + toRgb(lighten(bg, 0.06)) + ';');
+            rules.push('--bg-elev:' + toRgb(lighten(bg, 0.12)) + ';');
+          }
+          if (rules.length) {
+            var st = document.createElement('style');
+            // :root:not(.theme-light) → menang atas :root (dark) tapi TIDAK kena light mode
+            st.textContent = ':root:not(.theme-light){' + rules.join('') + '}';
+            document.head.appendChild(st);
+          }
+        } catch (e) {}
+      })();
+    </script>
+
+    <!-- Initial loader — simple "Loading..." splash. Removed by main.jsx on React mount. -->
+    <div id="initial-loader">
+      <div class="il-logo">F</div>
+      <div class="il-loading">Loading<span class="il-dots-text"><span>.</span><span>.</span><span>.</span></span></div>
+    </div>
+
+    <div id="root"></div>
+
+    <!-- Watchdog anti-blank (non-module → jalan bahkan di browser lama):
+         1) Setelah 2.5s paksa konten .reveal terlihat — beberapa HP (battery
+            saver / "remove animations") mem-pause animasi CSS sehingga konten
+            stuck transparan → halaman tampak cuma warna.
+         2) Kalau React belum mount setelah 12s (bundle gagal load / gagal parse
+            di browser lama), ganti splash jadi tombol Muat Ulang — bukan
+            "Loading..." selamanya. -->
+    <script>
+      (function () {
+        setTimeout(function () {
+          document.documentElement.className += ' anims-settled';
+        }, 1200);
+        setTimeout(function () {
+          if (!window.__AF_MOUNTED) {
+            var el = document.getElementById('initial-loader');
+            if (el) {
+              el.innerHTML =
+                '<div style="text-align:center;font-family:Inter,system-ui,sans-serif;color:#fff;padding:0 24px">' +
+                '<div style="font-size:15px;font-weight:700;margin-bottom:6px">Koneksi lambat atau gagal memuat</div>' +
+                '<div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:16px">Periksa koneksi internetmu, lalu coba lagi.</div>' +
+                '<button onclick="location.reload()" style="background:linear-gradient(135deg,#ef4444,#b91c1c);color:#fff;border:0;border-radius:10px;padding:12px 22px;font-size:14px;font-weight:700;cursor:pointer">&#8635; Muat Ulang</button>' +
+                '</div>';
+            }
+          }
+        }, 12000);
+      })();
+    </script>
+
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

@@ -1,0 +1,336 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║   PANDUAN SETUP — AI DESIGN STUDIO (Lisensi Reseller)                  ║
+║   Ikuti langkah berurutan. Tanpa coding, tanpa install apa pun.        ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Estimasi waktu: 15–20 menit.
+Yang kamu butuh: 1 domain/hosting + 1 akun Google (gratis).
+
+
+────────────────────────────────────────────────────────────────────────
+⚠️ PENTING — CARA MEMBUKA WEBSITE-NYA (BACA DULU!)
+────────────────────────────────────────────────────────────────────────
+Website ini TIDAK BISA dibuka dengan klik-dua-kali atau drag "index.html"
+ke browser. Kalau dipaksa, layar hitam / "Koneksi gagal memuat". Itu NORMAL
+untuk semua website modern — file-nya harus disajikan lewat HTTP (hosting),
+bukan dibuka langsung dari folder.
+
+  ✅ CARA BENAR: upload semua file ke hosting/domain (lihat LANGKAH 5),
+     lalu buka via alamat website (https://domainkamu.com).
+
+  🔎 MAU TES DULU sebelum upload? Pilih salah satu (gratis):
+     • Netlify Drop — TERMUDAH: buka  https://app.netlify.com/drop
+       lalu DRAG seluruh folder ini ke sana → langsung dapat link jalan.
+     • VS Code: install ekstensi "Live Server" → klik kanan index.html
+       → "Open with Live Server".
+     • Python: di folder ini jalankan  python -m http.server 8080
+       → buka  http://localhost:8080
+
+  (Catatan: hash-tool.html BOLEH dibuka klik-dua-kali — itu file mandiri.)
+
+
+────────────────────────────────────────────────────────────────────────
+ISI PAKET (folder yang kamu terima)
+────────────────────────────────────────────────────────────────────────
+  index.html          → halaman utama (jangan dihapus)
+  config.js           → ★ FILE YANG KAMU EDIT (brand, harga, login, link)
+  hash-tool.html      → alat bikin password (buka di browser)
+  assets/             → kode & style website (jangan diubah)
+  landing/            → gambar & aset tampilan (logo ada di landing/brand/)
+  .htaccess           → biar /app tidak error di hosting (jangan dihapus)
+  _redirects          → sama seperti di atas, khusus Netlify
+  PANDUAN-SETUP.txt   → file ini
+
+
+────────────────────────────────────────────────────────────────────────
+LANGKAH 1 — SIAPKAN DAFTAR EMAIL LOGIN (Google Spreadsheet)
+────────────────────────────────────────────────────────────────────────
+Hanya orang yang emailnya ada di sheet ini yang bisa login.
+
+  1. Buka https://sheets.google.com → buat spreadsheet baru.
+  2. Di sel A1 ketik:  Email
+  3. Mulai A2 ke bawah, isi email pelanggan yang boleh login (1 per baris).
+       contoh:
+         A1: Email
+         A2: budi@gmail.com
+         A3: sinta@yahoo.com
+  4. Menu  File → Share → Publish to web.
+  5. Di jendela yang muncul:
+       - Bagian kiri pilih sheet-nya (Sheet1).
+       - Bagian kanan pilih  "Comma-separated values (.csv)".
+       - Klik  Publish  → Yes.
+  6. Salin URL yang muncul (berakhiran  ...output=csv).
+       Simpan dulu, nanti ditempel ke config.js (Langkah 3).
+
+  CATATAN: untuk menambah/menghapus user nanti, cukup edit spreadsheet —
+  website otomatis ikut (tanpa upload ulang). Perubahan tampil maks 5 menit.
+
+
+────────────────────────────────────────────────────────────────────────
+LANGKAH 2 — BUAT PASSWORD LOGIN
+────────────────────────────────────────────────────────────────────────
+Semua pelanggan login pakai 1 password yang sama (+ email mereka harus
+terdaftar di spreadsheet). Di "hash-tool.html" TIDAK ada yang perlu diganti —
+kamu cukup MENGETIK password, dan kodenya muncul otomatis.
+
+  1. Buka file  hash-tool.html.
+       • Dari komputer: klik dua kali file-nya → terbuka di browser.
+       • Atau setelah website online: buka  https://DOMAIN-KAMU/hash-tool.html
+
+  2. Di kotak "Password yang diinginkan", KETIK password baru kamu.
+       contoh ketik:  BrandKu2026
+       (ini yang nanti dipakai pelanggan untuk login)
+
+  3. Di bawahnya muncul KODE HASH otomatis (deretan huruf+angka panjang),
+     contoh:  a1b2c3d4e5f6....
+     → klik tombol  "Salin Hash".
+
+  4. Buka  config.js  (Langkah 3). Cari baris:
+
+         loginPasswordHash: "963c3db89fe46ce8......",
+
+     GANTI hanya kode di dalam tanda kutip "..." dengan hash yang barusan
+     kamu salin. Jangan ubah tulisan  loginPasswordHash:  -nya. Jadi:
+
+         loginPasswordHash: "a1b2c3d4e5f6....",   ← hash baru kamu
+
+  5. Simpan & upload ulang config.js. Selesai — password login berubah.
+
+  CONTOH LENGKAP:
+     - Kamu ketik di hash-tool:  BrandKu2026
+     - hash-tool kasih kode:     7f9a2c....(panjang)
+     - di config.js tulis:       loginPasswordHash: "7f9a2c....",
+     - Pelanggan login pakai:    email (di sheet) + password "BrandKu2026"
+
+  ⚠️ Password asli ("BrandKu2026") TIDAK pernah masuk ke website — yang
+     tersimpan hanya kode hash-nya, jadi tidak bisa dibaca orang lain.
+     Bawaan awal password = "Designitumudah" (ganti segera dengan punyamu).
+
+
+────────────────────────────────────────────────────────────────────────
+LANGKAH 3 — EDIT config.js  (BACA ATURAN INI DULU)
+────────────────────────────────────────────────────────────────────────
+Buka  config.js  pakai Notepad / VS Code / editor teks apa pun.
+
+  ★ ATURAN PENTING (biar tidak error):
+    1. Nilai TEKS (huruf/link/warna) → tulis DI ANTARA dua tanda kutip "..."
+         contoh:  brandName: "Studio Desain",
+    2. Nilai ANGKA atau true/false → TANPA tanda kutip
+         contoh:  affiliatePerSignup: 63000,
+         contoh:  showResellerTier: true,
+    3. JANGAN hapus tanda koma ( , ) di akhir tiap baris.
+    4. Yang kamu ubah HANYA tulisan di ANTARA "...". Jangan ubah nama
+       sebelum titik dua ( brandName, price, dll ) dan jangan hapus kutipnya.
+    5. Kalau mau mengosongkan sebuah nilai teks → biarkan kutip kosong:  ""
+
+  ─────────────────────────────────────────────────────────────────────
+  ISI TIAP BARIS (ubah teks di antara "..." saja):
+
+  • brandName: "Auto Feeds"
+        → ganti jadi nama brandmu. Kata TERAKHIR tampil warna aksen.
+          contoh:  brandName: "Studio Desain",
+
+  • tagline: "AI Design Studio · v2.1"
+        → teks kecil di bawah logo.  contoh:  tagline: "Studio Visual Instan",
+
+  • logoUrl: "/landing/brand/logo.png"
+        → biarkan saja kalau kamu menimpa file logo (Langkah 4). Atau isi
+          link gambar:  logoUrl: "https://situs.com/logo.png",
+
+  • accentColor: ""        (WARNA — opsional)
+        → warna utama brand (tombol, link, highlight). Isi kode HEX.
+          contoh:  accentColor: "#7c3aed",   (kosongkan "" = merah bawaan)
+
+  • bgColor: ""            (WARNA background — opsional, pakai warna GELAP)
+        contoh:  bgColor: "#0a0a14",         (kosongkan "" = gelap bawaan)
+
+  • paymentUrl: "https://..."
+        → link checkout/pembayaran kamu (tempat pelanggan beli akses).
+          contoh:  paymentUrl: "https://lynk.id/kamu/checkout",
+
+  • affiliateUrl: "https://..."
+        → link daftar affiliate. Tak punya? kosongkan:  affiliateUrl: "",
+
+  • instagramUrl: "https://instagram.com/akunmu"   ← LINK saat diklik
+  • instagramHandle: "@akunmu"                      ← TULISAN yang tampil
+  • facebookUrl: "https://facebook.com/akunmu"     ← LINK saat diklik
+  • facebookHandle: "Nama FB kamu"                  ← TULISAN yang tampil
+
+  • price: "99.000"          → harga tampil (teks, pakai kutip).
+  • priceStrike: "700.000"   → harga coret di atasnya.
+  • affiliatePerSignup: 63000   → komisi affiliate (ANGKA, tanpa kutip).
+
+  • sheetCsvUrl: ""
+        → TEMPEL URL CSV dari Langkah 1, DI ANTARA kutip.
+          contoh:  sheetCsvUrl: "https://docs.google.com/.../pub?...output=csv",
+
+  • loginPasswordHash: "963c3db8...."
+        → TEMPEL kode hash dari Langkah 2, GANTI kode lama di antara "...".
+
+  Simpan file. JANGAN ganti nama file (harus tetap  config.js ).
+
+
+────────────────────────────────────────────────────────────────────────
+LANGKAH 4 — GANTI LOGO (opsional)
+────────────────────────────────────────────────────────────────────────
+  - Cara mudah: timpa file  landing/brand/logo.png  dengan logomu
+    (pakai nama sama: logo.png). Selesai.
+  - Atau: upload logomu ke mana saja, lalu isi  logoUrl  di config.js
+    dengan URL gambar tsb.
+
+
+────────────────────────────────────────────────────────────────────────
+LANGKAH 5 — UPLOAD KE DOMAIN / HOSTING
+────────────────────────────────────────────────────────────────────────
+Pilih SALAH SATU cara. Yang paling direkomendasikan: GitHub + Vercel
+(gratis, otomatis, gampang update). Panduan detailnya di bawah.
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  CARA A (REKOMENDASI) — DEPLOY GRATIS via GITHUB + VERCEL             ║
+╚══════════════════════════════════════════════════════════════════════╝
+Keunggulan: gratis selamanya, HTTPS otomatis, dan tiap kali kamu edit
+config.js → website update sendiri. Total ±10 menit.
+
+  BAGIAN 1 — Siapkan GitHub
+  -------------------------
+  1. Buat akun gratis di  https://github.com  (kalau belum punya).
+  2. Klik tombol  +  (kanan atas) → "New repository".
+  3. Isi "Repository name" (bebas, mis: studio-desain) →
+     pilih "Private" (disarankan) → klik "Create repository".
+  4. Di halaman repo baru, klik link
+     "uploading an existing file".
+  5. BUKA folder paket ini di komputer. Pilih SEMUA isinya
+     (index.html, config.js, hash-tool.html, vercel.json, folder
+     assets, folder landing, .htaccess, _redirects, dll) lalu
+     DRAG semua ke kotak upload di GitHub.
+     ⚠️ Upload ISI folder, bukan folder-nya. index.html harus di paling atas.
+  6. Klik "Commit changes". Tunggu upload selesai.
+
+  BAGIAN 2 — Hubungkan ke Vercel
+  ------------------------------
+  7. Buka  https://vercel.com  → "Sign Up" → pilih "Continue with GitHub".
+  8. Klik "Add New..." → "Project".
+  9. Cari repo yang tadi (studio-desain) → klik "Import".
+     (Kalau repo tak muncul: klik "Adjust GitHub App Permissions" →
+      beri akses ke repo itu.)
+ 10. Di halaman konfigurasi:
+       • Framework Preset : pilih  "Other"
+       • Build Command    : BIARKAN KOSONG  (matikan toggle "Override")
+       • Output Directory : BIARKAN KOSONG  (atau ketik:  . )
+       • Install Command  : BIARKAN KOSONG
+     (File ini sudah jadi/siap pakai — TIDAK perlu di-build.)
+ 11. Klik "Deploy". Tunggu ±1 menit sampai muncul "Congratulations".
+ 12. Klik "Continue to Dashboard" → klik domain  xxxxx.vercel.app  →
+     website kamu sudah online! Coba buka  /app  juga.
+
+  BAGIAN 3 — Pasang domain sendiri (opsional)
+  -------------------------------------------
+ 13. Di project Vercel → tab "Settings" → "Domains" → ketik domainmu
+     (mis: studiodesain.com) → "Add" → ikuti instruksi DNS yang muncul
+     (tambah record di tempat kamu beli domain). HTTPS otomatis.
+
+  CARA UPDATE NANTI (mis. ganti harga / warna / password):
+ 14. Di GitHub → buka file  config.js  → klik ikon pensil (Edit) →
+     ubah → "Commit changes". Vercel otomatis re-deploy ±1 menit.
+     (Setelah itu hard-refresh browser: Ctrl+Shift+R.)
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  CARA B — NETLIFY (gratis, paling cepat, tanpa GitHub)               ║
+╚══════════════════════════════════════════════════════════════════════╝
+Cocok kalau mau cepat tanpa ribet GitHub. Total ±5 menit.
+
+  BAGIAN 1 — Upload (drag & drop)
+  -------------------------------
+  1. Buka  https://app.netlify.com/drop  di browser.
+  2. BUKA folder paket ini di komputer (File Explorer / Finder).
+  3. DRAG seluruh FOLDER paket ini → jatuhkan ke kotak besar di halaman
+     Netlify ("Drag and drop your site output folder here").
+     ⚠️ Pastikan di dalam folder ada index.html di paling atas (bukan folder
+        di dalam folder). Kalau ragu: buka folder, blok SEMUA isinya
+        (Ctrl+A), lalu drag yang ke-blok itu.
+  4. Tunggu upload + "Deploying..." selesai (10–30 detik).
+  5. Muncul URL acak, mis:  https://shiny-cat-123.netlify.app
+     Klik untuk buka — website kamu sudah ONLINE. Coba buka  /app  juga.
+
+  BAGIAN 2 — Simpan situs + ganti nama (buat akun gratis)
+  -------------------------------------------------------
+  6. Klik "Sign up" / "Claim this site" (atas) → daftar gratis
+     (bisa pakai email / akun Google). Situs tadi otomatis tersimpan.
+  7. Ganti nama situs biar rapi: menu  Site configuration → Site details
+     → "Change site name" → ketik nama (mis: studio-desain) →
+     URL jadi  https://studio-desain.netlify.app
+
+  BAGIAN 3 — Pasang domain sendiri (opsional)
+  -------------------------------------------
+  8. Menu  Domain management  (atau "Domains") → "Add a domain" →
+     ketik domainmu (mis: studiodesain.com) → "Verify" → "Add".
+  9. Ikuti instruksi DNS yang Netlify tampilkan:
+       - Cara mudah: ganti "Nameservers" domain ke milik Netlify
+         (di tempat kamu beli domain), ATAU
+       - tambah record A / CNAME sesuai yang diberikan Netlify.
+ 10. Tunggu propagasi DNS (beberapa menit–jam). HTTPS aktif otomatis.
+
+  CARA UPDATE NANTI (ganti harga / warna / password):
+ 11. Edit  config.js  di komputer → buka tab  Deploys  di Netlify →
+     DRAG seluruh folder paket (yang sudah di-edit) ke area
+     "Drag and drop your site folder here" → otomatis ter-deploy versi baru.
+     (Lalu hard-refresh browser: Ctrl+Shift+R.)
+
+  Catatan: file  _redirects  (sudah ada di paket) membuat  /app  tidak
+  error saat di-refresh di Netlify. Jangan dihapus.
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  CARA C — HOSTING BIASA (Hostinger / cPanel / Niagahoster)            ║
+╚══════════════════════════════════════════════════════════════════════╝
+  1. Login cPanel → File Manager → masuk folder  public_html.
+  2. Upload SEMUA isi folder paket ini (termasuk .htaccess).
+     index.html harus di paling luar public_html.
+  3. Buka domainmu — selesai.
+
+  PENTING (semua cara): jangan upload hanya index.html.
+  Upload SEMUA file & folder, dengan struktur yang sama.
+
+
+────────────────────────────────────────────────────────────────────────
+LANGKAH 6 — TES
+────────────────────────────────────────────────────────────────────────
+  1. Buka  https://domainmu.com           → halaman jualan (landing).
+  2. Buka  https://domainmu.com/app       → halaman login studio.
+  3. Login pakai: email yang ADA di spreadsheet + password kamu.
+  4. Coba generate 1 design → pastikan tombol Copy jalan.
+
+
+────────────────────────────────────────────────────────────────────────
+TROUBLESHOOTING
+────────────────────────────────────────────────────────────────────────
+  • Halaman /app "Not Found" saat dibuka/refresh
+      → file .htaccess belum keupload (Apache), atau host pakai aturan lain.
+        Lihat Langkah 5 (Netlify: _redirects; Vercel: vercel.json).
+
+  • Login selalu "Email belum terdaftar"
+      → cek: email persis sama (huruf kecil), spreadsheet sudah di-Publish
+        sebagai CSV, dan sheetCsvUrl di config.js benar (berakhiran output=csv).
+
+  • Login "Password salah"
+      → hash di config.js tidak cocok. Ulang Langkah 2, pastikan menyalin
+        SELURUH kode hash.
+
+  • Halaman tampil polos/aneh
+      → kemungkinan upload tidak lengkap. Pastikan folder assets/ ikut.
+        Lalu hard-refresh (Ctrl+F5) atau buka di mode incognito.
+
+  • Setelah edit config.js tidak berubah
+      → hard-refresh (Ctrl+F5). Browser meng-cache config lama.
+
+
+────────────────────────────────────────────────────────────────────────
+CATATAN KEAMANAN
+────────────────────────────────────────────────────────────────────────
+  • Daftar email di spreadsheet bersifat publik (bisa dibaca lewat URL CSV).
+    Isi HANYA email, jangan taruh data sensitif lain di sheet itu.
+  • Password disimpan sebagai hash (tidak bisa dibalik jadi teks asli).
+  • Tidak ada API key apa pun di dalam paket — aman dari kebocoran token.
+
+Selesai. Selamat berjualan! 🚀
