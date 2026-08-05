@@ -353,7 +353,7 @@ function TemplateCard({ demo, active, compact, onClick }) {
   const Icon = getDemoIcon(demo.icon, UtensilsCrossed);
   const primary = demo.preset.primaryColor || '#7c1d2e';
   const secondary = demo.preset.secondaryColor || '#fdf2e9';
-  const thumbnailSrc = `/landing/menu-fb/${demo.id}.jpg`;
+  const thumbnailSrc = `/studio-desain/landing/menu-fb/${demo.id}.jpg`;
   const catCount = (demo.preset.categories || []).length;
   const itemCount = (demo.preset.categories || []).reduce(
     (a, c) => a + ((c.items || []).length),

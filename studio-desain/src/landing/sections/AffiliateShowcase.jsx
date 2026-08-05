@@ -4,7 +4,7 @@ import GlowOrb from '../primitives/GlowOrb.jsx';
 import ScanlineGrid from '../primitives/ScanlineGrid.jsx';
 import SafeImage from '../primitives/SafeImage.jsx';
 
-const SRC = (p) => `/landing/affiliate-demos/${p}.jpg?v=3`;
+const SRC = (p) => `/studio-desain/landing/affiliate-demos/${p}.jpg?v=3`;
 
 const TOOLS = [
   {

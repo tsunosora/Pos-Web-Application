@@ -93,7 +93,7 @@ function DemoCard({ demo, onPick }) {
     (a, c) => a + ((c.items || []).length),
     0,
   );
-  const thumbnailSrc = `/landing/menu-fb/${demo.id}.jpg`;
+  const thumbnailSrc = `/studio-desain/landing/menu-fb/${demo.id}.jpg`;
 
   return (
     <button

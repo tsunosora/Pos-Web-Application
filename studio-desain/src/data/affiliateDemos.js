@@ -4,7 +4,7 @@
  * & full preset. Reference gallery juga dari hasil fal.ai.
  */
 
-const LOCAL = (mode, id) => `/landing/affiliate-demos/${mode}/${id}.jpg?v=3`;
+const LOCAL = (mode, id) => `/studio-desain/landing/affiliate-demos/${mode}/${id}.jpg?v=3`;
 const IMG = (id, w = 400, h = 280) =>
   `https://images.unsplash.com/photo-${id}?w=${w}&h=${h}&fit=crop&auto=format&q=75`;
 

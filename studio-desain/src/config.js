@@ -17,7 +17,7 @@ export const CONFIG = {
   // ── Branding ──────────────────────────────────────────────
   brandName: pick(cfg.brandName, 'Auto Feeds'),
   tagline:   pick(cfg.tagline, 'AI Design Studio · v2.1'),
-  logoUrl:   pick(cfg.logoUrl, '/landing/brand/logo.png'),
+  logoUrl:   pick(cfg.logoUrl, '/studio-desain/studio-desain/landing/brand/logo.png'),
 
   // ── Warna (opsional; kosong = pakai default merah/gelap) ──
   // accentColor : warna utama brand (tombol, link, glow). Hex, mis "#7c3aed".

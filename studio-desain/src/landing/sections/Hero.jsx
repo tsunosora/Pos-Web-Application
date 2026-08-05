@@ -95,15 +95,15 @@ export default function Hero() {
 // ═══════════════════════════════════════════════════════
 const DEMOS = [
   { brand: 'AuraSkin',     headline: 'Premium Sunscreen SPF 50',     style: 'Minimal Clean',    accent: '#f472b6',
-    results: ['/landing/ads-1x1/ig-01.jpg', '/landing/ads-1x1/ig-13.jpg', '/landing/ads-9x16/vert-02.jpg', '/landing/ads-typography/typo-11.jpg', '/landing/ads-1x1/ig-08.jpg'] },
+    results: ['/studio-desain/landing/ads-1x1/ig-01.jpg', '/studio-desain/landing/ads-1x1/ig-13.jpg', '/studio-desain/landing/ads-9x16/vert-02.jpg', '/studio-desain/landing/ads-typography/typo-11.jpg', '/studio-desain/landing/ads-1x1/ig-08.jpg'] },
   { brand: 'GoldHeritage', headline: '24K Pendant — Eid Edition',    style: 'Luxury Premium',   accent: '#ca8a04',
-    results: ['/landing/ads-1x1/ig-10.jpg', '/landing/ads-typography/typo-12.jpg', '/landing/ads-1x1/ig-04.jpg', '/landing/ads-9x16/vert-06.jpg', '/landing/ads-1x1/ig-08.jpg'] },
+    results: ['/studio-desain/landing/ads-1x1/ig-10.jpg', '/studio-desain/landing/ads-typography/typo-12.jpg', '/studio-desain/landing/ads-1x1/ig-04.jpg', '/studio-desain/landing/ads-9x16/vert-06.jpg', '/studio-desain/landing/ads-1x1/ig-08.jpg'] },
   { brand: 'AutoLux',      headline: 'Sedan 2026 — Hybrid Engine',   style: 'Dark Neon',        accent: '#3b82f6',
-    results: ['/landing/ads-1x1/ig-19.jpg', '/landing/ads-1x1/ig-20.jpg', '/landing/ads-16x9/yt-14.jpg', '/landing/ads-typography/typo-07.jpg', '/landing/ads-9x16/vert-19.jpg'] },
+    results: ['/studio-desain/landing/ads-1x1/ig-19.jpg', '/studio-desain/landing/ads-1x1/ig-20.jpg', '/studio-desain/landing/ads-16x9/yt-14.jpg', '/studio-desain/landing/ads-typography/typo-07.jpg', '/studio-desain/landing/ads-9x16/vert-19.jpg'] },
   { brand: 'ModeKita',     headline: 'Drop SS26 — Editorial Series', style: 'Dark Editorial',   accent: '#dc2626',
-    results: ['/landing/ads-1x1/ig-04.jpg', '/landing/ads-typography/typo-13.jpg', '/landing/ads-1x1/ig-10.jpg', '/landing/ads-9x16/vert-01.jpg', '/landing/ads-1x1/ig-17.jpg'] },
+    results: ['/studio-desain/landing/ads-1x1/ig-04.jpg', '/studio-desain/landing/ads-typography/typo-13.jpg', '/studio-desain/landing/ads-1x1/ig-10.jpg', '/studio-desain/landing/ads-9x16/vert-01.jpg', '/studio-desain/landing/ads-1x1/ig-17.jpg'] },
   { brand: 'HomeNest',     headline: 'Walnut Dining Table',          style: 'Warm & Cozy',      accent: '#92400e',
-    results: ['/landing/ads-1x1/ig-11.jpg', '/landing/ads-1x1/ig-12.jpg', '/landing/ads-9x16/vert-08.jpg', '/landing/ads-typography/typo-06.jpg', '/landing/ads-1x1/ig-13.jpg'] },
+    results: ['/studio-desain/landing/ads-1x1/ig-11.jpg', '/studio-desain/landing/ads-1x1/ig-12.jpg', '/studio-desain/landing/ads-9x16/vert-08.jpg', '/studio-desain/landing/ads-typography/typo-06.jpg', '/studio-desain/landing/ads-1x1/ig-13.jpg'] },
 ];
 
 // Phase timing (ms from start of cycle)

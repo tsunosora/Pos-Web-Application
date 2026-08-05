@@ -9,12 +9,12 @@ import SampleAdCard from '../primitives/SampleAdCard.jsx';
 // Taruh file asli di public/landing/gridfeed/1..4.jpg — kalau belum ada,
 // otomatis tampil placeholder (tidak error).
 const SHOTS = [
-  { src: '/landing/gridfeed/1.jpg', label: 'Coffee Shop' },
-  { src: '/landing/gridfeed/2.jpg', label: 'Food' },
-  { src: '/landing/gridfeed/3.jpg', label: 'Fashion' },
-  { src: '/landing/gridfeed/4.jpg', label: 'Laundry' },
-  { src: '/landing/gridfeed/5.jpg', label: 'Franchise' },
-  { src: '/landing/gridfeed/6.jpg', label: 'Daycare' },
+  { src: '/studio-desain/landing/gridfeed/1.jpg', label: 'Coffee Shop' },
+  { src: '/studio-desain/landing/gridfeed/2.jpg', label: 'Food' },
+  { src: '/studio-desain/landing/gridfeed/3.jpg', label: 'Fashion' },
+  { src: '/studio-desain/landing/gridfeed/4.jpg', label: 'Laundry' },
+  { src: '/studio-desain/landing/gridfeed/5.jpg', label: 'Franchise' },
+  { src: '/studio-desain/landing/gridfeed/6.jpg', label: 'Daycare' },
 ];
 
 const BULLETS = [

@@ -75,7 +75,7 @@ export default function ThumbnailMode({ state, dispatch }) {
         currentValue={state.designStyle}
         onSelect={set('designStyle')}
         aspect="16/9"
-        getImageSrc={(v) => `/landing/reference/thumb-style/${slugify(v)}.jpg`}
+        getImageSrc={(v) => `/studio-desain/landing/reference/thumb-style/${slugify(v)}.jpg`}
       />
       <ReferenceModal
         open={refOpen === 'lighting'}
@@ -86,7 +86,7 @@ export default function ThumbnailMode({ state, dispatch }) {
         currentValue={state.lighting}
         onSelect={set('lighting')}
         aspect="16/9"
-        getImageSrc={(v) => `/landing/reference/thumb-lighting/${slugify(v)}.jpg`}
+        getImageSrc={(v) => `/studio-desain/landing/reference/thumb-lighting/${slugify(v)}.jpg`}
       />
     </div>
   );

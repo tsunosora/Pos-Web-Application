@@ -7,9 +7,9 @@ import {
 } from 'lucide-react';
 
 const DEMOS = [
-  { brand: 'UrbanCraft',  headline: 'Streetwear Drop SS26',     image: '/landing/ads-1x1/ig-04.jpg', accent: '#f59e0b' },
-  { brand: 'AuraSkin',    headline: 'Premium Sunscreen SPF 50', image: '/landing/ads-1x1/ig-01.jpg', accent: '#f472b6' },
-  { brand: 'GoldHeritage',headline: '24K Pendant — Eid Edition',image: '/landing/ads-1x1/ig-10.jpg', accent: '#ca8a04' },
+  { brand: 'UrbanCraft',  headline: 'Streetwear Drop SS26',     image: '/studio-desain/landing/ads-1x1/ig-04.jpg', accent: '#f59e0b' },
+  { brand: 'AuraSkin',    headline: 'Premium Sunscreen SPF 50', image: '/studio-desain/landing/ads-1x1/ig-01.jpg', accent: '#f472b6' },
+  { brand: 'GoldHeritage',headline: '24K Pendant — Eid Edition',image: '/studio-desain/landing/ads-1x1/ig-10.jpg', accent: '#ca8a04' },
 ];
 
 const STEPS = [

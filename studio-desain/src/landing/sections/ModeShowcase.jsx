@@ -21,7 +21,7 @@ const MODES = [
     desc: 'Satu campaign, 9 feed konsisten. Brief produk → 9 feed beda peran (hero, fitur, harga, testimoni, CTA) tersusun otomatis, warna & font tetap serasi.',
     ratio: '1/1',
     variant: 7,
-    img: '/landing/gridfeed/1.jpg',
+    img: '/studio-desain/landing/gridfeed/1.jpg',
     bullets: ['9 feed satu campaign', 'Tiap feed beda peran', 'Warna & font konsisten'],
   },
   {
@@ -31,8 +31,8 @@ const MODES = [
     desc: 'Satu cerita, banyak slide. Pilih tipe template & jumlah slide → alur, layout, dan visual tiap slide tersusun otomatis. Termasuk template News.',
     ratio: '4/5',
     variant: 2,
-    img: '/landing/carousel/1.jpg',
-    stack: ['/landing/carousel/1.jpg', '/landing/carousel/2.jpg', '/landing/carousel/3.jpg'],
+    img: '/studio-desain/landing/carousel/1.jpg',
+    stack: ['/studio-desain/landing/carousel/1.jpg', '/studio-desain/landing/carousel/2.jpg', '/studio-desain/landing/carousel/3.jpg'],
     bullets: ['12+ tipe template + News', '3–7 slide otomatis nyambung', 'Layout tiap slide variatif'],
   },
   {
@@ -92,7 +92,7 @@ const MODES = [
     desc: 'Logo brand affiliate-ready + tempel logo ke merchandise & brand mockup. Hasil langsung jadi logo & mockup produk.',
     ratio: '1/1',
     variant: 8,
-    img: '/landing/affiliate-demos/logoaffiliate/logo-saas-tech.jpg?v=3',
+    img: '/studio-desain/landing/affiliate-demos/logoaffiliate/logo-saas-tech.jpg?v=3',
     bullets: ['Logo + Brand Mockup', 'Custom HEX palette', '21 media mockup'],
   },
   {
@@ -102,7 +102,7 @@ const MODES = [
     desc: 'Upload foto produk → model pakai produknya. Visual try-on/wear-test konversi tinggi untuk affiliate.',
     ratio: '4/5',
     variant: 11,
-    img: '/landing/affiliate-demos/tryonaffiliate/tryon-skincare-apply.jpg?v=3',
+    img: '/studio-desain/landing/affiliate-demos/tryonaffiliate/tryon-skincare-apply.jpg?v=3',
     bullets: ['Upload produk → try-on', '15 mode try-on', 'Optimasi per platform'],
   },
   {
@@ -112,7 +112,7 @@ const MODES = [
     desc: 'Banner review produk high-converting. 10 review framework + custom warna + wireframe preview live.',
     ratio: '1/1',
     variant: 14,
-    img: '/landing/affiliate-demos/reviewaffiliate/review-fashion-bag.jpg?v=3',
+    img: '/studio-desain/landing/affiliate-demos/reviewaffiliate/review-fashion-bag.jpg?v=3',
     bullets: ['10 review framework', 'Custom warna + badge', 'Wireframe preview live'],
   },
   {
@@ -122,7 +122,7 @@ const MODES = [
     desc: 'Storyboard board scene-by-scene yang dibuat otomatis sesuai durasi — landscape 16:9, banyak scene cepat.',
     ratio: '16/9',
     variant: 19,
-    img: '/landing/affiliate-demos/storyboardaffiliate/sb-saas-30s.jpg?v=3',
+    img: '/studio-desain/landing/affiliate-demos/storyboardaffiliate/sb-saas-30s.jpg?v=3',
     bullets: ['Board 16:9 landscape', 'Scene auto per durasi', 'VO + overlay + visual'],
   },
 ];

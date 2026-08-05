@@ -22,10 +22,10 @@ export default function SolutionIntro() {
           <NeonBorder className="p-2">
             <div className="relative grid grid-cols-2 gap-2 p-2 rounded-xl bg-bg-deep scanlines">
               {[
-                { src:'/landing/ads-1x1/ig-01.jpg', v:4 },
-                { src:'/landing/ads-1x1/ig-10.jpg', v:9 },
-                { src:'/landing/ads-1x1/ig-19.jpg', v:6 },
-                { src:'/landing/ads-1x1/ig-08.jpg', v:12 },
+                { src:'/studio-desain/landing/ads-1x1/ig-01.jpg', v:4 },
+                { src:'/studio-desain/landing/ads-1x1/ig-10.jpg', v:9 },
+                { src:'/studio-desain/landing/ads-1x1/ig-19.jpg', v:6 },
+                { src:'/studio-desain/landing/ads-1x1/ig-08.jpg', v:12 },
               ].map((it, i) => (
                 <div key={i} className="aspect-square rounded-md overflow-hidden bg-bg-deep">
                   <SafeImage

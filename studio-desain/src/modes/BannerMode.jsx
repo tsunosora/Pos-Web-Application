@@ -82,7 +82,7 @@ export default function BannerMode({ state, dispatch }) {
         currentValue={state.style}
         onSelect={set('style')}
         aspect="1/1"
-        getImageSrc={(v) => `/landing/reference/banner-style/${slugify(v)}.jpg`}
+        getImageSrc={(v) => `/studio-desain/landing/reference/banner-style/${slugify(v)}.jpg`}
       />
       <ReferenceModal
         open={refOpen === 'lighting'}
@@ -93,7 +93,7 @@ export default function BannerMode({ state, dispatch }) {
         currentValue={state.lighting}
         onSelect={set('lighting')}
         aspect="1/1"
-        getImageSrc={(v) => `/landing/reference/banner-lighting/${slugify(v)}.jpg`}
+        getImageSrc={(v) => `/studio-desain/landing/reference/banner-lighting/${slugify(v)}.jpg`}
       />
     </div>
   );

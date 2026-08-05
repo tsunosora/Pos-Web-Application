@@ -5,9 +5,9 @@ import ScanlineGrid from '../primitives/ScanlineGrid.jsx';
 import SafeImage from '../primitives/SafeImage.jsx';
 
 const SLIDES = [
-  { src: '/landing/carousel/1.jpg', label: '1/3' },
-  { src: '/landing/carousel/2.jpg', label: '2/3' },
-  { src: '/landing/carousel/3.jpg', label: '3/3' },
+  { src: '/studio-desain/landing/carousel/1.jpg', label: '1/3' },
+  { src: '/studio-desain/landing/carousel/2.jpg', label: '2/3' },
+  { src: '/studio-desain/landing/carousel/3.jpg', label: '3/3' },
 ];
 
 const BULLETS = [
