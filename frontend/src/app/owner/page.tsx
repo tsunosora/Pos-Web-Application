@@ -6,16 +6,16 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend, Cell,
 } from "recharts";
 import {
-    Crown, Wallet, TrendingUp, Receipt, PiggyBank, Landmark, Package, CalendarClock,
+    Crown, Wallet, TrendingUp, Receipt, PiggyBank, Landmark, Package, CalendarClock, Clock,
     Loader2, Lock, Building2, HandCoins, BarChart3, Info, ChevronDown, ArrowLeft,
     Plus, Trash2, Pencil, X, Check, Users, Palette, Factory, Sparkles, FileBarChart,
 } from "lucide-react";
 import api from "@/lib/api/client";
 import { getKpiReport, getDesignerLeaderboard, getOperatorLeaderboard } from "@/lib/api";
-import { getProfitReport } from "@/lib/api/reports";
+import { getProfitReport, getOrdersByHour } from "@/lib/api/reports";
 import {
     getCashflows, getCashflowMonthlyTrend, getCashflowCategoryBreakdown,
     getBankAccountsSummary, type BankAccountSummary,
@@ -44,6 +44,17 @@ type Period = typeof PERIODS[number]["value"];
 
 const CHART_TOOLTIP_STYLE = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--foreground)", boxShadow: "0 8px 24px -8px rgb(0 0 0 / 0.25)" } as const;
 const AXIS_TICK = { fill: "var(--muted-foreground)", fontSize: 11 } as const;
+
+// Warna bar distribusi order per jam berdasarkan level ramai/sepi
+const HOUR_LEVEL_COLOR: Record<string, string> = {
+    ramai: "#10b981",   // hijau — jam ramai
+    normal: "#6366f1",  // indigo — normal
+    sepi: "#f59e0b",    // amber — jam sepi
+    tutup: "var(--muted)",
+};
+const hhmm = (h?: number | null) => (h == null ? "-" : `${String(h).padStart(2, "0")}:00`);
+const rangeLabel = (r?: { from: number; to: number } | null) =>
+    r ? (r.from === r.to ? hhmm(r.from) : `${hhmm(r.from)}–${hhmm(r.to)}`) : "-";
 
 const CAT_LABEL: Record<FixedExpenseCategory, string> = { GAJI: "Gaji", SEWA: "Sewa", ANGSURAN: "Angsuran", SUPPLIER: "Supplier", LAINNYA: "Lainnya" };
 const CAT_CLS: Record<FixedExpenseCategory, string> = {
@@ -108,6 +119,7 @@ export default function OwnerDashboardPage() {
     const lbParams = { period, start: period === "custom" ? start : undefined, end: period === "custom" ? end : undefined } as const;
     const designerQ = useQuery({ queryKey: ["owner-designer", ...qkey], queryFn: () => getDesignerLeaderboard(lbParams), enabled: isOwner });
     const operatorQ = useQuery({ queryKey: ["owner-operator", ...qkey], queryFn: () => getOperatorLeaderboard(lbParams), enabled: isOwner });
+    const ordersHourQ = useQuery({ queryKey: ["owner-orders-hour", ...qkey], queryFn: () => getOrdersByHour(start, end), enabled: isOwner });
 
     const invalidateFixed = () => qc.invalidateQueries({ queryKey: ["owner-fixed"] });
     const createMut = useMutation({ mutationFn: createFixedExpense, onSuccess: () => { invalidateFixed(); resetForm(); } });
@@ -176,6 +188,19 @@ export default function OwnerDashboardPage() {
         [...expenseCats].sort((a, b) => Number(b.total) - Number(a.total)).slice(0, 8)
             .map(e => ({ name: e.category || "Lainnya", value: Number(e.total || 0) })),
     [expenseCats]);
+
+    // ── Distribusi order per jam (ramai/sepi) ─────────────────────────────────
+    const ordersHour = ordersHourQ.data;
+    const ordersHourData = useMemo(
+        () => (ordersHour?.byHour ?? []).map(h => ({
+            jam: String(h.hour).padStart(2, "0"),
+            Order: h.count,
+            revenue: h.revenue,
+            level: h.level,
+        })),
+        [ordersHour],
+    );
+    const ordersTotal = ordersHour?.totalOrders ?? 0;
 
     // ── Leads & Leaderboard Karyawan ──────────────────────────────────────────
     const kpiTotals = kpiQ.data?.totals;
@@ -381,6 +406,51 @@ export default function OwnerDashboardPage() {
                                         <Bar dataKey="Pengeluaran" fill="#ef4444" radius={[6, 6, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
+                            )}
+                        </Section>
+
+                        {/* Kapan order ramai / sepi — distribusi per jam mulai */}
+                        <Section
+                            icon={<Clock className="h-5 w-5" />}
+                            title="Kapan Order Ramai / Sepi"
+                            subtitle="Jumlah order lunas berdasarkan jam pembuatan (jam mulai)."
+                        >
+                            {ordersHourQ.isLoading ? (
+                                <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                            ) : ordersTotal === 0 ? (
+                                <Empty />
+                            ) : (
+                                <>
+                                    {/* Panel insight ringkas */}
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+                                        <InsightCell tone="ramai" label="Jam Puncak" value={hhmm(ordersHour?.peakHour)} />
+                                        <InsightCell tone="ramai" label="Rentang Ramai" value={rangeLabel(ordersHour?.busyRange)} />
+                                        <InsightCell tone="sepi" label="Rentang Sepi" value={rangeLabel(ordersHour?.quietRange)} />
+                                        <InsightCell tone="normal" label="Rata-rata/jam" value={`${ordersHour?.avgPerHour ?? 0} order`} />
+                                    </div>
+                                    <ResponsiveContainer width="100%" height={260}>
+                                        <BarChart data={ordersHourData} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                                            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                                            <XAxis dataKey="jam" tick={AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} interval={1} />
+                                            <YAxis tick={AXIS_TICK} axisLine={{ stroke: "var(--border)" }} tickLine={{ stroke: "var(--border)" }} allowDecimals={false} />
+                                            <Tooltip
+                                                contentStyle={CHART_TOOLTIP_STYLE}
+                                                cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+                                                formatter={(v: any) => [`${v} order`, "Jumlah"]}
+                                                labelFormatter={(l: any) => `Pukul ${l}:00`}
+                                            />
+                                            <Bar dataKey="Order" radius={[6, 6, 0, 0]}>
+                                                {ordersHourData.map((d, i) => <Cell key={i} fill={HOUR_LEVEL_COLOR[d.level] || "#6366f1"} />)}
+                                            </Bar>
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                    {/* Legend level */}
+                                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                        <LegendDot color="#10b981" label="Ramai" />
+                                        <LegendDot color="#6366f1" label="Normal" />
+                                        <LegendDot color="#f59e0b" label="Sepi" />
+                                    </div>
+                                </>
                             )}
                         </Section>
 
@@ -626,6 +696,21 @@ function Section({ title, subtitle, icon, children }: { title: string; subtitle?
 
 function Empty() {
     return <div className="text-center py-8 text-sm text-muted-foreground">Belum ada data di periode/cabang ini.</div>;
+}
+
+function InsightCell({ tone, label, value }: { tone: "ramai" | "sepi" | "normal"; label: string; value: string }) {
+    const cls = tone === "ramai" ? "text-emerald-600 dark:text-emerald-300"
+        : tone === "sepi" ? "text-amber-600 dark:text-amber-300"
+        : "text-foreground";
+    return (
+        <div className="rounded-xl bg-muted/50 px-3 py-2">
+            <p className="text-[11px] text-muted-foreground">{label}</p>
+            <p className={`font-bold text-sm ${cls}`}>{value}</p>
+        </div>
+    );
+}
+function LegendDot({ color, label }: { color: string; label: string }) {
+    return <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />{label}</span>;
 }
 
 function CaraHitung({ children }: { children: React.ReactNode }) {
