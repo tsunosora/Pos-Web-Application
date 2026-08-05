@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:studio": "cd ../studio-desain && VITE_EMBED=1 npm run build"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

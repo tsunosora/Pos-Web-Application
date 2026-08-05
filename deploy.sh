@@ -23,6 +23,12 @@ npx prisma db push
 npx prisma generate
 npm run build
 
+echo "==> [2b/5] Studio Desain (feeds-auto): build statis ke frontend/public/studio-desain"
+cd "$ROOT/studio-desain"
+npm install --no-audit --no-fund
+# VITE_EMBED=1 → langsung Studio (tanpa landing/login bawaan); output ke public POS.
+VITE_EMBED=1 npm run build
+
 echo "==> [3/5] Frontend: dependencies + build bersih"
 cd "$ROOT/frontend"
 npm install --no-audit --no-fund
