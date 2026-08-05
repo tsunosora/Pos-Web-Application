@@ -15,7 +15,7 @@ import { SECTIONS, TOP_LINK, OWNER_LINK, DESIGNER_LINK, isItemActive, getActiveS
 export function Sidebar() {
     const pathname = usePathname();
     const { isSidebarOpen, closeSidebar, sidebarCollapsed: collapsed, toggleSidebarCollapsed } = useUIStore();
-    const { isManager, isOwner, isDesigner } = useCurrentUser();
+    const { isManager, isOwner } = useCurrentUser();
     const { getSectionBadge, getBadge } = useNavBadges();
 
     const { data: settings } = useQuery({
@@ -186,7 +186,8 @@ export function Sidebar() {
                         );
                     })()}
 
-                    {(isDesigner || isManager) && (() => {
+                    {/* Studio Desain: terbuka untuk semua akun POS yang login (semua role). */}
+                    {(() => {
                         const DesignerIcon = DESIGNER_LINK.icon;
                         const active = isItemActive(pathname, DESIGNER_LINK.href);
                         return (

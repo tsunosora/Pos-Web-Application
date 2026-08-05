@@ -35,7 +35,11 @@ export function middleware(request: NextRequest) {
     // /produksi (operator PIN page) public, KECUALI /produksi/pipeline (admin kanban → JWT-required).
     // /produksi/board (operator pipeline view) tetap PUBLIC (PIN-protected di sisi backend).
     const isProduksiPublic = pathname.startsWith('/produksi') && !pathname.startsWith('/produksi/pipeline');
-    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname.startsWith('/marketing') || pathname.startsWith('/tv') || pathname === '/artikel' || pathname.startsWith('/artikel/') || pathname.startsWith('/nilai/');
+    // /desainer = halaman Studio Desain mandiri dgn login sendiri (autentikasi ke
+    // akun POS via /auth/login) → publik, biar tak dipaksa ke /login POS. Aset
+    // iframe /studio-desain/* TETAP butuh cookie token (bukan publik) → hanya
+    // termuat setelah login Studio berhasil.
+    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname.startsWith('/marketing') || pathname.startsWith('/tv') || pathname === '/artikel' || pathname.startsWith('/artikel/') || pathname.startsWith('/nilai/') || pathname.startsWith('/desainer');
 
     // If there is no token and the user is NOT on the login page (or public paths), redirect to login
     if (!token && !isLoginPage && !isPublicPage) {
