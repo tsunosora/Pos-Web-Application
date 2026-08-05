@@ -1,11 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import StudioApp from './StudioApp.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { ThemeProvider } from './context/ThemeContext.jsx';
 import { HistoryProvider } from './context/HistoryContext.jsx';
 import { AuthProvider } from './context/AuthContext.jsx';
 import './index.css';
+
+// Mode EMBED (dipasang lewat VITE_EMBED=1 saat build): app disematkan di dalam
+// POS (/desainer) → langsung tampil Studio, TANPA landing & login bawaan.
+const EMBED = import.meta.env.VITE_EMBED === '1';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -13,7 +18,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <ThemeProvider>
         <AuthProvider>
           <HistoryProvider>
-            <App />
+            {EMBED ? <StudioApp /> : <App />}
           </HistoryProvider>
         </AuthProvider>
       </ThemeProvider>

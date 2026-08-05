@@ -19,12 +19,17 @@ function loadSession() {
   } catch { return null; }
 }
 
+// Mode EMBED: app disematkan di POS (/desainer). Akses sudah digembok JWT + role
+// di sisi POS → lewati login bawaan dengan menyemai session sintetis abadi.
+const EMBED = import.meta.env.VITE_EMBED === '1';
+const EMBED_SESSION = { email: 'embed@pospro', loggedInAt: 0, expiresAt: Number.MAX_SAFE_INTEGER };
+
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(loadSession);
+  const [session, setSession] = useState(() => (EMBED ? EMBED_SESSION : loadSession()));
 
   // Re-check expiry on mount + every 30s while app open
   useEffect(() => {
-    if (!session) return;
+    if (EMBED || !session) return;
     const id = setInterval(() => {
       if (Date.now() > session.expiresAt) {
         localStorage.removeItem(KEY);
