@@ -97,9 +97,9 @@ export function MainLayout({ children }: MainLayoutProps) {
             <ReadyJobsModal open={readyJobsModalOpen} onClose={() => setReadyJobsModalOpen(false)} />
             <ReadyJobsFab onClick={() => setReadyJobsModalOpen(true)} />
             <div className="print:hidden"><Sidebar /></div>
-            <div className="flex flex-1 flex-col overflow-hidden print:block">
+            <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>
-                <main className="flex-1 overflow-y-auto print:overflow-visible">
+                <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-none print:overflow-visible">
                     <div className="p-4 sm:p-6 lg:p-8 print:p-0">
                         {children}
                     </div>

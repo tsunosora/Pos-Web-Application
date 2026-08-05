@@ -35,7 +35,7 @@ export default function DesainerPage() {
     }
 
     return (
-        <div className="h-screen w-screen overflow-hidden bg-black">
+        <div className="fixed inset-0 overflow-hidden overscroll-none bg-black">
             <iframe
                 // Path file eksplisit: Next menyajikan public/ tanpa resolusi index
                 // direktori, jadi "/studio-desain/" bisa 404. Aset internal tetap

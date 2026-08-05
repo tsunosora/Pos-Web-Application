@@ -127,11 +127,11 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
 
   return (
     <aside
-      className="surface rounded-none border-y-0 border-l-0 w-[60px] lg:w-[58px] shrink-0 flex flex-col items-center pt-4 pb-5 lg:pb-4 gap-3 lg:gap-2 sticky top-14 self-start z-20 lg:top-0 overflow-y-auto hide-scrollbar"
-      style={{ height: 'calc(100dvh - 3.5rem)', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
+      className="surface rounded-none border-y-0 border-l-0 w-[60px] lg:w-[58px] shrink-0 flex flex-col items-center pt-2.5 gap-2 lg:gap-1.5 sticky top-14 self-start z-20 lg:top-0 overflow-visible"
+      style={{ height: 'calc(100dvh - 3.5rem)', paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
     >
       {/* Logo */}
-      <div className="w-10 h-10 mb-2 rounded-xl bg-white/5 ring-1 ring-[rgba(var(--accent-rgb),0.30)] shadow-[0_0_16px_rgba(var(--accent-rgb),0.35)] flex items-center justify-center p-1.5">
+      <div className="w-10 h-10 mb-1 rounded-xl bg-white/5 ring-1 ring-[rgba(var(--accent-rgb),0.30)] shadow-[0_0_16px_rgba(var(--accent-rgb),0.35)] flex items-center justify-center p-1.5">
         <img
           src={CONFIG.logoUrl}
           alt={CONFIG.brandName}
@@ -171,7 +171,7 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
       })}
 
       {/* Divider */}
-      <div className="w-7 h-px bg-border my-2" />
+      <div className="w-7 h-px bg-border my-1" />
 
       {/* Affiliate parent menu — clickable to open flyout */}
       <div className="relative w-full flex justify-center" ref={affiliateRef}>
@@ -223,7 +223,7 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
       </div>
 
       {/* Divider */}
-      <div className="w-7 h-px bg-border my-2" />
+      <div className="w-7 h-px bg-border my-1" />
 
       {/* Demo trigger */}
       <button onClick={onOpenDemo} className="side-btn group" title="Randomize Demo">

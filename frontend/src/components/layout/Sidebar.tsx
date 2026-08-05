@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { LayoutDashboard, Settings, Store, X, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
@@ -32,12 +33,28 @@ export function Sidebar() {
         if (typeof window !== 'undefined' && window.innerWidth < 1024) closeSidebar();
     };
 
+    // Drawer mobile/tablet terbuka → kunci scroll body + tutup dengan tombol Esc.
+    // Mencegah halaman di belakang backdrop ikut "digeser" saat menu terbuka.
+    useEffect(() => {
+        if (!isSidebarOpen) return;
+        if (typeof window === 'undefined' || window.innerWidth >= 1024) return;
+        const prevOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeSidebar(); };
+        window.addEventListener('keydown', onKey);
+        return () => {
+            document.body.style.overflow = prevOverflow;
+            window.removeEventListener('keydown', onKey);
+        };
+    }, [isSidebarOpen, closeSidebar]);
+
     const visibleSections = SECTIONS.filter(s => s.items.some(it => canSeeNavItem(it, { isManager, isOwner })));
 
     // Class link nav — saat collapsed (lg+) jadi ikon terpusat.
     const navLinkCls = (active: boolean) =>
         cn(
-            "group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            "group relative flex min-h-[44px] items-center rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70 focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar",
             collapsed && "lg:justify-center lg:px-2",
             active
                 ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-md ring-1 ring-sidebar-border/50"
@@ -140,7 +157,7 @@ export function Sidebar() {
                 </div>
 
                 {/* Nav — Dashboard + kategori utama */}
-                <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+                <nav className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 space-y-1">
                     <Link
                         href={TOP_LINK.href}
                         onClick={handleLinkClick}

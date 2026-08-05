@@ -45,10 +45,19 @@
 :root.theme-light .brand-logo { filter: invert(1); }
 
 html, body, #root { height: 100%; }
+/* Matikan "geser ke samping": rubber-band / bounce horizontal (overscroll) yang
+   bikin seluruh app bisa ditarik ke kiri-kanan memperlihatkan latar. Sekaligus
+   cegah scroll horizontal tak sengaja. overscroll-behavior-x: none tidak
+   mengganggu position: sticky (beda dengan overflow:hidden di body). */
+html, body {
+  overscroll-behavior-x: none;
+  max-width: 100%;
+}
 /* html ikut theme juga — cegah area gelap nyangkut di light mode (mobile overscroll/area kosong) */
 html {
   background-color: var(--bg);
   transition: background-color 0.25s ease;
+  overflow-x: hidden;
 }
 body {
   background-color: var(--bg);
