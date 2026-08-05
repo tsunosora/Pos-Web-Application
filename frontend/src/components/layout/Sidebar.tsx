@@ -9,12 +9,12 @@ import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavBadges } from "@/hooks/useNavBadges";
-import { SECTIONS, TOP_LINK, OWNER_LINK, isItemActive, getActiveSection, firstItemHref, canSeeNavItem, type NavSection } from "./nav-config";
+import { SECTIONS, TOP_LINK, OWNER_LINK, DESIGNER_LINK, isItemActive, getActiveSection, firstItemHref, canSeeNavItem, type NavSection } from "./nav-config";
 
 export function Sidebar() {
     const pathname = usePathname();
     const { isSidebarOpen, closeSidebar, sidebarCollapsed: collapsed, toggleSidebarCollapsed } = useUIStore();
-    const { isManager, isOwner } = useCurrentUser();
+    const { isManager, isOwner, isDesigner } = useCurrentUser();
     const { getSectionBadge, getBadge } = useNavBadges();
 
     const { data: settings } = useQuery({
@@ -165,6 +165,23 @@ export function Sidebar() {
                             >
                                 <OwnerIcon className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", active ? "text-sidebar-accent-foreground" : "text-amber-500 group-hover:text-sidebar-accent-foreground")} />
                                 <span className={cn("truncate", collapsed && "lg:hidden")}>{OWNER_LINK.name}</span>
+                            </Link>
+                        );
+                    })()}
+
+                    {(isDesigner || isManager) && (() => {
+                        const DesignerIcon = DESIGNER_LINK.icon;
+                        const active = isItemActive(pathname, DESIGNER_LINK.href);
+                        return (
+                            <Link
+                                href={DESIGNER_LINK.href}
+                                onClick={handleLinkClick}
+                                title={DESIGNER_LINK.name}
+                                className={navLinkCls(active)}
+                                aria-current={active ? 'page' : undefined}
+                            >
+                                <DesignerIcon className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", active ? "text-sidebar-accent-foreground" : "text-fuchsia-500 group-hover:text-sidebar-accent-foreground")} />
+                                <span className={cn("truncate", collapsed && "lg:hidden")}>{DESIGNER_LINK.name}</span>
                             </Link>
                         );
                     })()}

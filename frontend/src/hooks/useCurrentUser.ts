@@ -47,9 +47,17 @@ export function useCurrentUser() {
         );
     }, [data]);
 
+    // Role Designer (akses halaman Studio Desain). Role dibuat dinamis oleh admin,
+    // jadi cocokkan berdasarkan nama (mis. "Desainer" / "Designer").
+    const isDesigner = useMemo(() => {
+        if (!data?.role) return false;
+        const n = data.role.name.toLowerCase();
+        return n.includes('desain') || n.includes('designer');
+    }, [data]);
+
     const branchId = data?.branchId ?? null;
     const branchName = data?.branch?.name ?? null;
     const branchCode = data?.branch?.code ?? null;
 
-    return { currentUser: data, isManager, isOwner, canAssignTasks, branchId, branchName, branchCode };
+    return { currentUser: data, isManager, isOwner, isDesigner, canAssignTasks, branchId, branchName, branchCode };
 }

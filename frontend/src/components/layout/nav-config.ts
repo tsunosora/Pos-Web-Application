@@ -3,7 +3,7 @@ import {
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
-    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock,
+    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock, Palette,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -32,6 +32,9 @@ export const TOP_LINK: NavItem = { name: "Dashboard", href: "/", icon: LayoutDas
 // Sengaja TIDAK dimasukkan ke section mana pun supaya tidak mengubah firstItemHref
 // / sub-nav kategori yang sudah ada.
 export const OWNER_LINK: NavItem = { name: "Dashboard Owner", href: "/owner", icon: Crown, ownerOnly: true };
+// Link mandiri Studio Desain (halaman iframe full-screen /desainer). Tampil untuk
+// role Designer (+ Owner/Admin/Manajer). Dirender terpisah di Sidebar (bukan section).
+export const DESIGNER_LINK: NavItem = { name: "Studio Desain", href: "/desainer", icon: Palette };
 
 export const SECTIONS: NavSection[] = [
     {
