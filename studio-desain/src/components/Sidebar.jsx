@@ -131,7 +131,7 @@ export default function Sidebar({ mode, onChangeMode, onOpenDemo, onOpenTutorial
       style={{ height: 'calc(100dvh - 3.5rem)', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
     >
       {/* Logo */}
-      <div className="w-10 h-10 mb-2 shadow-[0_0_18px_rgba(var(--accent-rgb),0.5)] rounded-lg flex items-center justify-center">
+      <div className="w-10 h-10 mb-2 rounded-xl bg-white/5 ring-1 ring-[rgba(var(--accent-rgb),0.30)] shadow-[0_0_16px_rgba(var(--accent-rgb),0.35)] flex items-center justify-center p-1.5">
         <img
           src={CONFIG.logoUrl}
           alt={CONFIG.brandName}
