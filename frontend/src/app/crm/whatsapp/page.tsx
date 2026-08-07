@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
-    getWaMessageMediaUrl, downloadWaMessageMedia,
+    getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -154,6 +154,8 @@ export default function WhatsappInboxPage() {
     }, [msgData, selectedId, qc]);
 
     const [draft, setDraft] = useState("");
+    const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const replyMut = useMutation({
         mutationFn: (text: string) => replyWaText(selectedId as number, text),
         onSuccess: () => {
@@ -166,6 +168,38 @@ export default function WhatsappInboxPage() {
             alert(msg || "Gagal mengirim pesan");
         },
     });
+
+    const mediaMut = useMutation({
+        mutationFn: (payload: { file: File; caption?: string }) =>
+            replyWaMedia(selectedId as number, payload.file, payload.caption),
+        onSuccess: () => {
+            setDraft("");
+            setPendingFile(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+            qc.invalidateQueries({ queryKey: ["wa-convos"] });
+        },
+        onError: (e: unknown) => {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            alert(msg || "Gagal mengirim lampiran");
+        },
+    });
+
+    // Kirim: kalau ada lampiran → media (draft jadi caption), else teks biasa.
+    const sendComposer = () => {
+        if (mediaMut.isPending || replyMut.isPending) return;
+        if (pendingFile) {
+            mediaMut.mutate({ file: pendingFile, caption: draft.trim() || undefined });
+        } else if (draft.trim()) {
+            replyMut.mutate(draft.trim());
+        }
+    };
+
+    // Bersihkan draft & lampiran saat pindah percakapan.
+    useEffect(() => {
+        setDraft("");
+        setPendingFile(null);
+    }, [selectedId]);
 
     const assignMut = useMutation({
         mutationFn: (data: { assignedToId?: number | null; status?: WaConversationStatus }) =>
@@ -375,32 +409,68 @@ export default function WhatsappInboxPage() {
                             </div>
                         ) : windowOpen ? (
                             <form
-                                className="p-3 border-t border-border flex items-end gap-2"
+                                className="p-3 border-t border-border space-y-2"
                                 onSubmit={(e) => {
                                     e.preventDefault();
-                                    if (draft.trim()) replyMut.mutate(draft.trim());
+                                    sendComposer();
                                 }}
                             >
-                                <textarea
-                                    value={draft}
-                                    onChange={(e) => setDraft(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === "Enter" && !e.shiftKey) {
-                                            e.preventDefault();
-                                            if (draft.trim()) replyMut.mutate(draft.trim());
-                                        }
-                                    }}
-                                    rows={1}
-                                    placeholder="Ketik balasan… (Enter kirim, Shift+Enter baris baru)"
-                                    className="flex-1 resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 max-h-32"
-                                />
-                                <button
-                                    type="submit"
-                                    disabled={!draft.trim() || replyMut.isPending}
-                                    className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 transition"
-                                >
-                                    <Send className="w-4 h-4" />
-                                </button>
+                                {/* Preview lampiran terpilih */}
+                                {pendingFile && (
+                                    <div className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-2.5 py-1.5">
+                                        <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                                        <span className="truncate flex-1">{pendingFile.name}</span>
+                                        <span className="opacity-60 shrink-0">{(pendingFile.size / 1024).toFixed(0)} KB</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                                            className="p-0.5 rounded hover:bg-muted shrink-0"
+                                            aria-label="Batal lampiran"
+                                        >
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="flex items-end gap-2">
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        className="hidden"
+                                        onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={mediaMut.isPending}
+                                        className="rounded-xl bg-muted/60 text-foreground p-2.5 hover:bg-muted disabled:opacity-40 transition shrink-0"
+                                        title="Lampirkan gambar / dokumen / file"
+                                    >
+                                        <Paperclip className="w-4 h-4" />
+                                    </button>
+                                    <textarea
+                                        value={draft}
+                                        onChange={(e) => setDraft(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && !e.shiftKey) {
+                                                e.preventDefault();
+                                                sendComposer();
+                                            }
+                                        }}
+                                        rows={1}
+                                        placeholder={pendingFile ? "Tambah keterangan (opsional)…" : "Ketik balasan… (Enter kirim, Shift+Enter baris baru)"}
+                                        className="flex-1 resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 max-h-32"
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={(!draft.trim() && !pendingFile) || mediaMut.isPending || replyMut.isPending}
+                                        className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 transition shrink-0"
+                                    >
+                                        <Send className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                {mediaMut.isPending && (
+                                    <div className="text-[11px] opacity-60 text-center animate-pulse">Mengunggah lampiran…</div>
+                                )}
                             </form>
                         ) : (
                             <div className="p-3 border-t border-border bg-amber-500/5 space-y-2">

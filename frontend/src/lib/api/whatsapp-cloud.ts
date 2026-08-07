@@ -112,6 +112,14 @@ export const replyWaTemplate = async (
     data: { name: string; language?: string; components?: unknown[]; previewText?: string },
 ): Promise<WaMessage> => (await api.post(`/whatsapp/conversations/${id}/reply-template`, data)).data;
 
+// Balas dengan lampiran (gambar/dokumen/file). caption opsional. Multipart via axios.
+export const replyWaMedia = async (id: number, file: File, caption?: string): Promise<WaMessage> => {
+    const form = new FormData();
+    form.append('file', file);
+    if (caption) form.append('caption', caption);
+    return (await api.post(`/whatsapp/conversations/${id}/reply-media`, form)).data;
+};
+
 export interface WaHealth {
     enabled: boolean;
     channelCount: number;

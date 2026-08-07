@@ -103,6 +103,52 @@ export class CloudApiService {
         return { waMessageId: json?.messages?.[0]?.id ?? null };
     }
 
+    /** Unggah media ke Meta → media_id (langkah 1 sebelum sendMedia). */
+    async uploadMedia(
+        phoneNumberId: string,
+        buffer: Buffer,
+        mime: string,
+        filename: string,
+    ): Promise<string> {
+        if (!this.token) throw new Error('WA_ACCESS_TOKEN belum diset');
+        const form = new FormData();
+        form.append('messaging_product', 'whatsapp');
+        form.append('file', new Blob([new Uint8Array(buffer)], { type: mime }), filename);
+        const res = await fetch(this.url(`${phoneNumberId}/media`), {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${this.token}` },
+            body: form,
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            const detail = (json as any)?.error?.message || res.statusText;
+            this.logger.warn(`Upload media gagal ${res.status}: ${detail}`);
+            throw new Error(`Upload media gagal ${res.status}: ${detail}`);
+        }
+        return (json as any)?.id;
+    }
+
+    /** Kirim pesan media (image/document/audio/video) via media_id (langkah 2). */
+    async sendMedia(
+        phoneNumberId: string,
+        to: string,
+        kind: 'image' | 'document' | 'audio' | 'video',
+        mediaId: string,
+        opts: { caption?: string; filename?: string } = {},
+    ): Promise<WaSendResult> {
+        const media: Record<string, string> = { id: mediaId };
+        if (opts.caption && kind !== 'audio') media.caption = opts.caption;
+        if (opts.filename && kind === 'document') media.filename = opts.filename;
+        const json = await this.graph('POST', `${phoneNumberId}/messages`, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: kind,
+            [kind]: media,
+        });
+        return { waMessageId: json?.messages?.[0]?.id ?? null };
+    }
+
     /** Info nomor untuk health-check (verifikasi kredensial tanpa kirim pesan). */
     async getPhoneNumberInfo(phoneNumberId: string): Promise<WaPhoneInfo> {
         const json = await this.graph('GET', `${phoneNumberId}?fields=verified_name,display_phone_number`);

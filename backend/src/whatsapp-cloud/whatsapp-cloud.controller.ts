@@ -10,8 +10,11 @@ import {
     Query,
     Req,
     Res,
+    UploadedFile,
     UseGuards,
+    UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { WaConversationStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -341,5 +344,19 @@ export class WhatsappCloudController {
         @Body() body: { name: string; language?: string; components?: any[]; previewText?: string },
     ) {
         return this.inbox.replyTemplate(id, req.user.userId, body);
+    }
+
+    /** Balas dengan lampiran media (gambar/dokumen/file) — hanya di jendela 24 jam. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Post('conversations/:id/reply-media')
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 90 * 1024 * 1024 } }))
+    replyMedia(
+        @Req() req: any,
+        @Param('id', ParseIntPipe) id: number,
+        @UploadedFile() file: Express.Multer.File,
+        @Body() body: { caption?: string },
+    ) {
+        return this.inbox.replyMedia(id, req.user.userId, file, body?.caption);
     }
 }

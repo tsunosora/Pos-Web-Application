@@ -443,6 +443,58 @@ export class InboxService {
         });
     }
 
+    /** Balas dengan lampiran media (gambar/dokumen/audio/video) — sah hanya di jendela 24 jam. */
+    async replyMedia(
+        conversationId: number,
+        userId: number,
+        file: { buffer: Buffer; mimetype: string; originalname: string },
+        caption?: string,
+    ) {
+        if (!file?.buffer?.length) throw new ConflictException('Berkas kosong / gagal diunggah');
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            include: { channel: true, contact: true },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        if (conv.contact.optedOut) throw new ConflictException('Kontak sudah opt-out (berhenti berlangganan)');
+        const expired = !conv.windowExpiresAt || conv.windowExpiresAt.getTime() < Date.now();
+        if (expired) throw new ConflictException('Di luar jendela 24 jam — gunakan pesan template');
+
+        const mime = file.mimetype || 'application/octet-stream';
+        const kind: 'image' | 'document' | 'audio' | 'video' = mime.startsWith('image/')
+            ? 'image'
+            : mime.startsWith('video/')
+              ? 'video'
+              : mime.startsWith('audio/')
+                ? 'audio'
+                : 'document';
+        const filename = file.originalname || `berkas.${mime.split('/')[1] || 'bin'}`;
+
+        const mediaId = await this.cloud.uploadMedia(conv.channel.phoneNumberId, file.buffer, mime, filename);
+        const { waMessageId } = await this.cloud.sendMedia(
+            conv.channel.phoneNumberId,
+            conv.contact.waId,
+            kind,
+            mediaId,
+            { caption: caption || undefined, filename },
+        );
+
+        const TYPE_BY_KIND: Record<typeof kind, WaMessageType> = {
+            image: WaMessageType.IMAGE,
+            document: WaMessageType.DOCUMENT,
+            audio: WaMessageType.AUDIO,
+            video: WaMessageType.VIDEO,
+        };
+        return this.persistOutbound(conv, userId, {
+            waMessageId,
+            type: TYPE_BY_KIND[kind],
+            body: caption || filename,
+            mediaMimeType: mime,
+            // Simpan referensi agar proxy getMessageMedia bisa menayangkan media OUTBOUND juga.
+            payloadJson: { type: kind, [kind]: { id: mediaId, mime_type: mime, filename } },
+        });
+    }
+
     /** Balas via template pra-approve Meta — sah kapan pun (termasuk luar 24 jam). */
     async replyTemplate(
         conversationId: number,
@@ -473,7 +525,14 @@ export class InboxService {
     private async persistOutbound(
         conv: { id: number; channelId: number; contactId: number },
         userId: number,
-        m: { waMessageId: string | null; type: WaMessageType; body: string; templateName?: string },
+        m: {
+            waMessageId: string | null;
+            type: WaMessageType;
+            body: string;
+            templateName?: string;
+            mediaMimeType?: string | null;
+            payloadJson?: Prisma.InputJsonValue;
+        },
     ) {
         const msg = await this.prisma.waMessage.create({
             data: {
@@ -486,6 +545,8 @@ export class InboxService {
                 status: WaMessageStatus.SENT,
                 body: m.body,
                 templateName: m.templateName ?? null,
+                mediaMimeType: m.mediaMimeType ?? null,
+                ...(m.payloadJson !== undefined ? { payloadJson: m.payloadJson } : {}),
                 sentById: userId,
             },
         });
