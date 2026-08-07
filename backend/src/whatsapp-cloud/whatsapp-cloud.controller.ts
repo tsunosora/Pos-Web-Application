@@ -9,8 +9,10 @@ import {
     Post,
     Query,
     Req,
+    Res,
     UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { WaConversationStatus } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -291,6 +293,19 @@ export class WhatsappCloudController {
             cursor: query.cursor ? +query.cursor : undefined,
             take: query.take ? +query.take : undefined,
         });
+    }
+
+    /** Proxy biner media inbound (gambar/dokumen/audio/video) — backend pegang token Meta. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Get('messages/:id/media')
+    async getMessageMedia(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+        const { buffer, contentType, filename } = await this.inbox.getMessageMedia(id);
+        const safeName = filename.replace(/["\r\n]/g, '');
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
+        res.setHeader('Cache-Control', 'private, max-age=3600');
+        res.send(buffer);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)

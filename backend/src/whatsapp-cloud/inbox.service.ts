@@ -125,6 +125,12 @@ export class InboxService {
         }
     }
 
+    /** MIME media inbound (image/document/…) dari payload Meta, bila ada. */
+    private extractMediaMime(msg: any): string | null {
+        const t = (msg?.type || '').toLowerCase();
+        return msg?.[t]?.mime_type ?? null;
+    }
+
     private async handleInbound(channel: any, value: any, msg: any): Promise<void> {
         const waMessageId: string | undefined = msg?.id;
 
@@ -235,6 +241,7 @@ export class InboxService {
                 type: TYPE_MAP[msg?.type] ?? WaMessageType.UNKNOWN,
                 status: WaMessageStatus.DELIVERED,
                 body: this.extractBody(msg),
+                mediaMimeType: this.extractMediaMime(msg),
                 payloadJson: msg ?? {},
             },
         });
@@ -376,6 +383,28 @@ export class InboxService {
         const hasMore = rows.length > take;
         const slice = hasMore ? rows.slice(0, take) : rows;
         return { items: slice.reverse(), nextCursor: hasMore ? slice[0].id : null };
+    }
+
+    /**
+     * Unduh biner media sebuah pesan (proxy Meta). media_id diambil dari
+     * payload webhook tersimpan; backend yang pegang token, jadi frontend
+     * tak pernah menyentuh kredensial Meta.
+     */
+    async getMessageMedia(
+        messageId: number,
+    ): Promise<{ buffer: Buffer; contentType: string; filename: string }> {
+        const m = await this.prisma.waMessage.findUnique({ where: { id: messageId } });
+        if (!m) throw new NotFoundException('pesan tak ditemukan');
+        const pj: any = m.payloadJson ?? {};
+        const t = (pj?.type || m.type?.toLowerCase() || '').toLowerCase();
+        const mediaObj = pj?.[t];
+        const mediaId: string | undefined = mediaObj?.id;
+        if (!mediaId) throw new NotFoundException('pesan ini tidak memiliki media');
+        const { buffer, contentType } = await this.cloud.getMediaBinary(mediaId);
+        const finalMime = mediaObj?.mime_type || m.mediaMimeType || contentType;
+        const ext = (finalMime.split(';')[0].split('/')[1] || 'bin').trim();
+        const filename: string = mediaObj?.filename || `${t || 'media'}-${messageId}.${ext}`;
+        return { buffer, contentType: finalMime, filename };
     }
 
     /** Assign agen dan/atau ubah status percakapan. */

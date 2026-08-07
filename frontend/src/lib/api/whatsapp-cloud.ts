@@ -40,6 +40,7 @@ export interface WaMessage {
     body: string | null;
     templateName: string | null;
     mediaUrl: string | null;
+    mediaMimeType: string | null;
     waMessageId: string | null;
     createdAt: string;
     sentBy?: { id: number; name: string | null } | null;
@@ -75,6 +76,28 @@ export const getWaConversation = async (id: number): Promise<WaConversation> =>
 
 export const getWaMessages = async (id: number, params: { cursor?: number; take?: number } = {}): Promise<Paged<WaMessage>> =>
     (await api.get(`/whatsapp/conversations/${id}/messages`, { params })).data;
+
+// Ambil biner media (gambar/video/audio) sebagai object URL untuk <img>/<video>.
+// Auth JWT ikut via axios; caller WAJIB URL.revokeObjectURL saat unmount.
+export const getWaMessageMediaUrl = async (messageId: number): Promise<string> => {
+    const res = await api.get(`/whatsapp/messages/${messageId}/media`, { responseType: 'blob' });
+    return URL.createObjectURL(res.data as Blob);
+};
+
+// Unduh media apa pun (dokumen/gambar/dll) — memicu simpan berkas dgn nama asli.
+export const downloadWaMessageMedia = async (messageId: number, fallbackName: string): Promise<void> => {
+    const res = await api.get(`/whatsapp/messages/${messageId}/media`, { responseType: 'blob' });
+    const cd = String(res.headers['content-disposition'] || '');
+    const name = /filename="?([^"]+)"?/.exec(cd)?.[1] || fallbackName;
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
 
 export const updateWaConversation = async (
     id: number,

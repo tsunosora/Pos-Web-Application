@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
+    getWaMessageMediaUrl, downloadWaMessageMedia,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -37,6 +38,68 @@ function timeAgo(iso: string | null): string {
 
 function clockTime(iso: string): string {
     return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
+
+const MEDIA_TYPES = new Set<WaMessage["type"]>(["IMAGE", "STICKER", "VIDEO", "AUDIO", "DOCUMENT"]);
+
+/** Lampiran media inbound/outbound: gambar/video/audio ditampilkan, semua bisa diunduh. */
+function MediaAttachment({ m }: { m: WaMessage }) {
+    const [url, setUrl] = useState<string | null>(null);
+    const [err, setErr] = useState(false);
+    const visual = m.type === "IMAGE" || m.type === "STICKER" || m.type === "VIDEO" || m.type === "AUDIO";
+
+    useEffect(() => {
+        if (!visual) return;
+        let active = true;
+        let created: string | null = null;
+        getWaMessageMediaUrl(m.id)
+            .then((u) => { if (active) { created = u; setUrl(u); } else { URL.revokeObjectURL(u); } })
+            .catch(() => { if (active) setErr(true); });
+        return () => { active = false; if (created) URL.revokeObjectURL(created); };
+    }, [m.id, visual]);
+
+    const dlBtn = (
+        <button
+            type="button"
+            onClick={() => downloadWaMessageMedia(m.id, `${m.type.toLowerCase()}-${m.id}`)}
+            className="mt-1 inline-flex items-center gap-1 text-[11px] underline opacity-80 hover:opacity-100"
+        >
+            <Download className="w-3 h-3" /> Unduh
+        </button>
+    );
+
+    if (m.type === "IMAGE" || m.type === "STICKER") {
+        if (err) return <div className="text-xs italic opacity-60">[gambar gagal dimuat]</div>;
+        if (!url) return <div className="text-xs opacity-60 py-6 px-10 animate-pulse">Memuat gambar…</div>;
+        return (
+            <div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="lampiran" className="rounded-lg max-w-full max-h-72 object-contain" />
+                {dlBtn}
+            </div>
+        );
+    }
+    if (m.type === "VIDEO") {
+        if (err) return <div className="text-xs italic opacity-60">[video gagal dimuat]</div>;
+        if (!url) return <div className="text-xs opacity-60 py-4">Memuat video…</div>;
+        return <div><video src={url} controls className="rounded-lg max-w-full max-h-72" />{dlBtn}</div>;
+    }
+    if (m.type === "AUDIO") {
+        if (err) return <div className="text-xs italic opacity-60">[audio gagal dimuat]</div>;
+        if (!url) return <div className="text-xs opacity-60 py-2">Memuat audio…</div>;
+        return <div><audio src={url} controls className="max-w-full" />{dlBtn}</div>;
+    }
+    // DOCUMENT / berkas lain → tombol unduh langsung.
+    return (
+        <button
+            type="button"
+            onClick={() => downloadWaMessageMedia(m.id, `dokumen-${m.id}`)}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/10 hover:bg-black/20 text-sm"
+        >
+            <Download className="w-4 h-4" />
+            <span className="underline">Unduh berkas</span>
+        </button>
+    );
 }
 
 function MsgStatusTick({ status }: { status: WaMessage["status"] }) {
@@ -284,9 +347,16 @@ export default function WhatsappInboxPage() {
                                                     template: {m.templateName}
                                                 </div>
                                             )}
-                                            <div className="whitespace-pre-wrap break-words">
-                                                {m.body || <span className="italic opacity-60">[{m.type.toLowerCase()}]</span>}
-                                            </div>
+                                            {MEDIA_TYPES.has(m.type) ? (
+                                                <div className="space-y-1">
+                                                    <MediaAttachment m={m} />
+                                                    {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
+                                                </div>
+                                            ) : (
+                                                <div className="whitespace-pre-wrap break-words">
+                                                    {m.body || <span className="italic opacity-60">[{m.type.toLowerCase()}]</span>}
+                                                </div>
+                                            )}
                                             <div className={`flex items-center gap-1 justify-end mt-0.5 text-[10px] ${out ? "text-white/70" : "opacity-50"}`}>
                                                 {clockTime(m.createdAt)}
                                                 {out && <MsgStatusTick status={m.status} />}

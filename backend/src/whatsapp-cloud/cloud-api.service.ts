@@ -130,4 +130,26 @@ export class CloudApiService {
         );
         return json?.data ?? [];
     }
+
+    // ─── Media inbound ───────────────────────────────────────────────────────
+
+    /**
+     * Unduh biner media inbound dari Meta. Dua langkah wajib:
+     *  1) GET /{media_id} → { url, mime_type } (URL lookaside rahasia & kedaluwarsa).
+     *  2) GET url pakai Authorization: Bearer token → biner.
+     * Selalu resolusi ulang dari media_id (URL di webhook bisa sudah basi).
+     */
+    async getMediaBinary(mediaId: string): Promise<{ buffer: Buffer; contentType: string }> {
+        if (!this.token) throw new Error('WA_ACCESS_TOKEN belum diset');
+        const meta = await this.graph('GET', `${mediaId}`);
+        const url: string | undefined = meta?.url;
+        const mime: string = meta?.mime_type || 'application/octet-stream';
+        if (!url) throw new Error(`media ${mediaId}: URL tak ditemukan`);
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${this.token}` } });
+        if (!res.ok) {
+            throw new Error(`Gagal unduh media ${mediaId}: HTTP ${res.status}`);
+        }
+        const ab = await res.arrayBuffer();
+        return { buffer: Buffer.from(ab), contentType: mime };
+    }
 }
