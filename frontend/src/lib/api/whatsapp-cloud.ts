@@ -113,11 +113,15 @@ export const replyWaTemplate = async (
 ): Promise<WaMessage> => (await api.post(`/whatsapp/conversations/${id}/reply-template`, data)).data;
 
 // Balas dengan lampiran (gambar/dokumen/file). caption opsional. Multipart via axios.
+// WAJIB set Content-Type multipart: default client 'application/json' bikin axios
+// mengubah FormData jadi JSON (file hilang → backend "berkas kosong").
 export const replyWaMedia = async (id: number, file: File, caption?: string): Promise<WaMessage> => {
     const form = new FormData();
     form.append('file', file);
     if (caption) form.append('caption', caption);
-    return (await api.post(`/whatsapp/conversations/${id}/reply-media`, form)).data;
+    return (await api.post(`/whatsapp/conversations/${id}/reply-media`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    })).data;
 };
 
 export interface WaHealth {
