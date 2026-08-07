@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, WaConversationStatus, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
@@ -31,6 +31,19 @@ const TYPE_MAP: Record<string, WaMessageType> = {
     button: WaMessageType.INTERACTIVE,
     template: WaMessageType.TEMPLATE,
 };
+
+// Tipe MIME yang didukung WhatsApp Cloud API untuk unggah media (per error #100 Meta).
+const WA_SUPPORTED_MEDIA = new Set<string>([
+    'image/jpeg', 'image/png', 'image/webp',
+    'video/mp4', 'video/3gpp',
+    'audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/opus',
+    'application/pdf', 'text/plain', 'application/msword', 'application/vnd.ms-excel',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+const WA_SUPPORTED_HINT = 'gambar (jpg/png/webp), video mp4/3gp, audio, PDF, Word, Excel, PowerPoint, atau teks (.txt)';
 
 // Peta status Meta → enum WaMessageStatus.
 const STATUS_MAP: Record<string, WaMessageStatus> = {
@@ -461,6 +474,12 @@ export class InboxService {
         if (expired) throw new ConflictException('Di luar jendela 24 jam — gunakan pesan template');
 
         const mime = file.mimetype || 'application/octet-stream';
+        // Tolak lebih awal tipe yang tak didukung Meta → pesan ramah (bukan 500).
+        if (!WA_SUPPORTED_MEDIA.has(mime)) {
+            throw new BadRequestException(
+                `Tipe berkas "${mime || 'tidak dikenal'}" tidak didukung WhatsApp. Kirim: ${WA_SUPPORTED_HINT}.`,
+            );
+        }
         const kind: 'image' | 'document' | 'audio' | 'video' = mime.startsWith('image/')
             ? 'image'
             : mime.startsWith('video/')
@@ -470,14 +489,21 @@ export class InboxService {
                 : 'document';
         const filename = file.originalname || `berkas.${mime.split('/')[1] || 'bin'}`;
 
-        const mediaId = await this.cloud.uploadMedia(conv.channel.phoneNumberId, file.buffer, mime, filename);
-        const { waMessageId } = await this.cloud.sendMedia(
-            conv.channel.phoneNumberId,
-            conv.contact.waId,
-            kind,
-            mediaId,
-            { caption: caption || undefined, filename },
-        );
+        let mediaId: string;
+        let waMessageId: string | null;
+        try {
+            mediaId = await this.cloud.uploadMedia(conv.channel.phoneNumberId, file.buffer, mime, filename);
+            ({ waMessageId } = await this.cloud.sendMedia(
+                conv.channel.phoneNumberId,
+                conv.contact.waId,
+                kind,
+                mediaId,
+                { caption: caption || undefined, filename },
+            ));
+        } catch (e) {
+            // Error dari Meta (tipe/ukuran/kebijakan) → 400 dgn pesan terbaca, bukan 500.
+            throw new BadRequestException(`Gagal mengirim lampiran: ${(e as Error).message}`);
+        }
 
         const TYPE_BY_KIND: Record<typeof kind, WaMessageType> = {
             image: WaMessageType.IMAGE,

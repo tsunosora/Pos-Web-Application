@@ -436,6 +436,7 @@ export default function WhatsappInboxPage() {
                                         ref={fileInputRef}
                                         type="file"
                                         className="hidden"
+                                        accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,audio/*,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                                         onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
                                     />
                                     <button
