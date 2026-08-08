@@ -19,6 +19,7 @@ export interface WaContactLite {
     customerId: number | null;
     optedOut: boolean;
     lead?: { id: number; name: string; status: string } | null;
+    customer?: { id: number; name: string; address: string | null } | null;
 }
 
 export interface WaConversation {

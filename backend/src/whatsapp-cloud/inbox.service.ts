@@ -538,6 +538,8 @@ export class InboxService {
         leadId: true, customerId: true, optedOut: true,
         // Lead tertaut → tampilkan tahap pipeline + tautan di inbox (koherensi CRM).
         lead: { select: { id: true, name: true, status: true } },
+        // Customer tertaut → prefill alamat saat "Buat SO" dari chat.
+        customer: { select: { id: true, name: true, address: true } },
     };
 
     /** Daftar percakapan dgn filter + paginasi cursor (lastMessageAt desc). */

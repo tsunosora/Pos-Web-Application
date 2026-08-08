@@ -754,7 +754,15 @@ export default function WhatsappInboxPage() {
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                                 <Link
-                                    href={`/sales-orders/new?customerName=${encodeURIComponent(selected.contact.profileName || selected.contact.lead?.name || "")}&phone=${encodeURIComponent(selected.contact.waId || "")}${selected.contact.customerId ? `&customerId=${selected.contact.customerId}` : ""}`}
+                                    href={(() => {
+                                        const c = selected.contact;
+                                        const params = new URLSearchParams();
+                                        params.set("customerName", c.customer?.name || c.profileName || c.lead?.name || "");
+                                        params.set("phone", c.waId || "");
+                                        if (c.customer?.address) params.set("address", c.customer.address);
+                                        if (c.customerId) params.set("customerId", String(c.customerId));
+                                        return `/sales-orders/new?${params.toString()}`;
+                                    })()}
                                     className="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 flex items-center gap-1"
                                     title="Buat Sales Order dari pelanggan ini"
                                 >
