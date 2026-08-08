@@ -21,7 +21,7 @@ export interface CreateBroadcastInput {
     segment?: SegmentDef;
     numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
     recipients?: Array<{ number: string; vars?: string[] }>; // impor CSV berkolom (personalisasi per-baris)
-    contactIds?: number[];    // pilih kontak terdaftar secara manual (multi-select)
+    customerIds?: number[];   // pilih pelanggan (dari /customers) secara manual (multi-select)
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }
@@ -66,29 +66,49 @@ export class BroadcastService {
         return { count };
     }
 
-    /** Daftar kontak (untuk pilih manual di broadcast). Opt-out dikecualikan. Maks 500. */
+    /** Daftar PELANGGAN (dari /customers) yang punya nomor HP — untuk pilih manual broadcast. Maks 1000. */
     async listContacts(search?: string) {
-        const where: Prisma.WaContactWhereInput = { optedOut: false };
+        const where: Prisma.CustomerWhereInput = { phone: { not: null } };
         const q = (search || '').trim();
         if (q) {
             const digits = q.replace(/\D/g, '');
             where.OR = [
-                { profileName: { contains: q } },
-                ...(digits ? [{ waId: { contains: digits } }, { phoneNormalized: { contains: digits } }] : []),
-                { lead: { is: { name: { contains: q } } } },
-                { customer: { is: { name: { contains: q } } } },
+                { name: { contains: q } },
+                ...(digits ? [{ phone: { contains: digits } }] : []),
             ];
         }
-        return this.prisma.waContact.findMany({
+        const customers = await this.prisma.customer.findMany({
             where,
-            select: {
-                id: true, waId: true, profileName: true, phoneNormalized: true,
-                lead: { select: { name: true, status: true } },
-                customer: { select: { name: true } },
-            },
-            orderBy: { lastInboundAt: 'desc' },
-            take: 500,
+            select: { id: true, name: true, phone: true, address: true },
+            orderBy: { name: 'asc' },
+            take: 1000,
         });
+        // id = customerId (dipakai frontend untuk kirim customerIds).
+        return customers.map((c) => ({ id: c.id, name: c.name, phone: c.phone, address: c.address }));
+    }
+
+    /** Pelanggan terpilih → penerima: normalisasi HP, upsert WaContact (tautkan customer). */
+    private async resolveCustomers(customerIds: number[]): Promise<Array<{ id: number; waId: string }>> {
+        const customers = await this.prisma.customer.findMany({
+            where: { id: { in: customerIds }, phone: { not: null } },
+            select: { id: true, phone: true },
+        });
+        const seen = new Set<string>();
+        const out: Array<{ id: number; waId: string }> = [];
+        for (const cust of customers) {
+            const waId = toWaPhone(cust.phone || '');
+            if (!waId || seen.has(waId)) continue;
+            seen.add(waId);
+            const phoneNormalized = toLeadKey(cust.phone || '') ?? waId.replace(/^62/, '');
+            const contact = await this.prisma.waContact.upsert({
+                where: { waId },
+                create: { waId, phoneNormalized, customerId: cust.id },
+                update: { customerId: cust.id }, // tautkan ke pelanggan ini (nomor sama = orang sama)
+                select: { id: true, waId: true, optedOut: true },
+            });
+            if (!contact.optedOut) out.push({ id: contact.id, waId: contact.waId });
+        }
+        return out;
     }
 
     /** Normalisasi + dedup daftar nomor mentah (paste/CSV) → jumlah valid. */
@@ -170,9 +190,9 @@ export class BroadcastService {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: input.channelId } });
         if (!channel) throw new NotFoundException('Channel tidak ditemukan');
 
-        // Penerima: pilih kontak manual > CSV berkolom > daftar nomor impor > segmen.
-        const contacts: Array<{ id: number; waId: string; vars?: string[] }> = input.contactIds?.length
-            ? await this.prisma.waContact.findMany({ where: { id: { in: input.contactIds }, optedOut: false }, select: { id: true, waId: true } })
+        // Penerima: pilih pelanggan manual > CSV berkolom > daftar nomor impor > segmen.
+        const contacts: Array<{ id: number; waId: string; vars?: string[] }> = input.customerIds?.length
+            ? await this.resolveCustomers(input.customerIds)
             : input.recipients?.length
               ? await this.resolveRecipients(input.recipients)
               : input.numbers?.length

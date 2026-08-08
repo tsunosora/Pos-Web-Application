@@ -117,7 +117,7 @@ export default function WhatsappBroadcastPage() {
             name, channelId: channelId as number, templateId: templateId as number,
             segment,
             ...(recipientMode === "select"
-                ? { contactIds: [...selectedIds] }
+                ? { customerIds: [...selectedIds] }
                 : personalized ? { recipients: builtRecipients } : importNumbers?.length ? { numbers: importNumbers } : {}),
             variableMap: Array.from({ length: nVars }, (_, i) => varMap[i] || { source: "static", value: "" }),
             scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
@@ -324,7 +324,6 @@ export default function WhatsappBroadcastPage() {
                                     ) : contactList.length === 0 ? (
                                         <div className="p-3 text-sm opacity-60">Tidak ada kontak.</div>
                                     ) : contactList.map((c) => {
-                                        const name = c.customer?.name || c.lead?.name || c.profileName || `+${c.waId}`;
                                         const checked = selectedIds.has(c.id);
                                         return (
                                             <label key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent/40">
@@ -332,13 +331,13 @@ export default function WhatsappBroadcastPage() {
                                                     setSelectedIds((prev) => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n; });
                                                     setPreview(null);
                                                 }} />
-                                                <span className="flex-1 min-w-0 truncate">{name}</span>
-                                                <span className="text-xs opacity-50 shrink-0">+{c.waId}</span>
+                                                <span className="flex-1 min-w-0 truncate">{c.name || "(tanpa nama)"}</span>
+                                                <span className="text-xs opacity-50 shrink-0">{c.phone || "—"}</span>
                                             </label>
                                         );
                                     })}
                                 </div>
-                                <p className="text-[11px] opacity-60">Centang kontak yang ingin dikirimi. Maks 500 kontak per daftar (persempit dengan pencarian). Variabel bisa otomatis dari data pelanggan.</p>
+                                <p className="text-[11px] opacity-60">Dari data pelanggan (/customers) yang punya nomor HP. Centang yang ingin dikirimi. Maks 1000 (persempit dengan pencarian). Variabel otomatis dari data pelanggan.</p>
                             </div>
                         ) : csv ? (
                             <div className="rounded-lg border border-border p-3 space-y-2">

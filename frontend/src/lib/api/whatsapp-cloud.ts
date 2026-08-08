@@ -315,18 +315,16 @@ export interface CreateBroadcastBody {
     segment?: SegmentDef;
     numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
     recipients?: Array<{ number: string; vars?: string[] }>; // CSV berkolom (personalisasi per-baris)
-    contactIds?: number[];    // pilih kontak terdaftar (multi-select)
+    customerIds?: number[];   // pilih pelanggan dari /customers (multi-select)
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }
 
 export interface WaBroadcastContact {
-    id: number;
-    waId: string;
-    profileName: string | null;
-    phoneNormalized: string;
-    lead?: { name: string; status: string } | null;
-    customer?: { name: string } | null;
+    id: number;               // = customerId
+    name: string;
+    phone: string | null;
+    address: string | null;
 }
 export const listBroadcastContacts = async (q?: string): Promise<WaBroadcastContact[]> =>
     (await api.get('/whatsapp/broadcast-contacts', { params: q ? { q } : {} })).data;
