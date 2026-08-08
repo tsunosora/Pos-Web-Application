@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma, WaTemplateStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
@@ -43,10 +44,26 @@ function mapMetaStatus(s: string | undefined): WaTemplateStatus {
 
 @Injectable()
 export class TemplatesService {
+    private readonly logger = new Logger(TemplatesService.name);
+
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
     ) {}
+
+    /** Sinkron status template dari Meta otomatis tiap 30 menit (tak perlu klik manual). */
+    @Cron('0 */30 * * * *')
+    async autoSyncStatuses() {
+        if (!this.cloud.enabled) return;
+        const channels = await this.prisma.waChannel.findMany({ where: { isActive: true }, select: { id: true } });
+        for (const ch of channels) {
+            try {
+                await this.syncFromMeta(ch.id);
+            } catch (e) {
+                this.logger.warn(`Auto-sync template channel ${ch.id} gagal: ${(e as Error).message}`);
+            }
+        }
+    }
 
     list() {
         return this.prisma.waTemplate.findMany({ orderBy: [{ status: 'asc' }, { name: 'asc' }] });
