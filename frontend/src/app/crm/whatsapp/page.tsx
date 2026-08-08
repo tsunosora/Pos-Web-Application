@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2 } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
@@ -11,6 +11,7 @@ import {
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
     listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders,
+    setWaContactName, waContactName,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -594,6 +595,20 @@ export default function WhatsappInboxPage() {
         },
     });
 
+    // CS ubah nama kontak (prioritas tampil). Kosongkan = kembali ke nama profil WA.
+    const renameMut = useMutation({
+        mutationFn: (v: { contactId: number; name: string | null }) => setWaContactName(v.contactId, v.name),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ["wa-convos"] }),
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menyimpan nama"),
+    });
+    const promptRename = () => {
+        if (!selected) return;
+        const cur = selected.contact.customName || selected.contact.profileName || "";
+        const input = window.prompt("Nama kontak (kosongkan untuk pakai nama WhatsApp):", cur);
+        if (input === null) return; // batal
+        renameMut.mutate({ contactId: selected.contact.id, name: input.trim() || null });
+    };
+
     // Template APPROVED — dipakai saat jendela 24 jam tutup.
     const [tplId, setTplId] = useState<number | null>(null);
     const { data: templates = [] } = useQuery({
@@ -730,22 +745,29 @@ export default function WhatsappInboxPage() {
                             }`}
                         >
                             <div className="w-10 h-10 rounded-full bg-emerald-500/20 grid place-items-center text-emerald-600 font-semibold shrink-0">
-                                {(c.contact.profileName || c.contact.waId).slice(0, 2).toUpperCase()}
+                                {waContactName(c.contact).replace(/^\+/, "").slice(0, 2).toUpperCase()}
                             </div>
                             <div className="min-w-0 flex-1">
                                 <div className="flex items-center justify-between gap-2">
-                                    <span className="font-medium truncate">
-                                        {c.contact.profileName || `+${c.contact.waId}`}
-                                    </span>
+                                    <span className="font-medium truncate">{waContactName(c.contact)}</span>
                                     <span className="text-[10px] opacity-50 shrink-0">{timeAgo(c.lastMessageAt)}</span>
                                 </div>
+                                {/* Nomor HP */}
+                                <div className="text-xs opacity-60 truncate">+{c.contact.waId}</div>
+                                {/* Status lead + CS yang handle */}
                                 <div className="flex items-center justify-between gap-2 mt-0.5">
-                                    <span className="text-xs opacity-60 truncate">
-                                        {c.contact.leadId ? "🔗 Lead" : c.contact.customerId ? "🔗 Pelanggan" : "Kontak baru"}
-                                        {c.channel?.label ? ` · ${c.channel.label}` : ""}
+                                    <span className="text-[11px] truncate flex items-center gap-1 min-w-0">
+                                        {c.contact.lead ? (
+                                            <span className="rounded-full bg-muted px-1.5 py-0.5 shrink-0">{LEAD_STAGE_LABEL[c.contact.lead.status] ?? c.contact.lead.status}</span>
+                                        ) : c.contact.customerId ? (
+                                            <span className="opacity-60 shrink-0">Pelanggan</span>
+                                        ) : (
+                                            <span className="opacity-50 shrink-0">Kontak baru</span>
+                                        )}
+                                        {c.assignedTo?.name && <span className="opacity-60 truncate">· {c.assignedTo.name}</span>}
                                     </span>
                                     {c.unreadCount > 0 && (
-                                        <span className="bg-emerald-500 text-white text-[10px] rounded-full px-1.5 min-w-[18px] text-center">
+                                        <span className="bg-emerald-500 text-white text-[10px] rounded-full px-1.5 min-w-[18px] text-center shrink-0">
                                             {c.unreadCount}
                                         </span>
                                     )}
@@ -766,8 +788,16 @@ export default function WhatsappInboxPage() {
                     <>
                         <header className="p-3 border-b border-border flex items-center justify-between gap-2">
                             <div className="min-w-0">
-                                <div className="font-semibold truncate">
-                                    {selected.contact.profileName || `+${selected.contact.waId}`}
+                                <div className="font-semibold truncate flex items-center gap-1.5">
+                                    <span className="truncate">{waContactName(selected.contact)}</span>
+                                    <button
+                                        type="button"
+                                        onClick={promptRename}
+                                        title="Ubah nama kontak"
+                                        className="p-1 rounded-md hover:bg-muted opacity-60 hover:opacity-100 shrink-0"
+                                    >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                                 <div className="text-xs opacity-60 flex items-center gap-2">
                                     <span>+{selected.contact.waId}</span>

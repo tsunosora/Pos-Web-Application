@@ -14,12 +14,18 @@ export interface WaContactLite {
     id: number;
     waId: string;
     profileName: string | null;
+    customName: string | null;
     phoneNormalized: string;
     leadId: number | null;
     customerId: number | null;
     optedOut: boolean;
     lead?: { id: number; name: string; status: string } | null;
     customer?: { id: number; name: string; address: string | null } | null;
+}
+
+/** Nama tampilan kontak: kustom CS > nama profil WA > nomor. */
+export function waContactName(c: { customName?: string | null; profileName?: string | null; waId: string }): string {
+    return c.customName || c.profileName || `+${c.waId}`;
 }
 
 export interface WaConversation {
@@ -140,6 +146,10 @@ export const updateWaConversation = async (
 
 export const replyWaText = async (id: number, text: string, replyTo?: string): Promise<WaMessage> =>
     (await api.post(`/whatsapp/conversations/${id}/reply`, { text, replyTo })).data;
+
+// CS set/ubah nama kontak (prioritas tampil). name kosong = reset ke nama profil WA.
+export const setWaContactName = async (contactId: number, name: string | null): Promise<WaContactLite> =>
+    (await api.patch(`/whatsapp/contacts/${contactId}/name`, { name })).data;
 
 // Pesan cepat / canned message (BUKAN template Meta) — dipanggil "/" di composer.
 export interface WaQuickReply {

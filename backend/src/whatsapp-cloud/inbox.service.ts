@@ -534,7 +534,7 @@ export class InboxService {
     // ─── Query & aksi inbox (Fase 4) ─────────────────────────────────────────
 
     private static readonly CONTACT_SELECT = {
-        id: true, waId: true, profileName: true, phoneNormalized: true,
+        id: true, waId: true, profileName: true, customName: true, phoneNormalized: true,
         leadId: true, customerId: true, optedOut: true,
         // Lead tertaut → tampilkan tahap pipeline + tautan di inbox (koherensi CRM).
         lead: { select: { id: true, name: true, status: true } },
@@ -991,6 +991,22 @@ export class InboxService {
         // Otomatisasi pipeline: balasan manusia → lead Baru maju ke Follow-up.
         await this.advanceLeadOnReply(conv.contactId);
         return msg;
+    }
+
+    /** CS set nama kustom kontak (prioritas tampil). Sinkron ke nama lead bila tertaut. */
+    async setContactName(contactId: number, name: string | null | undefined) {
+        const custom = (name ?? '').trim() || null;
+        const contact = await this.prisma.waContact.findUnique({
+            where: { id: contactId },
+            select: { id: true, leadId: true, lead: { select: { convertedCustomerId: true } } },
+        });
+        if (!contact) throw new NotFoundException('Kontak tidak ditemukan');
+        await this.prisma.waContact.update({ where: { id: contactId }, data: { customName: custom } });
+        // Selaraskan nama lead (bila tertaut & belum jadi pelanggan) agar pipeline konsisten.
+        if (custom && contact.leadId && !contact.lead?.convertedCustomerId) {
+            await this.prisma.lead.update({ where: { id: contact.leadId }, data: { name: custom } });
+        }
+        return this.prisma.waContact.findUnique({ where: { id: contactId }, select: InboxService.CONTACT_SELECT });
     }
 
     /** Balasan manusia pertama → dorong lead NEW → FOLLOW_UP (hanya maju, best-effort). */

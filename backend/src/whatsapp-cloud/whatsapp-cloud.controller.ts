@@ -548,6 +548,13 @@ export class WhatsappCloudController {
         return this.inbox.replyMedia(id, req.user.userId, file, body?.caption, body?.replyTo);
     }
 
+    /** CS set/ubah nama kontak (prioritas tampil di atas nama profil WA). */
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @Patch('contacts/:id/name')
+    setContactName(@Param('id', ParseIntPipe) id: number, @Body() body: { name?: string | null }) {
+        return this.inbox.setContactName(id, body?.name);
+    }
+
     /** Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('messages/:id/react')
