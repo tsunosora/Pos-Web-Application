@@ -500,11 +500,11 @@ export interface WaBenchmarkAgent {
 }
 export interface WaBenchmarkOverall { responses: number; avgSec: number; medianSec: number }
 export interface WaCsBenchmark {
-    agents: WaBenchmarkAgent[];        // semua (kompat)
-    csAgents: WaBenchmarkAgent[];      // non-desainer (CS murni)
-    designerAgents: WaBenchmarkAgent[]; // desainer (dipisah)
-    overall: WaBenchmarkOverall;        // CS saja
-    overallDesigner: WaBenchmarkOverall;
+    agents: WaBenchmarkAgent[];         // semua (kompat)
+    csAgents?: WaBenchmarkAgent[];      // non-desainer (CS murni) — absen di backend lama
+    designerAgents?: WaBenchmarkAgent[]; // desainer (dipisah) — absen di backend lama
+    overall: WaBenchmarkOverall;        // CS saja (backend baru) / semua (backend lama)
+    overallDesigner?: WaBenchmarkOverall;
     slaMinutes: number;
 }
 export const getWaCsBenchmark = async (params: { from?: string; to?: string; channelId?: number; slaMinutes?: number } = {}): Promise<WaCsBenchmark> =>

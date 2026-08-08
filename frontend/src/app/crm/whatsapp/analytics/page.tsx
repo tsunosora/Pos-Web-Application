@@ -117,16 +117,25 @@ function CsBenchmarkSection({ from, channelId }: { from: string; channelId: numb
             </p>
             {isLoading ? (
                 <p className="text-sm opacity-60">Memuat…</p>
-            ) : !data || data.agents.length === 0 ? (
+            ) : !data || (data.agents?.length ?? 0) === 0 ? (
                 <p className="text-sm opacity-60">Belum ada data balasan agen di periode ini.</p>
-            ) : (
-                <div className="space-y-4">
-                    <BenchmarkTable title="CS" agents={data.csAgents} overall={data.overall} slaMinutes={data.slaMinutes} />
-                    {data.designerAgents.length > 0 && (
-                        <BenchmarkTable title="Desainer" agents={data.designerAgents} overall={data.overallDesigner} slaMinutes={data.slaMinutes} />
-                    )}
-                </div>
-            )}
+            ) : (() => {
+                // Tahan banting terhadap bentuk lama (tanpa split) — hindari crash saat backend
+                // belum ter-deploy versi baru: fallback ke `agents`/`overall`.
+                const emptyOverall = { responses: 0, avgSec: 0, medianSec: 0 };
+                const csAgents = data.csAgents ?? data.agents ?? [];
+                const designerAgents = data.designerAgents ?? [];
+                const overallCs = data.overall ?? emptyOverall;
+                const overallDes = data.overallDesigner ?? emptyOverall;
+                return (
+                    <div className="space-y-4">
+                        <BenchmarkTable title="CS" agents={csAgents} overall={overallCs} slaMinutes={data.slaMinutes} />
+                        {designerAgents.length > 0 && (
+                            <BenchmarkTable title="Desainer" agents={designerAgents} overall={overallDes} slaMinutes={data.slaMinutes} />
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 }
