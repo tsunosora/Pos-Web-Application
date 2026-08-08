@@ -67,13 +67,36 @@ export class CloudApiService {
      * @param phoneNumberId phone_number_id channel pengirim (dari Meta).
      * @param to nomor tujuan format 62xxx (tanpa '+').
      */
-    async sendText(phoneNumberId: string, to: string, text: string): Promise<WaSendResult> {
+    async sendText(
+        phoneNumberId: string,
+        to: string,
+        text: string,
+        contextMessageId?: string,
+    ): Promise<WaSendResult> {
         const json = await this.graph('POST', `${phoneNumberId}/messages`, {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
             to,
             type: 'text',
             text: { preview_url: false, body: text },
+            ...(contextMessageId ? { context: { message_id: contextMessageId } } : {}),
+        });
+        return { waMessageId: json?.messages?.[0]?.id ?? null };
+    }
+
+    /** Kirim reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi). */
+    async sendReaction(
+        phoneNumberId: string,
+        to: string,
+        messageId: string,
+        emoji: string,
+    ): Promise<WaSendResult> {
+        const json = await this.graph('POST', `${phoneNumberId}/messages`, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'reaction',
+            reaction: { message_id: messageId, emoji: emoji || '' },
         });
         return { waMessageId: json?.messages?.[0]?.id ?? null };
     }
@@ -134,7 +157,7 @@ export class CloudApiService {
         to: string,
         kind: 'image' | 'document' | 'audio' | 'video',
         mediaId: string,
-        opts: { caption?: string; filename?: string } = {},
+        opts: { caption?: string; filename?: string; contextMessageId?: string } = {},
     ): Promise<WaSendResult> {
         const media: Record<string, string> = { id: mediaId };
         if (opts.caption && kind !== 'audio') media.caption = opts.caption;
@@ -145,6 +168,7 @@ export class CloudApiService {
             to,
             type: kind,
             [kind]: media,
+            ...(opts.contextMessageId ? { context: { message_id: opts.contextMessageId } } : {}),
         });
         return { waMessageId: json?.messages?.[0]?.id ?? null };
     }

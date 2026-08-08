@@ -2236,6 +2236,8 @@ model WaMessage {
   errorMessage   String?         @map("error_message") @db.Text
   sentById       Int?            @map("sent_by_id") // User agen (outbound manual)
   broadcastId    Int?            @map("broadcast_id") // pesan hasil broadcast (null = chat biasa)
+  replyToId      Int?            @map("reply_to_id") // pesan yang dibalas/dikutip (self-relation)
+  reactionsJson  Json?           @map("reactions_json") // { customer?: string, agent?: string } emoji reaksi
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
 
@@ -2244,10 +2246,13 @@ model WaMessage {
   contact      WaContact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
   sentBy       User?          @relation("WaMessageSender", fields: [sentById], references: [id], onDelete: SetNull)
   broadcast    WaBroadcast?   @relation(fields: [broadcastId], references: [id], onDelete: SetNull)
+  replyTo      WaMessage?     @relation("WaReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      WaMessage[]    @relation("WaReply")
 
   @@index([conversationId, createdAt])
   @@index([status])
   @@index([broadcastId])
+  @@index([replyToId])
   @@map("wa_messages")
 }
 

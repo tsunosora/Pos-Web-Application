@@ -42,6 +42,8 @@ export interface WaMessage {
     mediaUrl: string | null;
     mediaMimeType: string | null;
     waMessageId: string | null;
+    reactionsJson: { customer?: string; agent?: string } | null;
+    replyTo?: { id: number; direction: WaDirection; type: WaMessageType; body: string | null } | null;
     createdAt: string;
     sentBy?: { id: number; name: string | null } | null;
 }
@@ -104,8 +106,12 @@ export const updateWaConversation = async (
     data: { assignedToId?: number | null; status?: WaConversationStatus; snoozedUntil?: string | null },
 ): Promise<WaConversation> => (await api.patch(`/whatsapp/conversations/${id}`, data)).data;
 
-export const replyWaText = async (id: number, text: string): Promise<WaMessage> =>
-    (await api.post(`/whatsapp/conversations/${id}/reply`, { text })).data;
+export const replyWaText = async (id: number, text: string, replyTo?: string): Promise<WaMessage> =>
+    (await api.post(`/whatsapp/conversations/${id}/reply`, { text, replyTo })).data;
+
+// Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi agen).
+export const reactWaMessage = async (messageId: number, emoji: string): Promise<WaMessage> =>
+    (await api.post(`/whatsapp/messages/${messageId}/react`, { emoji })).data;
 
 export const replyWaTemplate = async (
     id: number,
@@ -115,10 +121,11 @@ export const replyWaTemplate = async (
 // Balas dengan lampiran (gambar/dokumen/file). caption opsional. Multipart via axios.
 // WAJIB set Content-Type multipart: default client 'application/json' bikin axios
 // mengubah FormData jadi JSON (file hilang → backend "berkas kosong").
-export const replyWaMedia = async (id: number, file: File, caption?: string): Promise<WaMessage> => {
+export const replyWaMedia = async (id: number, file: File, caption?: string, replyTo?: string): Promise<WaMessage> => {
     const form = new FormData();
     form.append('file', file);
     if (caption) form.append('caption', caption);
+    if (replyTo) form.append('replyTo', replyTo);
     return (await api.post(`/whatsapp/conversations/${id}/reply-media`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
     })).data;

@@ -166,6 +166,12 @@ export class InboxService {
             return;
         }
 
+        // Reaksi emoji dari pelanggan → bukan pesan baru; update reactionsJson pesan target.
+        if (msg?.type === 'reaction') {
+            await this.handleReaction(msg);
+            return;
+        }
+
         const from: string | undefined = msg?.from;
         const waId = toWaPhone(from);
         if (!waId) {
@@ -245,7 +251,8 @@ export class InboxService {
                   },
               });
 
-        // 3) Simpan pesan masuk.
+        // 3) Simpan pesan masuk (dengan relasi reply bila membalas pesan tertentu).
+        const replyToId = await this.resolveReplyToId(msg?.context?.id);
         const savedMsg = await this.prisma.waMessage.create({
             data: {
                 channelId: channel.id,
@@ -257,6 +264,7 @@ export class InboxService {
                 status: WaMessageStatus.DELIVERED,
                 body: this.extractBody(msg),
                 mediaMimeType: this.extractMediaMime(msg),
+                replyToId,
                 payloadJson: msg ?? {},
             },
         });
@@ -302,6 +310,29 @@ export class InboxService {
             body: this.extractBody(msg),
             isNew: !openConv,
         });
+    }
+
+    /** Reaksi emoji dari pelanggan → simpan di reactionsJson.customer pesan target. */
+    private async handleReaction(msg: any): Promise<void> {
+        const targetWamid: string | undefined = msg?.reaction?.message_id;
+        const emoji: string = msg?.reaction?.emoji ?? '';
+        if (!targetWamid) return;
+        const target = await this.prisma.waMessage.findUnique({
+            where: { waMessageId: targetWamid },
+            select: { id: true, reactionsJson: true, conversationId: true },
+        });
+        if (!target) {
+            await this.logEvent('reaction', msg?.id, msg, 'target reaksi tak ditemukan');
+            return;
+        }
+        const reactions: any = (target.reactionsJson as any) || {};
+        if (emoji) reactions.customer = emoji;
+        else delete reactions.customer;
+        await this.prisma.waMessage.update({
+            where: { id: target.id },
+            data: { reactionsJson: reactions },
+        });
+        await this.logEvent('reaction', msg?.id, msg);
     }
 
     private async handleStatus(st: any): Promise<void> {
@@ -423,7 +454,10 @@ export class InboxService {
             take: take + 1,
             ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
             orderBy: { id: 'desc' },
-            include: { sentBy: { select: { id: true, name: true } } },
+            include: {
+                sentBy: { select: { id: true, name: true } },
+                replyTo: { select: { id: true, direction: true, type: true, body: true } },
+            },
         });
         const hasMore = rows.length > take;
         const slice = hasMore ? rows.slice(0, take) : rows;
@@ -479,7 +513,17 @@ export class InboxService {
     }
 
     /** Balas teks — HANYA sah di dalam jendela layanan 24 jam. */
-    async replyText(conversationId: number, userId: number, text: string) {
+    /** Cari WaMessage.id lokal dari waMessageId Meta (untuk relasi reply). */
+    private async resolveReplyToId(replyToWaMessageId?: string | null): Promise<number | null> {
+        if (!replyToWaMessageId) return null;
+        const ref = await this.prisma.waMessage.findUnique({
+            where: { waMessageId: replyToWaMessageId },
+            select: { id: true },
+        });
+        return ref?.id ?? null;
+    }
+
+    async replyText(conversationId: number, userId: number, text: string, replyToWaMessageId?: string) {
         const conv = await this.prisma.waConversation.findUnique({
             where: { id: conversationId },
             include: { channel: true, contact: true },
@@ -490,11 +534,35 @@ export class InboxService {
         if (expired) {
             throw new ConflictException('Di luar jendela 24 jam — gunakan pesan template');
         }
-        const { waMessageId } = await this.cloud.sendText(conv.channel.phoneNumberId, conv.contact.waId, text);
+        const { waMessageId } = await this.cloud.sendText(
+            conv.channel.phoneNumberId,
+            conv.contact.waId,
+            text,
+            replyToWaMessageId,
+        );
         return this.persistOutbound(conv, userId, {
             waMessageId,
             type: WaMessageType.TEXT,
             body: text,
+            replyToId: await this.resolveReplyToId(replyToWaMessageId),
+        });
+    }
+
+    /** Kirim reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi agen). */
+    async reactToMessage(messageId: number, _userId: number, emoji: string) {
+        const m = await this.prisma.waMessage.findUnique({
+            where: { id: messageId },
+            include: { channel: true, contact: true },
+        });
+        if (!m) throw new NotFoundException('Pesan tidak ditemukan');
+        if (!m.waMessageId) throw new ConflictException('Pesan ini belum punya ID WhatsApp (tak bisa direaksi)');
+        await this.cloud.sendReaction(m.channel.phoneNumberId, m.contact.waId, m.waMessageId, emoji || '');
+        const reactions: any = (m.reactionsJson as any) || {};
+        if (emoji) reactions.agent = emoji;
+        else delete reactions.agent;
+        return this.prisma.waMessage.update({
+            where: { id: messageId },
+            data: { reactionsJson: reactions },
         });
     }
 
@@ -504,6 +572,7 @@ export class InboxService {
         userId: number,
         file: { buffer: Buffer; mimetype: string; originalname: string },
         caption?: string,
+        replyToWaMessageId?: string,
     ) {
         if (!file?.buffer?.length) throw new ConflictException('Berkas kosong / gagal diunggah');
         const conv = await this.prisma.waConversation.findUnique({
@@ -540,7 +609,7 @@ export class InboxService {
                 conv.contact.waId,
                 kind,
                 mediaId,
-                { caption: caption || undefined, filename },
+                { caption: caption || undefined, filename, contextMessageId: replyToWaMessageId },
             ));
         } catch (e) {
             // Error dari Meta (tipe/ukuran/kebijakan) → 400 dgn pesan terbaca, bukan 500.
@@ -558,6 +627,7 @@ export class InboxService {
             type: TYPE_BY_KIND[kind],
             body: caption || filename,
             mediaMimeType: mime,
+            replyToId: await this.resolveReplyToId(replyToWaMessageId),
             // Simpan referensi agar proxy getMessageMedia bisa menayangkan media OUTBOUND juga.
             payloadJson: { type: kind, [kind]: { id: mediaId, mime_type: mime, filename } },
         });
@@ -603,6 +673,7 @@ export class InboxService {
             templateName?: string;
             mediaMimeType?: string | null;
             payloadJson?: Prisma.InputJsonValue;
+            replyToId?: number | null;
         },
     ) {
         const msg = await this.prisma.waMessage.create({
@@ -617,6 +688,7 @@ export class InboxService {
                 body: m.body,
                 templateName: m.templateName ?? null,
                 mediaMimeType: m.mediaMimeType ?? null,
+                replyToId: m.replyToId ?? null,
                 ...(m.payloadJson !== undefined ? { payloadJson: m.payloadJson } : {}),
                 sentById: userId,
             },

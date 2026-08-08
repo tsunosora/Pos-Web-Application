@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
-    getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia,
+    getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -111,6 +111,99 @@ function MsgStatusTick({ status }: { status: WaMessage["status"] }) {
     return <Clock className="w-3 h-3 opacity-50" />;
 }
 
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
+function BubbleActions({ m, out, onReply, onReact }: {
+    m: WaMessage;
+    out: boolean;
+    onReply: (m: WaMessage) => void;
+    onReact: (id: number, emoji: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const wrapRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!open) return;
+        const h = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+        document.addEventListener("mousedown", h);
+        return () => document.removeEventListener("mousedown", h);
+    }, [open]);
+    const current = m.reactionsJson?.agent;
+    return (
+        <div ref={wrapRef} className={`relative flex items-center gap-0.5 self-center transition-opacity ${open ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+            <button type="button" onClick={() => onReply(m)} title="Balas" className="p-1 rounded-full hover:bg-muted text-muted-foreground">
+                <CornerUpLeft className="w-3.5 h-3.5" />
+            </button>
+            <button type="button" onClick={() => setOpen((o) => !o)} title="Reaksi" className="p-1 rounded-full hover:bg-muted text-muted-foreground">
+                <Smile className="w-3.5 h-3.5" />
+            </button>
+            {open && (
+                <div className={`absolute bottom-full mb-1 ${out ? "right-0" : "left-0"} flex gap-0.5 bg-card border border-border rounded-full px-1.5 py-1 shadow-lg z-30`}>
+                    {QUICK_REACTIONS.map((e) => (
+                        <button
+                            key={e}
+                            type="button"
+                            onClick={() => { onReact(m.id, current === e ? "" : e); setOpen(false); }}
+                            className={`text-lg leading-none p-0.5 rounded-full hover:bg-muted ${current === e ? "bg-emerald-100 dark:bg-emerald-900" : ""}`}
+                        >
+                            {e}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MessageBubble({ m, onReply, onReact }: {
+    m: WaMessage;
+    onReply: (m: WaMessage) => void;
+    onReact: (id: number, emoji: string) => void;
+}) {
+    const out = m.direction === "OUTBOUND";
+    const reactions = m.reactionsJson || {};
+    const reactionEmojis = [reactions.customer, reactions.agent].filter(Boolean) as string[];
+    const canAct = !!m.waMessageId; // hanya pesan ber-ID WhatsApp yang bisa dibalas/direaksi
+
+    return (
+        <div className={`group flex items-end gap-1 ${out ? "justify-end" : "justify-start"}`}>
+            {out && canAct && <BubbleActions m={m} out={out} onReply={onReply} onReact={onReact} />}
+            <div className="relative max-w-[75%]">
+                <div className={`rounded-2xl px-3 py-2 text-sm shadow-sm ${out ? "bg-emerald-500 text-white rounded-br-sm" : "bg-card border border-border rounded-bl-sm"}`}>
+                    {m.replyTo && (
+                        <div className={`mb-1 rounded-lg border-l-2 pl-2 pr-2 py-0.5 text-xs ${out ? "border-white/60 bg-white/10" : "border-emerald-500 bg-muted/50"}`}>
+                            <div className="opacity-70">{m.replyTo.direction === "OUTBOUND" ? "Anda" : "Pelanggan"}</div>
+                            <div className="truncate opacity-90">{m.replyTo.body || `[${m.replyTo.type.toLowerCase()}]`}</div>
+                        </div>
+                    )}
+                    {m.type === "TEMPLATE" && (
+                        <div className={`text-[10px] mb-0.5 ${out ? "text-white/70" : "opacity-50"}`}>template: {m.templateName}</div>
+                    )}
+                    {MEDIA_TYPES.has(m.type) ? (
+                        <div className="space-y-1">
+                            <MediaAttachment m={m} />
+                            {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
+                        </div>
+                    ) : (
+                        <div className="whitespace-pre-wrap break-words">
+                            {m.body || <span className="italic opacity-60">[{m.type.toLowerCase()}]</span>}
+                        </div>
+                    )}
+                    <div className={`flex items-center gap-1 justify-end mt-0.5 text-[10px] ${out ? "text-white/70" : "opacity-50"}`}>
+                        {clockTime(m.createdAt)}
+                        {out && <MsgStatusTick status={m.status} />}
+                    </div>
+                </div>
+                {reactionEmojis.length > 0 && (
+                    <div className={`absolute -bottom-2 ${out ? "right-2" : "left-2"} bg-card border border-border rounded-full px-1.5 py-0.5 text-xs shadow-sm`}>
+                        {reactionEmojis.join(" ")}
+                    </div>
+                )}
+            </div>
+            {!out && canAct && <BubbleActions m={m} out={out} onReply={onReply} onReact={onReact} />}
+        </div>
+    );
+}
+
 export default function WhatsappInboxPage() {
     const qc = useQueryClient();
     const { currentUser } = useCurrentUser();
@@ -155,6 +248,7 @@ export default function WhatsappInboxPage() {
     }, [msgData, selectedId, qc]);
 
     const [draft, setDraft] = useState("");
+    const [replyingTo, setReplyingTo] = useState<WaMessage | null>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showEmoji, setShowEmoji] = useState(false);
@@ -187,9 +281,10 @@ export default function WhatsappInboxPage() {
         return () => document.removeEventListener("mousedown", onDown);
     }, [showEmoji]);
     const replyMut = useMutation({
-        mutationFn: (text: string) => replyWaText(selectedId as number, text),
+        mutationFn: (v: { text: string; replyTo?: string }) => replyWaText(selectedId as number, v.text, v.replyTo),
         onSuccess: () => {
             setDraft("");
+            setReplyingTo(null);
             qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
         },
@@ -200,11 +295,12 @@ export default function WhatsappInboxPage() {
     });
 
     const mediaMut = useMutation({
-        mutationFn: (payload: { file: File; caption?: string }) =>
-            replyWaMedia(selectedId as number, payload.file, payload.caption),
+        mutationFn: (payload: { file: File; caption?: string; replyTo?: string }) =>
+            replyWaMedia(selectedId as number, payload.file, payload.caption, payload.replyTo),
         onSuccess: () => {
             setDraft("");
             setPendingFile(null);
+            setReplyingTo(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
             qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
@@ -215,13 +311,23 @@ export default function WhatsappInboxPage() {
         },
     });
 
+    const reactMut = useMutation({
+        mutationFn: (v: { id: number; emoji: string }) => reactWaMessage(v.id, v.emoji),
+        onSuccess: () => qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] }),
+        onError: (e: unknown) => {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            alert(msg || "Gagal mengirim reaksi");
+        },
+    });
+
     // Kirim: kalau ada lampiran → media (draft jadi caption), else teks biasa.
     const sendComposer = () => {
         if (mediaMut.isPending || replyMut.isPending) return;
+        const replyTo = replyingTo?.waMessageId || undefined;
         if (pendingFile) {
-            mediaMut.mutate({ file: pendingFile, caption: draft.trim() || undefined });
+            mediaMut.mutate({ file: pendingFile, caption: draft.trim() || undefined, replyTo });
         } else if (draft.trim()) {
-            replyMut.mutate(draft.trim());
+            replyMut.mutate({ text: draft.trim(), replyTo });
         }
     };
 
@@ -230,6 +336,7 @@ export default function WhatsappInboxPage() {
         setDraft("");
         setPendingFile(null);
         setShowEmoji(false);
+        setReplyingTo(null);
     }, [selectedId]);
 
     const assignMut = useMutation({
@@ -396,40 +503,14 @@ export default function WhatsappInboxPage() {
                         </header>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
-                            {messages.map((m) => {
-                                const out = m.direction === "OUTBOUND";
-                                return (
-                                    <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
-                                        <div
-                                            className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm ${
-                                                out
-                                                    ? "bg-emerald-500 text-white rounded-br-sm"
-                                                    : "bg-card border border-border rounded-bl-sm"
-                                            }`}
-                                        >
-                                            {m.type === "TEMPLATE" && (
-                                                <div className={`text-[10px] mb-0.5 ${out ? "text-white/70" : "opacity-50"}`}>
-                                                    template: {m.templateName}
-                                                </div>
-                                            )}
-                                            {MEDIA_TYPES.has(m.type) ? (
-                                                <div className="space-y-1">
-                                                    <MediaAttachment m={m} />
-                                                    {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
-                                                </div>
-                                            ) : (
-                                                <div className="whitespace-pre-wrap break-words">
-                                                    {m.body || <span className="italic opacity-60">[{m.type.toLowerCase()}]</span>}
-                                                </div>
-                                            )}
-                                            <div className={`flex items-center gap-1 justify-end mt-0.5 text-[10px] ${out ? "text-white/70" : "opacity-50"}`}>
-                                                {clockTime(m.createdAt)}
-                                                {out && <MsgStatusTick status={m.status} />}
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                            {messages.map((m) => (
+                                <MessageBubble
+                                    key={m.id}
+                                    m={m}
+                                    onReply={setReplyingTo}
+                                    onReact={(id, emoji) => reactMut.mutate({ id, emoji })}
+                                />
+                            ))}
                             <div ref={bottomRef} />
                         </div>
 
@@ -446,6 +527,20 @@ export default function WhatsappInboxPage() {
                                     sendComposer();
                                 }}
                             >
+                                {/* Pratinjau pesan yang dibalas */}
+                                {replyingTo && (
+                                    <div className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-2.5 py-1.5 border-l-2 border-emerald-500">
+                                        <CornerUpLeft className="w-3.5 h-3.5 shrink-0" />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="opacity-60">Membalas {replyingTo.direction === "OUTBOUND" ? "Anda" : "pelanggan"}</div>
+                                            <div className="truncate">{replyingTo.body || `[${replyingTo.type.toLowerCase()}]`}</div>
+                                        </div>
+                                        <button type="button" onClick={() => setReplyingTo(null)} className="p-0.5 rounded hover:bg-muted shrink-0" aria-label="Batal balas">
+                                            <X className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                )}
+
                                 {/* Preview lampiran terpilih */}
                                 {pendingFile && (
                                     <div className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-2.5 py-1.5">

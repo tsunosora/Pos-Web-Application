@@ -228,7 +228,7 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
 
         const msg = await service.replyText(1, 99, 'Baik kak');
 
-        expect(cloud.sendText).toHaveBeenCalledWith('PN1', '6281234567890', 'Baik kak');
+        expect(cloud.sendText).toHaveBeenCalledWith('PN1', '6281234567890', 'Baik kak', undefined);
         expect(prisma.waMessage.create.mock.calls[0][0].data).toMatchObject({
             direction: 'OUTBOUND', type: 'TEXT', status: 'SENT', body: 'Baik kak',
             sentById: 99, waMessageId: 'wamid.OUT',

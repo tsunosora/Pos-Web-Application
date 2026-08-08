@@ -355,8 +355,8 @@ export class WhatsappCloudController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...INBOX_ROLES)
     @Post('conversations/:id/reply')
-    reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string }) {
-        return this.inbox.replyText(id, req.user.userId, body.text);
+    reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string; replyTo?: string }) {
+        return this.inbox.replyText(id, req.user.userId, body.text, body.replyTo);
     }
 
     /** Balas via template (sah kapan pun, termasuk luar jendela 24 jam). */
@@ -380,8 +380,16 @@ export class WhatsappCloudController {
         @Req() req: any,
         @Param('id', ParseIntPipe) id: number,
         @UploadedFile() file: Express.Multer.File,
-        @Body() body: { caption?: string },
+        @Body() body: { caption?: string; replyTo?: string },
     ) {
-        return this.inbox.replyMedia(id, req.user.userId, file, body?.caption);
+        return this.inbox.replyMedia(id, req.user.userId, file, body?.caption, body?.replyTo);
+    }
+
+    /** Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Post('messages/:id/react')
+    react(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { emoji?: string }) {
+        return this.inbox.reactToMessage(id, req.user.userId, body?.emoji ?? '');
     }
 }
