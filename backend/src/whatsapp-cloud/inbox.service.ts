@@ -119,6 +119,51 @@ export class InboxService {
         });
     }
 
+    /**
+     * Baca marker #kode di pesan masuk → cocokkan ke WaQrLink → set sumber lead
+     * + naikkan scanCount. Lead baru selalu di-set; lead lama hanya bila sumbernya
+     * masih generik (WHATSAPP) agar tak menimpa atribusi manual/lain.
+     */
+    private async applyQrAttribution(
+        leadId: number,
+        body: string | null,
+        createdLead: boolean,
+        branchId: number | null,
+    ): Promise<void> {
+        if (!body) return;
+        const m = body.match(/#([a-z0-9_]+)/i);
+        if (!m) return;
+        const code = m[1].toLowerCase();
+        try {
+            const qr = await this.prisma.waQrLink.findUnique({ where: { code } });
+            if (!qr || !qr.isActive) return;
+            const lead = await this.prisma.lead.findUnique({ where: { id: leadId }, select: { source: true } });
+            const canOverride = createdLead || lead?.source === 'WHATSAPP' || lead?.source == null;
+            if (canOverride) {
+                await this.prisma.lead.update({
+                    where: { id: leadId },
+                    data: {
+                        source: qr.source as any,
+                        sourceDetail: qr.sourceDetail || qr.name,
+                        ...(branchId != null ? { branchId } : {}),
+                    },
+                });
+                await this.prisma.leadActivity.create({
+                    data: {
+                        leadId,
+                        kind: 'MESSAGE',
+                        text: `Masuk via QR "${qr.name}" (sumber: ${qr.source})`,
+                        meta: { source: 'whatsapp-qr', qrCode: code },
+                    },
+                });
+            }
+            await this.prisma.waQrLink.update({ where: { id: qr.id }, data: { scanCount: { increment: 1 } } });
+        } catch (e) {
+            // Atribusi bersifat best-effort; jangan gagalkan pemrosesan webhook.
+            this.logger?.warn?.(`applyQrAttribution gagal untuk #${code}: ${e}`);
+        }
+    }
+
     private extractBody(msg: any): string | null {
         switch (msg?.type) {
             case 'text':
@@ -203,6 +248,13 @@ export class InboxService {
                 select: { id: true, convertedCustomerId: true },
             });
             createdLead = true;
+        }
+
+        // 1b) Atribusi sumber via QR klik-untuk-chat: pesan memuat marker #kode.
+        //     Set sumber lead sesuai QR (mis. Walk-in) + hitung scan. Berlaku utk
+        //     lead baru; utk lead lama hanya bila sumbernya masih generik (WHATSAPP).
+        if (lead?.id) {
+            await this.applyQrAttribution(lead.id, this.extractBody(msg), createdLead, channel.branchId ?? null);
         }
 
         const contact = await this.prisma.waContact.upsert({

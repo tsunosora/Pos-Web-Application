@@ -2379,6 +2379,24 @@ model WaBroadcastRecipient {
   @@map("wa_broadcast_recipients")
 }
 
+/// QR "klik-untuk-chat" WhatsApp kustom per sumber (Walk-in, Brosur, dll).
+/// Kode ditanam sebagai #kode di pesan prefill → atribusi sumber lead otomatis.
+model WaQrLink {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(120) // nama internal, mis. "Leads Walk-in"
+  code         String   @unique @db.VarChar(40) // marker #kode di pesan (atribusi)
+  channelId    Int?     @map("channel_id") // nomor tujuan (WaChannel)
+  source       String   @db.VarChar(30) // LeadSource: WALK_IN | REFERRAL | CUSTOM | ...
+  sourceDetail String?  @map("source_detail") @db.VarChar(150)
+  prefillText  String   @map("prefill_text") @db.Text // pesan siap-kirim (termasuk #kode)
+  scanCount    Int      @default(0) @map("scan_count") // jumlah lead masuk via QR ini
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("wa_qr_links")
+}
+
 // Jenis pemicu balasan otomatis (Fase 7).
 enum WaAutoReplyTrigger {
   KEYWORD // cocokkan kata kunci di pesan masuk

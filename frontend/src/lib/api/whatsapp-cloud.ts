@@ -443,3 +443,47 @@ export const getWaAnalytics = async (params: { from?: string; to?: string; chann
 export function isWindowOpen(conv: Pick<WaConversation, 'windowExpiresAt'>): boolean {
     return !!conv.windowExpiresAt && new Date(conv.windowExpiresAt).getTime() > Date.now();
 }
+
+// ─── QR klik-untuk-chat ──────────────────────────────────────────────────────
+
+export interface WaQrLink {
+    id: number;
+    name: string;
+    code: string;
+    channelId: number | null;
+    source: string;
+    sourceDetail: string | null;
+    prefillText: string;
+    scanCount: number;
+    isActive: boolean;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface CreateQrLinkBody {
+    name: string;
+    code?: string;
+    channelId?: number | null;
+    source?: string;
+    sourceDetail?: string | null;
+    prefillText?: string;
+}
+export type UpdateQrLinkBody = Partial<CreateQrLinkBody> & { isActive?: boolean };
+
+export const listWaQrLinks = async (): Promise<WaQrLink[]> => (await api.get('/whatsapp/qr-links')).data;
+
+export const createWaQrLink = async (data: CreateQrLinkBody): Promise<WaQrLink> =>
+    (await api.post('/whatsapp/qr-links', data)).data;
+
+export const updateWaQrLink = async (id: number, data: UpdateQrLinkBody): Promise<WaQrLink> =>
+    (await api.patch(`/whatsapp/qr-links/${id}`, data)).data;
+
+export const deleteWaQrLink = async (id: number): Promise<{ ok: boolean }> =>
+    (await api.delete(`/whatsapp/qr-links/${id}`)).data;
+
+/** Bangun URL wa.me klik-untuk-chat dari nomor tujuan + pesan prefill. */
+export function buildWaMeLink(phone: string | null | undefined, text: string): string {
+    const num = (phone || '').replace(/[^0-9]/g, '');
+    const q = text ? `?text=${encodeURIComponent(text)}` : '';
+    return `https://wa.me/${num}${q}`;
+}

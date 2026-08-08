@@ -33,6 +33,7 @@ import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './
 import { AutoReplyService, type CreateRuleInput } from './auto-reply.service';
 import { RemindersService, type ReminderEvent, type SetReminderConfigInput } from './reminders.service';
 import { AnalyticsService } from './analytics.service';
+import { WaQrService, type CreateQrInput } from './qr.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
@@ -50,7 +51,38 @@ export class WhatsappCloudController {
         private readonly autoReplies: AutoReplyService,
         private readonly reminders: RemindersService,
         private readonly analytics: AnalyticsService,
+        private readonly qr: WaQrService,
     ) {}
+
+    // ─── QR klik-untuk-chat (Owner/Admin/Marketing) ──────────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('qr-links')
+    listQrLinks() {
+        return this.qr.list();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('qr-links')
+    createQrLink(@Body() body: CreateQrInput) {
+        return this.qr.create(body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Patch('qr-links/:id')
+    updateQrLink(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<CreateQrInput> & { isActive?: boolean }) {
+        return this.qr.update(id, body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Delete('qr-links/:id')
+    removeQrLink(@Param('id', ParseIntPipe) id: number) {
+        return this.qr.remove(id);
+    }
 
     // ─── Analitik (Owner/Admin/Marketing) ────────────────────────────────────
 
