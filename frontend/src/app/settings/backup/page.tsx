@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { getBackupGroups, exportBackup, previewBackupFile, restoreBackup,
-    getRcloneStatus, saveRcloneSettings, triggerRcloneBackup } from "@/lib/api";
+    getRcloneStatus, saveRcloneSettings, triggerRcloneBackup, getRcloneProgress } from "@/lib/api";
+import type { RcloneProgress } from "@/lib/api/backup";
 import { usePagination, PaginationBar } from "@/components/ui/pagination";
 
 const ICON_MAP: Record<string, string> = {
@@ -175,6 +176,7 @@ export default function BackupPage() {
     const [rcloneSaving, setRcloneSaving] = useState(false);
     const [rcloneTriggering, setRcloneTriggering] = useState(false);
     const [rcloneTriggerMsg, setRcloneTriggerMsg] = useState<{ ok: boolean; text: string } | null>(null);
+    const [rcloneProgress, setRcloneProgress] = useState<RcloneProgress | null>(null);
 
     // Paginasi daftar panjang (aktif saat > 20 item)
     const restoreTablePg = usePagination<any>(restorePreview?.preview ?? [], 20);
@@ -205,27 +207,31 @@ export default function BackupPage() {
     const handleTriggerRclone = async () => {
         setRcloneTriggering(true);
         setRcloneTriggerMsg(null);
+        setRcloneProgress({ running: true, phase: "Memulai…", percent: 0, detail: "", startedAt: null, finishedAt: null, ok: null, error: null });
         try {
             await triggerRcloneBackup();
-            setRcloneTriggerMsg({ ok: true, text: "Backup sedang diproses di background server..." });
-            const prevStatus = rcloneStatus?.lastStatus;
-            let attempts = 0;
+            let stale = 0;
             const poll = setInterval(async () => {
-                attempts++;
-                await queryClient.invalidateQueries({ queryKey: ["rclone-status"] });
-                const fresh: any = queryClient.getQueryData(["rclone-status"]);
-                if (fresh?.lastStatus && fresh.lastStatus !== prevStatus) {
-                    clearInterval(poll);
-                    setRcloneTriggering(false);
-                    setRcloneTriggerMsg({ ok: !fresh.lastStatus.startsWith("Gagal"), text: fresh.lastStatus });
-                } else if (attempts >= 20) {
-                    clearInterval(poll);
-                    setRcloneTriggering(false);
+                let p: RcloneProgress;
+                try {
+                    p = await getRcloneProgress();
+                } catch {
+                    if (++stale > 10) { clearInterval(poll); setRcloneTriggering(false); }
+                    return;
                 }
-            }, 4000);
+                stale = 0;
+                setRcloneProgress(p);
+                if (!p.running) {
+                    clearInterval(poll);
+                    setRcloneTriggering(false);
+                    setRcloneTriggerMsg({ ok: p.ok !== false, text: p.error ? `Gagal: ${p.error}` : (p.detail || "Backup selesai") });
+                    queryClient.invalidateQueries({ queryKey: ["rclone-status"] });
+                }
+            }, 700);
         } catch (e: any) {
             setRcloneTriggerMsg({ ok: false, text: e?.response?.data?.message || e.message });
             setRcloneTriggering(false);
+            setRcloneProgress(null);
         }
     };
 
@@ -737,7 +743,25 @@ export default function BackupPage() {
                         </button>
                     </div>
 
-                    {rcloneTriggerMsg && (
+                    {rcloneProgress && rcloneProgress.running && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 space-y-2">
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-2 text-emerald-800 font-medium">
+                                    <Loader2 className="w-4 h-4 animate-spin" /> {rcloneProgress.phase}
+                                </span>
+                                <span className="text-emerald-700 font-semibold tabular-nums">{rcloneProgress.percent}%</span>
+                            </div>
+                            <div className="h-2.5 rounded-full bg-emerald-100 overflow-hidden">
+                                <div
+                                    className="h-full bg-emerald-500 transition-all duration-500 ease-out"
+                                    style={{ width: `${Math.max(3, rcloneProgress.percent)}%` }}
+                                />
+                            </div>
+                            {rcloneProgress.detail && <p className="text-xs text-emerald-700/80">{rcloneProgress.detail}</p>}
+                        </div>
+                    )}
+
+                    {rcloneTriggerMsg && !rcloneProgress?.running && (
                         <div className={`flex items-start gap-2 rounded-xl px-4 py-3 text-sm ${rcloneTriggerMsg.ok ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>
                             {rcloneTriggerMsg.ok ? <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" /> : <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />}
                             <span>{rcloneTriggerMsg.text}</span>

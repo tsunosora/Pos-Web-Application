@@ -92,8 +92,17 @@ export class BackupController {
         if (!status.installed) {
             throw new BadRequestException('rclone tidak terinstal di server. Instal rclone terlebih dahulu.');
         }
-        // Fire and forget — tidak tunggu selesai
+        if (this.rcloneService.getProgress().running) {
+            return { success: true, message: 'Backup sudah berjalan', progress: this.rcloneService.getProgress() };
+        }
+        // Fire and forget — progress dipoll via GET /backup/rclone/progress
         this.rcloneService.runBackup();
-        return { success: true, message: 'Backup sedang diproses di background...' };
+        return { success: true, message: 'Backup sedang diproses...', progress: this.rcloneService.getProgress() };
+    }
+
+    /** Progress backup manual (fase + persen) — dipoll frontend untuk animasi. */
+    @Get('rclone/progress')
+    getRcloneProgress() {
+        return this.rcloneService.getProgress();
     }
 }

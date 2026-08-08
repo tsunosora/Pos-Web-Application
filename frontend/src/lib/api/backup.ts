@@ -29,3 +29,15 @@ export const saveRcloneSettings = async (data: {
     keepCount?: number;
 }) => (await api.post('/backup/rclone/settings', data)).data;
 export const triggerRcloneBackup = async () => (await api.post('/backup/rclone/trigger')).data;
+
+export interface RcloneProgress {
+    running: boolean;
+    phase: string;
+    percent: number;
+    detail: string;
+    startedAt: string | null;
+    finishedAt: string | null;
+    ok: boolean | null;
+    error: string | null;
+}
+export const getRcloneProgress = async (): Promise<RcloneProgress> => (await api.get('/backup/rclone/progress')).data;

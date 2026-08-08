@@ -241,6 +241,7 @@ export class BackupService {
         selectedGroups: BackupGroupKey[] | 'all',
         outputStream: any,
         includeImages = true,
+        onTableProgress?: (done: number, total: number) => void,
     ): Promise<void> {
         // ── 1. Kumpulkan data DB secara PARALLEL ──────────────────────────
         let tablesToExport: string[];
@@ -252,6 +253,8 @@ export class BackupService {
         tablesToExport = [...new Set(tablesToExport)];
 
         // Query semua tabel secara paralel — jauh lebih cepat dari sequential loop
+        let dumped = 0;
+        const totalTables = tablesToExport.length;
         const results = await Promise.all(
             tablesToExport.map(async (table) => {
                 try {
@@ -259,6 +262,9 @@ export class BackupService {
                     return { table, rows };
                 } catch {
                     return { table, rows: [] };
+                } finally {
+                    dumped++;
+                    onTableProgress?.(dumped, totalTables);
                 }
             })
         );
@@ -581,7 +587,10 @@ export class BackupService {
     }
 
     // ── Write backup ZIP langsung ke file (untuk rclone) ───────────────────
-    async writeBackupToFile(filePath: string): Promise<void> {
+    async writeBackupToFile(
+        filePath: string,
+        onTableProgress?: (done: number, total: number) => void,
+    ): Promise<void> {
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -589,7 +598,7 @@ export class BackupService {
         await new Promise<void>((resolve, reject) => {
             writeStream.on('finish', resolve);
             writeStream.on('error', reject);
-            this.streamBackupZip('all', writeStream, true).catch(reject);
+            this.streamBackupZip('all', writeStream, true, onTableProgress).catch(reject);
         });
     }
 }
