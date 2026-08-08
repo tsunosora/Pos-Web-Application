@@ -113,6 +113,57 @@ function MsgStatusTick({ status }: { status: WaMessage["status"] }) {
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
+function mediaLabel(type: WaMessage["type"]): { icon: string; label: string } {
+    switch (type) {
+        case "IMAGE": return { icon: "🖼️", label: "Foto" };
+        case "STICKER": return { icon: "🩷", label: "Stiker" };
+        case "VIDEO": return { icon: "🎥", label: "Video" };
+        case "AUDIO": return { icon: "🎵", label: "Pesan suara" };
+        case "DOCUMENT": return { icon: "📄", label: "Dokumen" };
+        default: return { icon: "", label: `[${type.toLowerCase()}]` };
+    }
+}
+
+// Loncat ke pesan yang dikutip + kilas sorot sebentar.
+function scrollToMessage(id: number) {
+    const el = document.getElementById(`wa-msg-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-emerald-400");
+    setTimeout(() => el.classList.remove("ring-2", "ring-emerald-400"), 1500);
+}
+
+// Ringkasan pesan terkutip: thumbnail utk gambar/stiker, ikon+label utk media lain.
+function QuotedContent({ msg }: { msg: { id: number; type: WaMessage["type"]; body: string | null; direction: WaMessage["direction"] } }) {
+    const isImg = msg.type === "IMAGE" || msg.type === "STICKER";
+    const isMedia = MEDIA_TYPES.has(msg.type);
+    const [thumb, setThumb] = useState<string | null>(null);
+    useEffect(() => {
+        if (!isImg) return;
+        let active = true;
+        let created: string | null = null;
+        getWaMessageMediaUrl(msg.id)
+            .then((u) => { if (active) { created = u; setThumb(u); } else URL.revokeObjectURL(u); })
+            .catch(() => {});
+        return () => { active = false; if (created) URL.revokeObjectURL(created); };
+    }, [msg.id, isImg]);
+    const { icon, label } = mediaLabel(msg.type);
+    return (
+        <div className="flex items-center gap-2 min-w-0">
+            {isImg && thumb && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={thumb} alt="" className="w-9 h-9 rounded object-cover shrink-0" />
+            )}
+            <div className="min-w-0">
+                <div className="opacity-70 text-[11px]">{msg.direction === "OUTBOUND" ? "Anda" : "Pelanggan"}</div>
+                <div className="truncate opacity-90">
+                    {isMedia ? <span>{icon} {msg.body || label}</span> : (msg.body || <span className="italic opacity-60">[pesan]</span>)}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function BubbleActions({ m, out, onReply, onReact }: {
     m: WaMessage;
     out: boolean;
@@ -167,13 +218,17 @@ function MessageBubble({ m, onReply, onReact }: {
     return (
         <div className={`group flex items-end gap-1 ${out ? "justify-end" : "justify-start"}`}>
             {out && canAct && <BubbleActions m={m} out={out} onReply={onReply} onReact={onReact} />}
-            <div className="relative max-w-[75%]">
+            <div id={`wa-msg-${m.id}`} className="relative max-w-[75%] rounded-2xl transition-shadow">
                 <div className={`rounded-2xl px-3 py-2 text-sm shadow-sm ${out ? "bg-emerald-500 text-white rounded-br-sm" : "bg-card border border-border rounded-bl-sm"}`}>
                     {m.replyTo && (
-                        <div className={`mb-1 rounded-lg border-l-2 pl-2 pr-2 py-0.5 text-xs ${out ? "border-white/60 bg-white/10" : "border-emerald-500 bg-muted/50"}`}>
-                            <div className="opacity-70">{m.replyTo.direction === "OUTBOUND" ? "Anda" : "Pelanggan"}</div>
-                            <div className="truncate opacity-90">{m.replyTo.body || `[${m.replyTo.type.toLowerCase()}]`}</div>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => scrollToMessage(m.replyTo!.id)}
+                            className={`w-full text-left mb-1 rounded-lg border-l-2 pl-2 pr-2 py-1 text-xs cursor-pointer transition-opacity hover:opacity-80 ${out ? "border-white/60 bg-white/10" : "border-emerald-500 bg-muted/50"}`}
+                            title="Lihat pesan asli"
+                        >
+                            <QuotedContent msg={m.replyTo} />
+                        </button>
                     )}
                     {m.type === "TEMPLATE" && (
                         <div className={`text-[10px] mb-0.5 ${out ? "text-white/70" : "opacity-50"}`}>template: {m.templateName}</div>
@@ -532,8 +587,7 @@ export default function WhatsappInboxPage() {
                                     <div className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-2.5 py-1.5 border-l-2 border-emerald-500">
                                         <CornerUpLeft className="w-3.5 h-3.5 shrink-0" />
                                         <div className="min-w-0 flex-1">
-                                            <div className="opacity-60">Membalas {replyingTo.direction === "OUTBOUND" ? "Anda" : "pelanggan"}</div>
-                                            <div className="truncate">{replyingTo.body || `[${replyingTo.type.toLowerCase()}]`}</div>
+                                            <QuotedContent msg={replyingTo} />
                                         </div>
                                         <button type="button" onClick={() => setReplyingTo(null)} className="p-0.5 rounded hover:bg-muted shrink-0" aria-label="Batal balas">
                                             <X className="w-3.5 h-3.5" />
