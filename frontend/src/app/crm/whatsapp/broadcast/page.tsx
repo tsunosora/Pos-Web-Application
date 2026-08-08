@@ -68,12 +68,13 @@ export default function WhatsappBroadcastPage() {
     const varLabels = Array.isArray(selectedTpl?.variableLabels) ? (selectedTpl!.variableLabels as string[]) : [];
     const varSamples = Array.isArray(selectedTpl?.variableSample) ? (selectedTpl!.variableSample as string[]) : [];
 
-    // Saat pilih template: isi OTOMATIS dari field data pelanggan bila keterangan cocok.
+    // Saat pilih template: isi OTOMATIS. Keterangan cocok field DB → ambil dari data
+    // pelanggan; selain itu → pre-isi dengan contoh nilai template (user tinggal ubah).
     useEffect(() => {
         if (!selectedTpl) return;
         setVarMap(Array.from({ length: nVars }, (_, i) => {
             const field = LABEL_TO_FIELD[(varLabels[i] || "").trim()];
-            return field ? { source: "field" as const, field } : { source: "static" as const, value: "" };
+            return field ? { source: "field" as const, field } : { source: "static" as const, value: varSamples[i] || "" };
         }));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [templateId]);
