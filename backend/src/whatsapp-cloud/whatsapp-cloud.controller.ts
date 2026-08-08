@@ -38,7 +38,8 @@ import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyI
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
-const INBOX_ROLES = [...ADMIN_ROLES, 'CS', 'MARKETING'] as const;
+// Inbox (baca + balas chat) juga untuk Designer — perlu komunikasi revisi ke pelanggan.
+const INBOX_ROLES = [...ADMIN_ROLES, 'CS', 'MARKETING', 'DESIGNER'] as const;
 const TEMPLATE_ROLES = [...ADMIN_ROLES, 'MARKETING'] as const;
 
 @Controller('whatsapp')
