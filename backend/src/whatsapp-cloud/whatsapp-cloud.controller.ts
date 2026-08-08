@@ -16,8 +16,16 @@ import {
     UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Response } from 'express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import type { Response, Request } from 'express';
 import { WaConversationStatus } from '@prisma/client';
+
+// Upload gambar katalog → ./public/uploads (disajikan di /uploads).
+const catalogImageStorage = diskStorage({
+    destination: './public/uploads',
+    filename: (_req, file, cb) => cb(null, `wacat-${Date.now()}-${Math.round(Math.random() * 1e9)}${extname(file.originalname) || '.jpg'}`),
+});
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -74,6 +82,21 @@ export class WhatsappCloudController {
     createCatalogProduct(@Body() body: { channelId: number } & CatalogProductInput) {
         const { channelId, ...input } = body;
         return this.catalog.create(channelId, input);
+    }
+
+    /** Upload gambar produk → kembalikan URL ABSOLUT (harus dapat diakses Meta). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('catalog/upload-image')
+    @UseInterceptors(FileInterceptor('image', { storage: catalogImageStorage, limits: { fileSize: 8 * 1024 * 1024 } }))
+    uploadCatalogImage(@Req() req: Request, @UploadedFile() file: Express.Multer.File) {
+        if (!file) throw new BadRequestException('Berkas gambar kosong');
+        if (!/^image\//.test(file.mimetype)) throw new BadRequestException('Berkas harus gambar (jpg/png/webp)');
+        const rel = `/uploads/${file.filename}`;
+        const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol || 'https';
+        const host = req.get('host');
+        const base = process.env.PUBLIC_BASE_URL || `${proto}://${host}`;
+        return { url: `${base}${rel}`, relative: rel };
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)

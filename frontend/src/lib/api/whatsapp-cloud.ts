@@ -104,6 +104,13 @@ export interface CatalogProductBody {
 }
 export const listWaCatalog = async (channelId: number): Promise<WaCatalogProduct[]> =>
     (await api.get('/whatsapp/catalog', { params: { channelId } })).data;
+
+// Upload gambar produk → URL absolut (Content-Type multipart wajib agar file tak jadi JSON).
+export const uploadWaCatalogImage = async (file: File): Promise<{ url: string; relative: string }> => {
+    const fd = new FormData();
+    fd.append('image', file);
+    return (await api.post('/whatsapp/catalog/upload-image', fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
+};
 export const createWaCatalogProduct = async (channelId: number, data: CatalogProductBody): Promise<{ id: string }> =>
     (await api.post('/whatsapp/catalog', { channelId, ...data })).data;
 export const updateWaCatalogProduct = async (channelId: number, productId: string, data: CatalogProductBody): Promise<any> =>

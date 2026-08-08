@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2, Pencil, ShoppingBag, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, ShoppingBag, X, Upload, Loader2 } from "lucide-react";
 import {
-    listWaChannels, listWaCatalog, createWaCatalogProduct, updateWaCatalogProduct, deleteWaCatalogProduct,
+    listWaChannels, listWaCatalog, createWaCatalogProduct, updateWaCatalogProduct, deleteWaCatalogProduct, uploadWaCatalogImage,
     type WaChannel, type WaCatalogProduct, type CatalogProductBody,
 } from "@/lib/api/whatsapp-cloud";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
@@ -49,6 +49,19 @@ export default function WhatsappCatalogPage() {
         onSuccess: invalidate,
         onError: (e) => alert(errMsg(e, "Gagal menghapus produk")),
     });
+    const [uploading, setUploading] = useState(false);
+    const onPickImage = async (file: File | undefined) => {
+        if (!file) return;
+        setUploading(true);
+        try {
+            const { url } = await uploadWaCatalogImage(file);
+            setForm((f) => ({ ...f, imageUrl: url }));
+        } catch (e) {
+            alert(errMsg(e, "Gagal mengunggah gambar"));
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const startEdit = (p: WaCatalogProduct) => {
         setEditId(p.id);
@@ -103,10 +116,28 @@ export default function WhatsappCatalogPage() {
                         <input type="number" value={form.priceRupiah ?? ""} onChange={(e) => setForm({ ...form, priceRupiah: e.target.value === "" ? undefined : Number(e.target.value) })}
                             placeholder="25000" className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
                     </label>
-                    <label className="text-sm sm:col-span-2">URL gambar (publik)
-                        <input value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                            placeholder="https://…/foto-produk.jpg" className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
-                    </label>
+                    <div className="text-sm sm:col-span-2">
+                        <span>Gambar produk</span>
+                        <div className="mt-1 flex items-center gap-3">
+                            {form.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={form.imageUrl} alt="produk" className="w-16 h-16 rounded-lg object-cover border border-border shrink-0" />
+                            ) : (
+                                <div className="w-16 h-16 rounded-lg bg-muted grid place-items-center shrink-0"><ShoppingBag className="w-5 h-5 opacity-50" /></div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <label className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 cursor-pointer">
+                                    {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                                    {uploading ? "Mengunggah…" : "Unggah gambar"}
+                                    <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                                        onChange={(e) => { onPickImage(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+                                </label>
+                                <input value={form.imageUrl ?? ""} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                                    placeholder="…atau tempel URL gambar" className="mt-1.5 w-full rounded-lg bg-muted/60 px-3 py-1.5 text-xs outline-none" />
+                            </div>
+                        </div>
+                        <span className="text-[11px] opacity-50">Gambar diunggah otomatis jadi URL publik yang bisa diambil Meta.</span>
+                    </div>
                     <label className="text-sm sm:col-span-2">Deskripsi
                         <textarea value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })}
                             rows={2} placeholder="Cetak spanduk flexi 280gr, tahan luar ruang…"
