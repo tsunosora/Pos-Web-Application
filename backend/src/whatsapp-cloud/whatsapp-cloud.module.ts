@@ -5,6 +5,7 @@ import { WhatsappCloudService } from './whatsapp-cloud.service';
 import { WhatsappCloudController } from './whatsapp-cloud.controller';
 import { WhatsappWebhookController } from './webhook.controller';
 import { InboxService } from './inbox.service';
+import { MediaStorageService } from './media-storage.service';
 import { TemplatesService } from './templates.service';
 import { BroadcastService } from './broadcast.service';
 import { AutoReplyService } from './auto-reply.service';
@@ -19,7 +20,7 @@ import { AnalyticsService } from './analytics.service';
 @Module({
   imports: [PrismaModule],
   controllers: [WhatsappCloudController, WhatsappWebhookController],
-  providers: [CloudApiService, WhatsappCloudService, InboxService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService],
-  exports: [CloudApiService, WhatsappCloudService, InboxService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService],
+  providers: [CloudApiService, WhatsappCloudService, InboxService, MediaStorageService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService],
+  exports: [CloudApiService, WhatsappCloudService, InboxService, MediaStorageService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService],
 })
 export class WhatsappCloudModule {}

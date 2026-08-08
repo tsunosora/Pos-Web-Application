@@ -124,6 +124,21 @@ export const replyWaMedia = async (id: number, file: File, caption?: string): Pr
     })).data;
 };
 
+// ─── Penyimpanan media (disk homelab) ────────────────────────────────────────
+export interface WaMediaStats {
+    baseDir: string;
+    totalBytes: number;
+    fileCount: number;
+    diskFreeBytes: number;
+    diskTotalBytes: number;
+    byMonth: Array<{ month: string; bytes: number; files: number }>;
+}
+export const getWaMediaStats = async (): Promise<WaMediaStats> =>
+    (await api.get('/whatsapp/media/storage/stats')).data;
+
+export const cleanupWaMedia = async (before: string): Promise<{ deletedFiles: number; freedBytes: number }> =>
+    (await api.post('/whatsapp/media/storage/cleanup', { before })).data;
+
 export interface WaHealth {
     enabled: boolean;
     channelCount: number;

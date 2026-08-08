@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Body,
     Controller,
     Delete,
@@ -26,6 +27,7 @@ import {
     type UpdateChannelInput,
 } from './whatsapp-cloud.service';
 import { InboxService } from './inbox.service';
+import { MediaStorageService } from './media-storage.service';
 import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } from './templates.service';
 import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './broadcast.service';
 import { AutoReplyService, type CreateRuleInput } from './auto-reply.service';
@@ -42,6 +44,7 @@ export class WhatsappCloudController {
     constructor(
         private readonly service: WhatsappCloudService,
         private readonly inbox: InboxService,
+        private readonly mediaStore: MediaStorageService,
         private readonly templates: TemplatesService,
         private readonly broadcasts: BroadcastService,
         private readonly autoReplies: AutoReplyService,
@@ -309,6 +312,28 @@ export class WhatsappCloudController {
         res.setHeader('Content-Disposition', `inline; filename="${safeName}"`);
         res.setHeader('Cache-Control', 'private, max-age=3600');
         res.send(buffer);
+    }
+
+    // ─── Penyimpanan media (Owner/Admin) ─────────────────────────────────────
+
+    /** Statistik disk media WA: total dipakai, jumlah file, sisa disk server, per bulan. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Get('media/storage/stats')
+    mediaStats() {
+        return this.mediaStore.stats();
+    }
+
+    /** Bersihkan berkas media sebelum tanggal tertentu (riwayat teks tetap). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('media/storage/cleanup')
+    mediaCleanup(@Body() body: { before?: string }) {
+        const before = body?.before ? new Date(body.before) : null;
+        if (!before || Number.isNaN(before.getTime())) {
+            throw new BadRequestException('Parameter "before" (tanggal) wajib & valid');
+        }
+        return this.mediaStore.cleanupBefore(before);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)

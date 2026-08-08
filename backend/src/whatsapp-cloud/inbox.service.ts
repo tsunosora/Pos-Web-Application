@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, Logger, NotFoundExc
 import { Prisma, WaConversationStatus, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { MediaStorageService } from './media-storage.service';
 import { AutoReplyService } from './auto-reply.service';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
@@ -65,6 +66,7 @@ export class InboxService {
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
         private readonly autoReply: AutoReplyService,
+        private readonly mediaStore: MediaStorageService,
     ) {}
 
     /** Auto-create Lead dari chat WA baru (default aktif; matikan via env). */
@@ -244,7 +246,7 @@ export class InboxService {
               });
 
         // 3) Simpan pesan masuk.
-        await this.prisma.waMessage.create({
+        const savedMsg = await this.prisma.waMessage.create({
             data: {
                 channelId: channel.id,
                 conversationId: conversation.id,
@@ -258,6 +260,19 @@ export class InboxService {
                 payloadJson: msg ?? {},
             },
         });
+
+        // 3b) Arsipkan media ke disk homelab (best-effort, tak blok respons webhook).
+        const mt = (msg?.type || '').toLowerCase();
+        const mediaObj = msg?.[mt];
+        if (mediaObj?.id && ['image', 'document', 'audio', 'video', 'sticker'].includes(mt)) {
+            void this.mediaStore.persistFromMeta(
+                savedMsg.id,
+                savedMsg.createdAt,
+                mediaObj.id,
+                mediaObj.mime_type,
+                mediaObj.filename,
+            );
+        }
 
         // 4) Jejak aktivitas CRM (timeline lead/customer).
         if (createdLead && lead) {
@@ -411,12 +426,22 @@ export class InboxService {
         const pj: any = m.payloadJson ?? {};
         const t = (pj?.type || m.type?.toLowerCase() || '').toLowerCase();
         const mediaObj = pj?.[t];
+        const mime0 = mediaObj?.mime_type || m.mediaMimeType || 'application/octet-stream';
+        const ext = (mime0.split(';')[0].split('/')[1] || 'bin').trim();
+        const filename: string = mediaObj?.filename || `${t || 'media'}-${messageId}.${ext}`;
+
+        // 1) Sajikan dari disk lokal bila sudah diarsipkan (tak bergantung retensi Meta).
+        if (this.mediaStore.isLocal(m.mediaUrl)) {
+            const local = await this.mediaStore.readLocal(m.mediaUrl as string);
+            if (local) return { buffer: local, contentType: mime0, filename };
+        }
+
+        // 2) Fallback: unduh dari Meta (media lama/belum terarsip) sekaligus backfill ke disk.
         const mediaId: string | undefined = mediaObj?.id;
         if (!mediaId) throw new NotFoundException('pesan ini tidak memiliki media');
         const { buffer, contentType } = await this.cloud.getMediaBinary(mediaId);
         const finalMime = mediaObj?.mime_type || m.mediaMimeType || contentType;
-        const ext = (finalMime.split(';')[0].split('/')[1] || 'bin').trim();
-        const filename: string = mediaObj?.filename || `${t || 'media'}-${messageId}.${ext}`;
+        void this.mediaStore.persistBuffer(m.id, m.createdAt, buffer, finalMime, filename);
         return { buffer, contentType: finalMime, filename };
     }
 
@@ -511,7 +536,7 @@ export class InboxService {
             audio: WaMessageType.AUDIO,
             video: WaMessageType.VIDEO,
         };
-        return this.persistOutbound(conv, userId, {
+        const saved = await this.persistOutbound(conv, userId, {
             waMessageId,
             type: TYPE_BY_KIND[kind],
             body: caption || filename,
@@ -519,6 +544,9 @@ export class InboxService {
             // Simpan referensi agar proxy getMessageMedia bisa menayangkan media OUTBOUND juga.
             payloadJson: { type: kind, [kind]: { id: mediaId, mime_type: mime, filename } },
         });
+        // Arsipkan berkas ke disk homelab (buffer sudah di tangan → langsung simpan).
+        await this.mediaStore.persistBuffer(saved.id, saved.createdAt, file.buffer, mime, filename);
+        return saved;
     }
 
     /** Balas via template pra-approve Meta — sah kapan pun (termasuk luar 24 jam). */
