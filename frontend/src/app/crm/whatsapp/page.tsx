@@ -446,6 +446,9 @@ export default function WhatsappInboxPage() {
     const [showEmoji, setShowEmoji] = useState(false);
     const emojiWrapRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // Pesan cepat ala WhatsApp: ketik "/" → daftar template, pilih → teks masuk.
+    const [qrIndex, setQrIndex] = useState(0);
+    const [qrDismissed, setQrDismissed] = useState(false);
 
     // Sisipkan emoji di posisi kursor (atau di akhir bila tak ada seleksi).
     const insertEmoji = (emoji: string) => {
@@ -566,6 +569,21 @@ export default function WhatsappInboxPage() {
     });
 
     const windowOpen = selected ? isWindowOpen(selected) : false;
+
+    // Popup pesan cepat: aktif saat draft diawali "/" (belum ada baris baru).
+    const slashActive = !qrDismissed && draft.startsWith("/") && !draft.includes("\n");
+    const slashQuery = draft.slice(1).toLowerCase().trim();
+    const quickMatches = slashActive
+        ? templates
+              .filter((t) => t.name.toLowerCase().includes(slashQuery) || t.bodyText.toLowerCase().includes(slashQuery))
+              .slice(0, 6)
+        : [];
+    useEffect(() => { setQrIndex(0); }, [slashQuery, slashActive]);
+    const pickQuick = (t: WaTemplate) => {
+        setDraft(t.bodyText);
+        setQrDismissed(true);
+        requestAnimationFrame(() => textareaRef.current?.focus());
+    };
 
     return (
         <div className="flex h-[calc(100vh-8rem)] gap-3 p-3">
@@ -801,20 +819,57 @@ export default function WhatsappInboxPage() {
                                             <Smile className="w-4 h-4" />
                                         </button>
                                     </div>
-                                    <textarea
-                                        ref={textareaRef}
-                                        value={draft}
-                                        onChange={(e) => setDraft(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && !e.shiftKey) {
-                                                e.preventDefault();
-                                                sendComposer();
-                                            }
-                                        }}
-                                        rows={1}
-                                        placeholder={pendingFile ? "Tambah keterangan (opsional)…" : "Ketik balasan… (Enter kirim, Shift+Enter baris baru)"}
-                                        className="flex-1 resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 max-h-32"
-                                    />
+                                    <div className="relative flex-1">
+                                        {/* Popup pesan cepat (trigger "/") */}
+                                        {slashActive && (
+                                            <div className="absolute bottom-full left-0 right-0 mb-2 z-30 rounded-xl border border-border bg-card shadow-lg overflow-hidden">
+                                                <div className="px-3 py-1.5 text-[11px] opacity-60 border-b border-border flex items-center justify-between">
+                                                    <span>⚡ Pesan cepat — pilih template</span>
+                                                    <span className="opacity-70">↑↓ Enter · Esc batal</span>
+                                                </div>
+                                                <div className="max-h-64 overflow-y-auto">
+                                                    {quickMatches.length === 0 ? (
+                                                        <div className="px-3 py-2 text-xs opacity-60">
+                                                            {templates.length === 0 ? "Belum ada template." : "Tidak ada template cocok."}
+                                                        </div>
+                                                    ) : (
+                                                        quickMatches.map((t, i) => (
+                                                            <button
+                                                                type="button"
+                                                                key={t.id}
+                                                                onMouseEnter={() => setQrIndex(i)}
+                                                                onClick={() => pickQuick(t)}
+                                                                className={`w-full text-left px-3 py-2 ${i === qrIndex ? "bg-muted" : "hover:bg-muted/60"}`}
+                                                            >
+                                                                <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">/{t.name}</div>
+                                                                <div className="text-[11px] opacity-60 line-clamp-2 whitespace-pre-wrap">{t.bodyText}</div>
+                                                            </button>
+                                                        ))
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+                                        <textarea
+                                            ref={textareaRef}
+                                            value={draft}
+                                            onChange={(e) => { setDraft(e.target.value); setQrDismissed(false); }}
+                                            onKeyDown={(e) => {
+                                                if (slashActive && quickMatches.length) {
+                                                    if (e.key === "ArrowDown") { e.preventDefault(); setQrIndex((i) => (i + 1) % quickMatches.length); return; }
+                                                    if (e.key === "ArrowUp") { e.preventDefault(); setQrIndex((i) => (i - 1 + quickMatches.length) % quickMatches.length); return; }
+                                                    if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") { e.preventDefault(); pickQuick(quickMatches[qrIndex]); return; }
+                                                    if (e.key === "Escape") { e.preventDefault(); setQrDismissed(true); return; }
+                                                }
+                                                if (e.key === "Enter" && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    sendComposer();
+                                                }
+                                            }}
+                                            rows={1}
+                                            placeholder={pendingFile ? "Tambah keterangan (opsional)…" : "Ketik balasan…  ( / untuk pesan cepat )"}
+                                            className="w-full resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 max-h-32"
+                                        />
+                                    </div>
                                     <button
                                         type="submit"
                                         disabled={(!draft.trim() && !pendingFile) || mediaMut.isPending || replyMut.isPending}
