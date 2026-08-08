@@ -19,6 +19,39 @@ const STATUS_TONE: Record<WaTemplateStatus, BadgeTone> = {
 const CATEGORIES = ["UTILITY", "MARKETING", "AUTHENTICATION"];
 const EMPTY: TemplateBody = { name: "", language: "id", category: "UTILITY", bodyText: "", headerText: "", footerText: "", variableSample: [] };
 
+// Draft template pembuka siap pakai (tinggal klik → isi form → Submit ke Meta).
+// Ganti "Voliko Print" dengan nama tokomu bila berbeda sebelum Submit.
+const PRESETS: Array<{ key: string; title: string; desc: string; body: TemplateBody; samples: string[]; labels: string[] }> = [
+    {
+        key: "sapaan_pembuka",
+        title: "Pembuka polos",
+        desc: 'Tanpa variabel — cocok untuk "Chat Baru" di inbox.',
+        body: {
+            name: "sapaan_pembuka", language: "id", category: "MARKETING", headerText: "",
+            bodyText:
+                "Halo, perkenalkan kami dari Voliko Print 🙏\n\n" +
+                "Terima kasih atas ketertarikannya pada produk kami. Kami siap membantu kebutuhan cetak & desain Anda — mulai dari info produk, harga, hingga pemesanan.\n\n" +
+                "Silakan balas pesan ini, tim kami akan langsung melayani. 😊",
+            footerText: "Balas STOP untuk berhenti menerima pesan.", variableSample: [],
+        },
+        samples: [], labels: [],
+    },
+    {
+        key: "sapaan_pembuka_nama",
+        title: "Pembuka + nama",
+        desc: "Personalisasi {{1}} = nama pelanggan — untuk Broadcast.",
+        body: {
+            name: "sapaan_pembuka_nama", language: "id", category: "MARKETING", headerText: "",
+            bodyText:
+                "Halo {{1}} 👋\n\n" +
+                "Perkenalkan kami dari Voliko Print. Terima kasih atas ketertarikannya pada produk kami. Kami siap membantu kebutuhan cetak & desain Anda.\n\n" +
+                "Silakan balas pesan ini untuk info produk, harga, atau pemesanan ya. 😊",
+            footerText: "Balas STOP untuk berhenti menerima pesan.", variableSample: ["Budi"],
+        },
+        samples: ["Budi"], labels: ["Nama pelanggan"],
+    },
+];
+
 function errMsg(e: unknown, fb: string) {
     return (e as { response?: { data?: { message?: string } } })?.response?.data?.message || fb;
 }
@@ -61,6 +94,14 @@ export default function WhatsappTemplatesPage() {
         createMut.mutate({ ...form, variableSample, variableLabels });
     };
 
+    // Isi form dari draft siap pakai lalu buka form untuk ditinjau/di-Submit.
+    const applyPreset = (p: (typeof PRESETS)[number]) => {
+        setForm({ ...p.body });
+        setVarSamples([...p.samples]);
+        setVarLabels([...p.labels]);
+        setShowForm(true);
+    };
+
     return (
         <div className="max-w-4xl mx-auto p-4 space-y-4">
             <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -95,6 +136,24 @@ export default function WhatsappTemplatesPage() {
                 Template harus <b>disetujui Meta</b> sebelum dipakai untuk balasan di luar 24 jam atau broadcast.
                 Gunakan <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code> sebagai variabel; isi contoh nilainya agar lolos review.
             </p>
+
+            <div className="rounded-2xl border border-dashed border-border bg-card/40 p-3">
+                <div className="text-sm font-medium mb-2">📝 Draft siap pakai</div>
+                <div className="grid sm:grid-cols-2 gap-2">
+                    {PRESETS.map((p) => (
+                        <div key={p.key} className="rounded-xl border border-border bg-background/60 p-3 flex flex-col gap-1">
+                            <div className="font-medium text-sm">{p.title}</div>
+                            <div className="text-xs opacity-60">{p.desc}</div>
+                            <div className="text-xs opacity-70 mt-1 whitespace-pre-wrap max-h-16 overflow-hidden">{p.body.bodyText}</div>
+                            <button onClick={() => applyPreset(p)}
+                                className="mt-2 self-start text-xs px-2.5 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600">
+                                Pakai draft ini
+                            </button>
+                        </div>
+                    ))}
+                </div>
+                <p className="text-[11px] opacity-50 mt-2">Ganti “Voliko Print” dengan nama tokomu bila berbeda sebelum Submit.</p>
+            </div>
 
             {showForm && (
                 <div className="rounded-2xl border border-border bg-card/60 p-4 grid sm:grid-cols-2 gap-3">
