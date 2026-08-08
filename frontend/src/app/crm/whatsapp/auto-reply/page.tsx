@@ -6,8 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, ArrowLeft, Bot } from "lucide-react";
 import {
     listAutoReplies, createAutoReply, updateAutoReply, deleteAutoReply,
-    listWaChannels, WA_TRIGGER_LABEL,
-    type WaAutoReplyRule, type WaAutoReplyTrigger, type AutoReplyBody,
+    listWaChannels, listWaTemplates, WA_TRIGGER_LABEL,
+    type WaAutoReplyRule, type WaAutoReplyTrigger, type AutoReplyBody, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
@@ -27,6 +27,11 @@ export default function WhatsappAutoReplyPage() {
 
     const { data: rules = [], isLoading } = useQuery({ queryKey: ["wa-auto-replies"], queryFn: listAutoReplies });
     const { data: channels = [] } = useQuery({ queryKey: ["wa-channels"], queryFn: listWaChannels });
+    // Template APPROVED — hanya diambil TEKS-nya untuk mengisi balasan (bukan dikirim sbg template).
+    const { data: templates = [] } = useQuery({
+        queryKey: ["wa-templates-approved"], queryFn: listWaTemplates,
+        select: (all: WaTemplate[]) => all.filter((t) => t.status === "APPROVED"),
+    });
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["wa-auto-replies"] });
     const createMut = useMutation({
@@ -87,9 +92,31 @@ export default function WhatsappAutoReplyPage() {
                         </label>
                     )}
                     <label className="text-sm block">Teks balasan
+                        {templates.length > 0 && (
+                            <div className="mt-1 flex items-center gap-2">
+                                <select
+                                    value=""
+                                    onChange={(e) => {
+                                        const t = templates.find((x) => x.id === Number(e.target.value));
+                                        if (t) setForm((f) => ({ ...f, replyText: t.bodyText }));
+                                        e.target.value = "";
+                                    }}
+                                    className="text-xs rounded-lg bg-muted/60 px-2 py-1.5 outline-none max-w-[16rem]"
+                                >
+                                    <option value="">📄 Isi dari template…</option>
+                                    {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                                <span className="text-[11px] opacity-50">menyalin teksnya saja</span>
+                            </div>
+                        )}
                         <textarea value={form.replyText} onChange={(e) => setForm({ ...form, replyText: e.target.value })}
                             rows={3} placeholder="Halo kak 🙏 terima kasih sudah menghubungi kami…"
                             className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none resize-none" />
+                        {/\{\{\s*\d+\s*\}\}/.test(form.replyText) && (
+                            <span className="text-[11px] text-amber-500 block mt-1">
+                                Ada variabel {"{{1}}"} dari template — balasan otomatis kirim teks apa adanya, ganti dengan teks biasa.
+                            </span>
+                        )}
                     </label>
                     <div className="flex items-center justify-between gap-2">
                         <label className="text-sm flex items-center gap-2">Prioritas
