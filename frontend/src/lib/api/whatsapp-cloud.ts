@@ -212,6 +212,7 @@ export interface WaTemplate {
     footerText: string | null;
     buttonsJson: unknown;
     variableSample: unknown;
+    variableLabels: unknown;
     metaTemplateId: string | null;
     submittedWabaId: string | null;
     rejectedReason: string | null;
@@ -227,6 +228,7 @@ export interface TemplateBody {
     headerText?: string | null;
     footerText?: string | null;
     variableSample?: string[] | null;
+    variableLabels?: string[] | null;
 }
 
 export const WA_TEMPLATE_STATUS_LABEL: Record<WaTemplateStatus, string> = {

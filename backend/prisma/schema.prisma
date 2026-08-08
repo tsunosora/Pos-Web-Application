@@ -2296,6 +2296,7 @@ model WaTemplate {
   footerText      String?          @map("footer_text") @db.VarChar(120)
   buttonsJson     Json?            @map("buttons_json")
   variableSample  Json?            @map("variable_sample") // contoh nilai variabel utk preview
+  variableLabels  Json?            @map("variable_labels") // keterangan tiap variabel {{1}},{{2}} (untuk tim)
   metaTemplateId  String?          @map("meta_template_id") @db.VarChar(64)
   submittedWabaId String?          @map("submitted_waba_id") @db.VarChar(50)
   rejectedReason  String?          @map("rejected_reason") @db.Text

@@ -12,6 +12,7 @@ export interface CreateTemplateInput {
     footerText?: string | null;
     buttonsJson?: unknown;
     variableSample?: unknown;
+    variableLabels?: unknown;
 }
 export type UpdateTemplateInput = Partial<CreateTemplateInput>;
 
@@ -72,6 +73,7 @@ export class TemplatesService {
                     footerText: input.footerText?.trim() || null,
                     buttonsJson: (input.buttonsJson as Prisma.InputJsonValue) ?? Prisma.JsonNull,
                     variableSample: (input.variableSample as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+                    variableLabels: (input.variableLabels as Prisma.InputJsonValue) ?? Prisma.JsonNull,
                     status: 'DRAFT',
                     createdById: userId ?? null,
                 },
@@ -104,6 +106,9 @@ export class TemplatesService {
                     : {}),
                 ...(input.variableSample !== undefined
                     ? { variableSample: (input.variableSample as Prisma.InputJsonValue) ?? Prisma.JsonNull }
+                    : {}),
+                ...(input.variableLabels !== undefined
+                    ? { variableLabels: (input.variableLabels as Prisma.InputJsonValue) ?? Prisma.JsonNull }
                     : {}),
             },
         });
