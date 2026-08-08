@@ -334,6 +334,14 @@ export class WhatsappCloudController {
         return this.inbox.getConversation(id);
     }
 
+    /** Resolve percakapan WA dari leadId (deep-link "Buka chat WA"). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Get('leads/:leadId/conversation')
+    resolveConversationByLead(@Param('leadId', ParseIntPipe) leadId: number) {
+        return this.inbox.resolveConversation(leadId);
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...INBOX_ROLES)
     @Get('conversations/:id/messages')

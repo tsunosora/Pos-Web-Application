@@ -1531,6 +1531,14 @@ function LeadDetailDrawer({
                                 </>
                             )
                         )}
+                        {/* Buka percakapan WhatsApp lead ini di inbox CS (internal) */}
+                        <a
+                            href={`/crm/whatsapp?leadId=${leadId}`}
+                            className="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-green-500/10 text-green-700 dark:text-green-300 hover:bg-green-500/20"
+                            title="Buka percakapan WhatsApp lead ini di inbox CS"
+                        >
+                            <MessageCircle className="h-3.5 w-3.5" /> Chat WA
+                        </a>
                         {/* Tautkan SO desainer (Alur B) — hanya kalau belum terminal */}
                         {!isWon && !isLost && !isInvalid && (
                             <button

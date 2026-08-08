@@ -3,12 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
-    listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
+    listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
@@ -24,6 +24,12 @@ const STATUS_TABS: Array<{ key: WaConversationStatus | "ALL"; label: string }> =
 
 const STATUS_TONE: Record<WaConversationStatus, BadgeTone> = {
     OPEN: "success", PENDING: "warning", SNOOZED: "info", CLOSED: "neutral",
+};
+
+// Label ringkas tahap pipeline lead (untuk badge di header inbox).
+const LEAD_STAGE_LABEL: Record<string, string> = {
+    NEW: "Baru", FOLLOW_UP: "Follow-up", NEGOTIATION: "Nego",
+    CLOSED_WON: "Closing ✓", CLOSED_LOST: "Batal", INVALID: "Invalid",
 };
 
 function timeAgo(iso: string | null): string {
@@ -323,6 +329,24 @@ export default function WhatsappInboxPage() {
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
+
+    // Deep-link "Buka chat WA" dari pipeline: ?conv=<id> atau ?leadId=<id>.
+    // Baca dari window (client-only) — hindari Suspense boundary useSearchParams.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sp = new URLSearchParams(window.location.search);
+        const conv = sp.get("conv");
+        const leadId = sp.get("leadId");
+        if (conv) { setSelectedId(Number(conv)); return; }
+        if (leadId) {
+            resolveWaConversationByLead(Number(leadId))
+                .then((r) => {
+                    if (r.conversationId) setSelectedId(r.conversationId);
+                    else alert("Belum ada percakapan WhatsApp untuk lead ini.");
+                })
+                .catch(() => {});
+        }
+    }, []);
 
     // Daftar percakapan — polling 8 dtk (realtime ringan untuk MVP).
     const { data: convData, isLoading } = useQuery({
@@ -638,6 +662,16 @@ export default function WhatsappInboxPage() {
                                     </StatusBadge>
                                     {selected.assignedTo?.name && (
                                         <span className="opacity-70">· {selected.assignedTo.name}</span>
+                                    )}
+                                    {selected.contact.lead && (
+                                        <Link
+                                            href={`/crm/leads?leadId=${selected.contact.lead.id}`}
+                                            className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-300 hover:underline"
+                                            title="Buka lead di pipeline"
+                                        >
+                                            <ExternalLink className="w-3 h-3" />
+                                            Lead: {LEAD_STAGE_LABEL[selected.contact.lead.status] ?? selected.contact.lead.status}
+                                        </Link>
                                     )}
                                 </div>
                             </div>

@@ -377,6 +377,8 @@ export class InboxService {
     private static readonly CONTACT_SELECT = {
         id: true, waId: true, profileName: true, phoneNormalized: true,
         leadId: true, customerId: true, optedOut: true,
+        // Lead tertaut → tampilkan tahap pipeline + tautan di inbox (koherensi CRM).
+        lead: { select: { id: true, name: true, status: true } },
     };
 
     /** Daftar percakapan dgn filter + paginasi cursor (lastMessageAt desc). */
@@ -423,6 +425,22 @@ export class InboxService {
         });
         if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
         return conv;
+    }
+
+    /** Cari percakapan WA dari leadId (deep-link "Buka chat WA" dari pipeline). */
+    async resolveConversation(leadId: number): Promise<{ conversationId: number | null }> {
+        const contact = await this.prisma.waContact.findFirst({
+            where: { leadId },
+            orderBy: { lastInboundAt: 'desc' },
+            select: { id: true },
+        });
+        if (!contact) return { conversationId: null };
+        const conv = await this.prisma.waConversation.findFirst({
+            where: { contactId: contact.id },
+            orderBy: { lastMessageAt: 'desc' },
+            select: { id: true },
+        });
+        return { conversationId: conv?.id ?? null };
     }
 
     /** Pesan sebuah percakapan (asc) + reset unread. Cursor = id pesan tertua. */

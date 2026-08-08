@@ -18,6 +18,7 @@ export interface WaContactLite {
     leadId: number | null;
     customerId: number | null;
     optedOut: boolean;
+    lead?: { id: number; name: string; status: string } | null;
 }
 
 export interface WaConversation {
@@ -75,6 +76,10 @@ export const listWaConversations = async (params: ListConversationsParams = {}):
 
 export const getWaConversation = async (id: number): Promise<WaConversation> =>
     (await api.get(`/whatsapp/conversations/${id}`)).data;
+
+// Deep-link "Buka chat WA" dari lead → resolve id percakapan.
+export const resolveWaConversationByLead = async (leadId: number): Promise<{ conversationId: number | null }> =>
+    (await api.get(`/whatsapp/leads/${leadId}/conversation`)).data;
 
 export const getWaMessages = async (id: number, params: { cursor?: number; take?: number } = {}): Promise<Paged<WaMessage>> =>
     (await api.get(`/whatsapp/conversations/${id}/messages`, { params })).data;
