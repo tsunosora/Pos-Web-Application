@@ -50,6 +50,21 @@ export default function NewSalesOrderPage() {
     const [customerSearch, setCustomerSearch] = useState('');
     const [variantSearch, setVariantSearch] = useState('');
 
+    // Prefill dari deep-link (mis. tombol "Buat SO" di inbox WhatsApp).
+    // Baca dari window (client-only) agar tak perlu Suspense boundary useSearchParams.
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        const sp = new URLSearchParams(window.location.search);
+        const n = sp.get("customerName");
+        const p = sp.get("phone");
+        const a = sp.get("address");
+        const cid = sp.get("customerId");
+        if (n) setCustomerName(n);
+        if (p) setCustomerPhone(p);
+        if (a) setCustomerAddress(a);
+        if (cid && !Number.isNaN(Number(cid))) setCustomerId(Number(cid));
+    }, []);
+
     const { data: customers } = useQuery({ queryKey: ['customers'], queryFn: getCustomers });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts });
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2 } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
@@ -753,6 +753,13 @@ export default function WhatsappInboxPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
+                                <Link
+                                    href={`/sales-orders/new?customerName=${encodeURIComponent(selected.contact.profileName || selected.contact.lead?.name || "")}&phone=${encodeURIComponent(selected.contact.waId || "")}${selected.contact.customerId ? `&customerId=${selected.contact.customerId}` : ""}`}
+                                    className="text-xs px-2.5 py-1.5 rounded-lg bg-indigo-500 text-white hover:bg-indigo-600 flex items-center gap-1"
+                                    title="Buat Sales Order dari pelanggan ini"
+                                >
+                                    <FilePlus2 className="w-3.5 h-3.5" /> Buat SO
+                                </Link>
                                 {agents.length > 0 && (
                                     <select
                                         value=""
