@@ -253,6 +253,14 @@ export class WhatsappCloudController {
         return this.broadcasts.list();
     }
 
+    /** Daftar kontak untuk pilih manual di broadcast (opt-out dikecualikan, maks 500). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('broadcast-contacts')
+    broadcastContacts(@Query() query: Record<string, string>) {
+        return this.broadcasts.listContacts(query.q);
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
     @Post('broadcasts/preview')

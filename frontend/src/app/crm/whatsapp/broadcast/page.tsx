@@ -7,7 +7,7 @@ import { Plus, ArrowLeft, Play, Pause, X, Send, Users } from "lucide-react";
 import {
     listWaBroadcasts, createWaBroadcast, previewBroadcast,
     runWaBroadcast, pauseWaBroadcast, resumeWaBroadcast, cancelWaBroadcast,
-    listWaChannels, listWaTemplates, WA_BROADCAST_STATUS_LABEL,
+    listWaChannels, listWaTemplates, WA_BROADCAST_STATUS_LABEL, listBroadcastContacts,
     type WaBroadcast, type WaBroadcastStatus, type VariableMapItem, type WaTemplate,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -50,16 +50,23 @@ export default function WhatsappBroadcastPage() {
     const [scheduledAt, setScheduledAt] = useState("");
     const [varMap, setVarMap] = useState<VariableMapItem[]>([]);
     const [preview, setPreview] = useState<number | null>(null);
-    const [recipientMode, setRecipientMode] = useState<"segment" | "import">("segment");
+    const [recipientMode, setRecipientMode] = useState<"segment" | "select" | "import">("segment");
     const [numbersText, setNumbersText] = useState("");
     const [csv, setCsv] = useState<{ headers: string[]; rows: string[][] } | null>(null);
     const [numberCol, setNumberCol] = useState(0);
+    const [contactSearch, setContactSearch] = useState("");
+    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
     const { data: broadcasts = [] } = useQuery({ queryKey: ["wa-broadcasts"], queryFn: listWaBroadcasts, refetchInterval: 5000 });
     const { data: channels = [] } = useQuery({ queryKey: ["wa-channels"], queryFn: listWaChannels });
     const { data: templates = [] } = useQuery({
         queryKey: ["wa-templates-approved"], queryFn: listWaTemplates,
         select: (all: WaTemplate[]) => all.filter((t) => t.status === "APPROVED"),
+    });
+    const { data: contactList = [], isLoading: contactsLoading } = useQuery({
+        queryKey: ["wa-broadcast-contacts", contactSearch],
+        queryFn: () => listBroadcastContacts(contactSearch.trim() || undefined),
+        enabled: recipientMode === "select" && showForm,
     });
 
     const selectedTpl = useMemo(() => templates.find((t) => t.id === templateId), [templates, templateId]);
@@ -102,14 +109,16 @@ export default function WhatsappBroadcastPage() {
     const invalidate = () => qc.invalidateQueries({ queryKey: ["wa-broadcasts"] });
 
     const previewMut = useMutation({
-        mutationFn: () => previewBroadcast(segment, importNumbers),
+        mutationFn: async () => recipientMode === "select" ? { count: selectedIds.size } : previewBroadcast(segment, importNumbers),
         onSuccess: (r) => setPreview(r.count),
     });
     const createMut = useMutation({
         mutationFn: () => createWaBroadcast({
             name, channelId: channelId as number, templateId: templateId as number,
             segment,
-            ...(personalized ? { recipients: builtRecipients } : importNumbers?.length ? { numbers: importNumbers } : {}),
+            ...(recipientMode === "select"
+                ? { contactIds: [...selectedIds] }
+                : personalized ? { recipients: builtRecipients } : importNumbers?.length ? { numbers: importNumbers } : {}),
             variableMap: Array.from({ length: nVars }, (_, i) => varMap[i] || { source: "static", value: "" }),
             scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         }),
@@ -154,8 +163,13 @@ export default function WhatsappBroadcastPage() {
         setShowForm(false); setName(""); setChannelId(null); setTemplateId(null);
         setOnlyLinked(false); setLeadStatus(""); setScheduledAt(""); setVarMap([]); setPreview(null);
         setRecipientMode("segment"); setNumbersText(""); setCsv(null); setNumberCol(0);
+        setSelectedIds(new Set()); setContactSearch("");
     }
-    const canCreate = name.trim() && channelId && templateId && (recipientMode === "segment" || (importNumbers?.length ?? 0) > 0);
+    const canCreate = name.trim() && channelId && templateId && (
+        recipientMode === "segment"
+        || (recipientMode === "select" && selectedIds.size > 0)
+        || (recipientMode === "import" && (importNumbers?.length ?? 0) > 0)
+    );
 
     return (
         <div className="max-w-4xl mx-auto p-4 space-y-4">
@@ -269,7 +283,11 @@ export default function WhatsappBroadcastPage() {
                         <div className="flex gap-2">
                             <button type="button" onClick={() => { setRecipientMode("segment"); setPreview(null); }}
                                 className={`text-xs px-3 py-1.5 rounded-lg ${recipientMode === "segment" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
-                                Kontak terdaftar
+                                Semua (segmen)
+                            </button>
+                            <button type="button" onClick={() => { setRecipientMode("select"); setPreview(null); }}
+                                className={`text-xs px-3 py-1.5 rounded-lg ${recipientMode === "select" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
+                                Pilih kontak
                             </button>
                             <button type="button" onClick={() => { setRecipientMode("import"); setPreview(null); }}
                                 className={`text-xs px-3 py-1.5 rounded-lg ${recipientMode === "import" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
@@ -287,6 +305,40 @@ export default function WhatsappBroadcastPage() {
                                     <input value={leadStatus} onChange={(e) => { setLeadStatus(e.target.value); setPreview(null); }} placeholder="CLOSED_WON"
                                         className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
                                 </label>
+                            </div>
+                        ) : recipientMode === "select" ? (
+                            <div className="rounded-lg border border-border p-3 space-y-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <input value={contactSearch} onChange={(e) => setContactSearch(e.target.value)}
+                                        placeholder="Cari nama / nomor…" className="flex-1 min-w-[10rem] rounded-lg bg-muted/60 px-3 py-2 text-sm outline-none" />
+                                    <button type="button"
+                                        onClick={() => { setSelectedIds(new Set(contactList.map((c) => c.id))); setPreview(null); }}
+                                        className="text-xs px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/70">Pilih semua ({contactList.length})</button>
+                                    <button type="button" onClick={() => { setSelectedIds(new Set()); setPreview(null); }}
+                                        className="text-xs px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/70">Kosongkan</button>
+                                    <span className="text-xs text-emerald-600 font-medium">{selectedIds.size} dipilih</span>
+                                </div>
+                                <div className="max-h-64 overflow-y-auto rounded-lg border border-border divide-y divide-border/60">
+                                    {contactsLoading ? (
+                                        <div className="p-3 text-sm opacity-60">Memuat kontak…</div>
+                                    ) : contactList.length === 0 ? (
+                                        <div className="p-3 text-sm opacity-60">Tidak ada kontak.</div>
+                                    ) : contactList.map((c) => {
+                                        const name = c.customer?.name || c.lead?.name || c.profileName || `+${c.waId}`;
+                                        const checked = selectedIds.has(c.id);
+                                        return (
+                                            <label key={c.id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-accent/40">
+                                                <input type="checkbox" checked={checked} onChange={(e) => {
+                                                    setSelectedIds((prev) => { const n = new Set(prev); if (e.target.checked) n.add(c.id); else n.delete(c.id); return n; });
+                                                    setPreview(null);
+                                                }} />
+                                                <span className="flex-1 min-w-0 truncate">{name}</span>
+                                                <span className="text-xs opacity-50 shrink-0">+{c.waId}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                                <p className="text-[11px] opacity-60">Centang kontak yang ingin dikirimi. Maks 500 kontak per daftar (persempit dengan pencarian). Variabel bisa otomatis dari data pelanggan.</p>
                             </div>
                         ) : csv ? (
                             <div className="rounded-lg border border-border p-3 space-y-2">

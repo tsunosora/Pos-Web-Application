@@ -21,6 +21,7 @@ export interface CreateBroadcastInput {
     segment?: SegmentDef;
     numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
     recipients?: Array<{ number: string; vars?: string[] }>; // impor CSV berkolom (personalisasi per-baris)
+    contactIds?: number[];    // pilih kontak terdaftar secara manual (multi-select)
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }
@@ -63,6 +64,31 @@ export class BroadcastService {
     async preview(segment?: SegmentDef) {
         const count = await this.prisma.waContact.count({ where: this.buildContactWhere(segment) });
         return { count };
+    }
+
+    /** Daftar kontak (untuk pilih manual di broadcast). Opt-out dikecualikan. Maks 500. */
+    async listContacts(search?: string) {
+        const where: Prisma.WaContactWhereInput = { optedOut: false };
+        const q = (search || '').trim();
+        if (q) {
+            const digits = q.replace(/\D/g, '');
+            where.OR = [
+                { profileName: { contains: q } },
+                ...(digits ? [{ waId: { contains: digits } }, { phoneNormalized: { contains: digits } }] : []),
+                { lead: { is: { name: { contains: q } } } },
+                { customer: { is: { name: { contains: q } } } },
+            ];
+        }
+        return this.prisma.waContact.findMany({
+            where,
+            select: {
+                id: true, waId: true, profileName: true, phoneNormalized: true,
+                lead: { select: { name: true, status: true } },
+                customer: { select: { name: true } },
+            },
+            orderBy: { lastInboundAt: 'desc' },
+            take: 500,
+        });
     }
 
     /** Normalisasi + dedup daftar nomor mentah (paste/CSV) → jumlah valid. */
@@ -144,12 +170,14 @@ export class BroadcastService {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: input.channelId } });
         if (!channel) throw new NotFoundException('Channel tidak ditemukan');
 
-        // Penerima: CSV berkolom (personalisasi) > daftar nomor impor > segmen kontak.
-        const contacts: Array<{ id: number; waId: string; vars?: string[] }> = input.recipients?.length
-            ? await this.resolveRecipients(input.recipients)
-            : input.numbers?.length
-              ? await this.resolveNumbers(input.numbers)
-              : await this.resolveSegment(input.segment);
+        // Penerima: pilih kontak manual > CSV berkolom > daftar nomor impor > segmen.
+        const contacts: Array<{ id: number; waId: string; vars?: string[] }> = input.contactIds?.length
+            ? await this.prisma.waContact.findMany({ where: { id: { in: input.contactIds }, optedOut: false }, select: { id: true, waId: true } })
+            : input.recipients?.length
+              ? await this.resolveRecipients(input.recipients)
+              : input.numbers?.length
+                ? await this.resolveNumbers(input.numbers)
+                : await this.resolveSegment(input.segment);
         if (!contacts.length) throw new BadRequestException('Tidak ada penerima valid (cek segmen / daftar nomor)');
         const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
         const broadcast = await this.prisma.waBroadcast.create({
