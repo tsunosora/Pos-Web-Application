@@ -529,6 +529,25 @@ export default function WhatsappInboxPage() {
         }
     };
 
+    // Tempel (Ctrl+V) gambar/screenshot dari clipboard → jadikan lampiran.
+    // Teks biasa dibiarkan default (masuk ke textarea).
+    const handleComposerPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        for (const it of Array.from(items)) {
+            if (it.kind === "file") {
+                const file = it.getAsFile();
+                if (file && file.type.startsWith("image/")) {
+                    e.preventDefault();
+                    const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
+                    const named = new File([file], file.name && file.name !== "image.png" ? file.name : `tempel-${Date.now()}.${ext}`, { type: file.type });
+                    setPendingFile(named);
+                    return;
+                }
+            }
+        }
+    };
+
     // Bersihkan draft & lampiran saat pindah percakapan.
     useEffect(() => {
         setDraft("");
@@ -938,6 +957,7 @@ export default function WhatsappInboxPage() {
                                             ref={textareaRef}
                                             value={draft}
                                             onChange={(e) => { setDraft(e.target.value); setQrDismissed(false); }}
+                                            onPaste={handleComposerPaste}
                                             onKeyDown={(e) => {
                                                 if (slashActive && quickMatches.length) {
                                                     if (e.key === "ArrowDown") { e.preventDefault(); setQrIndex((i) => (i + 1) % quickMatches.length); return; }
