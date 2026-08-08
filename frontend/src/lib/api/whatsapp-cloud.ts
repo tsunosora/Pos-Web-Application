@@ -197,6 +197,21 @@ export const updateWaChannel = async (id: number, data: UpdateChannelBody): Prom
 export const deleteWaChannel = async (id: number): Promise<{ ok: boolean }> =>
     (await api.delete(`/whatsapp/channels/${id}`)).data;
 
+// Profil bisnis WhatsApp (per nomor/channel) — dari Meta.
+export interface WaBusinessProfile {
+    about?: string;
+    address?: string;
+    description?: string;
+    email?: string;
+    vertical?: string;
+    websites?: string[];
+    profile_picture_url?: string;
+}
+export const getWaChannelProfile = async (id: number): Promise<WaBusinessProfile> =>
+    (await api.get(`/whatsapp/channels/${id}/profile`)).data;
+export const updateWaChannelProfile = async (id: number, data: Partial<WaBusinessProfile>): Promise<WaBusinessProfile> =>
+    (await api.patch(`/whatsapp/channels/${id}/profile`, data)).data;
+
 // ─── Template Meta ─────────────────────────────────────────────────────────
 
 export type WaTemplateStatus = 'DRAFT' | 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAUSED' | 'DISABLED';

@@ -186,6 +186,37 @@ export class CloudApiService {
         }
     }
 
+    // ─── Profil Bisnis (per nomor) ───────────────────────────────────────────
+
+    /** Ambil profil bisnis WhatsApp nomor (about, deskripsi, alamat, dll). */
+    async getBusinessProfile(phoneNumberId: string): Promise<Record<string, any>> {
+        const json = await this.graph(
+            'GET',
+            `${phoneNumberId}/whatsapp_business_profile?fields=about,address,description,email,profile_picture_url,websites,vertical`,
+        );
+        return json?.data?.[0] ?? {};
+    }
+
+    /** Perbarui profil bisnis WhatsApp nomor. Field yg undefined tidak disentuh. */
+    async updateBusinessProfile(
+        phoneNumberId: string,
+        data: {
+            about?: string;
+            address?: string;
+            description?: string;
+            email?: string;
+            vertical?: string;
+            websites?: string[];
+        },
+    ): Promise<void> {
+        const payload: Record<string, any> = { messaging_product: 'whatsapp' };
+        for (const k of ['about', 'address', 'description', 'email', 'vertical'] as const) {
+            if (data[k] !== undefined) payload[k] = data[k];
+        }
+        if (data.websites !== undefined) payload.websites = data.websites.filter((w) => w?.trim());
+        await this.graph('POST', `${phoneNumberId}/whatsapp_business_profile`, payload);
+    }
+
     /** Info nomor untuk health-check (verifikasi kredensial tanpa kirim pesan). */
     async getPhoneNumberInfo(phoneNumberId: string): Promise<WaPhoneInfo> {
         const json = await this.graph('GET', `${phoneNumberId}?fields=verified_name,display_phone_number`);

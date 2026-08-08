@@ -126,6 +126,31 @@ export class WhatsappCloudService {
         return { ok: true };
     }
 
+    // ─── Profil bisnis per channel ───────────────────────────────────────────
+
+    /** Ambil profil bisnis WhatsApp channel (dari Meta). */
+    async getChannelProfile(id: number) {
+        const ch = await this.getChannelOrThrow(id);
+        return this.cloud.getBusinessProfile(ch.phoneNumberId);
+    }
+
+    /** Perbarui profil bisnis WhatsApp channel, lalu kembalikan versi terbaru. */
+    async updateChannelProfile(
+        id: number,
+        data: {
+            about?: string;
+            address?: string;
+            description?: string;
+            email?: string;
+            vertical?: string;
+            websites?: string[];
+        },
+    ) {
+        const ch = await this.getChannelOrThrow(id);
+        await this.cloud.updateBusinessProfile(ch.phoneNumberId, data);
+        return this.cloud.getBusinessProfile(ch.phoneNumberId);
+    }
+
     private async getChannelOrThrow(id: number) {
         const ch = await this.prisma.waChannel.findUnique({ where: { id } });
         if (!ch) throw new NotFoundException('Channel tidak ditemukan');

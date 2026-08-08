@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, HardDrive } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, HardDrive, User } from "lucide-react";
 import {
     listWaChannels, createWaChannel, updateWaChannel, deleteWaChannel, getWaHealth,
-    getWaMediaStats, cleanupWaMedia,
-    type WaChannel, type CreateChannelBody,
+    getWaMediaStats, cleanupWaMedia, getWaChannelProfile, updateWaChannelProfile,
+    type WaChannel, type CreateChannelBody, type WaBusinessProfile,
 } from "@/lib/api/whatsapp-cloud";
 import { getBranches } from "@/lib/api/settings";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -19,6 +19,7 @@ export default function WhatsappSettingsPage() {
     const qc = useQueryClient();
     const [form, setForm] = useState<CreateChannelBody>(EMPTY);
     const [showForm, setShowForm] = useState(false);
+    const [profileOpenId, setProfileOpenId] = useState<number | null>(null);
 
     const { data: channels = [], isLoading } = useQuery({ queryKey: ["wa-channels"], queryFn: listWaChannels });
     const { data: branches = [] } = useQuery({ queryKey: ["branches"], queryFn: getBranches });
@@ -121,36 +122,45 @@ export default function WhatsappSettingsPage() {
                 {channels.map((ch: WaChannel) => {
                     const h = healthById.get(ch.id);
                     return (
-                        <div key={ch.id} className="rounded-2xl border border-border bg-card/60 p-4 flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="font-medium">{ch.label}</span>
-                                    <StatusBadge tone={ch.isActive ? "success" : "neutral"}>{ch.isActive ? "Aktif" : "Nonaktif"}</StatusBadge>
-                                    {h && (h.ok
-                                        ? <StatusBadge tone="info" icon={CheckCircle2}>{h.verifiedName || h.displayNumber || "Terhubung"}</StatusBadge>
-                                        : <StatusBadge tone="danger" icon={XCircle}>{h.error?.slice(0, 40) || "Gagal"}</StatusBadge>)}
+                        <div key={ch.id} className="rounded-2xl border border-border bg-card/60 p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-medium">{ch.label}</span>
+                                        <StatusBadge tone={ch.isActive ? "success" : "neutral"}>{ch.isActive ? "Aktif" : "Nonaktif"}</StatusBadge>
+                                        {h && (h.ok
+                                            ? <StatusBadge tone="info" icon={CheckCircle2}>{h.verifiedName || h.displayNumber || "Terhubung"}</StatusBadge>
+                                            : <StatusBadge tone="danger" icon={XCircle}>{h.error?.slice(0, 40) || "Gagal"}</StatusBadge>)}
+                                    </div>
+                                    <div className="text-xs opacity-60 mt-1 space-x-2">
+                                        <span>{branchName(ch.branchId)}</span>
+                                        <span>· PN {ch.phoneNumberId}</span>
+                                        {ch.displayNumber && <span>· {ch.displayNumber}</span>}
+                                        {ch._count && <span>· {ch._count.conversations} percakapan</span>}
+                                    </div>
                                 </div>
-                                <div className="text-xs opacity-60 mt-1 space-x-2">
-                                    <span>{branchName(ch.branchId)}</span>
-                                    <span>· PN {ch.phoneNumberId}</span>
-                                    {ch.displayNumber && <span>· {ch.displayNumber}</span>}
-                                    {ch._count && <span>· {ch._count.conversations} percakapan</span>}
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                        onClick={() => setProfileOpenId((id) => (id === ch.id ? null : ch.id))}
+                                        className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg ${profileOpenId === ch.id ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}
+                                    >
+                                        <User className="w-3.5 h-3.5" /> Profil
+                                    </button>
+                                    <button
+                                        onClick={() => updateMut.mutate({ id: ch.id, data: { isActive: !ch.isActive } })}
+                                        className="text-xs px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/70"
+                                    >
+                                        {ch.isActive ? "Nonaktifkan" : "Aktifkan"}
+                                    </button>
+                                    <button
+                                        onClick={() => { if (confirm(`Hapus channel "${ch.label}"?`)) deleteMut.mutate(ch.id); }}
+                                        className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-500"
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                    onClick={() => updateMut.mutate({ id: ch.id, data: { isActive: !ch.isActive } })}
-                                    className="text-xs px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/70"
-                                >
-                                    {ch.isActive ? "Nonaktifkan" : "Aktifkan"}
-                                </button>
-                                <button
-                                    onClick={() => { if (confirm(`Hapus channel "${ch.label}"?`)) deleteMut.mutate(ch.id); }}
-                                    className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-500"
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </button>
-                            </div>
+                            {profileOpenId === ch.id && <ChannelProfileEditor channelId={ch.id} />}
                         </div>
                     );
                 })}
@@ -268,6 +278,122 @@ function MediaStorageCard() {
                     </div>
                 </>
             )}
+        </div>
+    );
+}
+
+// Kategori bisnis (vertical) yang didukung Meta.
+const WA_VERTICALS: Array<[string, string]> = [
+    ["UNDEFINED", "(belum dipilih)"],
+    ["OTHER", "Lainnya"],
+    ["RETAIL", "Retail / Toko"],
+    ["APPAREL", "Pakaian & Fashion"],
+    ["PROF_SERVICES", "Jasa Profesional"],
+    ["RESTAURANT", "Restoran / Kuliner"],
+    ["GROCERY", "Toko Kelontong"],
+    ["BEAUTY", "Kecantikan"],
+    ["EDU", "Pendidikan"],
+    ["ENTERTAIN", "Hiburan"],
+    ["EVENT_PLAN", "Perencana Acara"],
+    ["FINANCE", "Keuangan"],
+    ["HEALTH", "Kesehatan"],
+    ["HOTEL", "Hotel / Penginapan"],
+    ["TRAVEL", "Travel"],
+    ["AUTO", "Otomotif"],
+    ["GOVT", "Pemerintahan"],
+    ["NONPROFIT", "Nirlaba"],
+    ["NOT_A_BIZ", "Bukan bisnis"],
+];
+
+function ChannelProfileEditor({ channelId }: { channelId: number }) {
+    const qc = useQueryClient();
+    const { data, isLoading, isError, error } = useQuery({
+        queryKey: ["wa-profile", channelId],
+        queryFn: () => getWaChannelProfile(channelId),
+    });
+    const [form, setForm] = useState<WaBusinessProfile>({});
+    const [loaded, setLoaded] = useState(false);
+    useEffect(() => {
+        if (data && !loaded) { setForm({ ...data }); setLoaded(true); }
+    }, [data, loaded]);
+
+    const setWebsite = (i: number, v: string) => {
+        setForm((f) => {
+            const websites = [...(f.websites ?? [])];
+            websites[i] = v;
+            return { ...f, websites };
+        });
+    };
+
+    const saveMut = useMutation({
+        mutationFn: () => updateWaChannelProfile(channelId, {
+            about: form.about ?? "",
+            description: form.description ?? "",
+            address: form.address ?? "",
+            email: form.email ?? "",
+            vertical: form.vertical,
+            websites: (form.websites ?? []).map((w) => w.trim()).filter(Boolean),
+        }),
+        onSuccess: (d) => {
+            setForm({ ...d });
+            qc.invalidateQueries({ queryKey: ["wa-profile", channelId] });
+            alert("Profil bisnis tersimpan!");
+        },
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menyimpan profil"),
+    });
+
+    if (isLoading) return <div className="border-t border-border pt-3 text-sm opacity-60">Memuat profil…</div>;
+    if (isError) return <div className="border-t border-border pt-3 text-sm text-red-500">Gagal memuat profil: {(error as { response?: { data?: { message?: string } } })?.response?.data?.message || "error"}</div>;
+
+    return (
+        <div className="border-t border-border pt-3 space-y-3">
+            <div className="flex items-center gap-3">
+                {form.profile_picture_url
+                    // eslint-disable-next-line @next/next/no-img-element
+                    ? <img src={form.profile_picture_url} alt="foto profil" className="w-12 h-12 rounded-full object-cover border border-border" />
+                    : <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center"><User className="w-5 h-5 opacity-50" /></div>}
+                <div className="text-xs opacity-60">Foto profil dikelola langsung di WhatsApp Manager / Business App.</div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-3">
+                <label className="text-sm sm:col-span-2">Tentang (about, maks 139)
+                    <input maxLength={139} value={form.about ?? ""} onChange={(e) => setForm({ ...form, about: e.target.value })}
+                        placeholder="Percetakan & sablon terpercaya" className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                </label>
+                <label className="text-sm sm:col-span-2">Deskripsi (maks 512)
+                    <textarea maxLength={512} rows={2} value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none resize-none" />
+                </label>
+                <label className="text-sm">Alamat
+                    <input value={form.address ?? ""} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                </label>
+                <label className="text-sm">Email
+                    <input type="email" value={form.email ?? ""} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                </label>
+                <label className="text-sm">Kategori bisnis
+                    <select value={form.vertical ?? "UNDEFINED"} onChange={(e) => setForm({ ...form, vertical: e.target.value })}
+                        className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none">
+                        {WA_VERTICALS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                    </select>
+                </label>
+                <label className="text-sm">Website 1
+                    <input value={form.websites?.[0] ?? ""} onChange={(e) => setWebsite(0, e.target.value)}
+                        placeholder="https://…" className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                </label>
+                <label className="text-sm sm:col-span-2">Website 2 (opsional)
+                    <input value={form.websites?.[1] ?? ""} onChange={(e) => setWebsite(1, e.target.value)}
+                        placeholder="https://…" className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                </label>
+            </div>
+
+            <div className="flex justify-end">
+                <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}
+                    className="text-sm px-4 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">
+                    {saveMut.isPending ? "Menyimpan…" : "Simpan profil"}
+                </button>
+            </div>
         </div>
     );
 }

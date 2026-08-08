@@ -103,6 +103,24 @@ export class WhatsappCloudController {
         return this.service.deleteChannel(id);
     }
 
+    /** Profil bisnis WhatsApp channel (about, deskripsi, alamat, email, website, kategori). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Get('channels/:id/profile')
+    getChannelProfile(@Param('id', ParseIntPipe) id: number) {
+        return this.service.getChannelProfile(id);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Patch('channels/:id/profile')
+    updateChannelProfile(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { about?: string; address?: string; description?: string; email?: string; vertical?: string; websites?: string[] },
+    ) {
+        return this.service.updateChannelProfile(id, body);
+    }
+
     // ─── Template Meta (Owner/Admin/Marketing) ──────────────────────────────
 
     @UseGuards(JwtAuthGuard, RolesGuard)
