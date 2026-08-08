@@ -373,7 +373,53 @@ export class SalesOrdersService {
                 throw e;
             }
         }
+        // Otomatisasi pipeline: bila pelanggan SO punya lead aktif (mis. dari chat WA),
+        // tautkan SO + dorong tahap Baru/Follow-up → Negosiasi. Best-effort (tak
+        // menggagalkan pembuatan SO bila gagal).
+        await this.linkFreshSoToLead(so, data.customerId ?? null, data.customerPhone ?? null);
         return so;
+    }
+
+    /** Normalisasi nomor → kunci lead (samakan dgn leads.service: strip 62/0). */
+    private normalizeLeadPhone(phone?: string | null): string | null {
+        if (!phone) return null;
+        let s = phone.replace(/\D/g, '');
+        if (s.startsWith('62')) s = s.slice(2);
+        if (s.startsWith('0')) s = s.slice(1);
+        return s || null;
+    }
+
+    /** Tautkan SO baru ke lead aktif pelanggan + dorong ke Negosiasi (hanya maju). */
+    private async linkFreshSoToLead(so: any, customerId: number | null, customerPhone: string | null) {
+        try {
+            const key = this.normalizeLeadPhone(customerPhone);
+            const or: any[] = [];
+            if (customerId) or.push({ convertedCustomerId: customerId });
+            if (key) or.push({ phoneNormalized: key });
+            if (!or.length) return;
+            const lead: any = await (this.prisma as any).lead.findFirst({
+                where: { OR: or, status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] } },
+                orderBy: { updatedAt: 'desc' },
+                select: { id: true, status: true, convertedSalesOrderId: true },
+            });
+            if (!lead) return;
+            const bump = ['NEW', 'FOLLOW_UP'].includes(lead.status);
+            if (!bump && lead.convertedSalesOrderId != null) return; // tak ada yg perlu diubah
+            await (this.prisma as any).lead.update({
+                where: { id: lead.id },
+                data: {
+                    ...(lead.convertedSalesOrderId == null ? { convertedSalesOrderId: so.id } : {}),
+                    ...(bump ? { status: 'NEGOTIATION' } : {}),
+                },
+            });
+            if (bump) {
+                await this.prisma.leadActivity.create({
+                    data: { leadId: lead.id, kind: 'STATUS_CHANGE', text: `Pindah ke Negosiasi (SO ${so.soNumber} dibuat)`, meta: { salesOrderId: so.id } as any },
+                });
+            }
+        } catch {
+            /* best-effort — jangan ganggu pembuatan SO */
+        }
     }
 
     async update(id: number, data: UpdateSalesOrderDto) {

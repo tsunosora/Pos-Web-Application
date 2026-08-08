@@ -988,6 +988,27 @@ export class InboxService {
             where: { id: conv.id, assignedToId: null },
             data: { assignedToId: userId },
         });
+        // Otomatisasi pipeline: balasan manusia → lead Baru maju ke Follow-up.
+        await this.advanceLeadOnReply(conv.contactId);
         return msg;
+    }
+
+    /** Balasan manusia pertama → dorong lead NEW → FOLLOW_UP (hanya maju, best-effort). */
+    private async advanceLeadOnReply(contactId: number): Promise<void> {
+        try {
+            const contact = await this.prisma.waContact.findUnique({ where: { id: contactId }, select: { leadId: true } });
+            if (!contact?.leadId) return;
+            const res = await this.prisma.lead.updateMany({
+                where: { id: contact.leadId, status: 'NEW' },
+                data: { status: 'FOLLOW_UP' },
+            });
+            if (res.count > 0) {
+                await this.prisma.leadActivity.create({
+                    data: { leadId: contact.leadId, kind: 'STATUS_CHANGE', text: 'Pindah ke Follow-up (dibalas via WhatsApp)', meta: { source: 'whatsapp-reply' } },
+                });
+            }
+        } catch (e) {
+            this.logger?.warn?.(`advanceLeadOnReply gagal: ${e}`);
+        }
     }
 }
