@@ -114,6 +114,34 @@ export const updateWaConversation = async (
 export const replyWaText = async (id: number, text: string, replyTo?: string): Promise<WaMessage> =>
     (await api.post(`/whatsapp/conversations/${id}/reply`, { text, replyTo })).data;
 
+// Pesan cepat / canned message (BUKAN template Meta) — dipanggil "/" di composer.
+export interface WaQuickReply {
+    id: number;
+    shortcut: string;
+    title: string | null;
+    body: string;
+    isActive: boolean;
+    sortOrder: number;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface QuickReplyBody {
+    shortcut: string;
+    title?: string | null;
+    body: string;
+    sortOrder?: number;
+}
+export type UpdateQuickReplyBody = Partial<QuickReplyBody> & { isActive?: boolean };
+
+export const listWaQuickReplies = async (): Promise<WaQuickReply[]> =>
+    (await api.get('/whatsapp/quick-replies')).data;
+export const createWaQuickReply = async (data: QuickReplyBody): Promise<WaQuickReply> =>
+    (await api.post('/whatsapp/quick-replies', data)).data;
+export const updateWaQuickReply = async (id: number, data: UpdateQuickReplyBody): Promise<WaQuickReply> =>
+    (await api.patch(`/whatsapp/quick-replies/${id}`, data)).data;
+export const deleteWaQuickReply = async (id: number): Promise<{ ok: boolean }> =>
+    (await api.delete(`/whatsapp/quick-replies/${id}`)).data;
+
 // Chat Baru: simpan nomor baru & kirim template pembuka → kembalikan conversationId.
 export interface StartConversationBody {
     channelId: number;

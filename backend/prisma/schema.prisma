@@ -2397,6 +2397,22 @@ model WaQrLink {
   @@map("wa_qr_links")
 }
 
+/// Pesan cepat / canned message (BUKAN template Meta). Dipanggil di composer inbox
+/// dengan mengetik "/pintasan". Bebas teks — sah dikirim dalam jendela 24 jam.
+model WaQuickReply {
+  id          Int      @id @default(autoincrement())
+  shortcut    String   @unique @db.VarChar(60) // pintasan setelah "/" (mis. "harga")
+  title       String?  @db.VarChar(120) // label opsional untuk memudahkan pencarian
+  body        String   @db.Text // isi pesan
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdById Int?     @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("wa_quick_replies")
+}
+
 // Jenis pemicu balasan otomatis (Fase 7).
 enum WaAutoReplyTrigger {
   KEYWORD // cocokkan kata kunci di pesan masuk

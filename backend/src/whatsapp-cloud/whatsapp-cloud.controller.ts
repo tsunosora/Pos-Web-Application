@@ -34,6 +34,7 @@ import { AutoReplyService, type CreateRuleInput } from './auto-reply.service';
 import { RemindersService, type ReminderEvent, type SetReminderConfigInput } from './reminders.service';
 import { AnalyticsService } from './analytics.service';
 import { WaQrService, type CreateQrInput } from './qr.service';
+import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyInput } from './quick-reply.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
@@ -52,7 +53,38 @@ export class WhatsappCloudController {
         private readonly reminders: RemindersService,
         private readonly analytics: AnalyticsService,
         private readonly qr: WaQrService,
+        private readonly quickReplies: WaQuickReplyService,
     ) {}
+
+    // ─── Pesan cepat / canned message (semua peran inbox) ────────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Get('quick-replies')
+    listQuickReplies() {
+        return this.quickReplies.list();
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Post('quick-replies')
+    createQuickReply(@Req() req: any, @Body() body: CreateQuickReplyInput) {
+        return this.quickReplies.create(body, req.user.userId);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Patch('quick-replies/:id')
+    updateQuickReply(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateQuickReplyInput) {
+        return this.quickReplies.update(id, body);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Delete('quick-replies/:id')
+    removeQuickReply(@Param('id', ParseIntPipe) id: number) {
+        return this.quickReplies.remove(id);
+    }
 
     // ─── QR klik-untuk-chat (Owner/Admin/Marketing) ──────────────────────────
 

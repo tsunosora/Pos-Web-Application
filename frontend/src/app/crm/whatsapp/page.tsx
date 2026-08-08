@@ -10,8 +10,8 @@ import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
-    listWaChannels, startWaConversation,
-    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel,
+    listWaChannels, startWaConversation, listWaQuickReplies,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -551,6 +551,13 @@ export default function WhatsappInboxPage() {
         enabled: selectedId != null,
         select: (all: WaTemplate[]) => all.filter((t) => t.status === "APPROVED"),
     });
+    // Pesan cepat / canned message (daftar sendiri, BUKAN template Meta).
+    const { data: quickReplies = [] } = useQuery({
+        queryKey: ["wa-quick-replies"],
+        queryFn: listWaQuickReplies,
+        enabled: selectedId != null,
+        select: (all: WaQuickReply[]) => all.filter((q) => q.isActive),
+    });
     const templateReplyMut = useMutation({
         mutationFn: () => {
             const tpl = templates.find((t) => t.id === tplId);
@@ -574,13 +581,17 @@ export default function WhatsappInboxPage() {
     const slashActive = !qrDismissed && draft.startsWith("/") && !draft.includes("\n");
     const slashQuery = draft.slice(1).toLowerCase().trim();
     const quickMatches = slashActive
-        ? templates
-              .filter((t) => t.name.toLowerCase().includes(slashQuery) || t.bodyText.toLowerCase().includes(slashQuery))
+        ? quickReplies
+              .filter((q) =>
+                  q.shortcut.toLowerCase().includes(slashQuery) ||
+                  (q.title || "").toLowerCase().includes(slashQuery) ||
+                  q.body.toLowerCase().includes(slashQuery),
+              )
               .slice(0, 6)
         : [];
     useEffect(() => { setQrIndex(0); }, [slashQuery, slashActive]);
-    const pickQuick = (t: WaTemplate) => {
-        setDraft(t.bodyText);
+    const pickQuick = (q: WaQuickReply) => {
+        setDraft(q.body);
         setQrDismissed(true);
         requestAnimationFrame(() => textareaRef.current?.focus());
     };
@@ -824,25 +835,29 @@ export default function WhatsappInboxPage() {
                                         {slashActive && (
                                             <div className="absolute bottom-full left-0 right-0 mb-2 z-30 rounded-xl border border-border bg-card shadow-lg overflow-hidden">
                                                 <div className="px-3 py-1.5 text-[11px] opacity-60 border-b border-border flex items-center justify-between">
-                                                    <span>⚡ Pesan cepat — pilih template</span>
+                                                    <span>⚡ Pesan cepat</span>
                                                     <span className="opacity-70">↑↓ Enter · Esc batal</span>
                                                 </div>
                                                 <div className="max-h-64 overflow-y-auto">
                                                     {quickMatches.length === 0 ? (
                                                         <div className="px-3 py-2 text-xs opacity-60">
-                                                            {templates.length === 0 ? "Belum ada template." : "Tidak ada template cocok."}
+                                                            {quickReplies.length === 0 ? (
+                                                                <>Belum ada pesan cepat. <Link href="/crm/whatsapp/quick-replies" className="underline">Buat →</Link></>
+                                                            ) : "Tidak ada yang cocok."}
                                                         </div>
                                                     ) : (
-                                                        quickMatches.map((t, i) => (
+                                                        quickMatches.map((q, i) => (
                                                             <button
                                                                 type="button"
-                                                                key={t.id}
+                                                                key={q.id}
                                                                 onMouseEnter={() => setQrIndex(i)}
-                                                                onClick={() => pickQuick(t)}
+                                                                onClick={() => pickQuick(q)}
                                                                 className={`w-full text-left px-3 py-2 ${i === qrIndex ? "bg-muted" : "hover:bg-muted/60"}`}
                                                             >
-                                                                <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">/{t.name}</div>
-                                                                <div className="text-[11px] opacity-60 line-clamp-2 whitespace-pre-wrap">{t.bodyText}</div>
+                                                                <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                                                                    /{q.shortcut}{q.title ? <span className="opacity-60 font-normal"> · {q.title}</span> : null}
+                                                                </div>
+                                                                <div className="text-[11px] opacity-60 line-clamp-2 whitespace-pre-wrap">{q.body}</div>
                                                             </button>
                                                         ))
                                                     )}
