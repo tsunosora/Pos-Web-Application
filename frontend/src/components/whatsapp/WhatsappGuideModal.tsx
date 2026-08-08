@@ -3,24 +3,35 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-    X, Settings, FileText, Megaphone, Bot, BellRing, BarChart3, Inbox, ArrowRight, CheckCircle2,
+    X, Settings, FileText, Megaphone, Bot, BellRing, BarChart3, Inbox, ArrowRight, CheckCircle2, Timer, Images,
 } from "lucide-react";
 
 const SETUP = [
-    "Owner/Admin: buat Meta Business + App (WhatsApp), verifikasi nomor tiap cabang.",
-    "Isi kredensial di .env server (token, app secret, verify token) → WA_CLOUD_ENABLED=true.",
-    "Set Webhook di Meta ke /whatsapp/webhook (field: messages).",
-    "Daftarkan nomor tiap cabang di Pengaturan Channel → tombol \"Cek koneksi\".",
+    "Owner/Admin: buat Meta Business + App (WhatsApp), verifikasi nomor bisnis tiap cabang.",
+    "Isi .env server: WA_ACCESS_TOKEN (System User, permanen), WA_APP_SECRET, WA_VERIFY_TOKEN, WA_APP_ID → WA_CLOUD_ENABLED=true.",
+    "Set Webhook di Meta ke /whatsapp/webhook (verify token sama) → subscribe field: messages.",
+    "Daftarkan nomor tiap cabang di Pengaturan Channel → tombol \"Health check\". Isi Profil Bisnis + foto.",
+    "Selesaikan Verifikasi Bisnis + metode pembayaran di Meta agar bisa kirim ke semua pelanggan.",
+];
+
+const INBOX_CAN = [
+    "Balas teks + emoji picker",
+    "Kirim lampiran: gambar/dokumen/file/audio (klik gambar → pratinjau besar)",
+    "Reply/kutip pesan (klik lompat ke asal) + reaksi emoji",
+    "Tanda dibaca otomatis (centang biru) saat buka chat",
+    "Ambil chat + lihat tahap Lead pipeline + buka lead",
 ];
 
 const FEATURES: Array<{ icon: typeof Inbox; name: string; roles: string; desc: string }> = [
-    { icon: Inbox, name: "Inbox Chat", roles: "CS · Marketing · Admin", desc: "Balas chat. Dalam 24 jam: teks bebas. Lewat 24 jam: pilih template." },
-    { icon: FileText, name: "Template Meta", roles: "Owner · Admin · Marketing", desc: "Buat → submit ke Meta → sinkron status. Hanya APPROVED yang bisa dipakai." },
+    { icon: Inbox, name: "Inbox Chat", roles: "CS · Marketing · Admin", desc: "Balas teks/media, reply, reaksi, tanda dibaca, pratinjau gambar. 24 jam teks bebas; lewat itu pakai template." },
+    { icon: FileText, name: "Template Meta", roles: "Owner · Admin · Marketing", desc: "Buat + keterangan variabel → submit → sinkron. Hanya APPROVED yang bisa dipakai." },
     { icon: Megaphone, name: "Broadcast", roles: "Owner · Admin · Marketing", desc: "Blast template ke segmen kontak. Opt-out otomatis dikecualikan." },
-    { icon: Bot, name: "Balasan Otomatis", roles: "Owner · Admin · Marketing", desc: "Salam / kata kunci / default. STOP = opt-out. Skip bila agen aktif." },
-    { icon: BellRing, name: "Reminder POS", roles: "Owner · Admin", desc: "Pesanan siap ambil, tagihan, follow-up — kirim template otomatis." },
-    { icon: BarChart3, name: "Analitik", roles: "Owner · Admin", desc: "Metrik pesan, % dibaca, lead dari WA, performa broadcast." },
-    { icon: Settings, name: "Pengaturan Channel", roles: "Owner · Admin", desc: "Daftarkan nomor per cabang + cek koneksi." },
+    { icon: Bot, name: "Balasan Otomatis", roles: "Owner · Admin · Marketing", desc: "Salam / kata kunci / di luar jam / default. STOP = opt-out." },
+    { icon: BellRing, name: "Reminder POS", roles: "Owner · Admin · Marketing", desc: "Pesanan siap ambil, tagihan, follow-up — kirim template otomatis." },
+    { icon: BarChart3, name: "Analitik & Biaya", roles: "Owner · Admin · Marketing", desc: "Metrik pesan, % dibaca, lead dari WA, estimasi biaya per kategori." },
+    { icon: Timer, name: "Kecepatan Balas CS", roles: "Owner · Admin · Marketing", desc: "First Response Time per agen — juga menyatu di leaderboard CS." },
+    { icon: Images, name: "Penyimpanan Media", roles: "Owner · Admin", desc: "Arsip media permanen di server + bersihkan per tanggal (retensi Meta ±30 hari)." },
+    { icon: Settings, name: "Channel & Profil", roles: "Owner · Admin", desc: "Nomor per cabang, health check, profil bisnis + ganti foto." },
 ];
 
 export function WhatsappGuideModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -87,9 +98,22 @@ export function WhatsappGuideModal({ open, onClose }: { open: boolean; onClose: 
                         </div>
                     </section>
 
+                    {/* Di inbox kamu bisa */}
+                    <section>
+                        <h3 className="text-sm font-semibold mb-2 opacity-80">3. Di Inbox kamu bisa</h3>
+                        <div className="grid sm:grid-cols-2 gap-1.5">
+                            {INBOX_CAN.map((c) => (
+                                <div key={c} className="flex gap-1.5 text-xs opacity-75">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                    <span>{c}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
                     {/* Fitur & peran */}
                     <section>
-                        <h3 className="text-sm font-semibold mb-2 opacity-80">3. Fitur &amp; peran</h3>
+                        <h3 className="text-sm font-semibold mb-2 opacity-80">4. Fitur &amp; peran</h3>
                         <div className="grid sm:grid-cols-2 gap-2">
                             {FEATURES.map((f) => (
                                 <div key={f.name} className="rounded-xl border border-border bg-muted/20 p-3">
@@ -111,10 +135,12 @@ export function WhatsappGuideModal({ open, onClose }: { open: boolean; onClose: 
                             <li>Di luar <b>jendela 24 jam</b>, hanya bisa kirim pesan <b>template</b> yang sudah disetujui Meta.</li>
                             <li>Kontak yang <b>opt-out</b> (balas STOP) otomatis dilewati di semua fitur.</li>
                             <li>Broadcast & reminder butuh template ber-status <b>APPROVED</b>.</li>
+                            <li>Pakai token <b>permanen</b> (System User, <i>Never expire</i>) — token 24 jam akan mati.</li>
+                            <li>Media otomatis <b>diarsipkan di server</b> (Meta hanya simpan ±30 hari).</li>
                         </ul>
                     </section>
 
-                    <p className="text-[11px] opacity-40">Panduan lengkap: backend/src/whatsapp-cloud/README.md</p>
+                    <p className="text-[11px] opacity-40">Panduan lengkap ada di halaman <b>Bantuan → Komunikasi → WhatsApp CRM (Cloud API)</b>.</p>
                 </div>
             </div>
         </div>,
