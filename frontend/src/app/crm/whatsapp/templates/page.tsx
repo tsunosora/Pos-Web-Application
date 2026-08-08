@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
+import { TemplateVariableBuilder, detectVarCount } from "@/components/whatsapp/TemplateVariableBuilder";
 
 const STATUS_TONE: Record<WaTemplateStatus, BadgeTone> = {
     DRAFT: "neutral", PENDING: "warning", APPROVED: "success", REJECTED: "danger", PAUSED: "info", DISABLED: "neutral",
@@ -22,16 +23,6 @@ function errMsg(e: unknown, fb: string) {
     return (e as { response?: { data?: { message?: string } } })?.response?.data?.message || fb;
 }
 
-// Jumlah variabel = indeks {{n}} tertinggi di body (Meta wajib berurutan 1..N).
-function detectVarCount(body: string): number {
-    const matches = body.match(/\{\{\s*(\d+)\s*\}\}/g) || [];
-    let max = 0;
-    for (const m of matches) {
-        const n = parseInt(m.replace(/[^\d]/g, ""), 10);
-        if (n > max) max = n;
-    }
-    return max;
-}
 
 export default function WhatsappTemplatesPage() {
     const qc = useQueryClient();
@@ -136,44 +127,15 @@ export default function WhatsappTemplatesPage() {
                         <input value={form.footerText ?? ""} onChange={(e) => setForm({ ...form, footerText: e.target.value })}
                             className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
                     </label>
-                    <div className="sm:col-span-2 space-y-2">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                            <div className="text-sm font-medium">Variabel {varCount > 0 && `(${varCount})`}</div>
-                            <button
-                                type="button"
-                                onClick={() => setForm((f) => ({ ...f, bodyText: `${f.bodyText}${f.bodyText && !/\s$/.test(f.bodyText) ? " " : ""}{{${varCount + 1}}}` }))}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground"
-                                title="Sisipkan variabel berikutnya ke isi pesan"
-                            >
-                                + Tambah variabel {`{{${varCount + 1}}}`}
-                            </button>
-                        </div>
-                        {varCount === 0 ? (
-                            <p className="text-xs opacity-60">
-                                Belum ada variabel. Klik <b>+ Tambah variabel</b> di atas (menyisipkan <code>{"{{1}}"}</code> ke isi pesan), atau ketik <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code> langsung di <b>Isi pesan</b>. Setelah itu kotak keterangan &amp; contoh nilai muncul di sini.
-                            </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {Array.from({ length: varCount }, (_, i) => (
-                                    <div key={i} className="grid grid-cols-[auto_1fr_1fr] items-center gap-2">
-                                        <span className="text-xs font-mono px-2 py-2 rounded bg-muted shrink-0">{`{{${i + 1}}}`}</span>
-                                        <input
-                                            value={varLabels[i] ?? ""}
-                                            onChange={(e) => setVarLabels((a) => { const n = [...a]; n[i] = e.target.value; return n; })}
-                                            placeholder="Keterangan (mis. Nama pelanggan)"
-                                            className="rounded-lg bg-muted/60 px-3 py-2 text-sm outline-none"
-                                        />
-                                        <input
-                                            value={varSamples[i] ?? ""}
-                                            onChange={(e) => setVarSamples((a) => { const n = [...a]; n[i] = e.target.value; return n; })}
-                                            placeholder="Contoh nilai (mis. Budi)"
-                                            className="rounded-lg bg-muted/60 px-3 py-2 text-sm outline-none"
-                                        />
-                                    </div>
-                                ))}
-                                <p className="text-[11px] opacity-60">Keterangan = penjelasan isi variabel (untuk tim Anda). Contoh nilai WAJIB diisi agar lolos review Meta.</p>
-                            </div>
-                        )}
+                    <div className="sm:col-span-2">
+                        <TemplateVariableBuilder
+                            body={form.bodyText}
+                            onBody={(b) => setForm((f) => ({ ...f, bodyText: b }))}
+                            labels={varLabels}
+                            samples={varSamples}
+                            setLabels={setVarLabels}
+                            setSamples={setVarSamples}
+                        />
                     </div>
                     <div className="sm:col-span-2 flex gap-2 justify-end">
                         <button onClick={() => { setShowForm(false); setForm(EMPTY); setVarSamples([]); setVarLabels([]); }} className="text-sm px-3 py-1.5 rounded-lg bg-muted">Batal</button>
