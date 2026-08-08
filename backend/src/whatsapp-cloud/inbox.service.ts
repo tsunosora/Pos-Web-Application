@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
 import { MediaStorageService } from './media-storage.service';
 import { AutoReplyService } from './auto-reply.service';
+import { TemplatesService } from './templates.service';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
 export interface ListConversationsOpts {
@@ -75,6 +76,7 @@ export class InboxService {
         private readonly cloud: CloudApiService,
         private readonly autoReply: AutoReplyService,
         private readonly mediaStore: MediaStorageService,
+        private readonly templates: TemplatesService,
     ) {}
 
     /** Auto-create Lead dari chat WA baru (default aktif; matikan via env). */
@@ -89,6 +91,20 @@ export class InboxService {
             for (const change of entry?.changes ?? []) {
                 const value = change?.value;
                 if (!value) continue;
+
+                // Status template (APPROVED/REJECTED/…) — update near-real-time,
+                // tak perlu tunggu cron/klik Sinkron. Perlu langganan field
+                // `message_template_status_update` di webhook Meta.
+                if (change?.field === 'message_template_status_update') {
+                    try {
+                        await this.templates.applyStatusFromWebhook(value);
+                    } catch (e) {
+                        await this.logEvent('template_status', undefined, value, (e as Error).message);
+                        this.logger.error(`Gagal proses status template: ${(e as Error).message}`);
+                    }
+                    continue;
+                }
+
                 const phoneNumberId = value?.metadata?.phone_number_id;
                 const channel = phoneNumberId
                     ? await this.prisma.waChannel.findUnique({ where: { phoneNumberId } })

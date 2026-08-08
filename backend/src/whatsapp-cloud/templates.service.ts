@@ -51,8 +51,35 @@ export class TemplatesService {
         private readonly cloud: CloudApiService,
     ) {}
 
-    /** Sinkron status template dari Meta otomatis tiap 30 menit (tak perlu klik manual). */
-    @Cron('0 */30 * * * *')
+    /**
+     * Update status template dari webhook Meta `message_template_status_update`
+     * (near-real-time — tak perlu tunggu cron / klik Sinkron). Dipanggil InboxService.
+     */
+    async applyStatusFromWebhook(value: any): Promise<void> {
+        const rawName = value?.message_template_name;
+        const language = value?.message_template_language;
+        const event = value?.event; // APPROVED | REJECTED | PENDING | FLAGGED | PAUSED | ...
+        if (!rawName || !event) return;
+
+        const status = mapMetaStatus(event);
+        const rejectedReason =
+            value?.reason && String(value.reason).toUpperCase() !== 'NONE' ? String(value.reason) : null;
+        const res = await this.prisma.waTemplate.updateMany({
+            where: {
+                name: normalizeTemplateName(rawName),
+                ...(language ? { language } : {}),
+            },
+            data: {
+                status,
+                ...(status === 'REJECTED' ? { rejectedReason } : {}),
+                ...(value?.message_template_id ? { metaTemplateId: String(value.message_template_id) } : {}),
+            },
+        });
+        this.logger.log(`Webhook template "${rawName}" (${language ?? '-'}) → ${status} [${res.count} baris diperbarui]`);
+    }
+
+    /** Sinkron status template dari Meta otomatis tiap 10 menit (jaring pengaman bila webhook tak aktif). */
+    @Cron('0 */10 * * * *')
     async autoSyncStatuses() {
         if (!this.cloud.enabled) return;
         const channels = await this.prisma.waChannel.findMany({ where: { isActive: true }, select: { id: true } });
