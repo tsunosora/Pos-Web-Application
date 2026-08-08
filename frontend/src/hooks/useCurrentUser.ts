@@ -55,9 +55,15 @@ export function useCurrentUser() {
         return n.includes('desain') || n.includes('designer');
     }, [data]);
 
+    // Role Operator (divisi cetak/produksi). Inbox WA dibatasi "milik saya + pool".
+    const isOperator = useMemo(() => {
+        if (!data?.role) return false;
+        return data.role.name.toLowerCase().includes('operator');
+    }, [data]);
+
     const branchId = data?.branchId ?? null;
     const branchName = data?.branch?.name ?? null;
     const branchCode = data?.branch?.code ?? null;
 
-    return { currentUser: data, isManager, isOwner, isDesigner, canAssignTasks, branchId, branchName, branchCode };
+    return { currentUser: data, isManager, isOwner, isDesigner, isOperator, canAssignTasks, branchId, branchName, branchCode };
 }

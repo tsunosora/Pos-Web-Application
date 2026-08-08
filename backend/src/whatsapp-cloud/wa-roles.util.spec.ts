@@ -14,12 +14,12 @@ describe('wa-roles.util', () => {
         it.each([
             'Owner', 'Pemilik', 'Admin', 'Super Admin', 'Manajer', 'Supervisor',
             'CS', 'Customer Service', 'Layanan Pelanggan', 'Marketing', 'Tim Marketing',
-            'Sales', 'Desainer', 'Designer',
+            'Sales', 'Desainer', 'Designer', 'Operator', 'Operator Produksi',
         ])('boleh inbox: %s', (r) => {
             expect(roleCanInbox(r)).toBe(true);
         });
 
-        it.each(['Kasir', 'Operator', 'Produksi', 'Gudang', '', null])('tidak boleh inbox: %s', (r) => {
+        it.each(['Kasir', 'Produksi', 'Gudang', '', null])('tidak boleh inbox: %s', (r) => {
             expect(roleCanInbox(r as any)).toBe(false);
         });
     });

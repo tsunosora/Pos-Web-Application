@@ -35,7 +35,7 @@ import { RemindersService, type ReminderEvent, type SetReminderConfigInput } fro
 import { AnalyticsService } from './analytics.service';
 import { WaQrService, type CreateQrInput } from './qr.service';
 import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyInput } from './quick-reply.service';
-import { WaInboxGuard, isDesignerRole } from './wa-roles.util';
+import { WaInboxGuard, isScopedInboxRole } from './wa-roles.util';
 
 // Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
 // dicocokkan by kata kunci karena nama role dinamis — mis. "Desainer"/"CS").
@@ -387,7 +387,8 @@ export class WhatsappCloudController {
     async listConversations(@Req() req: any, @Query() query: Record<string, string>) {
         const roleName = String(req.user?.roleName || '').toUpperCase();
         const privileged = (ADMIN_ROLES as readonly string[]).includes(roleName);
-        const isDesigner = isDesignerRole(req.user?.roleName);
+        // Desainer & Operator: inbox dibatasi ke "milik saya + belum di-assign".
+        const scopedMine = isScopedInboxRole(req.user?.roleName);
         const branchId = privileged
             ? query.branchId
                 ? +query.branchId
@@ -402,7 +403,7 @@ export class WhatsappCloudController {
         if (query.assignee === 'me') assignedToId = req.user.userId;
         else if (query.assignee === 'unassigned') assignedToId = null;
         else if (query.assignee === 'so') phoneIn = await this.inbox.designerSoPhonesByUser(req.user.userId);
-        else if (isDesigner) mineOrUnassigned = req.user.userId;
+        else if (scopedMine) mineOrUnassigned = req.user.userId;
         else if (query.assignedToId) assignedToId = +query.assignedToId;
 
         return this.inbox.listConversations({

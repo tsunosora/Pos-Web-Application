@@ -325,7 +325,8 @@ function MessageBubble({ m, onReply, onReact, onImageClick }: {
 
 export default function WhatsappInboxPage() {
     const qc = useQueryClient();
-    const { currentUser, isDesigner } = useCurrentUser();
+    const { currentUser, isDesigner, isOperator } = useCurrentUser();
+    const scopedInbox = isDesigner || isOperator; // lihat "milik saya + pool", bukan semua
     const [tab, setTab] = useState<WaConversationStatus | "ALL">("ALL");
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -697,7 +698,7 @@ export default function WhatsappInboxPage() {
                     {/* Filter penugasan */}
                     <div className="flex gap-1 flex-wrap">
                         {([
-                            { key: "all", label: isDesigner ? "Milik saya + pool" : "Semua" },
+                            { key: "all", label: scopedInbox ? "Milik saya + pool" : "Semua" },
                             ...(isDesigner ? [{ key: "so", label: "SO saya" } as const] : []),
                             { key: "me", label: "Chat saya" },
                             { key: "unassigned", label: "Belum di-assign" },

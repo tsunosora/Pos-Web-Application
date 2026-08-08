@@ -12,6 +12,15 @@ export function isDesignerRole(roleName?: string | null): boolean {
     return n.includes('desain') || n.includes('design');
 }
 
+export function isOperatorRole(roleName?: string | null): boolean {
+    return norm(roleName).includes('operator');
+}
+
+/** Role yang inbox-nya DIBATASI ke "milik saya + belum di-assign" (bukan lihat semua). */
+export function isScopedInboxRole(roleName?: string | null): boolean {
+    return isDesignerRole(roleName) || isOperatorRole(roleName);
+}
+
 /** Boleh mengakses inbox WA (staf yang berkomunikasi dengan pelanggan). */
 export function roleCanInbox(roleName?: string | null): boolean {
     const n = norm(roleName);
@@ -21,6 +30,7 @@ export function roleCanInbox(roleName?: string | null): boolean {
     if (tokens.includes('cs') || tokens.includes('sales')) return true;
     return (
         isDesignerRole(n) ||
+        isOperatorRole(n) ||
         /(owner|pemilik|admin|manaj|manager|supervisor|kepala|customer|service|layanan|pelanggan|marketing|market)/.test(n)
     );
 }
