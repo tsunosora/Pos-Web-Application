@@ -171,6 +171,15 @@ export class AnalyticsService {
      * (jarak awal burst pesan masuk → balasan manusia pertama). Dipakai bersama
      * oleh csBenchmark & waCsMetricsByUser (leaderboard).
      */
+    /** Peta userId → apakah role desainer (untuk pending FRT terpisah CS vs Desainer). */
+    private async isDesignerByUserId(senderIds: number[]): Promise<Map<number, boolean>> {
+        const ids = [...new Set(senderIds)];
+        const users = ids.length
+            ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, role: { select: { name: true } } } })
+            : [];
+        return new Map(users.map((u) => [u.id, isDesignerRole(u.role?.name)]));
+    }
+
     private async frtByAgent(fromDate: Date, toDate: Date, channelId?: number): Promise<Map<number, number[]>> {
         const inRange = { createdAt: { gte: fromDate, lte: toDate } };
         const ch = channelId ? { channelId } : {};
@@ -179,18 +188,26 @@ export class AnalyticsService {
             select: { conversationId: true, direction: true, sentById: true, createdAt: true },
             orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
         });
+        const desById = await this.isDesignerByUserId(msgs.filter((m) => m.sentById != null).map((m) => m.sentById!));
+
         const perAgent = new Map<number, number[]>();
         let curConv = -1;
-        let pending: Date | null = null;
+        // Pending burst DIPISAH per grup: balasan desainer tak "mengklaim" burst CS (dan sebaliknya).
+        let pendingCs: Date | null = null;
+        let pendingDes: Date | null = null;
         for (const m of msgs) {
             if (m.conversationId !== curConv) {
                 curConv = m.conversationId;
-                pending = null;
+                pendingCs = null;
+                pendingDes = null;
             }
             if (m.direction === 'INBOUND') {
-                if (!pending) pending = m.createdAt; // awal burst pesan masuk
+                if (!pendingCs) pendingCs = m.createdAt;
+                if (!pendingDes) pendingDes = m.createdAt;
             } else {
                 if (m.sentById == null) continue; // auto-reply/sistem → tak dinilai
+                const des = desById.get(m.sentById) ?? false;
+                const pending = des ? pendingDes : pendingCs;
                 if (pending) {
                     const sec = (m.createdAt.getTime() - pending.getTime()) / 1000;
                     if (sec >= 0) {
@@ -198,7 +215,8 @@ export class AnalyticsService {
                         arr.push(sec);
                         perAgent.set(m.sentById, arr);
                     }
-                    pending = null;
+                    if (des) pendingDes = null;
+                    else pendingCs = null;
                 }
             }
         }
@@ -253,6 +271,11 @@ export class AnalyticsService {
             select: { conversationId: true, direction: true, sentById: true, createdAt: true },
             orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
         });
+        // Konsisten dgn frtByAgent: hanya balasan dari GRUP yang sama (CS vs Desainer)
+        // yang mengonsumsi pending. Balasan grup lain diabaikan (tak mereset).
+        const desById = await this.isDesignerByUserId([userId, ...msgs.filter((m) => m.sentById != null).map((m) => m.sentById!)]);
+        const targetIsDesigner = desById.get(userId) ?? false;
+
         const responses: Array<{ conversationId: number; replyAt: Date; responseSec: number }> = [];
         let curConv = -1;
         let pending: Date | null = null;
@@ -265,6 +288,7 @@ export class AnalyticsService {
                 if (!pending) pending = m.createdAt;
             } else {
                 if (m.sentById == null) continue;
+                if ((desById.get(m.sentById) ?? false) !== targetIsDesigner) continue; // grup beda → abaikan
                 if (pending) {
                     if (m.sentById === userId) {
                         responses.push({

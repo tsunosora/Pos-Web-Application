@@ -57,3 +57,35 @@ describe('AnalyticsService.summary', () => {
         expect(res.broadcasts).toEqual({ count: 0, sent: 0, failed: 0 });
     });
 });
+
+describe('AnalyticsService.csBenchmark — Desainer dipisah & tak mengklaim burst CS', () => {
+    it('balasan desainer di tengah tidak mereset pending CS', async () => {
+        // 1 percakapan: masuk t0 → desainer balas +10s → CS balas +30s.
+        const T = (s: number) => new Date(2026, 6, 1, 0, 0, s);
+        const msgs = [
+            { conversationId: 1, direction: 'INBOUND', sentById: null, createdAt: T(0) },
+            { conversationId: 1, direction: 'OUTBOUND', sentById: 2, createdAt: T(10) }, // desainer
+            { conversationId: 1, direction: 'OUTBOUND', sentById: 1, createdAt: T(30) }, // CS
+        ];
+        const users = [
+            { id: 1, name: 'Sinta', role: { name: 'CS' } },
+            { id: 2, name: 'Dedi', role: { name: 'Desainer' } },
+        ];
+        const prisma = {
+            waMessage: { findMany: jest.fn().mockResolvedValue(msgs) },
+            user: { findMany: jest.fn().mockResolvedValue(users) },
+        };
+        const svc = new AnalyticsService(prisma as any);
+        const res = await svc.csBenchmark({});
+
+        // CS diukur dari burst (t0), BUKAN dari balasan desainer (t10) → 30 detik.
+        expect(res.csAgents).toHaveLength(1);
+        expect(res.csAgents[0]).toMatchObject({ userId: 1, name: 'Sinta', avgSec: 30, responses: 1 });
+        // Desainer punya benchmark sendiri: 10 detik.
+        expect(res.designerAgents).toHaveLength(1);
+        expect(res.designerAgents[0]).toMatchObject({ userId: 2, name: 'Dedi', avgSec: 10, isDesigner: true });
+        // Overall CS murni (tak tercampur desainer).
+        expect(res.overall.avgSec).toBe(30);
+        expect(res.overallDesigner.avgSec).toBe(10);
+    });
+});
