@@ -241,6 +241,58 @@ export class AnalyticsService {
         return out;
     }
 
+    /** Rincian balasan pertama sebuah CS (drill-down leaderboard "Balas WA"). */
+    async waCsDetail(
+        userId: number,
+        fromDate: Date,
+        toDate: Date,
+    ): Promise<Array<{ conversationId: number; contactName: string | null; waId: string; replyAt: Date; responseSec: number }>> {
+        const msgs = await this.prisma.waMessage.findMany({
+            where: { createdAt: { gte: fromDate, lte: toDate } },
+            select: { conversationId: true, direction: true, sentById: true, createdAt: true },
+            orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
+        });
+        const responses: Array<{ conversationId: number; replyAt: Date; responseSec: number }> = [];
+        let curConv = -1;
+        let pending: Date | null = null;
+        for (const m of msgs) {
+            if (m.conversationId !== curConv) {
+                curConv = m.conversationId;
+                pending = null;
+            }
+            if (m.direction === 'INBOUND') {
+                if (!pending) pending = m.createdAt;
+            } else {
+                if (m.sentById == null) continue;
+                if (pending) {
+                    if (m.sentById === userId) {
+                        responses.push({
+                            conversationId: m.conversationId,
+                            replyAt: m.createdAt,
+                            responseSec: Math.round((m.createdAt.getTime() - pending.getTime()) / 1000),
+                        });
+                    }
+                    pending = null;
+                }
+            }
+        }
+        const convIds = [...new Set(responses.map((r) => r.conversationId))];
+        const convs = convIds.length
+            ? await this.prisma.waConversation.findMany({
+                  where: { id: { in: convIds } },
+                  select: { id: true, contact: { select: { profileName: true, waId: true } } },
+              })
+            : [];
+        const byId = new Map(convs.map((c) => [c.id, c.contact]));
+        return responses
+            .map((r) => ({
+                ...r,
+                contactName: byId.get(r.conversationId)?.profileName ?? null,
+                waId: byId.get(r.conversationId)?.waId ?? '',
+            }))
+            .sort((a, b) => b.replyAt.getTime() - a.replyAt.getTime());
+    }
+
     async csBenchmark(opts: AnalyticsQuery) {
         const { fromDate, toDate } = this.range(opts.from, opts.to);
         const slaMinutes = Math.max(1, opts.slaMinutes ?? 5);

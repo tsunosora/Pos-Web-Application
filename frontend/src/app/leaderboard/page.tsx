@@ -402,7 +402,8 @@ export default function LeaderboardPage() {
                                                         <MetricCell value={r.pendingValue} colorClass="text-muted-foreground"
                                                             onClick={() => setDetail({ division: 'cs', metric: 'pending', userId: r.userId, personName: r.name, metricLabel: 'Akan Datang' })}>{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</MetricCell>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
-                                                        <td className="py-2 px-2 text-right font-mono">
+                                                        <td className={`py-2 px-2 text-right font-mono ${r.waResponseSec != null ? "cursor-pointer hover:bg-accent/40" : ""}`}
+                                                            onClick={() => r.waResponseSec != null && setDetail({ division: 'cs', metric: 'wa', userId: r.userId, personName: r.name, metricLabel: 'Kecepatan Balas WA' })}>
                                                             {r.waResponseSec != null ? (
                                                                 <span className="text-green-600 dark:text-green-300">
                                                                     {fmtWaDur(r.waResponseSec)}
@@ -410,7 +411,10 @@ export default function LeaderboardPage() {
                                                                 </span>
                                                             ) : '—'}
                                                         </td>
-                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.waChatsHandled > 0 ? r.waChatsHandled : '—'}</td>
+                                                        <td className={`py-2 px-2 text-right font-mono text-muted-foreground ${r.waChatsHandled > 0 ? "cursor-pointer hover:bg-accent/40" : ""}`}
+                                                            onClick={() => r.waChatsHandled > 0 && setDetail({ division: 'cs', metric: 'wa', userId: r.userId, personName: r.name, metricLabel: 'Chat WA (kecepatan balas)' })}>
+                                                            {r.waChatsHandled > 0 ? r.waChatsHandled : '—'}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

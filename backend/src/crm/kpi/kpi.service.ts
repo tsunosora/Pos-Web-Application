@@ -33,7 +33,7 @@ export interface KpiDetailOpts {
 }
 
 export interface KpiDetailRow {
-    kind: 'lead' | 'walkin' | 'job';
+    kind: 'lead' | 'walkin' | 'job' | 'wa';
     refId: number;
     invoiceNumber: string | null;
     customerName: string | null;
@@ -671,6 +671,26 @@ export class KpiService {
             const rows = await this.buildTxRows(contributing, byTx, def.countMode === 'PCS');
             const modeToValueMode: Record<string, string> = { OMZET: 'money', PCS: 'pcs', QTY: 'count', NOTA: 'count' };
             return this.finishDetail(base, `Metrik Custom: ${def.label}`, modeToValueMode[def.countMode] || 'count', rows);
+        }
+
+        // ── Kecepatan balas WhatsApp (drill-down "Balas WA" / "Chat WA") ──────
+        if (metric === 'wa' || metric === 'wachats') {
+            const detail = await this.waAnalytics.waCsDetail(uid, start, end);
+            const rows: KpiDetailRow[] = detail.map((d) => ({
+                kind: 'wa' as const,
+                refId: d.conversationId,
+                invoiceNumber: null,
+                customerName: d.contactName,
+                customerPhone: d.waId ? `+${d.waId}` : null,
+                sourceLabel: 'WhatsApp',
+                sourceDetail: null,
+                status: null,
+                date: d.replyAt.toISOString(),
+                value: d.responseSec,
+                pcs: 0,
+                items: [],
+            }));
+            return this.finishDetail(base, 'Kecepatan Balas WA', 'duration', rows);
         }
 
         return this.finishDetail(base, metric, 'count', []);

@@ -21,6 +21,7 @@ export interface MetricDetailModalProps {
 }
 
 const fmtRp = (n: number) => "Rp" + Math.round(n).toLocaleString("id-ID");
+const fmtDur = (sec: number) => sec < 60 ? `${Math.round(sec)} dtk` : sec < 3600 ? `${Math.floor(sec / 60)}m ${Math.round(sec % 60)}d` : `${(sec / 3600).toFixed(1)} jam`;
 
 export default function MetricDetailModal(p: MetricDetailModalProps) {
     const q = useQuery({
@@ -78,8 +79,11 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                                 {valueMode === "percent" && (
                                     <Stat label="Closing Rate" value={`${((countStatus(d.rows, "CLOSED_WON") / Math.max(1, d.totals.rows)) * 100).toFixed(0)}%`} />
                                 )}
-                                {valueMode !== "pcs" && d.totals.value > 0 && (
+                                {valueMode !== "pcs" && valueMode !== "duration" && d.totals.value > 0 && (
                                     <Stat label="Total Nilai" value={fmtRp(d.totals.value)} />
+                                )}
+                                {valueMode === "duration" && d.totals.rows > 0 && (
+                                    <Stat label="Rata-rata balas" value={fmtDur(d.totals.value / d.totals.rows)} />
                                 )}
                                 {d.totals.pcs > 0 && <Stat label="Total Pcs" value={String(Math.round(d.totals.pcs))} />}
                             </div>
@@ -98,14 +102,14 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                                             <th className="px-3 py-2 text-left font-medium">Sumber</th>
                                             <th className="px-3 py-2 text-left font-medium">Status</th>
                                             <th className="px-3 py-2 text-right font-medium">
-                                                {valueMode === "pcs" ? "Pcs" : "Nilai"}
+                                                {valueMode === "pcs" ? "Pcs" : valueMode === "duration" ? "Waktu balas" : "Nilai"}
                                             </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {d.rows.map((r, i) => (
                                             <tr key={`${r.kind}-${r.refId}-${i}`} className="border-t border-border/60 hover:bg-accent/40 transition-colors">
-                                                <td className="px-3 py-2 whitespace-nowrap">{r.invoiceNumber || `Lead #${r.refId}`}</td>
+                                                <td className="px-3 py-2 whitespace-nowrap">{r.kind === "wa" ? new Date(r.date ?? "").toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : (r.invoiceNumber || `Lead #${r.refId}`)}</td>
                                                 <td className="px-3 py-2">
                                                     <div>{r.customerName || "—"}</div>
                                                     {r.customerPhone && (
@@ -122,7 +126,7 @@ export default function MetricDetailModal(p: MetricDetailModalProps) {
                                                     <StatusLabel status={r.status} />
                                                 </td>
                                                 <td className="px-3 py-2 text-right font-mono whitespace-nowrap">
-                                                    {valueMode === "pcs" ? `${Math.round(r.pcs)} pcs` : fmtRp(r.value)}
+                                                    {valueMode === "pcs" ? `${Math.round(r.pcs)} pcs` : valueMode === "duration" ? fmtDur(r.value) : fmtRp(r.value)}
                                                 </td>
                                             </tr>
                                         ))}

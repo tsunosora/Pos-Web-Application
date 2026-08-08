@@ -572,7 +572,7 @@ export type KpiDivision = 'cs' | 'designer' | 'operator';
 
 export type KpiMetricKey =
     | 'leads' | 'closing' | 'lost' | 'rate' | 'pcs'
-    | 'shipped' | 'delivered' | 'cuan' | 'omzet' | 'pending' | 'custom' // CS
+    | 'shipped' | 'delivered' | 'cuan' | 'omzet' | 'pending' | 'custom' | 'wa' // CS
     | 'dicek' | 'designClosing'                             // Designer
     | 'printJobs' | 'printPcs' | 'prodJobs' | 'prodDone';   // Operator
 
@@ -584,7 +584,7 @@ export interface KpiDetailItem {
 }
 
 export interface KpiDetailRow {
-    kind: 'lead' | 'walkin' | 'job';
+    kind: 'lead' | 'walkin' | 'job' | 'wa';
     refId: number;                 // leadId / transactionId / jobId
     invoiceNumber: string | null;  // nomor nota bila ada
     customerName: string | null;
@@ -603,7 +603,7 @@ export interface KpiMetricDetail {
     division: KpiDivision;
     metric: KpiMetricKey;
     metricLabel: string;           // label tampilan, mis "Closing", "Metrik Custom: Jersey"
-    valueMode: 'count' | 'pcs' | 'money' | 'percent';
+    valueMode: 'count' | 'pcs' | 'money' | 'percent' | 'duration';
     period: { start: string; end: string };
     totals: { rows: number; value: number; pcs: number };
     rows: KpiDetailRow[];
