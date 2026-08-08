@@ -492,10 +492,14 @@ export default function WhatsappInboxPage() {
         },
     });
 
+    // Progres kirim banyak lampiran (mis. "Mengirim 2/5…").
+    const [sendProgress, setSendProgress] = useState<{ current: number; total: number } | null>(null);
     const mediaMut = useMutation({
         // Kirim banyak lampiran berurutan; caption (draft) & konteks reply hanya di gambar pertama.
         mutationFn: async (payload: { files: File[]; caption?: string; replyTo?: string }) => {
-            for (let i = 0; i < payload.files.length; i++) {
+            const total = payload.files.length;
+            for (let i = 0; i < total; i++) {
+                setSendProgress({ current: i + 1, total });
                 await replyWaMedia(
                     selectedId as number,
                     payload.files[i],
@@ -516,6 +520,7 @@ export default function WhatsappInboxPage() {
             const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
             alert(msg || "Gagal mengirim lampiran");
         },
+        onSettled: () => setSendProgress(null),
     });
 
     const reactMut = useMutation({
@@ -1021,7 +1026,11 @@ export default function WhatsappInboxPage() {
                                     </button>
                                 </div>
                                 {mediaMut.isPending && (
-                                    <div className="text-[11px] opacity-60 text-center animate-pulse">Mengunggah lampiran…</div>
+                                    <div className="text-[11px] opacity-60 text-center animate-pulse">
+                                        {sendProgress && sendProgress.total > 1
+                                            ? `Mengirim ${sendProgress.current}/${sendProgress.total} lampiran…`
+                                            : "Mengunggah lampiran…"}
+                                    </div>
                                 )}
                             </form>
                         ) : (
