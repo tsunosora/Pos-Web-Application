@@ -380,6 +380,33 @@ export class BroadcastService {
         return { broadcast, counts };
     }
 
+    /** Daftar penerima sebuah broadcast (siapa saja + status per orang). */
+    async recipients(id: number, status?: string) {
+        const rows = await this.prisma.waBroadcastRecipient.findMany({
+            where: { broadcastId: id, ...(status ? { status: status as any } : {}) },
+            orderBy: [{ status: 'asc' }, { id: 'asc' }],
+            take: 5000,
+            select: {
+                id: true, waId: true, status: true, errorMessage: true, sentAt: true,
+                contact: {
+                    select: {
+                        profileName: true,
+                        customer: { select: { name: true } },
+                        lead: { select: { name: true } },
+                    },
+                },
+            },
+        });
+        return rows.map((r) => ({
+            id: r.id,
+            waId: r.waId,
+            status: r.status,
+            errorMessage: r.errorMessage,
+            sentAt: r.sentAt,
+            name: r.contact?.customer?.name || r.contact?.lead?.name || r.contact?.profileName || null,
+        }));
+    }
+
     /** Cron: jalankan broadcast terjadwal yang sudah waktunya (tiap menit). */
     @Cron('0 * * * * *')
     async sweepScheduled() {

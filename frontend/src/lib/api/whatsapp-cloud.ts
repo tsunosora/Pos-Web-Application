@@ -411,6 +411,18 @@ export const createWaBroadcast = async (data: CreateBroadcastBody): Promise<WaBr
 export const getWaBroadcastReport = async (id: number): Promise<{ broadcast: WaBroadcast; counts: Record<string, number> }> =>
     (await api.get(`/whatsapp/broadcasts/${id}`)).data;
 
+export type WaRecipientStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED' | 'SKIPPED';
+export interface WaBroadcastRecipient {
+    id: number;
+    waId: string;
+    name: string | null;
+    status: WaRecipientStatus;
+    errorMessage: string | null;
+    sentAt: string | null;
+}
+export const getWaBroadcastRecipients = async (id: number, status?: string): Promise<WaBroadcastRecipient[]> =>
+    (await api.get(`/whatsapp/broadcasts/${id}/recipients`, { params: status ? { status } : {} })).data;
+
 export const runWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/run`)).data;
 export const pauseWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/pause`)).data;
 export const resumeWaBroadcast = async (id: number) => (await api.post(`/whatsapp/broadcasts/${id}/resume`)).data;

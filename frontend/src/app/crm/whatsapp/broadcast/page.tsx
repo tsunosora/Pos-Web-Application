@@ -8,7 +8,9 @@ import {
     listWaBroadcasts, createWaBroadcast, previewBroadcast,
     runWaBroadcast, pauseWaBroadcast, resumeWaBroadcast, cancelWaBroadcast,
     listWaChannels, listWaTemplates, WA_BROADCAST_STATUS_LABEL, listBroadcastContacts,
+    getWaBroadcastRecipients,
     type WaBroadcast, type WaBroadcastStatus, type VariableMapItem, type WaTemplate,
+    type WaBroadcastRecipient, type WaRecipientStatus,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
@@ -56,6 +58,7 @@ export default function WhatsappBroadcastPage() {
     const [numberCol, setNumberCol] = useState(0);
     const [contactSearch, setContactSearch] = useState("");
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+    const [detailBroadcast, setDetailBroadcast] = useState<WaBroadcast | null>(null); // modal detail penerima
 
     const { data: broadcasts = [] } = useQuery({ queryKey: ["wa-broadcasts"], queryFn: listWaBroadcasts, refetchInterval: 5000 });
     const { data: channels = [] } = useQuery({ queryKey: ["wa-channels"], queryFn: listWaChannels });
@@ -406,10 +409,13 @@ export default function WhatsappBroadcastPage() {
                     return (
                         <div key={b.id} className="rounded-2xl border border-border bg-card/60 p-4">
                             <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
+                                <button type="button" onClick={() => setDetailBroadcast(b)} className="min-w-0 text-left group" title="Lihat detail penerima">
                                     <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-medium">{b.name}</span>
+                                        <span className="font-medium group-hover:underline">{b.name}</span>
                                         <StatusBadge tone={STATUS_TONE[b.status]}>{WA_BROADCAST_STATUS_LABEL[b.status]}</StatusBadge>
+                                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 opacity-80 group-hover:opacity-100">
+                                            <Users className="w-3 h-3" /> detail penerima
+                                        </span>
                                     </div>
                                     <div className="text-xs opacity-60 mt-1">
                                         {b.template?.name} · {b.channel?.label} · {b.sentCount}/{b.totalCount} terkirim
@@ -419,7 +425,7 @@ export default function WhatsappBroadcastPage() {
                                     <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden w-56 max-w-full">
                                         <div className="h-full bg-emerald-500" style={{ width: `${pct}%` }} />
                                     </div>
-                                </div>
+                                </button>
                                 <div className="flex items-center gap-1.5 shrink-0">
                                     {(b.status === "DRAFT" || b.status === "SCHEDULED") && (
                                         <button onClick={() => actMut.mutate({ id: b.id, act: "run" })} title="Jalankan" className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-500 text-white"><Send className="w-3.5 h-3.5" /> Kirim</button>
@@ -438,6 +444,83 @@ export default function WhatsappBroadcastPage() {
                         </div>
                     );
                 })}
+            </div>
+
+            {detailBroadcast && (
+                <BroadcastRecipientsModal broadcast={detailBroadcast} onClose={() => setDetailBroadcast(null)} />
+            )}
+        </div>
+    );
+}
+
+const RECIPIENT_TONE: Record<WaRecipientStatus, BadgeTone> = {
+    PENDING: "neutral", SENT: "info", DELIVERED: "info", READ: "success", FAILED: "danger", SKIPPED: "warning",
+};
+const RECIPIENT_LABEL: Record<WaRecipientStatus, string> = {
+    PENDING: "Menunggu", SENT: "Terkirim", DELIVERED: "Sampai", READ: "Dibaca", FAILED: "Gagal", SKIPPED: "Dilewati",
+};
+
+function BroadcastRecipientsModal({ broadcast, onClose }: { broadcast: WaBroadcast; onClose: () => void }) {
+    const [filter, setFilter] = useState<WaRecipientStatus | "ALL">("ALL");
+    const { data: recipients = [], isLoading } = useQuery({
+        queryKey: ["wa-broadcast-recipients", broadcast.id],
+        queryFn: () => getWaBroadcastRecipients(broadcast.id),
+    });
+    const counts = useMemo(() => {
+        const c: Record<string, number> = {};
+        for (const r of recipients) c[r.status] = (c[r.status] ?? 0) + 1;
+        return c;
+    }, [recipients]);
+    const shown = filter === "ALL" ? recipients : recipients.filter((r) => r.status === filter);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+            <div className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2 p-4 border-b border-border">
+                    <Users className="w-5 h-5 text-emerald-500" />
+                    <div className="min-w-0">
+                        <h2 className="font-semibold truncate">Penerima — {broadcast.name}</h2>
+                        <div className="text-xs opacity-60">{recipients.length} kontak</div>
+                    </div>
+                    <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5 p-3 border-b border-border">
+                    {(["ALL", "SENT", "DELIVERED", "READ", "FAILED", "SKIPPED", "PENDING"] as const).map((s) => {
+                        const n = s === "ALL" ? recipients.length : (counts[s] ?? 0);
+                        if (s !== "ALL" && n === 0) return null;
+                        return (
+                            <button key={s} onClick={() => setFilter(s)}
+                                className={`px-2.5 py-1 rounded-full text-xs ${filter === s ? "bg-primary text-primary-foreground" : "bg-muted/60 hover:bg-muted"}`}>
+                                {s === "ALL" ? "Semua" : RECIPIENT_LABEL[s]} ({n})
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <div className="overflow-y-auto p-2">
+                    {isLoading ? (
+                        <p className="text-sm opacity-60 p-3">Memuat…</p>
+                    ) : shown.length === 0 ? (
+                        <p className="text-sm opacity-60 p-3">Tidak ada penerima pada filter ini.</p>
+                    ) : (
+                        <ul className="divide-y divide-border">
+                            {shown.map((r: WaBroadcastRecipient) => (
+                                <li key={r.id} className="flex items-center gap-2 px-2 py-2">
+                                    <div className="min-w-0 flex-1">
+                                        <div className="text-sm truncate">{r.name || `+${r.waId}`}</div>
+                                        <div className="text-[11px] opacity-60 truncate">
+                                            +{r.waId}
+                                            {r.sentAt && ` · ${new Date(r.sentAt).toLocaleString("id-ID")}`}
+                                            {r.errorMessage && ` · ${r.errorMessage}`}
+                                        </div>
+                                    </div>
+                                    <StatusBadge tone={RECIPIENT_TONE[r.status]}>{RECIPIENT_LABEL[r.status]}</StatusBadge>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
             </div>
         </div>
     );

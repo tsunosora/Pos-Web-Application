@@ -343,6 +343,14 @@ export class WhatsappCloudController {
         return this.broadcasts.report(id);
     }
 
+    /** Daftar penerima broadcast (siapa saja di-blast + status per orang). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('broadcasts/:id/recipients')
+    broadcastRecipients(@Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
+        return this.broadcasts.recipients(id, query.status || undefined);
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
     @Post('broadcasts/:id/run')
