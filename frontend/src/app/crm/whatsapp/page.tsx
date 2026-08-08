@@ -44,7 +44,7 @@ function clockTime(iso: string): string {
 const MEDIA_TYPES = new Set<WaMessage["type"]>(["IMAGE", "STICKER", "VIDEO", "AUDIO", "DOCUMENT"]);
 
 /** Lampiran media inbound/outbound: gambar/video/audio ditampilkan, semua bisa diunduh. */
-function MediaAttachment({ m }: { m: WaMessage }) {
+function MediaAttachment({ m, onImageClick }: { m: WaMessage; onImageClick?: (id: number) => void }) {
     const [url, setUrl] = useState<string | null>(null);
     const [err, setErr] = useState(false);
     const visual = m.type === "IMAGE" || m.type === "STICKER" || m.type === "VIDEO" || m.type === "AUDIO";
@@ -75,7 +75,12 @@ function MediaAttachment({ m }: { m: WaMessage }) {
         return (
             <div>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="lampiran" className="rounded-lg max-w-full max-h-72 object-contain" />
+                <img
+                    src={url}
+                    alt="lampiran"
+                    onClick={() => onImageClick?.(m.id)}
+                    className="rounded-lg max-w-full max-h-72 object-contain cursor-zoom-in"
+                />
                 {dlBtn}
             </div>
         );
@@ -214,10 +219,53 @@ function BubbleActions({ m, out, onReply, onReact }: {
     );
 }
 
-function MessageBubble({ m, onReply, onReact }: {
+// Pratinjau gambar layar penuh (lightbox) — muat ulang blob sendiri agar independen.
+function ImageLightbox({ messageId, onClose }: { messageId: number; onClose: () => void }) {
+    const [url, setUrl] = useState<string | null>(null);
+    const [err, setErr] = useState(false);
+    useEffect(() => {
+        let active = true;
+        let created: string | null = null;
+        getWaMessageMediaUrl(messageId)
+            .then((u) => { if (active) { created = u; setUrl(u); } else URL.revokeObjectURL(u); })
+            .catch(() => { if (active) setErr(true); });
+        return () => { active = false; if (created) URL.revokeObjectURL(created); };
+    }, [messageId]);
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+        document.addEventListener("keydown", onKey);
+        document.body.style.overflow = "hidden";
+        return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+    }, [onClose]);
+    return (
+        <div className="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4" onClick={onClose}>
+            <button onClick={onClose} className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white" aria-label="Tutup">
+                <X className="w-5 h-5" />
+            </button>
+            <button
+                onClick={(e) => { e.stopPropagation(); downloadWaMessageMedia(messageId, `gambar-${messageId}.jpg`); }}
+                className="absolute top-4 right-16 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
+                aria-label="Unduh"
+            >
+                <Download className="w-5 h-5" />
+            </button>
+            {err ? (
+                <div className="text-white/80">Gagal memuat gambar</div>
+            ) : !url ? (
+                <div className="text-white/60 animate-pulse">Memuat…</div>
+            ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={url} alt="pratinjau" className="max-w-full max-h-full object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+            )}
+        </div>
+    );
+}
+
+function MessageBubble({ m, onReply, onReact, onImageClick }: {
     m: WaMessage;
     onReply: (m: WaMessage) => void;
     onReact: (id: number, emoji: string) => void;
+    onImageClick: (id: number) => void;
 }) {
     const out = m.direction === "OUTBOUND";
     const reactions = m.reactionsJson || {};
@@ -244,7 +292,7 @@ function MessageBubble({ m, onReply, onReact }: {
                     )}
                     {MEDIA_TYPES.has(m.type) ? (
                         <div className="space-y-1">
-                            <MediaAttachment m={m} />
+                            <MediaAttachment m={m} onImageClick={onImageClick} />
                             {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
                         </div>
                     ) : (
@@ -366,6 +414,7 @@ export default function WhatsappInboxPage() {
 
     const [draft, setDraft] = useState("");
     const [replyingTo, setReplyingTo] = useState<WaMessage | null>(null);
+    const [lightboxId, setLightboxId] = useState<number | null>(null);
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showEmoji, setShowEmoji] = useState(false);
@@ -632,6 +681,7 @@ export default function WhatsappInboxPage() {
                                     m={m}
                                     onReply={setReplyingTo}
                                     onReact={(id, emoji) => reactMut.mutate({ id, emoji })}
+                                    onImageClick={setLightboxId}
                                 />
                             ))}
                             <div ref={bottomRef} />
@@ -773,6 +823,8 @@ export default function WhatsappInboxPage() {
                     </>
                 )}
             </section>
+
+            {lightboxId != null && <ImageLightbox messageId={lightboxId} onClose={() => setLightboxId(null)} />}
         </div>
     );
 }
