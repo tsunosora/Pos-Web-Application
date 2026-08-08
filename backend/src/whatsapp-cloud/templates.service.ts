@@ -146,12 +146,18 @@ export class TemplatesService {
         const t = await this.getOrThrow(id);
         const ch = await this.prisma.waChannel.findUnique({ where: { id: channelId } });
         if (!ch) throw new NotFoundException('Channel tidak ditemukan');
-        const res = await this.cloud.createTemplate(ch.wabaId, {
-            name: t.name,
-            language: t.language,
-            category: t.category,
-            components: this.buildComponents(t),
-        });
+        let res: { id: string; status: string; category: string };
+        try {
+            res = await this.cloud.createTemplate(ch.wabaId, {
+                name: t.name,
+                language: t.language,
+                category: t.category,
+                components: this.buildComponents(t),
+            });
+        } catch (e) {
+            // Error Meta (nama sudah ada, format salah, dll) → 400 dgn pesan ramah, bukan 500.
+            throw new BadRequestException((e as Error).message);
+        }
         return this.prisma.waTemplate.update({
             where: { id },
             data: {

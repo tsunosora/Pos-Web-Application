@@ -54,10 +54,12 @@ export class CloudApiService {
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
             const err = (json as any)?.error;
-            const detail = err?.message || res.statusText || 'unknown';
-            const code = err?.code != null ? ` (code ${err.code})` : '';
+            // Utamakan pesan ramah Meta (error_user_msg) → jauh lebih jelas dari "Invalid parameter".
+            const friendly = err?.error_user_msg || err?.error_user_title;
+            const detail = friendly || err?.message || res.statusText || 'unknown';
+            const code = !friendly && err?.code != null ? ` (code ${err.code})` : '';
             this.logger.warn(`Graph API ${res.status} ${method} ${path}: ${detail}${code}`);
-            throw new Error(`WhatsApp Cloud API ${res.status}: ${detail}${code}`);
+            throw new Error(friendly ? detail : `WhatsApp Cloud API ${res.status}: ${detail}${code}`);
         }
         return json;
     }
