@@ -57,12 +57,22 @@ export interface Paged<T> {
 export interface ListConversationsParams {
     status?: WaConversationStatus;
     assignedToId?: number;
+    assignee?: "me" | "unassigned"; // filter penugasan (mis. desainer: "chat saya" / "belum di-assign")
     channelId?: number;
     branchId?: number;
     q?: string;
     cursor?: number;
     take?: number;
 }
+
+export interface WaAgent {
+    id: number;
+    name: string | null;
+    roleName: string | null;
+    branchId: number | null;
+}
+export const listWaAgents = async (): Promise<WaAgent[]> =>
+    (await api.get('/whatsapp/agents')).data;
 
 export const WA_STATUS_LABEL: Record<WaConversationStatus, string> = {
     OPEN: 'Terbuka',

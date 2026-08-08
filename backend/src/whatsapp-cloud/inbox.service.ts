@@ -9,7 +9,8 @@ import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
 export interface ListConversationsOpts {
     status?: WaConversationStatus;
-    assignedToId?: number;
+    assignedToId?: number | null; // null = hanya yang belum di-assign
+    mineOrUnassigned?: number; // userId — batasi ke (di-assign ke saya ATAU belum di-assign)
     channelId?: number;
     branchId?: number;
     q?: string;
@@ -78,6 +79,21 @@ export class InboxService {
         private readonly mediaStore: MediaStorageService,
         private readonly templates: TemplatesService,
     ) {}
+
+    // Role yang boleh menangani chat → jadi kandidat penerima "Oper ke…".
+    private static readonly AGENT_ROLES = new Set(['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN', 'CS', 'MARKETING', 'DESIGNER']);
+
+    /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk dropdown assign). */
+    async listAgents(): Promise<Array<{ id: number; name: string | null; roleName: string | null; branchId: number | null }>> {
+        const users = await this.prisma.user.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true, branchId: true, role: { select: { name: true } } },
+            orderBy: { name: 'asc' },
+        });
+        return users
+            .filter((u) => InboxService.AGENT_ROLES.has((u.role?.name || '').toUpperCase()))
+            .map((u) => ({ id: u.id, name: u.name, roleName: u.role?.name ?? null, branchId: u.branchId }));
+    }
 
     /** Auto-create Lead dari chat WA baru (default aktif; matikan via env). */
     private get autoCreateLead(): boolean {
@@ -462,7 +478,12 @@ export class InboxService {
         const take = Math.min(Math.max(opts.take ?? 30, 1), 100);
         const where: Prisma.WaConversationWhereInput = {};
         if (opts.status) where.status = opts.status;
-        if (opts.assignedToId !== undefined) where.assignedToId = opts.assignedToId;
+        // Scope penugasan: "milik saya atau belum di-assign" (desainer) menang atas filter eksplisit.
+        if (opts.mineOrUnassigned !== undefined) {
+            where.OR = [{ assignedToId: opts.mineOrUnassigned }, { assignedToId: null }];
+        } else if (opts.assignedToId !== undefined) {
+            where.assignedToId = opts.assignedToId;
+        }
         if (opts.channelId) where.channelId = opts.channelId;
         if (opts.branchId) where.channel = { branchId: opts.branchId };
         if (opts.q) {

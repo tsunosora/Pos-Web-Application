@@ -385,20 +385,40 @@ export class WhatsappCloudController {
     listConversations(@Req() req: any, @Query() query: Record<string, string>) {
         const roleName = String(req.user?.roleName || '').toUpperCase();
         const privileged = (ADMIN_ROLES as readonly string[]).includes(roleName);
+        const isDesigner = roleName === 'DESIGNER';
         const branchId = privileged
             ? query.branchId
                 ? +query.branchId
                 : undefined
             : (req.user?.branchId ?? undefined);
+
+        // Filter penugasan. Desainer dibatasi: default "milik saya + belum di-assign",
+        // tak bisa mengintip chat yang di-assign ke orang lain.
+        let assignedToId: number | null | undefined;
+        let mineOrUnassigned: number | undefined;
+        if (query.assignee === 'me') assignedToId = req.user.userId;
+        else if (query.assignee === 'unassigned') assignedToId = null;
+        else if (isDesigner) mineOrUnassigned = req.user.userId;
+        else if (query.assignedToId) assignedToId = +query.assignedToId;
+
         return this.inbox.listConversations({
             status: query.status as WaConversationStatus | undefined,
-            assignedToId: query.assignedToId ? +query.assignedToId : undefined,
+            assignedToId,
+            mineOrUnassigned,
             channelId: query.channelId ? +query.channelId : undefined,
             branchId,
             q: query.q || undefined,
             cursor: query.cursor ? +query.cursor : undefined,
             take: query.take ? +query.take : undefined,
         });
+    }
+
+    /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk "Oper ke…"). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Get('agents')
+    listAgents() {
+        return this.inbox.listAgents();
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)

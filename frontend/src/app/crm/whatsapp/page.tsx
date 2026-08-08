@@ -10,8 +10,8 @@ import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
-    listWaChannels, startWaConversation, listWaQuickReplies,
-    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply,
+    listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -325,11 +325,13 @@ function MessageBubble({ m, onReply, onReact, onImageClick }: {
 
 export default function WhatsappInboxPage() {
     const qc = useQueryClient();
-    const { currentUser } = useCurrentUser();
+    const { currentUser, isDesigner } = useCurrentUser();
     const [tab, setTab] = useState<WaConversationStatus | "ALL">("ALL");
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [composeOpen, setComposeOpen] = useState(false);
+    // Filter penugasan: "all" (desainer = milikku + belum di-assign), "me", "unassigned".
+    const [assignee, setAssignee] = useState<"all" | "me" | "unassigned">("all");
     const bottomRef = useRef<HTMLDivElement>(null);
 
     // Deep-link "Buka chat WA" dari pipeline: ?conv=<id> atau ?leadId=<id>.
@@ -352,10 +354,11 @@ export default function WhatsappInboxPage() {
 
     // Daftar percakapan — polling 8 dtk (realtime ringan untuk MVP).
     const { data: convData, isLoading } = useQuery({
-        queryKey: ["wa-convos", tab, search],
+        queryKey: ["wa-convos", tab, search, assignee],
         queryFn: () => listWaConversations({
             status: tab === "ALL" ? undefined : tab,
             q: search.trim() || undefined,
+            assignee: assignee === "all" ? undefined : assignee,
             take: 50,
         }),
         refetchInterval: 5000,
@@ -558,6 +561,10 @@ export default function WhatsappInboxPage() {
         enabled: selectedId != null,
         select: (all: WaQuickReply[]) => all.filter((q) => q.isActive),
     });
+    // Agen yang bisa ditugaskan (untuk "Oper ke…").
+    const { data: agents = [] } = useQuery({
+        queryKey: ["wa-agents"], queryFn: listWaAgents, enabled: selectedId != null,
+    });
     const templateReplyMut = useMutation({
         mutationFn: () => {
             const tpl = templates.find((t) => t.id === tplId);
@@ -632,6 +639,24 @@ export default function WhatsappInboxPage() {
                                 }`}
                             >
                                 {t.label}
+                            </button>
+                        ))}
+                    </div>
+                    {/* Filter penugasan */}
+                    <div className="flex gap-1">
+                        {([
+                            { key: "all", label: isDesigner ? "Milik saya + pool" : "Semua" },
+                            { key: "me", label: "Chat saya" },
+                            { key: "unassigned", label: "Belum di-assign" },
+                        ] as const).map((f) => (
+                            <button
+                                key={f.key}
+                                onClick={() => setAssignee(f.key)}
+                                className={`px-2.5 py-1 rounded-full text-[11px] transition ${
+                                    assignee === f.key ? "bg-emerald-500 text-white" : "bg-muted/60 hover:bg-muted"
+                                }`}
+                            >
+                                {f.label}
                             </button>
                         ))}
                     </div>
@@ -711,6 +736,19 @@ export default function WhatsappInboxPage() {
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
+                                {agents.length > 0 && (
+                                    <select
+                                        value=""
+                                        onChange={(e) => { const v = e.target.value; if (v) assignMut.mutate({ assignedToId: Number(v) }); e.currentTarget.value = ""; }}
+                                        className="text-xs rounded-lg bg-muted/60 px-2 py-1.5 outline-none max-w-[9.5rem]"
+                                        title="Oper percakapan ke agen / desainer"
+                                    >
+                                        <option value="">Oper ke…</option>
+                                        {agents.filter((a) => a.id !== selected.assignedToId).map((a) => (
+                                            <option key={a.id} value={a.id}>{a.name || `#${a.id}`}{a.roleName ? ` (${a.roleName})` : ""}</option>
+                                        ))}
+                                    </select>
+                                )}
                                 {currentUser?.id && selected.assignedToId !== currentUser.id && (
                                     <button
                                         onClick={() => assignMut.mutate({ assignedToId: currentUser.id })}
