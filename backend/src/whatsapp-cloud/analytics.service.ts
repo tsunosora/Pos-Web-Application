@@ -88,8 +88,73 @@ export class AnalyticsService {
         return pivotSeries(rows, fromDate, toDate);
     }
 
+    /**
+     * Estimasi VOLUME pesan berbayar per kategori (model harga per-pesan Meta sejak
+     * Jul 2025). Sumber: balasan template (WaMessage), broadcast (WaBroadcast.sentCount),
+     * reminder (WaReminderLog). Tarif dihitung di frontend (bisa disetel owner).
+     */
+    async costEstimate(opts: AnalyticsQuery) {
+        const { fromDate, toDate } = this.range(opts.from, opts.to);
+        const inRange = { createdAt: { gte: fromDate, lte: toDate } };
+        const ch = opts.channelId ? { channelId: opts.channelId } : {};
+
+        const norm = (c?: string | null): 'MARKETING' | 'UTILITY' | 'AUTHENTICATION' => {
+            const u = (c || '').toUpperCase();
+            return u === 'MARKETING' || u === 'AUTHENTICATION' ? u : 'UTILITY';
+        };
+        const billable: Record<'MARKETING' | 'UTILITY' | 'AUTHENTICATION', number> = {
+            MARKETING: 0,
+            UTILITY: 0,
+            AUTHENTICATION: 0,
+        };
+
+        // 1) Balasan template via inbox (WaMessage type TEMPLATE, bukan broadcast).
+        const templates = await this.prisma.waTemplate.findMany({ select: { id: true, name: true, category: true } });
+        const catByName = new Map(templates.map((t) => [t.name, norm(t.category)]));
+        const catById = new Map(templates.map((t) => [t.id, norm(t.category)]));
+        const tmplGroups = await this.prisma.waMessage.groupBy({
+            by: ['templateName'],
+            where: { direction: 'OUTBOUND', type: 'TEMPLATE', broadcastId: null, templateName: { not: null }, ...inRange, ...ch },
+            _count: { _all: true },
+        });
+        for (const g of tmplGroups) billable[catByName.get(g.templateName ?? '') ?? 'UTILITY'] += g._count._all;
+
+        // 2) Broadcast (sentCount per kategori template).
+        const bcasts = await this.prisma.waBroadcast.findMany({
+            where: { ...inRange, ...ch },
+            select: { sentCount: true, template: { select: { category: true } } },
+        });
+        for (const b of bcasts) billable[norm(b.template?.category)] += b.sentCount ?? 0;
+
+        // 3) Reminder (WaReminderLog SENT, kategori dari config→template).
+        const configs = await this.prisma.waReminderConfig.findMany({
+            select: { eventType: true, templateId: true },
+        });
+        const catByEvent = new Map(
+            configs.map((c) => [c.eventType, (c.templateId != null ? catById.get(c.templateId) : undefined) ?? 'UTILITY']),
+        );
+        const remGroups = await this.prisma.waReminderLog.groupBy({
+            by: ['eventType'],
+            where: { status: 'SENT', ...inRange },
+            _count: { _all: true },
+        });
+        for (const g of remGroups) billable[catByEvent.get(g.eventType) ?? 'UTILITY'] += g._count._all;
+
+        // Pesan layanan (session/non-template) — gratis di model baru.
+        const freeService = await this.prisma.waMessage.count({
+            where: { direction: 'OUTBOUND', type: { not: 'TEMPLATE' }, ...inRange, ...ch },
+        });
+
+        const totalBillable = billable.MARKETING + billable.UTILITY + billable.AUTHENTICATION;
+        return { billable, totalBillable, freeService };
+    }
+
     async overview(opts: AnalyticsQuery) {
-        const [summary, series] = await Promise.all([this.summary(opts), this.dailySeries(opts)]);
-        return { summary, series };
+        const [summary, series, cost] = await Promise.all([
+            this.summary(opts),
+            this.dailySeries(opts),
+            this.costEstimate(opts),
+        ]);
+        return { summary, series, cost };
     }
 }

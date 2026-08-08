@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, MessageSquare, Send, CheckCheck, Users, UserPlus, Megaphone, TrendingUp } from "lucide-react";
-import { getWaAnalytics, listWaChannels } from "@/lib/api/whatsapp-cloud";
+import { ArrowLeft, MessageSquare, Send, CheckCheck, Users, UserPlus, Megaphone, TrendingUp, Wallet } from "lucide-react";
+import { getWaAnalytics, listWaChannels, type WaAnalytics } from "@/lib/api/whatsapp-cloud";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const PRESETS = [
@@ -18,6 +18,75 @@ function pct(n: number, d: number) {
 }
 function isoDaysAgo(days: number) {
     return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+}
+
+const RATE_KEY = "wa_msg_rates_idr";
+const DEFAULT_RATES: Record<"MARKETING" | "UTILITY" | "AUTHENTICATION", number> = { MARKETING: 660, UTILITY: 160, AUTHENTICATION: 460 };
+const CAT_LABEL: Record<"MARKETING" | "UTILITY" | "AUTHENTICATION", string> = { MARKETING: "Marketing", UTILITY: "Utilitas", AUTHENTICATION: "Autentikasi" };
+const CATS = ["MARKETING", "UTILITY", "AUTHENTICATION"] as const;
+
+function CostSection({ cost }: { cost: WaAnalytics["cost"] }) {
+    const [rates, setRates] = useState<Record<string, number>>(DEFAULT_RATES);
+    useEffect(() => {
+        try {
+            const s = localStorage.getItem(RATE_KEY);
+            if (s) setRates({ ...DEFAULT_RATES, ...JSON.parse(s) });
+        } catch { /* ignore */ }
+    }, []);
+    const setRate = (cat: string, v: number) => {
+        setRates((r) => {
+            const n = { ...r, [cat]: isNaN(v) ? 0 : v };
+            try { localStorage.setItem(RATE_KEY, JSON.stringify(n)); } catch { /* ignore */ }
+            return n;
+        });
+    };
+    const rp = (n: number) => "Rp" + Math.round(n).toLocaleString("id-ID");
+    const total = CATS.reduce((sum, c) => sum + cost.billable[c] * (rates[c] || 0), 0);
+
+    return (
+        <div className="rounded-2xl border border-border bg-card/60 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium"><Wallet className="w-4 h-4" /> Estimasi biaya WhatsApp API</div>
+            <p className="text-xs opacity-60">
+                Model harga per-pesan Meta (sejak Jul 2025): pesan <b>template</b> ditagih per kategori; balasan <b>layanan</b> (dalam jendela 24 jam) gratis.
+                Setel tarif per pesan sesuai negara/akun Anda (lihat WhatsApp Manager → Billing).
+            </p>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-xs opacity-60 text-left">
+                            <th className="py-1 font-normal">Kategori</th>
+                            <th className="font-normal">Jumlah pesan</th>
+                            <th className="font-normal">Tarif/pesan (Rp)</th>
+                            <th className="font-normal text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {CATS.map((c) => (
+                            <tr key={c} className="border-t border-border">
+                                <td className="py-2">{CAT_LABEL[c]}</td>
+                                <td>{cost.billable[c].toLocaleString("id-ID")}</td>
+                                <td>
+                                    <input type="number" min={0} value={rates[c] ?? 0} onChange={(e) => setRate(c, Number(e.target.value))}
+                                        className="w-24 rounded-lg bg-muted/60 px-2 py-1 outline-none" />
+                                </td>
+                                <td className="text-right">{rp(cost.billable[c] * (rates[c] || 0))}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                    <tfoot>
+                        <tr className="border-t border-border font-semibold">
+                            <td className="py-2">Total ({cost.totalBillable.toLocaleString("id-ID")} pesan)</td>
+                            <td /><td />
+                            <td className="text-right text-emerald-600">{rp(total)}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div className="text-xs opacity-60">
+                Pesan layanan gratis (session): {cost.freeService.toLocaleString("id-ID")}. Angka ini <b>estimasi</b> berdasarkan volume pesan × tarif yang Anda setel — biaya resmi tetap mengacu ke tagihan Meta.
+            </div>
+        </div>
+    );
 }
 
 function Card({ icon: Icon, label, value, sub }: { icon: typeof MessageSquare; label: string; value: string | number; sub?: string }) {
@@ -82,6 +151,8 @@ export default function WhatsappAnalyticsPage() {
                         <Card icon={UserPlus} label="Lead dari WA" value={s.leadsFromWa} />
                         <Card icon={Megaphone} label="Broadcast" value={s.broadcasts.count} sub={`${s.broadcasts.sent} terkirim · ${s.broadcasts.failed} gagal`} />
                     </div>
+
+                    {data?.cost && <CostSection cost={data.cost} />}
 
                     <div className="rounded-2xl border border-border bg-card/60 p-4">
                         <div className="flex items-center justify-between mb-3">

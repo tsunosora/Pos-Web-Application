@@ -402,6 +402,11 @@ export interface WaAnalytics {
         broadcasts: { count: number; sent: number; failed: number };
     };
     series: Array<{ date: string; inbound: number; outbound: number }>;
+    cost: {
+        billable: { MARKETING: number; UTILITY: number; AUTHENTICATION: number };
+        totalBillable: number;
+        freeService: number;
+    };
 }
 
 export const getWaAnalytics = async (params: { from?: string; to?: string; channelId?: number } = {}): Promise<WaAnalytics> =>
