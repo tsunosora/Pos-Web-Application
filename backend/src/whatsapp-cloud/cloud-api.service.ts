@@ -39,7 +39,7 @@ export class CloudApiService {
     }
 
     /** Panggilan Graph API generik dengan penanganan error terbaca. */
-    private async graph(method: 'GET' | 'POST', path: string, body?: unknown): Promise<any> {
+    private async graph(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<any> {
         if (!this.token) {
             throw new Error('WA_ACCESS_TOKEN belum diset');
         }
@@ -292,6 +292,36 @@ export class CloudApiService {
             `${wabaId}/message_templates?fields=name,status,category,language,rejected_reason,id&limit=200`,
         );
         return json?.data ?? [];
+    }
+
+    // ─── Katalog produk (Meta Commerce) ──────────────────────────────────────
+
+    /** Ambil catalog_id yang terhubung ke WABA (bila tak diset manual di channel). */
+    async getWabaCatalogId(wabaId: string): Promise<string | null> {
+        const json = await this.graph('GET', `${wabaId}/product_catalogs?fields=id,name&limit=1`);
+        return json?.data?.[0]?.id ?? null;
+    }
+
+    /** Daftar produk katalog. */
+    async listCatalogProducts(catalogId: string): Promise<any[]> {
+        const fields = 'id,retailer_id,name,description,price,currency,image_url,url,availability';
+        const json = await this.graph('GET', `${catalogId}/products?fields=${fields}&limit=200`);
+        return json?.data ?? [];
+    }
+
+    /** Buat produk baru di katalog. Returns { id }. */
+    async createCatalogProduct(catalogId: string, payload: Record<string, unknown>): Promise<any> {
+        return this.graph('POST', `${catalogId}/products`, payload);
+    }
+
+    /** Update produk katalog (by product id). */
+    async updateCatalogProduct(productId: string, payload: Record<string, unknown>): Promise<any> {
+        return this.graph('POST', `${productId}`, payload);
+    }
+
+    /** Hapus produk katalog (by product id). */
+    async deleteCatalogProduct(productId: string): Promise<any> {
+        return this.graph('DELETE', `${productId}`);
     }
 
     // ─── Media inbound ───────────────────────────────────────────────────────

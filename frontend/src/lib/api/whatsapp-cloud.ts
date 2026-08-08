@@ -81,6 +81,36 @@ export interface WaAgent {
 export const listWaAgents = async (): Promise<WaAgent[]> =>
     (await api.get('/whatsapp/agents')).data;
 
+// ─── Katalog produk Meta Commerce ────────────────────────────────────────────
+export interface WaCatalogProduct {
+    id: string;
+    retailerId: string | null;
+    name: string | null;
+    description: string | null;
+    price: string | null; // string terformat dari Meta (mis. "Rp250.000,00")
+    currency: string | null;
+    imageUrl: string | null;
+    url: string | null;
+    availability: string | null;
+}
+export interface CatalogProductBody {
+    name?: string;
+    description?: string | null;
+    priceRupiah?: number;
+    currency?: string;
+    imageUrl?: string;
+    url?: string | null;
+    availability?: string;
+}
+export const listWaCatalog = async (channelId: number): Promise<WaCatalogProduct[]> =>
+    (await api.get('/whatsapp/catalog', { params: { channelId } })).data;
+export const createWaCatalogProduct = async (channelId: number, data: CatalogProductBody): Promise<{ id: string }> =>
+    (await api.post('/whatsapp/catalog', { channelId, ...data })).data;
+export const updateWaCatalogProduct = async (channelId: number, productId: string, data: CatalogProductBody): Promise<any> =>
+    (await api.patch(`/whatsapp/catalog/${productId}`, { channelId, ...data })).data;
+export const deleteWaCatalogProduct = async (channelId: number, productId: string): Promise<any> =>
+    (await api.delete(`/whatsapp/catalog/${productId}`, { params: { channelId } })).data;
+
 export const WA_STATUS_LABEL: Record<WaConversationStatus, string> = {
     OPEN: 'Terbuka',
     PENDING: 'Menunggu',

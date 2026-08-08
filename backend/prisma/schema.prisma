@@ -2150,6 +2150,7 @@ model WaChannel {
   label         String   @db.VarChar(100) // "CS Pusat", "Cabang Betoyo"
   phoneNumberId String   @unique @map("phone_number_id") @db.VarChar(50) // dari Meta (rute webhook)
   wabaId        String   @map("waba_id") @db.VarChar(50)
+  catalogId     String?  @map("catalog_id") @db.VarChar(50) // katalog Commerce (opsional; auto-resolve dari WABA bila kosong)
   displayNumber String?  @map("display_number") @db.VarChar(30) // 628xxx (info tampilan)
   branchId      Int?     @map("branch_id") // null = global (semua cabang)
   isActive      Boolean  @default(true) @map("is_active")

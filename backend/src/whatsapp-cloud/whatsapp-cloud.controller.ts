@@ -35,6 +35,7 @@ import { RemindersService, type ReminderEvent, type SetReminderConfigInput } fro
 import { AnalyticsService } from './analytics.service';
 import { WaQrService, type CreateQrInput } from './qr.service';
 import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyInput } from './quick-reply.service';
+import { CatalogService, type CatalogProductInput } from './catalog.service';
 import { WaInboxGuard, isScopedInboxRole } from './wa-roles.util';
 
 // Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
@@ -55,7 +56,40 @@ export class WhatsappCloudController {
         private readonly analytics: AnalyticsService,
         private readonly qr: WaQrService,
         private readonly quickReplies: WaQuickReplyService,
+        private readonly catalog: CatalogService,
     ) {}
+
+    // ─── Katalog produk Meta Commerce (Owner/Admin/Marketing) ────────────────
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('catalog')
+    listCatalog(@Query('channelId', ParseIntPipe) channelId: number) {
+        return this.catalog.list(channelId);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('catalog')
+    createCatalogProduct(@Body() body: { channelId: number } & CatalogProductInput) {
+        const { channelId, ...input } = body;
+        return this.catalog.create(channelId, input);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Patch('catalog/:productId')
+    updateCatalogProduct(@Param('productId') productId: string, @Body() body: { channelId: number } & CatalogProductInput) {
+        const { channelId, ...input } = body;
+        return this.catalog.update(channelId, productId, input);
+    }
+
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Delete('catalog/:productId')
+    deleteCatalogProduct(@Param('productId') productId: string, @Query('channelId', ParseIntPipe) channelId: number) {
+        return this.catalog.remove(channelId, productId);
+    }
 
     // ─── Pesan cepat / canned message (semua peran inbox) ────────────────────
 
