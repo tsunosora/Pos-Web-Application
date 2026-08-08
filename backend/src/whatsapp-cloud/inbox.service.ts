@@ -397,6 +397,23 @@ export class InboxService {
     /** Pesan sebuah percakapan (asc) + reset unread. Cursor = id pesan tertua. */
     async getMessages(conversationId: number, opts: { cursor?: number; take?: number } = {}) {
         const take = Math.min(Math.max(opts.take ?? 50, 1), 100);
+
+        // Tandai dibaca di WhatsApp (centang biru) — hanya bila ada pesan belum dibaca,
+        // agar tak spam mark-read tiap polling. Cukup tandai pesan masuk terakhir.
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            include: { channel: true },
+        });
+        if (conv && conv.unreadCount > 0) {
+            const lastInbound = await this.prisma.waMessage.findFirst({
+                where: { conversationId, direction: WaDirection.INBOUND, waMessageId: { not: null } },
+                orderBy: { id: 'desc' },
+                select: { waMessageId: true },
+            });
+            if (lastInbound?.waMessageId) {
+                void this.cloud.markAsRead(conv.channel.phoneNumberId, lastInbound.waMessageId);
+            }
+        }
         await this.prisma.waConversation.update({
             where: { id: conversationId },
             data: { unreadCount: 0 },

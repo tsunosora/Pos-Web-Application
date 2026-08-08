@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
+import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL,
@@ -156,6 +157,35 @@ export default function WhatsappInboxPage() {
     const [draft, setDraft] = useState("");
     const [pendingFile, setPendingFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [showEmoji, setShowEmoji] = useState(false);
+    const emojiWrapRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Sisipkan emoji di posisi kursor (atau di akhir bila tak ada seleksi).
+    const insertEmoji = (emoji: string) => {
+        const ta = textareaRef.current;
+        if (ta && typeof ta.selectionStart === "number") {
+            const s = ta.selectionStart, e = ta.selectionEnd;
+            setDraft((d) => d.slice(0, s) + emoji + d.slice(e));
+            requestAnimationFrame(() => {
+                ta.focus();
+                const pos = s + emoji.length;
+                ta.setSelectionRange(pos, pos);
+            });
+        } else {
+            setDraft((d) => d + emoji);
+        }
+    };
+
+    // Tutup emoji picker saat klik di luar.
+    useEffect(() => {
+        if (!showEmoji) return;
+        const onDown = (ev: MouseEvent) => {
+            if (emojiWrapRef.current && !emojiWrapRef.current.contains(ev.target as Node)) setShowEmoji(false);
+        };
+        document.addEventListener("mousedown", onDown);
+        return () => document.removeEventListener("mousedown", onDown);
+    }, [showEmoji]);
     const replyMut = useMutation({
         mutationFn: (text: string) => replyWaText(selectedId as number, text),
         onSuccess: () => {
@@ -199,6 +229,7 @@ export default function WhatsappInboxPage() {
     useEffect(() => {
         setDraft("");
         setPendingFile(null);
+        setShowEmoji(false);
     }, [selectedId]);
 
     const assignMut = useMutation({
@@ -448,7 +479,23 @@ export default function WhatsappInboxPage() {
                                     >
                                         <Paperclip className="w-4 h-4" />
                                     </button>
+                                    <div ref={emojiWrapRef} className="relative shrink-0">
+                                        {showEmoji && (
+                                            <div className="absolute bottom-full left-0 mb-2 z-20">
+                                                <EmojiPicker onPick={insertEmoji} />
+                                            </div>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowEmoji((s) => !s)}
+                                            className={`rounded-xl p-2.5 transition shrink-0 ${showEmoji ? "bg-emerald-500 text-white" : "bg-muted/60 text-foreground hover:bg-muted"}`}
+                                            title="Emoji"
+                                        >
+                                            <Smile className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                     <textarea
+                                        ref={textareaRef}
                                         value={draft}
                                         onChange={(e) => setDraft(e.target.value)}
                                         onKeyDown={(e) => {

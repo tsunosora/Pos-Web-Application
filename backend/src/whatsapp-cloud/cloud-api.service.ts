@@ -149,6 +149,19 @@ export class CloudApiService {
         return { waMessageId: json?.messages?.[0]?.id ?? null };
     }
 
+    /** Tandai pesan masuk sebagai dibaca (memicu centang biru di sisi pelanggan). Best-effort. */
+    async markAsRead(phoneNumberId: string, messageId: string): Promise<void> {
+        try {
+            await this.graph('POST', `${phoneNumberId}/messages`, {
+                messaging_product: 'whatsapp',
+                status: 'read',
+                message_id: messageId,
+            });
+        } catch (e) {
+            this.logger.warn(`Gagal tandai dibaca ${messageId}: ${(e as Error).message}`);
+        }
+    }
+
     /** Info nomor untuk health-check (verifikasi kredensial tanpa kirim pesan). */
     async getPhoneNumberInfo(phoneNumberId: string): Promise<WaPhoneInfo> {
         const json = await this.graph('GET', `${phoneNumberId}?fields=verified_name,display_phone_number`);
