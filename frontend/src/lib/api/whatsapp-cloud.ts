@@ -287,8 +287,9 @@ export interface SegmentDef {
     leadStatus?: string;
 }
 export interface VariableMapItem {
-    source: 'profileName' | 'static';
+    source: 'profileName' | 'static' | 'column';
     value?: string;
+    columnIndex?: number;   // untuk source 'column' (impor CSV berkolom)
 }
 export interface WaBroadcast {
     id: number;
@@ -312,6 +313,7 @@ export interface CreateBroadcastBody {
     templateId: number;
     segment?: SegmentDef;
     numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
+    recipients?: Array<{ number: string; vars?: string[] }>; // CSV berkolom (personalisasi per-baris)
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }

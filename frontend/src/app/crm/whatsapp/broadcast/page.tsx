@@ -39,6 +39,8 @@ export default function WhatsappBroadcastPage() {
     const [preview, setPreview] = useState<number | null>(null);
     const [recipientMode, setRecipientMode] = useState<"segment" | "import">("segment");
     const [numbersText, setNumbersText] = useState("");
+    const [csv, setCsv] = useState<{ headers: string[]; rows: string[][] } | null>(null);
+    const [numberCol, setNumberCol] = useState(0);
 
     const { data: broadcasts = [] } = useQuery({ queryKey: ["wa-broadcasts"], queryFn: listWaBroadcasts, refetchInterval: 5000 });
     const { data: channels = [] } = useQuery({ queryKey: ["wa-channels"], queryFn: listWaChannels });
@@ -51,7 +53,24 @@ export default function WhatsappBroadcastPage() {
     const nVars = selectedTpl ? countVars(selectedTpl.bodyText) : 0;
     const segment = { onlyLinked, leadStatus: leadStatus || undefined };
     const parsedNumbers = numbersText.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
-    const importNumbers = recipientMode === "import" ? parsedNumbers : undefined;
+    // Nomor untuk impor: dari kolom nomor CSV bila ada, else dari textarea tempel.
+    const csvNumbers = csv ? csv.rows.map((r) => (r[numberCol] ?? "").trim()).filter(Boolean) : [];
+    const importNumbers = recipientMode === "import" ? (csv ? csvNumbers : parsedNumbers) : undefined;
+    // Personalisasi aktif bila ada variabel yang dipetakan ke kolom CSV.
+    const personalized = recipientMode === "import" && !!csv && varMap.some((m) => m?.source === "column");
+    const builtRecipients = personalized && csv
+        ? csv.rows
+            .map((row) => ({
+                number: (row[numberCol] ?? "").trim(),
+                vars: Array.from({ length: nVars }, (_, i) => {
+                    const m = varMap[i] || { source: "static", value: "" };
+                    if (m.source === "column") return (row[m.columnIndex ?? 0] ?? "").trim();
+                    if (m.source === "static") return m.value ?? "";
+                    return "";
+                }),
+            }))
+            .filter((r) => r.number)
+        : undefined;
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["wa-broadcasts"] });
 
@@ -62,7 +81,8 @@ export default function WhatsappBroadcastPage() {
     const createMut = useMutation({
         mutationFn: () => createWaBroadcast({
             name, channelId: channelId as number, templateId: templateId as number,
-            segment, numbers: importNumbers,
+            segment,
+            ...(personalized ? { recipients: builtRecipients } : importNumbers?.length ? { numbers: importNumbers } : {}),
             variableMap: Array.from({ length: nVars }, (_, i) => varMap[i] || { source: "static", value: "" }),
             scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         }),
@@ -70,13 +90,30 @@ export default function WhatsappBroadcastPage() {
         onError: (e) => alert(errMsg(e, "Gagal membuat broadcast")),
     });
 
-    // Impor nomor dari CSV/teks: ambil sel yang mengandung ≥8 digit (kolom nomor).
+    // Parse CSV (deteksi header + kolom nomor otomatis) untuk impor & personalisasi.
     const onCsvFile = async (file: File | null) => {
         if (!file) return;
         const text = await file.text();
-        const cells = text.split(/[\n\r,;]+/).map((s) => s.trim()).filter(Boolean);
-        const nums = cells.filter((c) => c.replace(/\D/g, "").length >= 8);
-        setNumbersText((prev) => [prev, nums.join("\n")].filter(Boolean).join("\n"));
+        const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+        if (!lines.length) return;
+        const parse = (line: string) => line.split(",").map((c) => c.trim().replace(/^"|"$/g, ""));
+        let rows = lines.map(parse);
+        const digits = (s: string) => (s || "").replace(/\D/g, "").length;
+        const firstHasNumber = rows[0].some((c) => digits(c) >= 8);
+        let headers: string[];
+        if (firstHasNumber) headers = rows[0].map((_, i) => `Kolom ${i + 1}`);
+        else { headers = rows[0]; rows = rows.slice(1); }
+        const width = Math.max(headers.length, ...rows.map((r) => r.length));
+        headers = Array.from({ length: width }, (_, i) => headers[i] || `Kolom ${i + 1}`);
+        rows = rows.map((r) => Array.from({ length: width }, (_, i) => r[i] ?? ""));
+        let best = 0, bestScore = -1;
+        for (let c = 0; c < width; c++) {
+            const score = rows.reduce((n, r) => n + (digits(r[c]) >= 8 ? 1 : 0), 0);
+            if (score > bestScore) { bestScore = score; best = c; }
+        }
+        setCsv({ headers, rows });
+        setNumberCol(best);
+        setNumbersText("");
         setPreview(null);
     };
     const actMut = useMutation({
@@ -89,9 +126,9 @@ export default function WhatsappBroadcastPage() {
     function resetForm() {
         setShowForm(false); setName(""); setChannelId(null); setTemplateId(null);
         setOnlyLinked(false); setLeadStatus(""); setScheduledAt(""); setVarMap([]); setPreview(null);
-        setRecipientMode("segment"); setNumbersText("");
+        setRecipientMode("segment"); setNumbersText(""); setCsv(null); setNumberCol(0);
     }
-    const canCreate = name.trim() && channelId && templateId && (recipientMode === "segment" || parsedNumbers.length > 0);
+    const canCreate = name.trim() && channelId && templateId && (recipientMode === "segment" || (importNumbers?.length ?? 0) > 0);
 
     return (
         <div className="max-w-4xl mx-auto p-4 space-y-4">
@@ -147,16 +184,31 @@ export default function WhatsappBroadcastPage() {
                                 return (
                                     <div key={i} className="flex items-center gap-2">
                                         <span className="text-xs w-10 opacity-60">{`{{${i + 1}}}`}</span>
-                                        <select value={m.source} onChange={(e) => {
-                                            const next = [...varMap]; next[i] = { ...m, source: e.target.value as VariableMapItem["source"] }; setVarMap(next);
-                                        }} className="rounded-lg bg-muted/60 px-2 py-1.5 text-sm outline-none">
+                                        <select
+                                            value={m.source === "column" ? `column:${m.columnIndex ?? 0}` : m.source}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                const next = [...varMap];
+                                                next[i] = v.startsWith("column:")
+                                                    ? { source: "column", columnIndex: parseInt(v.slice(7), 10) }
+                                                    : { ...m, source: v as VariableMapItem["source"] };
+                                                setVarMap(next);
+                                            }}
+                                            className="rounded-lg bg-muted/60 px-2 py-1.5 text-sm outline-none"
+                                        >
                                             <option value="static">Teks tetap</option>
                                             <option value="profileName">Nama kontak</option>
+                                            {csv && csv.headers.map((h, ci) => (
+                                                <option key={ci} value={`column:${ci}`}>Kolom: {h}</option>
+                                            ))}
                                         </select>
                                         {m.source === "static" && (
                                             <input value={m.value ?? ""} onChange={(e) => {
                                                 const next = [...varMap]; next[i] = { ...m, value: e.target.value }; setVarMap(next);
                                             }} placeholder="nilai" className="flex-1 rounded-lg bg-muted/60 px-2 py-1.5 text-sm outline-none" />
+                                        )}
+                                        {m.source === "column" && csv && (
+                                            <span className="text-xs opacity-50 flex-1 truncate">contoh: {csv.rows[0]?.[m.columnIndex ?? 0] || "—"}</span>
                                         )}
                                     </div>
                                 );
@@ -189,6 +241,29 @@ export default function WhatsappBroadcastPage() {
                                         className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
                                 </label>
                             </div>
+                        ) : csv ? (
+                            <div className="rounded-lg border border-border p-3 space-y-2">
+                                <div className="flex items-center justify-between gap-2 flex-wrap text-sm">
+                                    <div className="flex items-center gap-2">
+                                        <span className="opacity-70">Kolom nomor:</span>
+                                        <select value={numberCol} onChange={(e) => { setNumberCol(Number(e.target.value)); setPreview(null); }}
+                                            className="rounded-lg bg-muted/60 px-2 py-1 text-sm outline-none">
+                                            {csv.headers.map((h, i) => <option key={i} value={i}>{h}</option>)}
+                                        </select>
+                                    </div>
+                                    <button type="button" onClick={() => { setCsv(null); setPreview(null); }} className="text-xs px-2 py-1 rounded-lg bg-muted hover:bg-muted/70">Hapus CSV</button>
+                                </div>
+                                <div className="text-xs opacity-60">{csvNumbers.length} baris · pratinjau 3 pertama:</div>
+                                <div className="overflow-x-auto">
+                                    <table className="text-xs w-full">
+                                        <thead><tr>{csv.headers.map((h, i) => <th key={i} className={`px-2 py-1 text-left ${i === numberCol ? "text-emerald-600 font-semibold" : "opacity-60"}`}>{h}{i === numberCol ? " (nomor)" : ""}</th>)}</tr></thead>
+                                        <tbody>{csv.rows.slice(0, 3).map((r, ri) => <tr key={ri}>{r.map((c, ci) => <td key={ci} className="px-2 py-1 border-t border-border/50">{c}</td>)}</tr>)}</tbody>
+                                    </table>
+                                </div>
+                                {personalized
+                                    ? <div className="text-[11px] text-emerald-600">✓ Personalisasi aktif — variabel diisi dari kolom CSV per baris (petakan di atas: pilih “Kolom: …”).</div>
+                                    : nVars > 0 && <div className="text-[11px] opacity-60">Untuk personalisasi, petakan variabel ke kolom CSV di bagian “Isi variabel”.</div>}
+                            </div>
                         ) : (
                             <div className="space-y-2">
                                 <textarea value={numbersText} onChange={(e) => { setNumbersText(e.target.value); setPreview(null); }}
@@ -201,6 +276,7 @@ export default function WhatsappBroadcastPage() {
                                     </label>
                                     <span className="opacity-60">{parsedNumbers.length} nomor terdeteksi · otomatis dinormalkan (0→62), duplikat & tak valid dibuang saat kirim.</span>
                                 </div>
+                                <div className="text-[11px] opacity-50">CSV berkolom (mis. nama, nomor, tagihan) → bisa personalisasi variabel per baris.</div>
                             </div>
                         )}
 

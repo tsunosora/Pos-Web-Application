@@ -19,6 +19,7 @@ export interface CreateBroadcastInput {
     templateId: number;
     segment?: SegmentDef;
     numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
+    recipients?: Array<{ number: string; vars?: string[] }>; // impor CSV berkolom (personalisasi per-baris)
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }
@@ -98,6 +99,30 @@ export class BroadcastService {
         return out;
     }
 
+    /** Impor CSV berkolom → penerima + nilai variabel per-baris (personalisasi). */
+    private async resolveRecipients(
+        recipients: Array<{ number: string; vars?: string[] }>,
+    ): Promise<Array<{ id: number; waId: string; vars: string[] }>> {
+        const seen = new Set<string>();
+        const out: Array<{ id: number; waId: string; vars: string[] }> = [];
+        for (const rec of recipients || []) {
+            const waId = toWaPhone(rec.number);
+            if (!waId || seen.has(waId)) continue;
+            seen.add(waId);
+            const phoneNormalized = toLeadKey(rec.number) ?? waId.replace(/^62/, '');
+            const contact = await this.prisma.waContact.upsert({
+                where: { waId },
+                create: { waId, phoneNormalized },
+                update: {},
+                select: { id: true, waId: true, optedOut: true },
+            });
+            if (!contact.optedOut) {
+                out.push({ id: contact.id, waId: contact.waId, vars: (rec.vars ?? []).map((v) => String(v ?? '')) });
+            }
+        }
+        return out;
+    }
+
     list() {
         return this.prisma.waBroadcast.findMany({
             orderBy: { createdAt: 'desc' },
@@ -118,10 +143,12 @@ export class BroadcastService {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: input.channelId } });
         if (!channel) throw new NotFoundException('Channel tidak ditemukan');
 
-        // Penerima: dari daftar nomor impor (CSV/paste) bila ada, else dari segmen kontak.
-        const contacts = input.numbers?.length
-            ? await this.resolveNumbers(input.numbers)
-            : await this.resolveSegment(input.segment);
+        // Penerima: CSV berkolom (personalisasi) > daftar nomor impor > segmen kontak.
+        const contacts: Array<{ id: number; waId: string; vars?: string[] }> = input.recipients?.length
+            ? await this.resolveRecipients(input.recipients)
+            : input.numbers?.length
+              ? await this.resolveNumbers(input.numbers)
+              : await this.resolveSegment(input.segment);
         if (!contacts.length) throw new BadRequestException('Tidak ada penerima valid (cek segmen / daftar nomor)');
         const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
         const broadcast = await this.prisma.waBroadcast.create({
@@ -144,6 +171,7 @@ export class BroadcastService {
                     contactId: c.id,
                     waId: c.waId,
                     status: 'PENDING' as const,
+                    ...(c.vars ? { varsJson: c.vars as Prisma.InputJsonValue } : {}),
                 })),
                 skipDuplicates: true,
             });
@@ -151,8 +179,11 @@ export class BroadcastService {
         return broadcast;
     }
 
-    /** Susun body parameters template per kontak dari variableMap. */
-    buildComponents(variableMap: VariableMapItem[], contact: { profileName: string | null }): any[] {
+    /** Susun body parameters template. Personalisasi per-penerima (recipientVars) menang bila ada. */
+    buildComponents(variableMap: VariableMapItem[], contact: { profileName: string | null }, recipientVars?: string[]): any[] {
+        if (recipientVars?.length) {
+            return [{ type: 'body', parameters: recipientVars.map((v) => ({ type: 'text', text: (v ?? '').toString() || '-' })) }];
+        }
         if (!variableMap?.length) return [];
         const parameters = variableMap.map((m) => {
             const text = m.source === 'profileName' ? contact.profileName || '' : m.value || '';
@@ -203,7 +234,8 @@ export class BroadcastService {
                 continue;
             }
             try {
-                const components = this.buildComponents(variableMap, contact);
+                const recipientVars = Array.isArray(r.varsJson) ? (r.varsJson as string[]) : undefined;
+                const components = this.buildComponents(variableMap, contact, recipientVars);
                 const { waMessageId } = await this.cloud.sendTemplate(
                     b.channel.phoneNumberId, r.waId, b.template.name, b.template.language, components,
                 );
