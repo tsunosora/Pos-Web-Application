@@ -366,7 +366,7 @@ export default function LeaderboardPage() {
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
                                                 <Th right>Rate</Th><Th right>Pcs</Th>
                                                 {csCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
-                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th>
+                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th><Th right>Chat WA</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -410,6 +410,7 @@ export default function LeaderboardPage() {
                                                                 </span>
                                                             ) : '—'}
                                                         </td>
+                                                        <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.waChatsHandled > 0 ? r.waChatsHandled : '—'}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>

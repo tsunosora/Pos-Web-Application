@@ -697,6 +697,11 @@ export class InboxService {
             where: { id: conv.id },
             data: { lastMessageAt: new Date() },
         });
+        // Auto-assign percakapan ke pengirim bila belum ada pemilik (atomik via where null).
+        await this.prisma.waConversation.updateMany({
+            where: { id: conv.id, assignedToId: null },
+            data: { assignedToId: userId },
+        });
         return msg;
     }
 }

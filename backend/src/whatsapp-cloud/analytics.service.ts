@@ -212,17 +212,30 @@ export class AnalyticsService {
         fromDate: Date,
         toDate: Date,
         slaMinutes = 5,
-    ): Promise<Map<number, { avgSec: number; responses: number; withinSlaPct: number }>> {
+    ): Promise<Map<number, { avgSec: number | null; responses: number; withinSlaPct: number | null; chatsHandled: number }>> {
         const slaSec = Math.max(1, slaMinutes) * 60;
         const perAgent = await this.frtByAgent(fromDate, toDate);
-        const out = new Map<number, { avgSec: number; responses: number; withinSlaPct: number }>();
-        for (const [uid, arr] of perAgent) {
-            if (!arr.length) continue;
+
+        // Jumlah percakapan berbeda yang dibalas tiap agen dalam periode ("chat ditangani").
+        const convGroups = await this.prisma.waMessage.groupBy({
+            by: ['sentById', 'conversationId'],
+            where: { direction: 'OUTBOUND', sentById: { not: null }, createdAt: { gte: fromDate, lte: toDate } },
+        });
+        const chatsByUser = new Map<number, number>();
+        for (const g of convGroups) {
+            if (g.sentById != null) chatsByUser.set(g.sentById, (chatsByUser.get(g.sentById) ?? 0) + 1);
+        }
+
+        const out = new Map<number, { avgSec: number | null; responses: number; withinSlaPct: number | null; chatsHandled: number }>();
+        const userIds = new Set<number>([...perAgent.keys(), ...chatsByUser.keys()]);
+        for (const uid of userIds) {
+            const arr = perAgent.get(uid) ?? [];
             const withinSla = arr.filter((s) => s <= slaSec).length;
             out.set(uid, {
-                avgSec: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+                avgSec: arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null,
                 responses: arr.length,
-                withinSlaPct: Math.round((withinSla / arr.length) * 100),
+                withinSlaPct: arr.length ? Math.round((withinSla / arr.length) * 100) : null,
+                chatsHandled: chatsByUser.get(uid) ?? 0,
             });
         }
         return out;

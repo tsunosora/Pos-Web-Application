@@ -2752,6 +2752,7 @@ export class KpiService {
                     waResponseSec: waMetrics.get(userId)?.avgSec ?? null,
                     waResponses: waMetrics.get(userId)?.responses ?? 0,
                     waWithinSlaPct: waMetrics.get(userId)?.withinSlaPct ?? null,
+                    waChatsHandled: waMetrics.get(userId)?.chatsHandled ?? 0,
                 };
             })
             .sort((a, b) =>

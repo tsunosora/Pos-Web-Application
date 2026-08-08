@@ -505,6 +505,7 @@ export interface KpiLeaderboardEntry {
     waResponseSec: number | null;
     waResponses: number;
     waWithinSlaPct: number | null;
+    waChatsHandled: number;   // jumlah percakapan WA berbeda yang dibalas CS dlm periode
     // Nilai metrik produk custom (owner-defined) → { "<metricId>": nilai }
     customMetrics?: Record<string, number>;
 }

@@ -216,6 +216,7 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
             waConversation: {
                 findUnique: jest.fn().mockResolvedValue(conv),
                 update: jest.fn().mockResolvedValue({}),
+                updateMany: jest.fn().mockResolvedValue({ count: 0 }),
             },
             waMessage: { create: jest.fn().mockResolvedValue({ id: 77 }) },
         };
