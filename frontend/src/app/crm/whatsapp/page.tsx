@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
-    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate,
+    listWaChannels, startWaConversation,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -328,6 +329,7 @@ export default function WhatsappInboxPage() {
     const [tab, setTab] = useState<WaConversationStatus | "ALL">("ALL");
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
+    const [composeOpen, setComposeOpen] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
 
     // Deep-link "Buka chat WA" dari pipeline: ?conv=<id> atau ?leadId=<id>.
@@ -574,6 +576,10 @@ export default function WhatsappInboxPage() {
                         <MessageSquare className="w-5 h-5 text-emerald-500" />
                         <h1 className="font-semibold">WhatsApp CRM</h1>
                         <WhatsappGuideButton className="ml-auto p-1.5 rounded-lg hover:bg-muted" />
+                        <button onClick={() => setComposeOpen(true)} title="Chat baru — simpan nomor & kirim pesan"
+                            className="p-1.5 rounded-lg hover:bg-muted text-emerald-500">
+                            <PenSquare className="w-4 h-4" />
+                        </button>
                         <Link href="/crm/whatsapp/settings" title="Pengaturan channel" className="p-1.5 rounded-lg hover:bg-muted">
                             <Settings className="w-4 h-4 opacity-70" />
                         </Link>
@@ -859,6 +865,137 @@ export default function WhatsappInboxPage() {
             </section>
 
             {lightboxId != null && <ImageLightbox messageId={lightboxId} onClose={() => setLightboxId(null)} />}
+            {composeOpen && (
+                <NewChatModal
+                    onClose={() => setComposeOpen(false)}
+                    onStarted={(conversationId) => {
+                        setComposeOpen(false);
+                        setTab("ALL");
+                        setSearch("");
+                        setSelectedId(conversationId);
+                        qc.invalidateQueries({ queryKey: ["wa-convos"] });
+                    }}
+                />
+            )}
+        </div>
+    );
+}
+
+// ─── Modal "Chat Baru": simpan nomor baru + kirim template pembuka ───────────
+function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: (conversationId: number) => void }) {
+    const [phone, setPhone] = useState("");
+    const [name, setName] = useState("");
+    const [channelId, setChannelId] = useState<number | "">("");
+    const [tplId, setTplId] = useState<number | "">("");
+
+    const { data: channels = [] } = useQuery({
+        queryKey: ["wa-channels"],
+        queryFn: listWaChannels,
+        select: (all: WaChannel[]) => all.filter((c) => c.isActive),
+    });
+    const { data: templates = [] } = useQuery({
+        queryKey: ["wa-templates-approved"],
+        queryFn: listWaTemplates,
+        select: (all: WaTemplate[]) => all.filter((t) => t.status === "APPROVED"),
+    });
+
+    // Pilih channel default (yang pertama) saat data siap.
+    useEffect(() => {
+        if (channelId === "" && channels.length > 0) setChannelId(channels[0].id);
+    }, [channels, channelId]);
+
+    const selectedTpl = templates.find((t) => t.id === tplId);
+    // Deteksi jumlah variabel {{n}} di body template (kalau ada, pesan pertama butuh isian → belum didukung di modal ini).
+    const varCount = selectedTpl ? (selectedTpl.bodyText.match(/\{\{\s*\d+\s*\}\}/g) || []).length : 0;
+
+    const startMut = useMutation({
+        mutationFn: () => {
+            if (!selectedTpl) throw new Error("Pilih template pembuka");
+            return startWaConversation({
+                channelId: channelId as number,
+                phone: phone.trim(),
+                name: name.trim() || undefined,
+                template: { name: selectedTpl.name, language: selectedTpl.language, previewText: selectedTpl.bodyText },
+            });
+        },
+        onSuccess: (res) => onStarted(res.conversationId),
+        onError: (e: unknown) => {
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            alert(msg || (e as Error).message || "Gagal memulai chat");
+        },
+    });
+
+    const digits = phone.replace(/[^0-9]/g, "");
+    const canSend = digits.length >= 8 && channelId !== "" && tplId !== "" && varCount === 0 && !startMut.isPending;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+            <div className="w-full max-w-md rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2">
+                    <PenSquare className="w-5 h-5 text-emerald-500" />
+                    <h2 className="font-semibold">Chat Baru</h2>
+                    <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+                </div>
+                <p className="text-xs opacity-60">
+                    Simpan nomor baru & kirim pesan pertama. Nomor tersimpan sebagai kontak + lead CRM.
+                    Pesan pertama <b>wajib pakai template</b> (aturan Meta); pelanggan bisa dibalas bebas setelah membalas.
+                </p>
+
+                <label className="block text-sm space-y-1">
+                    <span className="opacity-70">Nomor WhatsApp</span>
+                    <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0812xxxx / 62812xxxx" inputMode="tel"
+                        className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm" />
+                </label>
+
+                <label className="block text-sm space-y-1">
+                    <span className="opacity-70">Nama <span className="opacity-50">(opsional)</span></span>
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama kontak"
+                        className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm" />
+                </label>
+
+                <label className="block text-sm space-y-1">
+                    <span className="opacity-70">Kirim dari nomor</span>
+                    <select value={channelId} onChange={(e) => setChannelId(e.target.value === "" ? "" : Number(e.target.value))}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                        <option value="">Pilih channel…</option>
+                        {channels.map((c) => (
+                            <option key={c.id} value={c.id}>{c.label}{c.displayNumber ? ` (${c.displayNumber})` : ""}</option>
+                        ))}
+                    </select>
+                    {channels.length === 0 && <span className="text-xs text-amber-500">Belum ada channel aktif.</span>}
+                </label>
+
+                <label className="block text-sm space-y-1">
+                    <span className="opacity-70">Template pembuka</span>
+                    {templates.length === 0 ? (
+                        <span className="text-xs text-amber-500 block">
+                            Belum ada template disetujui. <Link href="/crm/whatsapp/templates" className="underline">Kelola template →</Link>
+                        </span>
+                    ) : (
+                        <select value={tplId} onChange={(e) => setTplId(e.target.value === "" ? "" : Number(e.target.value))}
+                            className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm">
+                            <option value="">Pilih template…</option>
+                            {templates.map((t) => (
+                                <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
+                            ))}
+                        </select>
+                    )}
+                </label>
+
+                {selectedTpl && (
+                    <div className="text-xs rounded-lg bg-muted/60 p-2 whitespace-pre-wrap">{selectedTpl.bodyText}</div>
+                )}
+                {varCount > 0 && (
+                    <div className="text-xs text-amber-500">
+                        Template ini punya {varCount} variabel ({"{{1}}"}…). Untuk pesan berisi variabel, kirim lewat menu <b>Broadcast</b> dulu.
+                    </div>
+                )}
+
+                <button onClick={() => startMut.mutate()} disabled={!canSend}
+                    className="w-full rounded-lg bg-emerald-500 text-white py-2 text-sm font-medium disabled:opacity-50">
+                    {startMut.isPending ? "Mengirim…" : "Simpan & Kirim"}
+                </button>
+            </div>
         </div>
     );
 }

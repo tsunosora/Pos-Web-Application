@@ -26,7 +26,7 @@ import {
     type CreateChannelInput,
     type UpdateChannelInput,
 } from './whatsapp-cloud.service';
-import { InboxService } from './inbox.service';
+import { InboxService, type StartConversationInput } from './inbox.service';
 import { MediaStorageService } from './media-storage.service';
 import { TemplatesService, type CreateTemplateInput, type UpdateTemplateInput } from './templates.service';
 import { BroadcastService, type CreateBroadcastInput, type SegmentDef } from './broadcast.service';
@@ -441,6 +441,14 @@ export class WhatsappCloudController {
             snoozedUntil:
                 body.snoozedUntil === undefined ? undefined : body.snoozedUntil ? new Date(body.snoozedUntil) : null,
         });
+    }
+
+    /** Chat Baru: simpan nomor baru + kirim template pembuka → buka percakapan. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Post('conversations/start')
+    startConversation(@Req() req: any, @Body() body: StartConversationInput) {
+        return this.inbox.startConversation(req.user.userId, body);
     }
 
     /** Balas teks (hanya sah di dalam jendela 24 jam → 409 bila lewat). */

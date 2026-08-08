@@ -114,6 +114,17 @@ export const updateWaConversation = async (
 export const replyWaText = async (id: number, text: string, replyTo?: string): Promise<WaMessage> =>
     (await api.post(`/whatsapp/conversations/${id}/reply`, { text, replyTo })).data;
 
+// Chat Baru: simpan nomor baru & kirim template pembuka → kembalikan conversationId.
+export interface StartConversationBody {
+    channelId: number;
+    phone: string;
+    name?: string;
+    createLead?: boolean;
+    template: { name: string; language?: string; components?: unknown[]; previewText?: string };
+}
+export const startWaConversation = async (body: StartConversationBody): Promise<{ conversationId: number }> =>
+    (await api.post(`/whatsapp/conversations/start`, body)).data;
+
 // Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi agen).
 export const reactWaMessage = async (messageId: number, emoji: string): Promise<WaMessage> =>
     (await api.post(`/whatsapp/messages/${messageId}/react`, { emoji })).data;

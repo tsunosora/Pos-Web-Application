@@ -16,6 +16,14 @@ export interface ListConversationsOpts {
     take?: number;
 }
 
+export interface StartConversationInput {
+    channelId: number;
+    phone: string;
+    name?: string;
+    createLead?: boolean; // default true — daftarkan juga sebagai Lead CRM (dedup by phone)
+    template: { name: string; language?: string; components?: any[]; previewText?: string };
+}
+
 const WINDOW_MS = 24 * 60 * 60 * 1000; // jendela layanan 24 jam Meta
 
 // Peta tipe pesan Meta → enum WaMessageType.
@@ -731,6 +739,101 @@ export class InboxService {
             body: input.previewText ?? `[template: ${input.name}]`,
             templateName: input.name,
         });
+    }
+
+    /**
+     * "Chat Baru": CS menyimpan nomor baru & memulai percakapan dari inbox.
+     * Simpan kontak (WaContact + opsional Lead CRM, dedup by phone), kirim template
+     * pembuka (wajib — nomor baru belum punya jendela 24 jam), lalu kembalikan
+     * conversationId agar UI langsung membuka chat.
+     */
+    async startConversation(userId: number, input: StartConversationInput): Promise<{ conversationId: number }> {
+        const channel = await this.prisma.waChannel.findUnique({ where: { id: input.channelId } });
+        if (!channel || !channel.isActive) throw new BadRequestException('Channel tidak ditemukan / nonaktif');
+        if (!input.template?.name) throw new BadRequestException('Template pembuka wajib dipilih');
+
+        const waId = toWaPhone(input.phone);
+        if (!waId) throw new BadRequestException('Nomor WhatsApp tidak valid');
+        const phoneNormalized = toLeadKey(input.phone) ?? waId.replace(/^62/, '');
+        const name = input.name?.trim() || null;
+
+        const existingContact = await this.prisma.waContact.findUnique({ where: { waId } });
+        if (existingContact?.optedOut) throw new ConflictException('Kontak sudah opt-out (berhenti berlangganan)');
+
+        // Tautkan / buat Lead CRM (dedup by phone) supaya kontak tersimpan & terlacak.
+        let lead = await this.prisma.lead.findFirst({
+            where: { phoneNormalized },
+            orderBy: { updatedAt: 'desc' },
+            select: { id: true, convertedCustomerId: true },
+        });
+        if (!lead && (input.createLead ?? true)) {
+            lead = await this.prisma.lead.create({
+                data: {
+                    name: name || `WA ${waId}`,
+                    phone: input.phone,
+                    phoneNormalized,
+                    source: 'WHATSAPP',
+                    status: 'NEW',
+                    branchId: channel.branchId ?? null,
+                },
+                select: { id: true, convertedCustomerId: true },
+            });
+            await this.prisma.leadActivity.create({
+                data: { leadId: lead.id, kind: 'FIRST_CONTACT', text: 'Kontak ditambahkan manual via WhatsApp', meta: { source: 'whatsapp-manual' } },
+            });
+        }
+
+        const now = new Date();
+        const contact = await this.prisma.waContact.upsert({
+            where: { waId },
+            create: {
+                waId,
+                phoneNormalized,
+                profileName: name,
+                leadId: lead?.id ?? null,
+                customerId: lead?.convertedCustomerId ?? null,
+            },
+            update: {
+                ...(name ? { profileName: name } : {}),
+                ...(lead?.id ? { leadId: lead.id } : {}),
+                ...(lead?.convertedCustomerId ? { customerId: lead.convertedCustomerId } : {}),
+            },
+        });
+
+        // Pakai percakapan yang belum ditutup bila ada; kalau tidak, buat baru.
+        // Catatan: kirim template TIDAK membuka jendela 24 jam (baru terbuka saat
+        // pelanggan membalas) → windowExpiresAt sengaja dibiarkan kosong.
+        let conv = await this.prisma.waConversation.findFirst({
+            where: { channelId: channel.id, contactId: contact.id, status: { not: 'CLOSED' } },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (!conv) {
+            conv = await this.prisma.waConversation.create({
+                data: {
+                    channelId: channel.id,
+                    contactId: contact.id,
+                    status: 'OPEN',
+                    lastMessageAt: now,
+                    assignedToId: userId,
+                },
+            });
+        }
+
+        const { waMessageId } = await this.cloud.sendTemplate(
+            channel.phoneNumberId,
+            contact.waId,
+            input.template.name,
+            input.template.language ?? 'id',
+            input.template.components ?? [],
+        );
+        await this.persistOutbound(conv, userId, {
+            waMessageId,
+            type: WaMessageType.TEMPLATE,
+            body: input.template.previewText ?? `[template: ${input.template.name}]`,
+            templateName: input.template.name,
+        });
+
+        return { conversationId: conv.id };
     }
 
     private async persistOutbound(
