@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { QRCodeCanvas } from "qrcode.react";
-import { ArrowLeft, QrCode, Download, Copy, Trash2, ExternalLink, Plus } from "lucide-react";
+import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
+import { ArrowLeft, QrCode, Copy, Trash2, ExternalLink, Plus, FileImage, FileCode } from "lucide-react";
 import {
     listWaQrLinks, createWaQrLink, updateWaQrLink, deleteWaQrLink, listWaChannels,
     buildWaMeLink, type WaQrLink, type WaChannel,
@@ -21,6 +21,11 @@ function errMsg(e: unknown): string {
     return (e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Terjadi kesalahan";
 }
 
+// imageSettings qrcode.react — sisipkan logo toko di tengah (excavate = kosongkan modul di baliknya).
+function logoSettings(dataUrl: string | undefined, size: number) {
+    return dataUrl ? { src: dataUrl, height: size, width: size, excavate: true } : undefined;
+}
+
 export default function WhatsappQrPage() {
     const qc = useQueryClient();
     const { data: links = [], isLoading } = useQuery({ queryKey: ["wa-qr-links"], queryFn: listWaQrLinks });
@@ -28,11 +33,54 @@ export default function WhatsappQrPage() {
 
     const activeChannels = useMemo(() => channels.filter((c) => c.isActive), [channels]);
 
+    // Logo toko sebagai data URL (dari proxy same-origin /api/logo → aman utk canvas & portabel di SVG).
+    const [logoDataUrl, setLogoDataUrl] = useState<string | undefined>(undefined);
+    useEffect(() => {
+        let cancelled = false;
+        fetch("/api/logo")
+            .then((r) => (r.ok ? r.blob() : null))
+            .then((blob) => {
+                if (!blob || cancelled) return;
+                const fr = new FileReader();
+                fr.onload = () => { if (!cancelled) setLogoDataUrl(fr.result as string); };
+                fr.readAsDataURL(blob);
+            })
+            .catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
+
     const [name, setName] = useState("");
     const [source, setSource] = useState<LeadSource>("WALK_IN");
     const [sourceDetail, setSourceDetail] = useState("");
     const [channelId, setChannelId] = useState<number | "">("");
     const [prefill, setPrefill] = useState(DEFAULT_PREFILL);
+
+    // Ekspor on-demand: render 1 QR resolusi tinggi tersembunyi lalu unduh.
+    const [exporting, setExporting] = useState<{ link: WaQrLink; url: string; format: "png" | "svg" } | null>(null);
+    useEffect(() => {
+        if (!exporting) return;
+        const t = setTimeout(() => {
+            const host = document.getElementById("qr-export-host");
+            try {
+                if (exporting.format === "png") {
+                    const canvas = host?.querySelector("canvas");
+                    if (canvas) triggerDownload(canvas.toDataURL("image/png"), `qr-wa-${exporting.link.code}.png`);
+                } else {
+                    const svg = host?.querySelector("svg");
+                    if (svg) {
+                        const xml = new XMLSerializer().serializeToString(svg);
+                        const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
+                        const objUrl = URL.createObjectURL(blob);
+                        triggerDownload(objUrl, `qr-wa-${exporting.link.code}.svg`);
+                        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+                    }
+                }
+            } finally {
+                setExporting(null);
+            }
+        }, 300); // beri waktu logo (data URL) ter-decode ke canvas/SVG
+        return () => clearTimeout(t);
+    }, [exporting]);
 
     const createMut = useMutation({
         mutationFn: () => createWaQrLink({
@@ -75,6 +123,7 @@ export default function WhatsappQrPage() {
                 Buat <b>QR WhatsApp</b> untuk brosur, banner, atau meja kasir. Saat pelanggan scan, WhatsApp mereka
                 terbuka dengan pesan siap-kirim. Tiap QR menanam kode tersembunyi (<code>#kode</code>) sehingga
                 lead yang masuk otomatis ditandai sumbernya (mis. <b>Walk-in</b>) di CRM &amp; leaderboard.
+                Unduh sebagai <b>SVG</b> (vektor, tak pecah dicetak sebesar apa pun) atau <b>PNG HD</b>.
             </p>
 
             <div className="grid md:grid-cols-[340px_1fr] gap-4 items-start">
@@ -127,6 +176,9 @@ export default function WhatsappQrPage() {
                         className="w-full rounded-lg bg-emerald-500 text-white py-2 text-sm font-medium disabled:opacity-50">
                         {createMut.isPending ? "Menyimpan…" : "Buat QR"}
                     </button>
+                    {logoDataUrl
+                        ? <p className="text-[11px] opacity-50">✓ Logo toko akan disematkan di tengah QR.</p>
+                        : <p className="text-[11px] opacity-50">Logo toko belum diunggah — QR tetap dibuat tanpa logo. Atur di Pengaturan.</p>}
                 </div>
 
                 {/* Daftar QR */}
@@ -140,11 +192,15 @@ export default function WhatsappQrPage() {
                     ) : (
                         links.map((link) => {
                             const channel = channels.find((c) => c.id === link.channelId);
+                            const url = buildWaMeLink(channel?.displayNumber, link.prefillText);
                             return (
                                 <QrLinkCard
                                     key={link.id}
                                     link={link}
                                     channel={channel}
+                                    url={url}
+                                    logoDataUrl={logoDataUrl}
+                                    onDownload={(format) => setExporting({ link, url, format })}
                                     onDelete={() => { if (confirm(`Hapus QR "${link.name}"?`)) delMut.mutate(link.id); }}
                                     onToggle={() => toggleMut.mutate({ id: link.id, isActive: !link.isActive })}
                                 />
@@ -153,28 +209,39 @@ export default function WhatsappQrPage() {
                     )}
                 </div>
             </div>
+
+            {/* Host tersembunyi untuk render QR resolusi tinggi saat ekspor */}
+            <div id="qr-export-host" aria-hidden style={{ position: "fixed", left: -100000, top: 0, pointerEvents: "none", opacity: 0 }}>
+                {exporting && (exporting.format === "png" ? (
+                    <QRCodeCanvas value={exporting.url} size={1024} level="H" marginSize={4} bgColor="#ffffff" fgColor="#0f172a"
+                        imageSettings={logoSettings(logoDataUrl, 220)} />
+                ) : (
+                    <QRCodeSVG value={exporting.url} size={512} level="H" marginSize={4} bgColor="#ffffff" fgColor="#0f172a"
+                        imageSettings={logoSettings(logoDataUrl, 110)} />
+                ))}
+            </div>
         </div>
     );
 }
 
-function QrLinkCard({ link, channel, onDelete, onToggle }: {
+function triggerDownload(href: string, filename: string) {
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+}
+
+function QrLinkCard({ link, channel, url, logoDataUrl, onDownload, onDelete, onToggle }: {
     link: WaQrLink;
     channel?: WaChannel;
+    url: string;
+    logoDataUrl?: string;
+    onDownload: (format: "png" | "svg") => void;
     onDelete: () => void;
     onToggle: () => void;
 }) {
-    const wrapRef = useRef<HTMLDivElement>(null);
-    const url = buildWaMeLink(channel?.displayNumber, link.prefillText);
-
-    const download = () => {
-        const canvas = wrapRef.current?.querySelector("canvas");
-        if (!canvas) return;
-        const a = document.createElement("a");
-        a.href = canvas.toDataURL("image/png");
-        a.download = `qr-wa-${link.code}.png`;
-        a.click();
-    };
-
     const copyLink = async () => {
         try { await navigator.clipboard.writeText(url); alert("Link disalin ✓"); }
         catch { alert("Gagal menyalin"); }
@@ -182,8 +249,9 @@ function QrLinkCard({ link, channel, onDelete, onToggle }: {
 
     return (
         <div className={`rounded-2xl border border-border bg-card/60 p-4 flex gap-4 ${link.isActive ? "" : "opacity-60"}`}>
-            <div ref={wrapRef} className="shrink-0 rounded-xl bg-white p-2">
-                <QRCodeCanvas value={url} size={116} level="M" includeMargin={false} />
+            <div className="shrink-0 rounded-xl bg-white p-2 self-start">
+                <QRCodeSVG value={url} size={120} level="H" marginSize={0} bgColor="#ffffff" fgColor="#0f172a"
+                    imageSettings={logoSettings(logoDataUrl, 26)} />
             </div>
             <div className="flex-1 min-w-0 space-y-1.5">
                 <div className="flex items-center gap-2">
@@ -199,8 +267,11 @@ function QrLinkCard({ link, channel, onDelete, onToggle }: {
                 </div>
                 <div className="text-xs opacity-70">Kode: <code className="bg-muted px-1 rounded">#{link.code}</code> · {link.scanCount} scan</div>
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                    <button onClick={download} className="inline-flex items-center gap-1 text-xs rounded-lg border border-border px-2 py-1 hover:bg-muted">
-                        <Download className="w-3.5 h-3.5" /> Unduh PNG
+                    <button onClick={() => onDownload("svg")} className="inline-flex items-center gap-1 text-xs rounded-lg border border-border px-2 py-1 hover:bg-muted">
+                        <FileCode className="w-3.5 h-3.5" /> SVG
+                    </button>
+                    <button onClick={() => onDownload("png")} className="inline-flex items-center gap-1 text-xs rounded-lg border border-border px-2 py-1 hover:bg-muted">
+                        <FileImage className="w-3.5 h-3.5" /> PNG HD
                     </button>
                     <button onClick={copyLink} className="inline-flex items-center gap-1 text-xs rounded-lg border border-border px-2 py-1 hover:bg-muted">
                         <Copy className="w-3.5 h-3.5" /> Salin link
