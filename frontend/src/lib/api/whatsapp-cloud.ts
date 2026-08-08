@@ -494,9 +494,17 @@ export interface WaAnalytics {
     };
 }
 
+export interface WaBenchmarkAgent {
+    userId: number; name: string; roleName?: string | null; isDesigner?: boolean;
+    responses: number; avgSec: number; medianSec: number; fastestSec: number; withinSlaPct: number;
+}
+export interface WaBenchmarkOverall { responses: number; avgSec: number; medianSec: number }
 export interface WaCsBenchmark {
-    agents: Array<{ userId: number; name: string; responses: number; avgSec: number; medianSec: number; fastestSec: number; withinSlaPct: number }>;
-    overall: { responses: number; avgSec: number; medianSec: number };
+    agents: WaBenchmarkAgent[];        // semua (kompat)
+    csAgents: WaBenchmarkAgent[];      // non-desainer (CS murni)
+    designerAgents: WaBenchmarkAgent[]; // desainer (dipisah)
+    overall: WaBenchmarkOverall;        // CS saja
+    overallDesigner: WaBenchmarkOverall;
     slaMinutes: number;
 }
 export const getWaCsBenchmark = async (params: { from?: string; to?: string; channelId?: number; slaMinutes?: number } = {}): Promise<WaCsBenchmark> =>

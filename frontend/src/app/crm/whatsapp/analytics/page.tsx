@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, MessageSquare, Send, CheckCheck, Users, UserPlus, Megaphone, TrendingUp, Wallet, Timer, Zap } from "lucide-react";
-import { getWaAnalytics, getWaCsBenchmark, listWaChannels, type WaAnalytics } from "@/lib/api/whatsapp-cloud";
+import { getWaAnalytics, getWaCsBenchmark, listWaChannels, type WaAnalytics, type WaCsBenchmark } from "@/lib/api/whatsapp-cloud";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const PRESETS = [
@@ -113,46 +113,65 @@ function CsBenchmarkSection({ from, channelId }: { from: string; channelId: numb
             </div>
             <p className="text-xs opacity-60">
                 First Response Time: waktu dari pesan masuk pelanggan sampai balasan <b>manusia</b> pertama. Dinilai ke agen yang mengirim balasan; auto-reply tak dihitung.
+                Metrik <b>Desainer dipisah</b> agar CS tetap murni.
             </p>
             {isLoading ? (
                 <p className="text-sm opacity-60">Memuat…</p>
             ) : !data || data.agents.length === 0 ? (
                 <p className="text-sm opacity-60">Belum ada data balasan agen di periode ini.</p>
             ) : (
-                <>
-                    <div className="text-xs opacity-70">
-                        Rata-rata keseluruhan: <b>{fmtDur(data.overall.avgSec)}</b> · median {fmtDur(data.overall.medianSec)} · {data.overall.responses} balasan
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="text-xs opacity-60 text-left">
-                                    <th className="py-1 font-normal">Agen</th>
-                                    <th className="font-normal">Balasan</th>
-                                    <th className="font-normal">Rata-rata</th>
-                                    <th className="font-normal">Median</th>
-                                    <th className="font-normal">Tercepat</th>
-                                    <th className="font-normal text-right">≤{data.slaMinutes}m</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {data.agents.map((a, i) => (
-                                    <tr key={a.userId} className="border-t border-border">
-                                        <td className="py-2"><span className="flex items-center gap-1.5">{i === 0 && <Zap className="w-3.5 h-3.5 text-amber-500" />}{a.name}</span></td>
-                                        <td>{a.responses}</td>
-                                        <td>{fmtDur(a.avgSec)}</td>
-                                        <td>{fmtDur(a.medianSec)}</td>
-                                        <td>{fmtDur(a.fastestSec)}</td>
-                                        <td className="text-right">
-                                            <span className={a.withinSlaPct >= 80 ? "text-emerald-600" : a.withinSlaPct >= 50 ? "text-amber-600" : "text-red-500"}>{a.withinSlaPct}%</span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
+                <div className="space-y-4">
+                    <BenchmarkTable title="CS" agents={data.csAgents} overall={data.overall} slaMinutes={data.slaMinutes} />
+                    {data.designerAgents.length > 0 && (
+                        <BenchmarkTable title="Desainer" agents={data.designerAgents} overall={data.overallDesigner} slaMinutes={data.slaMinutes} />
+                    )}
+                </div>
             )}
+        </div>
+    );
+}
+
+function BenchmarkTable({ title, agents, overall, slaMinutes }: {
+    title: string;
+    agents: WaCsBenchmark["agents"];
+    overall: WaCsBenchmark["overall"];
+    slaMinutes: number;
+}) {
+    if (agents.length === 0) return null;
+    return (
+        <div className="space-y-1.5">
+            <div className="text-xs font-medium opacity-80">{title}</div>
+            <div className="text-xs opacity-70">
+                Rata-rata: <b>{fmtDur(overall.avgSec)}</b> · median {fmtDur(overall.medianSec)} · {overall.responses} balasan
+            </div>
+            <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                    <thead>
+                        <tr className="text-xs opacity-60 text-left">
+                            <th className="py-1 font-normal">Agen</th>
+                            <th className="font-normal">Balasan</th>
+                            <th className="font-normal">Rata-rata</th>
+                            <th className="font-normal">Median</th>
+                            <th className="font-normal">Tercepat</th>
+                            <th className="font-normal text-right">≤{slaMinutes}m</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {agents.map((a, i) => (
+                            <tr key={a.userId} className="border-t border-border">
+                                <td className="py-2"><span className="flex items-center gap-1.5">{i === 0 && <Zap className="w-3.5 h-3.5 text-amber-500" />}{a.name}</span></td>
+                                <td>{a.responses}</td>
+                                <td>{fmtDur(a.avgSec)}</td>
+                                <td>{fmtDur(a.medianSec)}</td>
+                                <td>{fmtDur(a.fastestSec)}</td>
+                                <td className="text-right">
+                                    <span className={a.withinSlaPct >= 80 ? "text-emerald-600" : a.withinSlaPct >= 50 ? "text-amber-600" : "text-red-500"}>{a.withinSlaPct}%</span>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
         </div>
     );
 }

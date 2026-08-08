@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { isDesignerRole } from './wa-roles.util';
 
 export interface AnalyticsQuery {
     from?: string;
@@ -301,9 +302,9 @@ export class AnalyticsService {
 
         const userIds = [...perAgent.keys()];
         const users = userIds.length
-            ? await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+            ? await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true, role: { select: { name: true } } } })
             : [];
-        const nameById = new Map(users.map((u) => [u.id, u.name]));
+        const infoById = new Map(users.map((u) => [u.id, { name: u.name, roleName: u.role?.name ?? null }]));
 
         const median = (a: number[]) => {
             if (!a.length) return 0;
@@ -316,9 +317,12 @@ export class AnalyticsService {
             .map((id) => {
                 const arr = perAgent.get(id)!;
                 const withinSla = arr.filter((s) => s <= slaSec).length;
+                const info = infoById.get(id);
                 return {
                     userId: id,
-                    name: nameById.get(id) ?? `User ${id}`,
+                    name: info?.name ?? `User ${id}`,
+                    roleName: info?.roleName ?? null,
+                    isDesigner: isDesignerRole(info?.roleName),
                     responses: arr.length,
                     avgSec: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
                     medianSec: Math.round(median(arr)),
@@ -328,12 +332,25 @@ export class AnalyticsService {
             })
             .sort((a, b) => a.avgSec - b.avgSec); // tercepat di atas
 
-        const all = [...perAgent.values()].flat();
-        const overall = {
-            responses: all.length,
-            avgSec: all.length ? Math.round(all.reduce((a, b) => a + b, 0) / all.length) : 0,
-            medianSec: Math.round(median(all)),
+        const overallFor = (ids: number[]) => {
+            const arr = ids.flatMap((id) => perAgent.get(id) ?? []);
+            return {
+                responses: arr.length,
+                avgSec: arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0,
+                medianSec: Math.round(median(arr)),
+            };
         };
-        return { agents, overall, slaMinutes };
+
+        // Opsi 2: benchmark desainer DIPISAH dari CS (metrik CS tetap murni).
+        const csAgents = agents.filter((a) => !a.isDesigner);
+        const designerAgents = agents.filter((a) => a.isDesigner);
+        return {
+            agents, // semua (kompat lama)
+            csAgents,
+            designerAgents,
+            overall: overallFor(csAgents.map((a) => a.userId)), // CS saja
+            overallDesigner: overallFor(designerAgents.map((a) => a.userId)),
+            slaMinutes,
+        };
     }
 }
