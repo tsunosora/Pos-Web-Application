@@ -787,7 +787,7 @@ export default function WhatsappInboxPage() {
                     </div>
                 ) : (
                     <>
-                        <header className="p-3 border-b border-border flex items-center justify-between gap-2">
+                        <header className="p-3 border-b border-border flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
                                 <button
                                     type="button"
@@ -809,7 +809,7 @@ export default function WhatsappInboxPage() {
                                         <Pencil className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
-                                <div className="text-xs opacity-60 flex items-center gap-2">
+                                <div className="text-xs opacity-60 flex flex-wrap items-center gap-x-2 gap-y-1">
                                     <span>+{selected.contact.waId}</span>
                                     <StatusBadge tone={STATUS_TONE[selected.status]}>
                                         {WA_STATUS_LABEL[selected.status]}
@@ -841,7 +841,7 @@ export default function WhatsappInboxPage() {
                                 </div>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0">
+                            <div className="flex flex-wrap items-center gap-2 shrink-0 md:flex-nowrap">
                                 <Link
                                     href={(() => {
                                         const c = selected.contact;
