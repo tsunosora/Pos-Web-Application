@@ -217,6 +217,53 @@ export class CloudApiService {
         await this.graph('POST', `${phoneNumberId}/whatsapp_business_profile`, payload);
     }
 
+    private get appId(): string {
+        return process.env.WA_APP_ID || '';
+    }
+
+    /**
+     * Ganti foto profil nomor. Alur Resumable Upload API Meta (3 langkah):
+     *  1) buat sesi upload di /{app_id}/uploads → upload_session_id
+     *  2) POST byte ke sesi (Authorization: OAuth) → handle `h`
+     *  3) set whatsapp_business_profile { profile_picture_handle: h }
+     */
+    async updateProfilePicture(
+        phoneNumberId: string,
+        buffer: Buffer,
+        mime: string,
+        filename: string,
+    ): Promise<void> {
+        if (!this.token) throw new Error('WA_ACCESS_TOKEN belum diset');
+        if (!this.appId) {
+            throw new Error('WA_APP_ID belum diset di server (.env) — perlu App ID Meta untuk unggah foto profil');
+        }
+        // 1) sesi upload
+        const sessUrl =
+            this.url(`${this.appId}/uploads`) +
+            `?file_name=${encodeURIComponent(filename)}&file_length=${buffer.length}` +
+            `&file_type=${encodeURIComponent(mime)}&access_token=${encodeURIComponent(this.token)}`;
+        const sessRes = await fetch(sessUrl, { method: 'POST' });
+        const sess = await sessRes.json().catch(() => ({}));
+        if (!sessRes.ok || !(sess as any)?.id) {
+            throw new Error(`Gagal buat sesi upload: ${(sess as any)?.error?.message || sessRes.status}`);
+        }
+        // 2) unggah byte
+        const upRes = await fetch(this.url(`${(sess as any).id}`), {
+            method: 'POST',
+            headers: { Authorization: `OAuth ${this.token}`, file_offset: '0', 'Content-Type': mime },
+            body: new Uint8Array(buffer),
+        });
+        const up = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !(up as any)?.h) {
+            throw new Error(`Gagal unggah foto: ${(up as any)?.error?.message || upRes.status}`);
+        }
+        // 3) set handle sebagai foto profil
+        await this.graph('POST', `${phoneNumberId}/whatsapp_business_profile`, {
+            messaging_product: 'whatsapp',
+            profile_picture_handle: (up as any).h,
+        });
+    }
+
     /** Info nomor untuk health-check (verifikasi kredensial tanpa kirim pesan). */
     async getPhoneNumberInfo(phoneNumberId: string): Promise<WaPhoneInfo> {
         const json = await this.graph('GET', `${phoneNumberId}?fields=verified_name,display_phone_number`);

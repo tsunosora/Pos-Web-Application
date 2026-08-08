@@ -211,6 +211,11 @@ export const getWaChannelProfile = async (id: number): Promise<WaBusinessProfile
     (await api.get(`/whatsapp/channels/${id}/profile`)).data;
 export const updateWaChannelProfile = async (id: number, data: Partial<WaBusinessProfile>): Promise<WaBusinessProfile> =>
     (await api.patch(`/whatsapp/channels/${id}/profile`, data)).data;
+export const uploadWaChannelProfilePicture = async (id: number, file: File): Promise<WaBusinessProfile> => {
+    const form = new FormData();
+    form.append('file', file);
+    return (await api.post(`/whatsapp/channels/${id}/profile-picture`, form, { headers: { 'Content-Type': 'multipart/form-data' } })).data;
+};
 
 // ─── Template Meta ─────────────────────────────────────────────────────────
 

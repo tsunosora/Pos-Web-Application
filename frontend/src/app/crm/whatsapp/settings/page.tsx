@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Trash2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, HardDrive, User } from "lucide-react";
 import {
     listWaChannels, createWaChannel, updateWaChannel, deleteWaChannel, getWaHealth,
-    getWaMediaStats, cleanupWaMedia, getWaChannelProfile, updateWaChannelProfile,
+    getWaMediaStats, cleanupWaMedia, getWaChannelProfile, updateWaChannelProfile, uploadWaChannelProfilePicture,
     type WaChannel, type CreateChannelBody, type WaBusinessProfile,
 } from "@/lib/api/whatsapp-cloud";
 import { getBranches } from "@/lib/api/settings";
@@ -342,6 +342,22 @@ function ChannelProfileEditor({ channelId }: { channelId: number }) {
         onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menyimpan profil"),
     });
 
+    const picInputRef = useRef<HTMLInputElement>(null);
+    const picMut = useMutation({
+        mutationFn: (file: File) => uploadWaChannelProfilePicture(channelId, file),
+        onSuccess: (d) => {
+            setForm((f) => ({ ...f, profile_picture_url: d.profile_picture_url }));
+            qc.invalidateQueries({ queryKey: ["wa-profile", channelId] });
+            alert("Foto profil diperbarui!");
+        },
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal mengunggah foto"),
+    });
+    const onPickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const f = e.target.files?.[0];
+        if (f) picMut.mutate(f);
+        if (picInputRef.current) picInputRef.current.value = "";
+    };
+
     if (isLoading) return <div className="border-t border-border pt-3 text-sm opacity-60">Memuat profil…</div>;
     if (isError) return <div className="border-t border-border pt-3 text-sm text-red-500">Gagal memuat profil: {(error as { response?: { data?: { message?: string } } })?.response?.data?.message || "error"}</div>;
 
@@ -350,9 +366,20 @@ function ChannelProfileEditor({ channelId }: { channelId: number }) {
             <div className="flex items-center gap-3">
                 {form.profile_picture_url
                     // eslint-disable-next-line @next/next/no-img-element
-                    ? <img src={form.profile_picture_url} alt="foto profil" className="w-12 h-12 rounded-full object-cover border border-border" />
-                    : <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center"><User className="w-5 h-5 opacity-50" /></div>}
-                <div className="text-xs opacity-60">Foto profil dikelola langsung di WhatsApp Manager / Business App.</div>
+                    ? <img src={form.profile_picture_url} alt="foto profil" className="w-14 h-14 rounded-full object-cover border border-border" />
+                    : <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center"><User className="w-6 h-6 opacity-50" /></div>}
+                <div className="space-y-1">
+                    <input ref={picInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={onPickFile} />
+                    <button
+                        type="button"
+                        onClick={() => picInputRef.current?.click()}
+                        disabled={picMut.isPending}
+                        className="text-xs px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50"
+                    >
+                        {picMut.isPending ? "Mengunggah…" : "Ubah foto"}
+                    </button>
+                    <div className="text-[11px] opacity-50">JPG/PNG, disarankan persegi (min 192×192), maks 5MB.</div>
+                </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3">

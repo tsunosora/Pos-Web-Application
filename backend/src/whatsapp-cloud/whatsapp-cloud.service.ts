@@ -151,6 +151,24 @@ export class WhatsappCloudService {
         return this.cloud.getBusinessProfile(ch.phoneNumberId);
     }
 
+    /** Ganti foto profil channel, lalu kembalikan profil terbaru. */
+    async updateChannelProfilePicture(
+        id: number,
+        file: { buffer: Buffer; mimetype: string; originalname: string },
+    ) {
+        if (!file?.buffer?.length) throw new BadRequestException('Berkas foto kosong');
+        if (!/^image\/(jpeg|png)$/.test(file.mimetype || '')) {
+            throw new BadRequestException('Foto profil harus JPG atau PNG');
+        }
+        const ch = await this.getChannelOrThrow(id);
+        try {
+            await this.cloud.updateProfilePicture(ch.phoneNumberId, file.buffer, file.mimetype, file.originalname || 'profile.jpg');
+        } catch (e) {
+            throw new BadRequestException((e as Error).message);
+        }
+        return this.cloud.getBusinessProfile(ch.phoneNumberId);
+    }
+
     private async getChannelOrThrow(id: number) {
         const ch = await this.prisma.waChannel.findUnique({ where: { id } });
         if (!ch) throw new NotFoundException('Channel tidak ditemukan');

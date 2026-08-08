@@ -121,6 +121,18 @@ export class WhatsappCloudController {
         return this.service.updateChannelProfile(id, body);
     }
 
+    /** Ganti foto profil channel (JPG/PNG, maks 5MB). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('channels/:id/profile-picture')
+    @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
+    updateChannelProfilePicture(
+        @Param('id', ParseIntPipe) id: number,
+        @UploadedFile() file: Express.Multer.File,
+    ) {
+        return this.service.updateChannelProfilePicture(id, file);
+    }
+
     // ─── Template Meta (Owner/Admin/Marketing) ──────────────────────────────
 
     @UseGuards(JwtAuthGuard, RolesGuard)
