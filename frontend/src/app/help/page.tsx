@@ -913,6 +913,124 @@ function SecWhatsApp() {
     );
 }
 
+function SecWhatsAppCRM() {
+    return (
+        <section className="mb-12">
+            <H2 id="whatsapp-crm">WhatsApp CRM (Cloud API resmi Meta)</H2>
+            <P>
+                Inbox WhatsApp bisnis terpadu di <Code>/crm/whatsapp</Code> memakai <strong>WhatsApp Business Cloud API resmi Meta</strong> — balas chat pelanggan langsung dari PosPro,
+                kirim media, template, broadcast, reminder otomatis, dan ukur performa CS. Semua percakapan tersambung ke Lead pipeline & leaderboard.
+            </P>
+            <Callout type="info" title="Beda dengan “WhatsApp Bot” lama">
+                Modul ini <strong>resmi & terpisah</strong> dari bot lama (scan QR, untuk notifikasi Discord/grup). WhatsApp CRM ini pakai nomor bisnis terdaftar di Meta, stabil, dan tidak perlu HP menyala.
+            </Callout>
+
+            <H3 id="wa-alur-masuk">Alur pesan masuk (otomatis)</H3>
+            <Steps steps={[
+                { title: "Pelanggan chat ke nomor bisnis", desc: "Pesan dikirim Meta ke server via Webhook (sudah diverifikasi + tanda tangan diperiksa)." },
+                { title: "Diarahkan ke channel/cabang", desc: "Berdasarkan phone_number_id → cocokkan ke Channel WA cabang." },
+                { title: "Tautkan / auto-buat Lead", desc: "Nomor dicocokkan ke Lead (dedup by HP); kalau belum ada & fitur aktif → Lead baru status NEW sumber WHATSAPP." },
+                { title: "Auto-reply (opsional)", desc: "Jika ada aturan cocok (kata kunci / salam / di luar jam) → balasan otomatis." },
+                { title: "Muncul di Inbox", desc: "Percakapan tampil dengan penanda belum dibaca; media diarsipkan ke server." },
+            ]} />
+
+            <H3 id="wa-inbox">Inbox Chat — balas & kelola percakapan</H3>
+            <P>Fungsi-fungsi di panel percakapan:</P>
+            <Ul>
+                <li><strong>Balas teks</strong> — ketik & Enter. <strong>Emoji picker</strong> (tombol 😊) sisip emoji di posisi kursor.</li>
+                <li><strong>Kirim lampiran</strong> (📎) — gambar, dokumen, PDF, Word/Excel/PowerPoint, audio, video (maks 90MB). Klik gambar → <strong>pratinjau layar penuh</strong> + tombol unduh.</li>
+                <li><strong>Reply/kutip</strong> — hover pesan → Balas; kutipan menampilkan thumbnail media, dan <strong>diklik untuk lompat</strong> ke pesan aslinya.</li>
+                <li><strong>Reaksi emoji</strong> — hover → 😊 → 👍❤️😂😮😢🙏 (klik lagi untuk hapus).</li>
+                <li><strong>Tanda dibaca</strong> — membuka percakapan otomatis menandai pesan pelanggan “dibaca” (centang biru di sisi mereka).</li>
+                <li><strong>Ambil chat</strong> — tombol “Ambil” menjadikan Anda pemilik percakapan (juga otomatis saat Anda membalas chat tanpa pemilik).</li>
+                <li><strong>Badge Lead</strong> — header menampilkan tahap pipeline lead tertaut + tautan membuka lead di CRM.</li>
+                <li><strong>Selesai</strong> — tandai percakapan CLOSED.</li>
+            </Ul>
+            <Callout type="warning" title="Jendela layanan 24 jam (aturan Meta)">
+                Dalam <strong>24 jam</strong> sejak pesan terakhir pelanggan, Anda bebas balas teks/media. Di <strong>luar 24 jam</strong>, hanya bisa mengirim <strong>template</strong> yang sudah di-<em>APPROVED</em> Meta.
+            </Callout>
+
+            <H3 id="wa-template">Template Pesan Meta — /crm/whatsapp/templates</H3>
+            <P>Template = pesan pra-tulis yang disetujui Meta, dipakai untuk balas di luar 24 jam, broadcast, dan reminder.</P>
+            <Steps steps={[
+                { title: "Buat template", desc: <>Nama huruf kecil/underscore, bahasa, kategori. Ketik isi dengan variabel <Code>{"{{1}}"}</Code>, <Code>{"{{2}}"}</Code>.</> },
+                { title: "Isi keterangan tiap variabel", desc: "Form otomatis mendeteksi variabel → beri keterangan (mis. Nama pelanggan) + contoh nilai (wajib agar lolos review)." },
+                { title: "Submit ke Meta", desc: "Status jadi PENDING → tunggu review (menit–jam) → APPROVED." },
+                { title: "Sinkron status", desc: "Tombol Sinkron menarik status terbaru dari Meta." },
+            ]} />
+            <Callout type="info" title="Kategori template">
+                <strong>UTILITY</strong> (transaksional: pesanan siap, tagihan) — murah. <strong>MARKETING</strong> (promo) — lebih mahal. <strong>AUTHENTICATION</strong> (OTP).
+            </Callout>
+
+            <H3 id="wa-broadcast">Broadcast — /crm/whatsapp/broadcast</H3>
+            <P>Blast template ke segmen kontak (dijalankan bertahap dengan throttle). Kontak yang <strong>opt-out</strong> otomatis dikecualikan. Butuh template APPROVED.</P>
+
+            <H3 id="wa-reminder">Reminder POS otomatis — /crm/whatsapp/reminders</H3>
+            <P>Hubungkan event POS ke template → pelanggan dapat WA otomatis:</P>
+            <Table
+                headers={["Event", "Kapan terkirim", "Contoh template"]}
+                rows={[
+                    ["ORDER_READY", "Pesanan ditandai siap diambil", "pesanan_siap"],
+                    ["PAYMENT_DUE", "Tagihan/pembayaran jatuh tempo", "reminder_pembayaran"],
+                    ["FOLLOWUP_DUE", "Follow-up terjadwal jatuh tempo", "(template follow-up)"],
+                ]}
+            />
+
+            <H3 id="wa-autoreply">Auto-reply — /crm/whatsapp/auto-reply</H3>
+            <P>Balasan otomatis berbasis aturan: <strong>kata kunci</strong>, <strong>salam</strong> (chat pertama), <strong>di luar jam</strong>, atau <strong>default</strong>. Balas “STOP” dari pelanggan → otomatis opt-out.</P>
+
+            <H3 id="wa-analitik">Analitik, Biaya & Kecepatan Balas CS — /crm/whatsapp/analytics</H3>
+            <Ul>
+                <li><strong>Metrik pesan</strong> — masuk/keluar, % terkirim & dibaca, lead dari WA, performa broadcast, grafik harian.</li>
+                <li><strong>Estimasi biaya</strong> — volume pesan berbayar per kategori (Marketing/Utilitas/Autentikasi) × tarif yang Anda setel → total. Pesan layanan (dalam 24 jam) gratis. Tarif resmi tetap dari WhatsApp Manager → Billing.</li>
+                <li><strong>Kecepatan balas CS</strong> — First Response Time per agen (rata-rata, median, tercepat, %≤target). Dinilai ke <strong>agen yang benar-benar membalas</strong>; auto-reply tak dihitung.</li>
+            </Ul>
+
+            <H3 id="wa-media">Penyimpanan Media — /crm/whatsapp/settings</H3>
+            <P>Media inbound & outbound diarsipkan permanen ke server (kartu <strong>Penyimpanan Media</strong>): total dipakai, sisa disk, rincian per bulan, dan tombol <strong>bersihkan media sebelum tanggal</strong> (riwayat teks tetap).</P>
+            <Callout type="warning" title="Kenapa perlu arsip">
+                Meta hanya menyimpan file media ±30 hari. Arsip lokal memastikan gambar/dokumen lama tetap bisa dibuka.
+            </Callout>
+
+            <H3 id="wa-channel">Pengaturan Channel & Profil Bisnis — /crm/whatsapp/settings</H3>
+            <Ul>
+                <li><strong>Channel per cabang</strong> — daftarkan nomor (Phone Number ID + WABA ID), aktif/nonaktif, <strong>Health check</strong> verifikasi kredensial.</li>
+                <li><strong>Profil bisnis</strong> — tombol “Profil”: about, deskripsi, alamat, email, kategori, website, dan <strong>ganti foto profil</strong> — tersimpan langsung ke Meta.</li>
+            </Ul>
+
+            <H3 id="wa-leaderboard">Integrasi ke Leaderboard CS</H3>
+            <P>Metrik WhatsApp menyatu di <Code>/leaderboard</Code> divisi CS (bukan silo terpisah):</P>
+            <Ul>
+                <li>Kolom <strong>Balas WA</strong> (kecepatan + %≤target) & <strong>Chat WA</strong> (jumlah percakapan ditangani), champion <strong>Tercepat Balas WA</strong>.</li>
+                <li>Klik angkanya → <strong>rincian per chat</strong> (waktu balas tiap percakapan).</li>
+                <li>Atribusi konsisten ke <strong>pengirim balasan</strong>; navigasi dua arah lead ↔ chat.</li>
+            </Ul>
+
+            <H3 id="wa-peran">Peran & akses</H3>
+            <Table
+                headers={["Fitur", "Peran"]}
+                rows={[
+                    ["Inbox (balas, reply, reaksi)", "CS · Marketing · Admin · Owner"],
+                    ["Template, Broadcast, Reminder, Auto-reply", "Owner · Admin · Marketing"],
+                    ["Channel, Profil, Penyimpanan media", "Owner · Admin"],
+                    ["Analitik, Biaya, Benchmark CS", "Owner · Admin · Marketing"],
+                ]}
+            />
+
+            <H3 id="wa-setup">Setup awal (sekali — Owner/Admin)</H3>
+            <Steps steps={[
+                { title: "Meta App + produk WhatsApp", desc: "Buat WABA, daftarkan nomor bisnis (verifikasi OTP)." },
+                { title: "Token & rahasia", desc: "Isi WA_ACCESS_TOKEN (System User, permanen), WA_APP_SECRET, WA_VERIFY_TOKEN, WA_APP_ID di .env server; set WA_CLOUD_ENABLED=true." },
+                { title: "Webhook", desc: <>Callback <Code>https://DOMAIN/whatsapp/webhook</Code> + verify token; subscribe field <Code>messages</Code>.</> },
+                { title: "Daftarkan Channel + Verifikasi Bisnis + Pembayaran", desc: "Tambah Channel per cabang; selesaikan Business Verification & metode pembayaran di Meta agar bisa kirim ke semua pelanggan." },
+            ]} />
+            <Callout type="tip" title="Tips penting">
+                Gunakan token <strong>permanen (System User, Never expire)</strong> — token 24 jam akan mati. Buat template UTILITY dulu (murah & cepat approve) untuk reminder pesanan.
+            </Callout>
+        </section>
+    );
+}
+
 function SecCabang() {
     return (
         <>
@@ -1554,7 +1672,10 @@ const NAV_GROUPS = [
     {
         label: "Komunikasi",
         icon: <MessageSquare size={14} />,
-        items: [{ id: "whatsapp", label: "Notifikasi (Discord & WA)" }],
+        items: [
+            { id: "whatsapp-crm", label: "WhatsApp CRM (Cloud API)" },
+            { id: "whatsapp", label: "Notifikasi (Discord & WA Bot)" },
+        ],
     },
     {
         label: "Multi-Cabang",
@@ -1724,6 +1845,7 @@ export default function HelpPage() {
                     <SecInvoice />
                     <SecCRM />
                     <SecWhatsApp />
+                    <SecWhatsAppCRM />
                     <SecCabang />
                     <SecDesktop />
                     <SecPengaturan />
