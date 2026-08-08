@@ -119,6 +119,29 @@ export class InboxService {
         return [...set];
     }
 
+    /** Cari percakapan WA untuk pelanggan sebuah SO (deep-link "Buka chat WA" dari SO). */
+    async resolveConversationBySalesOrder(soId: number): Promise<{ conversationId: number | null; phone: string | null }> {
+        const so = await this.prisma.salesOrder.findUnique({
+            where: { id: soId },
+            select: { customerPhone: true, customerId: true },
+        });
+        if (!so) throw new NotFoundException('SO tidak ditemukan');
+        const phoneKey = this.normalizePhoneKey(so.customerPhone);
+        const or: Prisma.WaContactWhereInput[] = [];
+        if (so.customerId) or.push({ customerId: so.customerId });
+        if (phoneKey) or.push({ phoneNormalized: phoneKey });
+        if (!or.length) return { conversationId: null, phone: so.customerPhone ?? null };
+
+        const contact = await this.prisma.waContact.findFirst({ where: { OR: or }, select: { id: true } });
+        if (!contact) return { conversationId: null, phone: so.customerPhone ?? null };
+        const conv = await this.prisma.waConversation.findFirst({
+            where: { contactId: contact.id },
+            orderBy: { lastMessageAt: 'desc' },
+            select: { id: true },
+        });
+        return { conversationId: conv?.id ?? null, phone: so.customerPhone ?? null };
+    }
+
     /** SO yang terkait sebuah percakapan (via nomor HP pelanggan / customerId). */
     async salesOrdersForConversation(conversationId: number) {
         const conv = await this.prisma.waConversation.findUnique({

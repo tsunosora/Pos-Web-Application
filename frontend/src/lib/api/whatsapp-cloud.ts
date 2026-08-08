@@ -106,6 +106,10 @@ export interface WaConversationSalesOrder {
 export const getWaConversationSalesOrders = async (id: number): Promise<WaConversationSalesOrder[]> =>
     (await api.get(`/whatsapp/conversations/${id}/sales-orders`)).data;
 
+// Resolve percakapan WA dari sebuah SO (tombol "Buka chat WA" di halaman SO).
+export const resolveWaConversationBySalesOrder = async (soId: number): Promise<{ conversationId: number | null; phone: string | null }> =>
+    (await api.get(`/whatsapp/sales-orders/${soId}/conversation`)).data;
+
 // Ambil biner media (gambar/video/audio) sebagai object URL untuk <img>/<video>.
 // Auth JWT ikut via axios; caller WAJIB URL.revokeObjectURL saat unmount.
 export const getWaMessageMediaUrl = async (messageId: number): Promise<string> => {

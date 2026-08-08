@@ -417,6 +417,13 @@ export class WhatsappCloudController {
         return this.inbox.salesOrdersForConversation(id);
     }
 
+    /** Resolve percakapan WA dari sebuah SO (tombol "Buka chat WA" di halaman SO). */
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @Get('sales-orders/:id/conversation')
+    salesOrderConversation(@Param('id', ParseIntPipe) id: number) {
+        return this.inbox.resolveConversationBySalesOrder(id);
+    }
+
     /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk "Oper ke…"). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('agents')

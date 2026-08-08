@@ -7,12 +7,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft, Send, FileText, XCircle, Upload, Trash2, Loader2,
     User, Phone, MapPin, Calendar, Edit3, ExternalLink, CheckCircle2,
-    Star, Copy, Check
+    Star, Copy, Check, MessageCircle
 } from "lucide-react";
 import {
     getSalesOrder, sendSOWhatsapp, cancelSO, uploadProofs, deleteProof,
     type SalesOrder, type SalesOrderStatus
 } from "@/lib/api/sales-orders";
+import { resolveWaConversationBySalesOrder } from "@/lib/api/whatsapp-cloud";
 import { createRatingInviteFromSO, buildRatingUrl } from "@/lib/api/cs-rating";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
@@ -103,6 +104,21 @@ export default function SalesOrderDetailPage() {
             window.open(waUrl, '_blank');
         },
         onError: (e: any) => setError(e?.response?.data?.message || 'Gagal membuat link penilaian'),
+    });
+
+    // Buka chat WA internal untuk pelanggan SO; kalau belum pernah chat → fallback wa.me.
+    const openWaChatMut = useMutation({
+        mutationFn: () => resolveWaConversationBySalesOrder(id),
+        onSuccess: (res) => {
+            if (res.conversationId) {
+                router.push(`/crm/whatsapp?conv=${res.conversationId}`);
+                return;
+            }
+            const hp = normalizeWa(res.phone);
+            if (hp) window.open(`https://wa.me/${hp}`, '_blank');
+            else setError('Nomor WhatsApp pelanggan tidak tersedia.');
+        },
+        onError: (e: any) => setError(e?.response?.data?.message || 'Gagal membuka chat WA'),
     });
 
     async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -215,6 +231,19 @@ export default function SalesOrderDetailPage() {
                         <div className="space-y-1.5 text-sm">
                             <Row icon={<User className="h-4 w-4 text-muted-foreground" />}>{so.customerName}</Row>
                             {so.customerPhone && <Row icon={<Phone className="h-4 w-4 text-muted-foreground" />}>{so.customerPhone}</Row>}
+                            {so.customerPhone && (
+                                <div className="pl-6">
+                                    <button
+                                        onClick={() => openWaChatMut.mutate()}
+                                        disabled={openWaChatMut.isPending}
+                                        className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50"
+                                        title="Buka percakapan WhatsApp pelanggan ini di inbox CRM"
+                                    >
+                                        {openWaChatMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+                                        Buka chat WA
+                                    </button>
+                                </div>
+                            )}
                             {so.customerAddress && <Row icon={<MapPin className="h-4 w-4 text-muted-foreground" />}>{so.customerAddress}</Row>}
                             <Row icon={<User className="h-4 w-4 text-muted-foreground" />}>
                                 <span className="text-xs text-muted-foreground">Desainer:</span> {so.designerName}
