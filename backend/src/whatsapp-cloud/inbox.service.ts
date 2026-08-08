@@ -12,6 +12,7 @@ export interface ListConversationsOpts {
     status?: WaConversationStatus;
     assignedToId?: number | null; // null = hanya yang belum di-assign
     mineOrUnassigned?: number; // userId — batasi ke (di-assign ke saya ATAU belum di-assign)
+    phoneIn?: string[]; // batasi ke kontak dgn phoneNormalized ∈ daftar (mis. pelanggan SO desainer)
     channelId?: number;
     branchId?: number;
     q?: string;
@@ -92,6 +93,50 @@ export class InboxService {
         return users
             .filter((u) => roleCanInbox(u.role?.name))
             .map((u) => ({ id: u.id, name: u.name, roleName: u.role?.name ?? null, branchId: u.branchId }));
+    }
+
+    /** Normalisasi 1 nomor ke bentuk phoneNormalized (mis. 0812/6281 → 812…). */
+    private normalizePhoneKey(raw?: string | null): string | null {
+        if (!raw) return null;
+        return toLeadKey(raw) ?? toWaPhone(raw)?.replace(/^62/, '') ?? null;
+    }
+
+    /** Kumpulan phoneNormalized pelanggan dari SO milik seorang desainer (User).
+     *  Basis penautan chat↔SO: cocok by designerName (nama User) + nomor pelanggan. */
+    async designerSoPhonesByUser(userId: number): Promise<string[]> {
+        const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+        if (!u?.name) return [];
+        const sos = await this.prisma.salesOrder.findMany({
+            where: { designerName: { equals: u.name }, status: { not: 'CANCELLED' } },
+            select: { customerPhone: true },
+            take: 3000,
+        });
+        const set = new Set<string>();
+        for (const so of sos) {
+            const key = this.normalizePhoneKey(so.customerPhone);
+            if (key) set.add(key);
+        }
+        return [...set];
+    }
+
+    /** SO yang terkait sebuah percakapan (via nomor HP pelanggan / customerId). */
+    async salesOrdersForConversation(conversationId: number) {
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            select: { contact: { select: { phoneNormalized: true, customerId: true } } },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        const phone = conv.contact?.phoneNormalized || null;
+        const or: Prisma.SalesOrderWhereInput[] = [];
+        if (conv.contact?.customerId) or.push({ customerId: conv.contact.customerId });
+        if (phone) or.push({ customerPhone: { contains: phone } });
+        if (!or.length) return [];
+        return this.prisma.salesOrder.findMany({
+            where: { OR: or, status: { not: 'CANCELLED' } },
+            select: { id: true, soNumber: true, status: true, designerName: true, customerName: true, createdAt: true },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+        });
     }
 
     /** Auto-create Lead dari chat WA baru (default aktif; matikan via env). */
@@ -485,15 +530,22 @@ export class InboxService {
         }
         if (opts.channelId) where.channelId = opts.channelId;
         if (opts.branchId) where.channel = { branchId: opts.branchId };
+        // Filter kontak: gabungan pencarian teks + pembatasan daftar nomor (SO desainer).
+        const contactAnd: Prisma.WaContactWhereInput[] = [];
         if (opts.q) {
-            where.contact = {
+            contactAnd.push({
                 OR: [
                     { profileName: { contains: opts.q } },
                     { waId: { contains: opts.q } },
                     { phoneNormalized: { contains: opts.q } },
                 ],
-            };
+            });
         }
+        if (opts.phoneIn !== undefined) {
+            // Daftar kosong → tak ada yang cocok (sentinel agar hasil kosong, bukan semua).
+            contactAnd.push({ phoneNormalized: { in: opts.phoneIn.length ? opts.phoneIn : [' __none__'] } });
+        }
+        if (contactAnd.length) where.contact = contactAnd.length === 1 ? contactAnd[0] : { AND: contactAnd };
         const rows = await this.prisma.waConversation.findMany({
             where,
             take: take + 1,

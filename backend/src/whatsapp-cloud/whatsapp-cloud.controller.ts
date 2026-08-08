@@ -376,7 +376,7 @@ export class WhatsappCloudController {
     /** Daftar percakapan. Non-admin otomatis dibatasi ke cabangnya sendiri. */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations')
-    listConversations(@Req() req: any, @Query() query: Record<string, string>) {
+    async listConversations(@Req() req: any, @Query() query: Record<string, string>) {
         const roleName = String(req.user?.roleName || '').toUpperCase();
         const privileged = (ADMIN_ROLES as readonly string[]).includes(roleName);
         const isDesigner = isDesignerRole(req.user?.roleName);
@@ -386,12 +386,14 @@ export class WhatsappCloudController {
                 : undefined
             : (req.user?.branchId ?? undefined);
 
-        // Filter penugasan. Desainer dibatasi: default "milik saya + belum di-assign",
-        // tak bisa mengintip chat yang di-assign ke orang lain.
+        // Filter penugasan. Desainer default dibatasi "milik saya + belum di-assign".
+        // assignee=so → chat pelanggan dari SO yang dikerjakan desainer (tautan by nomor HP).
         let assignedToId: number | null | undefined;
         let mineOrUnassigned: number | undefined;
+        let phoneIn: string[] | undefined;
         if (query.assignee === 'me') assignedToId = req.user.userId;
         else if (query.assignee === 'unassigned') assignedToId = null;
+        else if (query.assignee === 'so') phoneIn = await this.inbox.designerSoPhonesByUser(req.user.userId);
         else if (isDesigner) mineOrUnassigned = req.user.userId;
         else if (query.assignedToId) assignedToId = +query.assignedToId;
 
@@ -399,12 +401,20 @@ export class WhatsappCloudController {
             status: query.status as WaConversationStatus | undefined,
             assignedToId,
             mineOrUnassigned,
+            phoneIn,
             channelId: query.channelId ? +query.channelId : undefined,
             branchId,
             q: query.q || undefined,
             cursor: query.cursor ? +query.cursor : undefined,
             take: query.take ? +query.take : undefined,
         });
+    }
+
+    /** SO yang terkait percakapan ini (via nomor HP pelanggan) — badge "SO" di header. */
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @Get('conversations/:id/sales-orders')
+    conversationSalesOrders(@Param('id', ParseIntPipe) id: number) {
+        return this.inbox.salesOrdersForConversation(id);
     }
 
     /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk "Oper ke…"). */

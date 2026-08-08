@@ -10,7 +10,7 @@ import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
-    listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents,
+    listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
@@ -330,8 +330,8 @@ export default function WhatsappInboxPage() {
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [composeOpen, setComposeOpen] = useState(false);
-    // Filter penugasan: "all" (desainer = milikku + belum di-assign), "me", "unassigned".
-    const [assignee, setAssignee] = useState<"all" | "me" | "unassigned">("all");
+    // Filter penugasan: "all" (desainer = milikku + belum di-assign), "me", "unassigned", "so" (SO desainer).
+    const [assignee, setAssignee] = useState<"all" | "me" | "unassigned" | "so">("all");
     const bottomRef = useRef<HTMLDivElement>(null);
 
     // Deep-link "Buka chat WA" dari pipeline: ?conv=<id> atau ?leadId=<id>.
@@ -565,6 +565,11 @@ export default function WhatsappInboxPage() {
     const { data: agents = [] } = useQuery({
         queryKey: ["wa-agents"], queryFn: listWaAgents, enabled: selectedId != null,
     });
+    // SO yang terkait percakapan terpilih (badge "SO" di header).
+    const { data: convSalesOrders = [] } = useQuery({
+        queryKey: ["wa-convo-sos", selectedId], queryFn: () => getWaConversationSalesOrders(selectedId as number),
+        enabled: selectedId != null,
+    });
     const templateReplyMut = useMutation({
         mutationFn: () => {
             const tpl = templates.find((t) => t.id === tplId);
@@ -643,9 +648,10 @@ export default function WhatsappInboxPage() {
                         ))}
                     </div>
                     {/* Filter penugasan */}
-                    <div className="flex gap-1">
+                    <div className="flex gap-1 flex-wrap">
                         {([
                             { key: "all", label: isDesigner ? "Milik saya + pool" : "Semua" },
+                            ...(isDesigner ? [{ key: "so", label: "SO saya" } as const] : []),
                             { key: "me", label: "Chat saya" },
                             { key: "unassigned", label: "Belum di-assign" },
                         ] as const).map((f) => (
@@ -733,6 +739,17 @@ export default function WhatsappInboxPage() {
                                             Lead: {LEAD_STAGE_LABEL[selected.contact.lead.status] ?? selected.contact.lead.status}
                                         </Link>
                                     )}
+                                    {convSalesOrders.map((so) => (
+                                        <Link
+                                            key={so.id}
+                                            href={`/sales-orders/${so.id}`}
+                                            className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-300 hover:underline"
+                                            title={`SO ${so.soNumber} · desainer ${so.designerName} · ${so.status}`}
+                                        >
+                                            <ExternalLink className="w-3 h-3" />
+                                            SO: {so.soNumber}
+                                        </Link>
+                                    ))}
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">

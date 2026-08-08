@@ -57,7 +57,7 @@ export interface Paged<T> {
 export interface ListConversationsParams {
     status?: WaConversationStatus;
     assignedToId?: number;
-    assignee?: "me" | "unassigned"; // filter penugasan (mis. desainer: "chat saya" / "belum di-assign")
+    assignee?: "me" | "unassigned" | "so"; // filter penugasan; "so" = chat pelanggan dari SO desainer
     channelId?: number;
     branchId?: number;
     q?: string;
@@ -93,6 +93,18 @@ export const resolveWaConversationByLead = async (leadId: number): Promise<{ con
 
 export const getWaMessages = async (id: number, params: { cursor?: number; take?: number } = {}): Promise<Paged<WaMessage>> =>
     (await api.get(`/whatsapp/conversations/${id}/messages`, { params })).data;
+
+// SO yang terkait sebuah percakapan (via nomor HP pelanggan) — badge "SO" di header.
+export interface WaConversationSalesOrder {
+    id: number;
+    soNumber: string;
+    status: string;
+    designerName: string;
+    customerName: string;
+    createdAt: string;
+}
+export const getWaConversationSalesOrders = async (id: number): Promise<WaConversationSalesOrder[]> =>
+    (await api.get(`/whatsapp/conversations/${id}/sales-orders`)).data;
 
 // Ambil biner media (gambar/video/audio) sebagai object URL untuk <img>/<video>.
 // Auth JWT ikut via axios; caller WAJIB URL.revokeObjectURL saat unmount.
