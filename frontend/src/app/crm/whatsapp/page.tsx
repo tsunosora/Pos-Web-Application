@@ -113,6 +113,15 @@ function MsgStatusTick({ status }: { status: WaMessage["status"] }) {
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
+// Gabung 2 daftar pesan (dedup by id, urut naik). Argumen kedua menimpa yang pertama
+// → panggil merge(prev, incoming) agar data terbaru (status/reaksi) menang.
+function mergeMessages(a: WaMessage[], b: WaMessage[]): WaMessage[] {
+    const map = new Map<number, WaMessage>();
+    for (const m of a) map.set(m.id, m);
+    for (const m of b) map.set(m.id, m);
+    return Array.from(map.values()).sort((x, y) => x.id - y.id);
+}
+
 function mediaLabel(type: WaMessage["type"]): { icon: string; label: string } {
     switch (type) {
         case "IMAGE": return { icon: "🖼️", label: "Foto" };
@@ -275,7 +284,8 @@ export default function WhatsappInboxPage() {
             q: search.trim() || undefined,
             take: 50,
         }),
-        refetchInterval: 8000,
+        refetchInterval: 5000,
+        refetchOnWindowFocus: true,
     });
     const conversations = convData?.items ?? [];
 
@@ -284,18 +294,70 @@ export default function WhatsappInboxPage() {
         [conversations, selectedId],
     );
 
-    // Pesan percakapan terpilih — polling 6 dtk.
+    // Pesan terbaru percakapan terpilih — polling 3 dtk (near real-time) + saat fokus balik.
     const { data: msgData } = useQuery({
         queryKey: ["wa-messages", selectedId],
-        queryFn: () => getWaMessages(selectedId as number, { take: 80 }),
+        queryFn: () => getWaMessages(selectedId as number, { take: 50 }),
         enabled: selectedId != null,
-        refetchInterval: 6000,
+        refetchInterval: 3000,
+        refetchOnWindowFocus: true,
     });
-    const messages = msgData?.items ?? [];
 
+    const [messages, setMessages] = useState<WaMessage[]>([]);
+    const [hasMoreOlder, setHasMoreOlder] = useState(true);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const firstLoadRef = useRef(true);
+
+    // Reset daftar pesan saat pindah percakapan (HARUS sebelum efek merge).
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages.length, selectedId]);
+        setMessages([]);
+        setHasMoreOlder(true);
+        setLoadingOlder(false);
+        firstLoadRef.current = true;
+    }, [selectedId]);
+
+    // Gabung hasil polling (halaman terbaru) → data terbaru menimpa (status/reaksi).
+    useEffect(() => {
+        if (!msgData?.items) return;
+        setMessages((prev) => mergeMessages(prev, msgData.items));
+    }, [msgData]);
+
+    // Infinite scroll: muat pesan lama saat scroll mendekati atas.
+    const loadOlder = async () => {
+        if (loadingOlder || !hasMoreOlder || messages.length === 0 || selectedId == null) return;
+        setLoadingOlder(true);
+        const el = scrollRef.current;
+        const prevHeight = el?.scrollHeight ?? 0;
+        try {
+            const res = await getWaMessages(selectedId, { cursor: messages[0].id, take: 50 });
+            if (res.items.length) setMessages((prev) => mergeMessages(res.items, prev));
+            setHasMoreOlder(res.nextCursor != null);
+            requestAnimationFrame(() => { if (el) el.scrollTop = el.scrollHeight - prevHeight; });
+        } catch {
+            // abaikan — coba lagi saat scroll berikutnya
+        } finally {
+            setLoadingOlder(false);
+        }
+    };
+
+    const onMessagesScroll = () => {
+        const el = scrollRef.current;
+        if (el && el.scrollTop < 60 && hasMoreOlder && !loadingOlder) loadOlder();
+    };
+
+    // Auto-scroll: instan saat buka; smooth hanya bila sudah di dekat bawah (tak ganggu baca riwayat).
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el || messages.length === 0) return;
+        if (firstLoadRef.current) {
+            firstLoadRef.current = false;
+            bottomRef.current?.scrollIntoView();
+            return;
+        }
+        const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+        if (nearBottom) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
 
     // Reset unread saat buka → refresh daftar.
     useEffect(() => {
@@ -557,7 +619,13 @@ export default function WhatsappInboxPage() {
                             </div>
                         </header>
 
-                        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
+                        <div ref={scrollRef} onScroll={onMessagesScroll} className="flex-1 overflow-y-auto p-4 space-y-2 bg-muted/20">
+                            {loadingOlder && (
+                                <div className="text-center text-xs opacity-60 py-1">Memuat pesan lama…</div>
+                            )}
+                            {!hasMoreOlder && messages.length > 0 && (
+                                <div className="text-center text-[11px] opacity-40 py-1">— awal percakapan —</div>
+                            )}
                             {messages.map((m) => (
                                 <MessageBubble
                                     key={m.id}
