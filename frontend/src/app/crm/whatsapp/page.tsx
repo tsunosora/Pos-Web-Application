@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
@@ -672,9 +672,9 @@ export default function WhatsappInboxPage() {
     };
 
     return (
-        <div className="flex h-[calc(100vh-8rem)] gap-3 p-3">
-            {/* ─── Panel kiri: daftar chat ─── */}
-            <aside className="w-full max-w-sm flex flex-col rounded-2xl border border-border bg-card/60 backdrop-blur overflow-hidden">
+        <div className="flex h-[calc(100dvh-8rem)] gap-3 p-2 md:p-3">
+            {/* ─── Panel kiri: daftar chat (di HP: full-screen; sembunyi saat ada chat dipilih) ─── */}
+            <aside className={`w-full md:max-w-sm flex-col rounded-2xl border border-border bg-card/60 backdrop-blur overflow-hidden ${selectedId ? "hidden md:flex" : "flex"}`}>
                 <div className="p-3 border-b border-border space-y-2">
                     <div className="flex items-center gap-2">
                         <MessageSquare className="w-5 h-5 text-emerald-500" />
@@ -779,8 +779,8 @@ export default function WhatsappInboxPage() {
                 </div>
             </aside>
 
-            {/* ─── Panel kanan: thread ─── */}
-            <section className="flex-1 flex flex-col rounded-2xl border border-border bg-card/60 backdrop-blur overflow-hidden">
+            {/* ─── Panel kanan: thread (di HP: full-screen; sembunyi saat belum ada chat dipilih) ─── */}
+            <section className={`flex-1 flex-col rounded-2xl border border-border bg-card/60 backdrop-blur overflow-hidden ${selectedId ? "flex" : "hidden md:flex"}`}>
                 {!selected ? (
                     <div className="flex-1 grid place-items-center opacity-50 text-sm">
                         Pilih percakapan untuk mulai membalas.
@@ -788,7 +788,16 @@ export default function WhatsappInboxPage() {
                 ) : (
                     <>
                         <header className="p-3 border-b border-border flex items-center justify-between gap-2">
-                            <div className="min-w-0">
+                            <div className="flex items-center gap-2 min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedId(null)}
+                                    aria-label="Kembali ke daftar chat"
+                                    className="md:hidden -ml-1 p-1.5 rounded-lg hover:bg-muted shrink-0"
+                                >
+                                    <ArrowLeft className="w-5 h-5" />
+                                </button>
+                                <div className="min-w-0">
                                 <div className="font-semibold truncate flex items-center gap-1.5">
                                     <span className="truncate">{waContactName(selected.contact)}</span>
                                     <button
@@ -829,6 +838,7 @@ export default function WhatsappInboxPage() {
                                             SO: {so.soNumber}
                                         </Link>
                                     ))}
+                                </div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
