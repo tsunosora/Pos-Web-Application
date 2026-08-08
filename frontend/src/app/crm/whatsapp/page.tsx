@@ -529,6 +529,17 @@ export default function WhatsappInboxPage() {
         }
     };
 
+    // Object URL thumbnail untuk lampiran gambar (dibuat & di-revoke otomatis).
+    const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+    useEffect(() => {
+        if (pendingFile && pendingFile.type.startsWith("image/")) {
+            const url = URL.createObjectURL(pendingFile);
+            setPendingPreview(url);
+            return () => URL.revokeObjectURL(url);
+        }
+        setPendingPreview(null);
+    }, [pendingFile]);
+
     // Tempel (Ctrl+V) gambar/screenshot dari clipboard → jadikan lampiran.
     // Teks biasa dibiarkan default (masuk ke textarea).
     const handleComposerPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -874,9 +885,16 @@ export default function WhatsappInboxPage() {
                                 {/* Preview lampiran terpilih */}
                                 {pendingFile && (
                                     <div className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-2.5 py-1.5">
-                                        <Paperclip className="w-3.5 h-3.5 shrink-0" />
-                                        <span className="truncate flex-1">{pendingFile.name}</span>
-                                        <span className="opacity-60 shrink-0">{(pendingFile.size / 1024).toFixed(0)} KB</span>
+                                        {pendingPreview ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={pendingPreview} alt="Pratinjau" className="w-12 h-12 rounded-md object-cover shrink-0 border border-border" />
+                                        ) : (
+                                            <Paperclip className="w-3.5 h-3.5 shrink-0" />
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate">{pendingFile.name}</div>
+                                            <div className="opacity-60">{(pendingFile.size / 1024).toFixed(0)} KB</div>
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
