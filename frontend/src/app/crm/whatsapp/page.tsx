@@ -444,7 +444,7 @@ export default function WhatsappInboxPage() {
     const [draft, setDraft] = useState("");
     const [replyingTo, setReplyingTo] = useState<WaMessage | null>(null);
     const [lightboxId, setLightboxId] = useState<number | null>(null);
-    const [pendingFile, setPendingFile] = useState<File | null>(null);
+    const [pendingFiles, setPendingFiles] = useState<File[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [showEmoji, setShowEmoji] = useState(false);
     const emojiWrapRef = useRef<HTMLDivElement>(null);
@@ -493,11 +493,20 @@ export default function WhatsappInboxPage() {
     });
 
     const mediaMut = useMutation({
-        mutationFn: (payload: { file: File; caption?: string; replyTo?: string }) =>
-            replyWaMedia(selectedId as number, payload.file, payload.caption, payload.replyTo),
+        // Kirim banyak lampiran berurutan; caption (draft) & konteks reply hanya di gambar pertama.
+        mutationFn: async (payload: { files: File[]; caption?: string; replyTo?: string }) => {
+            for (let i = 0; i < payload.files.length; i++) {
+                await replyWaMedia(
+                    selectedId as number,
+                    payload.files[i],
+                    i === 0 ? payload.caption : undefined,
+                    i === 0 ? payload.replyTo : undefined,
+                );
+            }
+        },
         onSuccess: () => {
             setDraft("");
-            setPendingFile(null);
+            setPendingFiles([]);
             setReplyingTo(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
             qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
@@ -522,47 +531,50 @@ export default function WhatsappInboxPage() {
     const sendComposer = () => {
         if (mediaMut.isPending || replyMut.isPending) return;
         const replyTo = replyingTo?.waMessageId || undefined;
-        if (pendingFile) {
-            mediaMut.mutate({ file: pendingFile, caption: draft.trim() || undefined, replyTo });
+        if (pendingFiles.length) {
+            mediaMut.mutate({ files: pendingFiles, caption: draft.trim() || undefined, replyTo });
         } else if (draft.trim()) {
             replyMut.mutate({ text: draft.trim(), replyTo });
         }
     };
 
-    // Object URL thumbnail untuk lampiran gambar (dibuat & di-revoke otomatis).
-    const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+    // Object URL thumbnail per lampiran gambar (dibuat & di-revoke otomatis).
+    const [pendingPreviews, setPendingPreviews] = useState<Array<string | null>>([]);
     useEffect(() => {
-        if (pendingFile && pendingFile.type.startsWith("image/")) {
-            const url = URL.createObjectURL(pendingFile);
-            setPendingPreview(url);
-            return () => URL.revokeObjectURL(url);
-        }
-        setPendingPreview(null);
-    }, [pendingFile]);
+        const urls = pendingFiles.map((f) => (f.type.startsWith("image/") ? URL.createObjectURL(f) : null));
+        setPendingPreviews(urls);
+        return () => urls.forEach((u) => u && URL.revokeObjectURL(u));
+    }, [pendingFiles]);
+    const removePendingAt = (idx: number) => {
+        setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
 
     // Tempel (Ctrl+V) gambar/screenshot dari clipboard → jadikan lampiran.
     // Teks biasa dibiarkan default (masuk ke textarea).
     const handleComposerPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
         const items = e.clipboardData?.items;
         if (!items) return;
-        for (const it of Array.from(items)) {
-            if (it.kind === "file") {
-                const file = it.getAsFile();
-                if (file && file.type.startsWith("image/")) {
-                    e.preventDefault();
-                    const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
-                    const named = new File([file], file.name && file.name !== "image.png" ? file.name : `tempel-${Date.now()}.${ext}`, { type: file.type });
-                    setPendingFile(named);
-                    return;
-                }
+        const imgs: File[] = [];
+        Array.from(items).forEach((it, i) => {
+            if (it.kind !== "file") return;
+            const file = it.getAsFile();
+            if (file && file.type.startsWith("image/")) {
+                const ext = (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
+                const named = new File([file], file.name && file.name !== "image.png" ? file.name : `tempel-${Date.now()}-${i}.${ext}`, { type: file.type });
+                imgs.push(named);
             }
+        });
+        if (imgs.length) {
+            e.preventDefault();
+            setPendingFiles((prev) => [...prev, ...imgs]);
         }
     };
 
     // Bersihkan draft & lampiran saat pindah percakapan.
     useEffect(() => {
         setDraft("");
-        setPendingFile(null);
+        setPendingFiles([]);
         setShowEmoji(false);
         setReplyingTo(null);
     }, [selectedId]);
@@ -882,36 +894,43 @@ export default function WhatsappInboxPage() {
                                     </div>
                                 )}
 
-                                {/* Preview lampiran terpilih */}
-                                {pendingFile && (
-                                    <div className="flex items-center gap-2 text-xs bg-muted/60 rounded-lg px-2.5 py-1.5">
-                                        {pendingPreview ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
-                                            <img src={pendingPreview} alt="Pratinjau" className="w-12 h-12 rounded-md object-cover shrink-0 border border-border" />
-                                        ) : (
-                                            <Paperclip className="w-3.5 h-3.5 shrink-0" />
-                                        )}
-                                        <div className="min-w-0 flex-1">
-                                            <div className="truncate">{pendingFile.name}</div>
-                                            <div className="opacity-60">{(pendingFile.size / 1024).toFixed(0)} KB</div>
+                                {/* Preview lampiran terpilih (galeri thumbnail) */}
+                                {pendingFiles.length > 0 && (
+                                    <div className="bg-muted/60 rounded-lg px-2.5 py-2 space-y-1.5">
+                                        <div className="text-[11px] opacity-60">{pendingFiles.length} lampiran{pendingFiles.length > 1 ? " — caption menempel di gambar pertama" : ""}</div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {pendingFiles.map((f, i) => (
+                                                <div key={i} className="relative group">
+                                                    {pendingPreviews[i] ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img src={pendingPreviews[i]!} alt={f.name} className="w-16 h-16 rounded-md object-cover border border-border" />
+                                                    ) : (
+                                                        <div className="w-16 h-16 rounded-md border border-border flex flex-col items-center justify-center text-[9px] p-1 text-center bg-background/60">
+                                                            <Paperclip className="w-3.5 h-3.5 mb-0.5" />
+                                                            <span className="truncate w-full">{f.name.split(".").pop()?.toUpperCase()}</span>
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removePendingAt(i)}
+                                                        className="absolute -top-1.5 -right-1.5 bg-black/70 text-white rounded-full p-0.5 hover:bg-black"
+                                                        aria-label="Hapus lampiran"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
                                         </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                                            className="p-0.5 rounded hover:bg-muted shrink-0"
-                                            aria-label="Batal lampiran"
-                                        >
-                                            <X className="w-3.5 h-3.5" />
-                                        </button>
                                     </div>
                                 )}
                                 <div className="flex items-end gap-2">
                                     <input
                                         ref={fileInputRef}
                                         type="file"
+                                        multiple
                                         className="hidden"
                                         accept="image/jpeg,image/png,image/webp,video/mp4,video/3gpp,audio/*,application/pdf,text/plain,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                                        onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
+                                        onChange={(e) => { const fs = Array.from(e.target.files ?? []); if (fs.length) setPendingFiles((prev) => [...prev, ...fs]); }}
                                     />
                                     <button
                                         type="button"
@@ -989,13 +1008,13 @@ export default function WhatsappInboxPage() {
                                                 }
                                             }}
                                             rows={1}
-                                            placeholder={pendingFile ? "Tambah keterangan (opsional)…" : "Ketik balasan…  ( / untuk pesan cepat )"}
+                                            placeholder={pendingFiles.length ? "Tambah keterangan (opsional)…" : "Ketik balasan…  ( / untuk pesan cepat )"}
                                             className="w-full resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/40 max-h-32"
                                         />
                                     </div>
                                     <button
                                         type="submit"
-                                        disabled={(!draft.trim() && !pendingFile) || mediaMut.isPending || replyMut.isPending}
+                                        disabled={(!draft.trim() && pendingFiles.length === 0) || mediaMut.isPending || replyMut.isPending}
                                         className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 transition shrink-0"
                                     >
                                         <Send className="w-4 h-4" />
