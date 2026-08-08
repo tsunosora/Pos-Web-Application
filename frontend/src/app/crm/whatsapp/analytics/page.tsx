@@ -3,8 +3,8 @@
 import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, MessageSquare, Send, CheckCheck, Users, UserPlus, Megaphone, TrendingUp, Wallet } from "lucide-react";
-import { getWaAnalytics, listWaChannels, type WaAnalytics } from "@/lib/api/whatsapp-cloud";
+import { ArrowLeft, MessageSquare, Send, CheckCheck, Users, UserPlus, Megaphone, TrendingUp, Wallet, Timer, Zap } from "lucide-react";
+import { getWaAnalytics, getWaCsBenchmark, listWaChannels, type WaAnalytics } from "@/lib/api/whatsapp-cloud";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
 const PRESETS = [
@@ -89,6 +89,74 @@ function CostSection({ cost }: { cost: WaAnalytics["cost"] }) {
     );
 }
 
+function fmtDur(sec: number): string {
+    if (sec <= 0) return "0 dtk";
+    if (sec < 60) return `${Math.round(sec)} dtk`;
+    if (sec < 3600) { const m = Math.floor(sec / 60); const s = Math.round(sec % 60); return s ? `${m}m ${s}d` : `${m} mnt`; }
+    const h = Math.floor(sec / 3600); const m = Math.round((sec % 3600) / 60); return `${h}j ${m}m`;
+}
+
+function CsBenchmarkSection({ from, channelId }: { from: string; channelId: number | null }) {
+    const [sla, setSla] = useState(5);
+    const { data, isLoading } = useQuery({
+        queryKey: ["wa-cs-benchmark", from, channelId, sla],
+        queryFn: () => getWaCsBenchmark({ from, channelId: channelId ?? undefined, slaMinutes: sla }),
+    });
+    return (
+        <div className="rounded-2xl border border-border bg-card/60 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 text-sm font-medium"><Timer className="w-4 h-4" /> Kecepatan balas CS</div>
+                <label className="text-xs opacity-70 flex items-center gap-1">
+                    Target balas ≤
+                    <input type="number" min={1} value={sla} onChange={(e) => setSla(Math.max(1, Number(e.target.value) || 1))} className="w-14 rounded-lg bg-muted/60 px-2 py-1 outline-none" /> menit
+                </label>
+            </div>
+            <p className="text-xs opacity-60">
+                First Response Time: waktu dari pesan masuk pelanggan sampai balasan <b>manusia</b> pertama. Dinilai ke agen yang mengirim balasan; auto-reply tak dihitung.
+            </p>
+            {isLoading ? (
+                <p className="text-sm opacity-60">Memuat…</p>
+            ) : !data || data.agents.length === 0 ? (
+                <p className="text-sm opacity-60">Belum ada data balasan agen di periode ini.</p>
+            ) : (
+                <>
+                    <div className="text-xs opacity-70">
+                        Rata-rata keseluruhan: <b>{fmtDur(data.overall.avgSec)}</b> · median {fmtDur(data.overall.medianSec)} · {data.overall.responses} balasan
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-xs opacity-60 text-left">
+                                    <th className="py-1 font-normal">Agen</th>
+                                    <th className="font-normal">Balasan</th>
+                                    <th className="font-normal">Rata-rata</th>
+                                    <th className="font-normal">Median</th>
+                                    <th className="font-normal">Tercepat</th>
+                                    <th className="font-normal text-right">≤{data.slaMinutes}m</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {data.agents.map((a, i) => (
+                                    <tr key={a.userId} className="border-t border-border">
+                                        <td className="py-2"><span className="flex items-center gap-1.5">{i === 0 && <Zap className="w-3.5 h-3.5 text-amber-500" />}{a.name}</span></td>
+                                        <td>{a.responses}</td>
+                                        <td>{fmtDur(a.avgSec)}</td>
+                                        <td>{fmtDur(a.medianSec)}</td>
+                                        <td>{fmtDur(a.fastestSec)}</td>
+                                        <td className="text-right">
+                                            <span className={a.withinSlaPct >= 80 ? "text-emerald-600" : a.withinSlaPct >= 50 ? "text-amber-600" : "text-red-500"}>{a.withinSlaPct}%</span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 function Card({ icon: Icon, label, value, sub }: { icon: typeof MessageSquare; label: string; value: string | number; sub?: string }) {
     return (
         <div className="rounded-2xl border border-border bg-card/60 p-4">
@@ -153,6 +221,8 @@ export default function WhatsappAnalyticsPage() {
                     </div>
 
                     {data?.cost && <CostSection cost={data.cost} />}
+
+                    <CsBenchmarkSection from={isoDaysAgo(days)} channelId={channelId} />
 
                     <div className="rounded-2xl border border-border bg-card/60 p-4">
                         <div className="flex items-center justify-between mb-3">

@@ -65,6 +65,19 @@ export class WhatsappCloudController {
         });
     }
 
+    /** Benchmark kecepatan balas CS (First Response Time per agen). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('analytics/cs-benchmark')
+    getCsBenchmark(@Query() query: Record<string, string>) {
+        return this.analytics.csBenchmark({
+            from: query.from || undefined,
+            to: query.to || undefined,
+            channelId: query.channelId ? +query.channelId : undefined,
+            slaMinutes: query.slaMinutes ? +query.slaMinutes : undefined,
+        });
+    }
+
     /** Verifikasi kredensial Cloud API tiap channel aktif (tanpa kirim pesan). */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...ADMIN_ROLES)

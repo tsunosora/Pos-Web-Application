@@ -5,6 +5,7 @@ export interface AnalyticsQuery {
     from?: string;
     to?: string;
     channelId?: number;
+    slaMinutes?: number;
 }
 
 export interface DailyPoint {
@@ -156,5 +157,86 @@ export class AnalyticsService {
             this.costEstimate(opts),
         ]);
         return { summary, series, cost };
+    }
+
+    /**
+     * Benchmark kecepatan balas CS. First Response Time = jarak dari pesan MASUK
+     * (awal burst) ke balasan MANUSIA pertama (WaMessage.sentById != null) di
+     * percakapan yang sama. Auto-reply (sentById null) diabaikan.
+     * Atribusi ke agen pengirim balasan.
+     */
+    async csBenchmark(opts: AnalyticsQuery) {
+        const { fromDate, toDate } = this.range(opts.from, opts.to);
+        const inRange = { createdAt: { gte: fromDate, lte: toDate } };
+        const ch = opts.channelId ? { channelId: opts.channelId } : {};
+        const slaMinutes = Math.max(1, opts.slaMinutes ?? 5);
+        const slaSec = slaMinutes * 60;
+
+        const msgs = await this.prisma.waMessage.findMany({
+            where: { ...inRange, ...ch },
+            select: { conversationId: true, direction: true, sentById: true, createdAt: true },
+            orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
+        });
+
+        const perAgent = new Map<number, number[]>();
+        let curConv = -1;
+        let pending: Date | null = null;
+        for (const m of msgs) {
+            if (m.conversationId !== curConv) {
+                curConv = m.conversationId;
+                pending = null;
+            }
+            if (m.direction === 'INBOUND') {
+                if (!pending) pending = m.createdAt; // awal burst pesan masuk
+            } else {
+                if (m.sentById == null) continue; // auto-reply/sistem → tak dinilai
+                if (pending) {
+                    const sec = (m.createdAt.getTime() - pending.getTime()) / 1000;
+                    if (sec >= 0) {
+                        const arr = perAgent.get(m.sentById) ?? [];
+                        arr.push(sec);
+                        perAgent.set(m.sentById, arr);
+                    }
+                    pending = null;
+                }
+            }
+        }
+
+        const userIds = [...perAgent.keys()];
+        const users = userIds.length
+            ? await this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, name: true } })
+            : [];
+        const nameById = new Map(users.map((u) => [u.id, u.name]));
+
+        const median = (a: number[]) => {
+            if (!a.length) return 0;
+            const s = [...a].sort((x, y) => x - y);
+            const mid = Math.floor(s.length / 2);
+            return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+        };
+
+        const agents = userIds
+            .map((id) => {
+                const arr = perAgent.get(id)!;
+                const withinSla = arr.filter((s) => s <= slaSec).length;
+                return {
+                    userId: id,
+                    name: nameById.get(id) ?? `User ${id}`,
+                    responses: arr.length,
+                    avgSec: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+                    medianSec: Math.round(median(arr)),
+                    fastestSec: Math.round(Math.min(...arr)),
+                    withinSlaPct: Math.round((withinSla / arr.length) * 100),
+                };
+            })
+            .sort((a, b) => a.avgSec - b.avgSec); // tercepat di atas
+
+        const all = [...perAgent.values()].flat();
+        const overall = {
+            responses: all.length,
+            avgSec: all.length ? Math.round(all.reduce((a, b) => a + b, 0) / all.length) : 0,
+            medianSec: Math.round(median(all)),
+        };
+        return { agents, overall, slaMinutes };
     }
 }

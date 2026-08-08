@@ -409,6 +409,14 @@ export interface WaAnalytics {
     };
 }
 
+export interface WaCsBenchmark {
+    agents: Array<{ userId: number; name: string; responses: number; avgSec: number; medianSec: number; fastestSec: number; withinSlaPct: number }>;
+    overall: { responses: number; avgSec: number; medianSec: number };
+    slaMinutes: number;
+}
+export const getWaCsBenchmark = async (params: { from?: string; to?: string; channelId?: number; slaMinutes?: number } = {}): Promise<WaCsBenchmark> =>
+    (await api.get('/whatsapp/analytics/cs-benchmark', { params })).data;
+
 export const getWaAnalytics = async (params: { from?: string; to?: string; channelId?: number } = {}): Promise<WaAnalytics> =>
     (await api.get('/whatsapp/analytics', { params })).data;
 
