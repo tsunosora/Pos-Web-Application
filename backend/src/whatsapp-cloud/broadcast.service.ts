@@ -10,8 +10,9 @@ export interface SegmentDef {
     leadStatus?: string;      // filter status lead (mis. CLOSED_WON)
 }
 export interface VariableMapItem {
-    source: 'profileName' | 'static';
+    source: 'profileName' | 'static' | 'field';
     value?: string;
+    field?: string;   // untuk source 'field' (dari DB): name | phone | address | city
 }
 export interface CreateBroadcastInput {
     name: string;
@@ -179,14 +180,32 @@ export class BroadcastService {
         return broadcast;
     }
 
-    /** Susun body parameters template. Personalisasi per-penerima (recipientVars) menang bila ada. */
-    buildComponents(variableMap: VariableMapItem[], contact: { profileName: string | null }, recipientVars?: string[]): any[] {
+    /** Susun body parameters template. Prioritas: recipientVars (CSV) > variableMap. */
+    buildComponents(
+        variableMap: VariableMapItem[],
+        contact: { profileName: string | null; waId?: string; customer?: any; lead?: any },
+        recipientVars?: string[],
+    ): any[] {
         if (recipientVars?.length) {
             return [{ type: 'body', parameters: recipientVars.map((v) => ({ type: 'text', text: (v ?? '').toString() || '-' })) }];
         }
         if (!variableMap?.length) return [];
+        // Resolusi nilai dari data pelanggan/lead tertaut (source 'field').
+        const c = contact.customer, l = contact.lead;
+        const resolveField = (field?: string): string => {
+            switch (field) {
+                case 'name': return c?.name || l?.name || contact.profileName || '';
+                case 'phone': return c?.phone || l?.phone || contact.waId || '';
+                case 'address': return c?.address || '';
+                case 'city': return l?.city || '';
+                default: return '';
+            }
+        };
         const parameters = variableMap.map((m) => {
-            const text = m.source === 'profileName' ? contact.profileName || '' : m.value || '';
+            let text = '';
+            if (m.source === 'field') text = resolveField(m.field);
+            else if (m.source === 'profileName') text = contact.profileName || '';
+            else text = m.value || '';
             return { type: 'text', text: text || '-' };
         });
         return [{ type: 'body', parameters }];
@@ -225,7 +244,13 @@ export class BroadcastService {
             });
             if (!r) break; // habis
 
-            const contact = await this.prisma.waContact.findUnique({ where: { id: r.contactId } });
+            const contact = await this.prisma.waContact.findUnique({
+                where: { id: r.contactId },
+                include: {
+                    customer: { select: { name: true, phone: true, address: true } },
+                    lead: { select: { name: true, phone: true, city: true } },
+                },
+            });
             if (!contact || contact.optedOut) {
                 await this.prisma.waBroadcastRecipient.update({
                     where: { id: r.id },

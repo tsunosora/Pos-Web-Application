@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, ArrowLeft, Play, Pause, X, Send, Users } from "lucide-react";
@@ -12,6 +12,19 @@ import {
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
+
+// Field data pelanggan/lead yang bisa diisi OTOMATIS (broadcast ke kontak terdaftar).
+const DATA_FIELDS: Array<{ key: string; label: string }> = [
+    { key: "name", label: "Nama pelanggan" },
+    { key: "phone", label: "Nomor HP" },
+    { key: "address", label: "Alamat" },
+    { key: "city", label: "Kota" },
+];
+// Peta keterangan variabel template → field DB, untuk auto-map saat pilih template.
+const LABEL_TO_FIELD: Record<string, string> = {
+    "Nama pelanggan": "name", "Nomor HP": "phone",
+    "Alamat pelanggan": "address", "Alamat": "address", "Kota": "city",
+};
 
 const STATUS_TONE: Record<WaBroadcastStatus, BadgeTone> = {
     DRAFT: "neutral", SCHEDULED: "info", RUNNING: "warning", PAUSED: "info",
@@ -54,6 +67,16 @@ export default function WhatsappBroadcastPage() {
     // Keterangan & contoh tiap variabel (dari template) → biar {{1}} tidak mentah.
     const varLabels = Array.isArray(selectedTpl?.variableLabels) ? (selectedTpl!.variableLabels as string[]) : [];
     const varSamples = Array.isArray(selectedTpl?.variableSample) ? (selectedTpl!.variableSample as string[]) : [];
+
+    // Saat pilih template: isi OTOMATIS dari field data pelanggan bila keterangan cocok.
+    useEffect(() => {
+        if (!selectedTpl) return;
+        setVarMap(Array.from({ length: nVars }, (_, i) => {
+            const field = LABEL_TO_FIELD[(varLabels[i] || "").trim()];
+            return field ? { source: "field" as const, field } : { source: "static" as const, value: "" };
+        }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [templateId]);
     const segment = { onlyLinked, leadStatus: leadStatus || undefined };
     const parsedNumbers = numbersText.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
     // Nomor untuk impor: dari kolom nomor CSV bila ada, else dari textarea tempel.
@@ -197,21 +220,28 @@ export default function WhatsappBroadcastPage() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                         <select
-                                            value={m.source === "column" ? `column:${m.columnIndex ?? 0}` : m.source}
+                                            value={m.source === "column" ? `column:${m.columnIndex ?? 0}` : m.source === "field" ? `field:${m.field ?? "name"}` : m.source}
                                             onChange={(e) => {
                                                 const v = e.target.value;
                                                 const next = [...varMap];
                                                 next[i] = v.startsWith("column:")
                                                     ? { source: "column", columnIndex: parseInt(v.slice(7), 10) }
-                                                    : { ...m, source: v as VariableMapItem["source"] };
+                                                    : v.startsWith("field:")
+                                                      ? { source: "field", field: v.slice(6) }
+                                                      : { ...m, source: v as VariableMapItem["source"] };
                                                 setVarMap(next);
                                             }}
                                             className="rounded-lg bg-muted/60 px-2 py-1.5 text-sm outline-none"
                                         >
-                                            <option value="static">Teks tetap</option>
-                                            <option value="profileName">Nama kontak</option>
+                                            <option value="static">Teks tetap (isi manual)</option>
+                                            <option value="profileName">Nama profil WA</option>
+                                            {!csv && (
+                                                <optgroup label="Otomatis dari data pelanggan">
+                                                    {DATA_FIELDS.map((f) => <option key={f.key} value={`field:${f.key}`}>Data: {f.label}</option>)}
+                                                </optgroup>
+                                            )}
                                             {csv && csv.headers.map((h, ci) => (
-                                                <option key={ci} value={`column:${ci}`}>Kolom: {h}</option>
+                                                <option key={ci} value={`column:${ci}`}>Kolom CSV: {h}</option>
                                             ))}
                                         </select>
                                         {m.source === "static" && (
@@ -221,6 +251,9 @@ export default function WhatsappBroadcastPage() {
                                         )}
                                         {m.source === "column" && csv && (
                                             <span className="text-xs opacity-50 flex-1 truncate">contoh: {csv.rows[0]?.[m.columnIndex ?? 0] || "—"}</span>
+                                        )}
+                                        {m.source === "field" && (
+                                            <span className="text-xs text-emerald-600 flex-1 truncate">✓ otomatis dari data pelanggan ({DATA_FIELDS.find((f) => f.key === m.field)?.label || m.field})</span>
                                         )}
                                         </div>
                                     </div>

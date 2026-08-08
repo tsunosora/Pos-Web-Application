@@ -287,9 +287,10 @@ export interface SegmentDef {
     leadStatus?: string;
 }
 export interface VariableMapItem {
-    source: 'profileName' | 'static' | 'column';
+    source: 'profileName' | 'static' | 'column' | 'field';
     value?: string;
     columnIndex?: number;   // untuk source 'column' (impor CSV berkolom)
+    field?: string;         // untuk source 'field' (otomatis dari data pelanggan): name|phone|address|city
 }
 export interface WaBroadcast {
     id: number;
