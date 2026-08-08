@@ -86,6 +86,30 @@ export class CloudApiService {
         return { waMessageId: json?.messages?.[0]?.id ?? null };
     }
 
+    /** Kirim 1 produk katalog (interactive product message; sah dalam jendela 24 jam). */
+    async sendProduct(
+        phoneNumberId: string,
+        to: string,
+        catalogId: string,
+        productRetailerId: string,
+        bodyText?: string,
+        footerText?: string,
+    ): Promise<WaSendResult> {
+        const json = await this.graph('POST', `${phoneNumberId}/messages`, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to,
+            type: 'interactive',
+            interactive: {
+                type: 'product',
+                ...(bodyText ? { body: { text: bodyText } } : {}),
+                ...(footerText ? { footer: { text: footerText } } : {}),
+                action: { catalog_id: catalogId, product_retailer_id: productRetailerId },
+            },
+        });
+        return { waMessageId: json?.messages?.[0]?.id ?? null };
+    }
+
     /** Kirim reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi). */
     async sendReaction(
         phoneNumberId: string,

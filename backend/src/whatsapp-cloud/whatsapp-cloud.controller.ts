@@ -61,8 +61,8 @@ export class WhatsappCloudController {
 
     // ─── Katalog produk Meta Commerce (Owner/Admin/Marketing) ────────────────
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...TEMPLATE_ROLES)
+    // Lihat katalog: semua peran inbox (untuk kirim produk ke chat). Kelola: TEMPLATE_ROLES.
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('catalog')
     listCatalog(@Query('channelId', ParseIntPipe) channelId: number) {
         return this.catalog.list(channelId);
@@ -580,6 +580,17 @@ export class WhatsappCloudController {
         @Body() body: { caption?: string; replyTo?: string },
     ) {
         return this.inbox.replyMedia(id, req.user.userId, file, body?.caption, body?.replyTo);
+    }
+
+    /** Kirim 1 produk katalog ke percakapan (interactive product message). */
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @Post('conversations/:id/send-product')
+    sendProduct(
+        @Req() req: any,
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { productRetailerId: string; productName?: string; bodyText?: string },
+    ) {
+        return this.inbox.sendProduct(id, req.user.userId, body);
     }
 
     /** CS set/ubah nama kontak (prioritas tampil di atas nama profil WA). */

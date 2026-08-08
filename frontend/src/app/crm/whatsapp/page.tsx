@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
@@ -11,8 +11,8 @@ import {
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
     listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders,
-    setWaContactName, waContactName,
-    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent,
+    setWaContactName, waContactName, listWaCatalog, sendWaProduct,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent, type WaCatalogProduct,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -609,6 +609,23 @@ export default function WhatsappInboxPage() {
         renameMut.mutate({ contactId: selected.contact.id, name: input.trim() || null });
     };
 
+    // Kirim produk katalog ke chat (interactive product message).
+    const [showProducts, setShowProducts] = useState(false);
+    const sendProductMut = useMutation({
+        mutationFn: (p: WaCatalogProduct) => sendWaProduct(selectedId as number, {
+            productRetailerId: p.retailerId || "",
+            productName: p.name || undefined,
+            bodyText: draft.trim() || undefined,
+        }),
+        onSuccess: () => {
+            setDraft("");
+            setShowProducts(false);
+            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+            qc.invalidateQueries({ queryKey: ["wa-convos"] });
+        },
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal mengirim produk"),
+    });
+
     // Template APPROVED — dipakai saat jendela 24 jam tutup.
     const [tplId, setTplId] = useState<number | null>(null);
     const { data: templates = [] } = useQuery({
@@ -988,6 +1005,14 @@ export default function WhatsappInboxPage() {
                                     >
                                         <Paperclip className="w-4 h-4" />
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowProducts(true)}
+                                        className="rounded-xl bg-muted/60 text-foreground p-2.5 hover:bg-muted transition shrink-0"
+                                        title="Kirim produk dari katalog"
+                                    >
+                                        <ShoppingBag className="w-4 h-4" />
+                                    </button>
                                     <div ref={emojiWrapRef} className="relative shrink-0">
                                         {showEmoji && (
                                             <div className="absolute bottom-full left-0 mb-2 z-20">
@@ -1113,6 +1138,14 @@ export default function WhatsappInboxPage() {
             </section>
 
             {lightboxId != null && <ImageLightbox messageId={lightboxId} onClose={() => setLightboxId(null)} />}
+            {showProducts && selected && (
+                <ProductPickerModal
+                    channelId={selected.channel.id}
+                    sending={sendProductMut.isPending}
+                    onPick={(p) => sendProductMut.mutate(p)}
+                    onClose={() => setShowProducts(false)}
+                />
+            )}
             {composeOpen && (
                 <NewChatModal
                     onClose={() => setComposeOpen(false)}
@@ -1243,6 +1276,75 @@ function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: 
                     className="w-full rounded-lg bg-emerald-500 text-white py-2 text-sm font-medium disabled:opacity-50">
                     {startMut.isPending ? "Mengirim…" : "Simpan & Kirim"}
                 </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── Modal pilih produk katalog untuk dikirim ke chat ────────────────────────
+function ProductPickerModal({ channelId, sending, onPick, onClose }: {
+    channelId: number;
+    sending: boolean;
+    onPick: (p: WaCatalogProduct) => void;
+    onClose: () => void;
+}) {
+    const [q, setQ] = useState("");
+    const { data: products = [], isLoading, error } = useQuery({
+        queryKey: ["wa-catalog", channelId],
+        queryFn: () => listWaCatalog(channelId),
+        retry: false,
+    });
+    const shown = products.filter((p) => !q || (p.name || "").toLowerCase().includes(q.toLowerCase()));
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+            <div className="w-full max-w-md max-h-[85vh] flex flex-col rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2 p-4 border-b border-border">
+                    <ShoppingBag className="w-5 h-5 text-emerald-500" />
+                    <h2 className="font-semibold">Kirim produk katalog</h2>
+                    <button onClick={onClose} className="ml-auto p-1 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="p-3 border-b border-border">
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cari produk…"
+                        className="w-full rounded-lg bg-muted/60 px-3 py-1.5 text-sm outline-none" />
+                </div>
+                <div className="overflow-y-auto p-2">
+                    {isLoading ? (
+                        <p className="text-sm opacity-60 p-3">Memuat katalog…</p>
+                    ) : error ? (
+                        <p className="text-sm text-amber-600 dark:text-amber-400 p-3">
+                            {(error as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal memuat katalog. Cek koneksi katalog di Commerce Manager."}
+                        </p>
+                    ) : shown.length === 0 ? (
+                        <p className="text-sm opacity-60 p-3">Tidak ada produk. <Link href="/crm/whatsapp/catalog" className="underline">Kelola katalog →</Link></p>
+                    ) : (
+                        <ul className="space-y-1">
+                            {shown.map((p) => (
+                                <li key={p.id}>
+                                    <button
+                                        type="button"
+                                        disabled={sending || !p.retailerId}
+                                        onClick={() => onPick(p)}
+                                        className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-muted text-left disabled:opacity-50"
+                                        title={!p.retailerId ? "Produk tanpa SKU tak bisa dikirim" : "Kirim produk ini"}
+                                    >
+                                        {p.imageUrl ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={p.imageUrl} alt={p.name ?? ""} className="w-12 h-12 rounded-md object-cover border border-border shrink-0" />
+                                        ) : (
+                                            <div className="w-12 h-12 rounded-md bg-muted grid place-items-center shrink-0"><ShoppingBag className="w-4 h-4 opacity-50" /></div>
+                                        )}
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-sm truncate">{p.name}</div>
+                                            <div className="text-xs text-emerald-600 dark:text-emerald-400">{p.price}</div>
+                                        </div>
+                                        <Send className="w-4 h-4 opacity-60 shrink-0" />
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
             </div>
         </div>
     );

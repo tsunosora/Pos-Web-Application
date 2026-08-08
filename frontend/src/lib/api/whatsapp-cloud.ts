@@ -111,6 +111,12 @@ export const updateWaCatalogProduct = async (channelId: number, productId: strin
 export const deleteWaCatalogProduct = async (channelId: number, productId: string): Promise<any> =>
     (await api.delete(`/whatsapp/catalog/${productId}`, { params: { channelId } })).data;
 
+// Kirim 1 produk katalog ke percakapan (interactive product message).
+export const sendWaProduct = async (
+    conversationId: number,
+    data: { productRetailerId: string; productName?: string; bodyText?: string },
+): Promise<WaMessage> => (await api.post(`/whatsapp/conversations/${conversationId}/send-product`, data)).data;
+
 export const WA_STATUS_LABEL: Record<WaConversationStatus, string> = {
     OPEN: 'Terbuka',
     PENDING: 'Menunggu',

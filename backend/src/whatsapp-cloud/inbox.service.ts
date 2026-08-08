@@ -961,6 +961,44 @@ export class InboxService {
         return { conversationId: conv.id };
     }
 
+    /** Kirim 1 produk katalog ke percakapan (interactive product message). */
+    async sendProduct(
+        conversationId: number,
+        userId: number,
+        input: { productRetailerId: string; productName?: string; bodyText?: string },
+    ) {
+        if (!input.productRetailerId?.trim()) throw new BadRequestException('Produk belum dipilih');
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            include: { channel: true, contact: true },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        if (conv.contact.optedOut) throw new ConflictException('Kontak sudah opt-out (berhenti berlangganan)');
+        const expired = !conv.windowExpiresAt || conv.windowExpiresAt.getTime() < Date.now();
+        if (expired) throw new ConflictException('Di luar jendela 24 jam — pesan produk hanya bisa dikirim saat percakapan aktif');
+
+        // Resolusi catalog_id (manual di channel / auto dari WABA lalu di-cache).
+        let catalogId = conv.channel.catalogId;
+        if (!catalogId) {
+            catalogId = await this.cloud.getWabaCatalogId(conv.channel.wabaId);
+            if (!catalogId) throw new BadRequestException('Katalog belum terhubung ke WABA ini (cek Commerce Manager & izin catalog_management).');
+            await this.prisma.waChannel.update({ where: { id: conv.channel.id }, data: { catalogId } });
+        }
+
+        const { waMessageId } = await this.cloud.sendProduct(
+            conv.channel.phoneNumberId,
+            conv.contact.waId,
+            catalogId,
+            input.productRetailerId.trim(),
+            input.bodyText?.trim() || undefined,
+        );
+        return this.persistOutbound(conv, userId, {
+            waMessageId,
+            type: WaMessageType.INTERACTIVE,
+            body: input.bodyText?.trim() || `🛍️ ${input.productName || 'Produk katalog'}`,
+        });
+    }
+
     private async persistOutbound(
         conv: { id: number; channelId: number; contactId: number },
         userId: number,
