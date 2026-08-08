@@ -5,6 +5,7 @@ import { CloudApiService } from './cloud-api.service';
 import { MediaStorageService } from './media-storage.service';
 import { AutoReplyService } from './auto-reply.service';
 import { TemplatesService } from './templates.service';
+import { roleCanInbox } from './wa-roles.util';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
 export interface ListConversationsOpts {
@@ -80,10 +81,8 @@ export class InboxService {
         private readonly templates: TemplatesService,
     ) {}
 
-    // Role yang boleh menangani chat → jadi kandidat penerima "Oper ke…".
-    private static readonly AGENT_ROLES = new Set(['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN', 'CS', 'MARKETING', 'DESIGNER']);
-
-    /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk dropdown assign). */
+    /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk dropdown assign).
+     *  Cocokkan role by kata kunci karena nama role dinamis (mis. "Desainer"). */
     async listAgents(): Promise<Array<{ id: number; name: string | null; roleName: string | null; branchId: number | null }>> {
         const users = await this.prisma.user.findMany({
             where: { isActive: true },
@@ -91,7 +90,7 @@ export class InboxService {
             orderBy: { name: 'asc' },
         });
         return users
-            .filter((u) => InboxService.AGENT_ROLES.has((u.role?.name || '').toUpperCase()))
+            .filter((u) => roleCanInbox(u.role?.name))
             .map((u) => ({ id: u.id, name: u.name, roleName: u.role?.name ?? null, branchId: u.branchId }));
     }
 

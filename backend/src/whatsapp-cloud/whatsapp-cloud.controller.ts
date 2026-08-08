@@ -35,11 +35,11 @@ import { RemindersService, type ReminderEvent, type SetReminderConfigInput } fro
 import { AnalyticsService } from './analytics.service';
 import { WaQrService, type CreateQrInput } from './qr.service';
 import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyInput } from './quick-reply.service';
+import { WaInboxGuard, isDesignerRole } from './wa-roles.util';
 
-// Manajemen kredensial: Owner/Admin. Inbox: + CS/Marketing (agen lapangan).
+// Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
+// dicocokkan by kata kunci karena nama role dinamis — mis. "Desainer"/"CS").
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
-// Inbox (baca + balas chat) juga untuk Designer — perlu komunikasi revisi ke pelanggan.
-const INBOX_ROLES = [...ADMIN_ROLES, 'CS', 'MARKETING', 'DESIGNER'] as const;
 const TEMPLATE_ROLES = [...ADMIN_ROLES, 'MARKETING'] as const;
 
 @Controller('whatsapp')
@@ -59,29 +59,25 @@ export class WhatsappCloudController {
 
     // ─── Pesan cepat / canned message (semua peran inbox) ────────────────────
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('quick-replies')
     listQuickReplies() {
         return this.quickReplies.list();
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('quick-replies')
     createQuickReply(@Req() req: any, @Body() body: CreateQuickReplyInput) {
         return this.quickReplies.create(body, req.user.userId);
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Patch('quick-replies/:id')
     updateQuickReply(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateQuickReplyInput) {
         return this.quickReplies.update(id, body);
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Delete('quick-replies/:id')
     removeQuickReply(@Param('id', ParseIntPipe) id: number) {
         return this.quickReplies.remove(id);
@@ -271,8 +267,7 @@ export class WhatsappCloudController {
         return this.reminders.setConfig(eventType, body);
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('reminders/order-ready/:transactionId')
     async triggerOrderReady(@Param('transactionId', ParseIntPipe) transactionId: number) {
         await this.reminders.sendOrderReady(transactionId);
@@ -379,13 +374,12 @@ export class WhatsappCloudController {
     // ─── Inbox ───────────────────────────────────────────────────────────────
 
     /** Daftar percakapan. Non-admin otomatis dibatasi ke cabangnya sendiri. */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations')
     listConversations(@Req() req: any, @Query() query: Record<string, string>) {
         const roleName = String(req.user?.roleName || '').toUpperCase();
         const privileged = (ADMIN_ROLES as readonly string[]).includes(roleName);
-        const isDesigner = roleName === 'DESIGNER';
+        const isDesigner = isDesignerRole(req.user?.roleName);
         const branchId = privileged
             ? query.branchId
                 ? +query.branchId
@@ -414,30 +408,26 @@ export class WhatsappCloudController {
     }
 
     /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk "Oper ke…"). */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('agents')
     listAgents() {
         return this.inbox.listAgents();
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations/:id')
     getConversation(@Param('id', ParseIntPipe) id: number) {
         return this.inbox.getConversation(id);
     }
 
     /** Resolve percakapan WA dari leadId (deep-link "Buka chat WA"). */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('leads/:leadId/conversation')
     resolveConversationByLead(@Param('leadId', ParseIntPipe) leadId: number) {
         return this.inbox.resolveConversation(leadId);
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations/:id/messages')
     getMessages(@Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
         return this.inbox.getMessages(id, {
@@ -447,8 +437,7 @@ export class WhatsappCloudController {
     }
 
     /** Proxy biner media inbound (gambar/dokumen/audio/video) — backend pegang token Meta. */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('messages/:id/media')
     async getMessageMedia(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
         const { buffer, contentType, filename } = await this.inbox.getMessageMedia(id);
@@ -481,8 +470,7 @@ export class WhatsappCloudController {
         return this.mediaStore.cleanupBefore(before);
     }
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Patch('conversations/:id')
     updateConversation(
         @Param('id', ParseIntPipe) id: number,
@@ -497,24 +485,21 @@ export class WhatsappCloudController {
     }
 
     /** Chat Baru: simpan nomor baru + kirim template pembuka → buka percakapan. */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/start')
     startConversation(@Req() req: any, @Body() body: StartConversationInput) {
         return this.inbox.startConversation(req.user.userId, body);
     }
 
     /** Balas teks (hanya sah di dalam jendela 24 jam → 409 bila lewat). */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/reply')
     reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string; replyTo?: string }) {
         return this.inbox.replyText(id, req.user.userId, body.text, body.replyTo);
     }
 
     /** Balas via template (sah kapan pun, termasuk luar jendela 24 jam). */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/reply-template')
     replyTemplate(
         @Req() req: any,
@@ -525,8 +510,7 @@ export class WhatsappCloudController {
     }
 
     /** Balas dengan lampiran media (gambar/dokumen/file) — hanya di jendela 24 jam. */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/reply-media')
     @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 90 * 1024 * 1024 } }))
     replyMedia(
@@ -539,8 +523,7 @@ export class WhatsappCloudController {
     }
 
     /** Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi). */
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...INBOX_ROLES)
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('messages/:id/react')
     react(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { emoji?: string }) {
         return this.inbox.reactToMessage(id, req.user.userId, body?.emoji ?? '');
