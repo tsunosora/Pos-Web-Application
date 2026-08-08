@@ -335,24 +335,34 @@ export class InboxService {
         const now = new Date();
 
         // 1) Upsert kontak + tautan CRM (cari Lead by phoneNormalized).
-        let lead = await this.prisma.lead.findFirst({
+        const prior = await this.prisma.lead.findFirst({
             where: { phoneNormalized },
             orderBy: { updatedAt: 'desc' },
-            select: { id: true, convertedCustomerId: true },
+            select: { id: true, status: true, convertedCustomerId: true },
         });
-        // Auto-create Lead untuk prospek WA baru (dedup: hanya bila belum ada lead).
+        // Siklus selesai (Closing/Hilang) → chat berikutnya adalah INQUIRY BARU, bukan
+        // menampilkan status closing lama. Buat lead baru (pelanggan lama = Repeat Order).
+        // INVALID sengaja TIDAK di-resurrect (ditandai buruk manual). Selama siklus aktif
+        // (NEW/FOLLOW_UP/NEGOTIATION) tetap pakai lead yang sama (anti-spam).
+        const DONE_STATUSES = ['CLOSED_WON', 'CLOSED_LOST'];
+        const startFresh = !prior || DONE_STATUSES.includes(String(prior.status));
+        // Pelanggan lama yang sudah pernah closing → simpan tautan customer utk kontak.
+        const linkCustomerId = prior?.convertedCustomerId ?? null;
+
+        let lead = prior;
         let createdLead = false;
-        if (!lead && this.autoCreateLead) {
+        if (startFresh && this.autoCreateLead) {
             lead = await this.prisma.lead.create({
                 data: {
                     name: profileName || `WA ${waId}`,
                     phone: from ?? waId,
                     phoneNormalized,
-                    source: 'WHATSAPP',
+                    // Pelanggan lama (pernah jadi customer) → Repeat Order; selain itu WhatsApp.
+                    source: prior?.convertedCustomerId ? 'REPEAT_ORDER' : 'WHATSAPP',
                     status: 'NEW',
                     branchId: channel.branchId ?? null,
                 },
-                select: { id: true, convertedCustomerId: true },
+                select: { id: true, status: true, convertedCustomerId: true },
             });
             createdLead = true;
         }
@@ -364,6 +374,8 @@ export class InboxService {
             await this.applyQrAttribution(lead.id, this.extractBody(msg), createdLead, channel.branchId ?? null);
         }
 
+        // Tautan customer: dari lead aktif, atau dari pelanggan lama (lead lama yg sudah closing).
+        const contactCustomerId = lead?.convertedCustomerId ?? linkCustomerId;
         const contact = await this.prisma.waContact.upsert({
             where: { waId },
             create: {
@@ -372,14 +384,14 @@ export class InboxService {
                 profileName,
                 lastInboundAt: now,
                 leadId: lead?.id ?? null,
-                customerId: lead?.convertedCustomerId ?? null,
+                customerId: contactCustomerId,
             },
             update: {
                 profileName: profileName ?? undefined,
                 lastInboundAt: now,
-                // Isi tautan CRM bila belum ada (jangan timpa yang sudah terset manual).
+                // Lead: selalu arahkan ke lead aktif terbaru (termasuk lead baru repeat-order).
                 ...(lead?.id ? { leadId: lead.id } : {}),
-                ...(lead?.convertedCustomerId ? { customerId: lead.convertedCustomerId } : {}),
+                ...(contactCustomerId ? { customerId: contactCustomerId } : {}),
             },
         });
 

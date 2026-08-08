@@ -757,13 +757,14 @@ export default function WhatsappInboxPage() {
                                 {/* Status lead + CS yang handle */}
                                 <div className="flex items-center justify-between gap-2 mt-0.5">
                                     <span className="text-[11px] truncate flex items-center gap-1 min-w-0">
-                                        {c.contact.lead ? (
-                                            <span className="rounded-full bg-muted px-1.5 py-0.5 shrink-0">{LEAD_STAGE_LABEL[c.contact.lead.status] ?? c.contact.lead.status}</span>
-                                        ) : c.contact.customerId ? (
-                                            <span className="opacity-60 shrink-0">Pelanggan</span>
-                                        ) : (
-                                            <span className="opacity-50 shrink-0">Kontak baru</span>
-                                        )}
+                                        {(() => {
+                                            const st = c.contact.lead?.status;
+                                            const done = st === "CLOSED_WON" || st === "CLOSED_LOST" || st === "INVALID";
+                                            if (st && !done) return <span className="rounded-full bg-muted px-1.5 py-0.5 shrink-0">{LEAD_STAGE_LABEL[st] ?? st}</span>;
+                                            if (c.contact.customerId) return <span className="rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 shrink-0">Pelanggan lama</span>;
+                                            if (done) return <span className="opacity-50 shrink-0">Selesai</span>;
+                                            return <span className="opacity-50 shrink-0">Kontak baru</span>;
+                                        })()}
                                         {c.assignedTo?.name && <span className="opacity-60 truncate">· {c.assignedTo.name}</span>}
                                     </span>
                                     {c.unreadCount > 0 && (
