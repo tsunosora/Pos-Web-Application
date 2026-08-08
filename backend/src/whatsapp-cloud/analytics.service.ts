@@ -165,19 +165,19 @@ export class AnalyticsService {
      * percakapan yang sama. Auto-reply (sentById null) diabaikan.
      * Atribusi ke agen pengirim balasan.
      */
-    async csBenchmark(opts: AnalyticsQuery) {
-        const { fromDate, toDate } = this.range(opts.from, opts.to);
+    /**
+     * Inti FRT: kembalikan per-userId (WaMessage.sentById) daftar detik respon
+     * (jarak awal burst pesan masuk → balasan manusia pertama). Dipakai bersama
+     * oleh csBenchmark & waCsMetricsByUser (leaderboard).
+     */
+    private async frtByAgent(fromDate: Date, toDate: Date, channelId?: number): Promise<Map<number, number[]>> {
         const inRange = { createdAt: { gte: fromDate, lte: toDate } };
-        const ch = opts.channelId ? { channelId: opts.channelId } : {};
-        const slaMinutes = Math.max(1, opts.slaMinutes ?? 5);
-        const slaSec = slaMinutes * 60;
-
+        const ch = channelId ? { channelId } : {};
         const msgs = await this.prisma.waMessage.findMany({
             where: { ...inRange, ...ch },
             select: { conversationId: true, direction: true, sentById: true, createdAt: true },
             orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
         });
-
         const perAgent = new Map<number, number[]>();
         let curConv = -1;
         let pending: Date | null = null;
@@ -201,6 +201,38 @@ export class AnalyticsService {
                 }
             }
         }
+        return perAgent;
+    }
+
+    /**
+     * Metrik balas WA ringkas per userId untuk leaderboard CS (semua channel).
+     * Atribusi ke WaMessage.sentById (yang benar-benar membalas).
+     */
+    async waCsMetricsByUser(
+        fromDate: Date,
+        toDate: Date,
+        slaMinutes = 5,
+    ): Promise<Map<number, { avgSec: number; responses: number; withinSlaPct: number }>> {
+        const slaSec = Math.max(1, slaMinutes) * 60;
+        const perAgent = await this.frtByAgent(fromDate, toDate);
+        const out = new Map<number, { avgSec: number; responses: number; withinSlaPct: number }>();
+        for (const [uid, arr] of perAgent) {
+            if (!arr.length) continue;
+            const withinSla = arr.filter((s) => s <= slaSec).length;
+            out.set(uid, {
+                avgSec: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
+                responses: arr.length,
+                withinSlaPct: Math.round((withinSla / arr.length) * 100),
+            });
+        }
+        return out;
+    }
+
+    async csBenchmark(opts: AnalyticsQuery) {
+        const { fromDate, toDate } = this.range(opts.from, opts.to);
+        const slaMinutes = Math.max(1, opts.slaMinutes ?? 5);
+        const slaSec = slaMinutes * 60;
+        const perAgent = await this.frtByAgent(fromDate, toDate, opts.channelId);
 
         const userIds = [...perAgent.keys()];
         const users = userIds.length

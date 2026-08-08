@@ -5,6 +5,7 @@ import { matchBranchId } from '../../common/branch-name.util';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { DiscordService } from '../../discord/discord.service';
 import { ReportsService } from '../../reports/reports.service';
+import { AnalyticsService } from '../../whatsapp-cloud/analytics.service';
 import {
     aggregateByTx,
     buildMatchWhere,
@@ -102,6 +103,7 @@ export class KpiService {
         private readonly prisma: PrismaService,
         private readonly discord: DiscordService,
         private readonly reports: ReportsService,
+        private readonly waAnalytics: AnalyticsService,
     ) {}
 
     private periodLabel(p: KpiParams): string {
@@ -2305,6 +2307,8 @@ export class KpiService {
         const csScope: any = csId ? { assignedToId: csId } : {};
         // Bagian omzet CS (nota dibagi per peran) — kolom "omzet (bagian)".
         const { csShareByUser } = await this.computeNotaSplits(params);
+        // Metrik balas WhatsApp per CS (atribusi WaMessage.sentById) — kolom WA leaderboard.
+        const waMetrics = await this.waAnalytics.waCsMetricsByUser(start, end);
 
         // ── Response time avg ──────────────────────────────────────────────
         // Ambil leads in period + first non-FIRST_CONTACT activity per lead.
@@ -2744,6 +2748,10 @@ export class KpiService {
                     avgResponseHrs: stat.respCount > 0
                         ? stat.respSum / stat.respCount / (1000 * 60 * 60)
                         : null,
+                    // ── Kecepatan balas WhatsApp (atribusi ke pengirim balasan) ──
+                    waResponseSec: waMetrics.get(userId)?.avgSec ?? null,
+                    waResponses: waMetrics.get(userId)?.responses ?? 0,
+                    waWithinSlaPct: waMetrics.get(userId)?.withinSlaPct ?? null,
                 };
             })
             .sort((a, b) =>

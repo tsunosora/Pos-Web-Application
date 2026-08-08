@@ -239,6 +239,13 @@ export default function LeaderboardPage() {
         const best = withResp.reduce((a, b) => (a.avgResponseHrs! <= b.avgResponseHrs! ? a : b));
         return { row: best, v: best.avgResponseHrs! };
     })();
+    const champWaResp = (() => {
+        const withWa = csRows.filter(x => x.waResponseSec != null && x.waResponses > 0);
+        if (!withWa.length) return null;
+        const best = withWa.reduce((a, b) => (a.waResponseSec! <= b.waResponseSec! ? a : b));
+        return { row: best, v: best.waResponseSec! };
+    })();
+    const fmtWaDur = (sec: number) => sec < 60 ? `${Math.round(sec)}d` : sec < 3600 ? `${Math.floor(sec / 60)}m` : `${(sec / 3600).toFixed(1)}j`;
 
     return (
         <div className="space-y-5 max-w-7xl mx-auto pb-6">
@@ -343,12 +350,13 @@ export default function LeaderboardPage() {
                     {showCS && (
                         <SectionCard icon={<Users className="h-5 w-5" />} title="Divisi CS / Sales" subtitle="Berbasis lead yang ditangani + transaksi POS walk-in.">
                             {/* Juara */}
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-4">
                                 <ChampionCard icon={<Crown />} title="Raja Cuan" name={champCuan?.row.name} value={fmtRp(champCuan?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
                                 <ChampionCard icon={<Target />} title="Raja Closing" name={champClose?.row.name} value={`${champClose?.v ?? 0} closing`} accent="bg-emerald-500/15 text-emerald-500" />
                                 <ChampionCard icon={<Phone />} title="Raja Lead" name={champLead?.row.name} value={`${champLead?.v ?? 0} lead`} accent="bg-indigo-500/15 text-indigo-500" />
                                 <ChampionCard icon={<Truck />} title="Raja Kirim" name={champKirim?.row.name} value={`${champKirim?.v ?? 0} terkirim`} accent="bg-sky-500/15 text-sky-500" />
-                                <ChampionCard icon={<Zap />} title="Tercepat Respon" name={champResp?.row.name} value={champResp ? `${champResp.v.toFixed(1)} jam` : ''} accent="bg-blue-500/15 text-blue-500" />
+                                <ChampionCard icon={<Zap />} title="Tercepat Respon CRM" name={champResp?.row.name} value={champResp ? `${champResp.v.toFixed(1)} jam` : ''} accent="bg-blue-500/15 text-blue-500" />
+                                <ChampionCard icon={<Zap />} title="Tercepat Balas WA" name={champWaResp?.row.name} value={champWaResp ? fmtWaDur(champWaResp.v) : ''} accent="bg-green-500/15 text-green-500" />
                             </div>
                             {csRows.length === 0 ? <Empty /> : (
                                 <>
@@ -358,7 +366,7 @@ export default function LeaderboardPage() {
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
                                                 <Th right>Rate</Th><Th right>Pcs</Th>
                                                 {csCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
-                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon</Th>
+                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -394,6 +402,14 @@ export default function LeaderboardPage() {
                                                         <MetricCell value={r.pendingValue} colorClass="text-muted-foreground"
                                                             onClick={() => setDetail({ division: 'cs', metric: 'pending', userId: r.userId, personName: r.name, metricLabel: 'Akan Datang' })}>{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</MetricCell>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
+                                                        <td className="py-2 px-2 text-right font-mono">
+                                                            {r.waResponseSec != null ? (
+                                                                <span className="text-green-600 dark:text-green-300">
+                                                                    {fmtWaDur(r.waResponseSec)}
+                                                                    {r.waWithinSlaPct != null && <span className="block text-[10px] font-normal text-muted-foreground">{r.waWithinSlaPct}% ≤SLA · {r.waResponses}x</span>}
+                                                                </span>
+                                                            ) : '—'}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>

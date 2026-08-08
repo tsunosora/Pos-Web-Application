@@ -5,9 +5,10 @@ import { KpiController } from './kpi.controller';
 import { KpiPublicController } from './kpi-public.controller';
 import { KpiCron } from './kpi.cron';
 import { ReportsModule } from '../../reports/reports.module';
+import { WhatsappCloudModule } from '../../whatsapp-cloud/whatsapp-cloud.module';
 
 @Module({
-    imports: [PrismaModule, ReportsModule],
+    imports: [PrismaModule, ReportsModule, WhatsappCloudModule],
     controllers: [KpiController, KpiPublicController],
     providers: [KpiService, KpiCron],
     exports: [KpiService],

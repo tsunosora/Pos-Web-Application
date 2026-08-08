@@ -50,7 +50,7 @@ const d = CAN_RUN ? describe : describe.skip;
 
 d('KpiService — pemisahan Sedang Dikirim (KIRIM) vs Sudah Terkirim (SELESAI)', () => {
     const prisma = new PrismaService();
-    const service = new KpiService(prisma, {} as any, {} as any);
+    const service = new KpiService(prisma, {} as any, {} as any, { waCsMetricsByUser: async () => new Map() } as any);
     let faisalId = 0;
 
     async function sweep() {

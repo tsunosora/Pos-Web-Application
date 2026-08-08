@@ -40,7 +40,7 @@ const d = CAN_RUN ? describe : describe.skip;
 
 d('KpiService — jumlah PCS dikirim untuk item AREA_BASED (quantity × pcs)', () => {
     const prisma = new PrismaService();
-    const service = new KpiService(prisma, {} as any, {} as any);
+    const service = new KpiService(prisma, {} as any, {} as any, { waCsMetricsByUser: async () => new Map() } as any);
     let faisalId = 0;
 
     async function sweep() {

@@ -500,6 +500,11 @@ export interface KpiLeaderboardEntry {
     omzetShare: number;   // bagian omzet nota utk CS (nota dibagi per peran)
     closingRate: number;
     avgResponseHrs: number | null;
+    // Kecepatan balas WhatsApp (atribusi WaMessage.sentById): rata-rata detik,
+    // jumlah balasan pertama, % balasan dalam target (default 5 mnt).
+    waResponseSec: number | null;
+    waResponses: number;
+    waWithinSlaPct: number | null;
     // Nilai metrik produk custom (owner-defined) → { "<metricId>": nilai }
     customMetrics?: Record<string, number>;
 }
