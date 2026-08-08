@@ -137,9 +137,21 @@ export default function WhatsappTemplatesPage() {
                             className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
                     </label>
                     <div className="sm:col-span-2 space-y-2">
-                        <div className="text-sm font-medium">Variabel {varCount > 0 && `(${varCount})`}</div>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div className="text-sm font-medium">Variabel {varCount > 0 && `(${varCount})`}</div>
+                            <button
+                                type="button"
+                                onClick={() => setForm((f) => ({ ...f, bodyText: `${f.bodyText}${f.bodyText && !/\s$/.test(f.bodyText) ? " " : ""}{{${varCount + 1}}}` }))}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-primary text-primary-foreground"
+                                title="Sisipkan variabel berikutnya ke isi pesan"
+                            >
+                                + Tambah variabel {`{{${varCount + 1}}}`}
+                            </button>
+                        </div>
                         {varCount === 0 ? (
-                            <p className="text-xs opacity-60">Belum ada variabel. Tambahkan <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code> di isi pesan untuk membuat variabel.</p>
+                            <p className="text-xs opacity-60">
+                                Belum ada variabel. Klik <b>+ Tambah variabel</b> di atas (menyisipkan <code>{"{{1}}"}</code> ke isi pesan), atau ketik <code>{"{{1}}"}</code>, <code>{"{{2}}"}</code> langsung di <b>Isi pesan</b>. Setelah itu kotak keterangan &amp; contoh nilai muncul di sini.
+                            </p>
                         ) : (
                             <div className="space-y-2">
                                 {Array.from({ length: varCount }, (_, i) => (
