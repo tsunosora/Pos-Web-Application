@@ -51,6 +51,9 @@ export default function WhatsappBroadcastPage() {
 
     const selectedTpl = useMemo(() => templates.find((t) => t.id === templateId), [templates, templateId]);
     const nVars = selectedTpl ? countVars(selectedTpl.bodyText) : 0;
+    // Keterangan & contoh tiap variabel (dari template) → biar {{1}} tidak mentah.
+    const varLabels = Array.isArray(selectedTpl?.variableLabels) ? (selectedTpl!.variableLabels as string[]) : [];
+    const varSamples = Array.isArray(selectedTpl?.variableSample) ? (selectedTpl!.variableSample as string[]) : [];
     const segment = { onlyLinked, leadStatus: leadStatus || undefined };
     const parsedNumbers = numbersText.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
     // Nomor untuk impor: dari kolom nomor CSV bila ada, else dari textarea tempel.
@@ -179,11 +182,20 @@ export default function WhatsappBroadcastPage() {
                     {nVars > 0 && (
                         <div className="space-y-2">
                             <div className="text-sm font-medium">Isi variabel</div>
+                            <p className="text-[11px] opacity-60 -mt-1">
+                                Variabel (<span className="font-mono">{"{{1}}"}</span>, <span className="font-mono">{"{{2}}"}</span>) &amp; artinya berasal dari <b>template</b>. Untuk <b>menambah/mengubah</b> variabel, edit teks template di{" "}
+                                <Link href="/crm/whatsapp/templates" className="underline">halaman Template</Link> (tambah <span className="font-mono">{"{{n}}"}</span> di isi pesan + beri keterangan). Di sini Anda hanya <b>mengisi nilainya</b>.
+                            </p>
                             {Array.from({ length: nVars }, (_, i) => {
                                 const m = varMap[i] || { source: "static", value: "" };
                                 return (
-                                    <div key={i} className="flex items-center gap-2">
-                                        <span className="text-xs w-10 opacity-60">{`{{${i + 1}}}`}</span>
+                                    <div key={i} className="rounded-lg bg-muted/30 p-2 space-y-1.5">
+                                        <div className="text-xs">
+                                            <span className="font-mono opacity-70">{`{{${i + 1}}}`}</span>{" "}
+                                            <span className="font-medium">{varLabels[i] || "(tanpa keterangan di template)"}</span>
+                                            {varSamples[i] && <span className="opacity-50"> · contoh: {varSamples[i]}</span>}
+                                        </div>
+                                        <div className="flex items-center gap-2">
                                         <select
                                             value={m.source === "column" ? `column:${m.columnIndex ?? 0}` : m.source}
                                             onChange={(e) => {
@@ -210,6 +222,7 @@ export default function WhatsappBroadcastPage() {
                                         {m.source === "column" && csv && (
                                             <span className="text-xs opacity-50 flex-1 truncate">contoh: {csv.rows[0]?.[m.columnIndex ?? 0] || "—"}</span>
                                         )}
+                                        </div>
                                     </div>
                                 );
                             })}
