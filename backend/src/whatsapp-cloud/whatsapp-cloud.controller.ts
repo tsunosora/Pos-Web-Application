@@ -256,7 +256,8 @@ export class WhatsappCloudController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
     @Post('broadcasts/preview')
-    previewBroadcast(@Body() body: { segment?: SegmentDef }) {
+    previewBroadcast(@Body() body: { segment?: SegmentDef; numbers?: string[] }) {
+        if (body.numbers?.length) return this.broadcasts.previewNumbers(body.numbers);
         return this.broadcasts.preview(body.segment);
     }
 

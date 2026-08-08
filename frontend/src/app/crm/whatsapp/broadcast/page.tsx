@@ -37,6 +37,8 @@ export default function WhatsappBroadcastPage() {
     const [scheduledAt, setScheduledAt] = useState("");
     const [varMap, setVarMap] = useState<VariableMapItem[]>([]);
     const [preview, setPreview] = useState<number | null>(null);
+    const [recipientMode, setRecipientMode] = useState<"segment" | "import">("segment");
+    const [numbersText, setNumbersText] = useState("");
 
     const { data: broadcasts = [] } = useQuery({ queryKey: ["wa-broadcasts"], queryFn: listWaBroadcasts, refetchInterval: 5000 });
     const { data: channels = [] } = useQuery({ queryKey: ["wa-channels"], queryFn: listWaChannels });
@@ -48,22 +50,35 @@ export default function WhatsappBroadcastPage() {
     const selectedTpl = useMemo(() => templates.find((t) => t.id === templateId), [templates, templateId]);
     const nVars = selectedTpl ? countVars(selectedTpl.bodyText) : 0;
     const segment = { onlyLinked, leadStatus: leadStatus || undefined };
+    const parsedNumbers = numbersText.split(/[\s,;]+/).map((s) => s.trim()).filter(Boolean);
+    const importNumbers = recipientMode === "import" ? parsedNumbers : undefined;
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["wa-broadcasts"] });
 
     const previewMut = useMutation({
-        mutationFn: () => previewBroadcast(segment),
+        mutationFn: () => previewBroadcast(segment, importNumbers),
         onSuccess: (r) => setPreview(r.count),
     });
     const createMut = useMutation({
         mutationFn: () => createWaBroadcast({
             name, channelId: channelId as number, templateId: templateId as number,
-            segment, variableMap: Array.from({ length: nVars }, (_, i) => varMap[i] || { source: "static", value: "" }),
+            segment, numbers: importNumbers,
+            variableMap: Array.from({ length: nVars }, (_, i) => varMap[i] || { source: "static", value: "" }),
             scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         }),
         onSuccess: () => { resetForm(); invalidate(); },
         onError: (e) => alert(errMsg(e, "Gagal membuat broadcast")),
     });
+
+    // Impor nomor dari CSV/teks: ambil sel yang mengandung ≥8 digit (kolom nomor).
+    const onCsvFile = async (file: File | null) => {
+        if (!file) return;
+        const text = await file.text();
+        const cells = text.split(/[\n\r,;]+/).map((s) => s.trim()).filter(Boolean);
+        const nums = cells.filter((c) => c.replace(/\D/g, "").length >= 8);
+        setNumbersText((prev) => [prev, nums.join("\n")].filter(Boolean).join("\n"));
+        setPreview(null);
+    };
     const actMut = useMutation({
         mutationFn: ({ id, act }: { id: number; act: "run" | "pause" | "resume" | "cancel" }) =>
             ({ run: runWaBroadcast, pause: pauseWaBroadcast, resume: resumeWaBroadcast, cancel: cancelWaBroadcast }[act])(id),
@@ -74,8 +89,9 @@ export default function WhatsappBroadcastPage() {
     function resetForm() {
         setShowForm(false); setName(""); setChannelId(null); setTemplateId(null);
         setOnlyLinked(false); setLeadStatus(""); setScheduledAt(""); setVarMap([]); setPreview(null);
+        setRecipientMode("segment"); setNumbersText("");
     }
-    const canCreate = name.trim() && channelId && templateId;
+    const canCreate = name.trim() && channelId && templateId && (recipientMode === "segment" || parsedNumbers.length > 0);
 
     return (
         <div className="max-w-4xl mx-auto p-4 space-y-4">
@@ -148,23 +164,55 @@ export default function WhatsappBroadcastPage() {
                         </div>
                     )}
 
-                    {/* Segmen */}
-                    <div className="grid sm:grid-cols-2 gap-3 items-end">
-                        <label className="text-sm flex items-center gap-2">
-                            <input type="checkbox" checked={onlyLinked} onChange={(e) => setOnlyLinked(e.target.checked)} />
-                            Hanya kontak tertaut Lead/Pelanggan
-                        </label>
-                        <label className="text-sm">Filter status lead (opsional)
-                            <input value={leadStatus} onChange={(e) => setLeadStatus(e.target.value)} placeholder="CLOSED_WON"
-                                className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
-                        </label>
-                        <label className="text-sm">Jadwalkan (opsional)
-                            <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)}
-                                className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
-                        </label>
-                        <button onClick={() => previewMut.mutate()} className="flex items-center gap-1 text-sm px-3 py-2 rounded-lg bg-muted hover:bg-muted/70">
-                            <Users className="w-4 h-4" /> Hitung penerima {preview != null && `→ ${preview}`}
-                        </button>
+                    {/* Sumber penerima */}
+                    <div className="space-y-2">
+                        <div className="text-sm font-medium">Penerima</div>
+                        <div className="flex gap-2">
+                            <button type="button" onClick={() => { setRecipientMode("segment"); setPreview(null); }}
+                                className={`text-xs px-3 py-1.5 rounded-lg ${recipientMode === "segment" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
+                                Kontak terdaftar
+                            </button>
+                            <button type="button" onClick={() => { setRecipientMode("import"); setPreview(null); }}
+                                className={`text-xs px-3 py-1.5 rounded-lg ${recipientMode === "import" ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-muted/70"}`}>
+                                Impor nomor (CSV / tempel)
+                            </button>
+                        </div>
+
+                        {recipientMode === "segment" ? (
+                            <div className="grid sm:grid-cols-2 gap-3 items-end">
+                                <label className="text-sm flex items-center gap-2">
+                                    <input type="checkbox" checked={onlyLinked} onChange={(e) => { setOnlyLinked(e.target.checked); setPreview(null); }} />
+                                    Hanya kontak tertaut Lead/Pelanggan
+                                </label>
+                                <label className="text-sm">Filter status lead (opsional)
+                                    <input value={leadStatus} onChange={(e) => { setLeadStatus(e.target.value); setPreview(null); }} placeholder="CLOSED_WON"
+                                        className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                                </label>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <textarea value={numbersText} onChange={(e) => { setNumbersText(e.target.value); setPreview(null); }}
+                                    rows={4} placeholder={"Tempel nomor (satu per baris atau pisah koma). Contoh:\n08123456789\n628123456780"}
+                                    className="w-full rounded-lg bg-muted/60 px-3 py-2 text-sm outline-none resize-none font-mono" />
+                                <div className="flex items-center gap-3 text-xs flex-wrap">
+                                    <label className="px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/70 cursor-pointer">
+                                        Unggah CSV
+                                        <input type="file" accept=".csv,.txt" className="hidden" onChange={(e) => onCsvFile(e.target.files?.[0] ?? null)} />
+                                    </label>
+                                    <span className="opacity-60">{parsedNumbers.length} nomor terdeteksi · otomatis dinormalkan (0→62), duplikat & tak valid dibuang saat kirim.</span>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid sm:grid-cols-2 gap-3 items-end pt-1">
+                            <label className="text-sm">Jadwalkan (opsional)
+                                <input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)}
+                                    className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                            </label>
+                            <button onClick={() => previewMut.mutate()} className="flex items-center gap-1 text-sm px-3 py-2 rounded-lg bg-muted hover:bg-muted/70">
+                                <Users className="w-4 h-4" /> Hitung penerima {preview != null && `→ ${preview}`}
+                            </button>
+                        </div>
                     </div>
 
                     <div className="flex gap-2 justify-end">

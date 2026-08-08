@@ -65,9 +65,9 @@ describe('BroadcastService', () => {
             const prisma = {
                 waTemplate: { findUnique: jest.fn().mockResolvedValue({ id: 1, status: 'APPROVED' }) },
                 waChannel: { findUnique: jest.fn().mockResolvedValue({ id: 2 }) },
-                waContact: { findMany: jest.fn().mockResolvedValue([]) },
+                waContact: { findMany: jest.fn().mockResolvedValue([{ id: 10, waId: '628a' }]) },
                 waBroadcast: { create: jest.fn().mockResolvedValue({ id: 99 }) },
-                waBroadcastRecipient: { createMany: jest.fn() },
+                waBroadcastRecipient: { createMany: jest.fn().mockResolvedValue({ count: 1 }) },
             };
             const svc = new BroadcastService(prisma as any, {} as any);
             await svc.create({ name: 'P', channelId: 2, templateId: 1, scheduledAt: '2026-08-01T10:00:00Z' });

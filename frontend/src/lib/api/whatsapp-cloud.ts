@@ -311,6 +311,7 @@ export interface CreateBroadcastBody {
     channelId: number;
     templateId: number;
     segment?: SegmentDef;
+    numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }
@@ -322,8 +323,8 @@ export const WA_BROADCAST_STATUS_LABEL: Record<WaBroadcastStatus, string> = {
 
 export const listWaBroadcasts = async (): Promise<WaBroadcast[]> => (await api.get('/whatsapp/broadcasts')).data;
 
-export const previewBroadcast = async (segment?: SegmentDef): Promise<{ count: number }> =>
-    (await api.post('/whatsapp/broadcasts/preview', { segment })).data;
+export const previewBroadcast = async (segment?: SegmentDef, numbers?: string[]): Promise<{ count: number; invalid?: number }> =>
+    (await api.post('/whatsapp/broadcasts/preview', numbers?.length ? { numbers } : { segment })).data;
 
 export const createWaBroadcast = async (data: CreateBroadcastBody): Promise<WaBroadcast> =>
     (await api.post('/whatsapp/broadcasts', data)).data;

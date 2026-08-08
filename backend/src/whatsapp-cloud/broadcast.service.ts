@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
 export interface SegmentDef {
     onlyLinked?: boolean;     // hanya kontak yg tertaut Lead/Customer
@@ -17,6 +18,7 @@ export interface CreateBroadcastInput {
     channelId: number;
     templateId: number;
     segment?: SegmentDef;
+    numbers?: string[];       // impor daftar nomor (CSV/paste) — alternatif segmen
     variableMap?: VariableMapItem[];
     scheduledAt?: string | null;
 }
@@ -61,6 +63,41 @@ export class BroadcastService {
         return { count };
     }
 
+    /** Normalisasi + dedup daftar nomor mentah (paste/CSV) → jumlah valid. */
+    previewNumbers(numbers: string[]): { count: number; invalid: number } {
+        const seen = new Set<string>();
+        let invalid = 0;
+        for (const raw of numbers || []) {
+            const w = toWaPhone(raw);
+            if (w) seen.add(w);
+            else if (raw?.trim()) invalid++;
+        }
+        return { count: seen.size, invalid };
+    }
+
+    /**
+     * Ubah daftar nomor mentah jadi kontak penerima: normalisasi (62xxx), dedup,
+     * upsert WaContact (buat bila belum ada). Nomor opt-out dikecualikan.
+     */
+    private async resolveNumbers(numbers: string[]): Promise<Array<{ id: number; waId: string; profileName: string | null }>> {
+        const seen = new Set<string>();
+        const out: Array<{ id: number; waId: string; profileName: string | null }> = [];
+        for (const raw of numbers || []) {
+            const waId = toWaPhone(raw);
+            if (!waId || seen.has(waId)) continue;
+            seen.add(waId);
+            const phoneNormalized = toLeadKey(raw) ?? waId.replace(/^62/, '');
+            const contact = await this.prisma.waContact.upsert({
+                where: { waId },
+                create: { waId, phoneNormalized },
+                update: {},
+                select: { id: true, waId: true, profileName: true, optedOut: true },
+            });
+            if (!contact.optedOut) out.push({ id: contact.id, waId: contact.waId, profileName: contact.profileName });
+        }
+        return out;
+    }
+
     list() {
         return this.prisma.waBroadcast.findMany({
             orderBy: { createdAt: 'desc' },
@@ -81,7 +118,11 @@ export class BroadcastService {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: input.channelId } });
         if (!channel) throw new NotFoundException('Channel tidak ditemukan');
 
-        const contacts = await this.resolveSegment(input.segment);
+        // Penerima: dari daftar nomor impor (CSV/paste) bila ada, else dari segmen kontak.
+        const contacts = input.numbers?.length
+            ? await this.resolveNumbers(input.numbers)
+            : await this.resolveSegment(input.segment);
+        if (!contacts.length) throw new BadRequestException('Tidak ada penerima valid (cek segmen / daftar nomor)');
         const scheduledAt = input.scheduledAt ? new Date(input.scheduledAt) : null;
         const broadcast = await this.prisma.waBroadcast.create({
             data: {
