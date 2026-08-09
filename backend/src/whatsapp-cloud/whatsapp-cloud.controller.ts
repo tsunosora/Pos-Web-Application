@@ -232,6 +232,14 @@ export class WhatsappCloudController {
         return this.cloudApi.tokenStatus();
     }
 
+    /** Diagnosa token: valid? scope (catalog_management dll)? kadaluarsa? */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Get('access-token/debug')
+    debugAccessToken() {
+        return this.cloudApi.debugToken();
+    }
+
     /** Simpan token akses Meta (override env). Kosong = kembali ke env. */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...ADMIN_ROLES)

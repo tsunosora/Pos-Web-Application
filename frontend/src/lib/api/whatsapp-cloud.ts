@@ -321,6 +321,9 @@ export const getWaAccessToken = async (): Promise<WaTokenStatus> => (await api.g
 export const setWaAccessToken = async (token: string | null): Promise<WaTokenStatus> =>
     (await api.post('/whatsapp/access-token', { token })).data;
 
+export interface WaTokenDebug { valid: boolean; appId: string | null; type: string | null; scopes: string[]; expiresAt: number | null; error: string | null }
+export const debugWaAccessToken = async (): Promise<WaTokenDebug> => (await api.get('/whatsapp/access-token/debug')).data;
+
 export const listWaChannels = async (): Promise<WaChannel[]> => (await api.get('/whatsapp/channels')).data;
 
 export const createWaChannel = async (data: CreateChannelBody): Promise<WaChannel> =>

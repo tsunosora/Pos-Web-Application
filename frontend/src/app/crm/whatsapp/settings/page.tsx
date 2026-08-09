@@ -7,8 +7,8 @@ import { Plus, Trash2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, HardDrive, U
 import {
     listWaChannels, createWaChannel, updateWaChannel, deleteWaChannel, getWaHealth,
     getWaMediaStats, cleanupWaMedia, getWaChannelProfile, updateWaChannelProfile, uploadWaChannelProfilePicture,
-    getWaAccessToken, setWaAccessToken,
-    type WaChannel, type CreateChannelBody, type WaBusinessProfile,
+    getWaAccessToken, setWaAccessToken, debugWaAccessToken,
+    type WaChannel, type CreateChannelBody, type WaBusinessProfile, type WaTokenDebug,
 } from "@/lib/api/whatsapp-cloud";
 import { getBranches } from "@/lib/api/settings";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -449,6 +449,14 @@ function AccessTokenCard() {
 
     const sourceLabel = status?.source === "db" ? "tersimpan di aplikasi" : status?.source === "env" ? "dari server (.env)" : "belum ada";
 
+    const [debug, setDebug] = useState<WaTokenDebug | null>(null);
+    const debugMut = useMutation({
+        mutationFn: debugWaAccessToken,
+        onSuccess: (d) => setDebug(d),
+        onError: () => setDebug(null),
+    });
+    const REQUIRED_SCOPES = ["whatsapp_business_messaging", "whatsapp_business_management", "catalog_management"];
+
     return (
         <div className="rounded-2xl border border-border bg-card/60 p-4 space-y-3">
             <div className="flex items-center gap-2">
@@ -461,10 +469,43 @@ function AccessTokenCard() {
                 Disimpan di aplikasi &amp; menggantikan token di server.
             </p>
             {status?.configured && !editing && (
-                <div className="text-xs flex items-center gap-2">
+                <div className="text-xs flex items-center gap-2 flex-wrap">
                     <span className="font-mono bg-muted px-2 py-1 rounded">{status.masked}</span>
                     <span className="opacity-60">({sourceLabel})</span>
-                    <button onClick={() => setEditing(true)} className="ml-auto text-xs px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/70">Ganti token</button>
+                    <button onClick={() => debugMut.mutate()} disabled={debugMut.isPending} className="ml-auto text-xs px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50">
+                        {debugMut.isPending ? "Mengecek…" : "Cek token & izin"}
+                    </button>
+                    <button onClick={() => setEditing(true)} className="text-xs px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/70">Ganti token</button>
+                </div>
+            )}
+            {debug && (
+                <div className="rounded-lg border border-border bg-background/50 p-3 text-xs space-y-1.5">
+                    {debug.error ? (
+                        <div className="text-red-500">Token bermasalah: {debug.error}</div>
+                    ) : (
+                        <>
+                            <div className="flex items-center gap-2">
+                                <span className={debug.valid ? "text-emerald-600" : "text-red-500"}>{debug.valid ? "✓ Token valid" : "✗ Token tidak valid"}</span>
+                                {debug.type && <span className="opacity-60">· {debug.type}</span>}
+                                {debug.expiresAt ? <span className="opacity-60">· kedaluwarsa {new Date(debug.expiresAt * 1000).toLocaleDateString("id-ID")}</span> : <span className="opacity-60">· tanpa kedaluwarsa</span>}
+                            </div>
+                            <div className="font-medium opacity-70">Izin (scope):</div>
+                            {REQUIRED_SCOPES.map((s) => {
+                                const ok = debug.scopes.includes(s);
+                                return (
+                                    <div key={s} className={`flex items-center gap-1.5 ${ok ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
+                                        {ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                                        <span className="font-mono">{s}</span>{!ok && <span className="opacity-70">— tidak ada</span>}
+                                    </div>
+                                );
+                            })}
+                            {!debug.scopes.includes("catalog_management") && (
+                                <div className="text-amber-600 dark:text-amber-400 pt-1">
+                                    Token ini <b>belum punya catalog_management</b> → itu penyebab katalog gagal. Generate ulang token System User dengan izin itu dicentang.
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             )}
             {(editing || !status?.configured) && (

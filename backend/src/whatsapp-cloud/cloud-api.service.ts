@@ -60,6 +60,32 @@ export class CloudApiService implements OnModuleInit {
         return { ok: true };
     }
 
+    /** Diagnosa token via Graph debug_token: valid? scope apa saja? kadaluarsa kapan? */
+    async debugToken(): Promise<{ valid: boolean; appId: string | null; type: string | null; scopes: string[]; expiresAt: number | null; error: string | null }> {
+        const t = this.token;
+        if (!t) return { valid: false, appId: null, type: null, scopes: [], expiresAt: null, error: 'Token belum diset' };
+        const appId = process.env.WA_APP_ID;
+        const appSecret = process.env.WA_APP_SECRET;
+        const accessToken = appId && appSecret ? `${appId}|${appSecret}` : t;
+        try {
+            const json = await this.graph(
+                'GET',
+                `debug_token?input_token=${encodeURIComponent(t)}&access_token=${encodeURIComponent(accessToken)}`,
+            );
+            const d = json?.data || {};
+            return {
+                valid: !!d.is_valid,
+                appId: d.app_id ?? null,
+                type: d.type ?? null,
+                scopes: Array.isArray(d.scopes) ? d.scopes : [],
+                expiresAt: d.expires_at ?? null,
+                error: d.error?.message ?? null,
+            };
+        } catch (e) {
+            return { valid: false, appId: null, type: null, scopes: [], expiresAt: null, error: (e as Error).message };
+        }
+    }
+
     /** Status token (tanpa membocorkan token penuh) untuk UI. */
     tokenStatus(): { configured: boolean; source: 'db' | 'env' | 'none'; masked: string | null } {
         const t = this.token;
