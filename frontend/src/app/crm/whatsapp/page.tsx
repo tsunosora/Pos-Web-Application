@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
@@ -368,6 +368,63 @@ export default function WhatsappInboxPage() {
     });
     const conversations = convData?.items ?? [];
 
+    // ─── Notifikasi pesan masuk (bunyi + notifikasi OS) ──────────────────────
+    const [soundOn, setSoundOn] = useState(true);
+    useEffect(() => { try { setSoundOn(localStorage.getItem("wa_sound") !== "off"); } catch { /* noop */ } }, []);
+    const toggleSound = () => setSoundOn((v) => { const nv = !v; try { localStorage.setItem("wa_sound", nv ? "on" : "off"); } catch { /* noop */ } return nv; });
+
+    const audioCtxRef = useRef<AudioContext | null>(null);
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if ("Notification" in window && Notification.permission === "default") Notification.requestPermission().catch(() => {});
+        const resume = () => {
+            if (!audioCtxRef.current) {
+                try { audioCtxRef.current = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)(); } catch { /* noop */ }
+            }
+            audioCtxRef.current?.resume?.();
+        };
+        window.addEventListener("pointerdown", resume, { once: true });
+        window.addEventListener("keydown", resume, { once: true });
+        return () => { window.removeEventListener("pointerdown", resume); window.removeEventListener("keydown", resume); };
+    }, []);
+    const playBeep = () => {
+        const ctx = audioCtxRef.current;
+        if (!ctx) return;
+        try {
+            const t = ctx.currentTime;
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.connect(g); g.connect(ctx.destination);
+            o.type = "sine";
+            o.frequency.setValueAtTime(880, t);
+            o.frequency.setValueAtTime(660, t + 0.12);
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+            o.start(t); o.stop(t + 0.32);
+        } catch { /* noop */ }
+    };
+    const prevUnreadRef = useRef<Map<number, number> | null>(null);
+    useEffect(() => {
+        if (!convData?.items) return;
+        const cur = new Map<number, number>();
+        let hit: WaConversation | null = null;
+        for (const c of convData.items) {
+            cur.set(c.id, c.unreadCount);
+            const prev = prevUnreadRef.current?.get(c.id) ?? 0;
+            if (prevUnreadRef.current && c.unreadCount > prev) hit = c;
+        }
+        const firstLoad = prevUnreadRef.current === null;
+        prevUnreadRef.current = cur;
+        if (firstLoad || !hit) return;
+        if (soundOn) playBeep();
+        if (typeof document !== "undefined" && document.hidden && "Notification" in window && Notification.permission === "granted") {
+            const n = new Notification(`Pesan baru — ${waContactName(hit.contact)}`, { body: "Ada pesan WhatsApp masuk", tag: `wa-${hit.id}` });
+            const target = hit.id;
+            n.onclick = () => { window.focus(); setSelectedId(target); n.close(); };
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [convData, soundOn]);
+
     const selected = useMemo(
         () => conversations.find((c) => c.id === selectedId) ?? null,
         [conversations, selectedId],
@@ -697,6 +754,10 @@ export default function WhatsappInboxPage() {
                         <MessageSquare className="w-5 h-5 text-emerald-500" />
                         <h1 className="font-semibold">WhatsApp CRM</h1>
                         <WhatsappGuideButton className="ml-auto p-1.5 rounded-lg hover:bg-muted" />
+                        <button onClick={toggleSound} title={soundOn ? "Bunyi notifikasi: aktif" : "Bunyi notifikasi: nonaktif"}
+                            className={`p-1.5 rounded-lg hover:bg-muted ${soundOn ? "text-emerald-500" : "opacity-60"}`}>
+                            {soundOn ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                        </button>
                         <button onClick={() => setComposeOpen(true)} title="Chat baru — simpan nomor & kirim pesan"
                             className="p-1.5 rounded-lg hover:bg-muted text-emerald-500">
                             <PenSquare className="w-4 h-4" />
