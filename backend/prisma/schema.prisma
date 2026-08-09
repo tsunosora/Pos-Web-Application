@@ -82,6 +82,8 @@ model User {
   // WhatsApp CRM
   waConversations       WaConversation[]         @relation("WaConversationAssignee")
   waMessagesSent        WaMessage[]              @relation("WaMessageSender")
+  socialConversations   SocialConversation[]
+  socialMessagesSent    SocialMessage[]          @relation("SocialMessageSentBy")
   // Papan Tugas Karyawan
   taskSchedulesAssigned TaskSchedule[]           @relation("TaskScheduleAssignee")
   taskSchedulesCreated  TaskSchedule[]           @relation("TaskScheduleCreatedBy")
@@ -904,6 +906,7 @@ model Customer {
   activities  LeadActivity[]     @relation("CustomerActivities")
   followUps   FollowUp[]         @relation("CustomerFollowUps")
   waContacts  WaContact[]
+  socialContacts SocialContact[]
 
   @@index([assignedCsId])
   @@index([updatedAt]) // delta-sync: pull "where updatedAt > since"
@@ -1632,6 +1635,7 @@ model CompanyBranch {
   csRatings              CsRatingResponse[]
   printerDevices         PrinterDevice[]
   waChannels             WaChannel[]
+  socialChannels         SocialChannel[]
   taskSchedules          TaskSchedule[]
   taskItems              TaskItem[]
   taskGroups             TaskGroup[]
@@ -1920,6 +1924,7 @@ model Lead {
   items             LeadItem[]
   images            LeadImage[]
   waContacts        WaContact[]
+  socialContacts    SocialContact[]
 
   @@index([status, followUpDate])
   @@index([assignedToId, status])
@@ -2379,6 +2384,105 @@ model WaBroadcastRecipient {
   @@unique([broadcastId, contactId])
   @@index([status])
   @@map("wa_broadcast_recipients")
+}
+
+// ─── Inbox sosial: Instagram DM + Facebook Messenger (Messenger Platform) ─────
+enum SocialPlatform {
+  MESSENGER
+  INSTAGRAM
+}
+
+enum SocialDirection {
+  INBOUND
+  OUTBOUND
+}
+
+/// Channel sosial = 1 Page/akun IG. Untuk INSTAGRAM: igId = IG business id (rute
+/// webhook), pageId+accessToken Page yang terhubung (untuk kirim via Send API).
+model SocialChannel {
+  id          Int            @id @default(autoincrement())
+  label       String         @db.VarChar(100)
+  platform    SocialPlatform
+  pageId      String         @map("page_id") @db.VarChar(50) // Facebook Page ID
+  igId        String?        @map("ig_id") @db.VarChar(50) // IG business account id (INSTAGRAM)
+  accessToken String         @map("access_token") @db.Text // Page access token
+  branchId    Int?           @map("branch_id")
+  isActive    Boolean        @default(true) @map("is_active")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  branch        CompanyBranch?       @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  conversations SocialConversation[]
+  messages      SocialMessage[]
+  contacts      SocialContact[]
+
+  @@index([platform])
+  @@map("social_channels")
+}
+
+/// Kontak sosial (PSID Messenger / IGSID Instagram) + tautan CRM.
+model SocialContact {
+  id         Int            @id @default(autoincrement())
+  channelId  Int            @map("channel_id")
+  platform   SocialPlatform
+  externalId String         @map("external_id") @db.VarChar(64) // PSID / IGSID
+  name       String?        @db.VarChar(200)
+  leadId     Int?           @map("lead_id")
+  customerId Int?           @map("customer_id")
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+
+  channel       SocialChannel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  lead          Lead?                @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  customer      Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  conversations SocialConversation[]
+  messages      SocialMessage[]
+
+  @@unique([channelId, externalId])
+  @@map("social_contacts")
+}
+
+model SocialConversation {
+  id            Int       @id @default(autoincrement())
+  channelId     Int       @map("channel_id")
+  contactId     Int       @map("contact_id")
+  status        String    @default("OPEN") @db.VarChar(20) // OPEN | CLOSED
+  lastMessageAt DateTime? @map("last_message_at")
+  unreadCount   Int       @default(0) @map("unread_count")
+  assignedToId  Int?      @map("assigned_to_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  channel    SocialChannel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  contact    SocialContact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  assignedTo User?           @relation(fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages   SocialMessage[]
+
+  @@index([channelId, status])
+  @@map("social_conversations")
+}
+
+model SocialMessage {
+  id             Int             @id @default(autoincrement())
+  channelId      Int             @map("channel_id")
+  conversationId Int             @map("conversation_id")
+  contactId      Int             @map("contact_id")
+  externalId     String?         @map("external_id") @db.VarChar(128) // mid (dedup)
+  direction      SocialDirection
+  type           String          @default("TEXT") @db.VarChar(20) // TEXT | IMAGE | ...
+  body           String?         @db.Text
+  mediaUrl       String?         @map("media_url") @db.Text
+  sentById       Int?            @map("sent_by_id") // user pengirim (outbound manusia)
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  channel      SocialChannel      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  conversation SocialConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  contact      SocialContact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  sentBy       User?              @relation("SocialMessageSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+
+  @@unique([externalId])
+  @@index([conversationId, id])
+  @@map("social_messages")
 }
 
 /// QR "klik-untuk-chat" WhatsApp kustom per sumber (Walk-in, Brosur, dll).

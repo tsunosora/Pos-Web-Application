@@ -117,7 +117,7 @@ export const BACKUP_GROUPS = {
         label: 'WhatsApp CRM — channel, kontak, percakapan, pesan',
         // Cloud API resmi (modul whatsapp-cloud). Fase 5+ (broadcast/template)
         // akan menambah tabelnya sendiri di sini saat dibuat.
-        tables: ['waChannel', 'waContact', 'waConversation', 'waTemplate', 'waBroadcast', 'waMessage', 'waWebhookEvent', 'waBroadcastRecipient', 'waAutoReplyRule', 'waReminderConfig', 'waReminderLog', 'waQrLink', 'waQuickReply', 'waConfig'],
+        tables: ['waChannel', 'waContact', 'waConversation', 'waTemplate', 'waBroadcast', 'waMessage', 'waWebhookEvent', 'waBroadcastRecipient', 'waAutoReplyRule', 'waReminderConfig', 'waReminderLog', 'waQrLink', 'waQuickReply', 'waConfig', 'socialChannel', 'socialContact', 'socialConversation', 'socialMessage'],
     },
 } as const;
 
@@ -217,6 +217,10 @@ export const RESTORE_ORDER = [
     'waQrLink',                                 // standalone (QR klik-untuk-chat, channelId scalar)
     'waQuickReply',                             // standalone (pesan cepat / canned message)
     'waConfig',                                 // standalone (token WA Cloud, singleton)
+    'socialChannel',                            // FK → branch (Messenger/IG channel)
+    'socialContact',                            // FK → socialChannel, lead, customer
+    'socialConversation',                       // FK → socialChannel, socialContact, user
+    'socialMessage',                            // FK → socialChannel, socialConversation, socialContact, user
 ];
 
 // Path folder uploads gambar (3x up = backend root ketika dikompilasi ke dist/backup/)

@@ -3,7 +3,7 @@ import {
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
-    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock, Palette, QrCode, Zap, ShoppingBag,
+    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock, Palette, QrCode, Zap, ShoppingBag, Instagram,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -90,6 +90,7 @@ export const SECTIONS: NavSection[] = [
         key: 'whatsapp', label: 'WhatsApp CRM', icon: MessageCircle,
         items: [
             { name: "Inbox Chat", href: "/crm/whatsapp", icon: Inbox },
+            { name: "Inbox Sosial (IG/FB)", href: "/crm/social", icon: Instagram },
             { name: "Broadcast", href: "/crm/whatsapp/broadcast", icon: Megaphone },
             { name: "QR Chat", href: "/crm/whatsapp/qr", icon: QrCode },
             { name: "Pesan Cepat", href: "/crm/whatsapp/quick-replies", icon: Zap },
