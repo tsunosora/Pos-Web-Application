@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
 
@@ -27,11 +27,24 @@ export class CatalogService {
     ) {}
 
     /** Resolusi catalog_id channel (manual di WaChannel, atau auto dari WABA lalu di-cache). */
+    /** Jalankan panggilan Graph; error Meta jadi 400 terbaca (bukan 500 "internal error"). */
+    private async safeMeta<T>(fn: () => Promise<T>, prefix: string): Promise<T> {
+        try {
+            return await fn();
+        } catch (e) {
+            if (e instanceof HttpException) throw e;
+            throw new BadRequestException(`${prefix}: ${(e as Error)?.message || 'gagal menghubungi Meta'}`);
+        }
+    }
+
     private async resolveCatalogId(channelId: number): Promise<string> {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: channelId } });
         if (!channel) throw new NotFoundException('Channel tidak ditemukan');
         if (channel.catalogId) return channel.catalogId;
-        const auto = await this.cloud.getWabaCatalogId(channel.wabaId);
+        const auto = await this.safeMeta(
+            () => this.cloud.getWabaCatalogId(channel.wabaId),
+            'Gagal membaca katalog terhubung dari Meta (cek izin token: catalog_management & whatsapp_business_management)',
+        );
         if (!auto) {
             throw new BadRequestException(
                 'Katalog belum terhubung ke WABA ini. Hubungkan katalog di Meta Commerce Manager, ' +
@@ -44,7 +57,7 @@ export class CatalogService {
 
     async list(channelId: number) {
         const catalogId = await this.resolveCatalogId(channelId);
-        const rows = await this.cloud.listCatalogProducts(catalogId);
+        const rows = await this.safeMeta(() => this.cloud.listCatalogProducts(catalogId), 'Gagal memuat produk katalog');
         return rows.map((p) => ({
             id: p.id,
             retailerId: p.retailer_id ?? null,
@@ -72,7 +85,7 @@ export class CatalogService {
             availability: input.availability || 'in stock',
             ...(input.url?.trim() ? { url: input.url.trim() } : {}),
         };
-        return this.cloud.createCatalogProduct(catalogId, payload);
+        return this.safeMeta(() => this.cloud.createCatalogProduct(catalogId, payload), 'Gagal menambah produk ke katalog');
     }
 
     async update(channelId: number, productId: string, input: CatalogProductInput) {
@@ -86,10 +99,10 @@ export class CatalogService {
         if (input.availability !== undefined) payload.availability = input.availability;
         if (input.url !== undefined) payload.url = input.url?.trim() || undefined;
         if (Object.keys(payload).length === 0) throw new BadRequestException('Tak ada perubahan');
-        return this.cloud.updateCatalogProduct(productId, payload);
+        return this.safeMeta(() => this.cloud.updateCatalogProduct(productId, payload), 'Gagal mengubah produk katalog');
     }
 
     async remove(_channelId: number, productId: string) {
-        return this.cloud.deleteCatalogProduct(productId);
+        return this.safeMeta(() => this.cloud.deleteCatalogProduct(productId), 'Gagal menghapus produk katalog');
     }
 }
