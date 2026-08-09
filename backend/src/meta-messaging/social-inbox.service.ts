@@ -68,6 +68,19 @@ export class SocialInboxService {
         return { ok: true };
     }
 
+    /** Deteksi akun IG business yang terhubung ke Page (isi otomatis IG ID). */
+    async detectInstagram(pageId: string, accessToken: string) {
+        if (!pageId?.trim() || !accessToken?.trim()) throw new BadRequestException('Page ID & Access Token wajib diisi dulu');
+        let ig: { id: string; username: string | null; name: string | null } | null;
+        try {
+            ig = await this.meta.getPageInstagram(pageId.trim(), accessToken.trim());
+        } catch (e) {
+            throw new BadRequestException(`Gagal deteksi IG: ${(e as Error).message}`);
+        }
+        if (!ig) throw new BadRequestException('Tak ada akun Instagram business terhubung ke Page ini (cek koneksi IG↔Page & izin instagram).');
+        return ig;
+    }
+
     // ─── Webhook ingest ──────────────────────────────────────────────────────
     /** Titik masuk webhook Messenger/Instagram. Tak pernah melempar. */
     async ingestWebhook(body: any): Promise<void> {

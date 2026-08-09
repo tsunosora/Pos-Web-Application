@@ -60,6 +60,10 @@ export const updateSocialChannel = async (id: number, data: Partial<CreateSocial
 export const deleteSocialChannel = async (id: number): Promise<{ ok: boolean }> =>
     (await api.delete(`/social/channels/${id}`)).data;
 
+// Deteksi IG business account yang terhubung ke Page (isi otomatis IG ID).
+export const detectSocialInstagram = async (pageId: string, accessToken: string): Promise<{ id: string; username: string | null; name: string | null }> =>
+    (await api.post('/social/detect-ig', { pageId, accessToken })).data;
+
 export const listSocialConversations = async (params: { platform?: SocialPlatform; q?: string; take?: number } = {}): Promise<Paged<SocialConversation>> =>
     (await api.get('/social/conversations', { params })).data;
 export const getSocialMessages = async (id: number, params: { cursor?: number; take?: number } = {}): Promise<Paged<SocialMessage>> =>

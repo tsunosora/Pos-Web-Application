@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
-    listSocialChannels, createSocialChannel, deleteSocialChannel,
+    listSocialChannels, createSocialChannel, deleteSocialChannel, detectSocialInstagram,
     PLATFORM_LABEL,
     type SocialPlatform, type SocialConversation, type SocialMessage, type SocialChannel, type CreateSocialChannelBody,
 } from "@/lib/api/social";
@@ -178,6 +178,11 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
         onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menambah channel"),
     });
     const delMut = useMutation({ mutationFn: (id: number) => deleteSocialChannel(id), onSuccess: invalidate });
+    const detectMut = useMutation({
+        mutationFn: () => detectSocialInstagram(form.pageId.trim(), form.accessToken.trim()),
+        onSuccess: (ig) => setForm((f) => ({ ...f, igId: ig.id, label: f.label || ig.username || ig.name || f.label })),
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal deteksi IG"),
+    });
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -210,8 +215,15 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                         </label>
                         {form.platform === "INSTAGRAM" && (
                             <label className="text-sm">IG business ID
-                                <input value={form.igId ?? ""} onChange={(e) => setForm({ ...form, igId: e.target.value })} placeholder="17841400000"
-                                    className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                                <div className="mt-1 flex gap-2">
+                                    <input value={form.igId ?? ""} onChange={(e) => setForm({ ...form, igId: e.target.value })} placeholder="17841400000"
+                                        className="flex-1 rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                                    <button type="button" onClick={() => detectMut.mutate()} disabled={detectMut.isPending || !form.pageId.trim() || !form.accessToken.trim()}
+                                        className="text-xs px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50 whitespace-nowrap">
+                                        {detectMut.isPending ? "Deteksi…" : "Deteksi dari Page"}
+                                    </button>
+                                </div>
+                                <span className="text-[11px] opacity-50">Isi Page ID + token dulu, lalu klik Deteksi.</span>
                             </label>
                         )}
                         <label className="text-sm sm:col-span-2">Page Access Token

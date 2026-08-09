@@ -42,6 +42,18 @@ export class MetaApiService {
         return { messageId: json?.message_id ?? null };
     }
 
+    /** Akun Instagram business yang terhubung ke sebuah Page (untuk deteksi IG ID). */
+    async getPageInstagram(pageId: string, token: string): Promise<{ id: string; username: string | null; name: string | null } | null> {
+        const json = await this.graph(
+            'GET',
+            `${pageId}?fields=name,instagram_business_account{id,username,name},connected_instagram_account{id,username,name}`,
+            token,
+        );
+        const iba = json?.instagram_business_account || json?.connected_instagram_account;
+        if (!iba?.id) return null;
+        return { id: String(iba.id), username: iba.username ?? null, name: iba.name ?? json?.name ?? null };
+    }
+
     /** Ambil nama profil pengirim (best-effort; bisa gagal tanpa izin profil). */
     async getProfileName(userId: string, token: string): Promise<string | null> {
         try {

@@ -41,6 +41,14 @@ export class MetaMessagingController {
         return this.inbox.removeChannel(id);
     }
 
+    /** Deteksi IG business account yang terhubung ke Page. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('detect-ig')
+    detectIg(@Body() body: { pageId: string; accessToken: string }) {
+        return this.inbox.detectInstagram(body.pageId, body.accessToken);
+    }
+
     // ─── Inbox (Owner/Admin/CS/Marketing) ────────────────────────────────────
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...INBOX_ROLES)
