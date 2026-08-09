@@ -76,6 +76,22 @@ export class WhatsappCloudController {
         return this.catalog.list(channelId);
     }
 
+    /** Baca Catalog ID tersimpan pada channel. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('catalog-config')
+    getCatalogConfig(@Query('channelId', ParseIntPipe) channelId: number) {
+        return this.catalog.getChannelCatalogId(channelId);
+    }
+
+    /** Set Catalog ID manual (dari Commerce Manager) → lewati auto-deteksi. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Patch('catalog-config')
+    setCatalogConfig(@Body() body: { channelId: number; catalogId: string | null }) {
+        return this.catalog.setChannelCatalogId(body.channelId, body.catalogId);
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
     @Post('catalog')

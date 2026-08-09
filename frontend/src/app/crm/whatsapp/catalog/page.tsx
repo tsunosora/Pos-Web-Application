@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Plus, Trash2, Pencil, ShoppingBag, X, Upload, Loader2 } from "lucide-react";
 import {
     listWaChannels, listWaCatalog, createWaCatalogProduct, updateWaCatalogProduct, deleteWaCatalogProduct, uploadWaCatalogImage,
+    getWaCatalogConfig, setWaCatalogConfig,
     type WaChannel, type WaCatalogProduct, type CatalogProductBody,
 } from "@/lib/api/whatsapp-cloud";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
@@ -35,6 +36,25 @@ export default function WhatsappCatalogPage() {
     });
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["wa-catalog", channelId] });
+
+    // Catalog ID manual (lewati auto-deteksi WABA yang bisa kena error #100).
+    const [catIdInput, setCatIdInput] = useState("");
+    const [showConfig, setShowConfig] = useState(false);
+    const { data: cfg } = useQuery({
+        queryKey: ["wa-catalog-config", channelId],
+        queryFn: () => getWaCatalogConfig(channelId as number),
+        enabled: channelId != null,
+    });
+    useEffect(() => { setCatIdInput(cfg?.catalogId ?? ""); }, [cfg?.catalogId, channelId]);
+    const saveCfgMut = useMutation({
+        mutationFn: () => setWaCatalogConfig(channelId as number, catIdInput.trim() || null),
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["wa-catalog-config", channelId] });
+            invalidate();
+            setShowConfig(false);
+        },
+        onError: (e) => alert(errMsg(e, "Gagal menyimpan Catalog ID")),
+    });
     const resetForm = () => { setForm(EMPTY); setEditId(null); setShowForm(false); };
 
     const saveMut = useMutation({
@@ -104,6 +124,28 @@ export default function WhatsappCatalogPage() {
                 Katalog resmi <b>WhatsApp Business (Meta Commerce)</b>. Produk tersimpan di katalog WABA-mu.
                 URL gambar harus <b>dapat diakses publik</b>. Perlu katalog terhubung di Commerce Manager &amp; token izin <code>catalog_management</code>.
             </p>
+
+            {channelId && (
+                <div className="rounded-2xl border border-border bg-card/40 p-3">
+                    <button onClick={() => setShowConfig((s) => !s)} className="text-sm font-medium flex items-center gap-2">
+                        ⚙️ Catalog ID {cfg?.catalogId ? <span className="text-xs opacity-60 font-mono">({cfg.catalogId})</span> : <span className="text-xs text-amber-500">belum diset</span>}
+                    </button>
+                    {showConfig && (
+                        <div className="mt-2 space-y-2">
+                            <p className="text-xs opacity-60">
+                                Isi <b>Catalog ID</b> dari Meta Commerce Manager (Katalog → Pengaturan → ID katalog). Ini melewati
+                                deteksi otomatis yang bisa gagal (#100 “application not approved”).
+                            </p>
+                            <div className="flex gap-2">
+                                <input value={catIdInput} onChange={(e) => setCatIdInput(e.target.value)} placeholder="mis. 1234567890123456"
+                                    className="flex-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm outline-none font-mono" />
+                                <button onClick={() => saveCfgMut.mutate()} disabled={saveCfgMut.isPending}
+                                    className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">Simpan</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {showForm && (
                 <div className="rounded-2xl border border-border bg-card/60 p-4 grid sm:grid-cols-2 gap-3">

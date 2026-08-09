@@ -55,6 +55,22 @@ export class CatalogService {
         return auto;
     }
 
+    /** Set Catalog ID manual pada channel (lewati auto-deteksi WABA yang bisa kena #100). */
+    async setChannelCatalogId(channelId: number, catalogId: string | null | undefined) {
+        const channel = await this.prisma.waChannel.findUnique({ where: { id: channelId } });
+        if (!channel) throw new NotFoundException('Channel tidak ditemukan');
+        const val = (catalogId || '').trim() || null;
+        await this.prisma.waChannel.update({ where: { id: channelId }, data: { catalogId: val } });
+        return { catalogId: val };
+    }
+
+    /** Catalog ID tersimpan pada channel (null bila belum diset). */
+    async getChannelCatalogId(channelId: number) {
+        const channel = await this.prisma.waChannel.findUnique({ where: { id: channelId }, select: { catalogId: true } });
+        if (!channel) throw new NotFoundException('Channel tidak ditemukan');
+        return { catalogId: channel.catalogId ?? null };
+    }
+
     async list(channelId: number) {
         const catalogId = await this.resolveCatalogId(channelId);
         const rows = await this.safeMeta(() => this.cloud.listCatalogProducts(catalogId), 'Gagal memuat produk katalog');

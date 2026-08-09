@@ -105,6 +105,12 @@ export interface CatalogProductBody {
 export const listWaCatalog = async (channelId: number): Promise<WaCatalogProduct[]> =>
     (await api.get('/whatsapp/catalog', { params: { channelId } })).data;
 
+// Catalog ID manual per channel (lewati auto-deteksi #100).
+export const getWaCatalogConfig = async (channelId: number): Promise<{ catalogId: string | null }> =>
+    (await api.get('/whatsapp/catalog-config', { params: { channelId } })).data;
+export const setWaCatalogConfig = async (channelId: number, catalogId: string | null): Promise<{ catalogId: string | null }> =>
+    (await api.patch('/whatsapp/catalog-config', { channelId, catalogId })).data;
+
 // Upload gambar produk → URL absolut (Content-Type multipart wajib agar file tak jadi JSON).
 export const uploadWaCatalogImage = async (file: File): Promise<{ url: string; relative: string }> => {
     const fd = new FormData();
