@@ -1432,12 +1432,18 @@ function ProductPickerModal({ channelId, sending, onPick, onClose }: {
     onClose: () => void;
 }) {
     const [q, setQ] = useState("");
+    const [sku, setSku] = useState("");
     const { data: products = [], isLoading, error } = useQuery({
         queryKey: ["wa-catalog", channelId],
         queryFn: () => listWaCatalog(channelId),
         retry: false,
     });
     const shown = products.filter((p) => !q || (p.name || "").toLowerCase().includes(q.toLowerCase()));
+    const sendSku = () => {
+        const id = sku.trim();
+        if (!id) return;
+        onPick({ id: `manual-${id}`, retailerId: id, name: id, description: null, price: null, currency: null, imageUrl: null, url: null, availability: null });
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -1487,6 +1493,19 @@ function ProductPickerModal({ channelId, sending, onPick, onClose }: {
                             ))}
                         </ul>
                     )}
+                </div>
+                {/* Fallback: kirim via SKU manual (tak butuh izin catalog_management) */}
+                <div className="border-t border-border p-3 space-y-1.5">
+                    <div className="text-[11px] opacity-60">Atau kirim via <b>SKU/ID produk</b> (dari Commerce Manager) — tanpa perlu izin katalog:</div>
+                    <div className="flex gap-2">
+                        <input value={sku} onChange={(e) => setSku(e.target.value)} placeholder="mis. spanduk_flexi_01"
+                            className="flex-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm outline-none font-mono"
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendSku(); } }} />
+                        <button type="button" onClick={sendSku} disabled={sending || !sku.trim()}
+                            className="text-sm px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-50 flex items-center gap-1">
+                            <Send className="w-3.5 h-3.5" /> Kirim
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
