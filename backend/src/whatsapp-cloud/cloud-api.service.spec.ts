@@ -20,7 +20,7 @@ describe('CloudApiService', () => {
     beforeEach(() => {
         process.env.WA_ACCESS_TOKEN = 'TESTTOKEN';
         process.env.WA_GRAPH_VERSION = 'v21.0';
-        service = new CloudApiService();
+        service = new CloudApiService({ waConfig: { findUnique: async () => null, upsert: async () => ({}) } } as any);
         fetchMock = jest.fn();
         (global as any).fetch = fetchMock;
     });
@@ -60,7 +60,7 @@ describe('CloudApiService', () => {
 
         it('melempar bila token belum diset', async () => {
             process.env.WA_ACCESS_TOKEN = '';
-            const s = new CloudApiService();
+            const s = new CloudApiService({ waConfig: { findUnique: async () => null, upsert: async () => ({}) } } as any);
             await expect(s.sendText('PNID', '628', 'x')).rejects.toThrow(/WA_ACCESS_TOKEN/);
             expect(fetchMock).not.toHaveBeenCalled();
         });
@@ -108,9 +108,9 @@ describe('CloudApiService', () => {
     describe('enabled', () => {
         it('mengikuti WA_CLOUD_ENABLED', () => {
             process.env.WA_CLOUD_ENABLED = 'true';
-            expect(new CloudApiService().enabled).toBe(true);
+            expect(new CloudApiService({ waConfig: { findUnique: async () => null, upsert: async () => ({}) } } as any).enabled).toBe(true);
             process.env.WA_CLOUD_ENABLED = 'false';
-            expect(new CloudApiService().enabled).toBe(false);
+            expect(new CloudApiService({ waConfig: { findUnique: async () => null, upsert: async () => ({}) } } as any).enabled).toBe(false);
         });
     });
 });

@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Trash2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, HardDrive, User } from "lucide-react";
+import { Plus, Trash2, CheckCircle2, XCircle, ArrowLeft, RefreshCw, HardDrive, User, KeyRound, Eye, EyeOff } from "lucide-react";
 import {
     listWaChannels, createWaChannel, updateWaChannel, deleteWaChannel, getWaHealth,
     getWaMediaStats, cleanupWaMedia, getWaChannelProfile, updateWaChannelProfile, uploadWaChannelProfilePicture,
+    getWaAccessToken, setWaAccessToken,
     type WaChannel, type CreateChannelBody, type WaBusinessProfile,
 } from "@/lib/api/whatsapp-cloud";
 import { getBranches } from "@/lib/api/settings";
@@ -64,9 +65,11 @@ export default function WhatsappSettingsPage() {
                 </button>
             </div>
 
+            <AccessTokenCard />
+
             <p className="text-sm opacity-60">
                 Tiap nomor WhatsApp Business (dari Meta) didaftarkan di sini. <b>phone_number_id</b> dipakai
-                webhook untuk me-route pesan ke cabang yang benar. Token & app secret ada di <code>.env</code> server.
+                webhook untuk me-route pesan ke cabang yang benar. <b>Access Token</b> diatur di kartu di atas; app secret di <code>.env</code> server.
             </p>
 
             {!health?.enabled && (
@@ -421,6 +424,72 @@ function ChannelProfileEditor({ channelId }: { channelId: number }) {
                     {saveMut.isPending ? "Menyimpan…" : "Simpan profil"}
                 </button>
             </div>
+        </div>
+    );
+}
+
+// ─── Kartu Access Token Meta (Owner/Admin) ───────────────────────────────────
+function AccessTokenCard() {
+    const qc = useQueryClient();
+    const [token, setToken] = useState("");
+    const [show, setShow] = useState(false);
+    const [editing, setEditing] = useState(false);
+
+    const { data: status } = useQuery({ queryKey: ["wa-access-token"], queryFn: getWaAccessToken });
+    const saveMut = useMutation({
+        mutationFn: () => setWaAccessToken(token.trim() || null),
+        onSuccess: () => {
+            setToken(""); setEditing(false);
+            qc.invalidateQueries({ queryKey: ["wa-access-token"] });
+            qc.invalidateQueries({ queryKey: ["wa-health"] });
+            alert("Token disimpan ✓");
+        },
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menyimpan token"),
+    });
+
+    const sourceLabel = status?.source === "db" ? "tersimpan di aplikasi" : status?.source === "env" ? "dari server (.env)" : "belum ada";
+
+    return (
+        <div className="rounded-2xl border border-border bg-card/60 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-emerald-500" />
+                <div className="font-medium text-sm">Access Token Meta</div>
+                <StatusBadge tone={status?.configured ? "success" : "danger"}>{status?.configured ? "Terpasang" : "Belum ada"}</StatusBadge>
+            </div>
+            <p className="text-xs opacity-60">
+                Token System User dari Meta Business (izin <code>whatsapp_business_messaging</code>, <code>whatsapp_business_management</code>, <code>catalog_management</code>).
+                Disimpan di aplikasi &amp; menggantikan token di server.
+            </p>
+            {status?.configured && !editing && (
+                <div className="text-xs flex items-center gap-2">
+                    <span className="font-mono bg-muted px-2 py-1 rounded">{status.masked}</span>
+                    <span className="opacity-60">({sourceLabel})</span>
+                    <button onClick={() => setEditing(true)} className="ml-auto text-xs px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/70">Ganti token</button>
+                </div>
+            )}
+            {(editing || !status?.configured) && (
+                <div className="flex gap-2 items-start">
+                    <div className="flex-1 relative">
+                        <input
+                            type={show ? "text" : "password"}
+                            value={token}
+                            onChange={(e) => setToken(e.target.value)}
+                            placeholder="Tempel token baru di sini…"
+                            className="w-full rounded-lg bg-muted/60 px-3 py-2 pr-9 text-sm outline-none font-mono"
+                        />
+                        <button type="button" onClick={() => setShow((s) => !s)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 opacity-60 hover:opacity-100">
+                            {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                    </div>
+                    <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending || !token.trim()}
+                        className="text-sm px-3 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">
+                        {saveMut.isPending ? "Menyimpan…" : "Simpan"}
+                    </button>
+                    {editing && (
+                        <button onClick={() => { setEditing(false); setToken(""); }} className="text-sm px-3 py-2 rounded-lg bg-muted">Batal</button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

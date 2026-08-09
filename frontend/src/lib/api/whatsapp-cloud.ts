@@ -316,6 +316,11 @@ export interface CreateChannelBody {
 }
 export type UpdateChannelBody = Partial<Omit<CreateChannelBody, 'phoneNumberId'>> & { isActive?: boolean };
 
+export interface WaTokenStatus { configured: boolean; source: "db" | "env" | "none"; masked: string | null }
+export const getWaAccessToken = async (): Promise<WaTokenStatus> => (await api.get('/whatsapp/access-token')).data;
+export const setWaAccessToken = async (token: string | null): Promise<WaTokenStatus> =>
+    (await api.post('/whatsapp/access-token', { token })).data;
+
 export const listWaChannels = async (): Promise<WaChannel[]> => (await api.get('/whatsapp/channels')).data;
 
 export const createWaChannel = async (data: CreateChannelBody): Promise<WaChannel> =>

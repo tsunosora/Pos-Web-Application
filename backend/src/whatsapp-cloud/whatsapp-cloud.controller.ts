@@ -44,6 +44,7 @@ import { AnalyticsService } from './analytics.service';
 import { WaQrService, type CreateQrInput } from './qr.service';
 import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyInput } from './quick-reply.service';
 import { CatalogService, type CatalogProductInput } from './catalog.service';
+import { CloudApiService } from './cloud-api.service';
 import { WaInboxGuard, isScopedInboxRole } from './wa-roles.util';
 
 // Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
@@ -65,6 +66,7 @@ export class WhatsappCloudController {
         private readonly qr: WaQrService,
         private readonly quickReplies: WaQuickReplyService,
         private readonly catalog: CatalogService,
+        private readonly cloudApi: CloudApiService,
     ) {}
 
     // ─── Katalog produk Meta Commerce (Owner/Admin/Marketing) ────────────────
@@ -218,6 +220,25 @@ export class WhatsappCloudController {
     @Get('health')
     health() {
         return this.service.healthCheck();
+    }
+
+    // ─── Access Token (Owner/Admin) ──────────────────────────────────────────
+
+    /** Status token (masked) — untuk UI Settings. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Get('access-token')
+    getAccessToken() {
+        return this.cloudApi.tokenStatus();
+    }
+
+    /** Simpan token akses Meta (override env). Kosong = kembali ke env. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('access-token')
+    async setAccessToken(@Body() body: { token: string | null }) {
+        await this.cloudApi.setAccessToken(body?.token);
+        return this.cloudApi.tokenStatus();
     }
 
     // ─── Manajemen Channel (nomor per cabang) — Owner/Admin ──────────────────

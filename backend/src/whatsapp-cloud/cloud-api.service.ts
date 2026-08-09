@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
 
 export interface WaSendResult {
     waMessageId: string | null;
@@ -18,8 +19,21 @@ export interface WaPhoneInfo {
  * mengikuti pola modul lain di proyek.
  */
 @Injectable()
-export class CloudApiService {
+export class CloudApiService implements OnModuleInit {
     private readonly logger = new Logger(CloudApiService.name);
+    // Token dari DB (WaConfig) meng-override env. Di-cache in-memory (dimuat saat init).
+    private cachedToken: string | null = null;
+
+    constructor(private readonly prisma: PrismaService) {}
+
+    async onModuleInit() {
+        try {
+            const cfg = await this.prisma.waConfig.findUnique({ where: { id: 1 }, select: { accessToken: true } });
+            if (cfg?.accessToken) this.cachedToken = cfg.accessToken;
+        } catch (e) {
+            this.logger.warn(`Muat WaConfig token gagal: ${(e as Error).message}`);
+        }
+    }
 
     /** true kalau integrasi diaktifkan (env). */
     get enabled(): boolean {
@@ -31,7 +45,30 @@ export class CloudApiService {
     }
 
     private get token(): string {
-        return process.env.WA_ACCESS_TOKEN || '';
+        return this.cachedToken || process.env.WA_ACCESS_TOKEN || '';
+    }
+
+    /** Set token akses (disimpan di DB, override env). Kosong = kembali ke env. */
+    async setAccessToken(token: string | null | undefined): Promise<{ ok: true }> {
+        const val = (token || '').trim() || null;
+        await this.prisma.waConfig.upsert({
+            where: { id: 1 },
+            create: { id: 1, accessToken: val },
+            update: { accessToken: val },
+        });
+        this.cachedToken = val;
+        return { ok: true };
+    }
+
+    /** Status token (tanpa membocorkan token penuh) untuk UI. */
+    tokenStatus(): { configured: boolean; source: 'db' | 'env' | 'none'; masked: string | null } {
+        const t = this.token;
+        const source: 'db' | 'env' | 'none' = this.cachedToken ? 'db' : process.env.WA_ACCESS_TOKEN ? 'env' : 'none';
+        return {
+            configured: !!t,
+            source,
+            masked: t ? `${t.slice(0, 6)}…${t.slice(-4)}` : null,
+        };
     }
 
     private url(path: string): string {

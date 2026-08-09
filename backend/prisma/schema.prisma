@@ -2399,6 +2399,15 @@ model WaQrLink {
   @@map("wa_qr_links")
 }
 
+/// Konfigurasi WA Cloud global (singleton id=1). Token override env (diinput via Settings).
+model WaConfig {
+  id          Int      @id @default(1)
+  accessToken String?  @map("access_token") @db.Text
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("wa_config")
+}
+
 /// Pesan cepat / canned message (BUKAN template Meta). Dipanggil di composer inbox
 /// dengan mengetik "/pintasan". Bebas teks — sah dikirim dalam jendela 24 jam.
 model WaQuickReply {
