@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff, SlidersHorizontal, Play } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
@@ -26,6 +26,15 @@ const STATUS_TABS: Array<{ key: WaConversationStatus | "ALL"; label: string }> =
 
 const STATUS_TONE: Record<WaConversationStatus, BadgeTone> = {
     OPEN: "success", PENDING: "warning", SNOOZED: "info", CLOSED: "neutral",
+};
+
+// Preset nada notifikasi (disintesis Web Audio — tanpa file). t=offset detik, d=durasi.
+const NOTIF_TONES: Record<string, { label: string; notes: Array<{ f: number; t: number; d: number }> }> = {
+    beep: { label: "Beep", notes: [{ f: 880, t: 0, d: 0.12 }, { f: 660, t: 0.12, d: 0.2 }] },
+    ding: { label: "Ding", notes: [{ f: 1318, t: 0, d: 0.35 }] },
+    chime: { label: "Chime", notes: [{ f: 660, t: 0, d: 0.12 }, { f: 990, t: 0.12, d: 0.28 }] },
+    tritone: { label: "Tri-tone", notes: [{ f: 784, t: 0, d: 0.1 }, { f: 988, t: 0.1, d: 0.1 }, { f: 1319, t: 0.2, d: 0.28 }] },
+    pop: { label: "Pop", notes: [{ f: 520, t: 0, d: 0.08 }] },
 };
 
 // Label ringkas tahap pipeline lead (untuk badge di header inbox).
@@ -387,21 +396,51 @@ export default function WhatsappInboxPage() {
         window.addEventListener("keydown", resume, { once: true });
         return () => { window.removeEventListener("pointerdown", resume); window.removeEventListener("keydown", resume); };
     }, []);
-    const playBeep = () => {
+    // Nada notifikasi terpilih (preset atau custom data URL) — tersimpan di localStorage.
+    const [tone, setTone] = useState("beep");
+    const [customTone, setCustomTone] = useState<string | null>(null);
+    const [notifOpen, setNotifOpen] = useState(false);
+    useEffect(() => {
+        try { setTone(localStorage.getItem("wa_tone") || "beep"); setCustomTone(localStorage.getItem("wa_tone_custom")); } catch { /* noop */ }
+    }, []);
+    const playNotif = () => {
+        // Custom (audio yang diupload) → putar via <audio>.
+        if (tone === "custom" && customTone) {
+            try { const a = new Audio(customTone); a.volume = 0.6; void a.play().catch(() => {}); } catch { /* noop */ }
+            return;
+        }
         const ctx = audioCtxRef.current;
         if (!ctx) return;
-        try {
-            const t = ctx.currentTime;
-            const o = ctx.createOscillator(), g = ctx.createGain();
-            o.connect(g); g.connect(ctx.destination);
-            o.type = "sine";
-            o.frequency.setValueAtTime(880, t);
-            o.frequency.setValueAtTime(660, t + 0.12);
-            g.gain.setValueAtTime(0.0001, t);
-            g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
-            o.start(t); o.stop(t + 0.32);
-        } catch { /* noop */ }
+        const preset = NOTIF_TONES[tone] || NOTIF_TONES.beep;
+        const base = ctx.currentTime;
+        for (const n of preset.notes) {
+            try {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.connect(g); g.connect(ctx.destination);
+                o.type = "sine";
+                o.frequency.setValueAtTime(n.f, base + n.t);
+                g.gain.setValueAtTime(0.0001, base + n.t);
+                g.gain.exponentialRampToValueAtTime(0.18, base + n.t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, base + n.t + n.d);
+                o.start(base + n.t); o.stop(base + n.t + n.d + 0.02);
+            } catch { /* noop */ }
+        }
+    };
+    const chooseTone = (k: string) => {
+        setTone(k);
+        try { localStorage.setItem("wa_tone", k); } catch { /* noop */ }
+        audioCtxRef.current?.resume?.();
+    };
+    const onCustomTone = (file: File | undefined) => {
+        if (!file) return;
+        if (file.size > 400 * 1024) { alert("Ukuran nada maksimal 400KB"); return; }
+        const r = new FileReader();
+        r.onload = () => {
+            const url = r.result as string;
+            setCustomTone(url); setTone("custom");
+            try { localStorage.setItem("wa_tone_custom", url); localStorage.setItem("wa_tone", "custom"); } catch { alert("Nada terlalu besar untuk disimpan"); }
+        };
+        r.readAsDataURL(file);
     };
     const prevUnreadRef = useRef<Map<number, number> | null>(null);
     useEffect(() => {
@@ -416,7 +455,7 @@ export default function WhatsappInboxPage() {
         const firstLoad = prevUnreadRef.current === null;
         prevUnreadRef.current = cur;
         if (firstLoad || !hit) return;
-        if (soundOn) playBeep();
+        if (soundOn) playNotif();
         if (typeof document !== "undefined" && document.hidden && "Notification" in window && Notification.permission === "granted") {
             const n = new Notification(`Pesan baru — ${waContactName(hit.contact)}`, { body: "Ada pesan WhatsApp masuk", tag: `wa-${hit.id}` });
             const target = hit.id;
@@ -757,6 +796,10 @@ export default function WhatsappInboxPage() {
                         <button onClick={toggleSound} title={soundOn ? "Bunyi notifikasi: aktif" : "Bunyi notifikasi: nonaktif"}
                             className={`p-1.5 rounded-lg hover:bg-muted ${soundOn ? "text-emerald-500" : "opacity-60"}`}>
                             {soundOn ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => setNotifOpen(true)} title="Atur nada notifikasi"
+                            className="p-1.5 rounded-lg hover:bg-muted opacity-70">
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
                         </button>
                         <button onClick={() => setComposeOpen(true)} title="Chat baru — simpan nomor & kirim pesan"
                             className="p-1.5 rounded-lg hover:bg-muted text-emerald-500">
@@ -1199,6 +1242,45 @@ export default function WhatsappInboxPage() {
             </section>
 
             {lightboxId != null && <ImageLightbox messageId={lightboxId} onClose={() => setLightboxId(null)} />}
+            {notifOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setNotifOpen(false)}>
+                    <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-4 space-y-3 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                            <Bell className="w-5 h-5 text-emerald-500" />
+                            <h2 className="font-semibold">Nada notifikasi</h2>
+                            <button onClick={() => setNotifOpen(false)} className="ml-auto p-1 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
+                        </div>
+                        <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" checked={soundOn} onChange={toggleSound} /> Bunyikan notifikasi
+                        </label>
+                        <div className="space-y-1">
+                            {Object.entries(NOTIF_TONES).map(([k, v]) => (
+                                <div key={k} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${tone === k ? "bg-muted" : "hover:bg-muted/60"}`}>
+                                    <label className="flex items-center gap-2 text-sm flex-1 cursor-pointer">
+                                        <input type="radio" name="tone" checked={tone === k} onChange={() => chooseTone(k)} /> {v.label}
+                                    </label>
+                                    <button type="button" onClick={() => { audioCtxRef.current?.resume?.(); chooseTone(k); setTimeout(playNotif, 60); }}
+                                        className="p-1 rounded hover:bg-muted" title="Dengar"><Play className="w-3.5 h-3.5" /></button>
+                                </div>
+                            ))}
+                            <div className={`flex items-center gap-2 px-2 py-1.5 rounded-lg ${tone === "custom" ? "bg-muted" : "hover:bg-muted/60"}`}>
+                                <label className="flex items-center gap-2 text-sm flex-1 cursor-pointer">
+                                    <input type="radio" name="tone" checked={tone === "custom"} disabled={!customTone} onChange={() => chooseTone("custom")} />
+                                    Nada sendiri {customTone ? "" : "(belum diunggah)"}
+                                </label>
+                                {customTone && (
+                                    <button type="button" onClick={() => { chooseTone("custom"); setTimeout(playNotif, 60); }} className="p-1 rounded hover:bg-muted" title="Dengar"><Play className="w-3.5 h-3.5" /></button>
+                                )}
+                            </div>
+                        </div>
+                        <label className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 cursor-pointer">
+                            <PenSquare className="w-3.5 h-3.5" /> Unggah nada (audio, maks 400KB)
+                            <input type="file" accept="audio/*" className="hidden" onChange={(e) => { onCustomTone(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+                        </label>
+                        <p className="text-[11px] opacity-50">Klik ▶ untuk mendengar. Pilihan tersimpan otomatis di perangkat ini.</p>
+                    </div>
+                </div>
+            )}
             {showProducts && selected && (
                 <ProductPickerModal
                     channelId={selected.channel.id}
