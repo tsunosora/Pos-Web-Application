@@ -42,8 +42,10 @@ export class StudioAiService {
 
   private configPath(): string {
     if (process.env.STUDIO_AI_CONFIG_PATH) return process.env.STUDIO_AI_CONFIG_PATH;
-    // __dirname runtime = <backend>/dist/studio-ai → naik 2 = <backend>
-    return join(__dirname, '..', '..', 'storage', 'studio-ai-config.json');
+    // cwd = root backend (pm2 exec cwd & npm dev), DI LUAR dist/. Penting: kalau
+    // simpan di dalam dist/ (mis. __dirname = dist/src/studio-ai), file config
+    // TERHAPUS tiap backend di-rebuild (dist/ diregenerasi) → AI mati diam-diam.
+    return join(process.cwd(), 'storage', 'studio-ai-config.json');
   }
 
   private defaults(): AiConfig {
