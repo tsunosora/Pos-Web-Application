@@ -32,6 +32,8 @@ import TryOnAffiliateMode from './modes/TryOnAffiliateMode.jsx';
 import ReviewAffiliateMode from './modes/ReviewAffiliateMode.jsx';
 import StoryboardAffiliateMode from './modes/StoryboardAffiliateMode.jsx';
 import FotoProdukMode from './modes/FotoProdukMode.jsx';
+import AiAssistBar from './components/AiAssistBar.jsx';
+import { isAiMode } from './data/aiFields.js';
 import { buildBanner, buildBannerText, INITIAL_BANNER } from './prompts/buildBanner.js';
 import { buildBannerCetak, buildBannerCetakText, INITIAL_BANNERCETAK } from './prompts/buildBannerCetak.js';
 import { generateCarouselPrompts, INITIAL_CAROUSEL } from './prompts/buildCarousel.js';
@@ -106,6 +108,17 @@ function AuthedApp() {
   const { add } = useHistory();
 
   const changeMode = (m) => { setRestoredMode(null); setMode(m); };
+
+  // Terapkan hasil "Isi Otomatis" AI ke state mode target (merge lewat LOAD_DEMO).
+  const applyAiFill = (targetMode, values) => {
+    const d = {
+      fotoproduk: dispatchFotoproduk,
+      banner: dispatchBanner,
+      carousel: dispatchCarousel,
+      thumbnail: dispatchThumbnail,
+    }[targetMode];
+    if (d && values) d({ type: 'LOAD_DEMO', preset: values });
+  };
 
   const [banner, dispatchBanner]           = useReducer(modeReducer, INITIAL_BANNER);
   const [bannercetak, dispatchBannercetak] = useReducer(modeReducer, INITIAL_BANNERCETAK);
@@ -369,6 +382,9 @@ function AuthedApp() {
               <h1 className="text-xl font-bold">{t.name}</h1>
               <p className="text-xs text-text-mut mt-1">{t.desc}</p>
             </div>
+            {isAiMode(mode) && (
+              <AiAssistBar mode={mode} applyFill={applyAiFill} onPickMode={changeMode} />
+            )}
             {mode === 'banner'              && <BannerMode              state={banner}        dispatch={dispatchBanner} />}
             {mode === 'bannercetak'         && <BannerCetakMode         state={bannercetak}   dispatch={dispatchBannercetak} />}
             {mode === 'carousel'            && <CarouselMode            state={carousel}      dispatch={dispatchCarousel} />}

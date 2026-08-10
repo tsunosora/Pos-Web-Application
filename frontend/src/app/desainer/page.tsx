@@ -16,6 +16,9 @@ type Status = "checking" | "needLogin" | "authed";
 
 function setTokenEverywhere(t: string) {
     localStorage.setItem("token", t);
+    // Simpan base URL backend agar iframe /studio-desain (same-origin) tahu endpoint
+    // AI-nya di dev & prod tanpa perlu di-build ulang.
+    localStorage.setItem("pos_api", API);
     const exp = new Date();
     exp.setTime(exp.getTime() + 24 * 60 * 60 * 1000);
     document.cookie = `token=${t};expires=${exp.toUTCString()};path=/`;
