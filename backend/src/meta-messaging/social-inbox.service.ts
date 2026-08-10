@@ -34,14 +34,19 @@ export class SocialInboxService {
         });
     }
     async createChannel(input: CreateSocialChannelInput) {
-        if (!input.label?.trim() || !input.pageId?.trim() || !input.accessToken?.trim()) {
-            throw new BadRequestException('Label, Page ID, dan Access Token wajib diisi');
+        if (!input.label?.trim() || !input.accessToken?.trim()) throw new BadRequestException('Label dan Access Token wajib diisi');
+        // Instagram Login: cukup IG User ID (tanpa Page). Messenger: butuh Page ID.
+        if (input.platform === 'INSTAGRAM') {
+            if (!input.igId?.trim()) throw new BadRequestException('IG User ID wajib diisi (dari halaman Instagram API)');
+        } else if (!input.pageId?.trim()) {
+            throw new BadRequestException('Page ID wajib diisi untuk Messenger');
         }
+        const pageId = (input.pageId?.trim() || input.igId?.trim() || '') as string;
         return this.prisma.socialChannel.create({
             data: {
                 label: input.label.trim(),
                 platform: input.platform,
-                pageId: input.pageId.trim(),
+                pageId,
                 igId: input.igId?.trim() || null,
                 accessToken: this.cleanToken(input.accessToken),
                 branchId: input.branchId ?? null,
@@ -150,7 +155,7 @@ export class SocialInboxService {
         // Kontak + tautan CRM (best-effort profile name).
         let contact = await this.prisma.socialContact.findUnique({ where: { channelId_externalId: { channelId: channel.id, externalId: senderId } } });
         if (!contact) {
-            const name = await this.meta.getProfileName(senderId, channel.accessToken);
+            const name = await this.meta.getProfileName(platform, senderId, channel.accessToken);
             contact = await this.prisma.socialContact.create({
                 data: { channelId: channel.id, platform, externalId: senderId, name },
             });
@@ -219,8 +224,10 @@ export class SocialInboxService {
         const conv = await this.prisma.socialConversation.findUnique({ where: { id: conversationId }, include: { channel: true, contact: true } });
         if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
         let messageId: string | null = null;
+        // Instagram Login kirim via igId; Messenger via pageId.
+        const sendId = conv.channel.platform === 'INSTAGRAM' ? (conv.channel.igId || conv.channel.pageId) : conv.channel.pageId;
         try {
-            ({ messageId } = await this.meta.sendText(conv.channel.pageId, conv.channel.accessToken, conv.contact.externalId, text.trim()));
+            ({ messageId } = await this.meta.sendText(conv.channel.platform, sendId, conv.channel.accessToken, conv.contact.externalId, text.trim()));
         } catch (e) {
             throw new ConflictException(`Gagal kirim: ${(e as Error).message}`);
         }

@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
-    listSocialChannels, createSocialChannel, deleteSocialChannel, detectSocialInstagram, listPagesFromToken,
+    listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken,
     PLATFORM_LABEL, type FbPage,
     type SocialPlatform, type SocialConversation, type SocialMessage, type SocialChannel, type CreateSocialChannelBody,
 } from "@/lib/api/social";
@@ -178,11 +178,6 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
         onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menambah channel"),
     });
     const delMut = useMutation({ mutationFn: (id: number) => deleteSocialChannel(id), onSuccess: invalidate });
-    const detectMut = useMutation({
-        mutationFn: () => detectSocialInstagram(form.pageId.trim(), form.accessToken.trim()),
-        onSuccess: (ig) => setForm((f) => ({ ...f, igId: ig.id, label: f.label || ig.username || ig.name || f.label })),
-        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal deteksi IG"),
-    });
 
     // Ambil Page + token otomatis dari 1 token login.
     const [loginToken, setLoginToken] = useState("");
@@ -212,10 +207,12 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="overflow-y-auto p-4 space-y-4">
                     <p className="text-xs opacity-60">
-                        Daftarkan Page (Messenger) / akun IG. Set webhook Meta ke <code>/social/webhook</code>.
+                        <b>Instagram</b> (Instagram API with Login): isi <b>IG User ID</b> + token dari halaman "Buat token" di App Dashboard.
+                        <b> Messenger</b>: isi Page + Page token. Set webhook Meta ke <code>/social/webhook</code>.
                     </p>
 
-                    {/* Cara mudah: tempel 1 token login → ambil Page + token otomatis */}
+                    {/* Cara mudah (khusus Messenger/FB Page): tempel 1 token login → ambil Page */}
+                    {form.platform === "MESSENGER" && (
                     <div className="rounded-xl border border-dashed border-border bg-card/40 p-3 space-y-2">
                         <div className="text-sm font-medium">⚡ Ambil Page otomatis</div>
                         <p className="text-[11px] opacity-60">Tempel <b>token login</b> (User/System User dengan izin <code>pages_show_list</code> + <code>pages_messaging</code>) → aplikasi ambilkan Page ID, Page Access Token, &amp; IG ID.</p>
@@ -240,6 +237,7 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                             </div>
                         )}
                     </div>
+                    )}
                     <div className="grid sm:grid-cols-2 gap-2">
                         <label className="text-sm">Label
                             <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Voliko FB / IG"
@@ -252,25 +250,20 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                                 <option value="INSTAGRAM">Instagram</option>
                             </select>
                         </label>
-                        <label className="text-sm">Page ID
-                            <input value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} placeholder="1234567890"
-                                className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
-                        </label>
-                        {form.platform === "INSTAGRAM" && (
-                            <label className="text-sm">IG business ID
-                                <div className="mt-1 flex gap-2">
-                                    <input value={form.igId ?? ""} onChange={(e) => setForm({ ...form, igId: e.target.value })} placeholder="17841400000"
-                                        className="flex-1 rounded-lg bg-muted/60 px-3 py-2 outline-none" />
-                                    <button type="button" onClick={() => detectMut.mutate()} disabled={detectMut.isPending || !form.pageId.trim() || !form.accessToken.trim()}
-                                        className="text-xs px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50 whitespace-nowrap">
-                                        {detectMut.isPending ? "Deteksi…" : "Deteksi dari Page"}
-                                    </button>
-                                </div>
-                                <span className="text-[11px] opacity-50">Isi Page ID + token dulu, lalu klik Deteksi.</span>
+                        {form.platform === "MESSENGER" ? (
+                            <label className="text-sm">Page ID
+                                <input value={form.pageId} onChange={(e) => setForm({ ...form, pageId: e.target.value })} placeholder="1234567890"
+                                    className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
+                            </label>
+                        ) : (
+                            <label className="text-sm">IG User ID
+                                <input value={form.igId ?? ""} onChange={(e) => setForm({ ...form, igId: e.target.value })} placeholder="17841469359167630"
+                                    className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none font-mono" />
+                                <span className="text-[11px] opacity-50">Dari App Dashboard → Instagram → “Buat token akses” (angka di bawah nama akun).</span>
                             </label>
                         )}
-                        <label className="text-sm sm:col-span-2">Page Access Token
-                            <input type="password" value={form.accessToken} onChange={(e) => setForm({ ...form, accessToken: e.target.value })} placeholder="EAAG…"
+                        <label className="text-sm sm:col-span-2">Access Token
+                            <input type="password" value={form.accessToken} onChange={(e) => setForm({ ...form, accessToken: e.target.value })} placeholder={form.platform === "INSTAGRAM" ? "Token dari 'Buat token' Instagram…" : "Page token (EAAG…)"}
                                 className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none font-mono" />
                         </label>
                         <label className="text-sm sm:col-span-2">Cabang
@@ -281,7 +274,7 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                             </select>
                         </label>
                     </div>
-                    <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.label.trim() || !form.pageId.trim() || !form.accessToken.trim()}
+                    <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.label.trim() || !form.accessToken.trim() || (form.platform === "MESSENGER" ? !form.pageId.trim() : !(form.igId ?? "").trim())}
                         className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">
                         <Plus className="w-4 h-4" /> Tambah channel
                     </button>
