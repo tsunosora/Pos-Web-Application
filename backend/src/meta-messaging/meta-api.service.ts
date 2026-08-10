@@ -45,6 +45,13 @@ export class MetaApiService {
         return { messageId: json?.message_id ?? null };
     }
 
+    /** Verifikasi token + akses akun. Instagram: /me; Messenger: /{pageId}. */
+    async whoami(platform: SocialPlatform, id: string, token: string): Promise<{ id: string; name: string | null }> {
+        const path = platform === 'INSTAGRAM' ? `me?fields=id,username,name` : `${id}?fields=id,name`;
+        const json = await this.graph(this.base(platform), 'GET', path, token);
+        return { id: String(json?.id ?? id), name: json?.username || json?.name || null };
+    }
+
     /** Ambil nama profil pengirim (best-effort; bisa gagal tanpa izin profil). */
     async getProfileName(platform: SocialPlatform, userId: string, token: string): Promise<string | null> {
         try {

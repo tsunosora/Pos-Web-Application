@@ -41,6 +41,14 @@ export class MetaMessagingController {
         return this.inbox.removeChannel(id);
     }
 
+    /** Tes token + akses akun (Instagram/Messenger) sebelum simpan. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('test-connection')
+    testConnection(@Body() body: { platform: SocialPlatform; pageId?: string; igId?: string; accessToken: string }) {
+        return this.inbox.testConnection(body);
+    }
+
     /** Ambil daftar Page + Page token dari token login. */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...ADMIN_ROLES)

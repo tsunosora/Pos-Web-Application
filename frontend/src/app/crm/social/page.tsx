@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
-    listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken,
+    listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken, testSocialConnection,
     PLATFORM_LABEL, type FbPage,
     type SocialPlatform, type SocialConversation, type SocialMessage, type SocialChannel, type CreateSocialChannelBody,
 } from "@/lib/api/social";
@@ -178,6 +178,11 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
         onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal menambah channel"),
     });
     const delMut = useMutation({ mutationFn: (id: number) => deleteSocialChannel(id), onSuccess: invalidate });
+    const testMut = useMutation({
+        mutationFn: () => testSocialConnection({ platform: form.platform, pageId: form.pageId, igId: form.igId ?? undefined, accessToken: form.accessToken }),
+        onSuccess: (r) => alert(`✓ Koneksi OK — akun: ${r.name || r.id}`),
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Tes gagal"),
+    });
 
     // Ambil Page + token otomatis dari 1 token login.
     const [loginToken, setLoginToken] = useState("");
@@ -274,10 +279,16 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                             </select>
                         </label>
                     </div>
-                    <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.label.trim() || !form.accessToken.trim() || (form.platform === "MESSENGER" ? !form.pageId.trim() : !(form.igId ?? "").trim())}
-                        className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">
-                        <Plus className="w-4 h-4" /> Tambah channel
-                    </button>
+                    <div className="flex gap-2">
+                        <button onClick={() => testMut.mutate()} disabled={testMut.isPending || !form.accessToken.trim() || (form.platform === "MESSENGER" ? !form.pageId.trim() : !(form.igId ?? "").trim())}
+                            className="text-sm px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50">
+                            {testMut.isPending ? "Menguji…" : "Tes koneksi"}
+                        </button>
+                        <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.label.trim() || !form.accessToken.trim() || (form.platform === "MESSENGER" ? !form.pageId.trim() : !(form.igId ?? "").trim())}
+                            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">
+                            <Plus className="w-4 h-4" /> Tambah channel
+                        </button>
+                    </div>
 
                     <div className="space-y-1.5">
                         {channels.map((ch: SocialChannel) => (

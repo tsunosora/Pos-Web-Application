@@ -78,6 +78,20 @@ export class SocialInboxService {
         return (t || '').replace(/\s+/g, '');
     }
 
+    /** Tes token + akses akun (sebelum simpan). Surface error Meta yang terbaca. */
+    async testConnection(input: { platform: SocialPlatform; pageId?: string; igId?: string; accessToken: string }) {
+        const token = this.cleanToken(input.accessToken);
+        if (!token) throw new BadRequestException('Access Token wajib diisi');
+        const id = input.platform === 'INSTAGRAM' ? (input.igId?.trim() || '') : (input.pageId?.trim() || '');
+        if (input.platform === 'MESSENGER' && !id) throw new BadRequestException('Page ID wajib diisi');
+        try {
+            const r = await this.meta.whoami(input.platform, id, token);
+            return { ok: true, id: r.id, name: r.name };
+        } catch (e) {
+            throw new BadRequestException(`Token/koneksi bermasalah: ${(e as Error).message}`);
+        }
+    }
+
     /** Daftar Page + Page token dari token login (User/System User). */
     async listPagesFromToken(rawToken: string) {
         const token = this.cleanToken(rawToken);

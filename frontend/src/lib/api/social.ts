@@ -64,6 +64,10 @@ export const deleteSocialChannel = async (id: number): Promise<{ ok: boolean }> 
 export const detectSocialInstagram = async (pageId: string, accessToken: string): Promise<{ id: string; username: string | null; name: string | null }> =>
     (await api.post('/social/detect-ig', { pageId, accessToken })).data;
 
+// Tes token + akses akun sebelum simpan.
+export const testSocialConnection = async (body: { platform: SocialPlatform; pageId?: string; igId?: string; accessToken: string }): Promise<{ ok: boolean; id: string; name: string | null }> =>
+    (await api.post('/social/test-connection', body)).data;
+
 // Ambil daftar Page + Page token dari token login (User/System User).
 export interface FbPage { id: string; name: string; accessToken: string; ig: { id: string; username: string | null } | null }
 export const listPagesFromToken = async (token: string): Promise<FbPage[]> =>
