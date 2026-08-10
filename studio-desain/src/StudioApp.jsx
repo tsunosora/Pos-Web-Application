@@ -31,6 +31,7 @@ import LogoAffiliateMode from './modes/LogoAffiliateMode.jsx';
 import TryOnAffiliateMode from './modes/TryOnAffiliateMode.jsx';
 import ReviewAffiliateMode from './modes/ReviewAffiliateMode.jsx';
 import StoryboardAffiliateMode from './modes/StoryboardAffiliateMode.jsx';
+import FotoProdukMode from './modes/FotoProdukMode.jsx';
 import { buildBanner, buildBannerText, INITIAL_BANNER } from './prompts/buildBanner.js';
 import { buildBannerCetak, buildBannerCetakText, INITIAL_BANNERCETAK } from './prompts/buildBannerCetak.js';
 import { generateCarouselPrompts, INITIAL_CAROUSEL } from './prompts/buildCarousel.js';
@@ -44,6 +45,7 @@ import { buildLogoAffiliate, INITIAL_LOGO_AFFILIATE } from './prompts/buildLogoA
 import { buildTryOnAffiliate, INITIAL_TRYON_AFFILIATE } from './prompts/buildTryOnAffiliate.js';
 import { buildReviewAffiliate, INITIAL_REVIEW_AFFILIATE } from './prompts/buildReviewAffiliate.js';
 import { buildStoryboardAffiliate, INITIAL_STORYBOARD_AFFILIATE } from './prompts/buildStoryboardAffiliate.js';
+import { buildFotoProduk, INITIAL_FOTO_PRODUK } from './prompts/buildFotoProduk.js';
 import { SUB_TYPES as FACECARD_SUB_TYPES } from './data/faceCardOptions.js';
 import { useHistory } from './context/HistoryContext.jsx';
 
@@ -70,6 +72,7 @@ const TITLES = {
   tryonaffiliate:      { name: 'Try-On Produk Affiliate', desc: 'Buat konsep try-on / wear-test produk. Pakai foto produk + ikuti video tutorial untuk hasilkan visual konversi tinggi.' },
   reviewaffiliate:     { name: 'Review Produk Affiliate', desc: 'Buat konsep BANNER review produk high-converting. Pakai foto produk — produk dijaga sama persis.' },
   storyboardaffiliate: { name: 'Storyboard Affiliate', desc: 'Buat konsep storyboard video: scene-by-scene + caption + shot list otomatis. Pakai foto produk + ikuti video tutorial.' },
+  fotoproduk: { name: 'Foto Produk', desc: 'Rakit prompt fotografi produk profesional untuk display katalog, marketplace, atau feed — atur gaya, background, sudut, cahaya, props, dan mood. Tempel hasilnya ke model image (Nano-Banana/Midjourney/Flux/ChatGPT).' },
 };
 
 const HAS_MOCKUP = {
@@ -77,6 +80,7 @@ const HAS_MOCKUP = {
   copywriting: false, facecard: false, menufb: false,
   logoaffiliate: false, tryonaffiliate: false, reviewaffiliate: true,
   storyboardaffiliate: false,
+  fotoproduk: false,
 };
 
 export default function StudioApp() {
@@ -116,6 +120,7 @@ function AuthedApp() {
   const [tryonAff, dispatchTryonAff]               = useReducer(modeReducer, INITIAL_TRYON_AFFILIATE);
   const [reviewAff, dispatchReviewAff]             = useReducer(modeReducer, INITIAL_REVIEW_AFFILIATE);
   const [storyboardAff, dispatchStoryboardAff]     = useReducer(modeReducer, INITIAL_STORYBOARD_AFFILIATE);
+  const [fotoproduk, dispatchFotoproduk]           = useReducer(modeReducer, INITIAL_FOTO_PRODUK);
 
   const activeState =
     mode === 'banner'              ? banner :
@@ -130,6 +135,7 @@ function AuthedApp() {
     mode === 'tryonaffiliate'      ? tryonAff :
     mode === 'reviewaffiliate'     ? reviewAff :
     mode === 'storyboardaffiliate' ? storyboardAff :
+    mode === 'fotoproduk'          ? fotoproduk :
     copywriting;
   const deferredState = useDeferredValue(activeState);
 
@@ -147,6 +153,7 @@ function AuthedApp() {
     if (mode === 'tryonaffiliate')      return buildTryOnAffiliate(deferredState);
     if (mode === 'reviewaffiliate')     return buildReviewAffiliate(deferredState);
     if (mode === 'storyboardaffiliate') return buildStoryboardAffiliate(deferredState);
+    if (mode === 'fotoproduk')          return buildFotoProduk(deferredState);
     return null;
   }, [mode, deferredState]);
 
@@ -180,6 +187,7 @@ function AuthedApp() {
     if (mode === 'tryonaffiliate')      return activeState.product_name || 'Try-On Affiliate Prompt';
     if (mode === 'reviewaffiliate')     return activeState.product_name || 'Review Affiliate Prompt';
     if (mode === 'storyboardaffiliate') return activeState.product_name || 'Storyboard Affiliate Prompt';
+    if (mode === 'fotoproduk')          return activeState.productName || activeState.brand || 'Foto Produk Prompt';
     return 'Prompt';
   })();
 
@@ -296,6 +304,7 @@ function AuthedApp() {
     else if (entry.mode === 'tryonaffiliate')      dispatchTryonAff({ type: 'RESET_TO', state: safe(INITIAL_TRYON_AFFILIATE, entry.snapshot) });
     else if (entry.mode === 'reviewaffiliate')     dispatchReviewAff({ type: 'RESET_TO', state: safe(INITIAL_REVIEW_AFFILIATE, entry.snapshot) });
     else if (entry.mode === 'storyboardaffiliate') dispatchStoryboardAff({ type: 'RESET_TO', state: safe(INITIAL_STORYBOARD_AFFILIATE, entry.snapshot) });
+    else if (entry.mode === 'fotoproduk')          dispatchFotoproduk({ type: 'RESET_TO', state: safe(INITIAL_FOTO_PRODUK, entry.snapshot) });
     setRestoredMode(entry.mode);
     setMode(entry.mode);
     // Bump signal so PromptPanel auto-shows the restored prompt across mode switch
@@ -373,6 +382,7 @@ function AuthedApp() {
             {mode === 'tryonaffiliate'      && <TryOnAffiliateMode      state={tryonAff}      dispatch={dispatchTryonAff} />}
             {mode === 'reviewaffiliate'     && <ReviewAffiliateMode     state={reviewAff}     dispatch={dispatchReviewAff} />}
             {mode === 'storyboardaffiliate' && <StoryboardAffiliateMode state={storyboardAff} dispatch={dispatchStoryboardAff} />}
+            {mode === 'fotoproduk'          && <FotoProdukMode          state={fotoproduk}    dispatch={dispatchFotoproduk} />}
 
             {/* Mobile-only: mockup + prompt inline below form */}
             <div className="lg:hidden mt-4 space-y-4">

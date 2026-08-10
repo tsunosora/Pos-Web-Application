@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Image, Youtube, Megaphone, PencilLine, ScanFace, UtensilsCrossed,
+  Image, Youtube, Megaphone, PencilLine, ScanFace, UtensilsCrossed, Camera,
   Wand2, Settings, PlayCircle, Sparkles, DollarSign, GalleryHorizontalEnd, HandCoins,
   Sparkles as LogoIcon, Shirt, Star, Film, Video, ChevronRight, Store, Grid3x3, Printer,
 } from 'lucide-react';
@@ -18,6 +18,7 @@ const MODES = [
   { id: 'copywriting', icon: PencilLine,       label: 'Copy Writing' },
   { id: 'facecard',    icon: ScanFace,         label: 'Face Card' },
   { id: 'menufb',      icon: UtensilsCrossed,  label: 'Menu F&B' },
+  { id: 'fotoproduk',  icon: Camera,           label: 'Foto Produk' },
 ];
 
 const AFFILIATE_MODES = [
