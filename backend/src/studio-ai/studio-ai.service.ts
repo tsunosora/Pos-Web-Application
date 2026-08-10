@@ -143,10 +143,22 @@ export class StudioAiService {
         body: JSON.stringify({ model: cfg.model, messages, temperature, stream: false }),
       });
     } catch (e: any) {
-      this.logger.error(`AI upstream tidak terjangkau: ${e?.message}`);
-      throw new ServiceUnavailableException(
-        'Server AI tidak terjangkau. Pastikan 9router berjalan & Base URL benar (mis. IP Tailscale PC).',
-      );
+      // Undici membungkus error jaringan di e.cause.code — inilah petunjuk akar masalah.
+      const code = e?.cause?.code || e?.code || '';
+      let host = cfg.baseUrl;
+      try { host = new URL(cfg.baseUrl).host; } catch { /* keep as-is */ }
+      const hint: Record<string, string> = {
+        ECONNREFUSED: `Koneksi DITOLAK di ${host}. Host terjangkau tapi tak ada yang mendengar di port itu → 9router mati, atau bind ke 127.0.0.1 saja (jalankan dgn HOSTNAME=0.0.0.0).`,
+        ETIMEDOUT: `TIMEOUT ke ${host}. Server tak bisa menjangkau host → Tailscale belum konek di kedua sisi, IP salah, atau firewall PC blokir port.`,
+        EHOSTUNREACH: `Host ${host} TAK TERJANGKAU (routing/Tailscale down).`,
+        ENETUNREACH: `Jaringan ke ${host} tak terjangkau (Tailscale/routing).`,
+        ENOTFOUND: `Hostname ${host} TAK DITEMUKAN (DNS). Pakai IP Tailscale, bukan nama.`,
+        EAI_AGAIN: `Gagal resolve DNS ${host}. Pakai IP Tailscale langsung.`,
+        ECONNRESET: `Koneksi ke ${host} diputus (mungkin https↔http salah, atau reverse proxy).`,
+      };
+      const detail = hint[code] || `${code || e?.message || 'error tak dikenal'} → ${host}.`;
+      this.logger.error(`AI upstream tidak terjangkau (${code}): ${e?.message} url=${cfg.baseUrl}`);
+      throw new ServiceUnavailableException(`Server AI tidak terjangkau. ${detail}`);
     }
     if (!res.ok) {
       const body = await res.text().catch(() => '');
