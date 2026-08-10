@@ -42,6 +42,18 @@ export class MetaApiService {
         return { messageId: json?.message_id ?? null };
     }
 
+    /** Daftar Page + Page Access Token dari sebuah token login (User/System User). */
+    async listPages(token: string): Promise<Array<{ id: string; name: string; accessToken: string; ig: { id: string; username: string | null } | null }>> {
+        const json = await this.graph('GET', `me/accounts?fields=name,access_token,instagram_business_account{id,username}&limit=100`, token);
+        const data: any[] = json?.data ?? [];
+        return data.map((p) => ({
+            id: String(p.id),
+            name: p.name ?? '',
+            accessToken: p.access_token ?? '',
+            ig: p.instagram_business_account?.id ? { id: String(p.instagram_business_account.id), username: p.instagram_business_account.username ?? null } : null,
+        }));
+    }
+
     /** Akun Instagram business yang terhubung ke sebuah Page (untuk deteksi IG ID). */
     async getPageInstagram(pageId: string, token: string): Promise<{ id: string; username: string | null; name: string | null } | null> {
         const json = await this.graph(

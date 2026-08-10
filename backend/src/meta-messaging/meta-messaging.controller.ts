@@ -41,6 +41,14 @@ export class MetaMessagingController {
         return this.inbox.removeChannel(id);
     }
 
+    /** Ambil daftar Page + Page token dari token login. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Post('pages-from-token')
+    pagesFromToken(@Body() body: { token: string }) {
+        return this.inbox.listPagesFromToken(body?.token);
+    }
+
     /** Deteksi IG business account yang terhubung ke Page. */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...ADMIN_ROLES)

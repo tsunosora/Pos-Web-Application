@@ -68,6 +68,19 @@ export class SocialInboxService {
         return { ok: true };
     }
 
+    /** Daftar Page + Page token dari token login (User/System User). */
+    async listPagesFromToken(token: string) {
+        if (!token?.trim()) throw new BadRequestException('Token wajib diisi');
+        try {
+            const pages = await this.meta.listPages(token.trim());
+            if (!pages.length) throw new BadRequestException('Tak ada Page. Pastikan token punya izin pages_show_list & akun mengelola Page.');
+            return pages;
+        } catch (e) {
+            if (e instanceof BadRequestException) throw e;
+            throw new BadRequestException(`Gagal ambil Page: ${(e as Error).message}`);
+        }
+    }
+
     /** Deteksi akun IG business yang terhubung ke Page (isi otomatis IG ID). */
     async detectInstagram(pageId: string, accessToken: string) {
         if (!pageId?.trim() || !accessToken?.trim()) throw new BadRequestException('Page ID & Access Token wajib diisi dulu');

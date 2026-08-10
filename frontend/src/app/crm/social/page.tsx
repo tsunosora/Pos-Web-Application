@@ -6,8 +6,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
-    listSocialChannels, createSocialChannel, deleteSocialChannel, detectSocialInstagram,
-    PLATFORM_LABEL,
+    listSocialChannels, createSocialChannel, deleteSocialChannel, detectSocialInstagram, listPagesFromToken,
+    PLATFORM_LABEL, type FbPage,
     type SocialPlatform, type SocialConversation, type SocialMessage, type SocialChannel, type CreateSocialChannelBody,
 } from "@/lib/api/social";
 import { getBranches } from "@/lib/api/settings";
@@ -184,6 +184,24 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
         onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal deteksi IG"),
     });
 
+    // Ambil Page + token otomatis dari 1 token login.
+    const [loginToken, setLoginToken] = useState("");
+    const [pages, setPages] = useState<FbPage[]>([]);
+    const pagesMut = useMutation({
+        mutationFn: () => listPagesFromToken(loginToken.trim()),
+        onSuccess: (p) => setPages(p),
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal ambil Page"),
+    });
+    const usePage = (p: FbPage) => {
+        setForm((f) => ({
+            ...f,
+            pageId: p.id,
+            accessToken: p.accessToken,
+            igId: p.ig?.id ?? f.igId,
+            label: f.label || (f.platform === "INSTAGRAM" ? (p.ig?.username || p.name) : p.name),
+        }));
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
             <div className="w-full max-w-lg max-h-[88vh] flex flex-col rounded-2xl border border-border bg-card shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -194,9 +212,34 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="overflow-y-auto p-4 space-y-4">
                     <p className="text-xs opacity-60">
-                        Daftarkan Page (Messenger) / akun IG. <b>Page ID</b> & <b>Page Access Token</b> dari Meta. Untuk Instagram, isi juga <b>IG business ID</b>.
-                        Set webhook Meta ke <code>/social/webhook</code>.
+                        Daftarkan Page (Messenger) / akun IG. Set webhook Meta ke <code>/social/webhook</code>.
                     </p>
+
+                    {/* Cara mudah: tempel 1 token login → ambil Page + token otomatis */}
+                    <div className="rounded-xl border border-dashed border-border bg-card/40 p-3 space-y-2">
+                        <div className="text-sm font-medium">⚡ Ambil Page otomatis</div>
+                        <p className="text-[11px] opacity-60">Tempel <b>token login</b> (User/System User dengan izin <code>pages_show_list</code> + <code>pages_messaging</code>) → aplikasi ambilkan Page ID, Page Access Token, &amp; IG ID.</p>
+                        <div className="flex gap-2">
+                            <input type="password" value={loginToken} onChange={(e) => setLoginToken(e.target.value)} placeholder="Tempel token login…"
+                                className="flex-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm outline-none font-mono" />
+                            <button type="button" onClick={() => pagesMut.mutate()} disabled={pagesMut.isPending || !loginToken.trim()}
+                                className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 whitespace-nowrap">
+                                {pagesMut.isPending ? "Mengambil…" : "Ambil Page"}
+                            </button>
+                        </div>
+                        {pages.length > 0 && (
+                            <div className="space-y-1">
+                                {pages.map((p) => (
+                                    <button key={p.id} type="button" onClick={() => usePage(p)}
+                                        className="w-full text-left flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted text-sm">
+                                        <Facebook className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                                        <span className="min-w-0 flex-1 truncate">{p.name} {p.ig ? <span className="text-pink-500">· IG @{p.ig.username || p.ig.id}</span> : ""}</span>
+                                        <span className="text-[11px] opacity-60 shrink-0">pakai →</span>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                     <div className="grid sm:grid-cols-2 gap-2">
                         <label className="text-sm">Label
                             <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Voliko FB / IG"
