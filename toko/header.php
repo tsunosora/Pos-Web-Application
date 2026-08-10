@@ -1,5 +1,5 @@
 <?php require_once __DIR__ . '/lib.php'; $st = settings(); $cc = cart_count(); $qval = trim($_GET['q'] ?? '');
-$hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?? '')); ?>
+$hdrWa = store_wa(); ?>
 <!doctype html>
 <html lang="id">
 <head>
@@ -17,7 +17,7 @@ $hdrWa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?
     if (!isset($seo_jsonld)) {
         $orgLd = ['@context' => 'https://schema.org', '@type' => 'Store', 'name' => $storeName, 'url' => base_url()];
         if ($logoAbs) $orgLd['logo'] = $logoAbs;
-        if (!empty($st['storePhone'])) $orgLd['telephone'] = $st['storePhone'];
+        if (($phEff = store_phone()) !== '') $orgLd['telephone'] = $phEff;
         $seo_jsonld = json_encode($orgLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
     ?>

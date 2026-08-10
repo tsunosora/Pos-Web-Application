@@ -2,9 +2,10 @@
 <?php
 $ft = settings();
 $ftName  = $ft['storeName'] ?? 'Toko';
-$ftPhone = $ft['storePhone'] ?? '';
+// Nomor toko: utamakan blok Kontak (editable dari Dashboard → Konten), fallback storePhone PosPro.
+$ftPhone = store_phone();
 $ftAddr  = $ft['storeAddress'] ?? ($ft['address'] ?? '');
-$ftWa    = preg_replace('/^0/', '62', preg_replace('/\D/', '', $ftPhone));
+$ftWa    = store_wa();
 ?>
 <footer class="mt-12 text-slate-300" style="background:#0E0E10">
     <div class="max-w-[96rem] mx-auto px-4 py-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-9">

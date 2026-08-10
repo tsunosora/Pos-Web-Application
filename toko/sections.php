@@ -48,8 +48,7 @@ function sec_hero(): void {
     $slides = array_values(array_filter($c['slides'] ?? [], fn($s) => !empty($s['title'])));
     if (!$slides) return;
     $stats = array_slice(parse_items($c['stats'] ?? ''), 0, 3);
-    $hs = settings();
-    $wa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $hs['storePhone'] ?? ''));
+    $wa = store_wa();
     ?>
     <section class="pk-herosplit" data-reveal>
         <div class="pk-hs-main">

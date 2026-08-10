@@ -102,8 +102,8 @@ foreach ($variants as $v) {
 $gallery = array_values(array_unique(array_filter($gallery)));
 if (!$gallery && $img) $gallery[] = $img;
 
-// Tombol WhatsApp (nomor toko dari PosPro)
-$waNum  = preg_replace('/^0/', '62', preg_replace('/\D/', '', $st['storePhone'] ?? ''));
+// Tombol WhatsApp (utamakan blok Kontak toko, fallback storePhone PosPro)
+$waNum  = store_wa();
 $waText = rawurlencode('Halo ' . ($st['storeName'] ?? '') . ', saya mau tanya produk "' . ($p['name'] ?? '') . '" — ' . abs_url('product.php?id=' . (int)$p['id']));
 
 // Produk terkait (kategori sama)

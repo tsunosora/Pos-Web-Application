@@ -509,6 +509,32 @@ function settings(): array {
     return $s;
 }
 
+/**
+ * Nomor telepon toko efektif untuk tampilan (tel:, footer, JSON-LD). Utamakan
+ * blok "Kontak" yang bisa diedit admin dari Dashboard → Konten; baru fallback ke
+ * storePhone profil PosPro bila kosong. Dibuat satu sumber agar admin toko bisa
+ * mengganti nomor di satu tempat dan berlaku di seluruh storefront.
+ */
+function store_phone(): string {
+    static $v = null;
+    if ($v !== null) return $v;
+    require_once __DIR__ . '/content_store.php';
+    $k = site_content('kontak');
+    $p = trim((string)($k['phone'] ?? ''));
+    if ($p === '') $p = trim((string)(settings()['storePhone'] ?? ''));
+    return $v = $p;
+}
+
+/** Nomor WhatsApp toko (format 62…) — utamakan WA blok Kontak, lalu telepon Kontak, lalu storePhone. */
+function store_wa(): string {
+    static $v = null;
+    if ($v !== null) return $v;
+    require_once __DIR__ . '/content_store.php';
+    $k = site_content('kontak');
+    $raw = trim((string)($k['whatsapp'] ?? '')) ?: trim((string)($k['phone'] ?? '')) ?: trim((string)(settings()['storePhone'] ?? ''));
+    return $v = preg_replace('/^0/', '62', preg_replace('/\D/', '', $raw));
+}
+
 /** ID kategori yang disembunyikan dari toko (diatur di Setelan). */
 function hidden_cats(): array {
     static $h = null;
