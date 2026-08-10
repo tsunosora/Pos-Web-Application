@@ -62,9 +62,11 @@ export function StudioAiSettings() {
                 <span className="text-[10px] uppercase tracking-widest text-muted-foreground">asisten isi brief otomatis</span>
             </div>
             <p className="text-xs text-muted-foreground mb-4">
-                Aktifkan asisten AI di Studio Desain (isi brief otomatis + saran ide). Jalankan <b>9router</b> di PC-mu,
-                hubungkan PC ↔ server lewat <b>Tailscale</b> (privat), lalu isi <b>Base URL</b> = alamat 9router PC
-                (mis. <code>http://100.x.x.x:20128/v1</code>) dan tempel <b>Token</b>-nya. Matikan kapan saja lewat sakelar di bawah.
+                Aktifkan asisten AI (isi brief otomatis + saran ide). Isi <b>Base URL</b> endpoint OpenAI-compatible + <b>Token</b>,
+                lalu Simpan &amp; Tes Koneksi. Pilihan Base URL: <b>(a)</b> 9router di server yang sama →{" "}
+                <code>http://localhost:20128/v1</code> (paling aman, tak perlu dipublik); <b>(b)</b> 9router di PC → IP Tailscale PC{" "}
+                (<code>http://100.x.x.x:20128/v1</code>); <b>(c)</b> OpenRouter → <code>https://openrouter.ai/api/v1</code>.
+                Jangan pakai URL publik Cloudflare di sini (server panggil via internal). Matikan kapan saja lewat sakelar.
             </p>
 
             {isLoading ? (
