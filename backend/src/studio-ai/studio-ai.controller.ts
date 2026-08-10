@@ -1,23 +1,53 @@
-import { Body, Controller, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { StudioAiService } from './studio-ai.service';
 
+const OWNER_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
+
 /**
- * Endpoint AI untuk Studio Desain (butuh login POS — JWT).
- * Frontend (iframe studio) memanggil dengan Authorization: Bearer <token POS>.
+ * Endpoint AI Studio Desain (butuh login POS — JWT).
+ * - config/test: Owner-only (kelola token 9router).
+ * - status/ideas/fill: semua user login (dipakai desainer di iframe studio).
  */
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('studio-ai')
 export class StudioAiController {
   constructor(private readonly svc: StudioAiService) {}
 
-  /** Saran ide konten + rekomendasi mode. */
+  // ── Config (Owner) ──────────────────────────────────────────
+  @Get('config')
+  @Roles(...OWNER_ROLES)
+  getConfig() {
+    return this.svc.configForOwner();
+  }
+
+  @Put('config')
+  @Roles(...OWNER_ROLES)
+  updateConfig(
+    @Body() body: { enabled?: boolean; baseUrl?: string; model?: string; apiKey?: string; clearApiKey?: boolean },
+  ) {
+    return this.svc.writeConfig(body || {}).then(() => this.svc.configForOwner());
+  }
+
+  @Post('test')
+  @Roles(...OWNER_ROLES)
+  test() {
+    return this.svc.testConnection();
+  }
+
+  // ── Pemakaian (semua user login) ────────────────────────────
+  @Get('status')
+  status() {
+    return this.svc.status();
+  }
+
   @Post('ideas')
   ideas(@Body() body: { idea: string; modes: { id: string; label: string; desc?: string }[] }) {
     return this.svc.ideas(body?.idea, body?.modes || []);
   }
 
-  /** Isi otomatis brief satu mode dari ide singkat. */
   @Post('fill')
   fill(
     @Body()

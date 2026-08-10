@@ -18,15 +18,15 @@ function token() {
   try { return localStorage.getItem('token') || ''; } catch { return ''; }
 }
 
-async function post(path, body) {
+async function req(path, method, body) {
   const t = token();
   if (!t) throw new Error('Sesi login tidak ditemukan. Buka ulang halaman Studio Desain lewat menu POS.');
   let res;
   try {
     res = await fetch(`${apiBase()}${path}`, {
-      method: 'POST',
+      method,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}` },
-      body: JSON.stringify(body),
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
     throw new Error('Tidak bisa menghubungi server. Cek koneksi.');
@@ -38,6 +38,13 @@ async function post(path, body) {
     throw new Error(msg);
   }
   return res.json();
+}
+
+const post = (path, body) => req(path, 'POST', body);
+
+/** Status AI (aktif/tidak). Aman dipanggil semua user login. */
+export function aiStatus() {
+  return req('/studio-ai/status', 'GET');
 }
 
 /** Saran ide konten + rekomendasi mode. */

@@ -1,0 +1,1 @@
+import{y as i}from"./index-BLCQJfzB.js";function s({className:e="",fade:r=!0,dots:t=!1}){return i.jsx("div",{"aria-hidden":!0,className:`pointer-events-none absolute inset-0 ${t?"dot-bg":"grid-bg"} ${r?"grid-bg-fade":""} ${e}`})}export{s as S};

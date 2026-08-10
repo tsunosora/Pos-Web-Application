@@ -1,4 +1,4 @@
-import { useState, useReducer, useMemo, useDeferredValue } from 'react';
+import { useState, useReducer, useMemo, useDeferredValue, useEffect } from 'react';
 import { PlayCircle } from 'lucide-react';
 import { CONFIG, brandParts } from './config.js';
 import { getDemoIcon } from './components/demoIcons.js';
@@ -34,6 +34,7 @@ import StoryboardAffiliateMode from './modes/StoryboardAffiliateMode.jsx';
 import FotoProdukMode from './modes/FotoProdukMode.jsx';
 import AiAssistBar from './components/AiAssistBar.jsx';
 import { isAiMode } from './data/aiFields.js';
+import { aiStatus } from './ai/aiClient.js';
 import { buildBanner, buildBannerText, INITIAL_BANNER } from './prompts/buildBanner.js';
 import { buildBannerCetak, buildBannerCetakText, INITIAL_BANNERCETAK } from './prompts/buildBannerCetak.js';
 import { generateCarouselPrompts, INITIAL_CAROUSEL } from './prompts/buildCarousel.js';
@@ -108,6 +109,14 @@ function AuthedApp() {
   const { add } = useHistory();
 
   const changeMode = (m) => { setRestoredMode(null); setMode(m); };
+
+  // Status AI (aktif/tidak) — bar Asisten AI hanya tampil bila Owner mengaktifkannya.
+  const [aiEnabled, setAiEnabled] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    aiStatus().then((s) => { if (alive) setAiEnabled(!!s?.enabled); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
 
   // Terapkan hasil "Isi Otomatis" AI ke state mode target (merge lewat LOAD_DEMO).
   const applyAiFill = (targetMode, values) => {
@@ -382,7 +391,7 @@ function AuthedApp() {
               <h1 className="text-xl font-bold">{t.name}</h1>
               <p className="text-xs text-text-mut mt-1">{t.desc}</p>
             </div>
-            {isAiMode(mode) && (
+            {aiEnabled && isAiMode(mode) && (
               <AiAssistBar mode={mode} applyFill={applyAiFill} onPickMode={changeMode} />
             )}
             {mode === 'banner'              && <BannerMode              state={banner}        dispatch={dispatchBanner} />}
