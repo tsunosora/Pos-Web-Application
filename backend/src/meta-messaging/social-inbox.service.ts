@@ -43,7 +43,7 @@ export class SocialInboxService {
                 platform: input.platform,
                 pageId: input.pageId.trim(),
                 igId: input.igId?.trim() || null,
-                accessToken: input.accessToken.trim(),
+                accessToken: this.cleanToken(input.accessToken),
                 branchId: input.branchId ?? null,
             },
             select: { id: true, label: true, platform: true },
@@ -68,11 +68,17 @@ export class SocialInboxService {
         return { ok: true };
     }
 
+    /** Bersihkan token dari spasi/baris baru (penyebab "cannot parse access token"). */
+    private cleanToken(t?: string): string {
+        return (t || '').replace(/\s+/g, '');
+    }
+
     /** Daftar Page + Page token dari token login (User/System User). */
-    async listPagesFromToken(token: string) {
-        if (!token?.trim()) throw new BadRequestException('Token wajib diisi');
+    async listPagesFromToken(rawToken: string) {
+        const token = this.cleanToken(rawToken);
+        if (!token) throw new BadRequestException('Token wajib diisi');
         try {
-            const pages = await this.meta.listPages(token.trim());
+            const pages = await this.meta.listPages(token);
             if (!pages.length) throw new BadRequestException('Tak ada Page. Pastikan token punya izin pages_show_list & akun mengelola Page.');
             return pages;
         } catch (e) {
@@ -83,10 +89,11 @@ export class SocialInboxService {
 
     /** Deteksi akun IG business yang terhubung ke Page (isi otomatis IG ID). */
     async detectInstagram(pageId: string, accessToken: string) {
-        if (!pageId?.trim() || !accessToken?.trim()) throw new BadRequestException('Page ID & Access Token wajib diisi dulu');
+        const token = this.cleanToken(accessToken);
+        if (!pageId?.trim() || !token) throw new BadRequestException('Page ID & Access Token wajib diisi dulu');
         let ig: { id: string; username: string | null; name: string | null } | null;
         try {
-            ig = await this.meta.getPageInstagram(pageId.trim(), accessToken.trim());
+            ig = await this.meta.getPageInstagram(pageId.trim(), token);
         } catch (e) {
             throw new BadRequestException(`Gagal deteksi IG: ${(e as Error).message}`);
         }
