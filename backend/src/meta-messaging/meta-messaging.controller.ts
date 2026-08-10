@@ -41,6 +41,14 @@ export class MetaMessagingController {
         return this.inbox.removeChannel(id);
     }
 
+    /** Diagnostik: webhook terakhir yang diterima server dari Meta. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...ADMIN_ROLES)
+    @Get('webhook-debug')
+    webhookDebug() {
+        return this.inbox.webhookDebug();
+    }
+
     /** Tes token + akses akun (Instagram/Messenger) sebelum simpan. */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...ADMIN_ROLES)

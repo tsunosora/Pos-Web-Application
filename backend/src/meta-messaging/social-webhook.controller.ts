@@ -28,11 +28,16 @@ export class SocialWebhookController {
     @HttpCode(200)
     async receive(@Req() req: RawBodyRequest<Request>, @Headers('x-hub-signature-256') signature: string, @Body() body: any) {
         const appSecret = process.env.WA_APP_SECRET;
-        if (appSecret) {
-            if (!verifyMetaSignature(req.rawBody, signature, appSecret)) {
-                this.logger.warn('Signature webhook social tidak valid — ditolak');
-                return { ok: false };
-            }
+        const object = body?.object ?? null;
+        const entries = Array.isArray(body?.entry) ? body.entry.length : 0;
+        let signatureOk: boolean | null = null;
+        if (appSecret) signatureOk = verifyMetaSignature(req.rawBody, signature, appSecret);
+        // Catat SETIAP hit (termasuk yang gagal signature) untuk diagnosa.
+        this.inbox.recordWebhookHit({ object, entries, signatureOk });
+        this.logger.log(`Webhook social masuk: object=${object} entries=${entries} sig=${signatureOk}`);
+        if (appSecret && !signatureOk) {
+            this.logger.warn('Signature webhook social tidak valid — ditolak');
+            return { ok: false };
         }
         await this.inbox.ingestWebhook(body);
         return { ok: true };

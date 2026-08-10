@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
-    listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken, testSocialConnection,
+    listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken, testSocialConnection, getSocialWebhookDebug,
     PLATFORM_LABEL, type FbPage,
     type SocialPlatform, type SocialConversation, type SocialMessage, type SocialChannel, type CreateSocialChannelBody,
 } from "@/lib/api/social";
@@ -183,6 +183,15 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
         onSuccess: (r) => alert(`✓ Koneksi OK — akun: ${r.name || r.id}`),
         onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Tes gagal"),
     });
+    const webhookMut = useMutation({
+        mutationFn: getSocialWebhookDebug,
+        onSuccess: (d) => {
+            const w = d.lastWebhook;
+            if (!w) return alert("Belum ada webhook masuk dari Meta.\n→ Berarti Meta belum mengirim event. Cek: webhook di App terverifikasi, field 'messages' di-subscribe, akun jadi Instagram Tester, dan app sudah Live/diterbitkan.");
+            alert(`Webhook terakhir masuk:\n• Waktu: ${new Date(w.at).toLocaleString("id-ID")}\n• object: ${w.object}\n• entries: ${w.entries}\n• signature OK: ${w.signatureOk === null ? "(tak dicek)" : w.signatureOk}\n\n${w.signatureOk === false ? "⚠️ Signature GAGAL → WA_APP_SECRET di server salah/berbeda dengan app secret." : "Meta menghubungi server ✓"}`);
+        },
+        onError: (e: unknown) => alert((e as { response?: { data?: { message?: string } } })?.response?.data?.message || "Gagal cek webhook"),
+    });
 
     // Ambil Page + token otomatis dari 1 token login.
     const [loginToken, setLoginToken] = useState("");
@@ -283,6 +292,10 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                         <button onClick={() => testMut.mutate()} disabled={testMut.isPending || !form.accessToken.trim() || (form.platform === "MESSENGER" ? !form.pageId.trim() : !(form.igId ?? "").trim())}
                             className="text-sm px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50">
                             {testMut.isPending ? "Menguji…" : "Tes koneksi"}
+                        </button>
+                        <button onClick={() => webhookMut.mutate()} disabled={webhookMut.isPending}
+                            className="text-sm px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50">
+                            {webhookMut.isPending ? "Cek…" : "Cek webhook masuk"}
                         </button>
                         <button onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.label.trim() || !form.accessToken.trim() || (form.platform === "MESSENGER" ? !form.pageId.trim() : !(form.igId ?? "").trim())}
                             className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50">

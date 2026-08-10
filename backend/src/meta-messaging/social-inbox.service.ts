@@ -120,6 +120,15 @@ export class SocialInboxService {
         return ig;
     }
 
+    // ─── Diagnostik webhook (apakah Meta menghubungi server kita?) ───────────
+    private lastWebhook: { at: string; object: string | null; entries: number; signatureOk: boolean | null } | null = null;
+    recordWebhookHit(info: { object: string | null; entries: number; signatureOk: boolean | null }) {
+        this.lastWebhook = { at: new Date().toISOString(), ...info };
+    }
+    webhookDebug() {
+        return { lastWebhook: this.lastWebhook };
+    }
+
     // ─── Webhook ingest ──────────────────────────────────────────────────────
     /** Titik masuk webhook Messenger/Instagram. Tak pernah melempar. */
     async ingestWebhook(body: any): Promise<void> {

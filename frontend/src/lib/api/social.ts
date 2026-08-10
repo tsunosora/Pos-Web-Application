@@ -64,6 +64,10 @@ export const deleteSocialChannel = async (id: number): Promise<{ ok: boolean }> 
 export const detectSocialInstagram = async (pageId: string, accessToken: string): Promise<{ id: string; username: string | null; name: string | null }> =>
     (await api.post('/social/detect-ig', { pageId, accessToken })).data;
 
+// Diagnostik: webhook terakhir yang diterima server dari Meta.
+export interface SocialWebhookDebug { lastWebhook: { at: string; object: string | null; entries: number; signatureOk: boolean | null } | null }
+export const getSocialWebhookDebug = async (): Promise<SocialWebhookDebug> => (await api.get('/social/webhook-debug')).data;
+
 // Tes token + akses akun sebelum simpan.
 export const testSocialConnection = async (body: { platform: SocialPlatform; pageId?: string; igId?: string; accessToken: string }): Promise<{ ok: boolean; id: string; name: string | null }> =>
     (await api.post('/social/test-connection', body)).data;
