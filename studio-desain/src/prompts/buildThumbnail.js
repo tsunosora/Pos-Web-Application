@@ -1,4 +1,6 @@
 import { STYLE_DIRECTION } from '../data/thumbnailOptions.js';
+import { buildLogoBlock } from './logoBlock.js';
+import { LOGO_INITIAL } from '../data/logoOptions.js';
 
 /**
  * Builds the YouTube Thumbnail brief (multi-line text, matches reference).
@@ -64,10 +66,11 @@ MODEL OPTIMIZATION (ChatGPT Image / Flux / Ideogram / Leonardo):
 - Prioritize legibility over decorative effects; avoid warping letters.
 
 NEGATIVE:
-- blurry, low-res, cluttered background, unreadable text, missing headline, blank text, distorted face, extra fingers, watermark, logo artifacts`;
+- blurry, low-res, cluttered background, unreadable text, missing headline, blank text, distorted face, extra fingers, watermark, logo artifacts` + buildLogoBlock(s);
 }
 
 export const INITIAL_THUMBNAIL = {
+  ...LOGO_INITIAL,
   title: '', hook: '', topic: '', channel: '', keyPoints: '',
   style: 'MrBeast', mood: 'Shock',
   designStyle: 'Minimal Clean', lighting: 'Soft Lighting',

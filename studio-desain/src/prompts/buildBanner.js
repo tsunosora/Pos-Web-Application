@@ -2,6 +2,8 @@ import {
   COMPOSITION_BY_COUNT, PLACEMENT_BY_POSITION,
   LIGHTING_DESC, AESTHETIC_BY_STYLE, STRICT_RULES,
 } from '../data/bannerOptions.js';
+import { buildLogoObject } from './logoBlock.js';
+import { LOGO_INITIAL } from '../data/logoOptions.js';
 
 /**
  * Builds the Banner Ads commercial banner JSON prompt (matches reference exactly).
@@ -28,6 +30,7 @@ export function buildBanner(s = {}) {
         description:   s.description || '',
         call_to_action:s.cta || '',
       },
+      ...(buildLogoObject(s) ? { brand_logo: buildLogoObject(s) } : {}),
       product_visual_layout: {
         expected_images_count: s.imageCount || 1,
         composition_style:     COMPOSITION_BY_COUNT[s.imageCount] || COMPOSITION_BY_COUNT[1],
@@ -91,6 +94,7 @@ export function buildBannerText(s = {}) {
 }
 
 export const INITIAL_BANNER = {
+  ...LOGO_INITIAL,
   brand: '', headline: '', tagline: '', description: '', cta: '',
   features: [],
   imageCount: 1, position: 'center',

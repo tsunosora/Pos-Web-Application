@@ -5,6 +5,7 @@ import TextField from '../components/TextField.jsx';
 import SelectField from '../components/SelectField.jsx';
 import ColorSwatch from '../components/ColorSwatch.jsx';
 import ReferenceModal from '../components/ReferenceModal.jsx';
+import LogoBrandSection from '../components/LogoBrandSection.jsx';
 import {
   THUMB_STYLES, MOODS, STYLES, LIGHTINGS, RATIOS,
 } from '../data/thumbnailOptions.js';
@@ -64,6 +65,8 @@ export default function ThumbnailMode({ state, dispatch }) {
           <SelectField label="Thumbnail Ratio" value={state.ratio} onChange={set('ratio')} options={RATIOS} />
         </div>
       </Section>
+
+      <LogoBrandSection state={state} set={set} />
 
       {/* Reference modals */}
       <ReferenceModal

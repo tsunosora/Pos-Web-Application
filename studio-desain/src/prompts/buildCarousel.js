@@ -1,6 +1,8 @@
 import {
   TEMPLATE_LABELS, getStoryFlow, assignLayouts, layoutDirection, getCoverLayout, makeSeed,
 } from '../data/carouselOptions.js';
+import { buildLogoBlock } from './logoBlock.js';
+import { LOGO_INITIAL } from '../data/logoOptions.js';
 
 /**
  * Carousel Feeds prompt generator.
@@ -366,10 +368,14 @@ export function generateCarouselPrompts(formData = {}) {
       prompt,
     });
   }
+  // Logo brand konsisten di semua slide (kalau diaktifkan).
+  const logoBlock = buildLogoBlock(formData);
+  if (logoBlock) out.forEach((o) => { o.prompt = `${o.prompt}\n${logoBlock}`; });
   return out;
 }
 
 export const INITIAL_CAROUSEL = {
+  ...LOGO_INITIAL,
   templateType: 'product',
   totalSlides: '5',
   brandName: '',

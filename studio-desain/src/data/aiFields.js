@@ -13,10 +13,13 @@
  * berubah signifikan, samakan daftar di sini.
  */
 
+import { LOGO_AI_FIELDS } from './logoOptions.js';
+
 export const AI_MODES = {
   fotoproduk: {
     label: 'Foto Produk',
     fields: [
+      ...LOGO_AI_FIELDS,
       { key: 'productName', type: 'text', core: true, hint: 'nama produk' },
       { key: 'brand', type: 'text', hint: 'nama brand (boleh kosong)' },
       { key: 'description', type: 'text', core: true, hint: 'deskripsi visual produk singkat' },
@@ -62,6 +65,7 @@ export const AI_MODES = {
   banner: {
     label: 'Design Feeds',
     fields: [
+      ...LOGO_AI_FIELDS,
       { key: 'brand', type: 'text', core: true, hint: 'nama brand' },
       { key: 'headline', type: 'text', core: true, hint: 'headline utama, kuat & pendek' },
       { key: 'tagline', type: 'text', core: true, hint: 'sub-headline/tagline' },
@@ -85,6 +89,7 @@ export const AI_MODES = {
   carousel: {
     label: 'Carousel Feeds',
     fields: [
+      ...LOGO_AI_FIELDS,
       { key: 'brandName', type: 'text', core: true, hint: 'nama brand' },
       { key: 'productName', type: 'text', core: true, hint: 'nama produk/konten' },
       { key: 'productCategory', type: 'text', hint: 'kategori produk' },
@@ -118,6 +123,7 @@ export const AI_MODES = {
   thumbnail: {
     label: 'Youtube Thumbnail',
     fields: [
+      ...LOGO_AI_FIELDS,
       { key: 'title', type: 'text', core: true, hint: 'judul video (jadi teks thumbnail)' },
       { key: 'hook', type: 'text', core: true, hint: 'hook pendukung' },
       { key: 'topic', type: 'text', hint: 'topik/konteks video' },

@@ -7,6 +7,7 @@ import SelectField from '../components/SelectField.jsx';
 import FeatureChipsField from '../components/FeatureChipsField.jsx';
 import ColorSwatch from '../components/ColorSwatch.jsx';
 import ReferenceModal from '../components/ReferenceModal.jsx';
+import LogoBrandSection from '../components/LogoBrandSection.jsx';
 import {
   IMAGE_COUNTS, POSITIONS, STYLES, LIGHTINGS, RATIOS,
 } from '../data/bannerOptions.js';
@@ -71,6 +72,8 @@ export default function BannerMode({ state, dispatch }) {
           <SelectField label="Rasio Aspek" value={state.ratio} onChange={set('ratio')} options={RATIOS} />
         </div>
       </Section>
+
+      <LogoBrandSection state={state} set={set} />
 
       {/* Reference modals */}
       <ReferenceModal

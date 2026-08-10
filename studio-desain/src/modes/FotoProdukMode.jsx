@@ -4,6 +4,7 @@ import TextField from '../components/TextField.jsx';
 import TextareaField from '../components/TextareaField.jsx';
 import SelectField from '../components/SelectField.jsx';
 import ColorSwatch from '../components/ColorSwatch.jsx';
+import LogoBrandSection from '../components/LogoBrandSection.jsx';
 import {
   KATEGORI_PRODUK, GAYA_FOTO, BACKGROUND, SUDUT_KAMERA,
   PENCAHAYAAN, PROPS, RASIO, MOOD, PLATFORM,
@@ -80,6 +81,8 @@ export default function FotoProdukMode({ state, dispatch }) {
           Sisakan ruang kosong untuk teks/copy (negative space)
         </label>
       </Section>
+
+      <LogoBrandSection num="D" state={state} set={set} />
     </div>
   );
 }

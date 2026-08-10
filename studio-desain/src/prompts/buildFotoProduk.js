@@ -1,3 +1,6 @@
+import { buildLogoBlock } from './logoBlock.js';
+import { LOGO_INITIAL } from '../data/logoOptions.js';
+
 /**
  * Merakit prompt fotografi produk (foto produk display) untuk model image
  * (Midjourney / Flux / DALL·E / Nano-Banana / ChatGPT image).
@@ -43,10 +46,13 @@ export function buildFotoProduk(s = {}) {
     `- unnatural lighting, plastic/fake look, oversaturated or inaccurate colors.`,
   ];
 
-  return lines.filter((l) => l !== null).join('\n');
+  return [lines.filter((l) => l !== null).join('\n'), buildLogoBlock(s)]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export const INITIAL_FOTO_PRODUK = {
+  ...LOGO_INITIAL,
   productName:    '',
   brand:          '',
   kategori:       'Skincare / Beauty',

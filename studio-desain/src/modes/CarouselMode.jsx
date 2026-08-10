@@ -7,6 +7,7 @@ import SelectOrCustom from '../components/SelectOrCustom.jsx';
 import ColorSwatch from '../components/ColorSwatch.jsx';
 import ColorField from '../components/ColorField.jsx';
 import ToggleField from '../components/ToggleField.jsx';
+import LogoBrandSection from '../components/LogoBrandSection.jsx';
 import {
   TEMPLATE_TYPES, SLIDE_PRESETS, VISUAL_STYLES, TONE_OPTIONS,
   PLATFORMS, RATIOS, COLOR_MOODS, COVER_LAYOUTS,
@@ -156,6 +157,8 @@ export default function CarouselMode({ state, dispatch }) {
       </Section>
       </>
       )}
+
+      <LogoBrandSection state={state} set={set} />
     </div>
   );
 }
