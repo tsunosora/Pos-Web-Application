@@ -34,6 +34,7 @@ interface ModeInfo { id: string; label: string; desc?: string }
 export interface AiConfig {
   enabled: boolean;       // master: fitur AI (autofill studio) aktif
   chatEnabled: boolean;   // sub: widget chat asisten aktif (bisa dimatikan terpisah)
+  aiName: string;         // nama asisten (tampil di widget & persona chat)
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -57,6 +58,7 @@ export class StudioAiService {
     return {
       enabled: process.env.AI_ENABLED === 'true',
       chatEnabled: process.env.AI_CHAT_ENABLED !== 'false', // default ON saat AI aktif
+      aiName: process.env.AI_NAME || 'Asisten VolikoPrint',
       baseUrl: (process.env.AI_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, ''),
       apiKey: process.env.AI_API_KEY || '',
       model: process.env.AI_MODEL || 'cc/claude-sonnet-4-5',
@@ -72,6 +74,7 @@ export class StudioAiService {
       return {
         enabled: typeof file.enabled === 'boolean' ? file.enabled : def.enabled,
         chatEnabled: typeof file.chatEnabled === 'boolean' ? file.chatEnabled : def.chatEnabled,
+        aiName: typeof file.aiName === 'string' && file.aiName.trim() ? file.aiName : def.aiName,
         baseUrl: (file.baseUrl || def.baseUrl).replace(/\/$/, ''),
         apiKey: typeof file.apiKey === 'string' ? file.apiKey : def.apiKey,
         model: file.model || def.model,
@@ -87,6 +90,7 @@ export class StudioAiService {
     const next: AiConfig = {
       enabled: typeof patch.enabled === 'boolean' ? patch.enabled : cur.enabled,
       chatEnabled: typeof patch.chatEnabled === 'boolean' ? patch.chatEnabled : cur.chatEnabled,
+      aiName: typeof patch.aiName === 'string' && patch.aiName.trim() ? patch.aiName.trim() : cur.aiName,
       baseUrl: typeof patch.baseUrl === 'string' && patch.baseUrl.trim()
         ? patch.baseUrl.trim().replace(/\/$/, '') : cur.baseUrl,
       model: typeof patch.model === 'string' && patch.model.trim() ? patch.model.trim() : cur.model,
@@ -113,6 +117,7 @@ export class StudioAiService {
     return {
       enabled: c.enabled,
       chatEnabled: c.chatEnabled,
+      aiName: c.aiName,
       baseUrl: c.baseUrl,
       model: c.model,
       apiKeySet: !!c.apiKey,
@@ -124,7 +129,7 @@ export class StudioAiService {
   async status() {
     const c = await this.readConfig();
     const usable = !!(c.enabled && c.baseUrl);
-    return { enabled: usable, chatEnabled: usable && c.chatEnabled, model: c.model };
+    return { enabled: usable, chatEnabled: usable && c.chatEnabled, model: c.model, aiName: c.aiName };
   }
 
   /** Tes koneksi ke endpoint AI (dipanggil Owner). Tidak melempar — kembalikan {ok,message}. */
@@ -503,7 +508,7 @@ export class StudioAiService {
     ]);
     const guide = this.guideContext(message);
     const sys = [
-      'Kamu "Asisten VolikoPrint" — rekan kerja yang ramah, cerdas, dan enak diajak ngobrol di toko percetakan. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot.',
+      `Kamu "${cfg.aiName}" — asisten internal toko percetakan VolikoPrint yang ramah, cerdas, dan enak diajak ngobrol. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot. Kalau ditanya namamu, sebut "${cfg.aiName}".`,
       'Kamu BOLEH diajak berpikir & berdiskusi: menimbang pilihan, kasih rekomendasi beserta alasannya, bertanya balik kalau info kurang, dan memberi ide (promo, desain, cara jual, layanan pelanggan).',
       'Fokus: produk/harga/HPP/stok, rekomendasi produk, hitung harga/margin/diskon, ide untuk toko, dan cara pakai aplikasi ini. Kalau ada yang benar-benar keluar topik toko, tolak dengan halus & ramah lalu arahkan ke hal yang bisa kamu bantu.',
       'KEJUJURAN DATA:',

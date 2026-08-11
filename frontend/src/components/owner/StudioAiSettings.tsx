@@ -17,8 +17,8 @@ export function StudioAiSettings() {
     const qc = useQueryClient();
     const { data, isLoading } = useQuery({ queryKey: ["studio-ai-config"], queryFn: getStudioAiConfig });
 
-    const [form, setForm] = useState<{ enabled: boolean; chatEnabled: boolean; baseUrl: string; model: string; apiKey: string }>({
-        enabled: false, chatEnabled: true, baseUrl: "", model: "", apiKey: "",
+    const [form, setForm] = useState<{ enabled: boolean; chatEnabled: boolean; aiName: string; baseUrl: string; model: string; apiKey: string }>({
+        enabled: false, chatEnabled: true, aiName: "", baseUrl: "", model: "", apiKey: "",
     });
     const [dirtyKey, setDirtyKey] = useState(false); // true = user mengetik token baru
     const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
@@ -29,6 +29,7 @@ export function StudioAiSettings() {
         setForm((f) => ({
             enabled: data.enabled,
             chatEnabled: data.chatEnabled,
+            aiName: data.aiName || "",
             baseUrl: data.baseUrl || "",
             model: data.model || "",
             apiKey: dirtyKey ? f.apiKey : "",
@@ -39,6 +40,7 @@ export function StudioAiSettings() {
         mutationFn: () => updateStudioAiConfig({
             enabled: form.enabled,
             chatEnabled: form.chatEnabled,
+            aiName: form.aiName,
             baseUrl: form.baseUrl,
             model: form.model,
             ...(dirtyKey && form.apiKey.trim() ? { apiKey: form.apiKey.trim() } : {}),
@@ -100,6 +102,18 @@ export function StudioAiSettings() {
                             <span className="block text-[11px] text-muted-foreground">Widget chat mengambang untuk staf. Matikan kapan saja tanpa mematikan fitur AI lain.</span>
                         </span>
                     </label>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-muted-foreground">Nama Asisten AI</label>
+                        <input
+                            type="text"
+                            value={form.aiName}
+                            onChange={(e) => setForm({ ...form, aiName: e.target.value })}
+                            placeholder="Asisten VolikoPrint"
+                            className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        />
+                        <span className="text-[11px] text-muted-foreground">Nama yang tampil di widget chat & dipakai AI saat memperkenalkan diri.</span>
+                    </div>
 
                     <div className="grid sm:grid-cols-2 gap-3">
                         <div className="flex flex-col gap-1">

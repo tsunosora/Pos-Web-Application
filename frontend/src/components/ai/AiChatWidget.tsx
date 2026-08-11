@@ -184,7 +184,7 @@ export function AiChatWidget() {
                             <Bot className="w-4 h-4 text-primary" />
                         </div>
                         <div className="min-w-0">
-                            <div className="text-sm font-semibold text-foreground leading-none">Asisten VolikoPrint</div>
+                            <div className="text-sm font-semibold text-foreground leading-none">{status?.aiName || "Asisten AI"}</div>
                             <div className="text-[10px] text-muted-foreground mt-0.5">Tanya harga, HPP, & cara pakai aplikasi</div>
                         </div>
                         <button onClick={() => setOpen(false)} className="ml-auto text-muted-foreground hover:text-foreground" aria-label="Tutup">
