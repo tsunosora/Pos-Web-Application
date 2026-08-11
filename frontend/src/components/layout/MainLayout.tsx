@@ -106,7 +106,9 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>
                 <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-none print:overflow-visible">
-                    <div className="p-4 sm:p-6 lg:p-8 print:p-0">
+                    {/* min-h-full → area konten minimal setinggi viewport supaya Footer tak
+                        "melompat" saat data async selesai load (penyebab utama CLS di laporan). */}
+                    <div className="min-h-full p-4 sm:p-6 lg:p-8 print:p-0 print:min-h-0">
                         {children}
                     </div>
                     <Footer />
