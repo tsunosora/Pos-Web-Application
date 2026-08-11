@@ -14,7 +14,12 @@ import {
     UploadedFile,
     UseGuards,
     UseInterceptors,
+    Sse,
+    MessageEvent,
+    UnauthorizedException,
 } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { Observable, merge, interval, map } from 'rxjs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -46,6 +51,7 @@ import { WaQuickReplyService, type CreateQuickReplyInput, type UpdateQuickReplyI
 import { CatalogService, type CatalogProductInput } from './catalog.service';
 import { CloudApiService } from './cloud-api.service';
 import { WaInboxGuard, isScopedInboxRole } from './wa-roles.util';
+import { WaEventsService } from './wa-events.service';
 
 // Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
 // dicocokkan by kata kunci karena nama role dinamis — mis. "Desainer"/"CS").
@@ -67,7 +73,27 @@ export class WhatsappCloudController {
         private readonly quickReplies: WaQuickReplyService,
         private readonly catalog: CatalogService,
         private readonly cloudApi: CloudApiService,
+        private readonly jwt: JwtService,
+        private readonly waEvents: WaEventsService,
     ) {}
+
+    /**
+     * Stream real-time inbox (SSE) → pengganti polling agresif. EventSource tak bisa
+     * kirim header Authorization, jadi token lewat query. Payload ringan (pemicu
+     * refetch). Heartbeat 25 dtk agar koneksi tak diputus proxy/Cloudflare.
+     */
+    @Sse('stream')
+    stream(@Query('token') token: string): Observable<MessageEvent> {
+        try {
+            this.jwt.verify(token);
+        } catch {
+            throw new UnauthorizedException('Token tidak valid');
+        }
+        return merge(
+            this.waEvents.stream().pipe(map((e) => ({ data: e }) as MessageEvent)),
+            interval(25000).pipe(map(() => ({ data: { type: 'ping' } }) as MessageEvent)),
+        );
+    }
 
     // ─── Katalog produk Meta Commerce (Owner/Admin/Marketing) ────────────────
 

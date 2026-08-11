@@ -372,7 +372,7 @@ export default function WhatsappInboxPage() {
             assignee: assignee === "all" ? undefined : assignee,
             take: 50,
         }),
-        refetchInterval: 5000,
+        refetchInterval: 20000, // fallback lambat — realtime ditangani SSE
         refetchIntervalInBackground: true, // tetap poll walau window tak fokus
         refetchOnWindowFocus: true,
     });
@@ -475,8 +475,8 @@ export default function WhatsappInboxPage() {
         queryKey: ["wa-messages", selectedId],
         queryFn: () => getWaMessages(selectedId as number, { take: 50 }),
         enabled: selectedId != null,
-        refetchInterval: 2000,
-        refetchIntervalInBackground: true, // pesan baru tetap masuk walau window tak fokus
+        refetchInterval: 20000, // fallback lambat — realtime ditangani SSE
+        refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
     });
 
@@ -485,6 +485,31 @@ export default function WhatsappInboxPage() {
     const [loadingOlder, setLoadingOlder] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
     const firstLoadRef = useRef(true);
+
+    // ─── Real-time via SSE ── refetch HANYA saat ada event (bukan polling tiap detik).
+    const selectedIdRef = useRef(selectedId);
+    useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
+    useEffect(() => {
+        const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+        if (!token) return;
+        const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+        const es = new EventSource(`${API}/whatsapp/stream?token=${encodeURIComponent(token)}`);
+        es.onmessage = (ev) => {
+            let e: { type?: string; conversationId?: number } | null = null;
+            try { e = JSON.parse(ev.data); } catch { return; }
+            if (!e || e.type === "ping") return; // heartbeat → abaikan
+            qc.invalidateQueries({ queryKey: ["wa-convos"] });
+            if (e.conversationId && e.conversationId === selectedIdRef.current) {
+                qc.invalidateQueries({ queryKey: ["wa-messages", selectedIdRef.current] });
+            }
+        };
+        es.onopen = () => {
+            // (re)connect → tarik ulang agar tak ada event terlewat saat koneksi sempat putus.
+            qc.invalidateQueries({ queryKey: ["wa-convos"] });
+            if (selectedIdRef.current) qc.invalidateQueries({ queryKey: ["wa-messages", selectedIdRef.current] });
+        };
+        return () => es.close();
+    }, [qc]);
 
     // Reset daftar pesan saat pindah percakapan (HARUS sebelum efek merge).
     useEffect(() => {

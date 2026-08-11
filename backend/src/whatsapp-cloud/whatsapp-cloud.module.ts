@@ -14,6 +14,7 @@ import { AnalyticsService } from './analytics.service';
 import { WaQrService } from './qr.service';
 import { WaQuickReplyService } from './quick-reply.service';
 import { CatalogService } from './catalog.service';
+import { WaEventsService } from './wa-events.service';
 
 /**
  * WhatsApp CRM via Cloud API resmi Meta (Graph API).
@@ -23,7 +24,7 @@ import { CatalogService } from './catalog.service';
 @Module({
   imports: [PrismaModule],
   controllers: [WhatsappCloudController, WhatsappWebhookController],
-  providers: [CloudApiService, WhatsappCloudService, InboxService, MediaStorageService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService, WaQrService, WaQuickReplyService, CatalogService],
-  exports: [CloudApiService, WhatsappCloudService, InboxService, MediaStorageService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService, WaQrService, WaQuickReplyService, CatalogService],
+  providers: [CloudApiService, WhatsappCloudService, InboxService, MediaStorageService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService, WaQrService, WaQuickReplyService, CatalogService, WaEventsService],
+  exports: [CloudApiService, WhatsappCloudService, InboxService, MediaStorageService, TemplatesService, BroadcastService, AutoReplyService, RemindersService, AnalyticsService, WaQrService, WaQuickReplyService, CatalogService, WaEventsService],
 })
 export class WhatsappCloudModule {}

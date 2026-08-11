@@ -5,6 +5,7 @@ import { CloudApiService } from './cloud-api.service';
 import { MediaStorageService } from './media-storage.service';
 import { AutoReplyService } from './auto-reply.service';
 import { TemplatesService } from './templates.service';
+import { WaEventsService } from './wa-events.service';
 import { roleCanInbox } from './wa-roles.util';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
@@ -80,6 +81,7 @@ export class InboxService {
         private readonly autoReply: AutoReplyService,
         private readonly mediaStore: MediaStorageService,
         private readonly templates: TemplatesService,
+        private readonly waEvents: WaEventsService,
     ) {}
 
     /** Daftar agen yang bisa ditugaskan menangani percakapan (untuk dropdown assign).
@@ -452,6 +454,9 @@ export class InboxService {
                 mediaObj.filename,
             );
         }
+
+        // 3c) Push real-time ke agen yang sedang membuka inbox (SSE) → hilangkan polling agresif.
+        this.waEvents.emitMessage(conversation.id, channel.branchId ?? null);
 
         // 4) Jejak aktivitas CRM (timeline lead/customer).
         if (createdLead && lead) {
@@ -1040,6 +1045,8 @@ export class InboxService {
             where: { id: conv.id, assignedToId: null },
             data: { assignedToId: userId },
         });
+        // Push real-time (SSE) → agen lain yang membuka percakapan ini langsung lihat balasan.
+        this.waEvents.emitMessage(conv.id);
         // Otomatisasi pipeline: balasan manusia → lead Baru maju ke Follow-up.
         await this.advanceLeadOnReply(conv.contactId);
         return msg;
