@@ -5,7 +5,7 @@
 //   1) CLI:     php compress_old_images.php
 //   2) BROWSER (tanpa SSH): LOGIN admin toko dulu, lalu buka URL file ini.
 //      Dibatasi per-request agar tak timeout — cukup REFRESH untuk melanjutkan.
-require_once __DIR__ . '/db.php';   // sesi admin + uploads_dir() + compress_uploaded_image()
+require_once __DIR__ . '/lib.php';  // bootstrap toko: config.php (session) + db.php (uploads_dir/compress) + is_admin()
 
 $isCli = PHP_SAPI === 'cli';
 if (!$isCli) {
