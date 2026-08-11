@@ -101,12 +101,31 @@ export class CloudApiService implements OnModuleInit {
         return `https://graph.facebook.com/${this.version}/${path}`;
     }
 
+    /**
+     * fetch dengan timeout (AbortController). Mencegah request menggantung tanpa
+     * batas saat Meta ngadat atau media_id sudah kedaluwarsa.
+     */
+    private async fetchTimeout(input: string, init: any = {}, ms = 10_000): Promise<Response> {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), ms);
+        try {
+            return await fetch(input, { ...init, signal: ctrl.signal });
+        } catch (e: any) {
+            if (e?.name === 'AbortError') {
+                throw new Error('Meta (WhatsApp) tidak merespons dalam 10 detik. Coba lagi sebentar.');
+            }
+            throw e;
+        } finally {
+            clearTimeout(t);
+        }
+    }
+
     /** Panggilan Graph API generik dengan penanganan error terbaca. */
     private async graph(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<any> {
         if (!this.token) {
             throw new Error('WA_ACCESS_TOKEN belum diset');
         }
-        const res = await fetch(this.url(path), {
+        const res = await this.fetchTimeout(this.url(path), {
             method,
             headers: {
                 Authorization: `Bearer ${this.token}`,
@@ -425,7 +444,7 @@ export class CloudApiService implements OnModuleInit {
         const url: string | undefined = meta?.url;
         const mime: string = meta?.mime_type || 'application/octet-stream';
         if (!url) throw new Error(`media ${mediaId}: URL tak ditemukan`);
-        const res = await fetch(url, { headers: { Authorization: `Bearer ${this.token}` } });
+        const res = await this.fetchTimeout(url, { headers: { Authorization: `Bearer ${this.token}` } }, 15_000);
         if (!res.ok) {
             throw new Error(`Gagal unduh media ${mediaId}: HTTP ${res.status}`);
         }

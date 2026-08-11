@@ -647,11 +647,13 @@ export class InboxService {
             if (lastInbound?.waMessageId) {
                 void this.cloud.markAsRead(conv.channel.phoneNumberId, lastInbound.waMessageId);
             }
+            // Reset unread HANYA bila memang ada yang belum dibaca → hindari tulis DB
+            // tiap polling (3 dtk) yang mubazir.
+            await this.prisma.waConversation.update({
+                where: { id: conversationId },
+                data: { unreadCount: 0 },
+            });
         }
-        await this.prisma.waConversation.update({
-            where: { id: conversationId },
-            data: { unreadCount: 0 },
-        });
         const rows = await this.prisma.waMessage.findMany({
             where: { conversationId },
             take: take + 1,

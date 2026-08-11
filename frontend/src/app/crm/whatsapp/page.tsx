@@ -578,13 +578,46 @@ export default function WhatsappInboxPage() {
     }, [showEmoji]);
     const replyMut = useMutation({
         mutationFn: (v: { text: string; replyTo?: string }) => replyWaText(selectedId as number, v.text, v.replyTo),
-        onSuccess: () => {
+        // Optimistic: pesan langsung tampil (status "mengirim…") tanpa nunggu round-trip.
+        onMutate: (v: { text: string; replyTo?: string }) => {
+            const tempId = Date.now() + Math.floor(Math.random() * 1000);
+            const optimistic: WaMessage = {
+                id: tempId,
+                direction: "OUTBOUND" as WaMessage["direction"],
+                type: "TEXT" as WaMessage["type"],
+                status: "QUEUED",
+                body: v.text,
+                templateName: null,
+                mediaUrl: null,
+                mediaMimeType: null,
+                waMessageId: null,
+                reactionsJson: null,
+                replyTo: replyingTo
+                    ? { id: replyingTo.id, direction: replyingTo.direction, type: replyingTo.type, body: replyingTo.body }
+                    : null,
+                createdAt: new Date().toISOString(),
+                sentBy: null,
+            };
+            const prevDraft = v.text;
+            const prevReplyingTo = replyingTo;
+            setMessages((prev) => mergeMessages(prev, [optimistic]));
             setDraft("");
             setReplyingTo(null);
-            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+            requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
+            return { tempId, prevDraft, prevReplyingTo };
+        },
+        onSuccess: (realMsg, _v, ctx) => {
+            // Ganti pesan sementara dgn hasil asli dari server (tanpa kedip / refetch).
+            setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== ctx?.tempId), [realMsg]));
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
         },
-        onError: (e: unknown) => {
+        onError: (e: unknown, _v, ctx) => {
+            // Gagal: buang pesan sementara & kembalikan teks agar mudah kirim ulang.
+            if (ctx) {
+                setMessages((prev) => prev.filter((m) => m.id !== ctx.tempId));
+                setDraft(ctx.prevDraft);
+                setReplyingTo(ctx.prevReplyingTo ?? null);
+            }
             const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
             alert(msg || "Gagal mengirim pesan");
         },
