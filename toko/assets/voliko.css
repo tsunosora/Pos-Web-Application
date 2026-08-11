@@ -619,12 +619,18 @@ h1, h2, h3, h4, h5, h6, .font-head { font-family: 'Rubik', sans-serif !important
 .text-slate-600, .text-slate-500, .text-slate-400, .text-slate-300 { color: var(--pk-soft) !important; }
 
 /* ── Wash indigo sangat halus (clean modern — bukan blob pekat) ── */
-.pk-blob { position: fixed; border-radius: 50%; filter: blur(96px); z-index: -1; opacity: .22; animation: pkBlob 20s infinite alternate; pointer-events: none; }
+/* Layer clipping selebar viewport: blob diposisikan absolut DI DALAM-nya,
+   jadi bagian yang keluar tepi layar ter-clip & tak menambah lebar halaman
+   (dulu blob position:fixed nyembul ~50px ke kanan → bisa memicu zoom-out HP). */
+.pk-blob-layer { position: fixed; inset: 0; overflow: clip; pointer-events: none; z-index: -1; }
+.pk-blob { position: absolute; border-radius: 50%; filter: blur(96px); opacity: .22; animation: pkBlob 20s infinite alternate; pointer-events: none; }
 .pk-blob-1 { top: -14%; left: -8%; width: 440px; height: 440px; background: #BFDBFE; }
 .pk-blob-2 { bottom: -16%; right: -8%; width: 520px; height: 520px; background: #93C5FD; animation-delay: -8s; }
 .pk-blob-3 { display: none; }
 @keyframes pkBlob { from { transform: translate(0, 0) scale(1); } to { transform: translate(26px, -26px) scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { .pk-blob { animation: none; } }
+/* HP: blob blur besar boros GPU & tak terlihat jelas → matikan di layar kecil. */
+@media (max-width: 640px) { .pk-blob-layer { display: none; } }
 
 /* ── Kartu solid (clean modern — kaca dihilangkan) ── */
 .glass, .pk-glass {
@@ -882,6 +888,13 @@ body::before { display: none !important; }
 /* ════════════ Atas katalog: header kategori (kiri) + kartu slider promo (kanan) ════════════ */
 .pk-cattop { display: grid; gap: 1.5rem; align-items: center; margin-bottom: 1.3rem; }
 @media (min-width: 1024px) { .pk-cattop--promo { grid-template-columns: 1fr 400px; gap: 2.4rem; } }
+/* Cegah anak grid (teks kiri & kartu promo/Swiper kanan) melar mengikuti lebar
+   intrinsik Swiper. Tanpa min-width:0, kolom "auto" di HP membengkak sampai
+   ~33 juta px → seluruh <main> ikut lebar → browser HP zoom-out ke "layout
+   desktop" (produk jadi mungil). overflow:hidden mengurung carousel di selnya. */
+.pk-cattop > * { min-width: 0; }
+.pk-cattop-promo { min-width: 0; overflow: hidden; }
+.pk-cattop-promo .hero-swiper, .pk-cattop-promo .swiper { width: 100%; max-width: 100%; min-width: 0; }
 .pk-cattop-line { border-bottom: 1px solid var(--pk-border); margin-bottom: 1.8rem; }
 .pk-cathead-title { font-family: 'Poppins', sans-serif; font-weight: 700; font-size: clamp(1.5rem, 3.2vw, 2.1rem); letter-spacing: -.01em; color: var(--pk-text); line-height: 1.15; }
 .pk-cathead-count { margin-top: .5rem; font-size: .88rem; color: var(--pk-soft); }

@@ -65,10 +65,13 @@ $hdrWa = store_wa(); ?>
     <script src="assets/voliko.js?v=<?= @filemtime(__DIR__ . '/assets/voliko.js') ?: '1' ?>" defer></script>
 </head>
 <body class="antialiased min-h-screen flex flex-col">
-<!-- Background blobs pastel (tema PrintKreatif) -->
-<div class="pk-blob pk-blob-1"></div>
-<div class="pk-blob pk-blob-2"></div>
-<div class="pk-blob pk-blob-3"></div>
+<!-- Background blobs pastel (tema PrintKreatif) — dibungkus layer clipping
+     supaya blob yang melewati tepi layar TIDAK menambah lebar halaman di HP. -->
+<div class="pk-blob-layer" aria-hidden="true">
+    <div class="pk-blob pk-blob-1"></div>
+    <div class="pk-blob pk-blob-2"></div>
+    <div class="pk-blob pk-blob-3"></div>
+</div>
 <header class="nav-glass sticky top-0 z-40">
     <div class="nav-inner max-w-[96rem] mx-auto px-4 flex items-center gap-3 sm:gap-5">
         <a href="index.php" class="flex items-center gap-2 font-extrabold text-lg text-slate-900 shrink-0 font-head">
