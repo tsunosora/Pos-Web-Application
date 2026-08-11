@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { promises as fsp } from 'fs';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
@@ -52,6 +53,30 @@ export class MediaStorageService {
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
     ) {}
+
+    /**
+     * Auto-cleanup harian (03:00): hapus FILE media WA lebih tua dari retensi
+     * (default 30 hari = 1 bulan). Riwayat chat & caption TETAP — cleanupBefore
+     * hanya unlink file + set mediaUrl=null (bukan hapus pesan). Atur lewat env
+     * WA_MEDIA_RETENTION_DAYS (0/negatif/non-angka = matikan auto-cleanup).
+     */
+    @Cron(CronExpression.EVERY_DAY_AT_3AM)
+    async autoCleanupOldMedia() {
+        const days = Number(process.env.WA_MEDIA_RETENTION_DAYS ?? 30);
+        if (!Number.isFinite(days) || days <= 0) return; // matikan bila diset 0/negatif
+        const before = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+        try {
+            const { deletedFiles, freedBytes } = await this.cleanupBefore(before);
+            if (deletedFiles > 0) {
+                this.logger.log(
+                    `Auto-cleanup media WA: ${deletedFiles} file >${days} hari dihapus ` +
+                    `(bebas ${(freedBytes / 1048576).toFixed(1)} MB). Riwayat chat tetap utuh.`,
+                );
+            }
+        } catch (e: any) {
+            this.logger.error(`Auto-cleanup media WA gagal: ${e?.message}`);
+        }
+    }
 
     private extFor(mime?: string | null, originalName?: string | null): string {
         if (mime && EXT_BY_MIME[mime]) return EXT_BY_MIME[mime];
