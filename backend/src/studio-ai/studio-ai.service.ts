@@ -414,9 +414,14 @@ export class StudioAiService {
       })
       .filter((s) => s.score > 0)
       .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
+      .slice(0, 4)
       .map((s) => s.sec.trim())
       .join('\n\n');
+  }
+
+  /** Daftar topik panduan (semua heading ## ) — biar AI tahu cakupan sistem. */
+  private guideToc(): string {
+    return (APP_GUIDE.match(/^## .+$/gm) || []).map((h) => '- ' + h.replace(/^## /, '')).join('\n');
   }
 
   /**
@@ -467,7 +472,8 @@ export class StudioAiService {
       'KEJUJURAN DATA:',
       '- Harga/HPP: pakai HANYA "DATA PRODUK TERKAIT". Jangan mengarang angka; kalau tak ketemu, bilang apa adanya & minta nama lebih spesifik atau tawarkan alternatif.',
       '- Rekomendasi produk: sarankan HANYA dari "DAFTAR PRODUK TERDAFTAR", tapi jelaskan kenapa cocok (kelebihan, buat kebutuhan apa) dengan bahasa yang mengalir.',
-      '- Cara pakai aplikasi: jawab dari "PANDUAN APLIKASI" di bawah & sebutkan menu/path-nya (mis. /inventory, /settings/users). Kalau topiknya tak ada di panduan, bilang belum yakin & sarankan buka halaman Panduan & Bantuan (/help). Jangan mengarang langkah/menu.',
+      '- Kamu SUDAH memahami sistem aplikasi ini dari "PANDUAN APLIKASI" + "DAFTAR TOPIK PANDUAN" di bawah — anggap itu pengetahuanmu sendiri. Untuk pertanyaan cara pakai/sistem, jawab LANGSUNG, jelas, & percaya diri, sebutkan menu/path-nya (mis. /inventory, /settings/users). JANGAN menyuruh user membuka halaman /help — kamulah asistennya.',
+      '- Kalau suatu hal benar-benar TIDAK ada di panduan dan kamu tetap tidak yakin, JANGAN mengarang langkah/menu. Jujur bilang belum tersedia, lalu arahkan: untuk perbaikan bug atau permintaan tambah fitur, hubungi developer via WhatsApp wa.me/6289669180127 (089669180127).',
       canHpp ? '' : '- Jangan sebut/menerka HPP/modal; kalau ditanya, bilang hanya Owner/Admin yang bisa melihatnya.',
       'GAYA MENULIS (layar chat sempit — WAJIB rapi & mudah dibaca):',
       '- Ringkas. Paragraf pendek 1–2 kalimat, beri baris kosong antar bagian.',
@@ -479,7 +485,8 @@ export class StudioAiService {
       `${ctxData || '(tidak ada produk cocok dengan kata kunci pertanyaan)'}\n\n` +
       `DAFTAR PRODUK TERDAFTAR (untuk rekomendasi — HANYA boleh menyarankan dari daftar ini):\n` +
       `${overview || '(katalog kosong)'}` +
-      (guide ? `\n\nPANDUAN APLIKASI (untuk pertanyaan cara pakai — jawab dari sini, sebut menu/path-nya):\n${guide}` : '');
+      (guide ? `\n\nPANDUAN APLIKASI — bagian relevan (jawab dari sini, sebut menu/path):\n${guide}` : '') +
+      `\n\nDAFTAR TOPIK PANDUAN (cakupan sistem yang kamu kuasai):\n${this.guideToc()}`;
 
     const msgs: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: `${sys}\n\n${dataBlock}` },

@@ -11,13 +11,16 @@ const SUGGESTIONS = [
     "Hitung harga jual kalau HPP 5.000 mau margin 40%",
 ];
 
-/** Render **tebal** dalam satu baris. */
+/** Render **tebal** + link (http/wa.me) yang bisa diklik dalam satu baris. */
 function renderInline(text: string) {
-    return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-        /^\*\*[^*]+\*\*$/.test(part)
-            ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
-            : <span key={i}>{part}</span>,
-    );
+    return text.split(/(\*\*[^*]+\*\*|https?:\/\/[^\s]+|wa\.me\/[0-9]+)/g).map((part, i) => {
+        if (/^\*\*[^*]+\*\*$/.test(part)) return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+        if (/^(https?:\/\/|wa\.me\/)/.test(part)) {
+            const href = part.startsWith("http") ? part : `https://${part}`;
+            return <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-orange-600 underline break-all">{part}</a>;
+        }
+        return <span key={i}>{part}</span>;
+    });
 }
 
 /** Renderer ringan: baris kosong = jarak, "- / •" = poin, **tebal**. Tanpa dependency. */

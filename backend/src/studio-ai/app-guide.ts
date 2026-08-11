@@ -1,6 +1,6 @@
-// Basis pengetahuan "cara pakai aplikasi" — DIEKSTRAK OTOMATIS dari
-// frontend/src/app/help/page.tsx (halaman Panduan & Bantuan). Kalau halaman itu
-// berubah signifikan, regenerasi konstanta ini agar tidak drift.
+// Basis pengetahuan "cara pakai aplikasi" untuk Asisten AI.
+// DIBUAT OTOMATIS oleh: npm run gen:guide  (jangan edit tangan).
+// Sumber: frontend/src/app/help/page.tsx — regenerasi bila halaman /help berubah.
 export const APP_GUIDE = `## Setup Pertama Kali
 - **Profil Toko — /settings/general** — Isi nama toko, alamat, telepon, upload logo. Atur tarif PPN dan PIN Operator untuk akses halaman Produksi.
 - **Akun Pengguna — /settings/users** — Buat akun untuk setiap kasir/staf. Role: Admin, Manager, Kasir, Owner.
