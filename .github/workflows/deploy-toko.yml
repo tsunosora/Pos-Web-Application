@@ -37,7 +37,10 @@ jobs:
           timeout: 60000
           local-dir: ./toko/
           server-dir: ${{ secrets.HOSTINGER_FTP_DIR }}
-          # Jangan sentuh file milik server & jangan deploy skrip utilitas dev
+          # Jangan sentuh file milik server & jangan deploy skrip utilitas dev.
+          # compress_old_images.php SENGAJA di-deploy: kini alat admin (jalan via
+          # browser, di-gate is_admin) untuk mengompres gambar lama — dibutuhkan
+          # karena Hostinger tanpa akses SSH/CLI.
           exclude: |
             **/.git*
             **/.git*/**
@@ -46,5 +49,4 @@ jobs:
             config.local.example.php
             seed_articles_seo.php
             expand_articles_seo.php
-            compress_old_images.php
             README.md
