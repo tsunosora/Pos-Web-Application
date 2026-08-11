@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { MessageCircle, X, Send, Loader2, Bot, Sparkles, Package, ChevronRight } from "lucide-react";
+import { X, Send, Loader2, Bot, Sparkles, Package, ChevronRight } from "lucide-react";
 import { getStudioAiStatus, sendAiChat, type AiChatMessage } from "@/lib/api/studioAi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -104,10 +104,6 @@ export function AiChatWidget() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
-    // Posisi bubble (bisa digeser). right/bottom dalam px, disimpan di localStorage.
-    const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 20, bottom: 96 });
-    const posRef = useRef(pos);
-    const drag = useRef<{ x: number; y: number; right: number; bottom: number; moved: boolean } | null>(null);
     const router = useRouter();
 
     const { data: status } = useQuery({
@@ -120,13 +116,6 @@ export function AiChatWidget() {
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }, [messages, loading]);
-
-    useEffect(() => {
-        try {
-            const s = localStorage.getItem("ai_chat_pos");
-            if (s) { const p = JSON.parse(s); posRef.current = p; setPos(p); }
-        } catch { /* ignore */ }
-    }, []);
 
     if (!status?.chatEnabled) return null;
 
@@ -148,48 +137,26 @@ export function AiChatWidget() {
         }
     };
 
-    // Geser bubble (klik = buka; tahan-geser = pindah, posisi disimpan).
-    const startDrag = (e: any) => {
-        e.currentTarget?.setPointerCapture?.(e.pointerId);
-        drag.current = { x: e.clientX, y: e.clientY, right: posRef.current.right, bottom: posRef.current.bottom, moved: false };
-    };
-    const moveDrag = (e: any) => {
-        const d = drag.current;
-        if (!d) return;
-        const dx = e.clientX - d.x, dy = e.clientY - d.y;
-        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
-        const right = Math.max(8, Math.min(window.innerWidth - 64, d.right - dx));
-        const bottom = Math.max(8, Math.min(window.innerHeight - 64, d.bottom - dy));
-        posRef.current = { right, bottom };
-        setPos({ right, bottom });
-    };
-    const endDrag = () => {
-        const moved = drag.current?.moved;
-        drag.current = null;
-        if (moved) { try { localStorage.setItem("ai_chat_pos", JSON.stringify(posRef.current)); } catch { /* ignore */ } }
-        else setOpen(true);
-    };
-
     return (
         <div className="print:hidden">
-            {/* Tombol mengambang */}
+            {/* Tombol mengambang — anak dari <FloatingActionDock/> (in-flow, tak
+                mengatur posisinya sendiri lagi). pointer-events-auto agar tetap
+                bisa diklik walau rel-nya pointer-events-none. */}
             {!open && (
                 <button
-                    onPointerDown={startDrag}
-                    onPointerMove={moveDrag}
-                    onPointerUp={endDrag}
-                    style={{ right: pos.right, bottom: pos.bottom, touchAction: "none" }}
-                    className="fixed z-[290] w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl flex items-center justify-center overflow-hidden text-2xl transition active:scale-95 cursor-grab active:cursor-grabbing"
-                    aria-label="Buka Asisten AI (tahan & geser untuk memindah)"
-                    title="Asisten AI — klik untuk buka, tahan & geser untuk pindah"
+                    onClick={() => setOpen(true)}
+                    className="pointer-events-auto flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-orange-500 text-xl text-white shadow-lg shadow-orange-500/30 transition-transform hover:scale-105 hover:bg-orange-600 active:scale-95"
+                    aria-label="Buka Asisten AI"
+                    title="Asisten AI"
                 >
-                    {renderAvatar(status?.aiAvatar, <Sparkles className="w-6 h-6" />)}
+                    {renderAvatar(status?.aiAvatar, <Sparkles className="w-5 h-5" />)}
                 </button>
             )}
 
-            {/* Panel chat */}
+            {/* Panel chat — fixed & mengatur posisinya sendiri (lepas dari rel).
+                pointer-events-auto karena rel induknya pointer-events-none. */}
             {open && (
-                <div className="fixed bottom-4 right-4 z-[320] w-[92vw] max-w-sm h-[70vh] max-h-[560px] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+                <div className="pointer-events-auto fixed bottom-4 right-4 z-[320] w-[92vw] max-w-sm h-[70vh] max-h-[560px] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/40">
                         <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center overflow-hidden text-base">
                             {renderAvatar(status?.aiAvatar, <Bot className="w-4 h-4 text-primary" />)}

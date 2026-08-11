@@ -14,6 +14,7 @@ import { BranchOutboxReadyPopup } from "./BranchOutboxReadyPopup";
 import { ReadyJobsPopup } from "./ReadyJobsPopup";
 import { ReadyJobsModal } from "./ReadyJobsModal";
 import { ReadyJobsFab } from "./ReadyJobsFab";
+import { FloatingActionDock } from "./FloatingActionDock";
 import { FloatingThemeToggle } from "./FloatingThemeToggle";
 import { AiChatWidget } from "@/components/ai/AiChatWidget";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
@@ -78,7 +79,11 @@ export function MainLayout({ children }: MainLayoutProps) {
             <>
                 {children}
                 {showFloatingTheme && <FloatingThemeToggle />}
-                {showAiChat && <AiChatWidget />}
+                {showAiChat && (
+                    <FloatingActionDock>
+                        <AiChatWidget />
+                    </FloatingActionDock>
+                )}
             </>
         );
     }
@@ -100,8 +105,12 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="print:hidden"><BranchOutboxReadyPopup /></div>
             <ReadyJobsPopup onOpenModal={() => setReadyJobsModalOpen(true)} />
             <ReadyJobsModal open={readyJobsModalOpen} onClose={() => setReadyJobsModalOpen(false)} />
-            <ReadyJobsFab onClick={() => setReadyJobsModalOpen(true)} />
-            {showAiChat && <AiChatWidget />}
+            {/* Rel tunggal kanan-bawah: Asisten AI di atas, notif orderan jadi di bawahnya.
+                Satu kolom terjangkar → tak saling menumpuk / hilang di semua device. */}
+            <FloatingActionDock>
+                {showAiChat && <AiChatWidget />}
+                <ReadyJobsFab onClick={() => setReadyJobsModalOpen(true)} />
+            </FloatingActionDock>
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>
