@@ -11,6 +11,37 @@ const SUGGESTIONS = [
     "Hitung harga jual kalau HPP 5.000 mau margin 40%",
 ];
 
+/** Render **tebal** dalam satu baris. */
+function renderInline(text: string) {
+    return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
+        /^\*\*[^*]+\*\*$/.test(part)
+            ? <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>
+            : <span key={i}>{part}</span>,
+    );
+}
+
+/** Renderer ringan: baris kosong = jarak, "- / •" = poin, **tebal**. Tanpa dependency. */
+function RichText({ text }: { text: string }) {
+    const lines = text.split("\n");
+    return (
+        <div className="space-y-1">
+            {lines.map((line, i) => {
+                const t = line.trim();
+                if (!t) return <div key={i} className="h-1.5" />;
+                if (/^[-*•]\s+/.test(t)) {
+                    return (
+                        <div key={i} className="flex gap-1.5">
+                            <span className="text-orange-500 shrink-0 leading-relaxed">•</span>
+                            <span className="leading-relaxed">{renderInline(t.replace(/^[-*•]\s+/, ""))}</span>
+                        </div>
+                    );
+                }
+                return <p key={i} className="leading-relaxed">{renderInline(t)}</p>;
+            })}
+        </div>
+    );
+}
+
 /**
  * Widget chat asisten VolikoPrint (mengambang). Hanya untuk pertanyaan seputar
  * produk/harga/HPP & aplikasi ini — barrier ada di backend (/studio-ai/chat).
@@ -107,13 +138,13 @@ export function AiChatWidget() {
                         {messages.map((m, i) => (
                             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                                 <div
-                                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap break-words ${
+                                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words ${
                                         m.role === "user"
-                                            ? "bg-primary text-primary-foreground rounded-br-sm"
+                                            ? "bg-primary text-primary-foreground rounded-br-sm whitespace-pre-wrap"
                                             : "bg-muted text-foreground rounded-bl-sm"
                                     }`}
                                 >
-                                    {m.content}
+                                    {m.role === "user" ? m.content : <RichText text={m.content} />}
                                 </div>
                             </div>
                         ))}

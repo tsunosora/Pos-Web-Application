@@ -405,12 +405,14 @@ export class StudioAiService {
     const canHpp = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'].includes(role);
 
     // ── Barrier tahap 1: klasifikasi topik ──
-    const clsSystem = 'Kamu filter topik untuk aplikasi kasir/POS bisnis percetakan "VolikoPrint". Jawab HANYA satu kata.';
+    const clsSystem = 'Kamu penjaga topik untuk asisten internal toko percetakan "VolikoPrint". Longgar tapi tegas. Jawab HANYA satu kata.';
     const clsUser =
-      `Pertanyaan user: "${message.trim()}"\n\n` +
-      `Apakah pertanyaan ini berkaitan dengan SALAH SATU dari: produk/harga/HPP/stok percetakan VolikoPrint; ` +
-      `perhitungan harga/HPP/margin/diskon; penggunaan aplikasi POS ini; atau operasional bisnis percetakan? ` +
-      `Jawab HANYA "YA" atau "TIDAK".`;
+      `Pesan user: "${message.trim()}"\n\n` +
+      `Jawab "YA" jika pesan ini MASIH masuk akal dibahas asisten toko percetakan: produk/harga/HPP/stok, rekomendasi produk, ` +
+      `hitung margin/diskon, ide promo/desain/marketing untuk toko ini, layanan pelanggan, operasional, memakai aplikasi POS ini, ` +
+      `ATAU sekadar sapaan/basa-basi/tanya kemampuan asisten.\n` +
+      `Jawab "TIDAK" HANYA jika jelas di luar itu (pengetahuan umum dunia, perusahaan lain, coding, politik, agama, gosip, tugas sekolah, dsb).\n` +
+      `Kalau ragu, jawab "YA". Jawab HANYA "YA" atau "TIDAK".`;
     const verdict = (await this.chat(cfg, [
       { role: 'system', content: clsSystem },
       { role: 'user', content: clsUser },
@@ -428,14 +430,17 @@ export class StudioAiService {
       this.catalogOverview(),
     ]);
     const sys = [
-      'Kamu asisten internal "VolikoPrint" (bisnis percetakan) di dalam aplikasi POS.',
-      'Tugasmu: menjawab soal produk/harga/HPP/stok, membantu perhitungan harga/HPP/margin/diskon, MEREKOMENDASIKAN produk yang cocok untuk kebutuhan user, dan cara memakai aplikasi ini.',
-      'ATURAN KETAT:',
-      '- Jika pertanyaan di luar topik itu, tolak sopan & arahkan kembali. Jangan menjawab pengetahuan umum, perusahaan lain, coding, politik, gosip, dll.',
-      '- Untuk rekomendasi (mis. "hasil cetak bagus pakai apa?"), BERI PENALARAN singkat lalu sarankan produk — TAPI HANYA produk yang ada di "DAFTAR PRODUK TERDAFTAR" di bawah. JANGAN menyarankan produk yang tidak terdaftar. Kalau tak ada yang cocok, katakan terus terang.',
-      '- Jangan mengarang angka. Untuk harga/HPP, HANYA gunakan DATA PRODUK TERKAIT di bawah. Jika produk yang ditanya tak ada di sana, katakan belum menemukannya & minta nama lebih spesifik.',
-      canHpp ? '' : '- Kamu TIDAK berhak menyebut HPP/modal. Jangan pernah menyebut/memperkirakan HPP; jika ditanya HPP, katakan hanya Owner/Admin yang bisa melihatnya.',
-      '- Jawab ringkas & jelas dalam Bahasa Indonesia. Tulis uang dalam format Rupiah (mis. Rp150.000).',
+      'Kamu "Asisten VolikoPrint" — rekan kerja yang ramah, cerdas, dan enak diajak ngobrol di toko percetakan. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot.',
+      'Kamu BOLEH diajak berpikir & berdiskusi: menimbang pilihan, kasih rekomendasi beserta alasannya, bertanya balik kalau info kurang, dan memberi ide (promo, desain, cara jual, layanan pelanggan).',
+      'Fokus: produk/harga/HPP/stok, rekomendasi produk, hitung harga/margin/diskon, ide untuk toko, dan cara pakai aplikasi ini. Kalau ada yang benar-benar keluar topik toko, tolak dengan halus & ramah lalu arahkan ke hal yang bisa kamu bantu.',
+      'KEJUJURAN DATA:',
+      '- Harga/HPP: pakai HANYA "DATA PRODUK TERKAIT". Jangan mengarang angka; kalau tak ketemu, bilang apa adanya & minta nama lebih spesifik atau tawarkan alternatif.',
+      '- Rekomendasi produk: sarankan HANYA dari "DAFTAR PRODUK TERDAFTAR", tapi jelaskan kenapa cocok (kelebihan, buat kebutuhan apa) dengan bahasa yang mengalir.',
+      canHpp ? '' : '- Jangan sebut/menerka HPP/modal; kalau ditanya, bilang hanya Owner/Admin yang bisa melihatnya.',
+      'GAYA MENULIS (layar chat sempit — WAJIB rapi & mudah dibaca):',
+      '- Ringkas. Paragraf pendek 1–2 kalimat, beri baris kosong antar bagian.',
+      '- Kalau menawarkan/membandingkan beberapa produk, pakai poin diawali "- ", tebalkan nama produk dengan **Nama Produk**, sebutkan harga di baris yang sama bila ada.',
+      '- Uang format Rupiah (mis. **Rp150.000**). JANGAN pakai tabel.',
     ].filter(Boolean).join('\n');
     const dataBlock =
       `DATA PRODUK TERKAIT (harga${canHpp ? '/HPP' : ''}, dari database):\n` +
@@ -453,7 +458,7 @@ export class StudioAiService {
     }
     msgs.push({ role: 'user', content: message.trim() });
 
-    const reply = await this.chat(cfg, msgs, 0.3);
+    const reply = await this.chat(cfg, msgs, 0.6);
     return { reply: reply.trim(), refused: false };
   }
 }
