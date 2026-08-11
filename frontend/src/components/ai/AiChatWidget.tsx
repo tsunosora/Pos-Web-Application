@@ -13,13 +13,13 @@ function imgSrc(u: string | null) {
     return `${API_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
 }
 
-// Tahap "berpikir" — label berganti sesuai proses di backend (memahami → telusur → susun).
+// Tahap "berpikir" — istilah playful bertema meracik/menyajikan, tetap terasa progres.
 const THINKING_PHRASES = [
-    "Memahami pertanyaan…",
-    "Menelusuri produk & panduan…",
-    "Menghitung…",
-    "Menyusun jawaban…",
-    "Hampir selesai…",
+    "Mikir dulu ya…",
+    "Meracik jawaban…",
+    "Mengaduk data & ide…",
+    "Menyajikan…",
+    "Hampir matang…",
 ];
 
 function ThinkingBubble() {
