@@ -13,6 +13,35 @@ function imgSrc(u: string | null) {
     return `${API_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
 }
 
+// Tahap "berpikir" — label berganti sesuai proses di backend (memahami → telusur → susun).
+const THINKING_PHRASES = [
+    "Memahami pertanyaan…",
+    "Menelusuri produk & panduan…",
+    "Menghitung…",
+    "Menyusun jawaban…",
+    "Hampir selesai…",
+];
+
+function ThinkingBubble() {
+    const [idx, setIdx] = useState(0);
+    useEffect(() => {
+        const t = setInterval(() => setIdx((i) => Math.min(i + 1, THINKING_PHRASES.length - 1)), 1800);
+        return () => clearInterval(t);
+    }, []);
+    return (
+        <div className="flex justify-start">
+            <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2 text-sm text-muted-foreground inline-flex items-center gap-2">
+                <span className="flex gap-1 items-end">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce [animation-delay:0ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce [animation-delay:150ms]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-bounce [animation-delay:300ms]" />
+                </span>
+                <span key={idx} className="animate-in fade-in duration-300">{THINKING_PHRASES[idx]}</span>
+            </div>
+        </div>
+    );
+}
+
 const SUGGESTIONS = [
     "Menurutmu hasil cetak yang bagus pakai produk apa?",
     "Harga banner flexi 3x1 meter?",
@@ -226,13 +255,7 @@ export function AiChatWidget() {
                                 )}
                             </div>
                         ))}
-                        {loading && (
-                            <div className="flex justify-start">
-                                <div className="bg-muted rounded-2xl rounded-bl-sm px-3 py-2 text-sm text-muted-foreground inline-flex items-center gap-2">
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Mengetik…
-                                </div>
-                            </div>
-                        )}
+                        {loading && <ThinkingBubble />}
                     </div>
 
                     <form
