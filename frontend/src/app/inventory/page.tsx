@@ -140,6 +140,13 @@ export default function InventoryPage() {
 
     // Filters
     const [searchText, setSearchText] = useState('');
+    // Prefill pencarian dari deep-link (mis. klik card produk di Asisten AI → /inventory?q=Nama).
+    useEffect(() => {
+        try {
+            const q = new URLSearchParams(window.location.search).get('q');
+            if (q) setSearchText(q);
+        } catch { /* ignore */ }
+    }, []);
     const [filterCategory, setFilterCategory] = useState('');
     const [filterSkuVariant, setFilterSkuVariant] = useState('');
     const [filterMinPrice, setFilterMinPrice] = useState('');

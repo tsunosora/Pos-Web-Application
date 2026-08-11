@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Loader2, Bot, Sparkles, Package } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { MessageCircle, X, Send, Loader2, Bot, Sparkles, Package, ChevronRight } from "lucide-react";
 import { getStudioAiStatus, sendAiChat, type AiChatMessage } from "@/lib/api/studioAi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
@@ -67,6 +68,7 @@ export function AiChatWidget() {
     const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 20, bottom: 96 });
     const posRef = useRef(pos);
     const drag = useRef<{ x: number; y: number; right: number; bottom: number; moved: boolean } | null>(null);
+    const router = useRouter();
 
     const { data: status } = useQuery({
         queryKey: ["studio-ai-status"],
@@ -197,7 +199,13 @@ export function AiChatWidget() {
                                         {m.products.map((p) => {
                                             const src = imgSrc(p.image);
                                             return (
-                                                <div key={p.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2 shadow-sm">
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => { setOpen(false); router.push(`/inventory?q=${encodeURIComponent(p.name)}`); }}
+                                                    title={`Buka ${p.name} di Inventori`}
+                                                    className="w-full flex items-center gap-2.5 rounded-xl border border-border bg-card p-2 shadow-sm text-left hover:border-orange-500 hover:bg-orange-500/5 transition"
+                                                >
                                                     {src ? (
                                                         <img src={src} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 border border-border" />
                                                     ) : (
@@ -210,7 +218,8 @@ export function AiChatWidget() {
                                                         {p.category && <div className="text-[10px] text-muted-foreground truncate">{p.category}</div>}
                                                         {p.priceLabel && <div className="text-xs font-bold text-orange-600 mt-0.5">{p.priceLabel}</div>}
                                                     </div>
-                                                </div>
+                                                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                                                </button>
                                             );
                                         })}
                                     </div>
