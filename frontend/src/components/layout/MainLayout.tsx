@@ -15,6 +15,7 @@ import { ReadyJobsPopup } from "./ReadyJobsPopup";
 import { ReadyJobsModal } from "./ReadyJobsModal";
 import { ReadyJobsFab } from "./ReadyJobsFab";
 import { FloatingThemeToggle } from "./FloatingThemeToggle";
+import { AiChatWidget } from "@/components/ai/AiChatWidget";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useShiftReminder } from "@/hooks/useShiftReminder";
 import { useNotificationStore } from "@/store/notification-store";
@@ -96,6 +97,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <ReadyJobsPopup onOpenModal={() => setReadyJobsModalOpen(true)} />
             <ReadyJobsModal open={readyJobsModalOpen} onClose={() => setReadyJobsModalOpen(false)} />
             <ReadyJobsFab onClick={() => setReadyJobsModalOpen(true)} />
+            <AiChatWidget />
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>

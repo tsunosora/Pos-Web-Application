@@ -2,6 +2,7 @@ import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentBranch } from '../common/branch-context.decorator';
 import { StudioAiService } from './studio-ai.service';
 
 const OWNER_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
@@ -58,5 +59,14 @@ export class StudioAiController {
     },
   ) {
     return this.svc.fill(body?.idea, body?.modeLabel || '', body?.fields || []);
+  }
+
+  /** Asisten chat scoped VolikoPrint (semua user login; HPP di-gate owner/admin). */
+  @Post('chat')
+  chat(
+    @Body() body: { message: string; history?: { role: string; content: string }[] },
+    @CurrentBranch() ctx: any,
+  ) {
+    return this.svc.chatAssistant(body?.message, body?.history || [], ctx?.roleName ?? null);
   }
 }

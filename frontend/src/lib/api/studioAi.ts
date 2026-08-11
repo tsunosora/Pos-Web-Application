@@ -24,3 +24,14 @@ export const updateStudioAiConfig = async (data: StudioAiConfigUpdate): Promise<
 
 export const testStudioAi = async (): Promise<{ ok: boolean; message: string }> =>
     (await api.post("/studio-ai/test")).data;
+
+export const getStudioAiStatus = async (): Promise<{ enabled: boolean; model: string }> =>
+    (await api.get("/studio-ai/status")).data;
+
+export interface AiChatMessage { role: "user" | "assistant"; content: string; }
+
+export const sendAiChat = async (
+    message: string,
+    history: AiChatMessage[],
+): Promise<{ reply: string; refused: boolean }> =>
+    (await api.post("/studio-ai/chat", { message, history })).data;

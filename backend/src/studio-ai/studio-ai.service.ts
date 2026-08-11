@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Proxy AI untuk Studio Desain.
@@ -39,6 +40,8 @@ export interface AiConfig {
 @Injectable()
 export class StudioAiService {
   private readonly logger = new Logger(StudioAiService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
 
   private configPath(): string {
     if (process.env.STUDIO_AI_CONFIG_PATH) return process.env.STUDIO_AI_CONFIG_PATH;
@@ -300,5 +303,119 @@ export class StudioAiService {
       }
     }
     return { values };
+  }
+
+  // ── Asisten Chat (scoped VolikoPrint) ───────────────────────────
+
+  private static STOPWORDS = new Set([
+    'harga', 'hpp', 'berapa', 'untuk', 'yang', 'dan', 'atau', 'produk', 'jual', 'modal',
+    'margin', 'ada', 'apa', 'ini', 'itu', 'dengan', 'dari', 'saya', 'tolong', 'mohon',
+    'bisa', 'cek', 'info', 'list', 'daftar', 'ukuran', 'warna', 'stok', 'stock', 'kah',
+    'per', 'buah', 'pcs', 'meter', 'harganya', 'total', 'mau', 'pesan', 'order',
+  ]);
+
+  private keywords(msg: string): string[] {
+    const toks = (msg || '')
+      .toLowerCase()
+      .split(/[^a-z0-9]+/i)
+      .filter((w) => w.length >= 3 && !StudioAiService.STOPWORDS.has(w));
+    return Array.from(new Set(toks)).slice(0, 6);
+  }
+
+  private rupiah(d: any): string {
+    const n = Number(d?.toString?.() ?? d);
+    return isNaN(n) ? '-' : `Rp${n.toLocaleString('id-ID')}`;
+  }
+
+  /** Cari produk dari kata kunci pesan → konteks teks (HPP hanya bila canHpp). */
+  private async productContext(message: string, canHpp: boolean): Promise<string> {
+    const kws = this.keywords(message);
+    if (!kws.length) return '';
+    let products: any[] = [];
+    try {
+      products = await this.prisma.product.findMany({
+        where: { isActive: true, OR: kws.map((k) => ({ name: { contains: k } })) },
+        select: {
+          name: true,
+          variants: { select: { variantName: true, sku: true, price: true, hpp: true, stock: true } },
+        },
+        take: 15,
+      });
+    } catch (e: any) {
+      this.logger.error(`product search gagal: ${e?.message}`);
+      return '';
+    }
+    const lines: string[] = [];
+    for (const p of products) {
+      for (const v of p.variants || []) {
+        const vname = v.variantName || v.sku || '';
+        const hpp = canHpp ? `, HPP ${this.rupiah(v.hpp)}` : '';
+        lines.push(`- ${p.name}${vname ? ` (${vname})` : ''}: jual ${this.rupiah(v.price)}${hpp}, stok ${v.stock}`);
+        if (lines.length >= 40) break;
+      }
+      if (lines.length >= 40) break;
+    }
+    return lines.join('\n');
+  }
+
+  /**
+   * Asisten chat scoped VolikoPrint dengan barrier 2 tahap:
+   * (1) klasifikasi on-topic → kalau bukan, tolak; (2) retrieval + jawab.
+   */
+  async chatAssistant(
+    message: string,
+    history: { role: string; content: string }[],
+    roleName: string | null,
+  ): Promise<{ reply: string; refused: boolean }> {
+    if (!message?.trim()) throw new BadRequestException('Pesan kosong.');
+    const cfg = await this.requireEnabled();
+    const role = (roleName || '').toUpperCase();
+    const canHpp = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'].includes(role);
+
+    // ── Barrier tahap 1: klasifikasi topik ──
+    const clsSystem = 'Kamu filter topik untuk aplikasi kasir/POS bisnis percetakan "VolikoPrint". Jawab HANYA satu kata.';
+    const clsUser =
+      `Pertanyaan user: "${message.trim()}"\n\n` +
+      `Apakah pertanyaan ini berkaitan dengan SALAH SATU dari: produk/harga/HPP/stok percetakan VolikoPrint; ` +
+      `perhitungan harga/HPP/margin/diskon; penggunaan aplikasi POS ini; atau operasional bisnis percetakan? ` +
+      `Jawab HANYA "YA" atau "TIDAK".`;
+    const verdict = (await this.chat(cfg, [
+      { role: 'system', content: clsSystem },
+      { role: 'user', content: clsUser },
+    ], 0)).trim().toUpperCase();
+    if (!verdict.startsWith('YA')) {
+      return {
+        refused: true,
+        reply: 'Maaf, saya hanya membantu seputar VolikoPrint — produk, harga, HPP, perhitungan margin, dan penggunaan aplikasi ini. Silakan tanyakan hal terkait itu ya 🙏',
+      };
+    }
+
+    // ── Tahap 2: retrieval + jawab ──
+    const ctxData = await this.productContext(message, canHpp);
+    const sys = [
+      'Kamu asisten internal "VolikoPrint" (bisnis percetakan) di dalam aplikasi POS.',
+      'Tugasmu HANYA: menjawab soal produk/harga/HPP/stok, membantu perhitungan harga/HPP/margin/diskon, dan cara memakai aplikasi ini.',
+      'ATURAN KETAT:',
+      '- Jika pertanyaan di luar topik itu, tolak sopan & arahkan kembali. Jangan menjawab pengetahuan umum, perusahaan lain, coding, politik, gosip, dll.',
+      '- Jangan mengarang angka. Untuk harga/HPP produk, HANYA gunakan DATA PRODUK di bawah. Jika produk tak ada di data, katakan belum menemukannya & minta nama lebih spesifik.',
+      canHpp ? '' : '- Kamu TIDAK berhak menyebut HPP/modal. Jangan pernah menyebut/memperkirakan HPP; jika ditanya HPP, katakan hanya Owner/Admin yang bisa melihatnya.',
+      '- Jawab ringkas & jelas dalam Bahasa Indonesia. Tulis uang dalam format Rupiah (mis. Rp150.000).',
+    ].filter(Boolean).join('\n');
+    const dataBlock = ctxData
+      ? `DATA PRODUK TERKAIT (dari database):\n${ctxData}`
+      : 'DATA PRODUK TERKAIT: (tidak ada produk cocok — jawab dari perhitungan/panduan saja, JANGAN mengarang harga produk).';
+
+    const msgs: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+      { role: 'system', content: `${sys}\n\n${dataBlock}` },
+    ];
+    for (const h of Array.isArray(history) ? history.slice(-8) : []) {
+      if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
+        msgs.push({ role: h.role, content: h.content.slice(0, 4000) });
+      }
+    }
+    msgs.push({ role: 'user', content: message.trim() });
+
+    const reply = await this.chat(cfg, msgs, 0.3);
+    return { reply: reply.trim(), refused: false };
   }
 }
