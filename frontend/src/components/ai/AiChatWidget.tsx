@@ -6,9 +6,9 @@ import { MessageCircle, X, Send, Loader2, Bot, Sparkles } from "lucide-react";
 import { getStudioAiStatus, sendAiChat, type AiChatMessage } from "@/lib/api/studioAi";
 
 const SUGGESTIONS = [
+    "Menurutmu hasil cetak yang bagus pakai produk apa?",
     "Harga banner flexi 3x1 meter?",
     "Hitung harga jual kalau HPP 5.000 mau margin 40%",
-    "Produk apa saja yang stoknya menipis?",
 ];
 
 /**
@@ -60,17 +60,17 @@ export function AiChatWidget() {
             {!open && (
                 <button
                     onClick={() => setOpen(true)}
-                    className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-primary text-primary-foreground shadow-lg px-4 py-3 hover:brightness-110 transition"
+                    className="fixed right-6 md:right-8 bottom-24 md:bottom-28 z-[320] w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl flex items-center justify-center transition hover:scale-105 active:scale-95"
                     aria-label="Buka Asisten AI"
+                    title="Asisten AI VolikoPrint"
                 >
-                    <Sparkles className="w-5 h-5" />
-                    <span className="text-sm font-semibold hidden sm:inline">Asisten AI</span>
+                    <Sparkles className="w-6 h-6" />
                 </button>
             )}
 
             {/* Panel chat */}
             {open && (
-                <div className="fixed bottom-4 right-4 z-50 w-[92vw] max-w-sm h-[70vh] max-h-[560px] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+                <div className="fixed bottom-4 right-4 z-[320] w-[92vw] max-w-sm h-[70vh] max-h-[560px] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/40">
                         <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
                             <Bot className="w-4 h-4 text-primary" />

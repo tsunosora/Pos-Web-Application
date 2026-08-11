@@ -364,6 +364,31 @@ export class StudioAiService {
     return lines.join('\n');
   }
 
+  /** Ringkasan katalog (nama produk per kategori) untuk penalaran/rekomendasi. */
+  private async catalogOverview(): Promise<string> {
+    let products: any[] = [];
+    try {
+      products = await this.prisma.product.findMany({
+        where: { isActive: true },
+        select: { name: true, category: { select: { name: true } } },
+        orderBy: { name: 'asc' },
+        take: 150,
+      });
+    } catch (e: any) {
+      this.logger.error(`catalog overview gagal: ${e?.message}`);
+      return '';
+    }
+    if (!products.length) return '';
+    const byCat: Record<string, string[]> = {};
+    for (const p of products) {
+      const cat = p.category?.name || 'Lainnya';
+      (byCat[cat] ||= []).push(p.name);
+    }
+    return Object.entries(byCat)
+      .map(([cat, names]) => `• ${cat}: ${names.join(', ')}`)
+      .join('\n');
+  }
+
   /**
    * Asisten chat scoped VolikoPrint dengan barrier 2 tahap:
    * (1) klasifikasi on-topic → kalau bukan, tolak; (2) retrieval + jawab.
@@ -398,19 +423,25 @@ export class StudioAiService {
     }
 
     // ── Tahap 2: retrieval + jawab ──
-    const ctxData = await this.productContext(message, canHpp);
+    const [ctxData, overview] = await Promise.all([
+      this.productContext(message, canHpp),
+      this.catalogOverview(),
+    ]);
     const sys = [
       'Kamu asisten internal "VolikoPrint" (bisnis percetakan) di dalam aplikasi POS.',
-      'Tugasmu HANYA: menjawab soal produk/harga/HPP/stok, membantu perhitungan harga/HPP/margin/diskon, dan cara memakai aplikasi ini.',
+      'Tugasmu: menjawab soal produk/harga/HPP/stok, membantu perhitungan harga/HPP/margin/diskon, MEREKOMENDASIKAN produk yang cocok untuk kebutuhan user, dan cara memakai aplikasi ini.',
       'ATURAN KETAT:',
       '- Jika pertanyaan di luar topik itu, tolak sopan & arahkan kembali. Jangan menjawab pengetahuan umum, perusahaan lain, coding, politik, gosip, dll.',
-      '- Jangan mengarang angka. Untuk harga/HPP produk, HANYA gunakan DATA PRODUK di bawah. Jika produk tak ada di data, katakan belum menemukannya & minta nama lebih spesifik.',
+      '- Untuk rekomendasi (mis. "hasil cetak bagus pakai apa?"), BERI PENALARAN singkat lalu sarankan produk — TAPI HANYA produk yang ada di "DAFTAR PRODUK TERDAFTAR" di bawah. JANGAN menyarankan produk yang tidak terdaftar. Kalau tak ada yang cocok, katakan terus terang.',
+      '- Jangan mengarang angka. Untuk harga/HPP, HANYA gunakan DATA PRODUK TERKAIT di bawah. Jika produk yang ditanya tak ada di sana, katakan belum menemukannya & minta nama lebih spesifik.',
       canHpp ? '' : '- Kamu TIDAK berhak menyebut HPP/modal. Jangan pernah menyebut/memperkirakan HPP; jika ditanya HPP, katakan hanya Owner/Admin yang bisa melihatnya.',
       '- Jawab ringkas & jelas dalam Bahasa Indonesia. Tulis uang dalam format Rupiah (mis. Rp150.000).',
     ].filter(Boolean).join('\n');
-    const dataBlock = ctxData
-      ? `DATA PRODUK TERKAIT (dari database):\n${ctxData}`
-      : 'DATA PRODUK TERKAIT: (tidak ada produk cocok — jawab dari perhitungan/panduan saja, JANGAN mengarang harga produk).';
+    const dataBlock =
+      `DATA PRODUK TERKAIT (harga${canHpp ? '/HPP' : ''}, dari database):\n` +
+      `${ctxData || '(tidak ada produk cocok dengan kata kunci pertanyaan)'}\n\n` +
+      `DAFTAR PRODUK TERDAFTAR (untuk rekomendasi — HANYA boleh menyarankan dari daftar ini):\n` +
+      `${overview || '(katalog kosong)'}`;
 
     const msgs: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: `${sys}\n\n${dataBlock}` },
