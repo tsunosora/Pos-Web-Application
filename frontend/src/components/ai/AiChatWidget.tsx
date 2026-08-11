@@ -53,6 +53,10 @@ export function AiChatWidget() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const scrollRef = useRef<HTMLDivElement>(null);
+    // Posisi bubble (bisa digeser). right/bottom dalam px, disimpan di localStorage.
+    const [pos, setPos] = useState<{ right: number; bottom: number }>({ right: 20, bottom: 96 });
+    const posRef = useRef(pos);
+    const drag = useRef<{ x: number; y: number; right: number; bottom: number; moved: boolean } | null>(null);
 
     const { data: status } = useQuery({
         queryKey: ["studio-ai-status"],
@@ -64,6 +68,13 @@ export function AiChatWidget() {
     useEffect(() => {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }, [messages, loading]);
+
+    useEffect(() => {
+        try {
+            const s = localStorage.getItem("ai_chat_pos");
+            if (s) { const p = JSON.parse(s); posRef.current = p; setPos(p); }
+        } catch { /* ignore */ }
+    }, []);
 
     if (!status?.chatEnabled) return null;
 
@@ -85,15 +96,40 @@ export function AiChatWidget() {
         }
     };
 
+    // Geser bubble (klik = buka; tahan-geser = pindah, posisi disimpan).
+    const startDrag = (e: any) => {
+        e.currentTarget?.setPointerCapture?.(e.pointerId);
+        drag.current = { x: e.clientX, y: e.clientY, right: posRef.current.right, bottom: posRef.current.bottom, moved: false };
+    };
+    const moveDrag = (e: any) => {
+        const d = drag.current;
+        if (!d) return;
+        const dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+        const right = Math.max(8, Math.min(window.innerWidth - 64, d.right - dx));
+        const bottom = Math.max(8, Math.min(window.innerHeight - 64, d.bottom - dy));
+        posRef.current = { right, bottom };
+        setPos({ right, bottom });
+    };
+    const endDrag = () => {
+        const moved = drag.current?.moved;
+        drag.current = null;
+        if (moved) { try { localStorage.setItem("ai_chat_pos", JSON.stringify(posRef.current)); } catch { /* ignore */ } }
+        else setOpen(true);
+    };
+
     return (
         <div className="print:hidden">
             {/* Tombol mengambang */}
             {!open && (
                 <button
-                    onClick={() => setOpen(true)}
-                    className="fixed right-6 md:right-8 bottom-24 md:bottom-28 z-[320] w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl flex items-center justify-center transition hover:scale-105 active:scale-95"
-                    aria-label="Buka Asisten AI"
-                    title="Asisten AI VolikoPrint"
+                    onPointerDown={startDrag}
+                    onPointerMove={moveDrag}
+                    onPointerUp={endDrag}
+                    style={{ right: pos.right, bottom: pos.bottom, touchAction: "none" }}
+                    className="fixed z-[290] w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl flex items-center justify-center transition active:scale-95 cursor-grab active:cursor-grabbing"
+                    aria-label="Buka Asisten AI (tahan & geser untuk memindah)"
+                    title="Asisten AI — klik untuk buka, tahan & geser untuk pindah"
                 >
                     <Sparkles className="w-6 h-6" />
                 </button>
