@@ -69,12 +69,16 @@ export function MainLayout({ children }: MainLayoutProps) {
     // /tv punya toggle dark sendiri di TvHeader → jangan dobel. /desainer = iframe
     // (studio punya tema sendiri) → jangan tampilkan toggle POS.
     const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic && !isTvPage && !isDesainerPage;
+    // Widget chat AI: di halaman POS biasa (login-authenticated) + dashboard Owner.
+    // TIDAK di halaman publik/kiosk/login/desainer (bisa tanpa login → hindari 401 redirect).
+    const showAiChat = !isStandalone || isOwnerPage;
 
     if (isStandalone) {
         return (
             <>
                 {children}
                 {showFloatingTheme && <FloatingThemeToggle />}
+                {showAiChat && <AiChatWidget />}
             </>
         );
     }
@@ -97,7 +101,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <ReadyJobsPopup onOpenModal={() => setReadyJobsModalOpen(true)} />
             <ReadyJobsModal open={readyJobsModalOpen} onClose={() => setReadyJobsModalOpen(false)} />
             <ReadyJobsFab onClick={() => setReadyJobsModalOpen(true)} />
-            <AiChatWidget />
+            {showAiChat && <AiChatWidget />}
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>
