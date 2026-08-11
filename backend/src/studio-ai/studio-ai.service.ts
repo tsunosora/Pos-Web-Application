@@ -2,6 +2,7 @@ import { Injectable, Logger, ServiceUnavailableException, BadRequestException } 
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { APP_GUIDE } from './app-guide';
 
 /**
  * Proxy AI untuk Studio Desain.
@@ -389,6 +390,35 @@ export class StudioAiService {
       .join('\n');
   }
 
+  private guideKeywords(msg: string): string[] {
+    const drop = new Set([
+      'yang', 'untuk', 'dari', 'atau', 'dengan', 'bagaimana', 'gimana', 'apa', 'apakah',
+      'tolong', 'saya', 'ada', 'ini', 'itu', 'buat', 'mau', 'kah', 'cara', 'pakai', 'aplikasi', 'gmn',
+    ]);
+    return Array.from(
+      new Set((msg || '').toLowerCase().split(/[^a-z0-9]+/i).filter((w) => w.length >= 3 && !drop.has(w))),
+    ).slice(0, 8);
+  }
+
+  /** Retrieval panduan aplikasi: ambil section paling relevan dgn pertanyaan. */
+  private guideContext(message: string): string {
+    const kws = this.guideKeywords(message);
+    if (!kws.length) return '';
+    const sections = APP_GUIDE.split(/\n## /).map((s, i) => (i === 0 ? s : '## ' + s));
+    return sections
+      .map((sec) => {
+        const low = sec.toLowerCase();
+        let score = 0;
+        for (const k of kws) if (low.includes(k)) score++;
+        return { sec, score };
+      })
+      .filter((s) => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map((s) => s.sec.trim())
+      .join('\n\n');
+  }
+
   /**
    * Asisten chat scoped VolikoPrint dengan barrier 2 tahap:
    * (1) klasifikasi on-topic → kalau bukan, tolak; (2) retrieval + jawab.
@@ -429,6 +459,7 @@ export class StudioAiService {
       this.productContext(message, canHpp),
       this.catalogOverview(),
     ]);
+    const guide = this.guideContext(message);
     const sys = [
       'Kamu "Asisten VolikoPrint" — rekan kerja yang ramah, cerdas, dan enak diajak ngobrol di toko percetakan. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot.',
       'Kamu BOLEH diajak berpikir & berdiskusi: menimbang pilihan, kasih rekomendasi beserta alasannya, bertanya balik kalau info kurang, dan memberi ide (promo, desain, cara jual, layanan pelanggan).',
@@ -436,6 +467,7 @@ export class StudioAiService {
       'KEJUJURAN DATA:',
       '- Harga/HPP: pakai HANYA "DATA PRODUK TERKAIT". Jangan mengarang angka; kalau tak ketemu, bilang apa adanya & minta nama lebih spesifik atau tawarkan alternatif.',
       '- Rekomendasi produk: sarankan HANYA dari "DAFTAR PRODUK TERDAFTAR", tapi jelaskan kenapa cocok (kelebihan, buat kebutuhan apa) dengan bahasa yang mengalir.',
+      '- Cara pakai aplikasi: jawab dari "PANDUAN APLIKASI" di bawah & sebutkan menu/path-nya (mis. /inventory, /settings/users). Kalau topiknya tak ada di panduan, bilang belum yakin & sarankan buka halaman Panduan & Bantuan (/help). Jangan mengarang langkah/menu.',
       canHpp ? '' : '- Jangan sebut/menerka HPP/modal; kalau ditanya, bilang hanya Owner/Admin yang bisa melihatnya.',
       'GAYA MENULIS (layar chat sempit — WAJIB rapi & mudah dibaca):',
       '- Ringkas. Paragraf pendek 1–2 kalimat, beri baris kosong antar bagian.',
@@ -446,7 +478,8 @@ export class StudioAiService {
       `DATA PRODUK TERKAIT (harga${canHpp ? '/HPP' : ''}, dari database):\n` +
       `${ctxData || '(tidak ada produk cocok dengan kata kunci pertanyaan)'}\n\n` +
       `DAFTAR PRODUK TERDAFTAR (untuk rekomendasi — HANYA boleh menyarankan dari daftar ini):\n` +
-      `${overview || '(katalog kosong)'}`;
+      `${overview || '(katalog kosong)'}` +
+      (guide ? `\n\nPANDUAN APLIKASI (untuk pertanyaan cara pakai — jawab dari sini, sebut menu/path-nya):\n${guide}` : '');
 
     const msgs: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
       { role: 'system', content: `${sys}\n\n${dataBlock}` },
