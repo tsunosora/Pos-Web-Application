@@ -42,6 +42,10 @@ const renderToCanvas = async (snap: ReceiptSnapshot, status: Status): Promise<HT
     ),
   );
   try {
+    // Beri browser 1 frame untuk MELUKIS state "loading" (spinner tombol) SEBELUM
+    // html2canvas yang memblokir main-thread beberapa detik. Tanpa ini, paint feedback
+    // tertunda sampai raster selesai → interaksi terasa macet 6 dtk (INP tinggi di laporan).
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     // Kanvas TEPAT 384px (scale 1). Jangan supersample: scale>1 melipatgandakan luas
     // kanvas (768×2H = 4×) & bisa menembus batas ukuran kanvas di tablet/HP POS murah
     // → bagian bawah gagal ter-render / terpotong. Ketebalan teks ditangani via CSS
@@ -111,8 +115,19 @@ export const printThermalViaBrowser = (snap: ReceiptSnapshot, status: Status): v
   if (!win) return;
   win.document.write(buildThermalReceiptHTML(snap, status));
   win.document.close();
-  win.focus();
-  win.print();
+  // Tunda focus()+print() ke task terpisah. win.print() MEMBLOKIR main-thread selama
+  // dialog print terbuka; kalau dipanggil langsung di handler klik, paint interaksi
+  // ikut ke-block → terasa macet (INP ~6 dtk di laporan). Dengan setTimeout, handler
+  // klik langsung selesai → halaman ke-paint dulu (INP rendah). Delay juga memberi
+  // waktu konten (logo) selesai ter-render sebelum dicetak.
+  setTimeout(() => {
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      /* window mungkin sudah ditutup pengguna */
+    }
+  }, 300);
 };
 
 // --- Print Bridge (Linux/desktop): HTTP -> Bluetooth SPP ---
