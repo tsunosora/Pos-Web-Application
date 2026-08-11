@@ -27,7 +27,7 @@ export class StudioAiController {
   @Put('config')
   @Roles(...OWNER_ROLES)
   updateConfig(
-    @Body() body: { enabled?: boolean; baseUrl?: string; model?: string; apiKey?: string; clearApiKey?: boolean },
+    @Body() body: { enabled?: boolean; chatEnabled?: boolean; baseUrl?: string; model?: string; apiKey?: string; clearApiKey?: boolean },
   ) {
     return this.svc.writeConfig(body || {}).then(() => this.svc.configForOwner());
   }

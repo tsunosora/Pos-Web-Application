@@ -34,7 +34,7 @@ export function AiChatWidget() {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
     }, [messages, loading]);
 
-    if (!status?.enabled) return null;
+    if (!status?.chatEnabled) return null;
 
     const send = async (text: string) => {
         const msg = text.trim();

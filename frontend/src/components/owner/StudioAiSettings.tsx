@@ -17,8 +17,8 @@ export function StudioAiSettings() {
     const qc = useQueryClient();
     const { data, isLoading } = useQuery({ queryKey: ["studio-ai-config"], queryFn: getStudioAiConfig });
 
-    const [form, setForm] = useState<{ enabled: boolean; baseUrl: string; model: string; apiKey: string }>({
-        enabled: false, baseUrl: "", model: "", apiKey: "",
+    const [form, setForm] = useState<{ enabled: boolean; chatEnabled: boolean; baseUrl: string; model: string; apiKey: string }>({
+        enabled: false, chatEnabled: true, baseUrl: "", model: "", apiKey: "",
     });
     const [dirtyKey, setDirtyKey] = useState(false); // true = user mengetik token baru
     const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
@@ -28,6 +28,7 @@ export function StudioAiSettings() {
         if (!data) return;
         setForm((f) => ({
             enabled: data.enabled,
+            chatEnabled: data.chatEnabled,
             baseUrl: data.baseUrl || "",
             model: data.model || "",
             apiKey: dirtyKey ? f.apiKey : "",
@@ -37,6 +38,7 @@ export function StudioAiSettings() {
     const saveMut = useMutation({
         mutationFn: () => updateStudioAiConfig({
             enabled: form.enabled,
+            chatEnabled: form.chatEnabled,
             baseUrl: form.baseUrl,
             model: form.model,
             ...(dirtyKey && form.apiKey.trim() ? { apiKey: form.apiKey.trim() } : {}),
@@ -82,6 +84,20 @@ export function StudioAiSettings() {
                         />
                         <span className="text-sm font-medium text-foreground">
                             AI aktif {form.enabled ? "" : "(nonaktif)"}
+                        </span>
+                    </label>
+
+                    <label className={`flex items-center gap-3 cursor-pointer select-none ${form.enabled ? "" : "opacity-50"}`}>
+                        <input
+                            type="checkbox"
+                            checked={form.chatEnabled}
+                            disabled={!form.enabled}
+                            onChange={(e) => setForm({ ...form, chatEnabled: e.target.checked })}
+                            className="w-4 h-4 accent-primary"
+                        />
+                        <span className="text-sm text-foreground">
+                            Chat Asisten di POS (harga/HPP) {form.chatEnabled ? "" : "— dimatikan"}
+                            <span className="block text-[11px] text-muted-foreground">Widget chat mengambang untuk staf. Matikan kapan saja tanpa mematikan fitur AI lain.</span>
                         </span>
                     </label>
 

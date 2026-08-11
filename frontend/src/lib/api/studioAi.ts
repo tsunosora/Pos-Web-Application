@@ -2,6 +2,7 @@ import api from "./client";
 
 export interface StudioAiConfig {
     enabled: boolean;
+    chatEnabled: boolean;
     baseUrl: string;
     model: string;
     apiKeySet: boolean;
@@ -10,6 +11,7 @@ export interface StudioAiConfig {
 
 export interface StudioAiConfigUpdate {
     enabled?: boolean;
+    chatEnabled?: boolean;
     baseUrl?: string;
     model?: string;
     apiKey?: string;      // hanya dikirim bila diganti
@@ -25,7 +27,7 @@ export const updateStudioAiConfig = async (data: StudioAiConfigUpdate): Promise<
 export const testStudioAi = async (): Promise<{ ok: boolean; message: string }> =>
     (await api.post("/studio-ai/test")).data;
 
-export const getStudioAiStatus = async (): Promise<{ enabled: boolean; model: string }> =>
+export const getStudioAiStatus = async (): Promise<{ enabled: boolean; chatEnabled: boolean; model: string }> =>
     (await api.get("/studio-ai/status")).data;
 
 export interface AiChatMessage { role: "user" | "assistant"; content: string; }
