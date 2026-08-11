@@ -54,7 +54,7 @@ function sec_hero(): void {
         <div class="pk-hs-main">
             <div class="hero-swiper swiper" data-hero-swiper>
                 <div class="swiper-wrapper">
-                    <?php foreach ($slides as $s): $img = trim($s['image'] ?? ''); ?>
+                    <?php foreach ($slides as $i => $s): $img = trim($s['image'] ?? ''); ?>
                         <div class="swiper-slide !h-auto">
                             <div class="pk-hs-slide">
                                 <div class="pk-hs-copy">
@@ -75,7 +75,7 @@ function sec_hero(): void {
                                 </div>
                                 <div class="pk-hs-media">
                                     <?php if ($img): ?>
-                                        <img class="pk-hs-photo" src="<?= h($img) ?>" alt="<?= h($s['title']) ?>" onerror="this.style.display='none';var f=this.parentNode.querySelector('.pk-hs-fallback');if(f)f.style.display='grid';">
+                                        <img class="pk-hs-photo" src="<?= h($img) ?>" alt="<?= h($s['title']) ?>" decoding="async" <?= $i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?> onerror="this.style.display='none';var f=this.parentNode.querySelector('.pk-hs-fallback');if(f)f.style.display='grid';">
                                     <?php endif; ?>
                                     <div class="pk-hs-fallback" aria-hidden="true"<?= $img ? ' style="display:none"' : '' ?>>
                                         <div class="pk-hf-core">

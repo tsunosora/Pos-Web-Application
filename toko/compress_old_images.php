@@ -1,5 +1,6 @@
 <?php
-// Script sekali-jalan: kompres semua gambar lama di toko/uploads/.
+// Script sekali-jalan: kompres semua gambar lama di toko/uploads/ (REKURSIF —
+// termasuk subfolder seperti uploads/mirror/ tempat gambar kartu produk).
 // Jalankan dari CLI:  php compress_old_images.php
 // (boleh diulang kapan saja — file yang sudah kecil otomatis dilewati)
 if (PHP_SAPI !== 'cli') { http_response_code(403); exit("CLI only\n"); }
@@ -9,9 +10,12 @@ $dir = uploads_dir();
 $mimeMap = [IMAGETYPE_JPEG => 'image/jpeg', IMAGETYPE_PNG => 'image/png', IMAGETYPE_WEBP => 'image/webp'];
 $totBefore = $totAfter = $count = $skip = 0;
 
-foreach (scandir($dir) as $f) {
-    $path = $dir . '/' . $f;
-    if (!is_file($path)) continue;
+$rii = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+);
+foreach ($rii as $fileinfo) {
+    if (!$fileinfo->isFile()) continue;
+    $path = $fileinfo->getPathname();
     $before = filesize($path);
     if ($before < 200 * 1024) { $skip++; continue; }          // sudah kecil
     $info = @getimagesize($path);
@@ -20,7 +24,8 @@ foreach (scandir($dir) as $f) {
     clearstatcache(true, $path);
     $after = filesize($path);
     $count++; $totBefore += $before; $totAfter += $after;
-    printf("%-40s %8.2f MB -> %7.2f MB%s\n", $f, $before / 1e6, $after / 1e6, $after < $before ? '' : '  (tetap)');
+    $rel = ltrim(str_replace($dir, '', $path), '/\\');
+    printf("%-50s %8.2f MB -> %7.2f MB%s\n", $rel, $before / 1e6, $after / 1e6, $after < $before ? '' : '  (tetap)');
 }
 printf("\n%d file dikompres, %d dilewati. Total %.1f MB -> %.1f MB (hemat %.1f MB)\n",
     $count, $skip, $totBefore / 1e6, $totAfter / 1e6, ($totBefore - $totAfter) / 1e6);
