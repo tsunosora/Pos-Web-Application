@@ -6,9 +6,9 @@
   "private": true,
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=20 <23"
+    "node": ">=20 <25"
   },
-  "_engineNote": "Wajib Node 20 atau 22 LTS. Prisma 6.x TIDAK mendukung Node 25 (non-LTS) -> Query Engine panic 'Option::unwrap() on None'. Setelah ganti versi Node, WAJIB `npm rebuild` (bcrypt & sharp native).",
+  "_engineNote": "Pakai Node LTS: 20, 22 (disarankan), atau 24. HINDARI Node ganjil/non-LTS (23, 25) -> Prisma 6.x Query Engine panic 'Option::unwrap() on None'. Setelah ganti versi Node, WAJIB `npm rebuild` (bcrypt & sharp native).",
   "scripts": {
     "build": "nest build",
     "gen:guide": "node scripts/gen-guide.mjs",

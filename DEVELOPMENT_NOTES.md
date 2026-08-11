@@ -8,7 +8,7 @@
 
 ## ⚙️ VERSI NODE.JS (WAJIB — hindari crash Prisma)
 
-Jalankan **Node.js 20 atau 22 LTS** (lihat `.nvmrc` = 20). **JANGAN Node 25** (non-LTS): Prisma 6.x tidak mendukungnya → Query Engine **panic** `called Option::unwrap() on a None value` (crash acak, mis. di `/print-queue/jobs`) meski data valid.
+Jalankan **Node.js LTS: 20, 22 (disarankan), atau 24** — versi **genap**. **HINDARI Node ganjil/non-LTS (23, 25)**: umur pendek + Prisma 6.x tak mendukung → Query Engine **panic** `called Option::unwrap() on a None value` (crash acak, mis. di `/print-queue/jobs`) meski data valid. Node 20 support-nya mepet (~2026); **Node 22 LTS** paling aman jangka panjang (~2027).
 
 - Cek versi runtime pm2: `pm2 describe pospro-backend | grep "node.js version"`.
 - **Setelah ganti versi Node**, WAJIB `npm rebuild` di `backend/` & `frontend/` (native: **bcrypt**, **sharp**) lalu restart pm2 dengan interpreter Node yang benar:
