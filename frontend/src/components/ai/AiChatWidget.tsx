@@ -2,8 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { MessageCircle, X, Send, Loader2, Bot, Sparkles } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Bot, Sparkles, Package } from "lucide-react";
 import { getStudioAiStatus, sendAiChat, type AiChatMessage } from "@/lib/api/studioAi";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+function imgSrc(u: string | null) {
+    if (!u) return null;
+    if (u.startsWith("http")) return u;
+    return `${API_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
+}
 
 const SUGGESTIONS = [
     "Menurutmu hasil cetak yang bagus pakai produk apa?",
@@ -89,8 +96,8 @@ export function AiChatWidget() {
         setInput("");
         setLoading(true);
         try {
-            const { reply } = await sendAiChat(msg, history);
-            setMessages((m) => [...m, { role: "assistant", content: reply }]);
+            const { reply, products } = await sendAiChat(msg, history);
+            setMessages((m) => [...m, { role: "assistant", content: reply, products }]);
         } catch (e: any) {
             const err = e?.response?.data?.message || e?.message || "Gagal menghubungi asisten.";
             setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${Array.isArray(err) ? err.join(", ") : err}` }]);
@@ -175,7 +182,7 @@ export function AiChatWidget() {
                             </div>
                         )}
                         {messages.map((m, i) => (
-                            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                            <div key={i} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
                                 <div
                                     className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words ${
                                         m.role === "user"
@@ -185,6 +192,29 @@ export function AiChatWidget() {
                                 >
                                     {m.role === "user" ? m.content : <RichText text={m.content} />}
                                 </div>
+                                {m.role === "assistant" && m.products && m.products.length > 0 && (
+                                    <div className="mt-2 w-full max-w-[85%] space-y-1.5">
+                                        {m.products.map((p) => {
+                                            const src = imgSrc(p.image);
+                                            return (
+                                                <div key={p.id} className="flex items-center gap-2.5 rounded-xl border border-border bg-card p-2 shadow-sm">
+                                                    {src ? (
+                                                        <img src={src} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0 border border-border" />
+                                                    ) : (
+                                                        <div className="w-11 h-11 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                                                            <Package className="w-5 h-5 text-muted-foreground" />
+                                                        </div>
+                                                    )}
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="text-xs font-semibold text-foreground truncate">{p.name}</div>
+                                                        {p.category && <div className="text-[10px] text-muted-foreground truncate">{p.category}</div>}
+                                                        {p.priceLabel && <div className="text-xs font-bold text-orange-600 mt-0.5">{p.priceLabel}</div>}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         ))}
                         {loading && (

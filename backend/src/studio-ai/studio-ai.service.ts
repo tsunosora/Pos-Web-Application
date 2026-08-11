@@ -419,6 +419,42 @@ export class StudioAiService {
       .join('\n\n');
   }
 
+  /** Produk terdaftar yang namanya DISEBUT di jawaban AI → jadi card di chat. */
+  private async recommendedCards(reply: string): Promise<any[]> {
+    if (!reply) return [];
+    let products: any[] = [];
+    try {
+      products = await this.prisma.product.findMany({
+        where: { isActive: true },
+        select: {
+          id: true, name: true, imageUrl: true,
+          category: { select: { name: true } },
+          variants: { select: { price: true, variantImageUrl: true } },
+        },
+        take: 500,
+      });
+    } catch (e: any) {
+      this.logger.error(`cards fetch gagal: ${e?.message}`);
+      return [];
+    }
+    const low = reply.toLowerCase();
+    const cards: any[] = [];
+    for (const p of products) {
+      if (!p.name || p.name.length < 4) continue;
+      if (!low.includes(p.name.toLowerCase())) continue;
+      const prices = (p.variants || [])
+        .map((v: any) => Number(v.price?.toString?.() ?? v.price))
+        .filter((n: number) => !isNaN(n));
+      const min = prices.length ? Math.min(...prices) : null;
+      const max = prices.length ? Math.max(...prices) : null;
+      const priceLabel = min === null ? '' : min === max ? this.rupiah(min) : `${this.rupiah(min)} – ${this.rupiah(max)}`;
+      const image = p.imageUrl || (p.variants || []).find((v: any) => v.variantImageUrl)?.variantImageUrl || null;
+      cards.push({ id: p.id, name: p.name, category: p.category?.name || '', image, priceLabel });
+      if (cards.length >= 6) break;
+    }
+    return cards;
+  }
+
   /** Daftar topik panduan (semua heading ## ) — biar AI tahu cakupan sistem. */
   private guideToc(): string {
     return (APP_GUIDE.match(/^## .+$/gm) || []).map((h) => '- ' + h.replace(/^## /, '')).join('\n');
@@ -432,7 +468,7 @@ export class StudioAiService {
     message: string,
     history: { role: string; content: string }[],
     roleName: string | null,
-  ): Promise<{ reply: string; refused: boolean }> {
+  ): Promise<{ reply: string; refused: boolean; products: any[] }> {
     if (!message?.trim()) throw new BadRequestException('Pesan kosong.');
     const cfg = await this.requireEnabled();
     if (!cfg.chatEnabled) throw new ServiceUnavailableException('Chat asisten sedang dinonaktifkan oleh Owner.');
@@ -455,6 +491,7 @@ export class StudioAiService {
     if (!verdict.startsWith('YA')) {
       return {
         refused: true,
+        products: [],
         reply: 'Maaf, saya hanya membantu seputar VolikoPrint — produk, harga, HPP, perhitungan margin, dan penggunaan aplikasi ini. Silakan tanyakan hal terkait itu ya 🙏',
       };
     }
@@ -498,7 +535,8 @@ export class StudioAiService {
     }
     msgs.push({ role: 'user', content: message.trim() });
 
-    const reply = await this.chat(cfg, msgs, 0.6);
-    return { reply: reply.trim(), refused: false };
+    const reply = (await this.chat(cfg, msgs, 0.6)).trim();
+    const products = await this.recommendedCards(reply);
+    return { reply, refused: false, products };
   }
 }
