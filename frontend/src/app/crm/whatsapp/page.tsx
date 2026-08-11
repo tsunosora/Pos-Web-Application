@@ -373,6 +373,7 @@ export default function WhatsappInboxPage() {
             take: 50,
         }),
         refetchInterval: 5000,
+        refetchIntervalInBackground: true, // tetap poll walau window tak fokus
         refetchOnWindowFocus: true,
     });
     const conversations = convData?.items ?? [];
@@ -474,7 +475,8 @@ export default function WhatsappInboxPage() {
         queryKey: ["wa-messages", selectedId],
         queryFn: () => getWaMessages(selectedId as number, { take: 50 }),
         enabled: selectedId != null,
-        refetchInterval: 3000,
+        refetchInterval: 2000,
+        refetchIntervalInBackground: true, // pesan baru tetap masuk walau window tak fokus
         refetchOnWindowFocus: true,
     });
 
