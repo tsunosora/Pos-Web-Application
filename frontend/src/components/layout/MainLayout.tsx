@@ -105,9 +105,11 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>
-                <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-none print:overflow-visible">
+                <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-none print:overflow-visible [scrollbar-gutter:stable]">
                     {/* min-h-full → area konten minimal setinggi viewport supaya Footer tak
-                        "melompat" saat data async selesai load (penyebab utama CLS di laporan). */}
+                        "melompat" saat data async selesai load. [scrollbar-gutter:stable] →
+                        gutter scrollbar selalu dicadangkan, cegah reflow kolom saat scrollbar
+                        muncul (Windows/Chrome). Dua-duanya penyebab CLS di laporan. */}
                     <div className="min-h-full p-4 sm:p-6 lg:p-8 print:p-0 print:min-h-0">
                         {children}
                     </div>

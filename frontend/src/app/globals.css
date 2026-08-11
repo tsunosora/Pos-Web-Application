@@ -194,6 +194,13 @@
     @apply border-border outline-ring/50;
   }
 
+  /* Cadangkan gutter scrollbar di root → cegah reflow/CLS saat scrollbar muncul
+     (halaman standalone: /owner, /so-designer, dll). Halaman POS pakai scroll
+     internal <main> yang punya [scrollbar-gutter:stable] sendiri. */
+  html {
+    scrollbar-gutter: stable;
+  }
+
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
