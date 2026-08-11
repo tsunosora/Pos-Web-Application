@@ -17,8 +17,8 @@ export function StudioAiSettings() {
     const qc = useQueryClient();
     const { data, isLoading } = useQuery({ queryKey: ["studio-ai-config"], queryFn: getStudioAiConfig });
 
-    const [form, setForm] = useState<{ enabled: boolean; chatEnabled: boolean; aiName: string; baseUrl: string; model: string; apiKey: string }>({
-        enabled: false, chatEnabled: true, aiName: "", baseUrl: "", model: "", apiKey: "",
+    const [form, setForm] = useState<{ enabled: boolean; chatEnabled: boolean; aiName: string; aiGreeting: string; aiAvatar: string; baseUrl: string; model: string; apiKey: string }>({
+        enabled: false, chatEnabled: true, aiName: "", aiGreeting: "", aiAvatar: "", baseUrl: "", model: "", apiKey: "",
     });
     const [dirtyKey, setDirtyKey] = useState(false); // true = user mengetik token baru
     const [test, setTest] = useState<{ ok: boolean; message: string } | null>(null);
@@ -30,6 +30,8 @@ export function StudioAiSettings() {
             enabled: data.enabled,
             chatEnabled: data.chatEnabled,
             aiName: data.aiName || "",
+            aiGreeting: data.aiGreeting || "",
+            aiAvatar: data.aiAvatar || "",
             baseUrl: data.baseUrl || "",
             model: data.model || "",
             apiKey: dirtyKey ? f.apiKey : "",
@@ -41,6 +43,8 @@ export function StudioAiSettings() {
             enabled: form.enabled,
             chatEnabled: form.chatEnabled,
             aiName: form.aiName,
+            aiGreeting: form.aiGreeting,
+            aiAvatar: form.aiAvatar,
             baseUrl: form.baseUrl,
             model: form.model,
             ...(dirtyKey && form.apiKey.trim() ? { apiKey: form.apiKey.trim() } : {}),
@@ -113,6 +117,48 @@ export function StudioAiSettings() {
                             className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
                         />
                         <span className="text-[11px] text-muted-foreground">Nama yang tampil di widget chat & dipakai AI saat memperkenalkan diri.</span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-muted-foreground">Sapaan Pembuka</label>
+                        <textarea
+                            value={form.aiGreeting}
+                            onChange={(e) => setForm({ ...form, aiGreeting: e.target.value })}
+                            rows={2}
+                            placeholder="Halo! Saya bantu seputar produk, harga, HPP, dan penggunaan aplikasi ini."
+                            className="rounded-lg border border-border bg-background px-3 py-2 text-sm resize-y"
+                        />
+                        <span className="text-[11px] text-muted-foreground">Muncul di layar chat saat masih kosong.</span>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-muted-foreground">Avatar (emoji atau URL gambar)</label>
+                        <div className="flex items-center gap-2">
+                            <div className="w-10 h-10 rounded-lg bg-primary/10 border border-border flex items-center justify-center overflow-hidden shrink-0 text-xl">
+                                {/^(https?:\/\/|\/)/.test(form.aiAvatar.trim())
+                                    ? <img src={form.aiAvatar.trim()} alt="" className="w-full h-full object-cover" />
+                                    : (form.aiAvatar.trim() || "🤖")}
+                            </div>
+                            <input
+                                type="text"
+                                value={form.aiAvatar}
+                                onChange={(e) => setForm({ ...form, aiAvatar: e.target.value })}
+                                placeholder="🤖  atau  https://…/avatar.png"
+                                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                            />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                            {["🤖", "🖨️", "🧑‍💼", "💁", "✨", "🎨", "🛒", "📦"].map((e) => (
+                                <button key={e} type="button" onClick={() => setForm({ ...form, aiAvatar: e })}
+                                    className="w-8 h-8 rounded-lg border border-border hover:border-primary text-lg leading-none">
+                                    {e}
+                                </button>
+                            ))}
+                            <button type="button" onClick={() => setForm({ ...form, aiAvatar: "" })}
+                                className="px-2 h-8 rounded-lg border border-border hover:border-primary text-[11px] text-muted-foreground">
+                                Default
+                            </button>
+                        </div>
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-3">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { MessageCircle, X, Send, Loader2, Bot, Sparkles, Package, ChevronRight } from "lucide-react";
@@ -11,6 +11,17 @@ function imgSrc(u: string | null) {
     if (!u) return null;
     if (u.startsWith("http")) return u;
     return `${API_BASE}${u.startsWith("/") ? "" : "/"}${u}`;
+}
+
+/** Avatar: URL gambar → img; emoji/teks → span; kosong → ikon fallback. */
+function renderAvatar(avatar: string | undefined, fallback: ReactNode): ReactNode {
+    const a = (avatar || "").trim();
+    if (!a) return fallback;
+    if (/^(https?:\/\/|\/)/.test(a)) {
+        const src = a.startsWith("http") ? a : imgSrc(a) || a;
+        return <img src={src} alt="" className="w-full h-full object-cover" />;
+    }
+    return <span className="leading-none">{a}</span>;
 }
 
 // Tahap "berpikir" — istilah playful bertema meracik/menyajikan, tetap terasa progres.
@@ -168,11 +179,11 @@ export function AiChatWidget() {
                     onPointerMove={moveDrag}
                     onPointerUp={endDrag}
                     style={{ right: pos.right, bottom: pos.bottom, touchAction: "none" }}
-                    className="fixed z-[290] w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl flex items-center justify-center transition active:scale-95 cursor-grab active:cursor-grabbing"
+                    className="fixed z-[290] w-14 h-14 rounded-full bg-orange-500 hover:bg-orange-600 text-white shadow-2xl flex items-center justify-center overflow-hidden text-2xl transition active:scale-95 cursor-grab active:cursor-grabbing"
                     aria-label="Buka Asisten AI (tahan & geser untuk memindah)"
                     title="Asisten AI — klik untuk buka, tahan & geser untuk pindah"
                 >
-                    <Sparkles className="w-6 h-6" />
+                    {renderAvatar(status?.aiAvatar, <Sparkles className="w-6 h-6" />)}
                 </button>
             )}
 
@@ -180,8 +191,8 @@ export function AiChatWidget() {
             {open && (
                 <div className="fixed bottom-4 right-4 z-[320] w-[92vw] max-w-sm h-[70vh] max-h-[560px] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
                     <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/40">
-                        <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center">
-                            <Bot className="w-4 h-4 text-primary" />
+                        <div className="w-7 h-7 rounded-lg bg-primary/15 flex items-center justify-center overflow-hidden text-base">
+                            {renderAvatar(status?.aiAvatar, <Bot className="w-4 h-4 text-primary" />)}
                         </div>
                         <div className="min-w-0">
                             <div className="text-sm font-semibold text-foreground leading-none">{status?.aiName || "Asisten AI"}</div>
@@ -195,9 +206,11 @@ export function AiChatWidget() {
                     <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
                         {messages.length === 0 && (
                             <div className="text-center py-6">
-                                <Bot className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+                                <div className="w-12 h-12 rounded-full bg-muted mx-auto mb-2 flex items-center justify-center overflow-hidden text-2xl">
+                                    {renderAvatar(status?.aiAvatar, <Bot className="w-7 h-7 text-muted-foreground/50" />)}
+                                </div>
                                 <p className="text-xs text-muted-foreground mb-3">
-                                    Halo! Saya bantu seputar <b>produk, harga, HPP</b>, dan penggunaan aplikasi ini.
+                                    {status?.aiGreeting || "Halo! Saya bantu seputar produk, harga, HPP, dan penggunaan aplikasi ini."}
                                 </p>
                                 <div className="flex flex-col gap-1.5">
                                     {SUGGESTIONS.map((s) => (

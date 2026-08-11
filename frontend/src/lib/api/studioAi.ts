@@ -4,6 +4,8 @@ export interface StudioAiConfig {
     enabled: boolean;
     chatEnabled: boolean;
     aiName: string;
+    aiGreeting: string;
+    aiAvatar: string;
     baseUrl: string;
     model: string;
     apiKeySet: boolean;
@@ -14,6 +16,8 @@ export interface StudioAiConfigUpdate {
     enabled?: boolean;
     chatEnabled?: boolean;
     aiName?: string;
+    aiGreeting?: string;
+    aiAvatar?: string;
     baseUrl?: string;
     model?: string;
     apiKey?: string;      // hanya dikirim bila diganti
@@ -29,7 +33,7 @@ export const updateStudioAiConfig = async (data: StudioAiConfigUpdate): Promise<
 export const testStudioAi = async (): Promise<{ ok: boolean; message: string }> =>
     (await api.post("/studio-ai/test")).data;
 
-export const getStudioAiStatus = async (): Promise<{ enabled: boolean; chatEnabled: boolean; model: string; aiName: string }> =>
+export const getStudioAiStatus = async (): Promise<{ enabled: boolean; chatEnabled: boolean; model: string; aiName: string; aiGreeting: string; aiAvatar: string }> =>
     (await api.get("/studio-ai/status")).data;
 
 export interface AiProductCard {

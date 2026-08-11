@@ -35,6 +35,8 @@ export interface AiConfig {
   enabled: boolean;       // master: fitur AI (autofill studio) aktif
   chatEnabled: boolean;   // sub: widget chat asisten aktif (bisa dimatikan terpisah)
   aiName: string;         // nama asisten (tampil di widget & persona chat)
+  aiGreeting: string;     // sapaan pembuka di layar chat kosong
+  aiAvatar: string;       // avatar: emoji ATAU URL gambar (kosong = ikon default)
   baseUrl: string;
   apiKey: string;
   model: string;
@@ -59,6 +61,8 @@ export class StudioAiService {
       enabled: process.env.AI_ENABLED === 'true',
       chatEnabled: process.env.AI_CHAT_ENABLED !== 'false', // default ON saat AI aktif
       aiName: process.env.AI_NAME || 'Asisten VolikoPrint',
+      aiGreeting: process.env.AI_GREETING || 'Halo! Saya bantu seputar produk, harga, HPP, dan penggunaan aplikasi ini.',
+      aiAvatar: process.env.AI_AVATAR || '',
       baseUrl: (process.env.AI_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, ''),
       apiKey: process.env.AI_API_KEY || '',
       model: process.env.AI_MODEL || 'cc/claude-sonnet-4-5',
@@ -75,6 +79,8 @@ export class StudioAiService {
         enabled: typeof file.enabled === 'boolean' ? file.enabled : def.enabled,
         chatEnabled: typeof file.chatEnabled === 'boolean' ? file.chatEnabled : def.chatEnabled,
         aiName: typeof file.aiName === 'string' && file.aiName.trim() ? file.aiName : def.aiName,
+        aiGreeting: typeof file.aiGreeting === 'string' && file.aiGreeting.trim() ? file.aiGreeting : def.aiGreeting,
+        aiAvatar: typeof file.aiAvatar === 'string' ? file.aiAvatar : def.aiAvatar,
         baseUrl: (file.baseUrl || def.baseUrl).replace(/\/$/, ''),
         apiKey: typeof file.apiKey === 'string' ? file.apiKey : def.apiKey,
         model: file.model || def.model,
@@ -91,6 +97,8 @@ export class StudioAiService {
       enabled: typeof patch.enabled === 'boolean' ? patch.enabled : cur.enabled,
       chatEnabled: typeof patch.chatEnabled === 'boolean' ? patch.chatEnabled : cur.chatEnabled,
       aiName: typeof patch.aiName === 'string' && patch.aiName.trim() ? patch.aiName.trim() : cur.aiName,
+      aiGreeting: typeof patch.aiGreeting === 'string' && patch.aiGreeting.trim() ? patch.aiGreeting.trim() : cur.aiGreeting,
+      aiAvatar: typeof patch.aiAvatar === 'string' ? patch.aiAvatar.trim() : cur.aiAvatar,
       baseUrl: typeof patch.baseUrl === 'string' && patch.baseUrl.trim()
         ? patch.baseUrl.trim().replace(/\/$/, '') : cur.baseUrl,
       model: typeof patch.model === 'string' && patch.model.trim() ? patch.model.trim() : cur.model,
@@ -118,6 +126,8 @@ export class StudioAiService {
       enabled: c.enabled,
       chatEnabled: c.chatEnabled,
       aiName: c.aiName,
+      aiGreeting: c.aiGreeting,
+      aiAvatar: c.aiAvatar,
       baseUrl: c.baseUrl,
       model: c.model,
       apiKeySet: !!c.apiKey,
@@ -129,7 +139,14 @@ export class StudioAiService {
   async status() {
     const c = await this.readConfig();
     const usable = !!(c.enabled && c.baseUrl);
-    return { enabled: usable, chatEnabled: usable && c.chatEnabled, model: c.model, aiName: c.aiName };
+    return {
+      enabled: usable,
+      chatEnabled: usable && c.chatEnabled,
+      model: c.model,
+      aiName: c.aiName,
+      aiGreeting: c.aiGreeting,
+      aiAvatar: c.aiAvatar,
+    };
   }
 
   /** Tes koneksi ke endpoint AI (dipanggil Owner). Tidak melempar — kembalikan {ok,message}. */
