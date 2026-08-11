@@ -6,6 +6,23 @@
 
 ---
 
+## ⚙️ VERSI NODE.JS (WAJIB — hindari crash Prisma)
+
+Jalankan **Node.js 20 atau 22 LTS** (lihat `.nvmrc` = 20). **JANGAN Node 25** (non-LTS): Prisma 6.x tidak mendukungnya → Query Engine **panic** `called Option::unwrap() on a None value` (crash acak, mis. di `/print-queue/jobs`) meski data valid.
+
+- Cek versi runtime pm2: `pm2 describe pospro-backend | grep "node.js version"`.
+- **Setelah ganti versi Node**, WAJIB `npm rebuild` di `backend/` & `frontend/` (native: **bcrypt**, **sharp**) lalu restart pm2 dengan interpreter Node yang benar:
+  ```bash
+  cd backend && PATH="/usr/bin:$PATH" npm rebuild
+  pm2 delete pospro-backend
+  PATH="/usr/bin:$PATH" pm2 start dist/src/main.js --name pospro-backend \
+    --interpreter /usr/bin/node --cwd $(pwd) --update-env
+  pm2 save
+  ```
+- Insiden 2026-08-11: backend tak sengaja jalan di Node 25 (dari nvm) → panic; dipindah ke Node 20 → normal.
+
+---
+
 ## 🏗️ RINGKASAN APLIKASI
 
 **PosPro** adalah aplikasi Point of Sale (POS) berbasis web yang dirancang untuk digunakan di berbagai jenis usaha — toko klontong, percetakan digital (digital printing), café, dan sejenisnya.
