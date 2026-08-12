@@ -129,8 +129,10 @@ else                { $hTitle = 'Semua Produk'; $hSub = count($list) . ' produk 
         </ul>
     </aside>
 
-    <!-- Konten -->
-    <div>
+    <!-- Konten (min-w-0: cegah kolom melar mengikuti lebar intrinsik chip
+         kategori / kartu → biar overflow-x-auto chip benar-benar men-scroll,
+         bukan menggelembungkan grid produk sampai kartu jadi raksasa di HP) -->
+    <div class="min-w-0">
         <!-- Kategori chips (mobile) -->
         <div class="lg:hidden flex gap-2 overflow-x-auto pb-2 mb-4 -mx-1 px-1">
             <a href="<?= h($qs(['cat' => ''])) ?>" class="shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition <?= $cat === '' ? 'bg-brand text-white' : 'bg-white border border-slate-200 text-slate-600' ?>">Semua (<?= $totalCount ?>)</a>
