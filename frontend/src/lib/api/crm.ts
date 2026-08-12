@@ -77,6 +77,10 @@ export interface Lead {
     phoneNormalized: string | null;
     source: LeadSource;
     sourceDetail: string | null;
+    // Atribusi iklan Meta (Click-to-WhatsApp) — terisi otomatis dari webhook WA.
+    adId?: string | null;                       // referral.source_id (id iklan)
+    ctwaClid?: string | null;                   // click-id iklan (utk pencocokan konversi)
+    adReferral?: Record<string, any> | null;    // objek referral mentah (headline/body/media)
     status: LeadStatus;
     level: LeadLevel;
     needs: string | null;

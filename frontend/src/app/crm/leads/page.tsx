@@ -1248,6 +1248,12 @@ function LeadDetailDrawer({
                     <div className="grid grid-cols-2 gap-3 text-sm">
                         <Info label="Status" value={LEAD_STATUS_LABEL[lead2.status]} />
                         <Info label="Sumber" value={formatSource(lead2.source, lead2.sourceDetail)} />
+                        {lead2.adId && (
+                            <>
+                                <Info label="Dari Iklan Meta" value={lead2.sourceDetail || "(tanpa headline)"} />
+                                <Info label="Ad ID" value={lead2.adId} />
+                            </>
+                        )}
                         <Info
                             label="Masuk Lead"
                             value={dayjs(lead2.intakeAt || lead2.createdAt).format("DD MMM YYYY, HH:mm")}

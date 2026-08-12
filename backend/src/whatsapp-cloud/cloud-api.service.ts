@@ -147,6 +147,16 @@ export class CloudApiService implements OnModuleInit {
     }
 
     /**
+     * GET generik ke Graph API memakai token WA yang sama (satu sumber kredensial).
+     * Dipakai modul lain seperti Meta Ads (Marketing API) — token System User yang
+     * sama sudah mengantongi scope ads_read/ads_management. `path` sudah termasuk
+     * query string (mis. `me/adaccounts?fields=name,account_id`).
+     */
+    async graphGet(path: string): Promise<any> {
+        return this.graph('GET', path);
+    }
+
+    /**
      * Kirim pesan teks (hanya sah di dalam jendela layanan 24 jam).
      * @param phoneNumberId phone_number_id channel pengirim (dari Meta).
      * @param to nomor tujuan format 62xxx (tanpa '+').

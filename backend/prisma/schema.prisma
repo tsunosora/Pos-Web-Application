@@ -897,15 +897,15 @@ model Customer {
   createdAt          DateTime?   @default(now()) @map("created_at")
   updatedAt          DateTime?   @default(now()) @updatedAt @map("updated_at")
 
-  salesOrders SalesOrder[]
-  csRatings   CsRatingResponse[]
-  assignedCs  User?              @relation("CustomerAssignedCs", fields: [assignedCsId], references: [id], onDelete: SetNull)
-  referrer    Customer?          @relation("CustomerReferrer", fields: [referrerCustomerId], references: [id], onDelete: SetNull)
-  referrals   Customer[]         @relation("CustomerReferrer")
-  fromLeads   Lead[]             @relation("LeadConvertedCustomer")
-  activities  LeadActivity[]     @relation("CustomerActivities")
-  followUps   FollowUp[]         @relation("CustomerFollowUps")
-  waContacts  WaContact[]
+  salesOrders    SalesOrder[]
+  csRatings      CsRatingResponse[]
+  assignedCs     User?              @relation("CustomerAssignedCs", fields: [assignedCsId], references: [id], onDelete: SetNull)
+  referrer       Customer?          @relation("CustomerReferrer", fields: [referrerCustomerId], references: [id], onDelete: SetNull)
+  referrals      Customer[]         @relation("CustomerReferrer")
+  fromLeads      Lead[]             @relation("LeadConvertedCustomer")
+  activities     LeadActivity[]     @relation("CustomerActivities")
+  followUps      FollowUp[]         @relation("CustomerFollowUps")
+  waContacts     WaContact[]
   socialContacts SocialContact[]
 
   @@index([assignedCsId])
@@ -1888,6 +1888,12 @@ model Lead {
   phoneNormalized        String?    @map("phone_normalized") @db.VarChar(30) // normalized untuk dedup (strip +62/0/spasi)
   source                 LeadSource
   sourceDetail           String?    @map("source_detail") @db.VarChar(150)
+  // Atribusi iklan Meta (Click-to-WhatsApp). Terisi bila prospek datang dari klik
+  // iklan: adId = referral.source_id, ctwaClid = click-id (utk pencocokan konversi),
+  // adReferral = objek referral mentah (headline/body/media/source_url) utk audit.
+  ctwaClid               String?    @map("ctwa_clid") @db.VarChar(512)
+  adId                   String?    @map("ad_id") @db.VarChar(64)
+  adReferral             Json?      @map("ad_referral")
   status                 LeadStatus @default(NEW)
   level                  LeadLevel  @default(WARM)
   needs                  String?    @db.Text
@@ -1914,11 +1920,11 @@ model Lead {
   updatedAt              DateTime   @updatedAt @map("updated_at")
   closedAt               DateTime?  @map("closed_at")
 
-  assignedTo        User?          @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  createdBy         User?          @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  convertedCustomer Customer?      @relation("LeadConvertedCustomer", fields: [convertedCustomerId], references: [id], onDelete: SetNull)
-  convertedSO       SalesOrder?    @relation("LeadConvertedSO", fields: [convertedSalesOrderId], references: [id], onDelete: SetNull)
-  branch            CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  assignedTo        User?           @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy         User?           @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  convertedCustomer Customer?       @relation("LeadConvertedCustomer", fields: [convertedCustomerId], references: [id], onDelete: SetNull)
+  convertedSO       SalesOrder?     @relation("LeadConvertedSO", fields: [convertedSalesOrderId], references: [id], onDelete: SetNull)
+  branch            CompanyBranch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
   activities        LeadActivity[]
   followUps         FollowUp[]
   items             LeadItem[]
@@ -1931,6 +1937,7 @@ model Lead {
   @@index([branchId, status])
   @@index([phoneNormalized])
   @@index([designerName, status])
+  @@index([adId])
   @@map("leads")
 }
 
@@ -2507,6 +2514,9 @@ model WaQrLink {
 model WaConfig {
   id          Int      @id @default(1)
   accessToken String?  @map("access_token") @db.Text
+  // Ad Account Meta terpilih utk modul Ads (mis. "act_510575292057613"). Kosong =
+  // auto-pilih akun pertama dari me/adaccounts. Token WA yg sama dipakai (scope ads_read).
+  adAccountId String?  @map("ad_account_id") @db.VarChar(64)
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("wa_config")

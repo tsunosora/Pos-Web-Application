@@ -273,6 +273,73 @@ export class InboxService {
         }
     }
 
+    /**
+     * Objek `referral` dari Meta ada di pesan masuk saat prospek datang lewat klik
+     * iklan Click-to-WhatsApp (atau klik postingan). Bentuknya:
+     *   { source_url, source_id, source_type: 'ad'|'post', headline, body,
+     *     media_type, image_url|video_url, ctwa_clid }
+     * Kembalikan null bila pesan biasa (bukan dari iklan/postingan).
+     */
+    private extractReferral(msg: any): any | null {
+        const ref = msg?.referral;
+        if (ref && (ref.source_id || ref.ctwa_clid || ref.source_url)) return ref;
+        return null;
+    }
+
+    /**
+     * Tandai lead sebagai berasal dari iklan Meta bila pesan membawa `referral`.
+     * Set source = FACEBOOK/INSTAGRAM (tebak dari source_url), simpan adId +
+     * ctwaClid + referral mentah utk tracking, dan catat aktivitas. Best-effort:
+     * jangan gagalkan pemrosesan webhook. Hormati sumber yang sudah spesifik
+     * (hanya menimpa lead baru atau yang masih generik WHATSAPP).
+     */
+    private async applyAdReferral(
+        leadId: number,
+        msg: any,
+        createdLead: boolean,
+        branchId: number | null,
+    ): Promise<void> {
+        const ref = this.extractReferral(msg);
+        if (!ref) return;
+        try {
+            const lead = await this.prisma.lead.findUnique({
+                where: { id: leadId },
+                select: { source: true, adId: true },
+            });
+            // Sudah pernah ditandai iklan → cukup sekali (idempoten, jangan timpa iklan lama).
+            if (lead?.adId) return;
+            const canOverride = createdLead || lead?.source === 'WHATSAPP' || lead?.source == null;
+            const url: string = String(ref.source_url || '').toLowerCase();
+            const platform = url.includes('instagram') || url.includes('ig.me') ? 'INSTAGRAM' : 'FACEBOOK';
+            const headline: string | null = ref.headline ? String(ref.headline).slice(0, 150) : null;
+            const adId: string | null = ref.source_id ? String(ref.source_id).slice(0, 64) : null;
+            const ctwaClid: string | null = ref.ctwa_clid ? String(ref.ctwa_clid).slice(0, 512) : null;
+
+            await this.prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    ...(canOverride ? { source: platform as any } : {}),
+                    ...(canOverride && headline ? { sourceDetail: headline } : {}),
+                    adId,
+                    ctwaClid,
+                    adReferral: ref,
+                    ...(branchId != null ? { branchId } : {}),
+                },
+            });
+            await this.prisma.leadActivity.create({
+                data: {
+                    leadId,
+                    kind: 'MESSAGE',
+                    text: `Masuk via Iklan Meta${headline ? `: "${headline}"` : ''}${adId ? ` (ad ${adId})` : ''}`,
+                    meta: { source: 'meta-ads', adId, ctwaClid, sourceType: ref.source_type ?? null },
+                },
+            });
+        } catch (e) {
+            // Atribusi bersifat best-effort; jangan gagalkan pemrosesan webhook.
+            this.logger?.warn?.(`applyAdReferral gagal untuk lead #${leadId}: ${e}`);
+        }
+    }
+
     private extractBody(msg: any): string | null {
         switch (msg?.type) {
             case 'text':
@@ -374,6 +441,10 @@ export class InboxService {
         //     lead baru; utk lead lama hanya bila sumbernya masih generik (WHATSAPP).
         if (lead?.id) {
             await this.applyQrAttribution(lead.id, this.extractBody(msg), createdLead, channel.branchId ?? null);
+            // 1c) Atribusi iklan Meta (Click-to-WhatsApp): pesan dari klik iklan memuat
+            //     objek `referral` (source_id/ctwa_clid/headline). Tandai sumber lead +
+            //     simpan data iklan agar bisa di-track & dilaporkan.
+            await this.applyAdReferral(lead.id, msg, createdLead, channel.branchId ?? null);
         }
 
         // Tautan customer: dari lead aktif, atau dari pelanggan lama (lead lama yg sudah closing).
@@ -554,7 +625,8 @@ export class InboxService {
         id: true, waId: true, profileName: true, customName: true, phoneNormalized: true,
         leadId: true, customerId: true, optedOut: true,
         // Lead tertaut → tampilkan tahap pipeline + tautan di inbox (koherensi CRM).
-        lead: { select: { id: true, name: true, status: true } },
+        // sourceDetail/adId → badge "Dari Iklan" saat prospek datang dari iklan Meta.
+        lead: { select: { id: true, name: true, status: true, source: true, sourceDetail: true, adId: true } },
         // Customer tertaut → prefill alamat saat "Buat SO" dari chat.
         customer: { select: { id: true, name: true, address: true } },
     };

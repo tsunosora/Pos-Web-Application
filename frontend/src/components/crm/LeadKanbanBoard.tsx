@@ -13,7 +13,7 @@ import {
     LEAD_SOURCE_LABEL, LEAD_LEVEL_LABEL,
 } from "@/lib/api";
 import { LeadImageCarousel } from "@/components/crm/LeadImageCarousel";
-import { Phone, Calendar, MapPin, GripVertical } from "lucide-react";
+import { Phone, Calendar, MapPin, GripVertical, Megaphone } from "lucide-react";
 import dayjs from "dayjs";
 
 const COLUMNS: { id: LeadStatus; label: string; color: string; bg: string }[] = [
@@ -223,6 +223,11 @@ const KanbanCardView = memo(function KanbanCardView({
                         <div className="text-muted-foreground">
                             {lead.source === 'CUSTOM' ? (lead.sourceDetail || 'Custom') : LEAD_SOURCE_LABEL[lead.source]}
                         </div>
+                        {lead.adId && (
+                            <div className="flex items-center gap-1 text-sky-600 dark:text-sky-300 font-medium" title={lead.sourceDetail || undefined}>
+                                <Megaphone className="h-2.5 w-2.5 shrink-0" /> Dari Iklan{lead.sourceDetail ? `: ${lead.sourceDetail}` : ''}
+                            </div>
+                        )}
                         {lead.city && (
                             <div className="flex items-center gap-1">
                                 <MapPin className="h-2.5 w-2.5" /> {lead.city}

@@ -99,6 +99,7 @@ export const SECTIONS: NavSection[] = [
             { name: "Template Meta", href: "/crm/whatsapp/templates", icon: FileText },
             { name: "Katalog Produk", href: "/crm/whatsapp/catalog", icon: ShoppingBag, managerOnly: true },
             { name: "Analitik", href: "/crm/whatsapp/analytics", icon: BarChart3, managerOnly: true },
+            { name: "Iklan Meta", href: "/owner/iklan", icon: MousePointerClick, ownerOnly: true },
             { name: "Pengaturan Channel", href: "/crm/whatsapp/settings", icon: Settings, managerOnly: true },
         ],
     },
