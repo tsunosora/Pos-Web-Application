@@ -1131,7 +1131,10 @@ body::before { display: none !important; }
 @media (min-width: 900px) { .pd-grid { grid-template-columns: 1.05fr 1fr; gap: 3rem; align-items: start; } }
 
 .pd-gallery { display: grid; grid-template-columns: 1fr; gap: .8rem; }
-@media (min-width: 560px) { .pd-gallery { grid-template-columns: 74px 1fr; } }
+/* Kolom thumbnail (74px) + foto (1fr) HANYA saat produk punya >1 gambar
+   (kelas --multi dari product.php). Tanpa ini, produk 1-gambar bikin .pd-stage
+   sendirian jatuh ke kolom 74px → foto menciut jadi 74x74 px di desktop. */
+@media (min-width: 560px) { .pd-gallery--multi { grid-template-columns: 74px 1fr; } }
 .pd-thumbs { display: flex; gap: .6rem; order: 2; }
 @media (min-width: 560px) { .pd-thumbs { flex-direction: column; order: 0; } }
 .pd-thumb { width: 68px; height: 68px; border-radius: 14px; overflow: hidden; border: 2px solid var(--pk-border); background: #fff; transition: border-color .2s; flex-shrink: 0; }

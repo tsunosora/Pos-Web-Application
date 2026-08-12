@@ -136,7 +136,7 @@ $rr = (int)round($rating);
 </nav>
 
 <div class="pd-grid">
-    <div class="pd-gallery">
+    <div class="pd-gallery<?= count($gallery) > 1 ? ' pd-gallery--multi' : '' ?>">
         <?php if (count($gallery) > 1): ?>
             <div class="pd-thumbs">
                 <?php foreach ($gallery as $gi => $g): ?>
