@@ -677,7 +677,7 @@ export class WhatsappCloudController {
     sendProduct(
         @Req() req: any,
         @Param('id', ParseIntPipe) id: number,
-        @Body() body: { productRetailerId: string; productName?: string; bodyText?: string },
+        @Body() body: { productRetailerId: string; productName?: string; bodyText?: string; image?: string; price?: string; description?: string; url?: string },
     ) {
         return this.inbox.sendProduct(id, req.user.userId, body);
     }

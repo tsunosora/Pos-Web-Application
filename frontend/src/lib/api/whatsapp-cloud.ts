@@ -54,6 +54,19 @@ export interface WaMessage {
     replyTo?: { id: number; direction: WaDirection; type: WaMessageType; body: string | null } | null;
     createdAt: string;
     sentBy?: { id: number; name: string | null } | null;
+    // Payload interaktif mentah. Utk pesan produk katalog: { kind:'product', ... }
+    // → dipakai render kartu produk di sisi agen (bukan cuma teks).
+    payloadJson?: WaMessagePayload | null;
+}
+export interface WaMessagePayload {
+    kind?: string;
+    retailerId?: string;
+    name?: string | null;
+    image?: string | null;
+    price?: string | null;
+    description?: string | null;
+    url?: string | null;
+    [k: string]: unknown;
 }
 
 export interface Paged<T> {
@@ -131,7 +144,7 @@ export const deleteWaCatalogProduct = async (channelId: number, productId: strin
 // Kirim 1 produk katalog ke percakapan (interactive product message).
 export const sendWaProduct = async (
     conversationId: number,
-    data: { productRetailerId: string; productName?: string; bodyText?: string },
+    data: { productRetailerId: string; productName?: string; bodyText?: string; image?: string; price?: string; description?: string; url?: string },
 ): Promise<WaMessage> => (await api.post(`/whatsapp/conversations/${conversationId}/send-product`, data)).data;
 
 export const WA_STATUS_LABEL: Record<WaConversationStatus, string> = {

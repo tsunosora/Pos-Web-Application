@@ -12,7 +12,7 @@ import {
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
     listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders,
     setWaContactName, waContactName, listWaCatalog, sendWaProduct,
-    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent, type WaCatalogProduct,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent, type WaCatalogProduct, type WaMessagePayload,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -278,6 +278,38 @@ function ImageLightbox({ messageId, onClose }: { messageId: number; onClose: () 
     );
 }
 
+/** Kartu produk katalog di dalam bubble (pesan interactive product). Ditampilkan
+ *  di sisi agen supaya sama seperti yang dilihat pelanggan (gambar + nama + harga),
+ *  bukan sekadar teks. `out` = bubble kita (latar hijau) → teks/permukaan terang. */
+function ProductBubble({ p, out }: { p: WaMessagePayload; out: boolean }) {
+    const surface = out ? "bg-white/15 border-white/25" : "bg-muted/60 border-border";
+    const sub = out ? "text-white/80" : "text-muted-foreground";
+    return (
+        <div className={`rounded-xl border overflow-hidden ${surface} w-56 max-w-full`}>
+            {p.image ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.image} alt={p.name ?? "produk"} className="w-full h-32 object-cover" />
+            ) : (
+                <div className={`w-full h-24 grid place-items-center ${out ? "bg-white/10" : "bg-muted"}`}>
+                    <ShoppingBag className={`w-7 h-7 ${sub}`} />
+                </div>
+            )}
+            <div className="p-2 space-y-0.5">
+                <div className={`text-[10px] inline-flex items-center gap-1 ${sub}`}><ShoppingBag className="w-3 h-3" /> Produk katalog</div>
+                {p.name && <div className="font-semibold leading-snug break-words">{p.name}</div>}
+                {p.price && <div className={`text-xs font-medium ${out ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`}>{p.price}</div>}
+                {p.description && <div className={`text-[11px] line-clamp-2 ${sub}`}>{p.description}</div>}
+                {p.url && (
+                    <a href={p.url} target="_blank" rel="noopener noreferrer"
+                        className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium underline underline-offset-2 ${out ? "text-white" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        <ExternalLink className="w-3 h-3" /> Lihat detail
+                    </a>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function MessageBubble({ m, onReply, onReact, onImageClick }: {
     m: WaMessage;
     onReply: (m: WaMessage) => void;
@@ -311,6 +343,11 @@ function MessageBubble({ m, onReply, onReact, onImageClick }: {
                         <div className="space-y-1">
                             <MediaAttachment m={m} onImageClick={onImageClick} />
                             {m.body && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
+                        </div>
+                    ) : m.payloadJson?.kind === "product" ? (
+                        <div className="space-y-1">
+                            <ProductBubble p={m.payloadJson} out={out} />
+                            {m.body && !m.body.startsWith("🛍️") && <div className="whitespace-pre-wrap break-words">{m.body}</div>}
                         </div>
                     ) : (
                         <div className="whitespace-pre-wrap break-words">
@@ -772,6 +809,11 @@ export default function WhatsappInboxPage() {
             productRetailerId: p.retailerId || "",
             productName: p.name || undefined,
             bodyText: draft.trim() || undefined,
+            // Snapshot produk → agar bubble sisi agen tampil sebagai kartu (gambar/harga).
+            image: p.imageUrl || undefined,
+            price: p.price || undefined,
+            description: p.description || undefined,
+            url: p.url || undefined,
         }),
         onSuccess: () => {
             setDraft("");

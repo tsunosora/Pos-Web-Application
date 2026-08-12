@@ -972,7 +972,17 @@ export class InboxService {
     async sendProduct(
         conversationId: number,
         userId: number,
-        input: { productRetailerId: string; productName?: string; bodyText?: string },
+        input: {
+            productRetailerId: string;
+            productName?: string;
+            bodyText?: string;
+            // Snapshot produk (dari katalog) → disimpan agar sisi agen bisa
+            // menampilkan kartu (gambar/harga), bukan cuma teks.
+            image?: string;
+            price?: string;
+            description?: string;
+            url?: string;
+        },
     ) {
         if (!input.productRetailerId?.trim()) throw new BadRequestException('Produk belum dipilih');
         const conv = await this.prisma.waConversation.findUnique({
@@ -1003,6 +1013,16 @@ export class InboxService {
             waMessageId,
             type: WaMessageType.INTERACTIVE,
             body: input.bodyText?.trim() || `🛍️ ${input.productName || 'Produk katalog'}`,
+            // Snapshot produk → dipakai frontend untuk render kartu (bukan teks).
+            payloadJson: {
+                kind: 'product',
+                retailerId: input.productRetailerId.trim(),
+                name: input.productName?.trim() || null,
+                image: input.image?.trim() || null,
+                price: input.price?.trim() || null,
+                description: input.description?.trim() || null,
+                url: input.url?.trim() || null,
+            },
         });
     }
 
