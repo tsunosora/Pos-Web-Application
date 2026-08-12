@@ -988,6 +988,9 @@ export default function WhatsappInboxPage() {
                                             if (done) return <span className="opacity-50 shrink-0">Selesai</span>;
                                             return <span className="opacity-50 shrink-0">Kontak baru</span>;
                                         })()}
+                                        {c.contact.lead?.adId && (
+                                            <span className="rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 px-1.5 py-0.5 shrink-0" title={c.contact.lead.sourceDetail || "Dari iklan Meta"}>📢 Iklan</span>
+                                        )}
                                         {c.assignedTo?.name && <span className="opacity-60 truncate">· {c.assignedTo.name}</span>}
                                     </span>
                                     {c.unreadCount > 0 && (
@@ -1049,6 +1052,14 @@ export default function WhatsappInboxPage() {
                                             <ExternalLink className="w-3 h-3" />
                                             Lead: {LEAD_STAGE_LABEL[selected.contact.lead.status] ?? selected.contact.lead.status}
                                         </Link>
+                                    )}
+                                    {selected.contact.lead?.adId && (
+                                        <span
+                                            className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 px-2 py-0.5"
+                                            title={`Iklan Meta${selected.contact.lead.sourceDetail ? `: ${selected.contact.lead.sourceDetail}` : ""} (ad ${selected.contact.lead.adId})`}
+                                        >
+                                            📢 Dari Iklan{selected.contact.lead.sourceDetail ? `: ${selected.contact.lead.sourceDetail}` : ""}
+                                        </span>
                                     )}
                                     {convSalesOrders.map((so) => (
                                         <Link
