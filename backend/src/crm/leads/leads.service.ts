@@ -141,6 +141,7 @@ export class LeadsService {
                     branch: { select: { id: true, name: true, code: true } },
                     convertedCustomer: { select: { id: true, name: true, phone: true } },
                     convertedSO: { select: { id: true, soNumber: true } },
+                    adLabel: { select: { id: true, name: true } },
                     _count: { select: { activities: true } },
                 },
                 skip: (page - 1) * limit,
@@ -174,6 +175,7 @@ export class LeadsService {
             branch: { select: { id: true, name: true, code: true } },
             convertedCustomer: { select: { id: true, name: true, phone: true } },
             convertedSO: { select: { id: true, soNumber: true } },
+            adLabel: { select: { id: true, name: true } },
             activities: {
                 orderBy: { createdAt: 'desc' },
                 take: 100,

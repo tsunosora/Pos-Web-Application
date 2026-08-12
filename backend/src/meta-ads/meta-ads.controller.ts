@@ -29,13 +29,41 @@ export class MetaAdsController {
         @Query('since') since?: string,
         @Query('until') until?: string,
         @Query('accountId') accountId?: string,
+        @Query('labelId') labelId?: string,
     ) {
-        return this.ads.overview({ since, until, accountId });
+        const lid = labelId != null && labelId !== '' ? Number(labelId) : undefined;
+        return this.ads.overview({ since, until, accountId, labelId: Number.isFinite(lid as number) ? lid : undefined });
     }
 
     /** Pilih ad account default (disimpan ke WaConfig). */
     @Post('account')
     setAccount(@Body() body: { accountId: string | null }) {
         return this.ads.setAccount(body?.accountId ?? null);
+    }
+
+    // ─── Label custom iklan (per campaign) ───────────────────────────────────
+
+    /** Daftar label + jumlah campaign tertaut. */
+    @Get('labels')
+    labels() {
+        return this.ads.listLabels();
+    }
+
+    /** Buat/ubah label (dedup nama; branchId opsional utk atribusi cabang otomatis). */
+    @Post('labels')
+    upsertLabel(@Body() body: { name: string; branchId?: number | null }) {
+        return this.ads.upsertLabel(body?.name, body?.branchId);
+    }
+
+    /** Hapus label (lead → label dilepas, tautan campaign ikut terhapus). */
+    @Post('labels/delete')
+    deleteLabel(@Body() body: { id: number }) {
+        return this.ads.deleteLabel(Number(body?.id));
+    }
+
+    /** Tautkan/lepas label ke sebuah campaign (labelId null = lepas). */
+    @Post('campaign-label')
+    assignCampaignLabel(@Body() body: { campaignId: string; labelId: number | null; accountId?: string }) {
+        return this.ads.assignCampaignLabel(body?.campaignId, body?.labelId ?? null, body?.accountId);
     }
 }

@@ -119,6 +119,12 @@ export const BACKUP_GROUPS = {
         // akan menambah tabelnya sendiri di sini saat dibuat.
         tables: ['waChannel', 'waContact', 'waConversation', 'waTemplate', 'waBroadcast', 'waMessage', 'waWebhookEvent', 'waBroadcastRecipient', 'waAutoReplyRule', 'waReminderConfig', 'waReminderLog', 'waQrLink', 'waQuickReply', 'waConfig', 'socialChannel', 'socialContact', 'socialConversation', 'socialMessage'],
     },
+    metaAds: {
+        label: 'Iklan Meta — label custom, tautan campaign, cache ad→campaign',
+        // adLabel: master label custom (mis. cabang/perusahaan) → FK opsional ke Cabang.
+        // metaCampaignLabel: penautan label ke campaign Meta. metaAdMap: cache ad→campaign.
+        tables: ['adLabel', 'metaCampaignLabel', 'metaAdMap'],
+    },
 } as const;
 
 export type BackupGroupKey = keyof typeof BACKUP_GROUPS;
@@ -184,8 +190,12 @@ export const RESTORE_ORDER = [
     //   lead.convertedSalesOrderId → salesOrder
     //   leadItem.productVariantId → productVariant
     //   followUp.customerId → customer; followUp.leadId → lead
+    // Iklan Meta — SEBELUM lead karena lead.adLabelId → adLabel.
+    'adLabel',                                  // FK → companyBranch (nullable)
+    'metaCampaignLabel',                        // FK → adLabel
+    'metaAdMap',                                // standalone (cache ad→campaign)
     'messageTemplate',                          // standalone — no FK
-    'lead',                                     // FK → user, customer, salesOrder, companyBranch
+    'lead',                                     // FK → user, customer, salesOrder, companyBranch, adLabel
     'leadItem',                                 // FK → lead, productVariant
     'leadImage',                                // FK → lead
     'leadActivity',                             // FK → lead, customer, user
@@ -287,7 +297,7 @@ export class BackupService {
 
         const backupJson = {
             meta: {
-                version: '4.1', // v4.1: + leadSourceOption (grup CRM — master sumber lead CUSTOM, dedup case-insensitive). v4.0: + branchMonthlyClosing & centralTreasuryEntry (grup Biaya Owner — konsolidasi tutup buku + kas pusat), + grup Penilaian CS: csRatingConfig & csRatingResponse. v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
+                version: '4.2', // v4.2: + grup metaAds (adLabel/metaCampaignLabel/metaAdMap — label custom iklan Meta per campaign) + Lead.adLabelId/adId/ctwaClid/adReferral (atribusi iklan CTWA). v4.1: + leadSourceOption (grup CRM — master sumber lead CUSTOM, dedup case-insensitive). v4.0: + branchMonthlyClosing & centralTreasuryEntry (grup Biaya Owner — konsolidasi tutup buku + kas pusat), + grup Penilaian CS: csRatingConfig & csRatingResponse. v3.9: + bonusTarget & bonusAdjustment (grup Biaya Owner). v3.8: + jerseyWorkOrder (grup Produksi), + grup Biaya Owner: fixedExpense (beban tetap) & marketingSpend (iklan). v3.7: + discordConfig (grup Master), + grup Website: landingConfig & article (landing builder Puck + blog). v3.6: ProductionJob isExpress/designEnteredAt/cancelledAt/cancelReason, LeadStatus INVALID, marketplaceFee, Lead.convertedTransactionId.
                 createdAt: new Date().toISOString(),
                 app: 'PosPro',
                 tables: tablesToExport,

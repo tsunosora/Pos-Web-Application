@@ -30,6 +30,26 @@ export interface CampaignRow {
     costPerResult: number | null; // biaya Meta / hasil Meta
     leadsCaptured: number; // lead nyata di CRM (adId → campaign)
     costPerLead: number | null; // spend / leadsCaptured (biaya per lead riil)
+    labelId: number | null; // label custom (cabang/perusahaan) untuk campaign ini
+    labelName: string | null;
+    labelBranchId: number | null;
+}
+
+export interface LabelSummary {
+    labelId: number | null;
+    labelName: string; // "(Tanpa Label)" bila null
+    spend: number;
+    leadsCaptured: number;
+    results: number;
+    costPerLead: number | null;
+}
+
+export interface AdLabelRow {
+    id: number;
+    name: string;
+    branchId: number | null;
+    branchName: string | null;
+    campaignCount: number;
 }
 
 export interface AdsOverview {
@@ -46,6 +66,7 @@ export interface AdsOverview {
         costPerLead: number | null;
     };
     campaigns: CampaignRow[];
+    byLabel: LabelSummary[]; // ringkasan biaya/lead per label (cabang/perusahaan)
     unattributedLeads: number; // lead beriklan yg adId-nya tak ketemu di akun ini
 }
 
@@ -152,7 +173,7 @@ export class MetaAdsService {
      * Overview: campaign + insight Meta digabung dgn lead CRM (adId → campaign).
      * @param since/until format YYYY-MM-DD (default 30 hari terakhir).
      */
-    async overview(opts: { since?: string; until?: string; accountId?: string }): Promise<AdsOverview> {
+    async overview(opts: { since?: string; until?: string; accountId?: string; labelId?: number }): Promise<AdsOverview> {
         const until = opts.until || this.ymd(new Date());
         const since = opts.since || this.ymd(new Date(Date.now() - 29 * 86_400_000));
         const account = await this.resolveAccount(opts.accountId);
@@ -160,7 +181,7 @@ export class MetaAdsService {
             return {
                 account: null, since, until, currency: null,
                 totals: { spend: 0, impressions: 0, clicks: 0, results: 0, leadsCaptured: 0, costPerLead: null },
-                campaigns: [], unattributedLeads: 0,
+                campaigns: [], byLabel: [], unattributedLeads: 0,
             };
         }
         const act = account.id;
@@ -181,6 +202,8 @@ export class MetaAdsService {
         const ads = await this.graphGetAll(`${act}/ads?fields=id,campaign_id&limit=500`, 20);
         const adToCampaign = new Map<string, string>();
         for (const ad of ads) if (ad?.id && ad?.campaign_id) adToCampaign.set(String(ad.id), String(ad.campaign_id));
+        // Segarkan cache MetaAdMap (dipakai webhook utk resolve label lead cepat).
+        await this.upsertAdMap(adToCampaign, act);
 
         // 4) Lead CRM dari iklan pada rentang tsb, dikelompokkan per adId.
         const grouped = await this.prisma.lead.groupBy({
@@ -201,46 +224,55 @@ export class MetaAdsService {
             else unattributedLeads += cnt;
         }
 
-        // 5) Gabung: metadata + insight + lead per campaign.
+        // 5) Label per campaign (dari DB penautan).
+        const allCampaignIds = new Set<string>([
+            ...campaigns.map((c) => String(c.id)),
+            ...insights.map((i) => String(i.campaign_id)),
+        ]);
+        const links = await this.prisma.metaCampaignLabel.findMany({
+            where: { campaignId: { in: [...allCampaignIds] } },
+            include: { label: { select: { id: true, name: true, branchId: true } } },
+        });
+        const labelByCampaign = new Map<string, { id: number; name: string; branchId: number | null }>();
+        for (const l of links) labelByCampaign.set(l.campaignId, { id: l.label.id, name: l.label.name, branchId: l.label.branchId });
+
+        // 6) Gabung: metadata + insight + lead + label per campaign.
         const insightById = new Map<string, any>();
         for (const ins of insights) if (ins?.campaign_id) insightById.set(String(ins.campaign_id), ins);
 
-        const rows: CampaignRow[] = campaigns.map((c) => {
-            const id = String(c.id);
-            const ins = insightById.get(id);
+        const buildRow = (id: string, meta: any, ins: any): CampaignRow => {
             const spend = this.num(ins?.spend);
-            const impressions = this.num(ins?.impressions);
-            const clicks = this.num(ins?.clicks);
-            const ctr = this.num(ins?.ctr);
             const results = this.extractResults(ins?.actions);
             const leadsCaptured = leadsByCampaign.get(id) || 0;
+            const lbl = labelByCampaign.get(id) || null;
             return {
                 id,
-                name: c.name ?? '(tanpa nama)',
-                status: c.status ?? null,
-                effectiveStatus: c.effective_status ?? null,
-                objective: c.objective ?? null,
-                spend, impressions, clicks, ctr, results,
+                name: meta?.name ?? ins?.campaign_name ?? `(campaign ${id})`,
+                status: meta?.status ?? null,
+                effectiveStatus: meta?.effective_status ?? null,
+                objective: meta?.objective ?? null,
+                spend, impressions: this.num(ins?.impressions), clicks: this.num(ins?.clicks),
+                ctr: this.num(ins?.ctr), results,
                 costPerResult: results > 0 ? spend / results : null,
                 leadsCaptured,
                 costPerLead: leadsCaptured > 0 ? spend / leadsCaptured : null,
+                labelId: lbl?.id ?? null,
+                labelName: lbl?.name ?? null,
+                labelBranchId: lbl?.branchId ?? null,
             };
-        });
+        };
+
+        let rows: CampaignRow[] = campaigns.map((c) => buildRow(String(c.id), c, insightById.get(String(c.id))));
         // Campaign yg punya insight tapi metadata-nya tak ada (mis. dihapus) — tetap tampilkan.
         for (const ins of insights) {
             const id = String(ins.campaign_id);
             if (rows.some((r) => r.id === id)) continue;
-            const spend = this.num(ins?.spend);
-            const results = this.extractResults(ins?.actions);
-            const leadsCaptured = leadsByCampaign.get(id) || 0;
-            rows.push({
-                id, name: ins.campaign_name ?? `(campaign ${id})`, status: null, effectiveStatus: null,
-                objective: null, spend, impressions: this.num(ins?.impressions), clicks: this.num(ins?.clicks),
-                ctr: this.num(ins?.ctr), results, costPerResult: results > 0 ? spend / results : null,
-                leadsCaptured, costPerLead: leadsCaptured > 0 ? spend / leadsCaptured : null,
-            });
+            rows.push(buildRow(id, null, ins));
         }
         rows.sort((a, b) => b.spend - a.spend);
+
+        // Filter per label (opsional).
+        if (opts.labelId != null) rows = rows.filter((r) => r.labelId === opts.labelId);
 
         const totals = rows.reduce(
             (t, r) => {
@@ -251,6 +283,21 @@ export class MetaAdsService {
             { spend: 0, impressions: 0, clicks: 0, results: 0, leadsCaptured: 0 },
         );
 
+        // Ringkasan per label (cabang/perusahaan).
+        const byLabelMap = new Map<string, LabelSummary>();
+        for (const r of rows) {
+            const key = r.labelId != null ? String(r.labelId) : 'none';
+            const cur = byLabelMap.get(key) || {
+                labelId: r.labelId, labelName: r.labelName || '(Tanpa Label)',
+                spend: 0, leadsCaptured: 0, results: 0, costPerLead: null,
+            };
+            cur.spend += r.spend; cur.leadsCaptured += r.leadsCaptured; cur.results += r.results;
+            byLabelMap.set(key, cur);
+        }
+        const byLabel = [...byLabelMap.values()].map((s) => ({
+            ...s, costPerLead: s.leadsCaptured > 0 ? s.spend / s.leadsCaptured : null,
+        })).sort((a, b) => b.spend - a.spend);
+
         return {
             account, since, until, currency: account.currency,
             totals: {
@@ -258,7 +305,116 @@ export class MetaAdsService {
                 costPerLead: totals.leadsCaptured > 0 ? totals.spend / totals.leadsCaptured : null,
             },
             campaigns: rows,
+            byLabel,
             unattributedLeads,
         };
+    }
+
+    /** Upsert cache MetaAdMap (best-effort, jangan gagalkan overview). */
+    private async upsertAdMap(adToCampaign: Map<string, string>, adAccountId: string): Promise<void> {
+        try {
+            const entries = [...adToCampaign.entries()];
+            for (const [adId, campaignId] of entries) {
+                await this.prisma.metaAdMap.upsert({
+                    where: { adId },
+                    create: { adId, campaignId, adAccountId },
+                    update: { campaignId, adAccountId },
+                });
+            }
+        } catch (e) {
+            this.logger.warn(`upsertAdMap gagal: ${(e as Error).message}`);
+        }
+    }
+
+    private normLabel(name: string): string {
+        return String(name || '').trim().toLowerCase();
+    }
+
+    /** Daftar label + jumlah campaign tertaut. */
+    async listLabels(): Promise<AdLabelRow[]> {
+        const labels = await this.prisma.adLabel.findMany({
+            orderBy: { name: 'asc' },
+            include: { branch: { select: { name: true } }, _count: { select: { campaigns: true } } },
+        });
+        return labels.map((l) => ({
+            id: l.id, name: l.name, branchId: l.branchId,
+            branchName: l.branch?.name ?? null, campaignCount: l._count.campaigns,
+        }));
+    }
+
+    /** Buat/ambil label (dedup case-insensitive); set/ubah tautan cabang bila diberikan. */
+    async upsertLabel(name: string, branchId?: number | null): Promise<AdLabelRow> {
+        const clean = String(name || '').trim();
+        if (!clean) throw new Error('Nama label wajib diisi');
+        const normalizedName = this.normLabel(clean);
+        const label = await this.prisma.adLabel.upsert({
+            where: { normalizedName },
+            create: { name: clean, normalizedName, branchId: branchId ?? null },
+            update: branchId === undefined ? {} : { branchId: branchId ?? null },
+            include: { branch: { select: { name: true } }, _count: { select: { campaigns: true } } },
+        });
+        return {
+            id: label.id, name: label.name, branchId: label.branchId,
+            branchName: label.branch?.name ?? null, campaignCount: label._count.campaigns,
+        };
+    }
+
+    async deleteLabel(id: number): Promise<{ ok: true }> {
+        // Lead.adLabelId → SetNull; MetaCampaignLabel → Cascade (lihat schema).
+        await this.prisma.adLabel.delete({ where: { id } });
+        return { ok: true };
+    }
+
+    /**
+     * Tautkan label ke campaign (per campaign). Segarkan cache ad→campaign untuk
+     * campaign tsb, lalu backfill lead lama yg adId-nya milik campaign ini → set
+     * adLabelId (+ branchId bila label tertaut cabang). labelId null = lepas tautan.
+     */
+    async assignCampaignLabel(campaignId: string, labelId: number | null, adAccountId?: string): Promise<{ ok: true; updatedLeads: number }> {
+        const cid = String(campaignId || '').trim();
+        if (!cid) throw new Error('campaignId wajib diisi');
+
+        if (labelId == null) {
+            await this.prisma.metaCampaignLabel.deleteMany({ where: { campaignId: cid } });
+            return { ok: true, updatedLeads: 0 };
+        }
+        const label = await this.prisma.adLabel.findUnique({ where: { id: labelId }, select: { id: true, branchId: true } });
+        if (!label) throw new Error('Label tidak ditemukan');
+
+        await this.prisma.metaCampaignLabel.upsert({
+            where: { campaignId: cid },
+            create: { campaignId: cid, adLabelId: label.id, adAccountId: adAccountId ?? null },
+            update: { adLabelId: label.id, ...(adAccountId ? { adAccountId } : {}) },
+        });
+
+        // Segarkan peta ad→campaign untuk campaign ini (best-effort).
+        let adIds: string[] = [];
+        try {
+            const adsOfCampaign = await this.graphGetAll(`${cid}/ads?fields=id&limit=500`, 10);
+            adIds = adsOfCampaign.map((a) => String(a.id)).filter(Boolean);
+            for (const adId of adIds) {
+                await this.prisma.metaAdMap.upsert({
+                    where: { adId },
+                    create: { adId, campaignId: cid, adAccountId: adAccountId ?? null },
+                    update: { campaignId: cid, ...(adAccountId ? { adAccountId } : {}) },
+                });
+            }
+        } catch (e) {
+            this.logger.warn(`refresh ad map campaign ${cid} gagal: ${(e as Error).message}`);
+            // Fallback: pakai adId yg sudah ada di cache utk campaign ini.
+            const cached = await this.prisma.metaAdMap.findMany({ where: { campaignId: cid }, select: { adId: true } });
+            adIds = cached.map((c) => c.adId);
+        }
+
+        // Backfill lead lama milik campaign ini → set label (+ branch).
+        let updatedLeads = 0;
+        if (adIds.length) {
+            const res = await this.prisma.lead.updateMany({
+                where: { adId: { in: adIds } },
+                data: { adLabelId: label.id, ...(label.branchId != null ? { branchId: label.branchId } : {}) },
+            });
+            updatedLeads = res.count;
+        }
+        return { ok: true, updatedLeads };
     }
 }

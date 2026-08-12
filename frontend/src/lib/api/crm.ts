@@ -81,6 +81,8 @@ export interface Lead {
     adId?: string | null;                       // referral.source_id (id iklan)
     ctwaClid?: string | null;                   // click-id iklan (utk pencocokan konversi)
     adReferral?: Record<string, any> | null;    // objek referral mentah (headline/body/media)
+    adLabelId?: number | null;                  // label custom iklan (cabang/perusahaan)
+    adLabel?: { id: number; name: string } | null;
     status: LeadStatus;
     level: LeadLevel;
     needs: string | null;

@@ -315,6 +315,27 @@ export class InboxService {
             const adId: string | null = ref.source_id ? String(ref.source_id).slice(0, 64) : null;
             const ctwaClid: string | null = ref.ctwa_clid ? String(ref.ctwa_clid).slice(0, 512) : null;
 
+            // Resolusi label custom (per campaign) dari cache MetaAdMap → tandai lead +
+            // atribusi cabang otomatis bila label tertaut ke cabang. Cache diisi modul
+            // meta-ads (saat lihat dashboard / assign label); miss = label menyusul via backfill.
+            let adLabelId: number | null = null;
+            let labelBranchId: number | null = null;
+            if (adId) {
+                const map = await this.prisma.metaAdMap.findUnique({ where: { adId }, select: { campaignId: true } });
+                if (map) {
+                    const link = await this.prisma.metaCampaignLabel.findUnique({
+                        where: { campaignId: map.campaignId },
+                        select: { adLabelId: true, label: { select: { branchId: true } } },
+                    });
+                    if (link) {
+                        adLabelId = link.adLabelId;
+                        labelBranchId = link.label?.branchId ?? null;
+                    }
+                }
+            }
+            // Cabang label menang atas cabang channel (untuk lead dari iklan berlabel).
+            const effectiveBranchId = labelBranchId != null ? labelBranchId : branchId;
+
             await this.prisma.lead.update({
                 where: { id: leadId },
                 data: {
@@ -323,7 +344,8 @@ export class InboxService {
                     adId,
                     ctwaClid,
                     adReferral: ref,
-                    ...(branchId != null ? { branchId } : {}),
+                    ...(adLabelId != null ? { adLabelId } : {}),
+                    ...(effectiveBranchId != null ? { branchId: effectiveBranchId } : {}),
                 },
             });
             await this.prisma.leadActivity.create({
@@ -626,7 +648,7 @@ export class InboxService {
         leadId: true, customerId: true, optedOut: true,
         // Lead tertaut → tampilkan tahap pipeline + tautan di inbox (koherensi CRM).
         // sourceDetail/adId → badge "Dari Iklan" saat prospek datang dari iklan Meta.
-        lead: { select: { id: true, name: true, status: true, source: true, sourceDetail: true, adId: true } },
+        lead: { select: { id: true, name: true, status: true, source: true, sourceDetail: true, adId: true, adLabel: { select: { id: true, name: true } } } },
         // Customer tertaut → prefill alamat saat "Buat SO" dari chat.
         customer: { select: { id: true, name: true, address: true } },
     };

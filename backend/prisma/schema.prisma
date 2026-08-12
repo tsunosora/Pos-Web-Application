@@ -1639,6 +1639,7 @@ model CompanyBranch {
   taskSchedules          TaskSchedule[]
   taskItems              TaskItem[]
   taskGroups             TaskGroup[]
+  adLabels               AdLabel[]
 
   @@map("company_branches")
 }
@@ -1894,6 +1895,7 @@ model Lead {
   ctwaClid               String?    @map("ctwa_clid") @db.VarChar(512)
   adId                   String?    @map("ad_id") @db.VarChar(64)
   adReferral             Json?      @map("ad_referral")
+  adLabelId              Int?       @map("ad_label_id") // label custom iklan (per campaign) → pisah cabang/perusahaan
   status                 LeadStatus @default(NEW)
   level                  LeadLevel  @default(WARM)
   needs                  String?    @db.Text
@@ -1925,6 +1927,7 @@ model Lead {
   convertedCustomer Customer?       @relation("LeadConvertedCustomer", fields: [convertedCustomerId], references: [id], onDelete: SetNull)
   convertedSO       SalesOrder?     @relation("LeadConvertedSO", fields: [convertedSalesOrderId], references: [id], onDelete: SetNull)
   branch            CompanyBranch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  adLabel           AdLabel?        @relation(fields: [adLabelId], references: [id], onDelete: SetNull)
   activities        LeadActivity[]
   followUps         FollowUp[]
   items             LeadItem[]
@@ -1938,6 +1941,7 @@ model Lead {
   @@index([phoneNormalized])
   @@index([designerName, status])
   @@index([adId])
+  @@index([adLabelId])
   @@map("leads")
 }
 
@@ -1953,6 +1957,55 @@ model LeadSourceOption {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   @@map("lead_source_options")
+}
+
+// Label custom iklan Meta (mis. "Voliko Paris", "Divisi Spanduk"). Satu akun iklan
+// dipakai lintas cabang/perusahaan → label per campaign untuk pisah biaya & lead.
+// branchId opsional: bila diisi, lead dari iklan berlabel ini otomatis masuk cabang
+// tsb (atribusi cabang otomatis). Dedup case-insensitive via normalizedName.
+model AdLabel {
+  id             Int      @id @default(autoincrement())
+  name           String   @db.VarChar(120)
+  normalizedName String   @unique @map("normalized_name") @db.VarChar(120)
+  branchId       Int?     @map("branch_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  branch    CompanyBranch?      @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  campaigns MetaCampaignLabel[]
+  leads     Lead[]
+
+  @@index([branchId])
+  @@map("ad_labels")
+}
+
+// Penautan label ke campaign Meta (1 campaign = 1 label). campaignId = id campaign Meta.
+model MetaCampaignLabel {
+  id          Int      @id @default(autoincrement())
+  campaignId  String   @unique @map("campaign_id") @db.VarChar(64)
+  adLabelId   Int      @map("ad_label_id")
+  adAccountId String?  @map("ad_account_id") @db.VarChar(64)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  label AdLabel @relation(fields: [adLabelId], references: [id], onDelete: Cascade)
+
+  @@index([adLabelId])
+  @@map("meta_campaign_labels")
+}
+
+// Cache peta iklan→campaign Meta (referral.source_id = adId). Dipakai webhook untuk
+// resolve label lead tanpa panggil Meta tiap pesan. Diisi saat lihat dashboard iklan
+// atau saat assign label campaign.
+model MetaAdMap {
+  id          Int      @id @default(autoincrement())
+  adId        String   @unique @map("ad_id") @db.VarChar(64)
+  campaignId  String   @map("campaign_id") @db.VarChar(64)
+  adAccountId String?  @map("ad_account_id") @db.VarChar(64)
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([campaignId])
+  @@map("meta_ad_maps")
 }
 
 model LeadActivity {

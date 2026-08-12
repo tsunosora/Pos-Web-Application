@@ -1251,6 +1251,7 @@ function LeadDetailDrawer({
                         {lead2.adId && (
                             <>
                                 <Info label="Dari Iklan Meta" value={lead2.sourceDetail || "(tanpa headline)"} />
+                                {lead2.adLabel?.name && <Info label="Label Iklan" value={lead2.adLabel.name} />}
                                 <Info label="Ad ID" value={lead2.adId} />
                             </>
                         )}

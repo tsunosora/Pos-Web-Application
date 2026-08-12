@@ -989,7 +989,7 @@ export default function WhatsappInboxPage() {
                                             return <span className="opacity-50 shrink-0">Kontak baru</span>;
                                         })()}
                                         {c.contact.lead?.adId && (
-                                            <span className="rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 px-1.5 py-0.5 shrink-0" title={c.contact.lead.sourceDetail || "Dari iklan Meta"}>📢 Iklan</span>
+                                            <span className="rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 px-1.5 py-0.5 shrink-0" title={c.contact.lead.sourceDetail || "Dari iklan Meta"}>📢 {c.contact.lead.adLabel?.name || "Iklan"}</span>
                                         )}
                                         {c.assignedTo?.name && <span className="opacity-60 truncate">· {c.assignedTo.name}</span>}
                                     </span>
@@ -1058,7 +1058,7 @@ export default function WhatsappInboxPage() {
                                             className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300 px-2 py-0.5"
                                             title={`Iklan Meta${selected.contact.lead.sourceDetail ? `: ${selected.contact.lead.sourceDetail}` : ""} (ad ${selected.contact.lead.adId})`}
                                         >
-                                            📢 Dari Iklan{selected.contact.lead.sourceDetail ? `: ${selected.contact.lead.sourceDetail}` : ""}
+                                            📢 Dari Iklan{selected.contact.lead.adLabel?.name ? ` · ${selected.contact.lead.adLabel.name}` : (selected.contact.lead.sourceDetail ? `: ${selected.contact.lead.sourceDetail}` : "")}
                                         </span>
                                     )}
                                     {convSalesOrders.map((so) => (

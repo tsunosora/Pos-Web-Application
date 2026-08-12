@@ -19,7 +19,7 @@ export interface WaContactLite {
     leadId: number | null;
     customerId: number | null;
     optedOut: boolean;
-    lead?: { id: number; name: string; status: string; source?: string; sourceDetail?: string | null; adId?: string | null } | null;
+    lead?: { id: number; name: string; status: string; source?: string; sourceDetail?: string | null; adId?: string | null; adLabel?: { id: number; name: string } | null } | null;
     customer?: { id: number; name: string; address: string | null } | null;
 }
 

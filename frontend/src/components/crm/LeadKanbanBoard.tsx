@@ -225,7 +225,7 @@ const KanbanCardView = memo(function KanbanCardView({
                         </div>
                         {lead.adId && (
                             <div className="flex items-center gap-1 text-sky-600 dark:text-sky-300 font-medium" title={lead.sourceDetail || undefined}>
-                                <Megaphone className="h-2.5 w-2.5 shrink-0" /> Dari Iklan{lead.sourceDetail ? `: ${lead.sourceDetail}` : ''}
+                                <Megaphone className="h-2.5 w-2.5 shrink-0" /> Dari Iklan{lead.adLabel?.name ? ` · ${lead.adLabel.name}` : (lead.sourceDetail ? `: ${lead.sourceDetail}` : '')}
                             </div>
                         )}
                         {lead.city && (
