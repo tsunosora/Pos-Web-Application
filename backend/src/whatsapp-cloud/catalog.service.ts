@@ -8,9 +8,21 @@ export interface CatalogProductInput {
     priceRupiah?: number; // harga rupiah (dikonversi ke minor unit ×100 utk Meta)
     currency?: string;
     imageUrl?: string;
+    additionalImageUrls?: string[]; // galeri tambahan (Meta: additional_image_urls, maks 10)
     url?: string | null;
     availability?: string; // 'in stock' | 'out of stock'
     retailerId?: string;
+}
+
+/** Bersihkan array URL gambar tambahan: trim, buang kosong/duplikat, batasi 10 (limit Meta). */
+function cleanImageUrls(urls: unknown): string[] {
+    if (!Array.isArray(urls)) return [];
+    const seen = new Set<string>();
+    for (const u of urls) {
+        const s = typeof u === 'string' ? u.trim() : '';
+        if (s) seen.add(s);
+    }
+    return [...seen].slice(0, 10);
 }
 
 /** SKU aman: huruf kecil/angka/underscore + suffix unik. */
@@ -74,23 +86,33 @@ export class CatalogService {
     async list(channelId: number) {
         const catalogId = await this.resolveCatalogId(channelId);
         const rows = await this.safeMeta(() => this.cloud.listCatalogProducts(catalogId), 'Gagal memuat produk katalog');
-        return rows.map((p) => ({
-            id: p.id,
-            retailerId: p.retailer_id ?? null,
-            name: p.name ?? null,
-            description: p.description ?? null,
-            price: p.price ?? null, // string terformat dari Meta (mis. "Rp250.000,00")
-            currency: p.currency ?? null,
-            imageUrl: p.image_url ?? null,
-            url: p.url ?? null,
-            availability: p.availability ?? null,
-        }));
+        return rows.map((p) => {
+            // review_status: umumnya string enum ("approved"/"pending"/"rejected"/
+            // "outdated"/"no_review"); sebagian versi API balas objek {status}.
+            const rs = p.review_status;
+            const reviewStatus = typeof rs === 'string' ? rs : (rs?.status ?? null);
+            return {
+                id: p.id,
+                retailerId: p.retailer_id ?? null,
+                name: p.name ?? null,
+                description: p.description ?? null,
+                price: p.price ?? null, // string terformat dari Meta (mis. "Rp250.000,00")
+                currency: p.currency ?? null,
+                imageUrl: p.image_url ?? null,
+                additionalImageUrls: Array.isArray(p.additional_image_urls) ? p.additional_image_urls : [],
+                url: p.url ?? null,
+                availability: p.availability ?? null,
+                reviewStatus, // status approval Meta (utk badge "Menunggu review Meta", dll)
+                visibility: p.visibility ?? null,
+            };
+        });
     }
 
     async create(channelId: number, input: CatalogProductInput) {
         const catalogId = await this.resolveCatalogId(channelId);
         if (!input.name?.trim()) throw new BadRequestException('Nama produk wajib diisi');
         if (!input.imageUrl?.trim()) throw new BadRequestException('URL gambar wajib (harus dapat diakses publik oleh Meta)');
+        const extraImages = cleanImageUrls(input.additionalImageUrls);
         const payload: Record<string, unknown> = {
             retailer_id: input.retailerId?.trim() || slugRetailerId(input.name),
             name: input.name.trim(),
@@ -99,6 +121,7 @@ export class CatalogService {
             currency: input.currency || 'IDR',
             image_url: input.imageUrl.trim(),
             availability: input.availability || 'in stock',
+            ...(extraImages.length ? { additional_image_urls: extraImages } : {}),
             ...(input.url?.trim() ? { url: input.url.trim() } : {}),
         };
         return this.safeMeta(() => this.cloud.createCatalogProduct(catalogId, payload), 'Gagal menambah produk ke katalog');
@@ -112,6 +135,7 @@ export class CatalogService {
         if (input.priceRupiah !== undefined) payload.price = Math.round(input.priceRupiah * 100);
         if (input.currency !== undefined) payload.currency = input.currency;
         if (input.imageUrl !== undefined) payload.image_url = input.imageUrl.trim();
+        if (input.additionalImageUrls !== undefined) payload.additional_image_urls = cleanImageUrls(input.additionalImageUrls);
         if (input.availability !== undefined) payload.availability = input.availability;
         if (input.url !== undefined) payload.url = input.url?.trim() || undefined;
         if (Object.keys(payload).length === 0) throw new BadRequestException('Tak ada perubahan');

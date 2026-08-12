@@ -3,18 +3,32 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Trash2, Pencil, ShoppingBag, X, Upload, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, ShoppingBag, X, Upload, Loader2, ImagePlus, Clock, CheckCircle2, AlertTriangle, type LucideIcon } from "lucide-react";
 import {
     listWaChannels, listWaCatalog, createWaCatalogProduct, updateWaCatalogProduct, deleteWaCatalogProduct, uploadWaCatalogImage,
     getWaCatalogConfig, setWaCatalogConfig,
     type WaChannel, type WaCatalogProduct, type CatalogProductBody,
 } from "@/lib/api/whatsapp-cloud";
+import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 
-const EMPTY: CatalogProductBody = { name: "", description: "", priceRupiah: undefined, imageUrl: "", url: "" };
+const EMPTY: CatalogProductBody = { name: "", description: "", priceRupiah: undefined, imageUrl: "", url: "", additionalImageUrls: [] };
+
+const MAX_EXTRA_IMAGES = 10; // batas additional_image_urls Meta
 
 function errMsg(e: unknown, fb: string) {
     return (e as { response?: { data?: { message?: string } } })?.response?.data?.message || fb;
+}
+
+/** Status approval Meta → badge terbaca. null = tak perlu tampil (mis. produk tanpa review). */
+function reviewBadge(status: string | null | undefined): { label: string; tone: BadgeTone; icon: LucideIcon } | null {
+    switch ((status || "").toLowerCase()) {
+        case "pending": return { label: "Menunggu review Meta", tone: "warning", icon: Clock };
+        case "approved": return { label: "Disetujui Meta", tone: "success", icon: CheckCircle2 };
+        case "rejected": return { label: "Ditolak Meta", tone: "danger", icon: AlertTriangle };
+        case "outdated": return { label: "Perlu diperbarui", tone: "warning", icon: AlertTriangle };
+        default: return null; // no_review / kosong → produk langsung tayang, tak perlu badge
+    }
 }
 
 export default function WhatsappCatalogPage() {
@@ -83,12 +97,33 @@ export default function WhatsappCatalogPage() {
         }
     };
 
+    // Gambar tambahan (galeri) — unggah banyak sekaligus, batasi total 10.
+    const [uploadingExtra, setUploadingExtra] = useState(false);
+    const onPickAdditional = async (files: FileList | null) => {
+        if (!files?.length) return;
+        setUploadingExtra(true);
+        try {
+            const room = Math.max(0, MAX_EXTRA_IMAGES - (form.additionalImageUrls?.length ?? 0));
+            const picked = Array.from(files).slice(0, room);
+            const urls: string[] = [];
+            for (const f of picked) urls.push((await uploadWaCatalogImage(f)).url);
+            setForm((f) => ({ ...f, additionalImageUrls: [...(f.additionalImageUrls ?? []), ...urls] }));
+        } catch (e) {
+            alert(errMsg(e, "Gagal mengunggah gambar tambahan"));
+        } finally {
+            setUploadingExtra(false);
+        }
+    };
+    const removeAdditional = (idx: number) =>
+        setForm((f) => ({ ...f, additionalImageUrls: (f.additionalImageUrls ?? []).filter((_, i) => i !== idx) }));
+
     const startEdit = (p: WaCatalogProduct) => {
         setEditId(p.id);
         setForm({
             name: p.name ?? "",
             description: p.description ?? "",
             imageUrl: p.imageUrl ?? "",
+            additionalImageUrls: p.additionalImageUrls ?? [],
             url: p.url ?? "",
             priceRupiah: undefined, // Meta hanya kirim harga terformat; isi ulang bila mau ubah
         });
@@ -180,6 +215,29 @@ export default function WhatsappCatalogPage() {
                         </div>
                         <span className="text-[11px] opacity-50">Gambar diunggah otomatis jadi URL publik yang bisa diambil Meta.</span>
                     </div>
+                    <div className="text-sm sm:col-span-2">
+                        <span>Gambar tambahan <span className="opacity-50">(opsional, galeri — maks {MAX_EXTRA_IMAGES})</span></span>
+                        <div className="mt-1.5 flex flex-wrap gap-2">
+                            {(form.additionalImageUrls ?? []).map((u, i) => (
+                                <div key={u + i} className="relative w-16 h-16 shrink-0">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={u} alt={`gambar ${i + 2}`} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                                    <button type="button" onClick={() => removeAdditional(i)} aria-label="Hapus gambar"
+                                        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white grid place-items-center shadow">
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </div>
+                            ))}
+                            {(form.additionalImageUrls?.length ?? 0) < MAX_EXTRA_IMAGES && (
+                                <label className="w-16 h-16 rounded-lg border border-dashed border-border grid place-items-center cursor-pointer hover:bg-muted/50 shrink-0" title="Tambah gambar">
+                                    {uploadingExtra ? <Loader2 className="w-4 h-4 animate-spin opacity-60" /> : <ImagePlus className="w-4 h-4 opacity-60" />}
+                                    <input type="file" multiple accept="image/jpeg,image/png,image/webp" className="hidden"
+                                        onChange={(e) => { onPickAdditional(e.target.files); e.currentTarget.value = ""; }} />
+                                </label>
+                            )}
+                        </div>
+                        <span className="text-[11px] opacity-50">Tampil sebagai galeri saat produk dibuka pelanggan di WhatsApp. Bisa pilih beberapa berkas sekaligus.</span>
+                    </div>
                     <label className="text-sm sm:col-span-2">Deskripsi
                         <textarea value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })}
                             rows={2} placeholder="Cetak spanduk flexi 280gr, tahan luar ruang…"
@@ -214,16 +272,24 @@ export default function WhatsappCatalogPage() {
                 <div className="grid sm:grid-cols-2 gap-3">
                     {products.map((p) => (
                         <div key={p.id} className="rounded-2xl border border-border bg-card/60 p-3 flex gap-3">
-                            {p.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={p.imageUrl} alt={p.name ?? ""} className="w-16 h-16 rounded-lg object-cover border border-border shrink-0" />
-                            ) : (
-                                <div className="w-16 h-16 rounded-lg bg-muted grid place-items-center shrink-0"><ShoppingBag className="w-5 h-5 opacity-50" /></div>
-                            )}
+                            <div className="relative w-16 h-16 shrink-0">
+                                {p.imageUrl ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={p.imageUrl} alt={p.name ?? ""} className="w-16 h-16 rounded-lg object-cover border border-border" />
+                                ) : (
+                                    <div className="w-16 h-16 rounded-lg bg-muted grid place-items-center"><ShoppingBag className="w-5 h-5 opacity-50" /></div>
+                                )}
+                                {(p.additionalImageUrls?.length ?? 0) > 0 && (
+                                    <span className="absolute bottom-0.5 right-0.5 text-[10px] leading-none px-1 py-0.5 rounded bg-black/65 text-white font-medium" title={`${p.additionalImageUrls!.length} gambar tambahan`}>
+                                        +{p.additionalImageUrls!.length}
+                                    </span>
+                                )}
+                            </div>
                             <div className="min-w-0 flex-1">
                                 <div className="font-medium truncate">{p.name}</div>
                                 <div className="text-sm text-emerald-600 dark:text-emerald-400">{p.price}</div>
-                                {p.description && <div className="text-xs opacity-60 line-clamp-2">{p.description}</div>}
+                                {(() => { const b = reviewBadge(p.reviewStatus); return b ? <StatusBadge tone={b.tone} icon={b.icon} className="mt-1">{b.label}</StatusBadge> : null; })()}
+                                {p.description && <div className="text-xs opacity-60 line-clamp-2 mt-1">{p.description}</div>}
                                 <div className="flex gap-1.5 mt-1.5">
                                     <button onClick={() => startEdit(p)} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border hover:bg-muted">
                                         <Pencil className="w-3 h-3" /> Edit

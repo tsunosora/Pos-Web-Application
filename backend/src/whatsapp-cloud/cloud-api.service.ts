@@ -408,9 +408,11 @@ export class CloudApiService implements OnModuleInit {
         return json?.data?.[0]?.id ?? null;
     }
 
-    /** Daftar produk katalog. */
+    /** Daftar produk katalog. review_status/visibility → status approval Meta;
+        additional_image_urls → galeri gambar tambahan. */
     async listCatalogProducts(catalogId: string): Promise<any[]> {
-        const fields = 'id,retailer_id,name,description,price,currency,image_url,url,availability';
+        const fields =
+            'id,retailer_id,name,description,price,currency,image_url,additional_image_urls,url,availability,review_status,visibility';
         const json = await this.graph('GET', `${catalogId}/products?fields=${fields}&limit=200`);
         return json?.data ?? [];
     }

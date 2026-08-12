@@ -90,8 +90,11 @@ export interface WaCatalogProduct {
     price: string | null; // string terformat dari Meta (mis. "Rp250.000,00")
     currency: string | null;
     imageUrl: string | null;
+    additionalImageUrls?: string[]; // galeri gambar tambahan
     url: string | null;
     availability: string | null;
+    reviewStatus?: string | null; // status approval Meta: 'approved'|'pending'|'rejected'|'outdated'|'no_review'
+    visibility?: string | null; // 'published'|'staging'|'hidden'
 }
 export interface CatalogProductBody {
     name?: string;
@@ -99,6 +102,7 @@ export interface CatalogProductBody {
     priceRupiah?: number;
     currency?: string;
     imageUrl?: string;
+    additionalImageUrls?: string[];
     url?: string | null;
     availability?: string;
 }
