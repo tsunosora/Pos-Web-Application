@@ -1979,16 +1979,18 @@ model AdLabel {
   @@map("ad_labels")
 }
 
-// Penautan label ke campaign Meta (1 campaign = 1 label). campaignId = id campaign Meta.
+// Config per-campaign Meta (1 baris/campaign): label opsional + profit produk.
+// productProfit dipakai patokan CPR (target = profit × 5%). campaignId = id Meta.
 model MetaCampaignLabel {
-  id          Int      @id @default(autoincrement())
-  campaignId  String   @unique @map("campaign_id") @db.VarChar(64)
-  adLabelId   Int      @map("ad_label_id")
-  adAccountId String?  @map("ad_account_id") @db.VarChar(64)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            Int      @id @default(autoincrement())
+  campaignId    String   @unique @map("campaign_id") @db.VarChar(64)
+  adLabelId     Int?     @map("ad_label_id")
+  productProfit Decimal? @map("product_profit") @db.Decimal(14, 2)
+  adAccountId   String?  @map("ad_account_id") @db.VarChar(64)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  label AdLabel @relation(fields: [adLabelId], references: [id], onDelete: Cascade)
+  label AdLabel? @relation(fields: [adLabelId], references: [id], onDelete: SetNull)
 
   @@index([adLabelId])
   @@map("meta_campaign_labels")

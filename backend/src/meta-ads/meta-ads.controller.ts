@@ -66,4 +66,20 @@ export class MetaAdsController {
     assignCampaignLabel(@Body() body: { campaignId: string; labelId: number | null; accountId?: string }) {
         return this.ads.assignCampaignLabel(body?.campaignId, body?.labelId ?? null, body?.accountId);
     }
+
+    /** Set profit produk per campaign → patokan CPR = profit × 5% (null = hapus). */
+    @Post('campaign-profit')
+    setCampaignProfit(@Body() body: { campaignId: string; profit: number | null; accountId?: string }) {
+        return this.ads.setCampaignProfit(body?.campaignId, body?.profit ?? null, body?.accountId);
+    }
+
+    /** Drill-down per iklan/video dalam 1 campaign (metrik video + lead/closing). */
+    @Get('ads')
+    adBreakdown(
+        @Query('campaignId') campaignId: string,
+        @Query('since') since?: string,
+        @Query('until') until?: string,
+    ) {
+        return this.ads.adBreakdown({ campaignId, since, until });
+    }
 }

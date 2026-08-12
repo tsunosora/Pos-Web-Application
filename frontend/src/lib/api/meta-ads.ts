@@ -22,10 +22,32 @@ export interface CampaignRow {
     results: number;
     costPerResult: number | null;
     leadsCaptured: number;
-    costPerLead: number | null;
+    closings: number;
+    omzet: number;
+    roas: number | null;
+    productProfit: number | null;
+    cprTarget: number | null;
     labelId: number | null;
     labelName: string | null;
     labelBranchId: number | null;
+}
+
+export interface VideoMetrics { plays: number; p25: number; p50: number; p75: number; p100: number; }
+
+export interface AdRow {
+    id: string;
+    name: string;
+    effectiveStatus: string | null;
+    spend: number;
+    clicks: number;
+    ctr: number;
+    results: number;
+    costPerResult: number | null;
+    leadsCaptured: number;
+    closings: number;
+    omzet: number;
+    roas: number | null;
+    video: VideoMetrics;
 }
 
 export interface LabelSummary {
@@ -35,6 +57,14 @@ export interface LabelSummary {
     leadsCaptured: number;
     results: number;
     costPerLead: number | null;
+}
+
+export interface BranchSummary {
+    branchId: number | null;
+    branchName: string;
+    leadsCaptured: number;
+    closings: number;
+    omzet: number;
 }
 
 export interface AdsOverview {
@@ -48,10 +78,14 @@ export interface AdsOverview {
         clicks: number;
         results: number;
         leadsCaptured: number;
-        costPerLead: number | null;
+        closings: number;
+        omzet: number;
+        roas: number | null;
+        avgCtr: number;
     };
     campaigns: CampaignRow[];
     byLabel: LabelSummary[];
+    byBranch: BranchSummary[];
     unattributedLeads: number;
 }
 
@@ -99,3 +133,19 @@ export const assignCampaignLabel = async (
     accountId?: string,
 ): Promise<{ ok: true; updatedLeads: number }> =>
     (await api.post('/meta-ads/campaign-label', { campaignId, labelId, accountId })).data;
+
+export const setCampaignProfit = async (
+    campaignId: string,
+    profit: number | null,
+    accountId?: string,
+): Promise<{ ok: true }> =>
+    (await api.post('/meta-ads/campaign-profit', { campaignId, profit, accountId })).data;
+
+export interface AdBreakdown { campaignId: string; since: string; until: string; ads: AdRow[]; }
+
+export const getAdBreakdown = async (campaignId: string, since?: string, until?: string): Promise<AdBreakdown> => {
+    const q = new URLSearchParams({ campaignId });
+    if (since) q.append('since', since);
+    if (until) q.append('until', until);
+    return (await api.get(`/meta-ads/ads?${q.toString()}`)).data;
+};
