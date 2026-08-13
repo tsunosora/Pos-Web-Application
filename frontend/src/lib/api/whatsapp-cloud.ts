@@ -52,6 +52,7 @@ export interface WaMessage {
     waMessageId: string | null;
     reactionsJson: { customer?: string; agent?: string } | null;
     replyTo?: { id: number; direction: WaDirection; type: WaMessageType; body: string | null } | null;
+    deletedAt?: string | null; // soft-delete: bila terisi, pesan ditampilkan sebagai "pesan dihapus"
     createdAt: string;
     sentBy?: { id: number; name: string | null } | null;
     // Payload interaktif mentah. Utk pesan produk katalog: { kind:'product', ... }
@@ -259,6 +260,10 @@ export const startWaConversation = async (body: StartConversationBody): Promise<
 // Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi agen).
 export const reactWaMessage = async (messageId: number, emoji: string): Promise<WaMessage> =>
     (await api.post(`/whatsapp/messages/${messageId}/react`, { emoji })).data;
+
+// Hapus pesan dari CRM (soft-delete → jadi "pesan dihapus", data tetap tersimpan).
+export const deleteWaMessage = async (messageId: number): Promise<{ ok: boolean }> =>
+    (await api.delete(`/whatsapp/messages/${messageId}`)).data;
 
 export const replyWaTemplate = async (
     id: number,

@@ -269,3 +269,51 @@ describe('InboxService.replyText — guard jendela 24 jam', () => {
         expect(msg).toEqual({ id: 77 });
     });
 });
+
+describe('InboxService.deleteMessage — soft-delete (non-destruktif)', () => {
+    const events = () => ({ emitMessage: jest.fn(), emitConversation: jest.fn() });
+
+    it('menandai deletedAt (bukan hapus baris) & memancarkan event', async () => {
+        const prisma = {
+            waMessage: {
+                findUnique: jest.fn().mockResolvedValue({ id: 40, conversationId: 30, channelId: 10, deletedAt: null }),
+                update: jest.fn().mockResolvedValue({ id: 40 }),
+                delete: jest.fn(),
+            },
+            waConversation: { findUnique: jest.fn().mockResolvedValue({ channel: { branchId: 7 } }) },
+        };
+        const ev = events();
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any, mediaStoreMock() as any, {} as any, ev as any);
+
+        const res = await service.deleteMessage(40);
+
+        expect(prisma.waMessage.update).toHaveBeenCalledTimes(1);
+        expect(prisma.waMessage.update.mock.calls[0][0].data.deletedAt).toBeInstanceOf(Date);
+        expect(prisma.waMessage.delete).not.toHaveBeenCalled(); // non-destruktif
+        expect(ev.emitMessage).toHaveBeenCalledWith(30, 7);
+        expect(res).toEqual({ ok: true });
+    });
+
+    it('idempoten: pesan yang sudah terhapus tak ditulis ulang', async () => {
+        const prisma = {
+            waMessage: {
+                findUnique: jest.fn().mockResolvedValue({ id: 41, conversationId: 30, channelId: 10, deletedAt: new Date() }),
+                update: jest.fn(),
+            },
+            waConversation: { findUnique: jest.fn() },
+        };
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any, mediaStoreMock() as any, {} as any, events() as any);
+
+        const res = await service.deleteMessage(41);
+
+        expect(prisma.waMessage.update).not.toHaveBeenCalled();
+        expect(res).toEqual({ ok: true, alreadyDeleted: true });
+    });
+
+    it('404 bila pesan tak ada', async () => {
+        const prisma = { waMessage: { findUnique: jest.fn().mockResolvedValue(null) } };
+        const service = new InboxService(prisma as any, {} as any, autoReplyMock() as any, mediaStoreMock() as any, {} as any, events() as any);
+
+        await expect(service.deleteMessage(999)).rejects.toThrow(/tidak ditemukan/i);
+    });
+});

@@ -2307,6 +2307,7 @@ model WaMessage {
   broadcastId    Int?            @map("broadcast_id") // pesan hasil broadcast (null = chat biasa)
   replyToId      Int?            @map("reply_to_id") // pesan yang dibalas/dikutip (self-relation)
   reactionsJson  Json?           @map("reactions_json") // { customer?: string, agent?: string } emoji reaksi
+  deletedAt      DateTime?       @map("deleted_at") // soft-delete: sembunyikan dari CRM (data tetap, non-destruktif)
   createdAt      DateTime        @default(now()) @map("created_at")
   updatedAt      DateTime        @updatedAt @map("updated_at")
 

@@ -3,13 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff, SlidersHorizontal, Play } from "lucide-react";
+import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff, SlidersHorizontal, Play, Trash2 } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
-    getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage,
+    getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage, deleteWaMessage,
     listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders,
     setWaContactName, waContactName, listWaCatalog, sendWaProduct,
     type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent, type WaCatalogProduct, type WaMessagePayload,
@@ -56,6 +56,35 @@ function timeAgo(iso: string | null): string {
 
 function clockTime(iso: string): string {
     return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Kunci hari kalender lokal (YYYY-M-D) untuk deteksi pergantian tanggal antar pesan.
+function dayKey(iso: string): string {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+// Label pemisah tanggal ala chat WA: "Hari Ini" / "Kemarin" / "Senin, 13 Agustus 2026".
+function dayLabel(iso: string): string {
+    const d = new Date(iso);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const that = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.round((today.getTime() - that.getTime()) / 86400000);
+    if (diffDays === 0) return "Hari Ini";
+    if (diffDays === 1) return "Kemarin";
+    return d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// Chip tanggal di tengah thread (seperti WhatsApp).
+function DateDivider({ iso }: { iso: string }) {
+    return (
+        <div className="flex justify-center my-2">
+            <span className="px-3 py-1 rounded-full bg-muted text-muted-foreground text-[11px] font-medium shadow-sm">
+                {dayLabel(iso)}
+            </span>
+        </div>
+    );
 }
 
 const MEDIA_TYPES = new Set<WaMessage["type"]>(["IMAGE", "STICKER", "VIDEO", "AUDIO", "DOCUMENT"]);
@@ -195,11 +224,13 @@ function QuotedContent({ msg }: { msg: { id: number; type: WaMessage["type"]; bo
     );
 }
 
-function BubbleActions({ m, out, onReply, onReact }: {
+function BubbleActions({ m, out, canAct, onReply, onReact, onDelete }: {
     m: WaMessage;
     out: boolean;
+    canAct: boolean; // reply/reaksi butuh ID WhatsApp; hapus (CRM) selalu boleh
     onReply: (m: WaMessage) => void;
     onReact: (id: number, emoji: string) => void;
+    onDelete: (m: WaMessage) => void;
 }) {
     const [open, setOpen] = useState(false);
     const wrapRef = useRef<HTMLDivElement>(null);
@@ -212,11 +243,18 @@ function BubbleActions({ m, out, onReply, onReact }: {
     const current = m.reactionsJson?.agent;
     return (
         <div ref={wrapRef} className={`relative flex items-center gap-0.5 self-center transition-opacity ${open ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
-            <button type="button" onClick={() => onReply(m)} title="Balas" className="p-1 rounded-full hover:bg-muted text-muted-foreground">
-                <CornerUpLeft className="w-3.5 h-3.5" />
-            </button>
-            <button type="button" onClick={() => setOpen((o) => !o)} title="Reaksi" className="p-1 rounded-full hover:bg-muted text-muted-foreground">
-                <Smile className="w-3.5 h-3.5" />
+            {canAct && (
+                <button type="button" onClick={() => onReply(m)} title="Balas" className="p-1 rounded-full hover:bg-muted text-muted-foreground">
+                    <CornerUpLeft className="w-3.5 h-3.5" />
+                </button>
+            )}
+            {canAct && (
+                <button type="button" onClick={() => setOpen((o) => !o)} title="Reaksi" className="p-1 rounded-full hover:bg-muted text-muted-foreground">
+                    <Smile className="w-3.5 h-3.5" />
+                </button>
+            )}
+            <button type="button" onClick={() => onDelete(m)} title="Hapus dari CRM" className="p-1 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500">
+                <Trash2 className="w-3.5 h-3.5" />
             </button>
             {open && (
                 <div className={`absolute bottom-full mb-1 ${out ? "right-0" : "left-0"} flex gap-0.5 bg-card border border-border rounded-full px-1.5 py-1 shadow-lg z-30`}>
@@ -310,10 +348,11 @@ function ProductBubble({ p, out }: { p: WaMessagePayload; out: boolean }) {
     );
 }
 
-function MessageBubble({ m, onReply, onReact, onImageClick }: {
+function MessageBubble({ m, onReply, onReact, onDelete, onImageClick }: {
     m: WaMessage;
     onReply: (m: WaMessage) => void;
     onReact: (id: number, emoji: string) => void;
+    onDelete: (m: WaMessage) => void;
     onImageClick: (id: number) => void;
 }) {
     const out = m.direction === "OUTBOUND";
@@ -321,9 +360,23 @@ function MessageBubble({ m, onReply, onReact, onImageClick }: {
     const reactionEmojis = [reactions.customer, reactions.agent].filter(Boolean) as string[];
     const canAct = !!m.waMessageId; // hanya pesan ber-ID WhatsApp yang bisa dibalas/direaksi
 
+    // Pesan yang dihapus dari CRM → tampil sebagai tombstone (seperti WhatsApp),
+    // tanpa media/reaksi/aksi. Data asli tetap tersimpan di server (non-destruktif).
+    if (m.deletedAt) {
+        return (
+            <div className={`flex items-end ${out ? "justify-end" : "justify-start"}`}>
+                <div className="max-w-[75%] rounded-2xl px-3 py-2 text-sm border border-dashed border-border bg-muted/40 text-muted-foreground italic flex items-center gap-1.5">
+                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>Pesan ini dihapus</span>
+                    <span className="text-[10px] not-italic opacity-60 ml-1">{clockTime(m.createdAt)}</span>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className={`group flex items-end gap-1 ${out ? "justify-end" : "justify-start"}`}>
-            {out && canAct && <BubbleActions m={m} out={out} onReply={onReply} onReact={onReact} />}
+            {out && <BubbleActions m={m} out={out} canAct={canAct} onReply={onReply} onReact={onReact} onDelete={onDelete} />}
             <div id={`wa-msg-${m.id}`} className="relative max-w-[75%] rounded-2xl transition-shadow">
                 <div className={`rounded-2xl px-3 py-2 text-sm shadow-sm ${out ? "bg-emerald-500 text-white rounded-br-sm" : "bg-card border border-border rounded-bl-sm"}`}>
                     {m.replyTo && (
@@ -365,7 +418,7 @@ function MessageBubble({ m, onReply, onReact, onImageClick }: {
                     </div>
                 )}
             </div>
-            {!out && canAct && <BubbleActions m={m} out={out} onReply={onReply} onReact={onReact} />}
+            {!out && <BubbleActions m={m} out={out} canAct={canAct} onReply={onReply} onReact={onReact} onDelete={onDelete} />}
         </div>
     );
 }
@@ -726,6 +779,29 @@ export default function WhatsappInboxPage() {
             alert(msg || "Gagal mengirim reaksi");
         },
     });
+
+    const deleteMut = useMutation({
+        mutationFn: (id: number) => deleteWaMessage(id),
+        // Optimistik: tandai terhapus di state lokal agar langsung jadi tombstone.
+        onMutate: (id: number) => {
+            setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, deletedAt: new Date().toISOString() } : m)));
+        },
+        onSuccess: () => {
+            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+            qc.invalidateQueries({ queryKey: ["wa-convos"] });
+        },
+        onError: (e: unknown) => {
+            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] }); // rollback via refetch
+            const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message;
+            alert(msg || "Gagal menghapus pesan");
+        },
+    });
+
+    const handleDeleteMessage = (m: WaMessage) => {
+        if (window.confirm("Hapus pesan ini dari CRM? Pesan tetap ada di WhatsApp pelanggan, hanya disembunyikan di sini.")) {
+            deleteMut.mutate(m.id);
+        }
+    };
 
     // Kirim: kalau ada lampiran → media (draft jadi caption), else teks biasa.
     const sendComposer = () => {
@@ -1137,15 +1213,22 @@ export default function WhatsappInboxPage() {
                             {!hasMoreOlder && messages.length > 0 && (
                                 <div className="text-center text-[11px] opacity-40 py-1">— awal percakapan —</div>
                             )}
-                            {messages.map((m) => (
-                                <MessageBubble
-                                    key={m.id}
-                                    m={m}
-                                    onReply={setReplyingTo}
-                                    onReact={(id, emoji) => reactMut.mutate({ id, emoji })}
-                                    onImageClick={setLightboxId}
-                                />
-                            ))}
+                            {messages.map((m, i) => {
+                                const prev = messages[i - 1];
+                                const showDate = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+                                return (
+                                    <div key={m.id}>
+                                        {showDate && <DateDivider iso={m.createdAt} />}
+                                        <MessageBubble
+                                            m={m}
+                                            onReply={setReplyingTo}
+                                            onReact={(id, emoji) => reactMut.mutate({ id, emoji })}
+                                            onDelete={handleDeleteMessage}
+                                            onImageClick={setLightboxId}
+                                        />
+                                    </div>
+                                );
+                            })}
                             <div ref={bottomRef} />
                         </div>
 

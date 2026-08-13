@@ -695,4 +695,11 @@ export class WhatsappCloudController {
     react(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { emoji?: string }) {
         return this.inbox.reactToMessage(id, req.user.userId, body?.emoji ?? '');
     }
+
+    /** Hapus pesan dari CRM (soft-delete → tampil sebagai "pesan dihapus", data tetap tersimpan). */
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @Delete('messages/:id')
+    deleteMessage(@Param('id', ParseIntPipe) id: number) {
+        return this.inbox.deleteMessage(id);
+    }
 }

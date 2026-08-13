@@ -870,6 +870,31 @@ export class InboxService {
         });
     }
 
+    /**
+     * Hapus pesan DARI CRM (soft-delete, non-destruktif). Baris tetap ada di DB
+     * (audit/riwayat), hanya ditandai `deletedAt` sehingga ditampilkan sebagai
+     * tombstone "pesan dihapus" di inbox. CATATAN: Meta Cloud API tak menyediakan
+     * penghapusan pesan yang sudah terkirim di HP pelanggan — ini hanya di sisi CRM.
+     */
+    async deleteMessage(messageId: number) {
+        const m = await this.prisma.waMessage.findUnique({
+            where: { id: messageId },
+            select: { id: true, conversationId: true, channelId: true, deletedAt: true },
+        });
+        if (!m) throw new NotFoundException('Pesan tidak ditemukan');
+        if (m.deletedAt) return { ok: true, alreadyDeleted: true };
+        await this.prisma.waMessage.update({
+            where: { id: messageId },
+            data: { deletedAt: new Date() },
+        });
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: m.conversationId },
+            select: { channel: { select: { branchId: true } } },
+        });
+        this.waEvents.emitMessage(m.conversationId, conv?.channel?.branchId ?? null);
+        return { ok: true };
+    }
+
     /** Balas dengan lampiran media (gambar/dokumen/audio/video) — sah hanya di jendela 24 jam. */
     async replyMedia(
         conversationId: number,
