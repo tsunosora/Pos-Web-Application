@@ -242,8 +242,14 @@ export class MetaAdsService {
         const ads = await this.graphGetAll(`${act}/ads?fields=id,campaign_id&limit=500`, 20);
         const adToCampaign = new Map<string, string>();
         for (const ad of ads) if (ad?.id && ad?.campaign_id) adToCampaign.set(String(ad.id), String(ad.campaign_id));
+        // Nama campaign (id → name) utk di-cache ke MetaAdMap → dipakai label chat CTWA di inbox WA.
+        const campaignNames = new Map<string, string>();
+        for (const c of campaigns) if (c?.id && c?.name) campaignNames.set(String(c.id), String(c.name));
+        for (const ins of insights)
+            if (ins?.campaign_id && ins?.campaign_name && !campaignNames.has(String(ins.campaign_id)))
+                campaignNames.set(String(ins.campaign_id), String(ins.campaign_name));
         // Segarkan cache MetaAdMap (dipakai webhook utk resolve label lead cepat).
-        await this.upsertAdMap(adToCampaign, act);
+        await this.upsertAdMap(adToCampaign, act, campaignNames);
 
         // 4) Statistik lead CRM (leads/closings/omzet) per adId + per cabang.
         const stats = await this.computeLeadStats(since, until);
@@ -409,14 +415,19 @@ export class MetaAdsService {
     }
 
     /** Upsert cache MetaAdMap (best-effort, jangan gagalkan overview). */
-    private async upsertAdMap(adToCampaign: Map<string, string>, adAccountId: string): Promise<void> {
+    private async upsertAdMap(
+        adToCampaign: Map<string, string>,
+        adAccountId: string,
+        campaignNames?: Map<string, string>,
+    ): Promise<void> {
         try {
             const entries = [...adToCampaign.entries()];
             for (const [adId, campaignId] of entries) {
+                const campaignName = campaignNames?.get(campaignId);
                 await this.prisma.metaAdMap.upsert({
                     where: { adId },
-                    create: { adId, campaignId, adAccountId },
-                    update: { campaignId, adAccountId },
+                    create: { adId, campaignId, adAccountId, ...(campaignName ? { campaignName } : {}) },
+                    update: { campaignId, adAccountId, ...(campaignName ? { campaignName } : {}) },
                 });
             }
         } catch (e) {

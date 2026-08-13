@@ -320,9 +320,11 @@ export class InboxService {
             // meta-ads (saat lihat dashboard / assign label); miss = label menyusul via backfill.
             let adLabelId: number | null = null;
             let labelBranchId: number | null = null;
+            let campaignName: string | null = null;
             if (adId) {
-                const map = await this.prisma.metaAdMap.findUnique({ where: { adId }, select: { campaignId: true } });
+                const map = await this.prisma.metaAdMap.findUnique({ where: { adId }, select: { campaignId: true, campaignName: true } });
                 if (map) {
+                    campaignName = map.campaignName ?? null;
                     const link = await this.prisma.metaCampaignLabel.findUnique({
                         where: { campaignId: map.campaignId },
                         select: { adLabelId: true, label: { select: { branchId: true } } },
@@ -344,6 +346,7 @@ export class InboxService {
                     adId,
                     ctwaClid,
                     adReferral: ref,
+                    ...(campaignName ? { adCampaignName: campaignName } : {}),
                     ...(adLabelId != null ? { adLabelId } : {}),
                     ...(effectiveBranchId != null ? { branchId: effectiveBranchId } : {}),
                 },
@@ -356,9 +359,64 @@ export class InboxService {
                     meta: { source: 'meta-ads', adId, ctwaClid, sourceType: ref.source_type ?? null },
                 },
             });
+            // Nama campaign belum ada di cache → resolusi live (best-effort, fire-and-forget)
+            // agar chat langsung berlabel campaign tanpa menunggu owner buka dashboard iklan.
+            if (adId && !campaignName) {
+                void this.resolveAdCampaignName(adId, leadId, effectiveBranchId);
+            }
         } catch (e) {
             // Atribusi bersifat best-effort; jangan gagalkan pemrosesan webhook.
             this.logger?.warn?.(`applyAdReferral gagal untuk lead #${leadId}: ${e}`);
+        }
+    }
+
+    /**
+     * Resolusi nama campaign Meta dari adId (Click-to-WhatsApp) → cache MetaAdMap +
+     * denormal ke Lead.adCampaignName, agar chat langsung berlabel campaign tanpa
+     * menunggu owner membuka dashboard iklan. FIRE-AND-FORGET (dipanggil tanpa await):
+     * satu panggilan Graph ringan, reuse token WA (scope ads_read). Best-effort —
+     * kegagalan tak mempengaruhi pemrosesan webhook.
+     */
+    private async resolveAdCampaignName(adId: string, leadId: number, branchId: number | null): Promise<void> {
+        try {
+            const fields = encodeURIComponent('name,campaign{id,name}');
+            const res = await this.cloud.graphGet(`${adId}?fields=${fields}`);
+            const campaignId: string | null = res?.campaign?.id ? String(res.campaign.id).slice(0, 64) : null;
+            const campaignName: string | null = res?.campaign?.name ? String(res.campaign.name).slice(0, 200) : null;
+            if (!campaignId && !campaignName) return;
+
+            if (campaignId) {
+                await this.prisma.metaAdMap.upsert({
+                    where: { adId },
+                    create: { adId, campaignId, campaignName },
+                    update: { campaignId, ...(campaignName ? { campaignName } : {}) },
+                });
+            }
+            // Campaign ini mungkin sudah punya label custom (per campaign) → tandai lead
+            // bila belum berlabel (idempoten, tak menimpa label yang sudah di-set).
+            let adLabelId: number | null = null;
+            let labelBranchId: number | null = null;
+            if (campaignId) {
+                const link = await this.prisma.metaCampaignLabel.findUnique({
+                    where: { campaignId },
+                    select: { adLabelId: true, label: { select: { branchId: true } } },
+                });
+                if (link) { adLabelId = link.adLabelId; labelBranchId = link.label?.branchId ?? null; }
+            }
+            const cur = await this.prisma.lead.findUnique({ where: { id: leadId }, select: { adLabelId: true } });
+            const setLabel = adLabelId != null && cur?.adLabelId == null;
+            await this.prisma.lead.update({
+                where: { id: leadId },
+                data: {
+                    ...(campaignName ? { adCampaignName: campaignName } : {}),
+                    ...(setLabel ? { adLabelId } : {}),
+                    ...(setLabel && labelBranchId != null ? { branchId: labelBranchId } : {}),
+                },
+            });
+            // Pemicu refetch inbox → badge campaign langsung muncul di UI.
+            this.waEvents.emitConversation(branchId ?? null);
+        } catch (e) {
+            this.logger?.warn?.(`resolveAdCampaignName gagal (ad ${adId}): ${e}`);
         }
     }
 
@@ -648,7 +706,7 @@ export class InboxService {
         leadId: true, customerId: true, optedOut: true,
         // Lead tertaut → tampilkan tahap pipeline + tautan di inbox (koherensi CRM).
         // sourceDetail/adId → badge "Dari Iklan" saat prospek datang dari iklan Meta.
-        lead: { select: { id: true, name: true, status: true, source: true, sourceDetail: true, adId: true, adLabel: { select: { id: true, name: true } } } },
+        lead: { select: { id: true, name: true, status: true, source: true, sourceDetail: true, adId: true, adCampaignName: true, adLabel: { select: { id: true, name: true } } } },
         // Customer tertaut → prefill alamat saat "Buat SO" dari chat.
         customer: { select: { id: true, name: true, address: true } },
     };

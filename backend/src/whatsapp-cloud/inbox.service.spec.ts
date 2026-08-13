@@ -317,3 +317,58 @@ describe('InboxService.deleteMessage — soft-delete (non-destruktif)', () => {
         await expect(service.deleteMessage(999)).rejects.toThrow(/tidak ditemukan/i);
     });
 });
+
+describe('InboxService.resolveAdCampaignName — auto-label campaign CTWA', () => {
+    const events = () => ({ emitMessage: jest.fn(), emitConversation: jest.fn() });
+
+    it('fetch campaign dari Meta → cache MetaAdMap + isi Lead.adCampaignName', async () => {
+        const prisma = {
+            metaAdMap: { upsert: jest.fn().mockResolvedValue({}) },
+            metaCampaignLabel: { findUnique: jest.fn().mockResolvedValue(null) }, // belum ada label custom
+            lead: {
+                findUnique: jest.fn().mockResolvedValue({ adLabelId: null }),
+                update: jest.fn().mockResolvedValue({}),
+            },
+        };
+        // Graph balikan objek ad → campaign{id,name}
+        const cloud = { graphGet: jest.fn().mockResolvedValue({ name: 'Ad Kaos', campaign: { id: 'C123', name: 'Promo Ramadhan' } }) };
+        const ev = events();
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any, mediaStoreMock() as any, {} as any, ev as any);
+
+        await (service as any).resolveAdCampaignName('AD_9', 5, 7);
+
+        // cache adId→campaign(+nama)
+        expect(prisma.metaAdMap.upsert).toHaveBeenCalledTimes(1);
+        expect(prisma.metaAdMap.upsert.mock.calls[0][0].create).toMatchObject({ adId: 'AD_9', campaignId: 'C123', campaignName: 'Promo Ramadhan' });
+        // denormal ke lead
+        expect(prisma.lead.update.mock.calls[0][0].data).toMatchObject({ adCampaignName: 'Promo Ramadhan' });
+        // picu refetch inbox
+        expect(ev.emitConversation).toHaveBeenCalledWith(7);
+    });
+
+    it('bila campaign punya label custom & lead belum berlabel → set adLabelId', async () => {
+        const prisma = {
+            metaAdMap: { upsert: jest.fn().mockResolvedValue({}) },
+            metaCampaignLabel: { findUnique: jest.fn().mockResolvedValue({ adLabelId: 99, label: { branchId: 3 } }) },
+            lead: {
+                findUnique: jest.fn().mockResolvedValue({ adLabelId: null }),
+                update: jest.fn().mockResolvedValue({}),
+            },
+        };
+        const cloud = { graphGet: jest.fn().mockResolvedValue({ campaign: { id: 'C1', name: 'Camp' } }) };
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any, mediaStoreMock() as any, {} as any, events() as any);
+
+        await (service as any).resolveAdCampaignName('AD_1', 5, null);
+
+        expect(prisma.lead.update.mock.calls[0][0].data).toMatchObject({ adCampaignName: 'Camp', adLabelId: 99, branchId: 3 });
+    });
+
+    it('best-effort: error Graph tak melempar (fire-and-forget aman)', async () => {
+        const prisma = { metaAdMap: { upsert: jest.fn() }, metaCampaignLabel: { findUnique: jest.fn() }, lead: { findUnique: jest.fn(), update: jest.fn() } };
+        const cloud = { graphGet: jest.fn().mockRejectedValue(new Error('token ditolak')) };
+        const service = new InboxService(prisma as any, cloud as any, autoReplyMock() as any, mediaStoreMock() as any, {} as any, events() as any);
+
+        await expect((service as any).resolveAdCampaignName('AD_X', 5, 1)).resolves.toBeUndefined();
+        expect(prisma.lead.update).not.toHaveBeenCalled();
+    });
+});

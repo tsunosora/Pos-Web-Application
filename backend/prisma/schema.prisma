@@ -1895,6 +1895,7 @@ model Lead {
   ctwaClid               String?    @map("ctwa_clid") @db.VarChar(512)
   adId                   String?    @map("ad_id") @db.VarChar(64)
   adReferral             Json?      @map("ad_referral")
+  adCampaignName         String?    @map("ad_campaign_name") @db.VarChar(200) // nama campaign Meta (denormal, utk label chat CTWA)
   adLabelId              Int?       @map("ad_label_id") // label custom iklan (per campaign) → pisah cabang/perusahaan
   status                 LeadStatus @default(NEW)
   level                  LeadLevel  @default(WARM)
@@ -2000,11 +2001,12 @@ model MetaCampaignLabel {
 // resolve label lead tanpa panggil Meta tiap pesan. Diisi saat lihat dashboard iklan
 // atau saat assign label campaign.
 model MetaAdMap {
-  id          Int      @id @default(autoincrement())
-  adId        String   @unique @map("ad_id") @db.VarChar(64)
-  campaignId  String   @map("campaign_id") @db.VarChar(64)
-  adAccountId String?  @map("ad_account_id") @db.VarChar(64)
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  adId         String   @unique @map("ad_id") @db.VarChar(64)
+  campaignId   String   @map("campaign_id") @db.VarChar(64)
+  campaignName String?  @map("campaign_name") @db.VarChar(200) // nama campaign Meta (cache) → label chat CTWA
+  adAccountId  String?  @map("ad_account_id") @db.VarChar(64)
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([campaignId])
   @@map("meta_ad_maps")
