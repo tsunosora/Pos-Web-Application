@@ -25,7 +25,7 @@ const fmtNum = (n: number | null | undefined) => (n == null ? "—" : Number(n).
 const fmtX = (n: number | null | undefined) => (n == null ? "—" : `${n.toFixed(2)}×`);
 const fmtPct = (n: number | null | undefined) => (n == null ? "—" : `${Number(n).toFixed(2)}%`);
 
-// Warna KPI (standar Rudi): CTR ≥2%, ROAS ≥4×, CPR ≤ patokan (profit×5%).
+// Warna KPI (standar): CTR ≥2%, ROAS ≥4×, CPR ≤ patokan (profit×5%).
 const good = "text-emerald-600 dark:text-emerald-400";
 const bad = "text-red-600 dark:text-red-400";
 const ctrTone = (c: number) => (c >= 2 ? good : bad);
@@ -149,7 +149,7 @@ export default function OwnerAdsPage() {
                     <Megaphone className="h-6 w-6 text-sky-500" />
                     <div>
                         <h1 className="text-lg font-bold leading-tight">Iklan Meta (Ads Management)</h1>
-                        <p className="text-xs text-muted-foreground">KPI Rudi: CTR ≥2% · ROAS ≥4× · CPR ≤ profit×5% · omzet dari closing nyata</p>
+                        <p className="text-xs text-muted-foreground">Standar KPI: CTR ≥2% · ROAS ≥4× · CPR ≤ profit×5% · omzet dari closing nyata</p>
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -223,7 +223,7 @@ export default function OwnerAdsPage() {
 
             {data?.account && (
                 <>
-                    {/* KPI cards (standar Rudi) */}
+                    {/* KPI cards */}
                     <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
                         <StatCard icon={Wallet} accent="text-rose-500" label="Belanja Iklan" value={fmtMoney(data.totals.spend, currency)} hint={`${dayjs(data.since).format("DD MMM")} – ${dayjs(data.until).format("DD MMM YYYY")}`} />
                         <StatCard icon={DollarSign} accent="text-emerald-500" label="Omzet (closing)" value={fmtMoney(data.totals.omzet, currency)} hint={`${fmtNum(data.totals.closings)} closing`} />
