@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface WaSendResult {
@@ -123,7 +123,12 @@ export class CloudApiService implements OnModuleInit {
     /** Panggilan Graph API generik dengan penanganan error terbaca. */
     private async graph(method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<any> {
         if (!this.token) {
-            throw new Error('WA_ACCESS_TOKEN belum diset');
+            // HttpException (bukan Error biasa) supaya pesan sampai ke UI, bukan
+            // tersamar jadi "Internal server error" (500) oleh NestJS.
+            throw new HttpException(
+                'Token WhatsApp (WA_ACCESS_TOKEN) belum diset / kosong di server.',
+                HttpStatus.SERVICE_UNAVAILABLE,
+            );
         }
         const res = await this.fetchTimeout(this.url(path), {
             method,
@@ -139,9 +144,15 @@ export class CloudApiService implements OnModuleInit {
             // Utamakan pesan ramah Meta (error_user_msg) → jauh lebih jelas dari "Invalid parameter".
             const friendly = err?.error_user_msg || err?.error_user_title;
             const detail = friendly || err?.message || res.statusText || 'unknown';
-            const code = !friendly && err?.code != null ? ` (code ${err.code})` : '';
+            const code = err?.code != null ? ` (code ${err.code})` : '';
             this.logger.warn(`Graph API ${res.status} ${method} ${path}: ${detail}${code}`);
-            throw new Error(friendly ? detail : `WhatsApp Cloud API ${res.status}: ${detail}${code}`);
+            // Lempar sebagai HttpException 502 agar ALASAN ASLI Meta tampil di toast
+            // frontend (dulu: throw Error biasa → NestJS menyamarkan jadi 500
+            // "Internal server error" sehingga penyebab tak terlihat).
+            throw new HttpException(
+                `WhatsApp: ${detail}${code}`,
+                HttpStatus.BAD_GATEWAY,
+            );
         }
         return json;
     }

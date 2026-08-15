@@ -8,13 +8,35 @@ import {
   Param,
   Query,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
+  BadRequestException,
+  ForbiddenException,
   Req,
   ParseIntPipe,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { compressImage } from '../common/utils/compress-image.util';
 import { TaskBoardService } from './task-board.service';
+
+// Penyimpanan lampiran gambar tugas — sama pola dengan upload produk.
+const taskImageStorage = diskStorage({
+  destination: './public/uploads',
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `task-${uniqueSuffix}${extname(file.originalname)}`);
+  },
+});
+const taskImageFilter = (_req: any, file: any, cb: any) => {
+  if (!file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp)$/))
+    return cb(new BadRequestException('Hanya berkas gambar yang diizinkan.'), false);
+  cb(null, true);
+};
 import {
   CreateScheduleDto,
   UpdateScheduleDto,
@@ -80,6 +102,28 @@ export class TaskBoardController {
       userId: req.user.userId,
       assigneeId: assigneeId ? Number(assigneeId) : undefined,
     });
+  }
+
+  // Upload lampiran gambar tugas (multi, maks 6) → kembalikan URL relatif.
+  // Owner/Manajer saja (sama dg yang boleh membuat tugas).
+  @Post('upload-images')
+  @UseInterceptors(
+    FilesInterceptor('images', 6, {
+      storage: taskImageStorage,
+      fileFilter: taskImageFilter,
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  async uploadImages(
+    @CurrentBranch() ctx: BranchContext,
+    @UploadedFiles() files: Express.Multer.File[],
+  ) {
+    if (!this.svc.canAssign(ctx))
+      throw new ForbiddenException('Hanya owner/manajer yang boleh melampirkan gambar tugas.');
+    if (!files || files.length === 0)
+      throw new BadRequestException('Tidak ada berkas gambar.');
+    await Promise.all(files.map((f) => compressImage(f.path)));
+    return { urls: files.map((f) => `/uploads/${f.filename}`) };
   }
 
   @Post('items')

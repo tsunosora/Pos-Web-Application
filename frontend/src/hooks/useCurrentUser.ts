@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { getMe } from '@/lib/api';
+import { resolveAllowedHrefs } from '@/components/layout/nav-config';
 
 const OWNER_ROLE_NAMES = ['owner', 'superadmin', 'super_admin', 'super admin'];
 
@@ -65,5 +66,14 @@ export function useCurrentUser() {
     const branchName = data?.branch?.name ?? null;
     const branchCode = data?.branch?.code ?? null;
 
-    return { currentUser: data, isManager, isOwner, isDesigner, isOperator, canAssignTasks, branchId, branchName, branchCode };
+    const roleName = data?.role?.name ?? null;
+    const menuAccess = data?.role?.menuAccess ?? null;
+
+    // Set href menu yang boleh dilihat user (null = lihat semua, utk owner/manajer).
+    const navAllowed = useMemo(
+        () => resolveAllowedHrefs({ isOwner, isManager, roleName, menuAccess }),
+        [isOwner, isManager, roleName, menuAccess],
+    );
+
+    return { currentUser: data, isManager, isOwner, isDesigner, isOperator, canAssignTasks, branchId, branchName, branchCode, roleName, menuAccess, navAllowed };
 }

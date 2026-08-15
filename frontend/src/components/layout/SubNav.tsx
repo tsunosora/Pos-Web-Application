@@ -17,7 +17,7 @@ import { useUIStore } from "@/store/ui-store";
  */
 export function SubNav({ mode = "inline" }: { mode?: "inline" | "strip" }) {
     const pathname = usePathname();
-    const { isManager, isOwner } = useCurrentUser();
+    const { isManager, isOwner, navAllowed } = useCurrentUser();
     const { getBadge } = useNavBadges();
     const subnavOverflow = useUIStore((s) => s.subnavOverflow);
     const setSubnavOverflow = useUIStore((s) => s.setSubnavOverflow);
@@ -48,7 +48,7 @@ export function SubNav({ mode = "inline" }: { mode?: "inline" | "strip" }) {
     // Inline (desktop): tetap kirim spacer agar aksi kanan tetap di kanan.
     if (mode === "inline" && !section) return <div className="flex-1" />;
 
-    const items = section!.items.filter(it => canSeeNavItem(it, { isManager, isOwner }));
+    const items = section!.items.filter(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed }));
     const activeHref = items
         .filter(it => isItemActive(pathname, it.href))
         .sort((a, b) => b.href.length - a.href.length)[0]?.href;

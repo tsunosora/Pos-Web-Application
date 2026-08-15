@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getTaskItems, moveTaskItem, updateTaskItem, createTaskItem, deleteTaskItem,
+    uploadTaskImages, resolvePhotoUrl,
     type TaskItem, type TaskStatus, type TaskPriority,
 } from "@/lib/api";
 import { TaskKanbanBoard, PRIORITY_LABEL } from "@/components/tugas/TaskKanbanBoard";
@@ -12,7 +13,7 @@ import { TargetSelector, targetPayload, targetValid, emptyTarget, type TaskTarge
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, Plus, CalendarClock, Loader2, X, Trash2, CheckCircle2 } from "lucide-react";
+import { ClipboardList, Plus, CalendarClock, Loader2, X, Trash2, CheckCircle2, ImagePlus } from "lucide-react";
 import dayjs from "dayjs";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -157,6 +158,20 @@ function TaskDetailModal({ item, canAssignTasks, onClose, onSaved }: {
                 <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-5 w-5" /></button>
             </div>
             {item.description && <p className="text-sm text-muted-foreground mb-3 whitespace-pre-wrap">{item.description}</p>}
+            {item.imageUrls && item.imageUrls.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                    {item.imageUrls.map((u) => {
+                        const src = resolvePhotoUrl(u) || u;
+                        return (
+                            <a key={u} href={src} target="_blank" rel="noopener noreferrer"
+                                className="h-20 w-20 rounded-md overflow-hidden border border-border block hover:opacity-90 transition">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={src} alt="Lampiran tugas" className="h-full w-full object-cover" />
+                            </a>
+                        );
+                    })}
+                </div>
+            )}
             <div className="text-xs text-muted-foreground space-y-1 mb-4">
                 <div>Penanggung jawab: <span className="text-foreground">{item.assignee?.name || "—"}</span></div>
                 <div>Prioritas: <span className="text-foreground">{PRIORITY_LABEL[item.priority]}</span></div>
@@ -213,15 +228,30 @@ function CreateTaskModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
     const [priority, setPriority] = useState<TaskPriority>("NORMAL");
     const [dueDate, setDueDate] = useState("");
     const [target, setTarget] = useState<TaskTarget>(emptyTarget());
+    const [files, setFiles] = useState<File[]>([]);
+
+    const previews = useMemo(() => files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })), [files]);
+
+    const addFiles = (list: FileList | null) => {
+        if (!list) return;
+        const picked = Array.from(list).filter((f) => f.type.startsWith("image/"));
+        setFiles((prev) => [...prev, ...picked].slice(0, 6)); // maks 6, sesuai backend
+    };
+    const removeFile = (i: number) => setFiles((prev) => prev.filter((_, idx) => idx !== i));
 
     const createMut = useMutation({
-        mutationFn: () => createTaskItem({
-            title,
-            description: description || null,
-            priority,
-            dueDate: dueDate ? new Date(dueDate).toISOString() : null,
-            ...targetPayload(target),
-        } as Partial<TaskItem>),
+        mutationFn: async () => {
+            let imageUrls: string[] | undefined;
+            if (files.length) imageUrls = (await uploadTaskImages(files)).urls;
+            return createTaskItem({
+                title,
+                description: description || null,
+                priority,
+                dueDate: dueDate ? new Date(dueDate).toISOString() : null,
+                imageUrls,
+                ...targetPayload(target),
+            } as Partial<TaskItem>);
+        },
         onSuccess: onSaved,
     });
 
@@ -241,6 +271,28 @@ function CreateTaskModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
                     <label className="block text-xs font-medium text-foreground mb-1">Deskripsi</label>
                     <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2}
                         className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
+                </div>
+                <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">Gambar brief / contoh (opsional, maks 6)</label>
+                    <div className="flex flex-wrap gap-2">
+                        {previews.map((p, i) => (
+                            <div key={p.url} className="relative h-16 w-16 rounded-md overflow-hidden border border-border group">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={p.url} alt={p.name} className="h-full w-full object-cover" />
+                                <button type="button" onClick={() => removeFile(i)}
+                                    className="absolute top-0.5 right-0.5 rounded-full bg-black/60 p-0.5 text-white opacity-0 group-hover:opacity-100 transition">
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </div>
+                        ))}
+                        {files.length < 6 && (
+                            <label className="h-16 w-16 flex flex-col items-center justify-center rounded-md border border-dashed border-border text-muted-foreground cursor-pointer hover:bg-accent/50 transition">
+                                <ImagePlus className="h-5 w-5" />
+                                <input type="file" accept="image/*" multiple className="hidden"
+                                    onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+                            </label>
+                        )}
+                    </div>
                 </div>
                 <TargetSelector target={target} setTarget={setTarget} />
                 <div className="grid grid-cols-2 gap-3">

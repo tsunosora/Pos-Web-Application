@@ -18,6 +18,7 @@ export interface TaskItem {
   assignee?: { id: number; name: string | null } | null;
   completedAt: string | null;
   verifiedByOwnerAt: string | null;
+  imageUrls?: string[]; // lampiran gambar brief (URL relatif)
 }
 
 export interface TaskSchedule {
@@ -72,6 +73,17 @@ export const getTaskItems = async (params?: { mine?: boolean; assigneeId?: numbe
 
 export const createTaskItem = async (data: Partial<TaskItem>) =>
   (await api.post('/task-board/items', data)).data;
+
+// Upload lampiran gambar tugas (multi) → daftar URL relatif.
+export const uploadTaskImages = async (files: File[]) => {
+  const fd = new FormData();
+  files.forEach((f) => fd.append('images', f));
+  return (
+    await api.post('/task-board/upload-images', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  ).data as { urls: string[] };
+};
 
 export const updateTaskItem = async (id: number, data: Record<string, unknown>) =>
   (await api.patch(`/task-board/items/${id}`, data)).data;

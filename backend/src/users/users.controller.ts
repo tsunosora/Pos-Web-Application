@@ -66,4 +66,13 @@ export class UsersController {
   deleteRole(@Param('id') id: string) {
     return this.usersService.deleteRole(+id);
   }
+
+  // Atur menu yang boleh dilihat role tsb. body: { hrefs: string[] | null }
+  // (null = reset ke preset divisi bawaan).
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
+  @Patch('roles/:id/menu-access')
+  updateRoleMenuAccess(@Param('id') id: string, @Body() data: { hrefs: string[] | null }) {
+    return this.usersService.updateRoleMenuAccess(+id, data?.hrefs ?? null);
+  }
 }

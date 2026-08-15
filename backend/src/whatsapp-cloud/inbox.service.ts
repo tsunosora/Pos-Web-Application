@@ -1059,6 +1059,7 @@ export class InboxService {
     async startConversation(userId: number, input: StartConversationInput): Promise<{ conversationId: number }> {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: input.channelId } });
         if (!channel || !channel.isActive) throw new BadRequestException('Channel tidak ditemukan / nonaktif');
+        if (!channel.phoneNumberId) throw new BadRequestException('Channel belum lengkap: phoneNumberId kosong. Lengkapi di Pengaturan Channel.');
         if (!input.template?.name) throw new BadRequestException('Template pembuka wajib dipilih');
 
         const waId = toWaPhone(input.phone);
@@ -1116,6 +1117,9 @@ export class InboxService {
             where: { channelId: channel.id, contactId: contact.id, status: { not: 'CLOSED' } },
             orderBy: { createdAt: 'desc' },
         });
+        // Tandai bila percakapan BARU dibuat di panggilan ini → agar bisa dibersihkan
+        // kalau template gagal terkirim (jangan tinggalkan chat kosong "hantu").
+        const createdNow = !conv;
         if (!conv) {
             conv = await this.prisma.waConversation.create({
                 data: {
@@ -1128,13 +1132,23 @@ export class InboxService {
             });
         }
 
-        const { waMessageId } = await this.cloud.sendTemplate(
-            channel.phoneNumberId,
-            contact.waId,
-            input.template.name,
-            input.template.language ?? 'id',
-            input.template.components ?? [],
-        );
+        let waMessageId: string | null = null;
+        try {
+            ({ waMessageId } = await this.cloud.sendTemplate(
+                channel.phoneNumberId,
+                contact.waId,
+                input.template.name,
+                input.template.language ?? 'id',
+                input.template.components ?? [],
+            ));
+        } catch (e) {
+            // Kirim gagal (mis. Meta menolak template/token). Bersihkan percakapan
+            // kosong yang baru dibuat, lalu teruskan error asli ke UI.
+            if (createdNow && conv) {
+                await this.prisma.waConversation.delete({ where: { id: conv.id } }).catch(() => {});
+            }
+            throw e;
+        }
         await this.persistOutbound(conv, userId, {
             waMessageId,
             type: WaMessageType.TEMPLATE,

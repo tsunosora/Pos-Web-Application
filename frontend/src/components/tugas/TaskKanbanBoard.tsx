@@ -10,7 +10,7 @@ import {
 } from "@dnd-kit/core";
 import type { TaskItem, TaskStatus, TaskPriority } from "@/lib/api/task-board";
 import { badgeToneClass, type BadgeTone } from "@/components/ui/status-badge";
-import { GripVertical, User, CalendarClock, CheckCircle2, Repeat, AlertTriangle } from "lucide-react";
+import { GripVertical, User, CalendarClock, CheckCircle2, Repeat, AlertTriangle, ImageIcon } from "lucide-react";
 import dayjs from "dayjs";
 
 const COLUMNS: { id: TaskStatus; label: string; color: string; bg: string }[] = [
@@ -184,6 +184,11 @@ const TaskCardView = memo(function TaskCardView({
                         {item.scheduleId != null && (
                             <span className="inline-flex items-center gap-0.5 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
                                 <Repeat className="h-2.5 w-2.5" /> Rutin
+                            </span>
+                        )}
+                        {item.imageUrls && item.imageUrls.length > 0 && (
+                            <span className="inline-flex items-center gap-0.5 rounded-full border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                                <ImageIcon className="h-2.5 w-2.5" /> {item.imageUrls.length}
                             </span>
                         )}
                     </div>

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -240,7 +241,7 @@ export class TaskBoardService {
   }
 
   // ---- BOARD (kartu) ----
-  listItems(
+  async listItems(
     ctx: BranchContext,
     opts: { assigneeId?: number; mine?: boolean; userId?: number },
   ) {
@@ -249,7 +250,7 @@ export class TaskBoardService {
     if (!canAssign || (opts.mine && opts.userId)) {
       // Non-manajer (atau mode "Tugas Saya"): HANYA tugas miliknya — privat,
       // tugas personal karyawan lain tidak terlihat. Apa pun cabangnya.
-      if (!opts.userId) return Promise.resolve([]);
+      if (!opts.userId) return [];
       where.assigneeId = opts.userId;
     } else {
       // Owner/Manajer lihat semua di cabang aktif.
@@ -257,11 +258,12 @@ export class TaskBoardService {
       else if (ctx.branchId != null) where.branchId = ctx.branchId;
       if (opts.assigneeId) where.assigneeId = opts.assigneeId;
     }
-    return this.db.taskItem.findMany({
+    const rows = await this.db.taskItem.findMany({
       where,
       orderBy: [{ status: 'asc' }, { index: 'asc' }, { dueDate: 'asc' }],
       include: { assignee: { select: { id: true, name: true } } },
     });
+    return rows.map((r: any) => ({ ...r, imageUrls: this.parseImages(r.imageUrls) }));
   }
 
   async createItem(ctx: BranchContext, dto: CreateTaskItemDto, userId: number) {
@@ -271,6 +273,18 @@ export class TaskBoardService {
       : ctx.branchId;
     // Ekspansi target → 1 kartu PERSONAL per orang (grup/divisi/semua).
     const targets = await this.resolveTargetUserIds(dto, fallback);
+    // Bila target berupa grup/divisi/semua tapi tak ada karyawan aktif, jangan
+    // diam-diam membuat 0 kartu — beri tahu pemberi tugas.
+    const isBroadcast = !!(dto.groupId || dto.targetRole || dto.targetAll);
+    if (isBroadcast && targets.filter((t) => t != null).length === 0) {
+      throw new BadRequestException(
+        'Tidak ada karyawan aktif pada target ini. Tambah anggota grup atau pilih penerima lain.',
+      );
+    }
+    const imageUrls =
+      dto.imageUrls && dto.imageUrls.length
+        ? JSON.stringify(dto.imageUrls)
+        : null;
     const items: any[] = [];
     for (const assigneeId of targets) {
       const branchId = await this.branchForAssignee(assigneeId, fallback);
@@ -284,6 +298,7 @@ export class TaskBoardService {
             status: 'TODO',
             periodKey: null,
             dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+            imageUrls,
             assigneeId,
             branchId,
             createdById: userId,
@@ -292,6 +307,17 @@ export class TaskBoardService {
       );
     }
     return { created: items.length, items };
+  }
+
+  /** Parse kolom imageUrls (JSON string) → array URL untuk response. */
+  private parseImages(raw: any): string[] {
+    if (!raw) return [];
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((s) => typeof s === 'string') : [];
+    } catch {
+      return [];
+    }
   }
 
   private async getItemScoped(
@@ -321,6 +347,13 @@ export class TaskBoardService {
     const it = await this.getItemScoped(ctx, id, userId);
     const data: any = { ...dto };
     delete data.verified;
+    if (dto.imageUrls !== undefined) {
+      // Hanya pemberi tugas (owner/manajer) boleh mengubah lampiran brief.
+      this.assertManager(ctx);
+      data.imageUrls = dto.imageUrls?.length
+        ? JSON.stringify(dto.imageUrls)
+        : null;
+    }
     if (dto.status && dto.status !== it.status) {
       if (dto.status === 'DONE') {
         data.completedAt = new Date();

@@ -16,6 +16,7 @@ import {
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { extractVarIndices, buildTemplateComponents, fillTemplatePreview, varLabel } from "@/lib/wa-template";
 
 const STATUS_TABS: Array<{ key: WaConversationStatus | "ALL"; label: string }> = [
     { key: "ALL", label: "Semua" },
@@ -908,6 +909,17 @@ export default function WhatsappInboxPage() {
         enabled: selectedId != null,
         select: (all: WaTemplate[]) => all.filter((t) => t.status === "APPROVED"),
     });
+    // Nilai variabel template ({{1}},{{2}},…) yang harus diisi sebelum kirim,
+    // kalau tidak Meta menolak (#132000). Reset tiap ganti template.
+    const selectedTpl = templates.find((t) => t.id === tplId) || null;
+    const tplBodyIdx = selectedTpl ? extractVarIndices(selectedTpl.bodyText) : [];
+    const tplHeaderIdx = selectedTpl ? extractVarIndices(selectedTpl.headerText) : [];
+    const [tplBodyVals, setTplBodyVals] = useState<string[]>([]);
+    const [tplHeaderVals, setTplHeaderVals] = useState<string[]>([]);
+    useEffect(() => { setTplBodyVals([]); setTplHeaderVals([]); }, [tplId]);
+    const tplVarsFilled =
+        tplBodyIdx.every((_, i) => (tplBodyVals[i] || "").trim()) &&
+        tplHeaderIdx.every((_, i) => (tplHeaderVals[i] || "").trim());
     // Pesan cepat / canned message (daftar sendiri, BUKAN template Meta).
     const { data: quickReplies = [] } = useQuery({
         queryKey: ["wa-quick-replies"],
@@ -928,10 +940,14 @@ export default function WhatsappInboxPage() {
         mutationFn: () => {
             const tpl = templates.find((t) => t.id === tplId);
             if (!tpl) throw new Error("Template belum dipilih");
-            return replyWaTemplate(selectedId as number, { name: tpl.name, language: tpl.language, previewText: tpl.bodyText });
+            const components = buildTemplateComponents(tpl, tplBodyVals, tplHeaderVals);
+            const previewText = fillTemplatePreview(tpl.bodyText, tplBodyVals);
+            return replyWaTemplate(selectedId as number, { name: tpl.name, language: tpl.language, components, previewText });
         },
         onSuccess: () => {
             setTplId(null);
+            setTplBodyVals([]);
+            setTplHeaderVals([]);
             qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
         },
@@ -1414,24 +1430,54 @@ export default function WhatsappInboxPage() {
                                         <Link href="/crm/whatsapp/templates" className="underline">Kelola template →</Link>
                                     </div>
                                 ) : (
-                                    <div className="flex items-end gap-2">
-                                        <select
-                                            value={tplId ?? ""}
-                                            onChange={(e) => setTplId(e.target.value ? +e.target.value : null)}
-                                            className="flex-1 rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none"
-                                        >
-                                            <option value="">Pilih template…</option>
-                                            {templates.map((t) => (
-                                                <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            onClick={() => tplId && templateReplyMut.mutate()}
-                                            disabled={!tplId || templateReplyMut.isPending}
-                                            className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 transition"
-                                        >
-                                            <Send className="w-4 h-4" />
-                                        </button>
+                                    <div className="space-y-2">
+                                        <div className="flex items-end gap-2">
+                                            <select
+                                                value={tplId ?? ""}
+                                                onChange={(e) => setTplId(e.target.value ? +e.target.value : null)}
+                                                className="flex-1 rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none"
+                                            >
+                                                <option value="">Pilih template…</option>
+                                                {templates.map((t) => (
+                                                    <option key={t.id} value={t.id}>{t.name} ({t.language})</option>
+                                                ))}
+                                            </select>
+                                            <button
+                                                onClick={() => tplId && templateReplyMut.mutate()}
+                                                disabled={!tplId || !tplVarsFilled || templateReplyMut.isPending}
+                                                className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 transition"
+                                            >
+                                                <Send className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                        {selectedTpl && (tplHeaderIdx.length > 0 || tplBodyIdx.length > 0) && (
+                                            <div className="space-y-1.5 rounded-xl bg-muted/40 p-2">
+                                                <div className="text-[11px] text-muted-foreground">Isi variabel template:</div>
+                                                {tplHeaderIdx.map((n, i) => (
+                                                    <input
+                                                        key={`h-${n}`}
+                                                        value={tplHeaderVals[i] ?? ""}
+                                                        onChange={(e) => setTplHeaderVals((prev) => { const c = [...prev]; c[i] = e.target.value; return c; })}
+                                                        placeholder={`Header: ${varLabel((selectedTpl as unknown as { variableLabels?: unknown }).variableLabels, i, `{{${n}}}`)}`}
+                                                        className="w-full rounded-lg bg-background px-3 py-1.5 text-sm outline-none border border-border"
+                                                    />
+                                                ))}
+                                                {tplBodyIdx.map((n, i) => (
+                                                    <input
+                                                        key={`b-${n}`}
+                                                        value={tplBodyVals[i] ?? ""}
+                                                        onChange={(e) => setTplBodyVals((prev) => { const c = [...prev]; c[i] = e.target.value; return c; })}
+                                                        placeholder={varLabel((selectedTpl as unknown as { variableLabels?: unknown }).variableLabels, i, `Isian {{${n}}}`)}
+                                                        className="w-full rounded-lg bg-background px-3 py-1.5 text-sm outline-none border border-border"
+                                                    />
+                                                ))}
+                                                {selectedTpl.bodyText && (
+                                                    <div className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap border-t border-border/60 pt-1.5 mt-1">
+                                                        Pratinjau: {fillTemplatePreview(selectedTpl.bodyText, tplBodyVals)}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -1528,17 +1574,26 @@ function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: 
     }, [channels, channelId]);
 
     const selectedTpl = templates.find((t) => t.id === tplId);
-    // Deteksi jumlah variabel {{n}} di body template (kalau ada, pesan pertama butuh isian → belum didukung di modal ini).
-    const varCount = selectedTpl ? (selectedTpl.bodyText.match(/\{\{\s*\d+\s*\}\}/g) || []).length : 0;
+    // Variabel {{n}} template harus diisi sebelum kirim (kalau tidak → Meta #132000).
+    const bodyIdx = selectedTpl ? extractVarIndices(selectedTpl.bodyText) : [];
+    const headerIdx = selectedTpl ? extractVarIndices(selectedTpl.headerText) : [];
+    const [bodyVals, setBodyVals] = useState<string[]>([]);
+    const [headerVals, setHeaderVals] = useState<string[]>([]);
+    useEffect(() => { setBodyVals([]); setHeaderVals([]); }, [tplId]);
+    const varsFilled =
+        bodyIdx.every((_, i) => (bodyVals[i] || "").trim()) &&
+        headerIdx.every((_, i) => (headerVals[i] || "").trim());
 
     const startMut = useMutation({
         mutationFn: () => {
             if (!selectedTpl) throw new Error("Pilih template pembuka");
+            const components = buildTemplateComponents(selectedTpl, bodyVals, headerVals);
+            const previewText = fillTemplatePreview(selectedTpl.bodyText, bodyVals);
             return startWaConversation({
                 channelId: channelId as number,
                 phone: phone.trim(),
                 name: name.trim() || undefined,
-                template: { name: selectedTpl.name, language: selectedTpl.language, previewText: selectedTpl.bodyText },
+                template: { name: selectedTpl.name, language: selectedTpl.language, components, previewText },
             });
         },
         onSuccess: (res) => onStarted(res.conversationId),
@@ -1549,7 +1604,7 @@ function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: 
     });
 
     const digits = phone.replace(/[^0-9]/g, "");
-    const canSend = digits.length >= 8 && channelId !== "" && tplId !== "" && varCount === 0 && !startMut.isPending;
+    const canSend = digits.length >= 8 && channelId !== "" && tplId !== "" && varsFilled && !startMut.isPending;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -1606,11 +1661,31 @@ function NewChatModal({ onClose, onStarted }: { onClose: () => void; onStarted: 
                 </label>
 
                 {selectedTpl && (
-                    <div className="text-xs rounded-lg bg-muted/60 p-2 whitespace-pre-wrap">{selectedTpl.bodyText}</div>
+                    <div className="text-xs rounded-lg bg-muted/60 p-2 whitespace-pre-wrap">
+                        {fillTemplatePreview(selectedTpl.bodyText, bodyVals)}
+                    </div>
                 )}
-                {varCount > 0 && (
-                    <div className="text-xs text-amber-500">
-                        Template ini punya {varCount} variabel ({"{{1}}"}…). Untuk pesan berisi variabel, kirim lewat menu <b>Broadcast</b> dulu.
+                {selectedTpl && (headerIdx.length > 0 || bodyIdx.length > 0) && (
+                    <div className="space-y-1.5 rounded-lg bg-muted/40 p-2">
+                        <div className="text-[11px] text-muted-foreground">Isi variabel template ({headerIdx.length + bodyIdx.length}):</div>
+                        {headerIdx.map((n, i) => (
+                            <input
+                                key={`h-${n}`}
+                                value={headerVals[i] ?? ""}
+                                onChange={(e) => setHeaderVals((prev) => { const c = [...prev]; c[i] = e.target.value; return c; })}
+                                placeholder={`Header: ${varLabel((selectedTpl as unknown as { variableLabels?: unknown }).variableLabels, i, `{{${n}}}`)}`}
+                                className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+                            />
+                        ))}
+                        {bodyIdx.map((n, i) => (
+                            <input
+                                key={`b-${n}`}
+                                value={bodyVals[i] ?? ""}
+                                onChange={(e) => setBodyVals((prev) => { const c = [...prev]; c[i] = e.target.value; return c; })}
+                                placeholder={varLabel((selectedTpl as unknown as { variableLabels?: unknown }).variableLabels, i, `Isian {{${n}}}`)}
+                                className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+                            />
+                        ))}
                     </div>
                 )}
 

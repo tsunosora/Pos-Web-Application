@@ -43,10 +43,14 @@ export const createUser = async (data: any) => (await api.post('/users', data)).
 export const updateUser = async (id: number, data: { name?: string, roleId?: number, phone?: string, password?: string, branchId?: number | null }) =>
     (await api.patch(`/users/${id}`, data)).data;
 export const deleteUser = async (id: number) => (await api.delete(`/users/${id}`)).data;
-export const getRoles = async () => (await api.get('/users/roles')).data;
+export interface AppRole { id: number; name: string; menuAccess?: string[] | null }
+export const getRoles = async () => (await api.get('/users/roles')).data as AppRole[];
 export const createRole = async (data: { name: string }) => (await api.post('/users/roles', data)).data;
 export const updateRole = async (id: number, data: { name: string }) => (await api.patch(`/users/roles/${id}`, data)).data;
 export const deleteRole = async (id: number) => (await api.delete(`/users/roles/${id}`)).data;
+// Atur akses menu per role. hrefs=null → reset ke preset divisi bawaan.
+export const updateRoleMenuAccess = async (id: number, hrefs: string[] | null) =>
+    (await api.patch(`/users/roles/${id}/menu-access`, { hrefs })).data as AppRole;
 
 // Branch Settings (per cabang)
 export const getBranchSettings = async (branchId: number) =>

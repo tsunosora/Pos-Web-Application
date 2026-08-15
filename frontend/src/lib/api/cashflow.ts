@@ -75,7 +75,7 @@ export const getMe = async () => (await api.get('/auth/me')).data as {
     name: string | null;
     email: string;
     branchId: number | null;
-    role: { id: number; name: string } | null;
+    role: { id: number; name: string; menuAccess?: string[] | null } | null;
     branch: { id: number; name: string; code: string | null } | null;
 };
 

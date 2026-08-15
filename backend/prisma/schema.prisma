@@ -17,9 +17,10 @@ datasource db {
 }
 
 model Role {
-  id    Int    @id @default(autoincrement())
-  name  String @unique @db.VarChar(20)
-  users User[]
+  id         Int     @id @default(autoincrement())
+  name       String  @unique @db.VarChar(20)
+  menuAccess String? @map("menu_access") @db.Text // JSON array href menu yg boleh dilihat; null = pakai preset divisi
+  users      User[]
 
   @@map("roles")
 }
@@ -2696,6 +2697,7 @@ model TaskItem {
   periodKey         String?   @map("period_key") @db.VarChar(20) // "YYYY-MM-DD" occurrence (idempoten)
   dueDate           DateTime? @map("due_date")
   note              String?   @db.Text // catatan karyawan
+  imageUrls         String?   @map("image_urls") @db.Text // JSON array URL lampiran gambar (brief/contoh)
   assigneeId        Int?      @map("assignee_id")
   branchId          Int?      @map("branch_id")
   completedAt       DateTime? @map("completed_at")

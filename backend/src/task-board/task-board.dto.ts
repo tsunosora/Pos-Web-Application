@@ -47,6 +47,7 @@ export class CreateTaskItemDto {
   @IsOptional() @IsBoolean() targetAll?: boolean;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsInt() branchId?: number;
+  @IsOptional() @IsArray() @IsString({ each: true }) imageUrls?: string[]; // lampiran gambar brief
 }
 
 export class CreateGroupDto {
@@ -70,6 +71,7 @@ export class UpdateTaskItemDto {
   @IsOptional() @IsString() note?: string;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @IsBoolean() verified?: boolean; // owner acknowledge
+  @IsOptional() @IsArray() @IsString({ each: true }) imageUrls?: string[]; // ubah lampiran
 }
 
 export class MoveTaskItemDto {

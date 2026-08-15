@@ -15,7 +15,7 @@ import { SECTIONS, TOP_LINK, OWNER_LINK, DESIGNER_LINK, isItemActive, getActiveS
 export function Sidebar() {
     const pathname = usePathname();
     const { isSidebarOpen, closeSidebar, sidebarCollapsed: collapsed, toggleSidebarCollapsed } = useUIStore();
-    const { isManager, isOwner } = useCurrentUser();
+    const { isManager, isOwner, navAllowed } = useCurrentUser();
     const { getSectionBadge, getBadge } = useNavBadges();
 
     const { data: settings } = useQuery({
@@ -48,7 +48,12 @@ export function Sidebar() {
         };
     }, [isSidebarOpen, closeSidebar]);
 
-    const visibleSections = SECTIONS.filter(s => s.items.some(it => canSeeNavItem(it, { isManager, isOwner })));
+    const visibleSections = SECTIONS.filter(s => s.items.some(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed })));
+    // Staf dengan menu terbatas → "beranda" jadi home (bukan dashboard penjualan penuh).
+    const restricted = navAllowed !== null;
+    const homeHref = restricted ? "/beranda" : TOP_LINK.href;
+    const homeLabel = restricted ? "Beranda" : "Dashboard";
+    const canSeeDesigner = navAllowed === null || navAllowed.has(DESIGNER_LINK.href);
 
     // Class link nav — saat collapsed (lg+) jadi ikon terpusat.
     const navLinkCls = (active: boolean) =>
@@ -67,7 +72,7 @@ export function Sidebar() {
         const badge = getSectionBadge(section);
         return (
             <Link
-                href={firstItemHref(section, isManager, isOwner)}
+                href={firstItemHref(section, isManager, isOwner, navAllowed)}
                 onClick={handleLinkClick}
                 title={section.label}
                 className={navLinkCls(active)}
@@ -159,14 +164,14 @@ export function Sidebar() {
                 {/* Nav — Dashboard + kategori utama */}
                 <nav className="flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 space-y-1">
                     <Link
-                        href={TOP_LINK.href}
+                        href={homeHref}
                         onClick={handleLinkClick}
-                        title="Dashboard"
-                        className={navLinkCls(isItemActive(pathname, '/'))}
-                        aria-current={isItemActive(pathname, '/') ? 'page' : undefined}
+                        title={homeLabel}
+                        className={navLinkCls(isItemActive(pathname, homeHref))}
+                        aria-current={isItemActive(pathname, homeHref) ? 'page' : undefined}
                     >
-                        <LayoutDashboard className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", isItemActive(pathname, '/') ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-accent-foreground")} />
-                        <span className={cn("truncate", collapsed && "lg:hidden")}>Dashboard</span>
+                        <LayoutDashboard className={cn("mr-2.5 h-[18px] w-[18px] shrink-0", collapsed && "lg:mr-0", isItemActive(pathname, homeHref) ? "text-sidebar-accent-foreground" : "text-sidebar-foreground/60 group-hover:text-sidebar-accent-foreground")} />
+                        <span className={cn("truncate", collapsed && "lg:hidden")}>{homeLabel}</span>
                     </Link>
 
                     {isOwner && (() => {
@@ -186,8 +191,8 @@ export function Sidebar() {
                         );
                     })()}
 
-                    {/* Studio Desain: terbuka untuk semua akun POS yang login (semua role). */}
-                    {(() => {
+                    {/* Studio Desain: hanya untuk role yang diberi akses (mis. Desainer) / manajer / owner. */}
+                    {canSeeDesigner && (() => {
                         const DesignerIcon = DESIGNER_LINK.icon;
                         const active = isItemActive(pathname, DESIGNER_LINK.href);
                         return (
@@ -208,7 +213,7 @@ export function Sidebar() {
 
                     {visibleSections.map((section) => {
                         const isActiveSection = activeSection?.key === section.key;
-                        const subItems = section.items.filter(it => canSeeNavItem(it, { isManager, isOwner }));
+                        const subItems = section.items.filter(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed }));
                         const subActiveHref = subItems
                             .filter(it => isItemActive(pathname, it.href))
                             .sort((a, b) => b.href.length - a.href.length)[0]?.href;

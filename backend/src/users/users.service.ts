@@ -7,6 +7,17 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(private prisma: PrismaService) { }
 
+  /** Parse kolom menuAccess (JSON string) → array href, atau null bila belum diatur. */
+  private parseMenuAccess(raw: any): string[] | null {
+    if (raw == null) return null;
+    try {
+      const v = JSON.parse(raw);
+      return Array.isArray(v) ? v.filter((s) => typeof s === 'string') : null;
+    } catch {
+      return null;
+    }
+  }
+
   async create(createUserDto: any) {
     // Cegah email duplikat dengan pesan jelas (409) alih-alih error Prisma mentah (500).
     const existing = await this.prisma.user.findUnique({
@@ -55,7 +66,7 @@ export class UsersService {
   }
 
   async findById(id: number) {
-    return this.prisma.user.findUnique({
+    const u = await this.prisma.user.findUnique({
       where: { id },
       select: {
         id: true,
@@ -63,10 +74,13 @@ export class UsersService {
         email: true,
         branchId: true,
         isActive: true,
-        role: { select: { id: true, name: true } },
+        role: { select: { id: true, name: true, menuAccess: true } },
         branch: { select: { id: true, name: true, code: true } },
       },
     });
+    // Kembalikan menuAccess sebagai array (atau null) agar frontend gampang pakai.
+    if (u?.role) (u.role as any).menuAccess = this.parseMenuAccess((u.role as any).menuAccess);
+    return u;
   }
 
   async findAll() {
@@ -87,9 +101,16 @@ export class UsersService {
   }
 
   async fetchRoles() {
-    return this.prisma.role.findMany({
-      orderBy: { id: 'asc' }
-    });
+    const roles = await this.prisma.role.findMany({ orderBy: { id: 'asc' } });
+    return roles.map((r) => ({ ...r, menuAccess: this.parseMenuAccess((r as any).menuAccess) }));
+  }
+
+  /** Set daftar menu yang boleh dilihat sebuah role. `hrefs=null` → reset ke preset divisi. */
+  async updateRoleMenuAccess(id: number, hrefs: string[] | null) {
+    const menuAccess =
+      Array.isArray(hrefs) ? JSON.stringify(hrefs.filter((s) => typeof s === 'string')) : null;
+    const r = await this.prisma.role.update({ where: { id }, data: { menuAccess } });
+    return { ...r, menuAccess: this.parseMenuAccess((r as any).menuAccess) };
   }
 
   async updateUser(id: number, data: { name?: string, roleId?: number, phone?: string, password?: string, branchId?: number | null }) {
