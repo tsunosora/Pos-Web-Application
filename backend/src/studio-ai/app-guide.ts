@@ -70,6 +70,23 @@ export const APP_GUIDE = `## Setup Pertama Kali
 
 ### Data Supplier — /inventory/suppliers
 
+## Produk Custom (Buku & Konfigurasi)
+
+### Cara Kerja Buku Custom
+- **Dirakit dari 3 bagian** — ISI (cetak kertas per lembar A3, bahan bebas) + COVER (cetak 1 lembar) + JILID (finishing).
+- **Ukuran & bahan** — Ukuran A6 / A5 / A4 / A3. Bahan isi & cover bebas (Art Paper, HVS, Ivory/Art Cartoon, dll).
+- **Finishing** — Spiral / Steples / Binding Lem / Steples+Lakban.
+- **Konversi halaman → lembar A3 (cetak bolak-balik)** — A3=2, A4=4, A5=8, A6=16 halaman per lembar. Lembar A3 isi = ceil(jumlah halaman ÷ angka tsb).
+- **Rumus harga** — Harga = (lembar A3 × harga cetak isi) + (harga cetak cover) + (harga jilid).
+- [Contoh Hitung] A5, 40 halaman, isi Art Paper 150, cover Ivory 260, jilid Spiral ≈ Rp37.000. Lembar A3 isi = ceil(40 ÷ 8) = 5 lembar.
+
+### Cara Order di POS
+- **Pilih produk Buku Custom** — Muncul form konfigurasi (ukuran / halaman / bahan / finishing) → harga otomatis.
+- **Bila konfigurator nonaktif** — Rakit manual: Cetak Isi ×N + Cetak Cover ×1 + Jilid ×1.
+
+### Aktif / Nonaktifkan Konfigurator
+- [Untuk Asisten AI] Saat customer tanya harga buku/makalah/laporan: tanyakan ukuran, jumlah halaman, bahan isi & cover, dan finishing — lalu hitung dengan rumus di atas.
+
 ## DP & Piutang
 
 ### Tab Filter

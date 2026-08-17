@@ -354,6 +354,48 @@ function SecInventori() {
     );
 }
 
+function SecProdukCustom() {
+    return (
+        <>
+            <H2 id="produk-custom">Produk Custom (Buku & Konfigurasi)</H2>
+            <P>
+                Beberapa produk bersifat KONFIGURASI (composite): harga dirakit dari komponen,
+                bukan harga tetap. Contoh: <strong>Buku Custom</strong>.
+            </P>
+            <H3>Cara Kerja Buku Custom</H3>
+            <Steps
+                steps={[
+                    { title: "Dirakit dari 3 bagian", desc: "ISI (cetak kertas per lembar A3, bahan bebas) + COVER (cetak 1 lembar) + JILID (finishing)." },
+                    { title: "Ukuran & bahan", desc: "Ukuran A6 / A5 / A4 / A3. Bahan isi & cover bebas (Art Paper, HVS, Ivory/Art Cartoon, dll)." },
+                    { title: "Finishing", desc: "Spiral / Steples / Binding Lem / Steples+Lakban." },
+                    { title: "Konversi halaman → lembar A3 (cetak bolak-balik)", desc: "A3=2, A4=4, A5=8, A6=16 halaman per lembar. Lembar A3 isi = ceil(jumlah halaman ÷ angka tsb)." },
+                    { title: "Rumus harga", desc: "Harga = (lembar A3 × harga cetak isi) + (harga cetak cover) + (harga jilid)." },
+                ]}
+            />
+            <Callout type="tip" title="Contoh Hitung">
+                A5, 40 halaman, isi Art Paper 150, cover Ivory 260, jilid Spiral ≈ Rp37.000.
+                Lembar A3 isi = ceil(40 ÷ 8) = 5 lembar.
+            </Callout>
+            <H3>Cara Order di POS</H3>
+            <Steps
+                steps={[
+                    { title: "Pilih produk Buku Custom", desc: "Muncul form konfigurasi (ukuran / halaman / bahan / finishing) → harga otomatis." },
+                    { title: "Bila konfigurator nonaktif", desc: "Rakit manual: Cetak Isi ×N + Cetak Cover ×1 + Jilid ×1." },
+                ]}
+            />
+            <H3>Aktif / Nonaktifkan Konfigurator</H3>
+            <P>
+                Di editor produk (<Code>/inventory</Code> → edit produk) ada toggle <strong>Konfigurator Produk Custom</strong>.
+                Aktif = mode konfigurasi (COMPOSITE). Nonaktif = produk biasa (varian &quot;Mulai dari …&quot;). Konfigurasi tetap tersimpan saat nonaktif, jadi aman diaktifkan lagi.
+            </P>
+            <Callout type="info" title="Untuk Asisten AI">
+                Saat customer tanya harga buku/makalah/laporan: tanyakan ukuran, jumlah halaman,
+                bahan isi & cover, dan finishing — lalu hitung dengan rumus di atas.
+            </Callout>
+        </>
+    );
+}
+
 function SecPiutang() {
     return (
         <>
@@ -1635,6 +1677,7 @@ const NAV_GROUPS = [
         items: [
             { id: "kasir", label: "Kasir / POS" },
             { id: "inventori", label: "Produk & Stok" },
+            { id: "produk-custom", label: "Produk Custom" },
             { id: "piutang", label: "DP & Piutang" },
         ],
     },
@@ -1837,6 +1880,7 @@ export default function HelpPage() {
                     <SecAlurSistem />
                     <SecKasir />
                     <SecInventori />
+                    <SecProdukCustom />
                     <SecPiutang />
                     <SecLaporan />
                     <SecLeaderboard />
