@@ -83,15 +83,18 @@ export class ProductsService {
     }
 
     async findAll(branchCtx: BranchContext = { branchId: null, isOwner: true, roleName: null } as any) {
+        // LIST/POS: sengaja BUANG include berat yang tak dipakai daftar/kasir —
+        // variantIngredients (→ rawMaterialVariant → product, join bersarang per bahan)
+        // dan clickRate. Ini pemangkasan payload terbesar di load pertama. Detail BOM &
+        // clickRate lengkap tetap tersedia via GET /products/:id (findOne) untuk editor.
         const products = await (this.prisma as any).product.findMany({
             where: { isActive: true },   // sembunyikan produk yang diarsipkan (soft-delete)
             include: {
                 category: { include: { parent: { select: { id: true, name: true } } } } as any,
                 unit: true,
-                clickRate: true,
                 variants: {
                     include: {
-                        ...variantInclude,
+                        priceTiers: { orderBy: { minQty: 'asc' as const } },
                         movements: {
                             where: {
                                 OR: [
@@ -105,7 +108,7 @@ export class ProductsService {
                         },
                     },
                 },
-                ingredients: true
+                ingredients: { select: { id: true } }, // hanya butuh JUMLAH (product.ingredients.length)
             }
         });
         return attachBranchStocks(this.prisma, products, branchCtx);
