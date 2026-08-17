@@ -246,11 +246,22 @@ export class StudioAiService {
       this.logger.error(`AI upstream ${res.status}: ${body.slice(0, 500)}`);
       throw new ServiceUnavailableException(`AI upstream error (${res.status}). Cek token/model 9router.`);
     }
-    // Beberapa gateway abaikan stream:true → balas JSON biasa. Tangani sebagai fallback.
-    if (!res.body || typeof res.body[Symbol.asyncIterator] !== 'function') {
-      const data: any = await res.json().catch(() => null);
-      const content = data?.choices?.[0]?.message?.content;
-      if (typeof content === 'string') { onDelta(content); return content; }
+    // Beberapa gateway ABAIKAN stream:true → balas JSON biasa (bukan SSE). Deteksi
+    // dari Content-Type: kalau bukan text/event-stream, baca penuh & emit sekali
+    // (tetap tampil, sekadar tak beranimasi). Kalau body kosong/tak bisa di-iterate
+    // juga jatuh ke jalur ini. Tanpa ini, loop SSE tak menemukan baris `data:` →
+    // nol token → bubble kosong (blank).
+    const ctype = String(res.headers?.get?.('content-type') || '').toLowerCase();
+    const iterable = res.body && typeof (res.body as any)[Symbol.asyncIterator] === 'function';
+    if (!ctype.includes('text/event-stream') || !iterable) {
+      const text = await res.text().catch(() => '');
+      let content = '';
+      try {
+        const j = JSON.parse(text);
+        content = j?.choices?.[0]?.message?.content ?? j?.choices?.[0]?.delta?.content ?? '';
+      } catch { /* bukan JSON */ }
+      if (typeof content === 'string' && content) { onDelta(content); return content; }
+      this.logger.error(`AI stream: respons non-SSE tak dikenali (ctype=${ctype}) body=${text.slice(0, 300)}`);
       throw new ServiceUnavailableException('Format balasan AI tak dikenali (stream).');
     }
 

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { X, Send, Loader2, Bot, Sparkles, Package, ChevronRight } from "lucide-react";
-import { getStudioAiStatus, streamAiChat, type AiChatMessage } from "@/lib/api/studioAi";
+import { getStudioAiStatus, streamAiChat, sendAiChat, type AiChatMessage } from "@/lib/api/studioAi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 function imgSrc(u: string | null) {
@@ -139,8 +139,25 @@ export function AiChatWidget() {
                 if (!firstToken) { firstToken = true; setLoading(false); }
                 patchLast((m) => ({ ...m, content: m.content + delta }));
             },
-            onDone: (d) => {
+            onDone: async (d) => {
                 setLoading(false);
+                // Streaming selesai tanpa satu token pun (bukan penolakan) → gateway
+                // mungkin tak dukung SSE. Fallback ke endpoint non-stream yang terbukti
+                // supaya user tetap dapat jawaban (bukan bubble kosong / blank).
+                if (!firstToken && !d.refused) {
+                    setLoading(true); // tetap tampilkan "mikir" selama fallback (hindari jeda blank)
+                    try {
+                        const { reply, products } = await sendAiChat(msg, history);
+                        patchLast((m) => ({ ...m, content: reply || "Maaf, saya belum bisa menjawab itu. Coba tanya lebih spesifik ya 🙏", products: products || [], streaming: false }));
+                    } catch (e: any) {
+                        const err = e?.response?.data?.message || e?.message || "Gagal menghubungi asisten.";
+                        patchLast((m) => ({ ...m, content: `⚠️ ${Array.isArray(err) ? err.join(", ") : err}`, streaming: false }));
+                    } finally {
+                        setLoading(false);
+                        setBusy(false);
+                    }
+                    return;
+                }
                 patchLast((m) => ({ ...m, products: d.products || [], streaming: false }));
                 setBusy(false);
             },
