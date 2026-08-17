@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { resolveCompositeQuote } from './composite.util';
 
 /**
  * Override variant.stock dengan stok cabang aktif (BranchStock).
@@ -124,6 +125,45 @@ export class ProductsService {
         if (!product) throw new NotFoundException(`Product #${id} not found`);
         await attachBranchStocks(this.prisma, [product], branchCtx);
         return product;
+    }
+
+    /**
+     * Hitung harga & HPP produk COMPOSITE (produk konfigurasi) dari opsi terpilih.
+     * Resolve variant komponen dari DB → panggil resolveCompositeQuote (murni).
+     * Dipakai preview POS DAN saat checkout (validasi ulang harga di server —
+     * jangan percaya harga dari client).
+     */
+    async computeComposite(productId: number, selectedOptions: Record<string, any>) {
+        const product = await (this.prisma as any).product.findUnique({ where: { id: productId } });
+        if (!product) throw new NotFoundException(`Produk ${productId} tidak ditemukan`);
+        const config = product.compositeConfig;
+        if (product.pricingMode !== 'COMPOSITE' || !config) {
+            throw new BadRequestException(`Produk ${productId} bukan produk konfigurasi`);
+        }
+
+        // Kumpulkan variantId yang dirujuk komponen (dari opsi variantRef terpilih).
+        const variantIds = (config.components ?? [])
+            .map((c: any) => Number(selectedOptions[c.variantFrom]))
+            .filter((n: number) => Number.isFinite(n) && n > 0);
+        const uniqueIds = [...new Set<number>(variantIds)];
+        const variants = await (this.prisma as any).productVariant.findMany({
+            where: { id: { in: uniqueIds } },
+            select: { id: true, variantName: true, price: true, hpp: true, product: { select: { name: true } } },
+        });
+        const variantMap: Record<number, { name: string; price: number; hpp: number }> = {};
+        for (const v of variants) {
+            const label = `${v.product?.name ?? ''}${v.variantName ? ' — ' + v.variantName : ''}`.trim();
+            variantMap[v.id] = { name: label, price: Number(v.price), hpp: Number(v.hpp) };
+        }
+
+        const quote = resolveCompositeQuote(config, selectedOptions, variantMap);
+        return {
+            productId,
+            name: quote.name,
+            price: Math.round(quote.price),
+            hpp: Math.round(quote.hpp),
+            breakdown: quote.breakdown,
+        };
     }
 
     async findOnePublic(id: number) {
