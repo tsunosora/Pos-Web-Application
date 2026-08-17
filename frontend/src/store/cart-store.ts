@@ -21,7 +21,7 @@ export interface CartItem {
     qty: number;                 // for AREA_BASED always 1; dimensions define the amount
     stock: number;
     trackStock: boolean;         // false = unlimited stock, no deduction
-    pricingMode: 'UNIT' | 'AREA_BASED';
+    pricingMode: 'UNIT' | 'AREA_BASED' | 'COMPOSITE';
     priceTiers: PriceTier[];     // [] = no tiering, price is always pricePerUnit
     note?: string;               // operator note: design name, finishing type, custom text, etc.
     customPrice?: number | null; // admin-overridden price; when set, replaces computed price
@@ -38,6 +38,11 @@ export interface CartItem {
     areaCm2?: number;
     areaM2?: number;
     pcs?: number;  // jumlah kopi/PCS. price = singleAreaPrice × pcs
+    // COMPOSITE only — harga & HPP dihitung ulang di server saat checkout.
+    // price/pricePerUnit = total per 1 unit composite (display saja); server yang otoritatif.
+    compositeProductId?: number;
+    compositeOptions?: Record<string, any>;
+    breakdown?: { name: string; qty: number; lineTotal: number }[];
 }
 
 interface CartState {
@@ -46,6 +51,7 @@ interface CartState {
     discount: number;
 
     addItem: (product: any, variant: any, areaDimensions?: { widthCm: number; heightCm: number; unitType: 'm' | 'cm' | 'menit'; note?: string; pcs?: number }, opts?: { forceNewLine?: boolean }) => void;
+    addCompositeItem: (args: { productId: number; name: string; price: number; compositeOptions: Record<string, any>; breakdown?: { name: string; qty: number; lineTotal: number }[]; note?: string }) => void;
     removeItem: (lineId: string) => void;
     updateQuantity: (lineId: string, delta: number) => void;
     setQuantityDirect: (lineId: string, qty: number) => void;
@@ -171,6 +177,34 @@ export const useCartStore = create<CartState>((set, get) => ({
                     trackStock,
                     pricingMode: 'UNIT',
                     priceTiers: tiers,
+                }]
+            };
+        });
+    },
+
+    // COMPOSITE (produk konfigurasi): SELALU baris baru. price = total per 1 unit
+    // dari server (display); server hitung ulang saat checkout (jangan percaya client).
+    addCompositeItem: ({ productId, name, price, compositeOptions, breakdown, note }) => {
+        set((state) => {
+            const lineId = `${productId}_comp_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+            return {
+                items: [...state.items, {
+                    lineId,
+                    id: productId,
+                    productVariantId: 0,        // tak dipakai; server resolve anchor variant
+                    name,
+                    sku: '',
+                    price,
+                    pricePerUnit: price,
+                    qty: 1,
+                    stock: Number.MAX_SAFE_INTEGER,
+                    trackStock: false,
+                    pricingMode: 'COMPOSITE',
+                    priceTiers: [],
+                    note,
+                    compositeProductId: productId,
+                    compositeOptions,
+                    breakdown,
                 }]
             };
         });
