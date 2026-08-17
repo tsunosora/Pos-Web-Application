@@ -22,6 +22,12 @@ export const updateProduct = async (id: number, data: any) => (await api.patch(`
 export const deleteProduct = async (id: number) => (await api.delete(`/products/${id}`)).data;
 export const bulkDeleteProducts = async (ids: number[]) => (await api.delete('/products/bulk', { data: { ids } })).data;
 
+// Produk COMPOSITE (produk konfigurasi)
+export const getCompositeOptions = async (productId: number) =>
+    (await api.get(`/products/${productId}/composite/options`)).data;
+export const computeComposite = async (productId: number, selectedOptions: Record<string, any>) =>
+    (await api.post(`/products/${productId}/composite/compute`, { selectedOptions })).data;
+
 export const uploadProductImage = async (id: number, file: File) => {
     const formData = new FormData();
     formData.append('image', file);
