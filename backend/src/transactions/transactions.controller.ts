@@ -13,7 +13,7 @@ export class TransactionsController {
 
     @Post()
     create(@Body() createTransactionDto: {
-        items: { productVariantId: number; quantity: number; widthCm?: number; heightCm?: number; unitType?: string; pcs?: number; note?: string; customPrice?: number; isSubOrder?: boolean; subPrice?: number; subVendor?: string }[];
+        items: { productVariantId?: number; quantity: number; widthCm?: number; heightCm?: number; unitType?: string; pcs?: number; note?: string; customPrice?: number; isSubOrder?: boolean; subPrice?: number; subVendor?: string; compositeProductId?: number; compositeOptions?: Record<string, any> }[];
         paymentMethod: PaymentMethod;
         discount?: number;
         shippingCost?: number;

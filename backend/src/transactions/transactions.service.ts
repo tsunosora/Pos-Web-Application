@@ -6,6 +6,7 @@ import { DiscordService } from '../discord/discord.service';
 import { BranchContext } from '../common/branch-context.decorator';
 import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 import { branchWhere, assertBranchAccess } from '../common/branch-where.helper';
+import { ProductsService } from '../products/products.service';
 
 type EditItemData = {
     id?: number;           // unset = item baru
@@ -33,6 +34,7 @@ export class TransactionsService {
         private prisma: PrismaService,
         private notificationsService: NotificationsService,
         private discord: DiscordService,
+        private productsService: ProductsService,
     ) { }
 
     /** Rincian potongan platform untuk note cashflow, mis. " — Rincian: Fee admin: Rp 2.000, Voucher: Rp 1.000". */
@@ -290,6 +292,53 @@ export class TransactionsService {
                 const isSubOrder = item.isSubOrder === true;
                 const subPrice = isSubOrder ? Number(item.subPrice ?? 0) : null;
                 const subVendor = isSubOrder ? (item.subVendor?.trim() || null) : null;
+
+                // Item COMPOSITE (produk konfigurasi) — dicek DULU karena juga tak punya
+                // productVariantId di payload. Harga & HPP dihitung ULANG di server
+                // (jangan percaya harga dari client). Disimpan sebagai 1 baris nota yang
+                // menunjuk VARIAN ANCHOR produk composite (agar tergrup di laporan per-produk)
+                // dengan override priceAtTime & hppAtTime ke hasil hitung (HPP != 0).
+                if ((item as any).compositeProductId) {
+                    const compositeProductId = Number((item as any).compositeProductId);
+                    const quote = await this.productsService.computeComposite(
+                        compositeProductId,
+                        (item as any).compositeOptions ?? {},
+                    );
+                    const qty = Math.max(1, Math.round(Number(item.quantity) || 1));
+
+                    // Anchor variant = varian milik produk composite itu sendiri (grouping laporan).
+                    // WAJIB ada & BOM-nya kosong (produk-shell), lihat rencana Keputusan #6.
+                    const anchor = await (tx as any).productVariant.findFirst({
+                        where: { productId: compositeProductId },
+                        orderBy: { id: 'asc' },
+                        select: { id: true },
+                    });
+                    if (!anchor) throw new BadRequestException(`Produk konfigurasi ${compositeProductId} belum punya varian anchor`);
+
+                    transactionItemsData.push({
+                        productVariantId: anchor.id,   // BUKAN null → tergrup di laporan per-produk
+                        customName: quote.name,        // nama deskriptif untuk nota
+                        quantity: qty,
+                        priceAtTime: quote.price,      // per 1 unit composite (dari server)
+                        hppAtTime: quote.hpp,          // WAJIB hasil hitung, JANGAN 0 (modal akurat)
+                        isSubOrder,
+                        subPrice: isSubOrder ? subPrice : null,
+                        subVendor,
+                        note: JSON.stringify({
+                            kind: 'composite',
+                            productId: compositeProductId,
+                            selectedOptions: (item as any).compositeOptions ?? {},
+                            breakdown: quote.breakdown,
+                            userNote: item.note ?? null,
+                        }),
+                        _requiresProduction: true,     // spawn 1 ProductionJob (buku harus dikerjakan)
+                        _clickRateId: null,            // Fase 1: klik belum diemit (lihat Task 9b)
+                        _clickQuantity: 0,
+                        _clickPricePerClick: 0,
+                    });
+                    subtotal += quote.price * qty;
+                    continue;
+                }
 
                 // Item custom (tanpa varian katalog) — mis. dari CRM lead dengan item bebas.
                 // Tidak ada lookup stok, tidak ada BOM, langsung masuk produksi.
