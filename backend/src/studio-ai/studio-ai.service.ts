@@ -246,45 +246,65 @@ export class StudioAiService {
       this.logger.error(`AI upstream ${res.status}: ${body.slice(0, 500)}`);
       throw new ServiceUnavailableException(`AI upstream error (${res.status}). Cek token/model 9router.`);
     }
-    // Beberapa gateway ABAIKAN stream:true → balas JSON biasa (bukan SSE). Deteksi
-    // dari Content-Type: kalau bukan text/event-stream, baca penuh & emit sekali
-    // (tetap tampil, sekadar tak beranimasi). Kalau body kosong/tak bisa di-iterate
-    // juga jatuh ke jalur ini. Tanpa ini, loop SSE tak menemukan baris `data:` →
-    // nol token → bubble kosong (blank).
-    const ctype = String(res.headers?.get?.('content-type') || '').toLowerCase();
+    // Body kosong / tak bisa di-iterate → baca penuh sebagai JSON biasa.
     const iterable = res.body && typeof (res.body as any)[Symbol.asyncIterator] === 'function';
-    if (!ctype.includes('text/event-stream') || !iterable) {
+    const ctype = String(res.headers?.get?.('content-type') || '').toLowerCase();
+    if (!iterable) {
       const text = await res.text().catch(() => '');
-      let content = '';
-      try {
-        const j = JSON.parse(text);
-        content = j?.choices?.[0]?.message?.content ?? j?.choices?.[0]?.delta?.content ?? '';
-      } catch { /* bukan JSON */ }
-      if (typeof content === 'string' && content) { onDelta(content); return content; }
-      this.logger.error(`AI stream: respons non-SSE tak dikenali (ctype=${ctype}) body=${text.slice(0, 300)}`);
+      const content = this.extractCompletion(text);
+      if (content) { onDelta(content); return content; }
       throw new ServiceUnavailableException('Format balasan AI tak dikenali (stream).');
     }
 
+    // Parse SSE per baris SAAT chunk tiba (tak bergantung Content-Type — beberapa
+    // gateway stream tapi set ctype aneh/kosong). Kalau ternyata bukan SSE (gateway
+    // ABAIKAN stream:true → JSON penuh), `full` tetap kosong → fallback parse JSON di
+    // akhir. Ini yang mencegah blank / "keluar sekaligus karena salah-deteksi".
     const decoder = new TextDecoder();
     let buffer = '';
+    let raw = '';
     let full = '';
+    let sawSse = false;
     for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
-      buffer += decoder.decode(chunk, { stream: true });
+      const piece = decoder.decode(chunk, { stream: true });
+      raw += piece;
+      buffer += piece;
       let nl: number;
       while ((nl = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, nl).trim();
         buffer = buffer.slice(nl + 1);
-        if (!line || !line.startsWith('data:')) continue;
+        if (!line) continue;
+        if (line.startsWith(':')) { sawSse = true; continue; } // komentar/keepalive SSE
+        if (!line.startsWith('data:')) continue;
+        sawSse = true;
         const payload = line.slice(5).trim();
-        if (payload === '[DONE]') return full;
+        if (payload === '[DONE]') { this.logger.log(`AI stream selesai [DONE]: sawSse=true, ${full.length} char`); return full; }
         try {
           const json = JSON.parse(payload);
-          const delta = json?.choices?.[0]?.delta?.content ?? '';
+          const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content ?? '';
           if (delta) { full += delta; onDelta(delta); }
         } catch { /* baris data terpotong antar-chunk → tunggu chunk berikut */ }
       }
     }
-    return full;
+    if (full) { this.logger.log(`AI stream selesai: sawSse=${sawSse}, ${full.length} char`); return full; }
+
+    // Tak ada delta SSE → kemungkinan gateway balas JSON penuh (tak streaming).
+    const content = this.extractCompletion(raw);
+    if (content) {
+      this.logger.warn(`AI TIDAK streaming (gateway abaikan stream:true; ctype=${ctype}) → kirim sekali, ${content.length} char`);
+      onDelta(content);
+      return content;
+    }
+    this.logger.error(`AI stream kosong & non-JSON (sawSse=${sawSse}, ctype=${ctype}) body=${raw.slice(0, 300)}`);
+    throw new ServiceUnavailableException('Format balasan AI tak dikenali (stream).');
+  }
+
+  /** Ambil teks jawaban dari body completion (streaming-JSON maupun non-stream). */
+  private extractCompletion(text: string): string {
+    try {
+      const j = JSON.parse(String(text).trim());
+      return j?.choices?.[0]?.message?.content ?? j?.choices?.[0]?.delta?.content ?? '';
+    } catch { return ''; }
   }
 
   /** Ambil objek/array JSON pertama dari teks (toleran code-fence / teks tambahan). */

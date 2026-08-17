@@ -107,6 +107,14 @@ export function AiChatWidget() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
+    // Buffer typewriter sisi-klien: apa pun yang diterima (token kecil SSE atau satu
+    // blok besar bila gateway tak streaming) diungkap bertahap → efek "mengetik".
+    const revealTarget = useRef<string>("");   // teks penuh yang sudah diterima
+    const revealShown = useRef<number>(0);      // berapa karakter sudah ditampilkan
+    const revealDone = useRef<boolean>(false);  // upstream sudah selesai kirim
+    const revealTimer = useRef<any>(null);
+    const pendingProducts = useRef<any[]>([]);
+
     const { data: status } = useQuery({
         queryKey: ["studio-ai-status"],
         queryFn: getStudioAiStatus,
@@ -118,6 +126,9 @@ export function AiChatWidget() {
         scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "auto" });
     }, [messages, loading]);
 
+    // Bersihkan timer typewriter saat unmount.
+    useEffect(() => () => { if (revealTimer.current) clearInterval(revealTimer.current); }, []);
+
     if (!status?.chatEnabled) return null;
 
     // Perbarui pesan terakhir (placeholder asisten yang sedang di-stream).
@@ -128,42 +139,76 @@ export function AiChatWidget() {
         const msg = text.trim();
         if (!msg || busy) return;
         const history = messages;
-        // Tambah pesan user + placeholder asisten kosong (yang akan diisi token).
+        // Tambah pesan user + placeholder asisten kosong (diisi bertahap oleh timer).
         setMessages((m) => [...m, { role: "user", content: msg }, { role: "assistant", content: "", products: [], streaming: true }]);
         setInput("");
         setLoading(true);
         setBusy(true);
-        let firstToken = false;
+
+        // Reset buffer typewriter untuk balasan ini.
+        revealTarget.current = "";
+        revealShown.current = 0;
+        revealDone.current = false;
+        pendingProducts.current = [];
+        let started = false;
+
+        const finish = () => {
+            if (revealTimer.current) { clearInterval(revealTimer.current); revealTimer.current = null; }
+            patchLast((m) => ({ ...m, content: revealTarget.current, products: pendingProducts.current, streaming: false }));
+            setBusy(false);
+        };
+
+        // Ungkap target sedikit demi sedikit (efek mengetik). Bila backlog besar
+        // (gateway kirim sekaligus), percepat agar tak ketinggalan jauh.
+        const ensureTimer = () => {
+            if (revealTimer.current) return;
+            revealTimer.current = setInterval(() => {
+                const target = revealTarget.current;
+                if (revealShown.current < target.length) {
+                    const remaining = target.length - revealShown.current;
+                    const step = remaining > 120 ? Math.ceil(remaining / 40) : 3;
+                    revealShown.current = Math.min(target.length, revealShown.current + step);
+                    patchLast((m) => ({ ...m, content: target.slice(0, revealShown.current) }));
+                } else if (revealDone.current) {
+                    finish();
+                }
+            }, 22);
+        };
+
         await streamAiChat(msg, history, {
             onToken: (delta) => {
-                if (!firstToken) { firstToken = true; setLoading(false); }
-                patchLast((m) => ({ ...m, content: m.content + delta }));
+                if (!started) { started = true; setLoading(false); ensureTimer(); }
+                revealTarget.current += delta;
             },
             onDone: async (d) => {
-                setLoading(false);
-                // Streaming selesai tanpa satu token pun (bukan penolakan) → gateway
-                // mungkin tak dukung SSE. Fallback ke endpoint non-stream yang terbukti
-                // supaya user tetap dapat jawaban (bukan bubble kosong / blank).
-                if (!firstToken && !d.refused) {
-                    setLoading(true); // tetap tampilkan "mikir" selama fallback (hindari jeda blank)
+                // Tak ada token & bukan penolakan → gateway mungkin tak dukung SSE.
+                // Ambil via endpoint non-stream, lalu suapkan ke typewriter.
+                if (!started && !d.refused) {
                     try {
                         const { reply, products } = await sendAiChat(msg, history);
-                        patchLast((m) => ({ ...m, content: reply || "Maaf, saya belum bisa menjawab itu. Coba tanya lebih spesifik ya 🙏", products: products || [], streaming: false }));
+                        started = true;
+                        setLoading(false);
+                        ensureTimer();
+                        revealTarget.current = reply || "Maaf, saya belum bisa menjawab itu. Coba tanya lebih spesifik ya 🙏";
+                        pendingProducts.current = products || [];
+                        revealDone.current = true;
                     } catch (e: any) {
                         const err = e?.response?.data?.message || e?.message || "Gagal menghubungi asisten.";
-                        patchLast((m) => ({ ...m, content: `⚠️ ${Array.isArray(err) ? err.join(", ") : err}`, streaming: false }));
-                    } finally {
                         setLoading(false);
+                        patchLast((m) => ({ ...m, content: `⚠️ ${Array.isArray(err) ? err.join(", ") : err}`, streaming: false }));
                         setBusy(false);
                     }
                     return;
                 }
-                patchLast((m) => ({ ...m, products: d.products || [], streaming: false }));
-                setBusy(false);
+                // Sudah ada teks: tandai selesai; timer mengungkap sisa lalu finish().
+                pendingProducts.current = d.products || [];
+                revealDone.current = true;
+                if (!revealTimer.current) finish(); // jaga-jaga bila timer belum jalan
             },
             onError: (em) => {
+                if (revealTimer.current) { clearInterval(revealTimer.current); revealTimer.current = null; }
                 setLoading(false);
-                patchLast((m) => ({ ...m, streaming: false, content: m.content || (em ? `⚠️ ${em}` : "⚠️ Gagal menghubungi asisten.") }));
+                patchLast((m) => ({ ...m, streaming: false, content: revealTarget.current || (em ? `⚠️ ${em}` : "⚠️ Gagal menghubungi asisten.") }));
                 setBusy(false);
             },
         });
