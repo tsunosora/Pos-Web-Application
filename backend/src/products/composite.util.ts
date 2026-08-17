@@ -63,6 +63,34 @@ export function renderNameTemplate(template: string, ctx: Record<string, any>): 
   });
 }
 
+/**
+ * Guard: apakah produk boleh diaktifkan sebagai COMPOSITE (konfigurator)?
+ * Syarat: (1) compositeConfig punya `components` non-kosong,
+ *         (2) produk punya minimal 1 variant (anchor "Mulai dari …").
+ * Catatan: BOM anchor SENGAJA kosong pada produk composite — jangan cek BOM.
+ * Melempar Error dengan pesan siap-tampil bila tak memenuhi.
+ */
+export function assertCompositeReady(
+  config: any,
+  variants: Array<{ id: number }> | null | undefined,
+): void {
+  const hasComponents =
+    config &&
+    typeof config === 'object' &&
+    Array.isArray(config.components) &&
+    config.components.length > 0;
+  if (!hasComponents) {
+    throw new Error(
+      'Konfigurasi produk custom belum diisi. Isi composite_config (opsi + komponen) dulu sebelum mengaktifkan konfigurator.',
+    );
+  }
+  if (!variants || variants.length === 0) {
+    throw new Error(
+      'Produk belum punya variant anchor. Buat minimal 1 varian (harga "Mulai dari …") dulu.',
+    );
+  }
+}
+
 export interface CompositeBreakdownRow {
   variantFrom: string;
   variantId: number;

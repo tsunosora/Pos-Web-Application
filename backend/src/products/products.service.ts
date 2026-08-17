@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
-import { resolveCompositeQuote } from './composite.util';
+import { assertCompositeReady, resolveCompositeQuote } from './composite.util';
 
 /**
  * Override variant.stock dengan stok cabang aktif (BranchStock).
@@ -289,8 +289,22 @@ export class ProductsService {
     }
 
     async update(id: number, data: any) {
-        await this.findOne(id);
+        const existing = await this.findOne(id);
         const { variants, ingredients, deletedVariantIds, ...productData } = data;
+
+        // Guard: aktivasi COMPOSITE hanya bila config + anchor variant tersedia.
+        // compositeConfig TIDAK di-clear saat pricingMode dinonaktifkan (reversible).
+        if (data.pricingMode === 'COMPOSITE') {
+            const finalConfig =
+                data.compositeConfig !== undefined ? data.compositeConfig : existing.compositeConfig;
+            const finalVariants =
+                Array.isArray(variants) && variants.length ? variants : existing.variants ?? [];
+            try {
+                assertCompositeReady(finalConfig, finalVariants);
+            } catch (e: any) {
+                throw new BadRequestException(e.message);
+            }
+        }
 
         try {
             await this.prisma.product.update({ where: { id }, data: productData });

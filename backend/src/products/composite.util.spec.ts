@@ -1,4 +1,4 @@
-import { evalQtyFormula, renderNameTemplate, resolveCompositeQuote } from './composite.util';
+import { assertCompositeReady, evalQtyFormula, renderNameTemplate, resolveCompositeQuote } from './composite.util';
 
 describe('evalQtyFormula', () => {
   it('menghitung ceil(halaman / ukuran.pagesPerA3)', () => {
@@ -98,5 +98,28 @@ describe('resolveCompositeQuote', () => {
   it('throw kalau variantId tidak ada di variantMap', () => {
     const bad = { ...selected, isi: 999 };
     expect(() => resolveCompositeQuote(CONFIG, bad, VMAP)).toThrow();
+  });
+});
+
+describe('assertCompositeReady', () => {
+  const goodConfig = {
+    options: [{ key: 'isi', label: 'Isi', type: 'variantRef', filter: {} }],
+    components: [{ variantFrom: 'isi', qty: 1 }],
+  };
+
+  it('lolos bila config punya components dan produk punya >=1 variant', () => {
+    expect(() => assertCompositeReady(goodConfig, [{ id: 1 }])).not.toThrow();
+  });
+
+  it('tolak bila config null', () => {
+    expect(() => assertCompositeReady(null, [{ id: 1 }])).toThrow(/konfigurasi/i);
+  });
+
+  it('tolak bila components kosong', () => {
+    expect(() => assertCompositeReady({ options: [], components: [] }, [{ id: 1 }])).toThrow(/konfigurasi/i);
+  });
+
+  it('tolak bila produk tidak punya variant anchor', () => {
+    expect(() => assertCompositeReady(goodConfig, [])).toThrow(/anchor/i);
   });
 });
