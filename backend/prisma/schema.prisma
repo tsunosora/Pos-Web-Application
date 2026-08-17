@@ -139,6 +139,7 @@ model Product {
   imageUrls          String?     @map("image_urls") @db.Text
   pricingMode        PricingMode @default(UNIT) @map("pricing_mode")
   productType        ProductType @default(SELLABLE) @map("product_type")
+  compositeConfig    Json?       @map("composite_config")
   pricePerUnit       Decimal?    @map("price_per_unit") @db.Decimal(15, 2)
   requiresProduction Boolean     @default(false) @map("requires_production")
   hasAssemblyStage   Boolean     @default(false) @map("has_assembly_stage")
@@ -266,6 +267,7 @@ enum MovementType {
 enum PricingMode {
   UNIT
   AREA_BASED
+  COMPOSITE
 }
 
 enum ProductType {
