@@ -9,6 +9,7 @@ import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2
 import { EmptyState } from '@/components/ui/responsive-table';
 import { useUIStore, type InventoryViewMode } from '@/store/ui-store';
 import { cn } from '@/lib/utils';
+import { useIncrementalRender } from '@/lib/useIncrementalRender';
 import { badgeToneClass } from '@/components/ui/status-badge';
 import { ProductImageFill } from '@/components/ui/ProductImageFill';
 import StockHistoryModal from './StockHistoryModal';
@@ -352,6 +353,16 @@ export default function InventoryPage() {
     }, [products, searchText, filterSkuVariant, filterCategory, filterType, filterMinPrice, filterMaxPrice, filterMinStock]);
 
     const totalRows = groupedProducts.reduce((acc, { matchedVariants }) => acc + matchedVariants.length, 0);
+
+    // Render bertahap: batasi baris/kartu yang digambar sekaligus. Search/filter tetap
+    // atas SELURUH produk (groupedProducts). Cegah DOM berat saat produk banyak.
+    const {
+        visible: visibleGrouped,
+        hasMore: hasMoreGrouped,
+        remaining: remainingGrouped,
+        loadMore: loadMoreGrouped,
+        sentinelRef: groupedSentinel,
+    } = useIncrementalRender(groupedProducts, 40);
 
     const hasActiveFilters = filterCategory || filterSkuVariant || filterMinPrice || filterMaxPrice || filterMinStock || filterType;
     const isFilterActive = !!(searchText || hasActiveFilters);
@@ -698,7 +709,7 @@ export default function InventoryPage() {
                             title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
                             description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
                         />
-                    ) : groupedProducts.map(({ product, matchedVariants }, gi) => {
+                    ) : visibleGrouped.map(({ product, matchedVariants }, gi) => {
                         const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                         const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
                         const hasMultiple = matchedVariants.length > 1;
@@ -706,7 +717,7 @@ export default function InventoryPage() {
                         const visibleVariants = expanded ? matchedVariants : [matchedVariants[0]];
                         return (
                             <div key={product.id}>
-                                {(gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-2 bg-muted/40 border-y border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
+                                {(gi === 0 || groupLabel(visibleGrouped[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-2 bg-muted/40 border-y border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
                                 {visibleVariants.map((variant: any, idx: number) => {
                                     const isFirst = idx === 0;
                                     const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;
@@ -886,7 +897,7 @@ export default function InventoryPage() {
                                         />
                                     </td>
                                 </tr>
-                            ) : groupedProducts.map(({ product, matchedVariants }, gi) => {
+                            ) : visibleGrouped.map(({ product, matchedVariants }, gi) => {
                                 const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                                 const hasMultiple = matchedVariants.length > 1;
                                 const expanded = isFilterActive || expandedProducts.has(product.id);
@@ -894,7 +905,7 @@ export default function InventoryPage() {
                                 const hiddenCount = matchedVariants.length - 1;
 
                                 return [
-                                    (gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (
+                                    (gi === 0 || groupLabel(visibleGrouped[gi - 1].product) !== groupLabel(product)) && (
                                         <tr key={`grp-${product.id}`} className="bg-muted/40 border-y border-border">
                                             <td colSpan={12} className="px-4 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</td>
                                         </tr>
@@ -1061,7 +1072,7 @@ export default function InventoryPage() {
                                 title={searchText || hasActiveFilters ? 'Tidak ditemukan' : 'Belum ada produk'}
                                 description={searchText || hasActiveFilters ? 'Coba ubah kata kunci atau reset filter.' : 'Mulai dengan klik tombol Tambah Produk.'}
                             />
-                        ) : groupedProducts.map(({ product, matchedVariants }, gi) => {
+                        ) : visibleGrouped.map(({ product, matchedVariants }, gi) => {
                             const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                             const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
                             const expanded = isFilterActive || expandedProducts.has(product.id);
@@ -1070,7 +1081,7 @@ export default function InventoryPage() {
                             const hiddenCount = matchedVariants.length - 1;
                             return (
                                 <div key={product.id}>
-                                    {(gi === 0 || groupLabel(groupedProducts[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-1.5 bg-muted/40 border-y border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
+                                    {(gi === 0 || groupLabel(visibleGrouped[gi - 1].product) !== groupLabel(product)) && (<div className="px-4 py-1.5 bg-muted/40 border-y border-border text-xs font-bold text-muted-foreground uppercase tracking-wider">{groupLabel(product)}</div>)}
                                     {visibleVariants.map((variant: any, idx: number) => {
                                         const isFirst = idx === 0;
                                         const avatarSrc = variant.variantImageUrl || productImages[0] || product.imageUrl;
@@ -1179,7 +1190,7 @@ export default function InventoryPage() {
                             />
                         ) : (
                             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4">
-                                {groupedProducts.map(({ product, matchedVariants }) => {
+                                {visibleGrouped.map(({ product, matchedVariants }) => {
                                     const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                                     const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
                                     const firstVariant = matchedVariants[0];
@@ -1293,7 +1304,7 @@ export default function InventoryPage() {
                             />
                         ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-4 sm:gap-5">
-                                {groupedProducts.map(({ product, matchedVariants }) => {
+                                {visibleGrouped.map(({ product, matchedVariants }) => {
                                     const productImages = product.imageUrls ? (() => { try { return JSON.parse(product.imageUrls); } catch { return []; } })() : [];
                                     const typeCfg = PRODUCT_TYPE_CONFIG[product.productType || 'SELLABLE'];
                                     const firstVariant = matchedVariants[0];
@@ -1412,6 +1423,14 @@ export default function InventoryPage() {
                     </div>
                 )}
             </div>
+            {hasMoreGrouped && (
+                <div className="px-4 sm:px-6 lg:px-8 pt-3 pb-6">
+                    <div ref={groupedSentinel} className="h-1" />
+                    <button type="button" onClick={loadMoreGrouped} className="mx-auto block text-xs text-muted-foreground hover:text-foreground py-2.5 px-5 rounded-lg border border-border">
+                        Muat lebih banyak ({remainingGrouped} produk lagi)
+                    </button>
+                </div>
+            )}
             </div>{/* end content wrapper */}
 
             {/* Bulk Delete Confirmation Modal */}

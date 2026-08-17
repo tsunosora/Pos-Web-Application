@@ -7,6 +7,7 @@ import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, Refr
 import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { ProductImageFill } from "@/components/ui/ProductImageFill";
+import { useIncrementalRender } from "@/lib/useIncrementalRender";
 import { useCartStore, CartItem } from '@/store/cart-store';
 import { CompositeModal } from './CompositeModal';
 import { useReadyJobs } from '@/hooks/useReadyJobs';
@@ -410,6 +411,16 @@ function POSPageContent() {
         });
     }, [products, selectedCategory, searchQuery]);
 
+    // Render bertahap: batasi kartu yang digambar sekaligus (search/filter tetap
+    // atas seluruh produk di `filteredProducts`). Cegah DOM/paint berat di load awal.
+    const {
+        visible: visibleProducts,
+        hasMore: hasMoreProducts,
+        remaining: remainingProducts,
+        loadMore: loadMoreProducts,
+        sentinelRef: productsSentinel,
+    } = useIncrementalRender(filteredProducts, 60);
+
     // Open area modal for a fresh new line (clicking card or '+')
     const openAreaModalFresh = (product: any, variant: any) => {
         setAreaModal({ open: true, mode: 'add', product, variant, unitType: 'cm', widthCm: '', heightCm: '', note: '', pcs: '1' });
@@ -787,8 +798,9 @@ function POSPageContent() {
                             )}
                         </div>
                     ) : (
+                        <>
                         <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] sm:grid-cols-[repeat(auto-fill,minmax(10rem,1fr))] gap-2.5 sm:gap-3 lg:gap-4 pb-24 md:pb-4">
-                            {filteredProducts.map((p: any) =>
+                            {visibleProducts.map((p: any) =>
                                 p.variants.map((v: any) => {
                                     const isAreaBased = p.pricingMode === 'AREA_BASED';
                                     const unitLineInCart = !isAreaBased && cart.find(i => i.productVariantId === v.id);
@@ -862,6 +874,15 @@ function POSPageContent() {
                                 })
                             )}
                         </div>
+                        {hasMoreProducts && (
+                            <div className="pt-1 pb-24 md:pb-6">
+                                <div ref={productsSentinel} className="h-1" />
+                                <button type="button" onClick={loadMoreProducts} className="mx-auto block text-xs text-muted-foreground hover:text-foreground py-2 px-4 rounded-lg border border-border">
+                                    Muat lebih banyak ({remainingProducts} lagi)
+                                </button>
+                            </div>
+                        )}
+                        </>
                     )}
                 </div>
             </div>
