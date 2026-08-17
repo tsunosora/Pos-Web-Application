@@ -2,6 +2,7 @@ import { Injectable, Logger, ServiceUnavailableException, BadRequestException } 
 import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProductsService } from '../products/products.service';
 import { APP_GUIDE } from './app-guide';
 
 /**
@@ -46,7 +47,10 @@ export interface AiConfig {
 export class StudioAiService {
   private readonly logger = new Logger(StudioAiService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly products: ProductsService,
+  ) {}
 
   private configPath(): string {
     if (process.env.STUDIO_AI_CONFIG_PATH) return process.env.STUDIO_AI_CONFIG_PATH;
@@ -420,6 +424,68 @@ export class StudioAiService {
       .join('\n');
   }
 
+  /**
+   * Detail produk KONFIGURASI (COMPOSITE): opsi + HARGA komponen nyata dari DB +
+   * rumus qty. Ini yang membuat AI bisa MENGHITUNG estimasi harga produk custom
+   * (mis. Buku Custom) tanpa harus disuapi harga oleh user. Reuse getCompositeOptions
+   * agar harga komponen konsisten dengan form POS.
+   */
+  private async compositeContext(): Promise<string> {
+    let products: any[] = [];
+    try {
+      products = await this.prisma.product.findMany({
+        where: { isActive: true, pricingMode: 'COMPOSITE' as any },
+        select: { id: true, name: true, compositeConfig: true },
+        orderBy: { name: 'asc' },
+        take: 4, // produk konfigurasi biasanya sedikit; batasi token
+      });
+    } catch (e: any) {
+      this.logger.error(`composite context gagal: ${e?.message}`);
+      return '';
+    }
+    if (!products.length) return '';
+
+    const blocks: string[] = [];
+    for (const p of products) {
+      let resolved: any;
+      try {
+        resolved = await this.products.getCompositeOptions(p.id);
+      } catch {
+        continue; // config belum lengkap → lewati diam-diam
+      }
+      const lines: string[] = [`${p.name} (nama akhir: ${resolved.nameTemplate || '-'}):`];
+      for (const opt of resolved.options ?? []) {
+        if (opt.type === 'variantRef') {
+          const choices = (opt.choices ?? [])
+            .slice(0, 12)
+            .map((c: any) => `${c.label} ${this.rupiah(c.price)}`);
+          const extra = (opt.choices ?? []).length > 12 ? ', dst' : '';
+          lines.push(`  • ${opt.label} [pilih bahan/finishing]: ${choices.join(' | ')}${extra}`);
+        } else if (opt.type === 'select') {
+          const choices = (opt.choices ?? []).map((c: any) => {
+            const meta = Object.entries(c)
+              .filter(([k, v]) => k !== 'value' && k !== 'label' && typeof v === 'number')
+              .map(([k, v]) => `${k}=${v}`)
+              .join(',');
+            return `${c.value ?? c.label}${meta ? `(${meta})` : ''}`;
+          });
+          lines.push(`  • ${opt.label} [pilih]: ${choices.join(' | ')}`);
+        } else if (opt.type === 'number') {
+          const range = [opt.min, opt.max].filter((x) => x != null).join('..');
+          lines.push(`  • ${opt.label} [angka${range ? ` ${range}` : ''}]`);
+        }
+      }
+      const cfg: any = p.compositeConfig;
+      const comps = (cfg?.components ?? []).map((c: any) => {
+        const qty = c.qtyFormula ? `×${c.qtyFormula}` : `×${c.qty ?? 1}`;
+        return `${c.variantFrom}${qty}`;
+      });
+      if (comps.length) lines.push(`  Rumus harga = jumlah dari: ${comps.join(' + ')}`);
+      blocks.push(lines.join('\n'));
+    }
+    return blocks.join('\n\n');
+  }
+
   private guideKeywords(msg: string): string[] {
     const drop = new Set([
       'yang', 'untuk', 'dari', 'atau', 'dengan', 'bagaimana', 'gimana', 'apa', 'apakah',
@@ -527,9 +593,10 @@ export class StudioAiService {
     }
 
     // ── Tahap 2: retrieval + jawab ──
-    const [ctxData, overview] = await Promise.all([
+    const [ctxData, overview, compositeData] = await Promise.all([
       this.productContext(message, canHpp),
       this.catalogOverview(),
+      this.compositeContext(),
     ]);
     const guide = this.guideContext(message);
     const sys = [
@@ -538,6 +605,7 @@ export class StudioAiService {
       'Fokus: produk/harga/HPP/stok, rekomendasi produk, hitung harga/margin/diskon, ide untuk toko, dan cara pakai aplikasi ini. Kalau ada yang benar-benar keluar topik toko, tolak dengan halus & ramah lalu arahkan ke hal yang bisa kamu bantu.',
       'KEJUJURAN DATA:',
       '- Harga/HPP: pakai HANYA "DATA PRODUK TERKAIT". Jangan mengarang angka; kalau tak ketemu, bilang apa adanya & minta nama lebih spesifik atau tawarkan alternatif.',
+      '- PRODUK KONFIGURASI (buku custom dll): kalau ada "DATA PRODUK KONFIGURASI", kamu PUNYA harga komponen + rumusnya. Kamu BOLEH & DIHARAPKAN menghitung sendiri estimasi harga dari data itu (jumlahkan komponen sesuai rumus; konversi halaman→lembar A3 pakai metadata pagesPerA3, lembar isi = ceil(halaman/pagesPerA3)). Tunjukkan rinciannya, sebut sebagai "estimasi". Kalau user belum sebut ukuran/halaman/bahan/finishing, boleh pilih default masuk akal lalu sebutkan asumsinya — jangan menolak memberi harga.',
       '- Rekomendasi produk: sarankan HANYA dari "DAFTAR PRODUK TERDAFTAR", tapi jelaskan kenapa cocok (kelebihan, buat kebutuhan apa) dengan bahasa yang mengalir.',
       '- Kamu SUDAH memahami sistem aplikasi ini dari "PANDUAN APLIKASI" + "DAFTAR TOPIK PANDUAN" di bawah — anggap itu pengetahuanmu sendiri. Untuk pertanyaan cara pakai/sistem, jawab LANGSUNG, jelas, & percaya diri, sebutkan menu/path-nya (mis. /inventory, /settings/users). JANGAN menyuruh user membuka halaman /help — kamulah asistennya.',
       '- Kalau suatu hal benar-benar TIDAK ada di panduan dan kamu tetap tidak yakin, JANGAN mengarang langkah/menu. Jujur bilang belum tersedia, lalu arahkan: untuk perbaikan bug atau permintaan tambah fitur, hubungi developer via WhatsApp wa.me/6289669180127 (089669180127).',
@@ -552,6 +620,9 @@ export class StudioAiService {
       `${ctxData || '(tidak ada produk cocok dengan kata kunci pertanyaan)'}\n\n` +
       `DAFTAR PRODUK TERDAFTAR (untuk rekomendasi — HANYA boleh menyarankan dari daftar ini):\n` +
       `${overview || '(katalog kosong)'}` +
+      (compositeData
+        ? `\n\nDATA PRODUK KONFIGURASI (opsi + HARGA komponen nyata + rumus — kamu BOLEH hitung estimasi harga dari sini):\n${compositeData}`
+        : '') +
       (guide ? `\n\nPANDUAN APLIKASI — bagian relevan (jawab dari sini, sebut menu/path):\n${guide}` : '') +
       `\n\nDAFTAR TOPIK PANDUAN (cakupan sistem yang kamu kuasai):\n${this.guideToc()}`;
 
