@@ -393,7 +393,7 @@ export class StudioAiService {
     try {
       products = await this.prisma.product.findMany({
         where: { isActive: true },
-        select: { name: true, category: { select: { name: true } } },
+        select: { name: true, pricingMode: true, compositeConfig: true, category: { select: { name: true } } },
         orderBy: { name: 'asc' },
         take: 150,
       });
@@ -405,7 +405,15 @@ export class StudioAiService {
     const byCat: Record<string, string[]> = {};
     for (const p of products) {
       const cat = p.category?.name || 'Lainnya';
-      (byCat[cat] ||= []).push(p.name);
+      let label = p.name;
+      if (p.pricingMode === 'COMPOSITE') {
+        const cfg: any = p.compositeConfig;
+        const opts = Array.isArray(cfg?.options)
+          ? cfg.options.map((o: any) => o.label || o.key).filter(Boolean).join(' × ')
+          : '';
+        label = `${p.name} [KONFIGURASI: ${opts || 'produk dirakit dari komponen'} → harga dihitung otomatis dari komponen]`;
+      }
+      (byCat[cat] ||= []).push(label);
     }
     return Object.entries(byCat)
       .map(([cat, names]) => `• ${cat}: ${names.join(', ')}`)
