@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Res, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -68,5 +68,39 @@ export class StudioAiController {
     @CurrentBranch() ctx: any,
   ) {
     return this.svc.chatAssistant(body?.message, body?.history || [], ctx?.roleName ?? null);
+  }
+
+  /**
+   * Versi STREAMING dari /chat (Server-Sent Events). Mengirim token AI real-time
+   * saat mengetik → frontend menampilkannya bertahap. Frame:
+   *   event: token → data: "<potongan teks>"
+   *   event: done  → data: { refused, products }
+   *   event: error → data: { message }
+   */
+  @Post('chat/stream')
+  async chatStream(
+    @Body() body: { message: string; history?: { role: string; content: string }[] },
+    @CurrentBranch() ctx: any,
+    @Res() res: any,
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // cegah nginx buffer SSE
+    res.flushHeaders?.();
+    const sse = (event: string, data: any) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      const result = await this.svc.chatAssistantStream(
+        body?.message,
+        body?.history || [],
+        ctx?.roleName ?? null,
+        (delta) => sse('token', delta),
+      );
+      sse('done', { refused: result.refused, products: result.products });
+    } catch (e: any) {
+      sse('error', { message: e?.message || 'Gagal menghubungi asisten.' });
+    } finally {
+      res.end();
+    }
   }
 }

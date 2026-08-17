@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { X, Send, Loader2, Bot, Sparkles, Package, ChevronRight } from "lucide-react";
-import { getStudioAiStatus, sendAiChat, type AiChatMessage } from "@/lib/api/studioAi";
+import { getStudioAiStatus, streamAiChat, type AiChatMessage } from "@/lib/api/studioAi";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 function imgSrc(u: string | null) {
@@ -102,7 +102,8 @@ export function AiChatWidget() {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState<AiChatMessage[]>([]);
     const [input, setInput] = useState("");
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); // menunggu token pertama ("mikir")
+    const [busy, setBusy] = useState(false);        // sedang kirim/streaming (kunci input)
     const scrollRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
 
@@ -114,27 +115,41 @@ export function AiChatWidget() {
     });
 
     useEffect(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "auto" });
     }, [messages, loading]);
 
     if (!status?.chatEnabled) return null;
 
+    // Perbarui pesan terakhir (placeholder asisten yang sedang di-stream).
+    const patchLast = (fn: (m: AiChatMessage) => AiChatMessage) =>
+        setMessages((arr) => arr.map((m, i) => (i === arr.length - 1 ? fn(m) : m)));
+
     const send = async (text: string) => {
         const msg = text.trim();
-        if (!msg || loading) return;
+        if (!msg || busy) return;
         const history = messages;
-        setMessages((m) => [...m, { role: "user", content: msg }]);
+        // Tambah pesan user + placeholder asisten kosong (yang akan diisi token).
+        setMessages((m) => [...m, { role: "user", content: msg }, { role: "assistant", content: "", products: [], streaming: true }]);
         setInput("");
         setLoading(true);
-        try {
-            const { reply, products } = await sendAiChat(msg, history);
-            setMessages((m) => [...m, { role: "assistant", content: reply, products }]);
-        } catch (e: any) {
-            const err = e?.response?.data?.message || e?.message || "Gagal menghubungi asisten.";
-            setMessages((m) => [...m, { role: "assistant", content: `⚠️ ${Array.isArray(err) ? err.join(", ") : err}` }]);
-        } finally {
-            setLoading(false);
-        }
+        setBusy(true);
+        let firstToken = false;
+        await streamAiChat(msg, history, {
+            onToken: (delta) => {
+                if (!firstToken) { firstToken = true; setLoading(false); }
+                patchLast((m) => ({ ...m, content: m.content + delta }));
+            },
+            onDone: (d) => {
+                setLoading(false);
+                patchLast((m) => ({ ...m, products: d.products || [], streaming: false }));
+                setBusy(false);
+            },
+            onError: (em) => {
+                setLoading(false);
+                patchLast((m) => ({ ...m, streaming: false, content: m.content || (em ? `⚠️ ${em}` : "⚠️ Gagal menghubungi asisten.") }));
+                setBusy(false);
+            },
+        });
     };
 
     return (
@@ -192,7 +207,10 @@ export function AiChatWidget() {
                                 </div>
                             </div>
                         )}
-                        {messages.map((m, i) => (
+                        {messages.map((m, i) => {
+                            // Placeholder asisten yang masih kosong → jangan render bubble; ThinkingBubble yang tampil.
+                            if (m.role === "assistant" && !m.content) return null;
+                            return (
                             <div key={i} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
                                 <div
                                     className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm break-words ${
@@ -201,7 +219,12 @@ export function AiChatWidget() {
                                             : "bg-muted text-foreground rounded-bl-sm"
                                     }`}
                                 >
-                                    {m.role === "user" ? m.content : <RichText text={m.content} />}
+                                    {m.role === "user" ? m.content : (
+                                        <>
+                                            <RichText text={m.content} />
+                                            {m.streaming && <span className="inline-block w-1.5 h-3.5 align-middle ml-0.5 rounded-sm bg-orange-500/70 animate-pulse" />}
+                                        </>
+                                    )}
                                 </div>
                                 {m.role === "assistant" && m.products && m.products.length > 0 && (
                                     <div className="mt-2 w-full max-w-[85%] space-y-1.5">
@@ -234,7 +257,8 @@ export function AiChatWidget() {
                                     </div>
                                 )}
                             </div>
-                        ))}
+                            );
+                        })}
                         {loading && <ThinkingBubble />}
                     </div>
 
@@ -250,11 +274,11 @@ export function AiChatWidget() {
                         />
                         <button
                             type="submit"
-                            disabled={!input.trim() || loading}
+                            disabled={!input.trim() || busy}
                             className="w-9 h-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-50 shrink-0"
                             aria-label="Kirim"
                         >
-                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                         </button>
                     </form>
                 </div>

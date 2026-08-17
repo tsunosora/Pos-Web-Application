@@ -181,22 +181,7 @@ export class StudioAiService {
         body: JSON.stringify({ model: cfg.model, messages, temperature, stream: false }),
       });
     } catch (e: any) {
-      // Undici membungkus error jaringan di e.cause.code — inilah petunjuk akar masalah.
-      const code = e?.cause?.code || e?.code || '';
-      let host = cfg.baseUrl;
-      try { host = new URL(cfg.baseUrl).host; } catch { /* keep as-is */ }
-      const hint: Record<string, string> = {
-        ECONNREFUSED: `Koneksi DITOLAK di ${host}. Host terjangkau tapi tak ada yang mendengar di port itu → 9router mati, atau bind ke 127.0.0.1 saja (jalankan dgn HOSTNAME=0.0.0.0).`,
-        ETIMEDOUT: `TIMEOUT ke ${host}. Server tak bisa menjangkau host → Tailscale belum konek di kedua sisi, IP salah, atau firewall PC blokir port.`,
-        EHOSTUNREACH: `Host ${host} TAK TERJANGKAU (routing/Tailscale down).`,
-        ENETUNREACH: `Jaringan ke ${host} tak terjangkau (Tailscale/routing).`,
-        ENOTFOUND: `Hostname ${host} TAK DITEMUKAN (DNS). Pakai IP Tailscale, bukan nama.`,
-        EAI_AGAIN: `Gagal resolve DNS ${host}. Pakai IP Tailscale langsung.`,
-        ECONNRESET: `Koneksi ke ${host} diputus (mungkin https↔http salah, atau reverse proxy).`,
-      };
-      const detail = hint[code] || `${code || e?.message || 'error tak dikenal'} → ${host}.`;
-      this.logger.error(`AI upstream tidak terjangkau (${code}): ${e?.message} url=${cfg.baseUrl}`);
-      throw new ServiceUnavailableException(`Server AI tidak terjangkau. ${detail}`);
+      throw this.mapUpstreamError(e, cfg);
     }
     if (!res.ok) {
       const body = await res.text().catch(() => '');
@@ -207,6 +192,88 @@ export class StudioAiService {
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== 'string') throw new ServiceUnavailableException('Format balasan AI tak dikenali.');
     return content;
+  }
+
+  /** Terjemahkan error jaringan undici (e.cause.code) → pesan diagnosa yang jelas. */
+  private mapUpstreamError(e: any, cfg: AiConfig): ServiceUnavailableException {
+    const code = e?.cause?.code || e?.code || '';
+    let host = cfg.baseUrl;
+    try { host = new URL(cfg.baseUrl).host; } catch { /* keep as-is */ }
+    const hint: Record<string, string> = {
+      ECONNREFUSED: `Koneksi DITOLAK di ${host}. Host terjangkau tapi tak ada yang mendengar di port itu → 9router mati, atau bind ke 127.0.0.1 saja (jalankan dgn HOSTNAME=0.0.0.0).`,
+      ETIMEDOUT: `TIMEOUT ke ${host}. Server tak bisa menjangkau host → Tailscale belum konek di kedua sisi, IP salah, atau firewall PC blokir port.`,
+      EHOSTUNREACH: `Host ${host} TAK TERJANGKAU (routing/Tailscale down).`,
+      ENETUNREACH: `Jaringan ke ${host} tak terjangkau (Tailscale/routing).`,
+      ENOTFOUND: `Hostname ${host} TAK DITEMUKAN (DNS). Pakai IP Tailscale, bukan nama.`,
+      EAI_AGAIN: `Gagal resolve DNS ${host}. Pakai IP Tailscale langsung.`,
+      ECONNRESET: `Koneksi ke ${host} diputus (mungkin https↔http salah, atau reverse proxy).`,
+    };
+    const detail = hint[code] || `${code || e?.message || 'error tak dikenal'} → ${host}.`;
+    this.logger.error(`AI upstream tidak terjangkau (${code}): ${e?.message} url=${cfg.baseUrl}`);
+    return new ServiceUnavailableException(`Server AI tidak terjangkau. ${detail}`);
+  }
+
+  /**
+   * Chat completion STREAMING. Memanggil upstream dengan stream:true, mem-parse
+   * SSE-nya, memanggil onDelta(potongan) tiap token, dan mengembalikan teks penuh.
+   * Kompatibel OpenAI (`data: {json}\n\n` + `data: [DONE]`).
+   */
+  private async chatStreamRaw(
+    cfg: AiConfig,
+    messages: ChatMsg[],
+    temperature: number,
+    onDelta: (delta: string) => void,
+  ): Promise<string> {
+    const doFetch: any = (globalThis as any).fetch;
+    if (!doFetch) throw new ServiceUnavailableException('fetch tidak tersedia (butuh Node 18+)');
+
+    let res: any;
+    try {
+      res = await doFetch(`${cfg.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+          ...(cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {}),
+        },
+        body: JSON.stringify({ model: cfg.model, messages, temperature, stream: true }),
+      });
+    } catch (e: any) {
+      throw this.mapUpstreamError(e, cfg);
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      this.logger.error(`AI upstream ${res.status}: ${body.slice(0, 500)}`);
+      throw new ServiceUnavailableException(`AI upstream error (${res.status}). Cek token/model 9router.`);
+    }
+    // Beberapa gateway abaikan stream:true → balas JSON biasa. Tangani sebagai fallback.
+    if (!res.body || typeof res.body[Symbol.asyncIterator] !== 'function') {
+      const data: any = await res.json().catch(() => null);
+      const content = data?.choices?.[0]?.message?.content;
+      if (typeof content === 'string') { onDelta(content); return content; }
+      throw new ServiceUnavailableException('Format balasan AI tak dikenali (stream).');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let full = '';
+    for await (const chunk of res.body as AsyncIterable<Uint8Array>) {
+      buffer += decoder.decode(chunk, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line || !line.startsWith('data:')) continue;
+        const payload = line.slice(5).trim();
+        if (payload === '[DONE]') return full;
+        try {
+          const json = JSON.parse(payload);
+          const delta = json?.choices?.[0]?.delta?.content ?? '';
+          if (delta) { full += delta; onDelta(delta); }
+        } catch { /* baris data terpotong antar-chunk → tunggu chunk berikut */ }
+      }
+    }
+    return full;
   }
 
   /** Ambil objek/array JSON pertama dari teks (toleran code-fence / teks tambahan). */
@@ -560,11 +627,19 @@ export class StudioAiService {
    * Asisten chat scoped VolikoPrint dengan barrier 2 tahap:
    * (1) klasifikasi on-topic → kalau bukan, tolak; (2) retrieval + jawab.
    */
-  async chatAssistant(
+  /**
+   * Siapkan konteks chat: validasi, klasifikasi topik (barrier), retrieval, dan
+   * rakit `msgs` untuk LLM. Dipakai bersama oleh chatAssistant (non-stream) &
+   * chatAssistantStream. Return refused (dengan reply penolakan) ATAU msgs+cfg.
+   */
+  private async buildChatContext(
     message: string,
     history: { role: string; content: string }[],
     roleName: string | null,
-  ): Promise<{ reply: string; refused: boolean; products: any[] }> {
+  ): Promise<
+    | { refused: true; reply: string }
+    | { refused: false; cfg: AiConfig; msgs: ChatMsg[] }
+  > {
     if (!message?.trim()) throw new BadRequestException('Pesan kosong.');
     const cfg = await this.requireEnabled();
     if (!cfg.chatEnabled) throw new ServiceUnavailableException('Chat asisten sedang dinonaktifkan oleh Owner.');
@@ -587,12 +662,11 @@ export class StudioAiService {
     if (!verdict.startsWith('YA')) {
       return {
         refused: true,
-        products: [],
         reply: 'Maaf, saya hanya membantu seputar VolikoPrint — produk, harga, HPP, perhitungan margin, dan penggunaan aplikasi ini. Silakan tanyakan hal terkait itu ya 🙏',
       };
     }
 
-    // ── Tahap 2: retrieval + jawab ──
+    // ── Tahap 2: retrieval ──
     const [ctxData, overview, compositeData] = await Promise.all([
       this.productContext(message, canHpp),
       this.catalogOverview(),
@@ -626,18 +700,44 @@ export class StudioAiService {
       (guide ? `\n\nPANDUAN APLIKASI — bagian relevan (jawab dari sini, sebut menu/path):\n${guide}` : '') +
       `\n\nDAFTAR TOPIK PANDUAN (cakupan sistem yang kamu kuasai):\n${this.guideToc()}`;
 
-    const msgs: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
-      { role: 'system', content: `${sys}\n\n${dataBlock}` },
-    ];
+    const msgs: ChatMsg[] = [{ role: 'system', content: `${sys}\n\n${dataBlock}` }];
     for (const h of Array.isArray(history) ? history.slice(-8) : []) {
       if (h && (h.role === 'user' || h.role === 'assistant') && typeof h.content === 'string') {
         msgs.push({ role: h.role, content: h.content.slice(0, 4000) });
       }
     }
     msgs.push({ role: 'user', content: message.trim() });
+    return { refused: false, cfg, msgs };
+  }
 
-    const reply = (await this.chat(cfg, msgs, 0.6)).trim();
+  /** Asisten chat (non-stream): balasan penuh sekaligus + kartu produk. */
+  async chatAssistant(
+    message: string,
+    history: { role: string; content: string }[],
+    roleName: string | null,
+  ): Promise<{ reply: string; refused: boolean; products: any[] }> {
+    const ctx = await this.buildChatContext(message, history, roleName);
+    if (ctx.refused) return { reply: ctx.reply, refused: true, products: [] };
+    const reply = (await this.chat(ctx.cfg, ctx.msgs, 0.6)).trim();
     const products = await this.recommendedCards(reply);
     return { reply, refused: false, products };
+  }
+
+  /**
+   * Asisten chat STREAMING: memanggil onToken(potongan teks) saat AI mengetik,
+   * lalu mengembalikan { refused, products } setelah selesai. Penolakan topik
+   * tetap dikirim sebagai satu token agar UX konsisten.
+   */
+  async chatAssistantStream(
+    message: string,
+    history: { role: string; content: string }[],
+    roleName: string | null,
+    onToken: (delta: string) => void,
+  ): Promise<{ refused: boolean; products: any[] }> {
+    const ctx = await this.buildChatContext(message, history, roleName);
+    if (ctx.refused) { onToken(ctx.reply); return { refused: true, products: [] }; }
+    const reply = (await this.chatStreamRaw(ctx.cfg, ctx.msgs, 0.6, onToken)).trim();
+    const products = await this.recommendedCards(reply);
+    return { refused: false, products };
   }
 }
