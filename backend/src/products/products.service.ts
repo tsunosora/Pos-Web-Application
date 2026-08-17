@@ -166,6 +166,46 @@ export class ProductsService {
         };
     }
 
+    /**
+     * Resolusi opsi produk COMPOSITE untuk form POS: opsi variantRef diubah jadi
+     * daftar pilihan konkret { variantId, label, price } sesuai filter
+     * (categoryId / productId / variantNameLike). Opsi select/number diteruskan apa adanya.
+     */
+    async getCompositeOptions(productId: number) {
+        const product = await (this.prisma as any).product.findUnique({ where: { id: productId } });
+        if (!product) throw new NotFoundException(`Produk ${productId} tidak ditemukan`);
+        const config = product.compositeConfig;
+        if (product.pricingMode !== 'COMPOSITE' || !config) {
+            throw new BadRequestException(`Produk ${productId} bukan produk konfigurasi`);
+        }
+
+        const options: any[] = [];
+        for (const opt of config.options ?? []) {
+            if (opt.type !== 'variantRef') { options.push(opt); continue; }
+            const f = opt.filter ?? {};
+            const where: any = { product: { isActive: true } };
+            if (f.productId) where.productId = Number(f.productId);
+            if (f.categoryId) where.product = { ...where.product, categoryId: Number(f.categoryId) };
+            if (f.variantNameLike) where.variantName = { contains: String(f.variantNameLike) };
+            const variants = await (this.prisma as any).productVariant.findMany({
+                where,
+                select: { id: true, variantName: true, price: true, product: { select: { name: true } } },
+                orderBy: { id: 'asc' },
+            });
+            options.push({
+                key: opt.key,
+                label: opt.label,
+                type: 'variantRef',
+                choices: variants.map((v: any) => ({
+                    variantId: v.id,
+                    label: `${v.product?.name ?? ''}${v.variantName ? ' — ' + v.variantName : ''}`.trim(),
+                    price: Number(v.price),
+                })),
+            });
+        }
+        return { productId, options, nameTemplate: config.nameTemplate ?? '' };
+    }
+
     async findOnePublic(id: number) {
         const product = await this.prisma.product.findUnique({
             where: { id },
