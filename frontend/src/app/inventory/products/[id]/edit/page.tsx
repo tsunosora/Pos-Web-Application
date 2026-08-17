@@ -219,7 +219,8 @@ export default function EditProductPage() {
     };
 
     const [productForm, setProductForm] = useState({ name: '', description: '', categoryId: '', unitId: '' });
-    const [pricingMode, setPricingMode] = useState<'UNIT' | 'AREA_BASED'>('UNIT');
+    const [pricingMode, setPricingMode] = useState<'UNIT' | 'AREA_BASED' | 'COMPOSITE'>('UNIT');
+    const [compositeConfigText, setCompositeConfigText] = useState<string>('');
     const [productType, setProductType] = useState<'SELLABLE' | 'RAW_MATERIAL' | 'SERVICE'>('SELLABLE');
     const [pricePerUnit, setPricePerUnit] = useState('');
     const [requiresProduction, setRequiresProduction] = useState(false);
@@ -235,6 +236,21 @@ export default function EditProductPage() {
     const [ingredients, setIngredients] = useState<IngredientForm[]>([]);
     const [showIngredients, setShowIngredients] = useState(false);
     const [initialized, setInitialized] = useState(false);
+
+    // Validasi composite_config (JSON mentah) → menentukan apakah konfigurator boleh diaktifkan.
+    const parsedComposite = useMemo(() => {
+        if (!compositeConfigText.trim()) return { ok: false, value: null as any, reason: 'kosong' };
+        try {
+            const v = JSON.parse(compositeConfigText);
+            if (!Array.isArray(v?.components) || v.components.length === 0)
+                return { ok: false, value: null as any, reason: 'components kosong' };
+            return { ok: true, value: v, reason: '' };
+        } catch {
+            return { ok: false, value: null as any, reason: 'JSON tidak valid' };
+        }
+    }, [compositeConfigText]);
+    const hasAnchorVariant = variants.some(v => v.price !== '' || v.sku);
+    const canEnableComposite = parsedComposite.ok && hasAnchorVariant;
 
     const allVariants = (products as any[])?.flatMap((p: any) =>
         p.variants.map((v: any) => ({
@@ -253,6 +269,9 @@ export default function EditProductPage() {
                 unitId: String(product.unitId || ''),
             });
             setPricingMode(product.pricingMode || 'UNIT');
+            setCompositeConfigText(
+                (product as any).compositeConfig ? JSON.stringify((product as any).compositeConfig, null, 2) : '',
+            );
             setProductType(product.productType || 'SELLABLE');
             setPricePerUnit(product.pricePerUnit ? String(product.pricePerUnit) : '');
             setRequiresProduction(product.requiresProduction || false);
@@ -331,6 +350,7 @@ export default function EditProductPage() {
                 clickRateId: clickRateId || null,
                 clicksPerUnit: clickRateId ? clicksPerUnit : null,
                 pricePerUnit: pricingMode === 'AREA_BASED' ? Number(pricePerUnit) : null,
+                compositeConfig: parsedComposite.ok ? parsedComposite.value : null,
                 deletedVariantIds: deletedVariantIds.length > 0 ? deletedVariantIds : undefined,
                 variants: variants.map(v => ({
                     id: v.id,
@@ -388,6 +408,9 @@ export default function EditProductPage() {
             queryClient.removeQueries({ queryKey: ['product', productId] });
             setDeletedVariantIds([]);
             router.push('/inventory');
+        },
+        onError: (err: any) => {
+            alert(err?.response?.data?.message || 'Gagal menyimpan produk');
         }
     });
 
@@ -662,6 +685,55 @@ export default function EditProductPage() {
                         </div>
                     </div>
                 )}
+
+                {/* Konfigurator Produk Custom (COMPOSITE) */}
+                <div className="glass p-4 rounded-xl border border-border shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-semibold">Konfigurator Produk Custom</p>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Aktif: customer pilih ukuran/bahan/finishing, harga otomatis. Nonaktif: produk biasa (varian &quot;Mulai dari …&quot;, harga manual).
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            disabled={pricingMode !== 'COMPOSITE' && !canEnableComposite}
+                            title={
+                                pricingMode !== 'COMPOSITE' && !canEnableComposite
+                                    ? (!hasAnchorVariant ? 'Buat minimal 1 varian dulu' : 'Isi konfigurasi (JSON) yang valid dulu')
+                                    : ''
+                            }
+                            onClick={() => setPricingMode(m => (m === 'COMPOSITE' ? 'UNIT' : 'COMPOSITE'))}
+                            className={`relative shrink-0 w-12 h-6 rounded-full transition-colors ${pricingMode === 'COMPOSITE' ? 'bg-primary' : 'bg-muted-foreground/30'} disabled:opacity-40 disabled:cursor-not-allowed`}
+                        >
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-primary-foreground shadow transition-transform ${pricingMode === 'COMPOSITE' ? 'translate-x-6' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                    {/* Editor JSON composite_config */}
+                    <div className="mt-3">
+                        <label className="text-xs font-medium text-muted-foreground">Konfigurasi (JSON): opsi + komponen + nameTemplate</label>
+                        <textarea
+                            value={compositeConfigText}
+                            onChange={e => setCompositeConfigText(e.target.value)}
+                            rows={10}
+                            spellCheck={false}
+                            className="mt-1 w-full font-mono text-xs rounded-xl border border-border bg-background p-2 focus:ring-2 focus:ring-primary outline-none"
+                            placeholder='{"options":[...],"components":[...],"nameTemplate":"..."}'
+                        />
+                        {!!compositeConfigText.trim() && !parsedComposite.ok && (
+                            <p className="text-xs text-red-600 dark:text-red-400 mt-1">Config belum valid: {parsedComposite.reason}</p>
+                        )}
+                        {!hasAnchorVariant && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Tambahkan minimal 1 varian dulu agar konfigurator bisa diaktifkan.</p>
+                        )}
+                        {pricingMode === 'COMPOSITE' && (
+                            <p className="mt-2 text-xs text-blue-600 bg-blue-50 dark:bg-blue-950/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                                Konfigurator aktif — di POS produk ini membuka form konfigurasi (harga dihitung otomatis dari komponen).
+                            </p>
+                        )}
+                    </div>
+                </div>
 
                 {/* Track Stock toggle */}
                 <div className="glass p-4 rounded-xl border border-border shadow-sm">
