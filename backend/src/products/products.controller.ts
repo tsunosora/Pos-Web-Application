@@ -58,6 +58,20 @@ export class ProductsController {
         return this.productsService.findOne(id, branchCtx);
     }
 
+    // === Produk COMPOSITE (produk konfigurasi) ===
+    @Get(':id/composite/options')
+    getCompositeOptions(@Param('id', ParseIntPipe) id: number) {
+        return this.productsService.getCompositeOptions(id);
+    }
+
+    @Post(':id/composite/compute')
+    computeComposite(
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { selectedOptions: Record<string, any> },
+    ) {
+        return this.productsService.computeComposite(id, body?.selectedOptions ?? {});
+    }
+
     @Patch(':id')
     update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: any) {
         return this.productsService.update(id, updateProductDto);
