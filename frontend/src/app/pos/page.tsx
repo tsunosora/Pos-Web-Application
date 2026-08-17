@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { ProductImageFill } from "@/components/ui/ProductImageFill";
 import { useCartStore, CartItem } from '@/store/cart-store';
+import { CompositeModal } from './CompositeModal';
 import { useReadyJobs } from '@/hooks/useReadyJobs';
 import { useUIStore } from '@/store/ui-store';
 import { useState, useMemo, useCallback, useEffect } from 'react';
@@ -153,6 +154,7 @@ function POSPageContent() {
     const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER' | 'KREDIT' | 'BAYAR_NANTI'>('CASH');
     const [selectedBankId, setSelectedBankId] = useState<string>('');
     const [areaModal, setAreaModal] = useState<AreaModalState>(emptyAreaModal());
+    const [compositeModal, setCompositeModal] = useState<{ product: any } | null>(null);
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
     const [customerAddress, setCustomerAddress] = useState('');
@@ -195,6 +197,7 @@ function POSPageContent() {
 
     const cart = useCartStore((state) => state.items);
     const addItem = useCartStore((state) => state.addItem);
+    const addCompositeItem = useCartStore((state) => state.addCompositeItem);
     const removeItem = useCartStore((state) => state.removeItem);
     const updateQuantity = useCartStore((state) => state.updateQuantity);
     const updateAreaDimensions = useCartStore((state) => state.updateAreaDimensions);
@@ -430,6 +433,11 @@ function POSPageContent() {
     };
 
     const handleProductClick = (product: any, variant: any) => {
+        // Produk COMPOSITE (produk konfigurasi) → buka form konfigurasi (tak butuh variant).
+        if (product.pricingMode === 'COMPOSITE') {
+            setCompositeModal({ product });
+            return;
+        }
         if (product.trackStock !== false && Number(variant.stock) <= 0) return;
         if (product.pricingMode === 'AREA_BASED') {
             openAreaModalFresh(product, variant);
@@ -522,19 +530,33 @@ function POSPageContent() {
         };
 
         const payload = {
-            items: cart.map(item => ({
-                productVariantId: item.productVariantId,
-                quantity: item.qty,
-                widthCm: item.widthCm ? Number(item.widthCm) : undefined,
-                heightCm: item.heightCm ? Number(item.heightCm) : undefined,
-                unitType: item.unitType,
-                pcs: item.pcs ?? 1,
-                note: item.note,
-                customPrice: item.customPrice != null ? item.customPrice : undefined,
-                ...(item.isSubOrder
-                    ? { isSubOrder: true, subPrice: Number(item.subPrice) || 0, subVendor: item.subVendor?.trim() || undefined }
-                    : {}),
-            })),
+            items: cart.map(item => (
+                item.pricingMode === 'COMPOSITE'
+                    ? {
+                        // Composite: server hitung ulang harga+hpp dari compositeOptions.
+                        // Jangan kirim harga (jangan percaya client).
+                        compositeProductId: item.compositeProductId,
+                        compositeOptions: item.compositeOptions,
+                        quantity: item.qty,
+                        note: item.note,
+                        ...(item.isSubOrder
+                            ? { isSubOrder: true, subPrice: Number(item.subPrice) || 0, subVendor: item.subVendor?.trim() || undefined }
+                            : {}),
+                    }
+                    : {
+                        productVariantId: item.productVariantId,
+                        quantity: item.qty,
+                        widthCm: item.widthCm ? Number(item.widthCm) : undefined,
+                        heightCm: item.heightCm ? Number(item.heightCm) : undefined,
+                        unitType: item.unitType,
+                        pcs: item.pcs ?? 1,
+                        note: item.note,
+                        customPrice: item.customPrice != null ? item.customPrice : undefined,
+                        ...(item.isSubOrder
+                            ? { isSubOrder: true, subPrice: Number(item.subPrice) || 0, subVendor: item.subVendor?.trim() || undefined }
+                            : {}),
+                    }
+            )),
             paymentMethod: paymentMethod === 'KREDIT' ? 'CASH'
                 : paymentMethod === 'BAYAR_NANTI'
                     ? (dpBayarNanti !== '' && Number(dpBayarNanti) > 0 ? dpMethodBayarNanti : 'CASH')
@@ -807,7 +829,7 @@ function POSPageContent() {
                                                 className="aspect-square rounded-lg mb-2 sm:mb-3 border border-border"
                                                 fallback={<span className="text-3xl sm:text-4xl text-primary/50 font-bold">{p.name.charAt(0)}</span>}
                                             />
-                                            <p className="font-semibold text-xs sm:text-sm text-foreground line-clamp-2 leading-tight">{p.name}{v.variantName ? ` — ${v.variantName}` : (v.size ? ` (${v.size})` : '')}</p>
+                                            <p className="font-semibold text-xs sm:text-sm text-foreground line-clamp-3 leading-tight break-words" title={`${p.name}${v.variantName ? ` — ${v.variantName}` : (v.size ? ` (${v.size})` : '')}`}>{p.name}{v.variantName ? ` — ${v.variantName}` : (v.size ? ` (${v.size})` : '')}</p>
                                             <p className="text-[10px] sm:text-xs text-muted-foreground truncate mb-1 mt-0.5">{v.sku}</p>
                                             <div className="flex items-center justify-between gap-1">
                                                 <p className="font-bold text-primary text-xs sm:text-sm leading-tight">
@@ -1003,7 +1025,7 @@ function POSPageContent() {
                             <div key={item.lineId} className={`pb-3 border-b border-border/50 last:border-0 last:pb-0 ${item.pricingMode === 'AREA_BASED' ? 'bg-primary/3 rounded-lg px-2 py-2 border border-primary/10' : ''}`}>
                                 <div className="flex gap-3">
                                     <div className="flex-1 min-w-0">
-                                        <p className="font-medium text-sm text-foreground leading-tight truncate">{item.name}</p>
+                                        <p className="font-medium text-sm text-foreground leading-tight break-words" title={item.name}>{item.name}</p>
                                         <p className="text-xs text-muted-foreground">{item.sku}</p>
 
                                         {/* AREA_BASED: dimension display + edit button */}
@@ -1250,6 +1272,14 @@ function POSPageContent() {
             </div>
 
             {/* Area Input Modal (Add + Edit with note) */}
+            {compositeModal && (
+                <CompositeModal
+                    product={compositeModal.product}
+                    onClose={() => setCompositeModal(null)}
+                    onAdd={(args) => addCompositeItem(args)}
+                />
+            )}
+
             {areaModal.open && (
                 <div className="fixed inset-0 z-[400] flex items-center justify-center p-4 bg-background/25 backdrop-blur-md">
                     <div className="glass-strong w-full max-w-sm rounded-2xl border border-border shadow-2xl overflow-hidden">

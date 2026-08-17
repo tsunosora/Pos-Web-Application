@@ -12,13 +12,15 @@ export const getTransactions = async (startDate?: string, endDate?: string, sear
 export const getTransactionById = async (id: number) => (await api.get(`/transactions/${id}`)).data;
 export const createTransaction = async (data: {
     items: {
-        productVariantId: number;
+        productVariantId?: number;
         quantity: number;
         widthCm?: number;
         heightCm?: number;
         unitType?: string;
         note?: string;
         customPrice?: number;
+        compositeProductId?: number;
+        compositeOptions?: Record<string, any>;
     }[];
     paymentMethod: 'CASH' | 'QRIS' | 'BANK_TRANSFER';
     discount?: number;
