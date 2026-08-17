@@ -62,3 +62,93 @@ export function renderNameTemplate(template: string, ctx: Record<string, any>): 
     return val == null ? '' : String(val);
   });
 }
+
+export interface CompositeBreakdownRow {
+  variantFrom: string;
+  variantId: number;
+  name: string;
+  qty: number;
+  price: number; // harga satuan variant
+  hpp: number; // hpp satuan variant
+  lineTotal: number; // qty × price
+  lineHpp: number; // qty × hpp
+}
+
+export interface CompositeQuote {
+  name: string;
+  price: number;
+  hpp: number;
+  breakdown: CompositeBreakdownRow[];
+}
+
+type VariantInfo = { name: string; price: number; hpp: number };
+
+/**
+ * Fungsi inti (murni): hitung harga & HPP produk COMPOSITE dari config + opsi terpilih.
+ * @param config          isi Product.compositeConfig ({ options, components, nameTemplate })
+ * @param selectedOptions { [optionKey]: value } — variantRef → variantId, select → choice.value, number → number
+ * @param variantMap      peta variantId → { name, price, hpp } (di-resolve pemanggil dari DB)
+ */
+export function resolveCompositeQuote(
+  config: any,
+  selectedOptions: Record<string, any>,
+  variantMap: Record<number, VariantInfo>,
+): CompositeQuote {
+  if (!config || !Array.isArray(config.components)) {
+    throw new Error('compositeConfig tidak valid (components kosong)');
+  }
+
+  // Bangun scope untuk rumus qty + konteks untuk nameTemplate.
+  const scope: Record<string, any> = {};
+  const nameCtx: Record<string, any> = {};
+  for (const opt of config.options ?? []) {
+    const val = selectedOptions[opt.key];
+    if (opt.type === 'select') {
+      const choice = (opt.choices ?? []).find((c: any) => c.value === val);
+      if (!choice && val != null) throw new Error(`Pilihan tidak valid untuk ${opt.key}: ${val}`);
+      scope[opt.key] = choice ? { ...choice } : val; // objek → dukung ukuran.pagesPerA3
+      nameCtx[opt.key] = choice ? choice.value : val;
+    } else if (opt.type === 'number') {
+      scope[opt.key] = Number(val);
+      nameCtx[opt.key] = Number(val);
+    } else if (opt.type === 'variantRef') {
+      scope[opt.key] = val; // variantId
+      const info = val != null ? variantMap[Number(val)] : undefined;
+      nameCtx[opt.key] = info ? { name: info.name } : {};
+    }
+  }
+
+  const breakdown: CompositeBreakdownRow[] = [];
+  let price = 0;
+  let hpp = 0;
+  for (const comp of config.components) {
+    const variantId = Number(selectedOptions[comp.variantFrom]);
+    if (!variantId) throw new Error(`Opsi komponen wajib belum dipilih: ${comp.variantFrom}`);
+    const info = variantMap[variantId];
+    if (!info) throw new Error(`Variant komponen tidak ditemukan: ${variantId}`);
+
+    let qty: number;
+    if (comp.qtyFormula) {
+      qty = Math.max(1, Math.round(evalQtyFormula(comp.qtyFormula, scope)));
+    } else {
+      qty = Math.max(1, Math.round(Number(comp.qty ?? 1)));
+    }
+    const lineTotal = qty * info.price;
+    const lineHpp = qty * info.hpp;
+    price += lineTotal;
+    hpp += lineHpp;
+    breakdown.push({
+      variantFrom: comp.variantFrom,
+      variantId,
+      name: info.name,
+      qty,
+      price: info.price,
+      hpp: info.hpp,
+      lineTotal,
+      lineHpp,
+    });
+  }
+
+  const name = renderNameTemplate(config.nameTemplate ?? '', nameCtx);
+  return { name, price, hpp, breakdown };
+}
