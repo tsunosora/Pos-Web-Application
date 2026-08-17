@@ -48,3 +48,17 @@ export function evalQtyFormula(formula: string, scope: Record<string, any>): num
   }
   return Math.max(0, val);
 }
+
+/**
+ * Render "Buku {ukuran} {isi.name}" → substitusi dari ctx (dukung path bertitik).
+ * Placeholder yang tak terpetakan diganti string kosong (tanpa error).
+ */
+export function renderNameTemplate(template: string, ctx: Record<string, any>): string {
+  return String(template).replace(/\{([^}]+)\}/g, (_m, path: string) => {
+    const val = path
+      .trim()
+      .split('.')
+      .reduce<any>((acc, k) => (acc == null ? undefined : acc[k]), ctx);
+    return val == null ? '' : String(val);
+  });
+}
