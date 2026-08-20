@@ -466,24 +466,38 @@ function product_is_area(array $p): bool {
 }
 
 /**
- * Satuan input ukuran produk area, DITURUNKAN dari master Unit produk (unit.name).
- * Ini penting: produk banner/stiker/DTF pakai unit "Meter" → pelanggan input METER
- * (luas = P×L m², TANPA ÷10.000). Produk "Cm" → input CM (luas = P×L ÷ 10.000).
- * Menyamakan perilaku dengan POS (unitType 'm' | 'cm' | 'menit').
- * @return 'm' | 'cm' | 'menit'
+ * Satuan hitung produk area, DITURUNKAN dari master Unit produk (unit.name).
+ * Model unitType (selaras backend PosPro):
+ *   'm'    → input meter, harga per m²,  luas = P×L (m²)                  — unit "Meter"
+ *   'cm2'  → input cm,    harga per cm², luas = P×L (cm²), TANPA ÷10.000  — unit "Cm" (mis. Akrilik Rp 30/cm²)
+ *   'menit'→ 1 dimensi,   harga per unit
+ *   'cm'   → input cm,    harga per m²,  luas = P×L ÷ 10.000 (m²)         — fallback lama (mis. unit Kg/asing)
+ * @return 'm' | 'cm2' | 'menit' | 'cm'
  */
 function product_area_unit(array $p): string {
     $u = strtolower(trim((string)($p['unit']['name'] ?? '')));
     if ($u === 'meter' || $u === 'm' || $u === 'm2' || $u === 'm²') return 'm';
+    if ($u === 'cm') return 'cm2';                 // unit "Cm" → harga per cm²
     if (str_contains($u, 'menit')) return 'menit';
-    return 'cm';
+    return 'cm';                                   // fallback: perlakuan lama (per m², ÷10.000)
 }
 
-/** Luas (m²) dari dimensi sesuai satuan. 'm' → P×L; 'cm' → P×L÷10.000; 'menit' → P (1 dimensi). */
-function area_m2(float $w, float $h, string $unitType): float {
-    if ($unitType === 'm')     return $w * $h;         // input meter → langsung m²
-    if ($unitType === 'menit') return $w;              // 1 dimensi (jumlah unit/menit)
-    return ($w * $h) / 10000;                          // cm → m²
+/**
+ * Luas untuk perhitungan HARGA, sesuai model unitType (lihat product_area_unit):
+ *   'menit'→ P;  'cm'→ P×L÷10.000 (m²);  'm'/'cm2'→ P×L (m² / cm²).
+ * Harga varian selalu sepadan dgn satuan yang dikembalikan (per m² / per cm² / per unit).
+ */
+function area_native(float $w, float $h, string $unitType): float {
+    if ($unitType === 'menit') return $w;              // 1 dimensi
+    if ($unitType === 'cm')    return ($w * $h) / 10000; // legacy: cm input, harga per m²
+    return $w * $h;                                    // 'm' (m²) & 'cm2' (cm²)
+}
+
+/** Label satuan luas untuk tampilan: cm² (cm2) / unit (menit) / m² (m & cm-legacy). */
+function area_sq_label(string $unitType): string {
+    if ($unitType === 'menit') return 'unit';
+    if ($unitType === 'cm2')   return 'cm²';
+    return 'm²';                                        // 'm' & legacy 'cm'
 }
 
 /**
@@ -503,10 +517,10 @@ function tier_price(int $qty, float $basePrice, array $tiers): float {
 }
 
 /**
- * Subtotal satu item keranjang. Item area: qty × luas(m²) × unitPrice
- * (unitPrice = harga per m²). Luas sadar-satuan via area_m2() sesuai unitType
- * item ('m' → P×L, 'cm' → P×L÷10.000, 'menit' → P) — sama dgn calcItemSubtotal
- * backend PosPro. Selain itu: qty × unitPrice.
+ * Subtotal satu item keranjang. Item area: qty × luas × unitPrice, di mana luas
+ * dalam SATUAN ASLI produk & unitPrice per satuan² tsb (area_native()):
+ * 'm' → P×L m² × harga/m²; 'cm' → P×L cm² × harga/cm²; 'menit' → P × harga.
+ * TANPA ÷10.000. Selain area: qty × unitPrice.
  */
 function cart_item_subtotal(array $it): float {
     $qty = (int)($it['quantity'] ?? 0);
@@ -514,8 +528,8 @@ function cart_item_subtotal(array $it): float {
     $w = (float)($it['widthCm'] ?? 0);
     $h = (float)($it['heightCm'] ?? 0);
     $unitType = (string)($it['unitType'] ?? 'cm');
-    if ($unitType === 'menit' && $w > 0) return $qty * area_m2($w, 0, 'menit') * $price;
-    if ($w > 0 && $h > 0) return $qty * area_m2($w, $h, $unitType) * $price;
+    if ($unitType === 'menit' && $w > 0) return $qty * area_native($w, 0, 'menit') * $price;
+    if ($w > 0 && $h > 0) return $qty * area_native($w, $h, $unitType) * $price;
     return $qty * $price;
 }
 function product_image(array $p): string {

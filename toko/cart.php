@@ -52,7 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
                     'quantity'         => (int)$it['quantity'],
                     'unitPrice'        => (float)$it['unitPrice'],
                 ];
-                // Item per-luas: kirim ukuran supaya backend hitung subtotal area (qty × m² × harga/m²)
+                // Item per-luas: kirim ukuran + unitType apa adanya. Backend
+                // calcItemSubtotal memahami model yang sama: 'm'/'cm2' → P×L×harga,
+                // 'cm' → (P×L÷10.000)×harga, 'menit' → P×harga.
                 if (!empty($it['widthCm']) && !empty($it['heightCm'])) {
                     $row['widthCm']  = (float)$it['widthCm'];
                     $row['heightCm'] = (float)$it['heightCm'];
@@ -112,8 +114,8 @@ $total = cart_total();
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-slate-800 truncate"><?= h($it['description']) ?></div>
-                            <?php if (!empty($it['widthCm']) && !empty($it['heightCm'])): $ut = $it['unitType'] ?? 'cm'; $m2 = area_m2((float)$it['widthCm'], (float)$it['heightCm'], $ut); ?>
-                                <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?>/m² &times; <?= h(rtrim(rtrim(number_format($m2, 2, ',', '.'), '0'), ',')) ?> m² &times; <?= (int)$it['quantity'] ?> pcs</div>
+                            <?php if (!empty($it['widthCm']) && !empty($it['heightCm'])): $ut = $it['unitType'] ?? 'cm'; $sq = area_sq_label($ut); $area = area_native((float)$it['widthCm'], (float)$it['heightCm'], $ut); ?>
+                                <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?>/<?= $sq ?> &times; <?= h(rtrim(rtrim(number_format($area, 2, ',', '.'), '0'), ',')) ?> <?= $sq ?> &times; <?= (int)$it['quantity'] ?> pcs</div>
                             <?php else: ?>
                                 <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?> &times; <?= (int)$it['quantity'] ?></div>
                             <?php endif; ?>
