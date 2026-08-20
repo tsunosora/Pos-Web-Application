@@ -466,6 +466,27 @@ function product_is_area(array $p): bool {
 }
 
 /**
+ * Satuan input ukuran produk area, DITURUNKAN dari master Unit produk (unit.name).
+ * Ini penting: produk banner/stiker/DTF pakai unit "Meter" → pelanggan input METER
+ * (luas = P×L m², TANPA ÷10.000). Produk "Cm" → input CM (luas = P×L ÷ 10.000).
+ * Menyamakan perilaku dengan POS (unitType 'm' | 'cm' | 'menit').
+ * @return 'm' | 'cm' | 'menit'
+ */
+function product_area_unit(array $p): string {
+    $u = strtolower(trim((string)($p['unit']['name'] ?? '')));
+    if ($u === 'meter' || $u === 'm' || $u === 'm2' || $u === 'm²') return 'm';
+    if (str_contains($u, 'menit')) return 'menit';
+    return 'cm';
+}
+
+/** Luas (m²) dari dimensi sesuai satuan. 'm' → P×L; 'cm' → P×L÷10.000; 'menit' → P (1 dimensi). */
+function area_m2(float $w, float $h, string $unitType): float {
+    if ($unitType === 'm')     return $w * $h;         // input meter → langsung m²
+    if ($unitType === 'menit') return $w;              // 1 dimensi (jumlah unit/menit)
+    return ($w * $h) / 10000;                          // cm → m²
+}
+
+/**
  * Harga satuan sesuai tier qty (harga grosir). Logika sama dengan POS:
  * ambil tier dengan minQty terbesar yang qty >= minQty dan (maxQty null atau qty <= maxQty).
  * Fallback ke harga dasar kalau tidak ada tier yang cocok.
@@ -482,16 +503,19 @@ function tier_price(int $qty, float $basePrice, array $tiers): float {
 }
 
 /**
- * Subtotal satu item keranjang. Item area (ada widthCm & heightCm):
- * qty × (w × h / 10000) × unitPrice (unitPrice = harga per m²) — formula sama
- * dengan calcItemSubtotal di backend PosPro. Selain itu: qty × unitPrice.
+ * Subtotal satu item keranjang. Item area: qty × luas(m²) × unitPrice
+ * (unitPrice = harga per m²). Luas sadar-satuan via area_m2() sesuai unitType
+ * item ('m' → P×L, 'cm' → P×L÷10.000, 'menit' → P) — sama dgn calcItemSubtotal
+ * backend PosPro. Selain itu: qty × unitPrice.
  */
 function cart_item_subtotal(array $it): float {
     $qty = (int)($it['quantity'] ?? 0);
     $price = (float)($it['unitPrice'] ?? 0);
     $w = (float)($it['widthCm'] ?? 0);
     $h = (float)($it['heightCm'] ?? 0);
-    if ($w > 0 && $h > 0) return $qty * (($w * $h) / 10000) * $price;
+    $unitType = (string)($it['unitType'] ?? 'cm');
+    if ($unitType === 'menit' && $w > 0) return $qty * area_m2($w, 0, 'menit') * $price;
+    if ($w > 0 && $h > 0) return $qty * area_m2($w, $h, $unitType) * $price;
     return $qty * $price;
 }
 function product_image(array $p): string {

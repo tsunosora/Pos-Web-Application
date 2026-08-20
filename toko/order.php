@@ -60,7 +60,7 @@ $wa = preg_replace('/^0/', '62', preg_replace('/\D/', '', $o['phone'] ?? ''));
                         <tr>
                             <td class="px-6 py-3 text-slate-800">
                                 <?= h($it['description'] ?? ($it['productVariant']['product']['name'] ?? '-')) ?>
-                                <?php if ($isAreaItem): ?><span class="block text-xs text-slate-400"><?= h($it['widthCm']) ?>&times;<?= h($it['heightCm']) ?> cm (<?= h(rtrim(rtrim(number_format(((float)$it['widthCm'] * (float)$it['heightCm']) / 10000, 2, ',', '.'), '0'), ',')) ?> m²)</span><?php endif; ?>
+                                <?php if ($isAreaItem): $ut = $it['unitType'] ?? 'cm'; $ul = $ut === 'm' ? 'm' : ($ut === 'menit' ? 'unit' : 'cm'); ?><span class="block text-xs text-slate-400"><?= h($it['widthCm']) ?>&times;<?= h($it['heightCm']) ?> <?= h($ul) ?> (<?= h(rtrim(rtrim(number_format(area_m2((float)$it['widthCm'], (float)$it['heightCm'], $ut), 2, ',', '.'), '0'), ',')) ?> m²)</span><?php endif; ?>
                             </td>
                             <td class="px-6 py-3 text-center text-slate-600"><?= (int)($it['quantity'] ?? 0) ?></td>
                             <td class="px-6 py-3 text-right text-slate-600"><?= rupiah($it['unitPrice'] ?? 0) ?><?= $isAreaItem ? '<span class="text-xs text-slate-400">/m²</span>' : '' ?></td>

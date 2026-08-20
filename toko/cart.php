@@ -112,7 +112,7 @@ $total = cart_total();
                         </div>
                         <div class="flex-1 min-w-0">
                             <div class="font-semibold text-slate-800 truncate"><?= h($it['description']) ?></div>
-                            <?php if (!empty($it['widthCm']) && !empty($it['heightCm'])): $m2 = ((float)$it['widthCm'] * (float)$it['heightCm']) / 10000; ?>
+                            <?php if (!empty($it['widthCm']) && !empty($it['heightCm'])): $ut = $it['unitType'] ?? 'cm'; $m2 = area_m2((float)$it['widthCm'], (float)$it['heightCm'], $ut); ?>
                                 <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?>/m² &times; <?= h(rtrim(rtrim(number_format($m2, 2, ',', '.'), '0'), ',')) ?> m² &times; <?= (int)$it['quantity'] ?> pcs</div>
                             <?php else: ?>
                                 <div class="text-sm text-slate-500"><?= rupiah($it['unitPrice']) ?> &times; <?= (int)$it['quantity'] ?></div>
