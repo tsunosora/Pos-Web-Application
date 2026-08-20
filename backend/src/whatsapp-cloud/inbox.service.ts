@@ -164,6 +164,44 @@ export class InboxService {
         });
     }
 
+    /**
+     * Nota/transaksi terkait percakapan (via nomor HP pelanggan) — untuk autofill
+     * variabel template di chat inbox (Nomor nota / Total / Sisa tagihan).
+     * `remaining` = grandTotal − downPayment (0 bila sudah PAID).
+     */
+    async notasForConversation(conversationId: number) {
+        const conv = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            select: { contact: { select: { phoneNormalized: true } } },
+        });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        const phone = conv.contact?.phoneNormalized || null;
+        if (!phone) return [];
+        const rows = await this.prisma.transaction.findMany({
+            where: { customerPhone: { contains: phone } },
+            select: {
+                id: true, invoiceNumber: true, customerName: true, status: true,
+                grandTotal: true, downPayment: true, createdAt: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 20,
+        });
+        return rows.map((t) => {
+            const grand = Number(t.grandTotal) || 0;
+            const dp = Number(t.downPayment) || 0;
+            const remaining = t.status === 'PAID' ? 0 : Math.max(0, grand - dp);
+            return {
+                id: t.id,
+                invoiceNumber: t.invoiceNumber,
+                customerName: t.customerName,
+                status: t.status,
+                grandTotal: grand,
+                remaining,
+                createdAt: t.createdAt,
+            };
+        });
+    }
+
     /** Auto-create Lead dari chat WA baru (default aktif; matikan via env). */
     private get autoCreateLead(): boolean {
         return (process.env.WA_AUTO_CREATE_LEAD || 'true').toLowerCase() !== 'false';

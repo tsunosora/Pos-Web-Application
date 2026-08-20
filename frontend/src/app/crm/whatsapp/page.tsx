@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff, SlidersHorizontal, Play, Trash2 } from "lucide-react";
@@ -10,9 +10,9 @@ import {
     listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage, deleteWaMessage,
-    listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders,
+    listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders, getWaConversationNotas,
     setWaContactName, waContactName, listWaCatalog, sendWaProduct,
-    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent, type WaCatalogProduct, type WaMessagePayload,
+    type WaConversation, type WaMessage, type WaConversationStatus, type WaTemplate, type WaChannel, type WaQuickReply, type WaAgent, type WaCatalogProduct, type WaMessagePayload, type WaConversationNota,
 } from "@/lib/api/whatsapp-cloud";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -916,7 +916,49 @@ export default function WhatsappInboxPage() {
     const tplHeaderIdx = selectedTpl ? extractVarIndices(selectedTpl.headerText) : [];
     const [tplBodyVals, setTplBodyVals] = useState<string[]>([]);
     const [tplHeaderVals, setTplHeaderVals] = useState<string[]>([]);
-    useEffect(() => { setTplBodyVals([]); setTplHeaderVals([]); }, [tplId]);
+    // Nota terpilih (untuk autofill Nomor nota / Total / Sisa tagihan).
+    const [selectedNotaId, setSelectedNotaId] = useState<number | null>(null);
+    const { data: convNotas = [] } = useQuery({
+        queryKey: ["wa-convo-notas", selectedId],
+        queryFn: () => getWaConversationNotas(selectedId as number),
+        enabled: selectedId != null,
+    });
+    useEffect(() => { setSelectedNotaId(null); }, [selectedId]);
+    const selectedNota = convNotas.find((n) => n.id === selectedNotaId) || null;
+
+    // Resolusi nilai variabel dari KETERANGAN template (variableLabels) → data kontak/nota.
+    // Meniru LABEL_TO_FIELD di halaman broadcast, ditambah field nota. Return null bila
+    // label tak dikenal (biar tak menimpa isian manual user).
+    const resolveVarByLabel = useCallback((label: string): string | null => {
+        const key = (label || "").trim().toLowerCase();
+        const c = selected?.contact;
+        const rupiah = (n: number) => `Rp${(Number(n) || 0).toLocaleString("id-ID")}`;
+        switch (key) {
+            case "nama pelanggan": return c?.customer?.name || c?.customName || c?.profileName || null;
+            case "nomor hp": return c?.phoneNormalized || c?.waId || null;
+            case "alamat pelanggan":
+            case "alamat": return c?.customer?.address || null;
+            case "nomor nota": return selectedNota?.invoiceNumber || null;
+            case "total tagihan": return selectedNota ? rupiah(selectedNota.grandTotal) : null;
+            case "sisa tagihan": return selectedNota ? rupiah(selectedNota.remaining) : null;
+            default: return null;
+        }
+    }, [selected, selectedNota]);
+
+    // Autofill saat ganti template / nota / kontak. Hanya isi field yang labelnya dikenal;
+    // sisanya dikosongkan (template baru) — user tetap bisa mengedit setelahnya.
+    useEffect(() => {
+        if (!selectedTpl) { setTplBodyVals([]); setTplHeaderVals([]); return; }
+        const labels = Array.isArray((selectedTpl as unknown as { variableLabels?: unknown }).variableLabels)
+            ? ((selectedTpl as unknown as { variableLabels?: string[] }).variableLabels as string[])
+            : [];
+        const bIdx = extractVarIndices(selectedTpl.bodyText);
+        const hIdx = extractVarIndices(selectedTpl.headerText);
+        // variableLabels berurut mengikuti body ({{1}}..). Header jarang bervariabel di toko ini.
+        setTplBodyVals(bIdx.map((_, i) => resolveVarByLabel(labels[i] || "") ?? ""));
+        setTplHeaderVals(hIdx.map(() => ""));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tplId, selectedNotaId, selected?.contact?.id]);
     const tplVarsFilled =
         tplBodyIdx.every((_, i) => (tplBodyVals[i] || "").trim()) &&
         tplHeaderIdx.every((_, i) => (tplHeaderVals[i] || "").trim());
@@ -948,6 +990,7 @@ export default function WhatsappInboxPage() {
             setTplId(null);
             setTplBodyVals([]);
             setTplHeaderVals([]);
+            setSelectedNotaId(null);
             qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
         },
@@ -1452,7 +1495,24 @@ export default function WhatsappInboxPage() {
                                         </div>
                                         {selectedTpl && (tplHeaderIdx.length > 0 || tplBodyIdx.length > 0) && (
                                             <div className="space-y-1.5 rounded-xl bg-muted/40 p-2">
-                                                <div className="text-[11px] text-muted-foreground">Isi variabel template:</div>
+                                                {convNotas.length > 0 && (
+                                                    <div className="space-y-1">
+                                                        <div className="text-[11px] text-muted-foreground">Ambil dari nota (auto-isi nomor nota & tagihan):</div>
+                                                        <select
+                                                            value={selectedNotaId ?? ""}
+                                                            onChange={(e) => setSelectedNotaId(e.target.value ? +e.target.value : null)}
+                                                            className="w-full rounded-lg bg-background px-3 py-1.5 text-sm outline-none border border-border"
+                                                        >
+                                                            <option value="">— Tanpa nota / isi manual —</option>
+                                                            {convNotas.map((nota) => (
+                                                                <option key={nota.id} value={nota.id}>
+                                                                    {nota.invoiceNumber} · Rp{nota.grandTotal.toLocaleString("id-ID")}{nota.remaining > 0 ? ` · sisa Rp${nota.remaining.toLocaleString("id-ID")}` : " · lunas"}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                )}
+                                                <div className="text-[11px] text-muted-foreground">Isi variabel template <span className="opacity-70">(terisi otomatis dari data — bisa diedit)</span>:</div>
                                                 {tplHeaderIdx.map((n, i) => (
                                                     <input
                                                         key={`h-${n}`}

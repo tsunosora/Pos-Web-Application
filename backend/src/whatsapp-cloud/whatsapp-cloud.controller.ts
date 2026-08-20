@@ -549,6 +549,13 @@ export class WhatsappCloudController {
         return this.inbox.salesOrdersForConversation(id);
     }
 
+    /** Nota/transaksi terkait percakapan (via nomor HP) — untuk autofill variabel template. */
+    @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @Get('conversations/:id/notas')
+    conversationNotas(@Param('id', ParseIntPipe) id: number) {
+        return this.inbox.notasForConversation(id);
+    }
+
     /** Resolve percakapan WA dari sebuah SO (tombol "Buka chat WA" di halaman SO). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('sales-orders/:id/conversation')

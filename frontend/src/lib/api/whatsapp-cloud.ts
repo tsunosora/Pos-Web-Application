@@ -180,6 +180,19 @@ export interface WaConversationSalesOrder {
 export const getWaConversationSalesOrders = async (id: number): Promise<WaConversationSalesOrder[]> =>
     (await api.get(`/whatsapp/conversations/${id}/sales-orders`)).data;
 
+export interface WaConversationNota {
+    id: number;
+    invoiceNumber: string;
+    customerName: string | null;
+    status: string;
+    grandTotal: number;
+    remaining: number;
+    createdAt: string;
+}
+// Nota/transaksi terkait percakapan (via nomor HP) — untuk autofill variabel template.
+export const getWaConversationNotas = async (id: number): Promise<WaConversationNota[]> =>
+    (await api.get(`/whatsapp/conversations/${id}/notas`)).data;
+
 // Resolve percakapan WA dari sebuah SO (tombol "Buka chat WA" di halaman SO).
 export const resolveWaConversationBySalesOrder = async (soId: number): Promise<{ conversationId: number | null; phone: string | null }> =>
     (await api.get(`/whatsapp/sales-orders/${soId}/conversation`)).data;
