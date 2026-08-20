@@ -26,10 +26,15 @@ if ($p && $_SERVER['REQUEST_METHOD'] === 'POST') {
     ];
 
     if (product_is_area($p)) {
-        // Produk per-luas: satuan MENGIKUTI master Unit produk (product_area_unit):
-        // "Meter"→'m' (harga/m², luas P×L), "Cm"→'cm2' (harga/cm², luas P×L cm²),
-        // fallback 'cm' (harga/m², ÷10.000). Subtotal via cart_item_subtotal/area_native.
-        $unitType = product_area_unit($p);
+        // Produk per-luas. Basis harga dari master Unit:
+        //  - "Cm"  → harga per cm² → unitType 'cm2' (input cm, tanpa ÷10.000).
+        //  - "Meter"/lain → harga per m² → pelanggan PILIH satuan input cm/m
+        //    (form 'sizeUnit', default cm) → unitType 'cm' (÷10.000) atau 'm'.
+        //  - 'menit' → 1 dimensi.
+        $basis = product_area_unit($p);
+        if ($basis === 'cm2')       { $unitType = 'cm2'; }
+        elseif ($basis === 'menit') { $unitType = 'menit'; }
+        else                        { $unitType = (($_POST['sizeUnit'] ?? 'cm') === 'm') ? 'm' : 'cm'; }
         $ul = $unitType === 'm' ? 'm' : ($unitType === 'menit' ? 'unit' : 'cm');
         $w = (float)str_replace(',', '.', (string)($_POST['width'] ?? ''));
         $h = $unitType === 'menit' ? 1.0 : (float)str_replace(',', '.', (string)($_POST['height'] ?? ''));
@@ -85,8 +90,12 @@ $img = product_image($p);
 $variants = $p['variants'] ?? [];
 $isArea = product_is_area($p);
 $areaUnit = product_area_unit($p);            // 'm' | 'cm2' | 'menit' | 'cm' — dari master Unit produk
-$areaUnitLabel = $areaUnit === 'm' ? 'm' : ($areaUnit === 'menit' ? 'unit' : 'cm'); // satuan input (linear)
-$sqLabel = area_sq_label($areaUnit);          // satuan luas: m² / cm² / unit
+$isCm2   = $areaUnit === 'cm2';               // harga per cm² (barang kecil, input cm)
+$isMenit = $areaUnit === 'menit';
+$m2Basis = !$isCm2 && !$isMenit;              // harga per m² → pelanggan PILIH cm/m (default cm)
+$initUnit = $isCm2 ? 'cm2' : ($isMenit ? 'menit' : 'cm'); // unitType awal
+$areaUnitLabel = $isMenit ? 'unit' : 'cm';    // label input awal (cm; toggle bisa jadikan m)
+$sqLabel = area_sq_label($initUnit);          // satuan luas awal: m² (basis m²) / cm² (basis cm²)
 $hasTiers = false;
 foreach ($variants as $v) { if (!empty($v['priceTiers'])) { $hasTiers = true; break; } }
 // Data varian untuk JS (harga dinamis: tier per qty & estimasi luas)
@@ -211,17 +220,24 @@ $rr = (int)round($rating);
 
             <?php if ($isArea): ?>
                 <div>
-                    <label class="pd-label">Ukuran (<?= h($areaUnitLabel) ?>)</label>
+                    <label class="pd-label">Ukuran<?= $m2Basis ? '' : ' (' . h($areaUnitLabel) . ')' ?></label>
                     <div class="pd-size">
                         <input id="szW" type="number" name="width" min="0.01" step="any" required placeholder="Panjang">
                         <span class="font-bold" style="color:var(--pk-soft)">&times;</span>
                         <input id="szH" type="number" name="height" min="0.01" step="any" required placeholder="Lebar">
-                        <span class="text-sm" style="color:var(--pk-soft)"><?= h($areaUnitLabel) ?></span>
+                        <?php if ($m2Basis): ?>
+                            <select id="szUnit" name="sizeUnit" class="rounded-lg border px-2 py-1 text-sm" style="border-color:var(--pk-border);background:var(--pk-card)">
+                                <option value="cm" selected>cm</option>
+                                <option value="m">m</option>
+                            </select>
+                        <?php else: ?>
+                            <span class="text-sm" style="color:var(--pk-soft)"><?= h($areaUnitLabel) ?></span>
+                        <?php endif; ?>
                     </div>
                     <p id="areaInfo" class="mt-2 text-xs" style="color:var(--pk-soft)">
-                        <?php if ($areaUnit === 'menit'): ?>Harga dihitung per unit &times; jumlah.
-                        <?php elseif ($areaUnit === 'cm'): ?>Harga dihitung dari luas: panjang &times; lebar (cm) &divide; 10.000 = m&sup2;.
-                        <?php else: ?>Harga dihitung dari luas: panjang &times; lebar (<?= h($areaUnitLabel) ?>) = <?= h($sqLabel) ?>.<?php endif; ?>
+                        <?php if ($isMenit): ?>Harga dihitung per unit &times; jumlah.
+                        <?php elseif ($isCm2): ?>Harga dihitung dari luas: panjang &times; lebar (cm) = cm&sup2;.
+                        <?php else: ?>Pilih satuan cm / m. Default cm: panjang &times; lebar (cm) &divide; 10.000 = m&sup2;.<?php endif; ?>
                     </p>
                 </div>
             <?php endif; ?>
@@ -291,14 +307,16 @@ $rr = (int)round($rating);
     // ── Harga dinamis: tier per qty + estimasi luas (m²) ──────────────────
     var VARIANTS = <?= json_encode($jsVariants, JSON_UNESCAPED_UNICODE) ?>;
     var IS_AREA  = <?= $isArea ? 'true' : 'false' ?>;
-    var AREA_UNIT = <?= json_encode($areaUnit) ?>;   // 'm' | 'cm' | 'menit'
-    var AREA_ULABEL = <?= json_encode($areaUnitLabel) ?>;
+    var AREA_INIT = <?= json_encode($initUnit) ?>;   // 'cm' (basis m²) | 'cm2' | 'menit'
     var prc = document.getElementById('prc');
     var qty = document.getElementById('qty');
     var est = document.getElementById('estTotal');
     var szW = document.getElementById('szW');
     var szH = document.getElementById('szH');
+    var szUnit = document.getElementById('szUnit');   // select cm/m (hanya produk basis m²)
     var areaInfo = document.getElementById('areaInfo');
+    // Satuan efektif: dari toggle bila ada (cm/m), else satuan awal (cm2/menit).
+    function curUnit() { return szUnit ? (szUnit.value === 'm' ? 'm' : 'cm') : AREA_INIT; }
     var tierBox = document.getElementById('tierBox');
     var tierRows = document.getElementById('tierRows');
 
@@ -341,17 +359,19 @@ $rr = (int)round($rating);
         if (!v) return;
         var q = Math.max(1, parseInt(qty && qty.value, 10) || 1);
         if (IS_AREA) {
-            // Harga per satuan² × luas (satuan asli produk) × pcs. TANPA ÷10.000:
-            // 'm' → P×L m² × harga/m²; 'cm' → P×L cm² × harga/cm²; 'menit' → P × harga.
+            // Luas sesuai satuan efektif (curUnit): 'cm'→P×L÷10.000 m²; 'm'→P×L m²;
+            // 'cm2'→P×L cm²; 'menit'→P. Harga varian per satuan² tsb.
+            var u = curUnit();
+            var ulabel = u === 'menit' ? 'unit' : (u === 'm' ? 'm' : 'cm');
             if (prc) prc.textContent = rp(v.price);
             var w = parseFloat(szW && szW.value) || 0;
-            var h = AREA_UNIT === 'menit' ? 1 : (parseFloat(szH && szH.value) || 0);
-            var area = AREA_UNIT === 'menit' ? w : (AREA_UNIT === 'cm' ? (w * h) / 10000 : (w * h)); // m²/cm²/unit
-            var sq = AREA_UNIT === 'cm2' ? 'cm²' : (AREA_UNIT === 'menit' ? 'unit' : 'm²');
-            var ok = w > 0 && (AREA_UNIT === 'menit' || h > 0);
+            var h = u === 'menit' ? 1 : (parseFloat(szH && szH.value) || 0);
+            var area = u === 'menit' ? w : (u === 'cm' ? (w * h) / 10000 : (w * h)); // m²/cm²/unit
+            var sq = u === 'cm2' ? 'cm²' : (u === 'menit' ? 'unit' : 'm²');
+            var ok = w > 0 && (u === 'menit' || h > 0);
             if (est) est.textContent = ok ? rp(v.price * area * q) : '—';
             if (areaInfo && ok) {
-                var dim = AREA_UNIT === 'menit' ? (w + ' ' + AREA_ULABEL) : (w + '×' + h + ' ' + AREA_ULABEL);
+                var dim = u === 'menit' ? (w + ' ' + ulabel) : (w + '×' + h + ' ' + ulabel);
                 areaInfo.textContent = dim + ' = ' + (Math.round(area * 100) / 100).toLocaleString('id-ID') + ' ' + sq + ' × ' + rp(v.price) + '/' + sq + (q > 1 ? ' × ' + q + ' pcs' : '');
             }
         } else {
@@ -365,6 +385,7 @@ $rr = (int)round($rating);
     document.querySelectorAll('input[name="variant"]').forEach(function (r) { r.addEventListener('change', recalc); });
     if (qty) { qty.addEventListener('input', recalc); qty.addEventListener('change', recalc); }
     [szW, szH].forEach(function (el) { if (el) el.addEventListener('input', recalc); });
+    if (szUnit) szUnit.addEventListener('change', recalc);
     // Stepper jumlah
     document.querySelectorAll('[data-step]').forEach(function (b) {
         b.addEventListener('click', function () {
