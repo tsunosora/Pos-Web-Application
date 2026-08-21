@@ -307,12 +307,12 @@ export default function LeaderboardPage() {
                 <>
                     {/* ══ TIM / CABANG (omzet nota dibagi per peran → per cabang home) ══ */}
                     {showTeam && (
-                        <SectionCard icon={<Building2 className="h-5 w-5" />} title="Tim / Cabang" subtitle="Omzet tiap nota dibagi rata ke peran yang terlibat (CS · Desainer · Operator), lalu dijumlah per cabang home.">
+                        <SectionCard icon={<Building2 className="h-5 w-5" />} title="Tim / Cabang" subtitle="Tiap peran (CS · Desainer · Operator) dikreditkan omzet nota PENUH (tak dibagi). Total Omzet cabang tetap nilai nota asli.">
                             {teamRows.length === 0 ? <Empty /> : (
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-sm min-w-[640px]">
                                         <thead><tr className="text-xs text-muted-foreground border-b border-border">
-                                            <Th>Cabang</Th><Th right>Bagian CS</Th><Th right>Bagian Desainer</Th><Th right>Bagian Operator</Th><Th right>Total Omzet</Th>
+                                            <Th>Cabang</Th><Th right>Omzet CS</Th><Th right>Omzet Desainer</Th><Th right>Omzet Operator</Th><Th right>Total Omzet</Th>
                                         </tr></thead>
                                         <tbody>
                                             {teamRows.map((r, i) => (
@@ -338,9 +338,10 @@ export default function LeaderboardPage() {
                                 </div>
                             )}
                             <CaraHitung>
-                                <p><b>Prinsip:</b> tiap nota (omzet = grandTotal) dibagi <b>rata</b> ke peran yang benar-benar terlibat di nota itu — CS pembuat lead, desainer pembuat SO, operator yang produksi. Kalau ketiganya ada → masing-masing 1/3; kalau hanya 2 peran → 1/2; dst. Total selalu = 100% omzet.</p>
-                                <p><b>Cabang:</b> bagian tiap orang masuk ke <b>cabang home</b>-nya (CS: cabang akun user; Desainer: cabang di profil desainer; Operator: cabang PIN saat produksi/cetak). Jadi nota lintas cabang otomatis terbagi antar cabang.</p>
-                                <p><b>Bagian operator</b> dibagi lagi antar operator sesuai keterlibatan (kerja sama 1/N).</p>
+                                <p><b>Prinsip:</b> tiap nota (omzet = grandTotal) dikreditkan <b>PENUH</b> ke tiap peran yang terlibat — CS pembuat lead, desainer pembuat SO, operator yang produksi — <b>tanpa dibagi</b>. Nota 500rb → CS 500rb, Desainer 500rb, Operator 500rb.</p>
+                                <p><b>Total Omzet</b> cabang tetap = nilai nota <b>asli</b> (memakai porsi adil per peran) supaya total antar cabang = omzet sebenarnya, bukan penjumlahan kolom Omzet peran.</p>
+                                <p><b>Cabang:</b> bagian tiap orang masuk ke <b>cabang home</b>-nya (CS: cabang akun user; Desainer: cabang di profil desainer; Operator: cabang PIN saat produksi/cetak).</p>
+                                <p><b>Antar operator</b> pada nota yang sama <b>tetap dibagi</b> sesuai keterlibatan (kerja sama 1/N) — 500rb + 2 operator = 250rb/250rb.</p>
                                 <p className="text-[11px] italic">"Tak diketahui" = bagian yang cabang orangnya belum ter-set (mis. data operator lama sebelum fitur ini). Akurat penuh sejak fitur aktif.</p>
                             </CaraHitung>
                         </SectionCard>
@@ -366,7 +367,7 @@ export default function LeaderboardPage() {
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
                                                 <Th right>Rate</Th><Th right>Pcs</Th>
                                                 {csCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
-                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet (bagian)</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th><Th right>Chat WA</Th>
+                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th><Th right>Chat WA</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -398,7 +399,7 @@ export default function LeaderboardPage() {
                                                         <MetricCell value={r.wonValue + r.walkinValue} colorClass="text-amber-600 dark:text-amber-300"
                                                             onClick={() => setDetail({ division: 'cs', metric: 'cuan', userId: r.userId, personName: r.name, metricLabel: 'Cuan (net)' })}>{fmtRp(r.wonValue + r.walkinValue)}</MetricCell>
                                                         <MetricCell value={r.omzetShare} colorClass="text-emerald-600 dark:text-emerald-300"
-                                                            onClick={() => setDetail({ division: 'cs', metric: 'omzet', userId: r.userId, personName: r.name, metricLabel: 'Omzet (bagian)' })}>{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</MetricCell>
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'omzet', userId: r.userId, personName: r.name, metricLabel: 'Omzet' })}>{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</MetricCell>
                                                         <MetricCell value={r.pendingValue} colorClass="text-muted-foreground"
                                                             onClick={() => setDetail({ division: 'cs', metric: 'pending', userId: r.userId, personName: r.name, metricLabel: 'Akan Datang' })}>{r.pendingValue > 0 ? fmtRp(r.pendingValue) : '—'}</MetricCell>
                                                         <td className="py-2 px-2 text-right font-mono text-muted-foreground">{r.avgResponseHrs != null ? `${r.avgResponseHrs.toFixed(1)}j` : '—'}</td>
@@ -429,7 +430,7 @@ export default function LeaderboardPage() {
                                 <p><b>Pcs</b> = jumlah barang yang diorder — dari nota lead closing <i>+</i> transaksi POS walk-in yang ia tangani (kategori add-on tidak dihitung).</p>
                                 <p><b>Dikirim</b> (sedang dikirim) = jumlah <b>nota</b> yang pesanannya sudah diberangkatkan tetapi <b>belum sampai</b> — job produksinya masih di tahap <b>KIRIM</b> di pipeline. <b>Terkirim</b> (sudah sampai) = nota yang job produksinya sudah mencapai tahap <b>SELESAI</b> — barang sudah diterima pelanggan. Keduanya berbasis nota yang <b>shippedAt</b>-nya jatuh di periode ini (dihitung sekali per nota, bukan per job) dan diatribusikan ke CS yang menangani nota tersebut (lead ⟶ CS assign, atau walk-in ⟶ kasir). Satu nota dihitung <b>Terkirim</b> hanya bila <b>semua</b> job-nya sudah SELESAI; kalau masih ada yang di KIRIM → masuk <b>Dikirim</b>. Nota yang di-<b>retur</b> tidak dihitung. Angka kecil <b>“… pcs”</b> di bawahnya = jumlah barang yang dikirim (dihitung <b>per item</b>, jadi satu nota bisa menyumbang pcs ke Dikirim & Terkirim sekaligus), basis tanggal kirim yang sama.</p>
                                 <p><b>Cuan (net)</b> = Nilai deal lead yang closing (estimatedValue) <i>+</i> omzet transaksi POS walk-in yang ia tangani — keduanya <b>sudah dikurangi biaya platform</b> (fee marketplace). Ini omzet <b>penuh</b> penjualan yang ia bawa.</p>
-                                <p><b>Omzet (bagian)</b> = porsi <b>adil</b> CS dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Dipakai board <b>Tim / Cabang</b> agar nota lintas cabang terbagi ke tiap cabang home.</p>
+                                <p><b>Omzet</b> = omzet nota <b>PENUH</b> yang melibatkan CS ini — tidak dibagi dengan desainer/operator. Nota 500rb dihitung 500rb utuh untuk CS.</p>
                                 <p><b>Akan Datang</b> = sisa tagihan (piutang) transaksi yang masih PENDING/PARTIAL.</p>
                                 <p><b>Respon</b> = rata-rata jam dari lead masuk sampai aktivitas pertama CS.</p>
                                 {csCustomDefs.length > 0 && (
@@ -518,7 +519,7 @@ export default function LeaderboardPage() {
                             <SectionCard icon={<Factory className="h-5 w-5" />} title="Designer — Produksi & Omzet" subtitle="SO yang dibuat designer + job produksi (SO yang jadi nota).">
                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
                                     <ChampionCard icon={<span>📋</span>} title="Raja SO" name={topByOf(dgRows, x => x.soCreated)?.row.name} value={`${topByOf(dgRows, x => x.soCreated)?.v ?? 0} SO`} accent="bg-violet-500/15 text-violet-500" />
-                                    <ChampionCard icon={<Crown />} title="Raja Omzet (bagian)" name={topByOf(dgRows, x => x.omzetShare)?.row.name} value={fmtRp(topByOf(dgRows, x => x.omzetShare)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
+                                    <ChampionCard icon={<Crown />} title="Raja Omzet" name={topByOf(dgRows, x => x.omzetShare)?.row.name} value={fmtRp(topByOf(dgRows, x => x.omzetShare)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
                                     <ChampionCard icon={<Award />} title="Raja ACC" name={topByOf(dgRows, x => x.acc)?.row.name} value={`${topByOf(dgRows, x => x.acc)?.v ?? 0} ACC`} accent="bg-emerald-500/15 text-emerald-500" />
                                     <ChampionCard icon={<Factory />} title="Mesin Produksi" name={topByOf(dgRows, x => x.selesai)?.row.name} value={`${topByOf(dgRows, x => x.selesai)?.v ?? 0} selesai`} accent="bg-indigo-500/15 text-indigo-500" />
                                 </div>
@@ -528,7 +529,7 @@ export default function LeaderboardPage() {
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
                                                 <Th>Designer</Th><Th right>SO Dibuat</Th><Th right>Nota</Th><Th right>Job</Th><Th right>Nunggu ACC</Th><Th right>ACC</Th><Th right>Selesai</Th><Th right>Express</Th><Th right>Pcs</Th>
                                                 {dgCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
-                                                <Th right>Omzet (bagian)</Th>
+                                                <Th right>Omzet</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {dgRows.map((r, i) => (
@@ -555,7 +556,7 @@ export default function LeaderboardPage() {
                                 <CaraHitung>
                                     <p><b>SO Dibuat</b> = jumlah Sales Order (SPK) yang dibuat designer di periode (kecuali yang CANCELLED). <b>Kolom ini menutup celah designer yang kerjanya membuat SO walau belum jadi nota.</b></p>
                                     <p><b>Nota</b> = jumlah SO designer yang sudah jadi nota di periode. <b>Pcs</b> = jumlah barang dari nota.</p>
-                                    <p><b>Omzet (bagian)</b> = bagian desainer dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator). Bukan lagi seluruh grandTotal, tapi porsi adilnya. Lihat board <b>Tim / Cabang</b>.</p>
+                                    <p><b>Omzet</b> = omzet nota <b>PENUH</b> (grandTotal) dari SO yang desainer ini buat — tidak dibagi dengan CS/operator. Nota 500rb dihitung 500rb utuh.</p>
                                     <p><b>Nunggu ACC</b> = desain sudah di-upload, card di stage <b>ACC</b> menunggu approve customer (belum masuk cetak).</p>
                                     <p><b>Job/ACC/Selesai/Express</b> = dari job produksi (tanggal job dibuat). ACC = sudah lolos approve & masuk tahap cetak (PRINT..SELESAI); Selesai = sampai KIRIM/SELESAI.</p>
                                     {dgCustomDefs.length > 0 && (
@@ -571,7 +572,7 @@ export default function LeaderboardPage() {
                     {showOperator && (
                         <SectionCard icon={<Factory className="h-5 w-5" />} title="Divisi Operator — Produksi & Cetak" subtitle="Output operator dari antrian produksi (kanban) + antrian cetak paper.">
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-4">
-                                <ChampionCard icon={<Crown />} title="Raja Omzet Operator" name={topByOf(opRows, x => x.omzetShare)?.row.name} value={fmtRp(topByOf(opRows, x => x.omzetShare)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
+                                <ChampionCard icon={<Crown />} title="Raja Omzet" name={topByOf(opRows, x => x.omzetShare)?.row.name} value={fmtRp(topByOf(opRows, x => x.omzetShare)?.v ?? 0)} accent="bg-amber-500/15 text-amber-500" />
                                 <ChampionCard icon={<Printer />} title="Raja Cetak" name={topByOf(opRows, x => x.printJobs)?.row.name} value={`${topByOf(opRows, x => x.printJobs)?.v ?? 0} job`} accent="bg-cyan-500/15 text-cyan-500" />
                                 <ChampionCard icon={<Factory />} title="Raja Produksi" name={topByOf(opRows, x => x.prodJobs)?.row.name} value={`${topByOf(opRows, x => x.prodJobs)?.v ?? 0} job`} accent="bg-indigo-500/15 text-indigo-500" />
                                 <ChampionCard icon={<Layers />} title="Paling Banyak Lembar" name={topByOf(opRows, x => x.printPcs)?.row.name} value={`${topByOf(opRows, x => x.printPcs)?.v ?? 0} lembar`} accent="bg-fuchsia-500/15 text-fuchsia-500" />
@@ -583,7 +584,7 @@ export default function LeaderboardPage() {
                                             <thead><tr className="text-xs text-muted-foreground border-b border-border">
                                                 <Th>Operator</Th><Th right>Cetak (job)</Th><Th right>Lembar</Th><Th right>Produksi (job)</Th><Th right>Selesai</Th><Th right>Total Job</Th>
                                                 {opCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
-                                                <Th right>Omzet (bagian)</Th>
+                                                <Th right>Omzet</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {opRows.map((r, i) => (
@@ -637,13 +638,13 @@ export default function LeaderboardPage() {
                                             </table>
                                         </div>
                                     )}
-                                    <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzetShare }))} label="Omzet (bagian) operator" money />
+                                    <MiniBar data={opRows.map(r => ({ name: r.name, v: r.omzetShare }))} label="Omzet operator" money />
                                 </>
                             )}
                             <CaraHitung>
                                 <p><b>Cetak (job)</b> = job di <b>antrian cetak paper</b> yang sudah dicetak operator ini (status SELESAI/DIAMBIL). <b>Lembar</b> = total qty yang dicetak. Basis tanggal = waktu selesai cetak.</p>
                                 <p><b>Produksi (job)</b> = job di <b>antrian produksi</b> (kanban /produksi/board) yang ia geser tahapannya. <b>Selesai</b> = job yang ia bawa sampai tahap KIRIM/SELESAI. Basis tanggal = waktu pindah kartu.</p>
-                                <p><b>Omzet (bagian)</b> = bagian operator dari omzet nota — tiap nota dibagi rata ke peran yang terlibat (CS · desainer · operator), lalu porsi operator dibagi lagi antar operator sesuai keterlibatan (kerja sama 1/N). Bukan lagi nilai line item. Dasar peringkat. Lihat board <b>Tim / Cabang</b>.</p>
+                                <p><b>Omzet</b> = omzet nota <b>PENUH</b> yang operator ini produksi/cetak — tidak dibagi dengan CS/desainer. <b>Kecuali</b> bila satu nota dikerjakan beberapa operator: porsi antar operator tetap dibagi sesuai keterlibatan (kerja sama 1/N) — nota 500rb + 2 operator = 250rb/250rb. Dasar peringkat.</p>
                                 <p><b>Total Job</b> = Cetak + Produksi. Operator dicocokkan berdasarkan <b>nama</b> yang ia isi saat login board/cetak.</p>
                                 <p><b>Breakdown per kategori</b>: tiap <b>kategori produksi</b> (bisa ditambah/edit/hapus di <b>Manajemen Kategori → Kategori Produksi</b>) punya <b>sumber</b> sendiri — <b>Cetak</b> (dihitung dari bahan cetak/antrian cetak) atau <b>Produksi</b> (dari antrian produksi/kanban, sekali per job saat KIRIM/SELESAI). Kategori dilekatkan ke kategori barang lewat pilihan <b>Tipe Produksi</b>. Satuan mengikuti setelan kategori: <b>m²</b> (luas) atau <b>pcs</b>. <b>Rp</b> = nilai line item.</p>
                                 <p className="text-[11px] italic">Produksi terhitung dari kedua board: kanban /produksi/board maupun antrian /produksi (mode-status) — keduanya kini mencatat nama operator saat menyelesaikan job.</p>

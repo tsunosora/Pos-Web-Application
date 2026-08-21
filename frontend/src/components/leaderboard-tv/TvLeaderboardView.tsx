@@ -45,16 +45,16 @@ export default function TvLeaderboardView({ pin, onLogout }: { pin: string; onLo
     { key: 'acc', label: 'ACC' },
   ], []);
   const operatorCols: TvColumn[] = useMemo(() => [
-    { key: 'total', label: 'Job', primary: true },
+    { key: 'omzetShare', label: 'Omzet', primary: true, fmt: fmtRp },
+    { key: 'total', label: 'Job' },
     { key: 'printJobs', label: 'Cetak' },
-    { key: 'prodJobs', label: 'Produksi' },
   ], []);
 
   const panels = [
     { title: 'Tim / Cabang', icon: <Building2 className="w-4 h-4" />, rows: data?.team.leaderboard ?? [], columns: teamCols, sortKey: 'omzet' },
     { title: 'CS / Sales', icon: <Users className="w-4 h-4" />, rows: data?.cs.leaderboard ?? [], columns: csCols, sortKey: 'wonValue' },
     { title: 'Designer', icon: <Palette className="w-4 h-4" />, rows: data?.designer.leaderboard ?? [], columns: designerCols, sortKey: 'omzetShare' },
-    { title: 'Operator', icon: <Printer className="w-4 h-4" />, rows: data?.operator.leaderboard ?? [], columns: operatorCols, sortKey: 'total' },
+    { title: 'Operator', icon: <Printer className="w-4 h-4" />, rows: data?.operator.leaderboard ?? [], columns: operatorCols, sortKey: 'omzetShare' },
   ];
 
   // Ringkasan juara tiap divisi untuk ticker berjalan di bawah.

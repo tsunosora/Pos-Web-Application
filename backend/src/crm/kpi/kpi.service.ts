@@ -645,13 +645,13 @@ export class KpiService {
             return this.finishDetail(base, metric === 'delivered' ? 'Terkirim (sampai)' : 'Sedang Dikirim', 'pcs', rows);
         }
 
-        // ── Omzet (bagian) — porsi adil per nota ──────────────────────────
+        // ── Omzet — omzet nota PENUH yang melibatkan CS ini (tak dibagi) ───
         if (metric === 'omzet') {
             const { csRows } = await this.computeNotaSplits(params, { collectCsRowsFor: uid });
             const txIds = csRows.map(r => r.txId);
             const shareByTx = new Map<number, number>(csRows.map(r => [r.txId, r.share]));
             const rows = await this.buildTxRows(txIds, shareByTx);
-            return this.finishDetail(base, 'Omzet (bagian)', 'money', rows);
+            return this.finishDetail(base, 'Omzet', 'money', rows);
         }
 
         // ── Akan Datang (piutang tx PENDING/PARTIAL) ──────────────────────
@@ -1872,18 +1872,23 @@ export class KpiService {
     }
 
     /**
-     * INTI fitur omzet-split. Untuk tiap nota (Transaction) di periode, bagi
-     * grandTotal RATA ke peran yang HADIR pada nota itu:
+     * INTI atribusi omzet. Untuk tiap nota (Transaction) di periode, kreditkan
+     * grandTotal PENUH ke tiap peran yang HADIR pada nota itu — TIDAK dibagi
+     * lintas peran (permintaan owner: pembagian 1/n bikin bingung). Jadi nota
+     * 500rb → CS 500rb, desainer 500rb, operator 500rb (bukan ~167rb masing2).
      *   CS (pembuat lead) · desainer (pembuat SO) · operator (yang produksi).
      * Tiap bagian dikreditkan ke cabang HOME orang tsb (bukan cabang produksi).
      *   - CS       → User.branchId (assignedTo lead, fallback kasir walk-in).
      *   - desainer → Designer.branchId (fallback resolve SalesOrder.branchName).
      *   - operator → cabang PIN saat aksi (PrintJob.operatorBranchId /
      *                ProductionJobActivity.branchId, fallback cabang job).
-     * Bagian operator dibagi lagi antar operator sesuai bobot keterlibatan
-     * (kerja sama 1/N dari coOperators/actorWeight).
+     * PENGECUALIAN: antar operator pada nota yang sama TETAP dibagi bobot
+     * keterlibatan (kerja sama 1/N dari coOperators/actorWeight) — 2 operator
+     * di nota 500rb → 250rb/250rb.
      *
-     * Invarian: untuk tiap nota, Σ(bagian semua peran hadir) = grandTotal.
+     * `team.omzet` (kolom Total Omzet cabang) dihitung TERPISAH memakai porsi
+     * adil (grandTotal / jumlahPeran) supaya Σ omzet semua cabang = omzet nota
+     * asli; kolom csShare/designerShare/operatorShare memakai kredit PENUH.
      * TIDAK di-scope cabang (board Tim membandingkan semua cabang; peta per-orang
      * di-lookup by id/nama oleh leaderboard peran masing-masing).
      */
@@ -2002,6 +2007,14 @@ export class KpiService {
             const key: number | 'none' = branchId == null ? 'none' : branchId;
             const e = team.get(key) || { csShare: 0, designerShare: 0, operatorShare: 0, omzet: 0 };
             if (role === 'cs') e.csShare += v; else if (role === 'designer') e.designerShare += v; else e.operatorShare += v;
+            team.set(key, e);
+        };
+        // Total Omzet cabang dihitung TERPISAH dari kolom "Bagian": pakai porsi ADIL
+        // (grandTotal / jumlahPeran) agar Σ omzet semua cabang = omzet nota asli,
+        // sementara bagian peran memakai kredit PENUH (tak dibagi lintas peran).
+        const addOmzet = (branchId: number | null, v: number) => {
+            const key: number | 'none' = branchId == null ? 'none' : branchId;
+            const e = team.get(key) || { csShare: 0, designerShare: 0, operatorShare: 0, omzet: 0 };
             e.omzet += v;
             team.set(key, e);
         };
@@ -2036,25 +2049,33 @@ export class KpiService {
 
             const rolesCount = (hasCs ? 1 : 0) + (hasDesigner ? 1 : 0) + (hasOperator ? 1 : 0);
             if (rolesCount === 0) continue; // nota tak bisa diatribusikan ke siapa pun
-            const share = gross / rolesCount;
+            // Kredit PENUH per peran: omzet TIDAK dibagi lintas peran (CS = desainer
+            // = operator = grandTotal penuh). `realShare` = porsi adil, HANYA dipakai
+            // untuk kolom Total Omzet cabang agar totalnya = omzet nota asli.
+            const fullShare = gross;
+            const realShare = gross / rolesCount;
 
             if (hasCs) {
-                csShareByUser.set(csUser!, (csShareByUser.get(csUser!) || 0) + share);
-                bump(csBranch, 'cs', share);
+                csShareByUser.set(csUser!, (csShareByUser.get(csUser!) || 0) + fullShare);
+                bump(csBranch, 'cs', fullShare);
+                addOmzet(csBranch, realShare);
                 if (opts?.collectCsRowsFor != null && csUser === opts.collectCsRowsFor) {
-                    csRows.push({ txId: t.id, share });
+                    csRows.push({ txId: t.id, share: fullShare });
                 }
             }
             if (hasDesigner) {
-                designerShareByName.set(dName, (designerShareByName.get(dName) || 0) + share);
-                bump(dBranch, 'designer', share);
+                designerShareByName.set(dName, (designerShareByName.get(dName) || 0) + fullShare);
+                bump(dBranch, 'designer', fullShare);
+                addOmzet(dBranch, realShare);
             }
             if (hasOperator) {
                 const totalW = Array.from(opMap!.values()).reduce((s, o) => s + o.weight, 0) || 1;
                 for (const [name, agg] of opMap!) {
-                    const portion = share * (agg.weight / totalW);
-                    operatorShareByName.set(name, (operatorShareByName.get(name) || 0) + portion);
-                    bump(agg.branchId, 'operator', portion);
+                    const w = agg.weight / totalW;
+                    // Antar operator TETAP dibagi bobot (kerja sama): 500rb + 2 op = 250/250.
+                    operatorShareByName.set(name, (operatorShareByName.get(name) || 0) + fullShare * w);
+                    bump(agg.branchId, 'operator', fullShare * w);
+                    addOmzet(agg.branchId, realShare * w);
                 }
             }
         }
