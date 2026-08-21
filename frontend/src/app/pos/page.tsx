@@ -40,7 +40,7 @@ interface AreaModalState {
     editLineId?: string;
     product: any;
     variant: any;
-    unitType: 'm' | 'cm' | 'menit';
+    unitType: 'm' | 'cm' | 'cm2' | 'menit';
     widthCm: string;
     heightCm: string;
     note: string;
@@ -298,7 +298,7 @@ function POSPageContent() {
                 addItem(product, variant, {
                     widthCm: Number(it.widthCm),
                     heightCm: it.unitType === 'menit' ? 1 : Number(it.heightCm),
-                    unitType: (it.unitType as 'm' | 'cm' | 'menit') || 'cm',
+                    unitType: (it.unitType as 'm' | 'cm' | 'cm2' | 'menit') || 'cm',
                     note: it.note || undefined,
                     pcs: it.pcs ? Number(it.pcs) : 1,
                 });
@@ -423,7 +423,9 @@ function POSPageContent() {
 
     // Open area modal for a fresh new line (clicking card or '+')
     const openAreaModalFresh = (product: any, variant: any) => {
-        setAreaModal({ open: true, mode: 'add', product, variant, unitType: 'cm', widthCm: '', heightCm: '', note: '', pcs: '1' });
+        // Basis luas per produk: 'CM2' → harga per cm² (unitType 'cm2'); selain itu per m² (default 'cm').
+        const u: 'cm' | 'cm2' = product?.areaUnit === 'CM2' ? 'cm2' : 'cm';
+        setAreaModal({ open: true, mode: 'add', product, variant, unitType: u, widthCm: '', heightCm: '', note: '', pcs: '1' });
     };
 
     // Open area modal with existing data to edit a cart line
@@ -465,7 +467,7 @@ function POSPageContent() {
         // areaForStock: always m² for stock comparison (independent of price unit)
         let areaForStock = 0;
         if (areaModal.unitType === 'm') areaForStock = w * h;
-        else if (areaModal.unitType === 'cm') areaForStock = (w * h) / 10000;
+        else if (areaModal.unitType === 'cm' || areaModal.unitType === 'cm2') areaForStock = (w * h) / 10000;
         else if (areaModal.unitType === 'menit') areaForStock = w;
 
         const pcs = Math.max(1, parseInt(areaModal.pcs, 10) || 1);
@@ -693,6 +695,9 @@ function POSPageContent() {
         } else if (areaModal.unitType === 'cm') {
             priceMultiplier = (w * h) / 10000;    // cm² → m², price is per m²
             areaForStock = (w * h) / 10000;
+        } else if (areaModal.unitType === 'cm2') {
+            priceMultiplier = w * h;              // harga per cm² → pengali = P×L (cm²)
+            areaForStock = (w * h) / 10000;       // luas fisik tetap m²
         } else if (areaModal.unitType === 'menit') {
             priceMultiplier = w;
             areaForStock = w;
@@ -1322,19 +1327,28 @@ function POSPageContent() {
                         </div>
 
                         <div className="p-5 space-y-4">
-                            {/* Unit Selection */}
-                            <div className="space-y-1.5">
-                                <label className="text-sm font-medium">Satuan Perhitungan *</label>
-                                <select
-                                    value={areaModal.unitType}
-                                    onChange={e => setAreaModal(prev => ({ ...prev, unitType: e.target.value as 'm' | 'cm' | 'menit' }))}
-                                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
-                                >
-                                    <option value="m">Meter (m) - Hitung Luas pxl</option>
-                                    <option value="cm">Centimeter (cm) - Hitung Luas pxl</option>
-                                    <option value="menit">Menit/Jam/Pcs - Hitung Jumlah Langsung</option>
-                                </select>
-                            </div>
+                            {/* Unit Selection — produk basis cm² dikunci ke cm² (harga per cm²) */}
+                            {areaModal.product?.areaUnit === 'CM2' ? (
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Satuan Perhitungan</label>
+                                    <div className="w-full px-3 py-2.5 bg-muted/40 border border-border rounded-lg text-sm">
+                                        Sentimeter persegi (cm²) — harga per cm², ukuran diisi dalam cm
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-1.5">
+                                    <label className="text-sm font-medium">Satuan Perhitungan *</label>
+                                    <select
+                                        value={areaModal.unitType}
+                                        onChange={e => setAreaModal(prev => ({ ...prev, unitType: e.target.value as 'm' | 'cm' | 'cm2' | 'menit' }))}
+                                        className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm"
+                                    >
+                                        <option value="m">Meter (m) - Hitung Luas pxl</option>
+                                        <option value="cm">Centimeter (cm) - Hitung Luas pxl</option>
+                                        <option value="menit">Menit/Jam/Pcs - Hitung Jumlah Langsung</option>
+                                    </select>
+                                </div>
+                            )}
 
                             {/* Dimensions */}
                             <div className={`grid gap-3 ${areaModal.unitType === 'menit' ? 'grid-cols-1' : 'grid-cols-2'}`}>
@@ -1342,7 +1356,7 @@ function POSPageContent() {
                                     <label className="text-sm font-medium">{areaModal.unitType === 'menit' ? 'Jumlah / Durasi *' : 'Lebar *'}</label>
                                     <input type="number" min="0" step="any" value={areaModal.widthCm}
                                         onChange={e => setAreaModal(prev => ({ ...prev, widthCm: e.target.value }))}
-                                        placeholder={areaModal.unitType === 'cm' ? '120' : (areaModal.unitType === 'm' ? '1.2' : '45')} autoFocus
+                                        placeholder={(areaModal.unitType === 'cm' || areaModal.unitType === 'cm2') ? '120' : (areaModal.unitType === 'm' ? '1.2' : '45')} autoFocus
                                         className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center" />
                                 </div>
                                 {areaModal.unitType !== 'menit' && (
@@ -1350,7 +1364,7 @@ function POSPageContent() {
                                         <label className="text-sm font-medium">Tinggi *</label>
                                         <input type="number" min="0" step="any" value={areaModal.heightCm}
                                             onChange={e => setAreaModal(prev => ({ ...prev, heightCm: e.target.value }))}
-                                            placeholder={areaModal.unitType === 'cm' ? '200' : '2.0'}
+                                            placeholder={(areaModal.unitType === 'cm' || areaModal.unitType === 'cm2') ? '200' : '2.0'}
                                             className="w-full px-3 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm font-mono text-center" />
                                     </div>
                                 )}
@@ -1364,6 +1378,8 @@ function POSPageContent() {
                                         <span className="font-bold">
                                             {areaModal.unitType === 'menit'
                                                 ? `${areaPreview.priceMultiplier.toLocaleString('id-ID')} unit`
+                                                : areaModal.unitType === 'cm2'
+                                                ? `${areaPreview.priceMultiplier.toLocaleString('id-ID')} cm²`
                                                 : `${areaPreview.priceMultiplier.toFixed(4)} m²`}
                                         </span>
                                     </div>

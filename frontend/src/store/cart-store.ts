@@ -32,7 +32,7 @@ export interface CartItem {
     subPrice?: number | null;
     subVendor?: string;
     // AREA_BASED only
-    unitType?: 'm' | 'cm' | 'menit';
+    unitType?: 'm' | 'cm' | 'cm2' | 'menit';
     widthCm?: number;
     heightCm?: number;
     areaCm2?: number;
@@ -50,12 +50,12 @@ interface CartState {
     taxRate: number;
     discount: number;
 
-    addItem: (product: any, variant: any, areaDimensions?: { widthCm: number; heightCm: number; unitType: 'm' | 'cm' | 'menit'; note?: string; pcs?: number }, opts?: { forceNewLine?: boolean }) => void;
+    addItem: (product: any, variant: any, areaDimensions?: { widthCm: number; heightCm: number; unitType: 'm' | 'cm' | 'cm2' | 'menit'; note?: string; pcs?: number }, opts?: { forceNewLine?: boolean }) => void;
     addCompositeItem: (args: { productId: number; name: string; price: number; compositeOptions: Record<string, any>; breakdown?: { name: string; qty: number; lineTotal: number }[]; note?: string }) => void;
     removeItem: (lineId: string) => void;
     updateQuantity: (lineId: string, delta: number) => void;
     setQuantityDirect: (lineId: string, qty: number) => void;
-    updateAreaDimensions: (lineId: string, widthCm: number, heightCm: number, unitType: 'm' | 'cm' | 'menit', pricePerUnitM2: number, note?: string, pcs?: number) => void;
+    updateAreaDimensions: (lineId: string, widthCm: number, heightCm: number, unitType: 'm' | 'cm' | 'cm2' | 'menit', pricePerUnitM2: number, note?: string, pcs?: number) => void;
     updateNote: (lineId: string, note: string) => void;
     updateCustomPrice: (lineId: string, customPrice: number | null) => void;
     updateSubOrder: (lineId: string, patch: { isSubOrder?: boolean; subPrice?: number | null; subVendor?: string }) => void;
@@ -75,17 +75,19 @@ function applyTierPrice(qty: number, basePrice: number, tiers: PriceTier[]): num
     return matched ? matched.price : basePrice;
 }
 
-function computeAreaPrice(width: number, height: number, unitPrice: number, unitType: 'm' | 'cm' | 'menit') {
-    // price is always stored as per-m² for AREA_BASED products
-    //   m    → input already in m², multiplier = w × h
-    //   cm   → convert cm² → m²: multiplier = (w × h) / 10000
-    //   menit→ duration-based: multiplier = w (minutes)
-    let areaM2 = 0;
-    if (unitType === 'm') areaM2 = width * height;
-    else if (unitType === 'cm') areaM2 = (width * height) / 10000;
-    else if (unitType === 'menit') areaM2 = width;
+function computeAreaPrice(width: number, height: number, unitPrice: number, unitType: 'm' | 'cm' | 'cm2' | 'menit') {
+    // Basis harga tergantung produk (Product.areaUnit → unitType saat add):
+    //   m    → harga/m², input meter:  pengali = w × h ;            luas fisik = w × h (m²)
+    //   cm   → harga/m², input cm:      pengali = (w × h) / 10000 ;  luas fisik = (w × h)/10000
+    //   cm2  → harga/cm², input cm:     pengali = w × h (cm²) ;      luas fisik = (w × h)/10000 (m²)
+    //   menit→ durasi:                  pengali = w ;                luas fisik = w
+    let priceMul = 0, areaM2 = 0;
+    if (unitType === 'm') { priceMul = width * height; areaM2 = width * height; }
+    else if (unitType === 'cm2') { priceMul = width * height; areaM2 = (width * height) / 10000; }
+    else if (unitType === 'menit') { priceMul = width; areaM2 = width; }
+    else { priceMul = (width * height) / 10000; areaM2 = (width * height) / 10000; } // cm / default
 
-    const price = areaM2 * unitPrice;
+    const price = priceMul * unitPrice;
     return { areaM2, price };
 }
 

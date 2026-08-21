@@ -92,6 +92,7 @@ export default function AddProductPage() {
 
     const [productForm, setProductForm] = useState({ name: '', description: '', categoryId: '', unitId: '' });
     const [pricingMode, setPricingMode] = useState<'UNIT' | 'AREA_BASED'>('UNIT');
+    const [areaUnit, setAreaUnit] = useState<'M2' | 'CM2'>('M2'); // basis luas AREA_BASED: per m² / per cm²
     const [productType, setProductType] = useState<'SELLABLE' | 'RAW_MATERIAL' | 'SERVICE'>('SELLABLE');
     const [pricePerUnit, setPricePerUnit] = useState('');
     const [requiresProduction, setRequiresProduction] = useState(false);
@@ -295,6 +296,7 @@ export default function AddProductPage() {
             categoryId: Number(productForm.categoryId),
             unitId: Number(productForm.unitId),
             pricingMode,
+            areaUnit: pricingMode === 'AREA_BASED' ? areaUnit : 'M2',
             productType,
             requiresProduction,
             hasAssemblyStage,
@@ -501,9 +503,30 @@ export default function AddProductPage() {
                             </div>
                         </div>
                         {pricingMode === 'AREA_BASED' && (
-                            <p className="mt-3 text-xs text-primary/80 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
-                                💡 Isi <strong>Harga/m²</strong> di bagian <strong>Varian Produk</strong> di bawah. Stok diisi dalam satuan <strong>m²</strong> (total bahan tersedia).
-                            </p>
+                            <div className="mt-3 space-y-2">
+                                <label className="text-sm font-medium">Basis Perhitungan Luas</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div onClick={() => setAreaUnit('M2')}
+                                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${areaUnit === 'M2' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-sm">Per m² (meter persegi)</span>
+                                            {areaUnit === 'M2' && <span className="ml-auto w-2 h-2 rounded-full bg-primary" />}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Banner, spanduk, stiker besar. Harga varian = harga per m².</p>
+                                    </div>
+                                    <div onClick={() => setAreaUnit('CM2')}
+                                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${areaUnit === 'CM2' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-semibold text-sm">Per cm² (sentimeter persegi)</span>
+                                            {areaUnit === 'CM2' && <span className="ml-auto w-2 h-2 rounded-full bg-primary" />}
+                                        </div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Akrilik, barang kecil presisi. Harga varian = harga per cm².</p>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-primary/80 bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
+                                    💡 Isi <strong>Harga/{areaUnit === 'CM2' ? 'cm²' : 'm²'}</strong> di <strong>Varian Produk</strong>. Ukuran diinput dalam cm; pelanggan/kasir jelas satuannya.
+                                </p>
+                            </div>
                         )}
 
                         {/* Requires Production */}

@@ -476,13 +476,21 @@ function product_is_area(array $p): bool {
  */
 function area_native(float $w, float $h, string $unitType): float {
     if ($unitType === 'menit') return $w;
-    if ($unitType === 'm')     return $w * $h;
-    return ($w * $h) / 10000;   // 'cm' / default
+    if ($unitType === 'm')     return $w * $h;       // input meter → m²
+    if ($unitType === 'cm2')   return $w * $h;       // produk basis cm² → cm² (tanpa ÷10.000)
+    return ($w * $h) / 10000;                         // 'cm' / default → m²
 }
 
-/** Label satuan luas untuk tampilan: m² (selalu, kecuali 'menit' → unit). */
+/** Label satuan luas untuk tampilan: cm² (cm2) / unit (menit) / m² (m & cm). */
 function area_sq_label(string $unitType): string {
-    return $unitType === 'menit' ? 'unit' : 'm²';
+    if ($unitType === 'menit') return 'unit';
+    if ($unitType === 'cm2')   return 'cm²';
+    return 'm²';
+}
+
+/** Basis luas produk dari field areaUnit (POS): 'CM2' → per cm², else per m². */
+function product_area_basis(array $p): string {
+    return (($p['areaUnit'] ?? 'M2') === 'CM2') ? 'CM2' : 'M2';
 }
 
 /**

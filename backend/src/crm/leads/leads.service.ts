@@ -269,8 +269,9 @@ export class LeadsService {
             return qty * w * price;
         }
         if (w > 0 && h > 0) {
-            // unitType 'm' → angka sudah meter; selain itu (cm/default) → bagi 10000.
-            const areaM2 = item.unitType === 'm' ? (w * h) : (w * h) / 10000;
+            // 'm' (input meter) & 'cm2' (produk basis cm², harga per cm²) → P×L tanpa ÷10.000.
+            // 'cm'/default (input cm, harga per m²) → bagi 10000.
+            const areaM2 = (item.unitType === 'm' || item.unitType === 'cm2') ? (w * h) : (w * h) / 10000;
             return qty * areaM2 * price;
         }
         return qty * price;
@@ -960,7 +961,7 @@ export class LeadsService {
                         // menit = kuantitas langsung (durasi di widthCm, heightCm null) → areaM2 = w
                         const isMenit = it.unitType === 'menit' && w > 0;
                         const isArea = isMenit || (w > 0 && h > 0);
-                        const areaM2 = isMenit ? w : (isArea ? (it.unitType === 'm' ? (w * h) : (w * h) / 10000) : 0);
+                        const areaM2 = isMenit ? w : (isArea ? ((it.unitType === 'm' || it.unitType === 'cm2') ? (w * h) : (w * h) / 10000) : 0);
                         const qty = Number(it.quantity) || 1;
                         const uPrice = Number(it.unitPrice) || 0;
 
@@ -1198,7 +1199,7 @@ export class LeadsService {
                 const isMenit = it.unitType === 'menit' && iw > 0;
                 const isArea = isMenit || (iw > 0 && ih > 0);
                 const unitLabel = it.unitType === 'm' ? 'm' : (it.unitType === 'menit' ? 'menit' : 'cm');
-                const areaM2 = isMenit ? iw : (it.unitType === 'm' ? (iw * ih) : (iw * ih) / 10000);
+                const areaM2 = isMenit ? iw : ((it.unitType === 'm' || it.unitType === 'cm2') ? (iw * ih) : (iw * ih) / 10000);
                 const sizeNote = isArea
                     ? (isMenit ? ` (${it.widthCm} ${unitLabel})` : ` (${it.widthCm}×${it.heightCm}${unitLabel} = ${areaM2.toFixed(2)}m²)`)
                     : '';

@@ -220,6 +220,7 @@ export default function EditProductPage() {
 
     const [productForm, setProductForm] = useState({ name: '', description: '', categoryId: '', unitId: '' });
     const [pricingMode, setPricingMode] = useState<'UNIT' | 'AREA_BASED' | 'COMPOSITE'>('UNIT');
+    const [areaUnit, setAreaUnit] = useState<'M2' | 'CM2'>('M2'); // basis luas AREA_BASED
     const [compositeConfigText, setCompositeConfigText] = useState<string>('');
     const [productType, setProductType] = useState<'SELLABLE' | 'RAW_MATERIAL' | 'SERVICE'>('SELLABLE');
     const [pricePerUnit, setPricePerUnit] = useState('');
@@ -269,6 +270,7 @@ export default function EditProductPage() {
                 unitId: String(product.unitId || ''),
             });
             setPricingMode(product.pricingMode || 'UNIT');
+            setAreaUnit(product.areaUnit === 'CM2' ? 'CM2' : 'M2');
             setCompositeConfigText(
                 (product as any).compositeConfig ? JSON.stringify((product as any).compositeConfig, null, 2) : '',
             );
@@ -343,6 +345,7 @@ export default function EditProductPage() {
                 categoryId: Number(productForm.categoryId),
                 unitId: Number(productForm.unitId),
                 pricingMode,
+                areaUnit: pricingMode === 'AREA_BASED' ? areaUnit : 'M2',
                 productType,
                 requiresProduction,
                 hasAssemblyStage,
@@ -652,8 +655,21 @@ export default function EditProductPage() {
                         </div>
                         {pricingMode === 'AREA_BASED' && (
                             <div className="mt-4 space-y-2">
+                                <label className="text-sm font-medium">Basis Perhitungan Luas</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div onClick={() => setAreaUnit('M2')}
+                                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${areaUnit === 'M2' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                                        <div className="flex items-center gap-2"><span className="font-semibold text-sm">Per m²</span>{areaUnit === 'M2' && <span className="ml-auto w-2 h-2 rounded-full bg-primary" />}</div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Banner, spanduk, stiker besar.</p>
+                                    </div>
+                                    <div onClick={() => setAreaUnit('CM2')}
+                                        className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${areaUnit === 'CM2' ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/30'}`}>
+                                        <div className="flex items-center gap-2"><span className="font-semibold text-sm">Per cm²</span>{areaUnit === 'CM2' && <span className="ml-auto w-2 h-2 rounded-full bg-primary" />}</div>
+                                        <p className="text-xs text-muted-foreground mt-0.5">Akrilik, barang kecil presisi.</p>
+                                    </div>
+                                </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Harga per m² (Rp) *</label>
+                                    <label className="text-sm font-medium">Harga per {areaUnit === 'CM2' ? 'cm²' : 'm²'} (Rp) *</label>
                                     <input required={pricingMode === 'AREA_BASED'} type="number" min="0" value={pricePerUnit} onChange={e => setPricePerUnit(e.target.value)} placeholder="Contoh: 25000" className="w-full px-4 py-2.5 bg-background border border-border rounded-lg focus:ring-2 focus:ring-primary outline-none text-sm" />
                                 </div>
                             </div>

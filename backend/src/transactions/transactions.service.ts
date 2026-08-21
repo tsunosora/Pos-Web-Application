@@ -429,6 +429,11 @@ export class TransactionsService {
                         if (item.unitType === 'm') {
                             priceMultiplier = w * heightCm;
                             areaM2 = w * heightCm;
+                        } else if (item.unitType === 'cm2') {
+                            // produk basis cm² (harga per cm²): pengali harga = P×L (cm²);
+                            // luas FISIK utk stok tetap m² (÷10.000).
+                            priceMultiplier = w * heightCm;
+                            areaM2 = (w * heightCm) / 10000;
                         } else if (item.unitType === 'cm') {
                             priceMultiplier = (w * heightCm) / 10000;
                             areaM2 = (w * heightCm) / 10000;
