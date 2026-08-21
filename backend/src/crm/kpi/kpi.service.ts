@@ -1443,6 +1443,93 @@ export class KpiService {
     }
 
     /**
+     * Omzet OPERATOR basis TANGGAL PENGERJAAN (bukan tanggal bayar). Beda dari
+     * computeNotaSplits (yg basis paidAt utk selaras cashflow): divisi operator
+     * dinilai dari OUTPUT produksi, jadi omzet diakui pada hari ia mencetak/
+     * memproduksi — asalkan notanya sudah LUNAS (status PAID, kapan pun bayarnya).
+     * Ini menyelesaikan "operator banyak cetak hari ini tapi omzet 0" yang muncul
+     * karena order dibayar di hari berbeda dari saat dikerjakan.
+     *
+     * Kredit PENUH per nota (tak dibagi lintas peran); antar operator pada nota
+     * yang sama TETAP dibagi bobot keterlibatan (kerja sama 1/N).
+     */
+    private async computeOperatorOmzetByWork(params: KpiParams): Promise<Map<string, number>> {
+        const { start, end } = resolvePeriod(params);
+        const result = new Map<string, number>();
+
+        // Kerja CETAK di periode (basis finishedAt) — sama dgn kolom "Cetak".
+        const printJobs: any[] = await (this.prisma as any).printJob.findMany({
+            where: { status: { in: ['SELESAI', 'DIAMBIL'] }, operatorName: { not: null }, finishedAt: { gte: start, lte: end } },
+            select: { transactionId: true, operatorName: true, coOperators: true },
+        });
+        // Kerja PRODUKSI di periode (basis activity.createdAt), tahap DONE.
+        const acts: any[] = await (this.prisma as any).productionJobActivity.findMany({
+            where: {
+                action: 'STAGE_CHANGE', actorRole: 'OPERATOR', actorName: { not: null },
+                toStage: { in: ['KIRIM', 'SELESAI'] }, createdAt: { gte: start, lte: end },
+            },
+            select: { jobId: true, actorName: true, actorWeight: true },
+        });
+        const prodJobIds = Array.from(new Set(acts.map(a => a.jobId)));
+        const prodJobs: any[] = prodJobIds.length ? await (this.prisma as any).productionJob.findMany({
+            where: { id: { in: prodJobIds } }, select: { id: true, transactionId: true },
+        }) : [];
+        const jobTx = new Map<number, number>(prodJobs.map(j => [j.id, j.transactionId]));
+
+        // Kandidat nota dari kedua sumber → saring HANYA yang sudah LUNAS (PAID).
+        const txIds = Array.from(new Set<number>([
+            ...printJobs.map(p => p.transactionId),
+            ...prodJobs.map(j => j.transactionId),
+        ]));
+        if (!txIds.length) return result;
+        const txs: any[] = await (this.prisma as any).transaction.findMany({
+            where: { id: { in: txIds }, status: 'PAID' },
+            select: { id: true, grandTotal: true },
+        });
+        const grossByTx = new Map<number, number>(txs.map(t => [t.id, Number(t.grandTotal) || 0]));
+        if (!grossByTx.size) return result;
+
+        // Peta bobot operator per nota (hanya kerja DI PERIODE ini).
+        const opByTx = new Map<number, Map<string, number>>();
+        const addOp = (txId: number, name: string, w: number) => {
+            if (!name || !grossByTx.has(txId)) return;
+            let m = opByTx.get(txId); if (!m) { m = new Map(); opByTx.set(txId, m); }
+            m.set(name, (m.get(name) || 0) + w);
+        };
+        for (const p of printJobs) {
+            const primary = (p.operatorName || '').trim();
+            const partners = (Array.isArray(p.coOperators) ? p.coOperators : [])
+                .map((n: any) => String(n || '').trim()).filter((n: string) => n && n !== primary);
+            const all = Array.from(new Set([primary, ...partners])).filter(Boolean);
+            if (!all.length) continue;
+            const w = 1 / all.length;
+            for (const name of all) addOp(p.transactionId, name as string, w);
+        }
+        const jobNameWeight = new Map<string, number>();
+        for (const a of acts) {
+            const name = (a.actorName || '').trim(); if (!name) continue;
+            const key = `${a.jobId}|${name}`;
+            jobNameWeight.set(key, Math.max(jobNameWeight.get(key) ?? 0, Number(a.actorWeight) || 1));
+        }
+        for (const [key, w] of jobNameWeight) {
+            const sep = key.indexOf('|');
+            const jobId = Number(key.slice(0, sep));
+            const name = key.slice(sep + 1);
+            const txId = jobTx.get(jobId); if (txId == null) continue;
+            addOp(txId, name, w);
+        }
+
+        // Kredit penuh grandTotal per nota, dibagi bobot antar operator (kerja sama).
+        for (const [txId, opMap] of opByTx) {
+            const gross = grossByTx.get(txId) || 0;
+            if (gross <= 0 || !opMap.size) continue;
+            const totalW = Array.from(opMap.values()).reduce((s, w) => s + w, 0) || 1;
+            for (const [name, w] of opMap) result.set(name, (result.get(name) || 0) + gross * (w / totalW));
+        }
+        return result;
+    }
+
+    /**
      * Leaderboard OPERATOR produksi & cetak — gabungan output dua antrian yang
      * dikerjakan operator, di-key per NAMA operator:
      *  - Antrian CETAK paper (PrintJob): job yang sudah dicetak (SELESAI/DIAMBIL),
@@ -1456,8 +1543,9 @@ export class KpiService {
     async operatorLeaderboard(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
         const branchScope: any = branchWhere(ctx);
-        // Bagian omzet operator (nota dibagi per peran) — kolom "omzet (bagian)".
-        const { operatorShareByName } = await this.computeNotaSplits(params);
+        // Omzet operator basis TANGGAL PENGERJAAN (cetak/produksi) + nota LUNAS —
+        // bukan paidAt. Biar "cetak hari ini → omzet hari ini". Lihat helper.
+        const operatorShareByName = await this.computeOperatorOmzetByWork(params);
 
         // ── CETAK (PrintJob) ──────────────────────────────────────────────
         // Omzet cetak = nilai line item yang dicetak (priceAtTime × qty item).
