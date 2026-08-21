@@ -466,38 +466,23 @@ function product_is_area(array $p): bool {
 }
 
 /**
- * Satuan hitung produk area, DITURUNKAN dari master Unit produk (unit.name).
- * Model unitType (selaras backend PosPro):
- *   'm'    → input meter, harga per m²,  luas = P×L (m²)                  — unit "Meter"
- *   'cm2'  → input cm,    harga per cm², luas = P×L (cm²), TANPA ÷10.000  — unit "Cm" (mis. Akrilik Rp 30/cm²)
- *   'menit'→ 1 dimensi,   harga per unit
- *   'cm'   → input cm,    harga per m²,  luas = P×L ÷ 10.000 (m²)         — fallback lama (mis. unit Kg/asing)
- * @return 'm' | 'cm2' | 'menit' | 'cm'
- */
-function product_area_unit(array $p): string {
-    $u = strtolower(trim((string)($p['unit']['name'] ?? '')));
-    if ($u === 'meter' || $u === 'm' || $u === 'm2' || $u === 'm²') return 'm';
-    if ($u === 'cm') return 'cm2';                 // unit "Cm" → harga per cm²
-    if (str_contains($u, 'menit')) return 'menit';
-    return 'cm';                                   // fallback: perlakuan lama (per m², ÷10.000)
-}
-
-/**
- * Luas untuk perhitungan HARGA, sesuai model unitType (lihat product_area_unit):
- *   'menit'→ P;  'cm'→ P×L÷10.000 (m²);  'm'/'cm2'→ P×L (m² / cm²).
- * Harga varian selalu sepadan dgn satuan yang dikembalikan (per m² / per cm² / per unit).
+ * Produk AREA_BASED SELALU dihitung per METER PERSEGI (base m²) — persis POS.
+ * `variant.price` = harga per m². Nama master Unit produk hanya LABEL (tak dipakai).
+ * `unitType` cuma konversi INPUT dimensi:
+ *   'm'    → P×L (m²)            (pelanggan input meter)
+ *   'cm'   → P×L ÷ 10.000 (m²)   (pelanggan input cm — default)
+ *   'menit'→ P (durasi/jumlah)   (produk berbasis waktu; jarang di storefront)
+ * (Ref POS: cart-store.ts computeAreaPrice "price is always per-m²".)
  */
 function area_native(float $w, float $h, string $unitType): float {
-    if ($unitType === 'menit') return $w;              // 1 dimensi
-    if ($unitType === 'cm')    return ($w * $h) / 10000; // legacy: cm input, harga per m²
-    return $w * $h;                                    // 'm' (m²) & 'cm2' (cm²)
+    if ($unitType === 'menit') return $w;
+    if ($unitType === 'm')     return $w * $h;
+    return ($w * $h) / 10000;   // 'cm' / default
 }
 
-/** Label satuan luas untuk tampilan: cm² (cm2) / unit (menit) / m² (m & cm-legacy). */
+/** Label satuan luas untuk tampilan: m² (selalu, kecuali 'menit' → unit). */
 function area_sq_label(string $unitType): string {
-    if ($unitType === 'menit') return 'unit';
-    if ($unitType === 'cm2')   return 'cm²';
-    return 'm²';                                        // 'm' & legacy 'cm'
+    return $unitType === 'menit' ? 'unit' : 'm²';
 }
 
 /**
