@@ -34,7 +34,8 @@ export default function TvLeaderboardView({ pin, onLogout }: { pin: string; onLo
   }, [error, onLogout]);
 
   const csCols: TvColumn[] = useMemo(() => [
-    { key: 'wonValue', label: 'Cuan', primary: true, fmt: fmtRp },
+    // Cuan = Omzet (uang lunas masuk) + Akan Datang (piutang) — konsisten /leaderboard.
+    { key: 'cuanTotal', label: 'Cuan', primary: true, fmt: fmtRp },
     { key: 'dealsClosed', label: 'Closing' },
     { key: 'leadsHandled', label: 'Leads' },
   ], []);
@@ -52,7 +53,7 @@ export default function TvLeaderboardView({ pin, onLogout }: { pin: string; onLo
 
   const panels = [
     { title: 'Tim / Cabang', icon: <Building2 className="w-4 h-4" />, rows: data?.team.leaderboard ?? [], columns: teamCols, sortKey: 'omzet' },
-    { title: 'CS / Sales', icon: <Users className="w-4 h-4" />, rows: data?.cs.leaderboard ?? [], columns: csCols, sortKey: 'wonValue' },
+    { title: 'CS / Sales', icon: <Users className="w-4 h-4" />, rows: (data?.cs.leaderboard ?? []).map((r: any) => ({ ...r, cuanTotal: (Number(r.omzetShare) || 0) + (Number(r.pendingValue) || 0) })), columns: csCols, sortKey: 'cuanTotal' },
     { title: 'Designer', icon: <Palette className="w-4 h-4" />, rows: data?.designer.leaderboard ?? [], columns: designerCols, sortKey: 'omzetShare' },
     { title: 'Operator', icon: <Printer className="w-4 h-4" />, rows: data?.operator.leaderboard ?? [], columns: operatorCols, sortKey: 'omzetShare' },
   ];

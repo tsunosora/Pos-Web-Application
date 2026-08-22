@@ -115,8 +115,8 @@ export class KpiService {
 
     /**
      * Hitung leaderboard lalu kirim pengumuman juara (gamifikasi) ke Discord
-     * channel #leaderboard. Sultan Cuan = omzet (lead + walk-in), Raja Lead =
-     * lead terbanyak, Sniper Closing = closing rate tertinggi (min 3 lead).
+     * channel #leaderboard. Sultan Cuan = Omzet (uang lunas masuk) + Akan Datang
+     * (piutang), Raja Lead = lead terbanyak, Sniper Closing = closing rate tertinggi (min 3 lead).
      */
     async sendChampionRecap(ctx: BranchContext, params: KpiParams) {
         const rep = await this.report(ctx, params);
@@ -126,11 +126,11 @@ export class KpiService {
             await this.discord.notifyChampion({ period: this.periodLabel(params), lines: ['Belum ada aktivitas CS di periode ini.'] });
             return { sent: true, champions: null };
         }
-        const byMoney = [...lb].sort((a, b) => (b.wonValue + b.walkinValue) - (a.wonValue + a.walkinValue))[0];
+        const byMoney = [...lb].sort((a, b) => (b.omzetShare + b.pendingValue) - (a.omzetShare + a.pendingValue))[0];
         const byLead = [...lb].sort((a, b) => b.leadsHandled - a.leadsHandled)[0];
         const byRate = [...lb].filter(r => r.leadsHandled >= 3).sort((a, b) => b.closingRate - a.closingRate)[0] || null;
         const lines = [
-            `👑 **Sultan Cuan**: ${byMoney.name} — ${rp(byMoney.wonValue + byMoney.walkinValue)}`,
+            `👑 **Sultan Cuan**: ${byMoney.name} — ${rp(byMoney.omzetShare + byMoney.pendingValue)}`,
             `🔥 **Raja Lead**: ${byLead.name} — ${byLead.leadsHandled} lead`,
             byRate ? `🎯 **Sniper Closing**: ${byRate.name} — ${(byRate.closingRate * 100).toFixed(0)}%` : null,
         ].filter(Boolean) as string[];
@@ -619,24 +619,36 @@ export class KpiService {
         const leadSelect = { id: true, name: true, phone: true, source: true, sourceDetail: true, status: true, estimatedValue: true, convertedTransactionId: true, createdAt: true } as any;
 
         // ── Metrik berbasis lead ──────────────────────────────────────────
-        if (['leads', 'closing', 'lost', 'rate', 'pcs', 'cuan'].includes(metric)) {
+        if (['leads', 'closing', 'lost', 'rate', 'pcs'].includes(metric)) {
             const leadWhere: any = { ...branchScope, assignedToId: uid, createdAt: { gte: start, lte: end } };
-            if (metric === 'closing' || metric === 'pcs' || metric === 'cuan') leadWhere.status = 'CLOSED_WON';
+            if (metric === 'closing' || metric === 'pcs') leadWhere.status = 'CLOSED_WON';
             else if (metric === 'lost') leadWhere.status = 'CLOSED_LOST';
             // 'leads' & 'rate' → semua status (rate: frontend kelompokkan by status).
 
             const leads: any[] = await this.lead.findMany({ where: leadWhere, select: leadSelect, orderBy: { createdAt: 'desc' } });
             let rows = await this.buildLeadRows(leads);
 
-            if (metric === 'pcs' || metric === 'cuan') {
+            if (metric === 'pcs') {
                 const walkin = await this.buildWalkinRows(ctx, params, uid);
                 rows = [...rows, ...walkin];
             }
             const label: Record<string, string> = {
-                leads: 'Leads', closing: 'Closing', lost: 'Lost', rate: 'Closing Rate', pcs: 'Pcs Diorder', cuan: 'Cuan (net)',
+                leads: 'Leads', closing: 'Closing', lost: 'Lost', rate: 'Closing Rate', pcs: 'Pcs Diorder',
             };
-            const valueMode = metric === 'pcs' ? 'pcs' : metric === 'cuan' ? 'money' : metric === 'rate' ? 'percent' : 'count';
+            const valueMode = metric === 'pcs' ? 'pcs' : metric === 'rate' ? 'percent' : 'count';
             return this.finishDetail(base, label[metric], valueMode, rows);
+        }
+
+        // ── Cuan = Omzet (nota lunas) + Akan Datang (piutang) ─────────────
+        // Definisi baru: Cuan = uang lunas masuk + piutang. Rincian = daftar nota
+        // omzet (basis paidAt) digabung daftar piutang PENDING/PARTIAL. Dua populasi
+        // disjoint (PAID vs belum) → tak dobel; total = nilai Cuan di leaderboard.
+        if (metric === 'cuan') {
+            const { csRows } = await this.computeNotaSplits(params, { collectCsRowsFor: uid });
+            const shareByTx = new Map<number, number>(csRows.map(r => [r.txId, r.share]));
+            const omzetRows = await this.buildTxRows(csRows.map(r => r.txId), shareByTx);
+            const pendingRows = await this.buildPendingRows(ctx, params, uid);
+            return this.finishDetail(base, 'Cuan (Omzet + Piutang)', 'money', [...omzetRows, ...pendingRows]);
         }
 
         // ── Pengiriman ────────────────────────────────────────────────────
@@ -2708,7 +2720,7 @@ export class KpiService {
         // Semua user — untuk match cashierName→userId & resolve nama leaderboard
         // (CS yang hanya punya walk-in tanpa lead tetap muncul di leaderboard).
         const allUsers: any[] = await this.prisma.user.findMany({
-            select: { id: true, name: true, email: true, role: { select: { name: true } } },
+            select: { id: true, name: true, email: true, branchId: true, role: { select: { name: true } } },
         });
         const userMap = new Map(allUsers.map(u => [u.id, u]));
         const nameToUser = new Map<string, any>();
@@ -2844,6 +2856,21 @@ export class KpiService {
                     customByUser.set(uid, rec);
                 }
             }
+        }
+
+        // Pastikan CS yang punya OMZET di periode ini (nota lunas — walau lead-nya
+        // LAMA / tak bikin lead/walk-in baru periode ini) TETAP muncul barisnya, biar
+        // total "Omzet CS" di board Tim/Cabang == jumlah baris divisi CS. byAssignee
+        // hanya di-seed dari lead (createdAt) + walk-in periode; csShareByUser (basis
+        // paidAt) bisa memuat user yg belum punya baris → tanpa ini omzetnya "hilang".
+        for (const uid of csShareByUser.keys()) {
+            if (byAssignee.has(uid)) continue;
+            if (csId && uid !== csId) continue; // hormati filter staf aktif
+            const u = userMap.get(uid);
+            // csShareByUser GLOBAL (tak ter-scope cabang) → guard cabang manual supaya
+            // saat owner pilih 1 cabang, CS cabang lain tidak ikut keseret.
+            if (ctx.branchId != null && (u?.branchId ?? null) !== ctx.branchId) continue;
+            byAssignee.set(uid, zeroStat());
         }
 
         const leaderboard = Array.from(byAssignee.entries())

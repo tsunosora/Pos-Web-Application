@@ -190,7 +190,7 @@ export default function LeaderboardPage() {
         let r = [...(kpi.data?.leaderboard ?? [])];
         if (roleFilter) r = r.filter(x => (x.roleName || '') === roleFilter);
         if (kw) r = r.filter(x => (x.name || "").toLowerCase().includes(kw));
-        const cuan = (x: KpiLeaderboardEntry) => x.wonValue + x.walkinValue;
+        const cuan = (x: KpiLeaderboardEntry) => x.omzetShare + x.pendingValue;
         return r.sort((a, b) => cuan(b) - cuan(a));
     }, [kpi.data, roleFilter, kw]);
 
@@ -229,7 +229,7 @@ export default function LeaderboardPage() {
     const loading = kpi.isLoading || designer.isLoading || designOut.isLoading || operatorQ.isLoading;
 
     // Juara CS
-    const champCuan = topByOf(csRows, x => x.wonValue + x.walkinValue);
+    const champCuan = topByOf(csRows, x => x.omzetShare + x.pendingValue);
     const champClose = topByOf(csRows, x => x.dealsClosed);
     const champLead = topByOf(csRows, x => x.leadsHandled);
     const champKirim = topByOf(csRows, x => x.notasDelivered);
@@ -367,7 +367,7 @@ export default function LeaderboardPage() {
                                                 <Th>Nama</Th><Th right>Leads</Th><Th right>Closing</Th><Th right>Lost</Th>
                                                 <Th right>Rate</Th><Th right>Pcs</Th>
                                                 {csCustomDefs.map(d => <Th key={d.id} right>{d.label}</Th>)}
-                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (net)</Th><Th right>Omzet</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th><Th right>Chat WA</Th>
+                                                <Th right>Dikirim</Th><Th right>Terkirim</Th><Th right>Cuan (Omzet+Piutang)</Th><Th right>Omzet</Th><Th right>Akan Datang</Th><Th right>Respon CRM</Th><Th right>Balas WA</Th><Th right>Chat WA</Th>
                                             </tr></thead>
                                             <tbody>
                                                 {csRows.map((r, i) => (
@@ -396,8 +396,8 @@ export default function LeaderboardPage() {
                                                             onClick={() => setDetail({ division: 'cs', metric: 'delivered', userId: r.userId, personName: r.name, metricLabel: 'Terkirim' })}>
                                                             {r.notasDelivered || '—'}{r.pcsDelivered > 0 && <span className="block text-[10px] font-normal text-muted-foreground">{r.pcsDelivered} pcs</span>}
                                                         </MetricCell>
-                                                        <MetricCell value={r.wonValue + r.walkinValue} colorClass="text-amber-600 dark:text-amber-300"
-                                                            onClick={() => setDetail({ division: 'cs', metric: 'cuan', userId: r.userId, personName: r.name, metricLabel: 'Cuan (net)' })}>{fmtRp(r.wonValue + r.walkinValue)}</MetricCell>
+                                                        <MetricCell value={r.omzetShare + r.pendingValue} colorClass="text-amber-600 dark:text-amber-300"
+                                                            onClick={() => setDetail({ division: 'cs', metric: 'cuan', userId: r.userId, personName: r.name, metricLabel: 'Cuan (Omzet + Piutang)' })}>{fmtRp(r.omzetShare + r.pendingValue)}</MetricCell>
                                                         <MetricCell value={r.omzetShare} colorClass="text-emerald-600 dark:text-emerald-300"
                                                             onClick={() => setDetail({ division: 'cs', metric: 'omzet', userId: r.userId, personName: r.name, metricLabel: 'Omzet' })}>{r.omzetShare > 0 ? fmtRp(r.omzetShare) : '—'}</MetricCell>
                                                         <MetricCell value={r.pendingValue} colorClass="text-muted-foreground"
@@ -421,7 +421,7 @@ export default function LeaderboardPage() {
                                             </tbody>
                                         </table>
                                     </div>
-                                    <MiniBar data={csRows.map(r => ({ name: r.name, v: r.wonValue + r.walkinValue }))} label="Cuan (net)" money />
+                                    <MiniBar data={csRows.map(r => ({ name: r.name, v: r.omzetShare + r.pendingValue }))} label="Cuan" money />
                                 </>
                             )}
                             <CaraHitung>
@@ -429,7 +429,7 @@ export default function LeaderboardPage() {
                                 <p><b>Closing</b> = lead berstatus <b>CLOSED_WON</b>. <b>Lost</b> = <b>CLOSED_LOST</b>. <b>Rate</b> = Closing ÷ Leads.</p>
                                 <p><b>Pcs</b> = jumlah barang yang diorder — dari nota lead closing <i>+</i> transaksi POS walk-in yang ia tangani (kategori add-on tidak dihitung).</p>
                                 <p><b>Dikirim</b> (sedang dikirim) = jumlah <b>nota</b> yang pesanannya sudah diberangkatkan tetapi <b>belum sampai</b> — job produksinya masih di tahap <b>KIRIM</b> di pipeline. <b>Terkirim</b> (sudah sampai) = nota yang job produksinya sudah mencapai tahap <b>SELESAI</b> — barang sudah diterima pelanggan. Keduanya berbasis nota yang <b>shippedAt</b>-nya jatuh di periode ini (dihitung sekali per nota, bukan per job) dan diatribusikan ke CS yang menangani nota tersebut (lead ⟶ CS assign, atau walk-in ⟶ kasir). Satu nota dihitung <b>Terkirim</b> hanya bila <b>semua</b> job-nya sudah SELESAI; kalau masih ada yang di KIRIM → masuk <b>Dikirim</b>. Nota yang di-<b>retur</b> tidak dihitung. Angka kecil <b>“… pcs”</b> di bawahnya = jumlah barang yang dikirim (dihitung <b>per item</b>, jadi satu nota bisa menyumbang pcs ke Dikirim & Terkirim sekaligus), basis tanggal kirim yang sama.</p>
-                                <p><b>Cuan (net)</b> = Nilai deal lead yang closing (estimatedValue) <i>+</i> omzet transaksi POS walk-in yang ia tangani — keduanya <b>sudah dikurangi biaya platform</b> (fee marketplace). Ini omzet <b>penuh</b> penjualan yang ia bawa.</p>
+                                <p><b>Cuan</b> = <b>Omzet</b> (uang lunas yang masuk periode ini) <i>+</i> <b>Akan Datang</b> (piutang belum tertagih). Jadi Cuan = total nilai yang dibawa; uang masuk hari ini dihitung hari ini walau deal/notanya dari hari lalu.</p>
                                 <p><b>Omzet</b> = omzet nota <b>PENUH</b> yang melibatkan CS ini — tidak dibagi dengan desainer/operator. Nota 500rb dihitung 500rb utuh untuk CS. <i>Hanya nota yang sudah <b>LUNAS</b> di periode ini; nota belum lunas belum masuk omzet.</i></p>
                                 <p><b>Akan Datang</b> = sisa tagihan (piutang) transaksi yang masih PENDING/PARTIAL.</p>
                                 <p><b>Respon</b> = rata-rata jam dari lead masuk sampai aktivitas pertama CS.</p>
