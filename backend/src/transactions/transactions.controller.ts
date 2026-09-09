@@ -50,8 +50,9 @@ export class TransactionsController {
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
         @Query('search') search?: string,
+        @Query('status') status?: string,   // CSV, mis. "PENDING,PARTIAL" (halaman Piutang)
     ) {
-        return this.transactionsService.findAll(branchCtx, startDate, endDate, search);
+        return this.transactionsService.findAll(branchCtx, startDate, endDate, search, status);
     }
 
     @Get('dashboard/metrics')

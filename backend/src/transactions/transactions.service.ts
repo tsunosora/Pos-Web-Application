@@ -300,9 +300,14 @@ export class TransactionsService {
                 // dengan override priceAtTime & hppAtTime ke hasil hitung (HPP != 0).
                 if ((item as any).compositeProductId) {
                     const compositeProductId = Number((item as any).compositeProductId);
+                    // Lewatkan `tx`: tanpa itu computeComposite menarik koneksi BARU
+                    // dari pool sementara transaksi ini masih memegang satu → pool
+                    // (default 11) habis saat checkout paralel dan semua request
+                    // lain kena "Timed out fetching a new connection".
                     const quote = await this.productsService.computeComposite(
                         compositeProductId,
                         (item as any).compositeOptions ?? {},
+                        tx,
                     );
                     const qty = Math.max(1, Math.round(Number(item.quantity) || 1));
 
@@ -1121,8 +1126,19 @@ export class TransactionsService {
         }
     }
 
-    async findAll(branchCtx?: BranchContext, startDate?: string, endDate?: string, search?: string) {
+    async findAll(branchCtx?: BranchContext, startDate?: string, endDate?: string, search?: string, status?: string) {
         const where: any = branchCtx ? { ...branchWhere(branchCtx) } : {};
+        // Filter status DI SERVER. Halaman DP/Piutang cuma butuh nota belum lunas
+        // (62 baris dari 6.017). Tanpa ini seluruh tabel ikut terkirim: ~28 MB JSON
+        // yang memblokir event loop Node ~400 ms saat diserialisasi -> daftar produk,
+        // POS, dan login ikut menggantung selama itu. Whitelist enum: nilai asing
+        // diabaikan (bukan dilempar ke Prisma) agar query tak gagal karena typo.
+        const STATUSES = ['PENDING', 'PARTIAL', 'PAID', 'FAILED'];
+        const wanted = (status || '')
+            .split(',')
+            .map((x) => x.trim().toUpperCase())
+            .filter((x) => STATUSES.includes(x));
+        if (wanted.length) where.status = { in: wanted };
         if (startDate && endDate) {
             where.createdAt = {
                 gte: new Date(startDate),

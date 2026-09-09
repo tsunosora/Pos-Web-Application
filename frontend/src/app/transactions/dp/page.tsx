@@ -14,7 +14,14 @@ import EditTransactionModal from '@/app/reports/sales/EditTransactionModal';
 
 export default function DPTransactionsPage() {
     const queryClient = useQueryClient();
-    const { data: transactions, isLoading } = useQuery({ queryKey: ['transactions'], queryFn: () => getTransactions() });
+    // Hanya tarik nota BELUM LUNAS. Sebelumnya halaman ini menarik semua transaksi
+    // lalu membuang ~99%-nya di baris `allUnpaid` di bawah — 28 MB demi 62 baris.
+    // queryKey diawali 'transactions' agar invalidateQueries(['transactions'])
+    // yang dipakai mutasi pembayaran tetap mengenainya (React Query cocok per-prefiks).
+    const { data: transactions, isLoading } = useQuery({
+        queryKey: ['transactions', 'unpaid'],
+        queryFn: () => getTransactions(undefined, undefined, undefined, 'PENDING,PARTIAL'),
+    });
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
     const { data: users } = useQuery({ queryKey: ['users'], queryFn: getUsers });
@@ -34,6 +41,8 @@ export default function DPTransactionsPage() {
     const [activeTab, setActiveTab] = useState<'Semua' | 'DP' | 'Kredit' | 'Bayar Nanti'>('Semua');
     const [search, setSearch] = useState('');
 
+    // Jaring pengaman: server sudah memfilter, ini menjaga halaman tetap benar
+    // bila dibuka terhadap backend lama yang belum mengenal param `status`.
     const allUnpaid = transactions?.filter((t: any) => t.status === 'PARTIAL' || t.status === 'PENDING') || [];
     const bayarNantiList = allUnpaid.filter((t: any) => t.status === 'PENDING');
     const dpTransactions = allUnpaid.filter((t: any) => t.status === 'PARTIAL');

@@ -1,11 +1,15 @@
 import api from './client';
 
 // Transactions
-export const getTransactions = async (startDate?: string, endDate?: string, search?: string) => {
+// `status` = CSV status nota, mis. "PENDING,PARTIAL". Kosongkan = semua status.
+// Selalu isi bila pemanggil hanya butuh sebagian: tanpa itu server mengirim SELURUH
+// tabel transaksi (puluhan MB) untuk kemudian dibuang di browser.
+export const getTransactions = async (startDate?: string, endDate?: string, search?: string, status?: string) => {
     const params = new URLSearchParams();
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
     if (search) params.append('search', search);
+    if (status) params.append('status', status);
     const query = params.toString();
     return (await api.get(`/transactions${query ? `?${query}` : ''}`)).data;
 };
