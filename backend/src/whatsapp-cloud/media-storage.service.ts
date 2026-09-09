@@ -30,6 +30,10 @@ const EXT_BY_MIME: Record<string, string> = {
 
 export interface MediaStorageStats {
     baseDir: string;
+    /** Hari retensi auto-cleanup; 0 = tak ada penghapusan otomatis. */
+    retentionDays: number;
+    /** true bila cron 03:00 benar-benar menghapus berkas. */
+    autoCleanupEnabled: boolean;
     totalBytes: number;
     fileCount: number;
     diskFreeBytes: number;
@@ -60,10 +64,22 @@ export class MediaStorageService {
      * hanya unlink file + set mediaUrl=null (bukan hapus pesan). Atur lewat env
      * WA_MEDIA_RETENTION_DAYS (0/negatif/non-angka = matikan auto-cleanup).
      */
+    /**
+     * Kebijakan retensi aktif. DIPAKAI BERSAMA oleh cron & stats() supaya panel
+     * tak pernah menampilkan janji yang berbeda dari yang benar-benar dikerjakan
+     * cron — persis kekeliruan yang bikin media 7-9 Agustus 2026 hilang diam-diam
+     * sementara UI masih menulis "diarsipkan permanen".
+     */
+    retentionPolicy(): { retentionDays: number; autoCleanupEnabled: boolean } {
+        const days = Number(process.env.WA_MEDIA_RETENTION_DAYS ?? 30);
+        const on = Number.isFinite(days) && days > 0;
+        return { retentionDays: on ? days : 0, autoCleanupEnabled: on };
+    }
+
     @Cron(CronExpression.EVERY_DAY_AT_3AM)
     async autoCleanupOldMedia() {
-        const days = Number(process.env.WA_MEDIA_RETENTION_DAYS ?? 30);
-        if (!Number.isFinite(days) || days <= 0) return; // matikan bila diset 0/negatif
+        const { retentionDays: days, autoCleanupEnabled } = this.retentionPolicy();
+        if (!autoCleanupEnabled) return; // 0/negatif/non-angka = auto-cleanup mati
         const before = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
         try {
             const { deletedFiles, freedBytes } = await this.cleanupBefore(before);
@@ -199,6 +215,7 @@ export class MediaStorageService {
 
         return {
             baseDir: this.baseDir,
+            ...this.retentionPolicy(),
             totalBytes,
             fileCount,
             diskFreeBytes,

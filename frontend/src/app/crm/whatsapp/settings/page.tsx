@@ -213,13 +213,41 @@ function MediaStorageCard() {
                 <h2 className="font-semibold">Penyimpanan Media WhatsApp</h2>
             </div>
             <p className="text-xs opacity-60 -mt-2">
-                Media (gambar/dokumen) diarsipkan permanen di server homelab agar tak hilang saat retensi Meta (±30 hari) berakhir.
+                Media (gambar/dokumen) disalin ke server homelab agar tak hilang saat retensi Meta (±30 hari) berakhir.
+                Berapa lama disimpan di sini ditentukan pengaturan retensi di bawah.
                 Backup &amp; restore data ada di halaman <Link href="/settings" className="underline">Pengaturan</Link>.
             </p>
 
             {isLoading && <p className="text-sm opacity-60">Memuat statistik…</p>}
             {stats && (
                 <>
+                    {/* Status retensi dibaca dari kebijakan yang SAMA dengan yang dipakai cron
+                        (MediaStorageService.retentionPolicy), jadi tak bisa lagi terjadi panel
+                        menjanjikan "permanen" sementara cron diam-diam menghapus tiap 03:00. */}
+                    {stats.autoCleanupEnabled ? (
+                        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-xs space-y-1">
+                            <div className="font-semibold text-amber-600 dark:text-amber-400">
+                                Pembersihan otomatis AKTIF — media TIDAK disimpan permanen
+                            </div>
+                            <div className="opacity-80">
+                                Berkas media lebih tua dari <b>{stats.retentionDays} hari</b> dihapus otomatis setiap
+                                hari pukul 03:00. Riwayat teks percakapan tetap utuh, tapi gambar/dokumennya hilang
+                                dan tidak bisa diunduh ulang dari WhatsApp (batas Meta ±30 hari).
+                                Untuk menyimpan lebih lama, set <code className="px-1 rounded bg-muted">WA_MEDIA_RETENTION_DAYS</code>
+                                {" "}di <code className="px-1 rounded bg-muted">backend/.env</code> (0 = matikan), lalu restart backend.
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-3 text-xs space-y-1">
+                            <div className="font-semibold text-emerald-600 dark:text-emerald-400">
+                                Pembersihan otomatis MATI — media disimpan sampai dihapus manual
+                            </div>
+                            <div className="opacity-80">
+                                Tidak ada berkas yang dihapus dengan sendirinya. Pembersihan hanya terjadi lewat
+                                tombol di bawah. Pantau sisa disk secara berkala.
+                            </div>
+                        </div>
+                    )}
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                         <div className="rounded-xl bg-muted/50 p-3">
                             <div className="text-xs opacity-60">Dipakai media WA</div>

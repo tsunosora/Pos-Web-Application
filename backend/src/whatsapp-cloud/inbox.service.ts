@@ -890,7 +890,30 @@ export class InboxService {
         // 2) Fallback: unduh dari Meta (media lama/belum terarsip) sekaligus backfill ke disk.
         const mediaId: string | undefined = mediaObj?.id;
         if (!mediaId) throw new NotFoundException('pesan ini tidak memiliki media');
-        const { buffer, contentType } = await this.cloud.getMediaBinary(mediaId);
+        // Sampai di sini berarti arsip lokal TIDAK ada, dan Meta jadi satu-satunya sumber.
+        // Untuk pesan lama itu hampir selalu gagal: Meta menghapus media inbound setelah
+        // ~30 hari dan membalas code 100 ("Object with ID ... does not exist ... missing
+        // permissions") — bunyinya seperti token/izin bermasalah, padahal filenya memang
+        // tidak ada lagi. Teks mentah Meta berikut tautan dokumentasi developer tidak
+        // berguna bagi CS yang membuka chat lama, jadi terjemahkan ke sebab sebenarnya.
+        // Catatan: arsip lokal bisa kosong karena auto-cleanup WA_MEDIA_RETENTION_DAYS
+        // pernah menghapusnya — itu sebabnya pesannya menyebut arsip server, bukan
+        // sekadar menyalahkan retensi Meta.
+        let media: { buffer: Buffer; contentType: string };
+        try {
+            media = await this.cloud.getMediaBinary(mediaId);
+        } catch (e: any) {
+            const days = Math.floor((Date.now() - new Date(m.createdAt).getTime()) / 86_400_000);
+            if (days > 30) {
+                throw new NotFoundException(
+                    `Media pesan ini sudah tidak tersedia. Berkasnya tidak ada di arsip server, ` +
+                    `dan pesan ini sudah ${days} hari sehingga tidak bisa diunduh ulang dari WhatsApp ` +
+                    `(batas ~30 hari). Riwayat teks percakapan tetap utuh.`,
+                );
+            }
+            throw e;
+        }
+        const { buffer, contentType } = media;
         const finalMime = mediaObj?.mime_type || m.mediaMimeType || contentType;
         void this.mediaStore.persistBuffer(m.id, m.createdAt, buffer, finalMime, filename);
         return { buffer, contentType: finalMime, filename };

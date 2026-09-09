@@ -299,6 +299,8 @@ export const replyWaMedia = async (id: number, file: File, caption?: string, rep
 // ─── Penyimpanan media (disk homelab) ────────────────────────────────────────
 export interface WaMediaStats {
     baseDir: string;
+    retentionDays: number;        // 0 = tak ada penghapusan otomatis
+    autoCleanupEnabled: boolean;  // true = cron 03:00 menghapus berkas lama
     totalBytes: number;
     fileCount: number;
     diskFreeBytes: number;
