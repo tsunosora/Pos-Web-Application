@@ -31,6 +31,79 @@ function slugRetailerId(name: string): string {
     return `${base}_${Date.now().toString(36)}`;
 }
 
+/** retailer_id stabil utk item katalog yang berasal dari varian produk POS. */
+export const posRetailerId = (variantId: number) => `pos-v${variantId}`;
+const POS_RETAILER_RE = /^pos-v(\d+)$/;
+
+/** URL absolut publik utk path upload ("/uploads/..") — Meta wajib bisa mengunduh gambarnya. */
+export function absolutePublicUrl(path: string | null | undefined, base: string): string | null {
+    const p = (path || '').trim();
+    if (!p) return null;
+    if (/^https?:\/\//i.test(p)) return p;
+    return `${base.replace(/\/+$/, '')}/${p.replace(/^\/+/, '')}`;
+}
+
+function parseImageList(raw: string | null | undefined): string[] {
+    try {
+        const arr = JSON.parse(raw || '[]');
+        return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : [];
+    } catch {
+        return [];
+    }
+}
+
+export interface PosCatalogPlan {
+    variantId: number;
+    action: 'create' | 'update' | 'skip';
+    catalogProductId?: string | null;
+    error?: string;
+    payload?: { name: string; description: string; price: number; currency: string; image_url: string; additional_image_urls?: string[]; availability: string };
+}
+
+/**
+ * Susun item katalog dari produk POS (tanpa input ulang): tiap varian = 1 item. Nama = nama produk
+ * (+ nama varian bila varian > 1), harga = harga varian, deskripsi & gambar dari produk.
+ */
+export function buildPosCatalogPlan(
+    product: { name: string; description?: string | null; imageUrl?: string | null; imageUrls?: string | null; pricingMode?: string | null; areaUnit?: string | null; variants: { id: number; variantName?: string | null; price: unknown; variantImageUrl?: string | null }[] },
+    publicBase: string,
+    links: Record<number, { catalogProductId: string }>,
+    variantIds?: number[],
+): PosCatalogPlan[] {
+    const productImages = [product.imageUrl, ...parseImageList(product.imageUrls)]
+        .map((u) => absolutePublicUrl(u, publicBase))
+        .filter((u): u is string => !!u);
+    const multi = product.variants.length > 1;
+    const wanted = variantIds?.length ? product.variants.filter((v) => variantIds.includes(v.id)) : product.variants;
+    return wanted.map((v) => {
+        const link = links[v.id];
+        const main = absolutePublicUrl(v.variantImageUrl, publicBase) || productImages[0];
+        if (!main) {
+            return { variantId: v.id, action: 'skip' as const, catalogProductId: link?.catalogProductId ?? null, error: 'Produk belum punya gambar (wajib untuk katalog WhatsApp). Tambahkan gambar di Edit Produk.' };
+        }
+        const name = (multi && v.variantName?.trim() ? `${product.name} — ${v.variantName.trim()}` : product.name).trim().slice(0, 150);
+        let description = (product.description || '').trim() || name;
+        if (product.pricingMode === 'AREA_BASED' && !/m²|m2|cm²|cm2|per meter/i.test(description)) {
+            description += `\n\nHarga per ${product.areaUnit === 'CM2' ? 'cm²' : 'm²'}.`;
+        }
+        const extra = cleanImageUrls(productImages.filter((u) => u !== main));
+        return {
+            variantId: v.id,
+            action: link ? ('update' as const) : ('create' as const),
+            catalogProductId: link?.catalogProductId ?? null,
+            payload: {
+                name,
+                description: description.slice(0, 9999),
+                price: Math.round(Number(v.price ?? 0) * 100), // minor unit, sama dgn create()
+                currency: 'IDR',
+                image_url: main,
+                ...(extra.length ? { additional_image_urls: extra } : {}),
+                availability: 'in stock',
+            },
+        };
+    });
+}
+
 @Injectable()
 export class CatalogService {
     constructor(
@@ -140,6 +213,54 @@ export class CatalogService {
         if (input.url !== undefined) payload.url = input.url?.trim() || undefined;
         if (Object.keys(payload).length === 0) throw new BadRequestException('Tak ada perubahan');
         return this.safeMeta(() => this.cloud.updateCatalogProduct(productId, payload), 'Gagal mengubah produk katalog');
+    }
+
+    /** Varian POS yang sudah ada di katalog (retailer_id pos-v<id>) → info item katalognya. */
+    async posLinks(channelId: number) {
+        const rows = await this.list(channelId);
+        const links: Record<number, { catalogProductId: string; name: string | null; price: string | null; reviewStatus: string | null; visibility: string | null }> = {};
+        for (const r of rows) {
+            const m = POS_RETAILER_RE.exec(r.retailerId || '');
+            if (m) links[Number(m[1])] = { catalogProductId: r.id, name: r.name, price: r.price, reviewStatus: r.reviewStatus, visibility: r.visibility };
+        }
+        return links;
+    }
+
+    /**
+     * "Jadikan Katalog WA" dari produk POS. dryRun = hanya rencana (pratinjau) tanpa menulis ke Meta.
+     * Varian yang sudah ada di katalog diperbarui (bukan dobel).
+     */
+    async upsertFromProduct(channelId: number, productId: number, publicBase: string, opts: { variantIds?: number[]; dryRun?: boolean } = {}) {
+        const product = await (this.prisma as any).product.findUnique({
+            where: { id: productId },
+            include: { variants: { orderBy: { id: 'asc' } } },
+        });
+        if (!product) throw new NotFoundException('Produk tidak ditemukan');
+        if (!product.variants?.length) throw new BadRequestException('Produk tidak punya varian untuk dijadikan katalog');
+        const catalogId = await this.resolveCatalogId(channelId);
+        const links = await this.posLinks(channelId);
+        const plan = buildPosCatalogPlan(product, publicBase, links, opts.variantIds);
+        if (opts.dryRun) return { productId, dryRun: true, plan };
+
+        const results: { variantId: number; ok: boolean; action: string; catalogProductId?: string | null; name?: string; error?: string }[] = [];
+        for (const item of plan) {
+            if (item.action === 'skip' || !item.payload) {
+                results.push({ variantId: item.variantId, ok: false, action: 'skip', error: item.error });
+                continue;
+            }
+            try {
+                if (item.action === 'update' && item.catalogProductId) {
+                    await this.cloud.updateCatalogProduct(item.catalogProductId, item.payload);
+                    results.push({ variantId: item.variantId, ok: true, action: 'update', catalogProductId: item.catalogProductId, name: item.payload.name });
+                } else {
+                    const created = await this.cloud.createCatalogProduct(catalogId, { retailer_id: posRetailerId(item.variantId), ...item.payload });
+                    results.push({ variantId: item.variantId, ok: true, action: 'create', catalogProductId: created?.id ?? null, name: item.payload.name });
+                }
+            } catch (e) {
+                results.push({ variantId: item.variantId, ok: false, action: item.action, name: item.payload.name, error: (e as Error)?.message || 'Gagal menghubungi Meta' });
+            }
+        }
+        return { productId, dryRun: false, results };
     }
 
     async remove(_channelId: number, productId: string) {

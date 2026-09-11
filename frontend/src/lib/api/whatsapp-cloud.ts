@@ -142,6 +142,27 @@ export const updateWaCatalogProduct = async (channelId: number, productId: strin
 export const deleteWaCatalogProduct = async (channelId: number, productId: string): Promise<any> =>
     (await api.delete(`/whatsapp/catalog/${productId}`, { params: { channelId } })).data;
 
+// ── Produk POS → katalog WhatsApp (tanpa input ulang) ──
+export interface WaCatalogPlanItem {
+    variantId: number;
+    action: 'create' | 'update' | 'skip';
+    catalogProductId?: string | null;
+    error?: string;
+    payload?: { name: string; description: string; price: number; currency: string; image_url: string; additional_image_urls?: string[]; availability: string };
+}
+export interface WaCatalogFromProductResult {
+    productId: number;
+    dryRun: boolean;
+    plan?: WaCatalogPlanItem[];
+    results?: { variantId: number; ok: boolean; action: string; catalogProductId?: string | null; name?: string; error?: string }[];
+}
+/** Pratinjau item katalog dari produk POS (tidak menulis ke Meta). */
+export const previewProductToWaCatalog = async (channelId: number, productId: number): Promise<WaCatalogFromProductResult> =>
+    (await api.post('/whatsapp/catalog/from-product', { channelId, productId, dryRun: true })).data;
+/** Kirim varian produk POS ke katalog (yang sudah ada diperbarui). */
+export const addProductToWaCatalog = async (channelId: number, productId: number, variantIds: number[]): Promise<WaCatalogFromProductResult> =>
+    (await api.post('/whatsapp/catalog/from-product', { channelId, productId, variantIds })).data;
+
 // Kirim 1 produk katalog ke percakapan (interactive product message).
 export const sendWaProduct = async (
     conversationId: number,

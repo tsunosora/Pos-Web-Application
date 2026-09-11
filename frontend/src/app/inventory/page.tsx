@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, logStockMovement, deleteProduct, bulkDeleteProducts, bulkImportProducts } from '@/lib/api';
 import { downloadBulkTemplate, parseBulkExcel, BulkProductInput } from '@/lib/bulk-import';
-import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator, Share2, History, MoreVertical, ShoppingCart, Loader2, Table2, LayoutGrid, Rows3, GalleryHorizontal, FolderTree, Ruler } from 'lucide-react';
+import { Search, Plus, Package, RefreshCw, X, Image as ImageIcon, Pencil, Trash2, ChevronDown, Filter, Download, Upload, Calculator, Share2, History, MoreVertical, ShoppingCart, Loader2, Table2, LayoutGrid, Rows3, GalleryHorizontal, FolderTree, Ruler, ShoppingBag } from 'lucide-react';
 import { EmptyState } from '@/components/ui/responsive-table';
 import { useUIStore, type InventoryViewMode } from '@/store/ui-store';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ import { SmartStockModal } from './StockControls';
 import CategoryPanel from './CategoryPanel';
 import UnitPanel from './UnitPanel';
 import ChangeCategoryModal from './ChangeCategoryModal';
+import { WaCatalogFromProductModal } from '@/components/crm/WaCatalogFromProductModal';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -94,6 +96,10 @@ export default function InventoryPage() {
     const [showUnitPanel, setShowUnitPanel] = useState(false);
     // Produk yang sedang diganti kategorinya (modal cepat)
     const [categoryEditProduct, setCategoryEditProduct] = useState<any>(null);
+    const [catalogProduct, setCatalogProduct] = useState<any>(null); // "Jadikan Katalog WA"
+    const { roleName } = useCurrentUser();
+    // Sama dengan izin backend katalog WhatsApp (TEMPLATE_ROLES): Owner/Admin/Marketing.
+    const canWaCatalog = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN', 'MARKETING'].includes(String(roleName || '').toUpperCase());
     const [wasteForm, setWasteForm] = useState({ quantity: '', panjang: '', lebar: '', wasteType: 'Gagal Cetak', notes: '', operatorName: '' });
 
     // Expanded products (variant accordion)
@@ -810,6 +816,11 @@ export default function InventoryPage() {
                                                                         <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                             <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Link Disalin!' : 'Salin Link'}
                                                                         </button>
+                                                                        {canWaCatalog && (
+                                                                            <button onClick={() => { setCatalogProduct(product); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+                                                                                <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
+                                                                            </button>
+                                                                        )}
                                                                         <div className="h-px bg-border/60 my-1" />
                                                                         <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
@@ -1025,6 +1036,11 @@ export default function InventoryPage() {
                                                                         <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                             <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Link Disalin!' : 'Salin Link Produk'}
                                                                         </button>
+                                                                        {canWaCatalog && (
+                                                                            <button onClick={() => { setCatalogProduct(product); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+                                                                                <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
+                                                                            </button>
+                                                                        )}
                                                                         <div className="h-px bg-border/60 my-1" />
                                                                         <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
@@ -1157,6 +1173,11 @@ export default function InventoryPage() {
                                                                     <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                         <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Tersalin!' : 'Salin Link'}
                                                                     </button>
+                                                                    {canWaCatalog && (
+                                                                        <button onClick={() => { setCatalogProduct(product); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+                                                                            <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
+                                                                        </button>
+                                                                    )}
                                                                     <div className="h-px bg-border/60 my-1" />
                                                                     <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                         <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus
@@ -1272,6 +1293,11 @@ export default function InventoryPage() {
                                                                 <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30">
                                                                     <Share2 className="h-3.5 w-3.5" /> {shareToastId === product.id ? 'Tersalin!' : 'Salin Link'}
                                                                 </button>
+                                                                {canWaCatalog && (
+                                                                    <button onClick={() => { setCatalogProduct(product); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+                                                                        <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
+                                                                    </button>
+                                                                )}
                                                                 <div className="h-px bg-border/60 my-1" />
                                                                 <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10">
                                                                     <Trash2 className="h-3.5 w-3.5" /> Hapus
@@ -1406,6 +1432,11 @@ export default function InventoryPage() {
                                                                 <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30">
                                                                     <Share2 className="h-3.5 w-3.5" /> {shareToastId === product.id ? 'Tersalin!' : 'Salin Link'}
                                                                 </button>
+                                                                {canWaCatalog && (
+                                                                    <button onClick={() => { setCatalogProduct(product); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10 transition-colors">
+                                                                        <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
+                                                                    </button>
+                                                                )}
                                                                 <div className="h-px bg-border/60 my-1" />
                                                                 <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10">
                                                                     <Trash2 className="h-3.5 w-3.5" /> Hapus
@@ -1784,6 +1815,11 @@ export default function InventoryPage() {
             {/* Modal ganti kategori cepat */}
             {categoryEditProduct && (
                 <ChangeCategoryModal product={categoryEditProduct} onClose={() => setCategoryEditProduct(null)} />
+            )}
+
+            {/* Jadikan produk POS item katalog WhatsApp (tanpa input ulang) */}
+            {catalogProduct && (
+                <WaCatalogFromProductModal product={catalogProduct} onClose={() => setCatalogProduct(null)} />
             )}
 
             {/* Stock History Modal */}

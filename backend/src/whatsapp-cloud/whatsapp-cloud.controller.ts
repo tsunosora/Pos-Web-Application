@@ -153,6 +153,25 @@ export class WhatsappCloudController {
         return this.catalog.remove(channelId, productId);
     }
 
+    /** Varian produk POS yang sudah ada di katalog (retailer_id pos-v<id>). */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Get('catalog/pos-links')
+    catalogPosLinks(@Query('channelId', ParseIntPipe) channelId: number) {
+        return this.catalog.posLinks(channelId);
+    }
+
+    /** "Jadikan Katalog WA" dari produk POS (dryRun = pratinjau). Varian yang sudah ada diperbarui. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...TEMPLATE_ROLES)
+    @Post('catalog/from-product')
+    catalogFromProduct(@Req() req: Request, @Body() body: { channelId: number; productId: number; variantIds?: number[]; dryRun?: boolean }) {
+        const proto = (req.headers['x-forwarded-proto'] as string)?.split(',')[0] || req.protocol || 'https';
+        const base = process.env.PUBLIC_BASE_URL || `${proto}://${req.get('host')}`;
+        const variantIds = Array.isArray(body.variantIds) ? body.variantIds.map(Number).filter(Number.isFinite) : undefined;
+        return this.catalog.upsertFromProduct(Number(body.channelId), Number(body.productId), base, { variantIds, dryRun: !!body.dryRun });
+    }
+
     // ─── Pesan cepat / canned message (semua peran inbox) ────────────────────
 
     @UseGuards(JwtAuthGuard, WaInboxGuard)
