@@ -25,7 +25,7 @@ export const buildThermalReceiptBody = (
   const dateStr = snap.timestamp.toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' });
   const items = snap.items
     .map((it) => {
-      const note = it.note ? `<div class="sub i">${esc(it.note)}</div>` : '';
+      const note = it.note ? `<div class="note"><span class="b">Catatan:</span> ${esc(it.note)}</div>` : '';
       return `<div class="it"><div class="nm">${esc(it.name)}</div>${dimLine(it)}${note}
       <div class="row"><span>${it.qty} x ${rp(it.pricePerUnit)}</span><span>${rp(it.price)}</span></div></div>`;
     })
@@ -99,6 +99,7 @@ export const THERMAL_CSS = `
   .it { margin-bottom:9px; }
   .it:last-child { margin-bottom:2px; }
   .nm { font-weight:700; word-break:break-word; margin-bottom:1px; }
+  .note { font-size:18px; font-weight:600; line-height:1.4; white-space:pre-wrap; word-break:break-word; margin:1px 0 2px; }
   .i { font-style:italic; }
   .b { font-weight:700; }
   .summary { position:relative; }

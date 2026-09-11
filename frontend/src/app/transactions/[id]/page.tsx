@@ -186,7 +186,7 @@ function Receipt({ trx }: { trx: Transaction }) {
                             </p>
                         )}
                         {item.note && (
-                            <p className="text-[10px] pl-1 italic">"{item.note}"</p>
+                            <p className="text-[10px] pl-1 whitespace-pre-wrap break-words"><span className="font-semibold">Catatan:</span> {item.note}</p>
                         )}
                         <div className="flex justify-between pl-1">
                             <span>

@@ -155,7 +155,11 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
     }
 
     const qtyStr = isArea ? `${item.pcs && item.pcs > 1 ? item.pcs : 1}` : `${item.qty}`;
-    const noteStr = item.note ? `<br><span style="font-size:10px; color:#555;">${item.note}</span>` : '';
+    // Catatan item (finishing, file desain, dll) dicetak JELAS: hitam, berlabel, boleh
+    // multi-baris. Dulu abu-abu 10px sehingga terlewat dibanding kotak "Catatan Order".
+    const noteStr = item.note
+      ? `<div style="margin-top:2px; font-size:11px; color:#000; white-space:pre-wrap; word-break:break-word;"><strong>Catatan:</strong> ${String(item.note).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}</div>`
+      : '';
 
     const displayPrice = item.customPrice != null ? item.customPrice : item.pricePerUnit;
     const subtotalPrice = isArea

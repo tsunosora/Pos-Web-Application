@@ -301,6 +301,12 @@ function POSPageContent() {
                 recovered.push(pv.product.name);
             }
 
+            // Baris keranjang yang BENAR-BENAR dibuat item SO ini. Jangan pakai "item terakhir":
+            // bila addItem menolak (mis. produk AREA tanpa ukuran), qty/catatan/harga item ini
+            // malah menimpa baris item SO sebelumnya — catatan item jadi hilang/tertukar di nota.
+            const lineIdsBefore = new Set(useCartStore.getState().items.map(i => i.lineId));
+            const createdLine = () => useCartStore.getState().items.find(i => !lineIdsBefore.has(i.lineId));
+
             // Item 'menit' disimpan tanpa heightCm (null) — tetap perlakukan sebagai area,
             // jangan sampai jatuh ke cabang UNIT. computeAreaPrice mengabaikan height utk 'menit'.
             if (product.pricingMode === 'AREA_BASED' && it.widthCm && (it.heightCm || it.unitType === 'menit')) {
@@ -316,25 +322,28 @@ function POSPageContent() {
                 seenUnitVariants.add(it.productVariantId);
                 addItem(product, variant, undefined, { forceNewLine });
                 // Apply qty > 1 and note for UNIT items
-                const items = useCartStore.getState().items;
-                const last = items[items.length - 1];
-                if (last) {
+                const line = createdLine();
+                if (line) {
                     if (it.quantity && it.quantity > 1) {
-                        useCartStore.getState().setQuantityDirect(last.lineId, Number(it.quantity));
+                        useCartStore.getState().setQuantityDirect(line.lineId, Number(it.quantity));
                     }
                     if (it.note) {
-                        useCartStore.getState().updateNote(last.lineId, it.note);
+                        useCartStore.getState().updateNote(line.lineId, it.note);
                     }
                 }
             }
 
+            const line = createdLine();
+            if (!line) {
+                // Tidak ada baris dibuat (mis. produk luas tanpa ukuran) → laporkan, jangan diam.
+                // Sertakan catatannya supaya kasir bisa menambah ulang item tanpa kehilangan instruksi.
+                const why = [product.pricingMode === 'AREA_BASED' ? 'ukuran kosong' : '', it.note ? `catatan: ${it.note}` : ''].filter(Boolean).join(', ');
+                skipped.push(why ? `${product.name} (${why})` : product.name);
+                continue;
+            }
             // Apply custom price if provided
             if (it.customPrice != null) {
-                const items = useCartStore.getState().items;
-                const last = items[items.length - 1];
-                if (last) {
-                    useCartStore.getState().updateCustomPrice(last.lineId, Number(it.customPrice));
-                }
+                useCartStore.getState().updateCustomPrice(line.lineId, Number(it.customPrice));
             }
         }
         setPrefilledSoId(fromSOId);
@@ -2159,6 +2168,7 @@ function POSPageContent() {
                                                 ? <p className="text-xs text-muted-foreground">{item.unitType === 'menit' ? `${item.widthCm} unit` : `${item.widthCm}×${item.heightCm} ${item.unitType || 'm'} = ${item.areaM2?.toFixed(4)} ${item.unitType === 'm' || item.unitType === 'cm' ? 'm²' : 'unit'}`}{item.note ? ` • ${item.note}` : ''}</p>
                                                 : <p className="text-xs text-muted-foreground">×{item.qty} @ Rp {item.pricePerUnit.toLocaleString('id-ID')}{item.basePrice != null && item.pricePerUnit !== item.basePrice ? <span className="ml-1 text-orange-500 font-semibold">tier</span> : null}</p>
                                             }
+                                            {item.note && <p className="text-xs whitespace-pre-wrap break-words"><span className="font-semibold">Catatan:</span> {item.note}</p>}
                                         </div>
                                         <p className="text-sm font-semibold shrink-0">Rp {item.price.toLocaleString('id-ID')}</p>
                                     </div>
