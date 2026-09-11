@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Send, Search, Check, CheckCheck, Clock, AlertCircle, UserCheck, MessageSquare, Settings, Download, Paperclip, X, Smile, CornerUpLeft, ExternalLink, PenSquare, FilePlus2, Pencil, ArrowLeft, ShoppingBag, Bell, BellOff, SlidersHorizontal, Play, Trash2 } from "lucide-react";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { EmojiPicker } from "@/components/whatsapp/EmojiPicker";
 import {
-    listWaConversations, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
+    listWaConversations, getWaConversation, getWaMessages, replyWaText, replyWaTemplate, updateWaConversation,
     listWaTemplates, isWindowOpen, WA_STATUS_LABEL, resolveWaConversationByLead,
     getWaMessageMediaUrl, downloadWaMessageMedia, replyWaMedia, reactWaMessage, deleteWaMessage,
     listWaChannels, startWaConversation, listWaQuickReplies, listWaAgents, getWaConversationSalesOrders, getWaConversationNotas,
@@ -454,20 +454,48 @@ export default function WhatsappInboxPage() {
         }
     }, []);
 
-    // Daftar percakapan — polling 8 dtk (realtime ringan untuk MVP).
-    const { data: convData, isLoading } = useQuery({
+    // Daftar percakapan — BERHALAMAN (50 per halaman, urut pesan terakhir).
+    // Dulu hanya halaman pertama yang diambil dan tidak ada "muat lebih": dengan
+    // ±30-80 chat aktif per hari, percakapan yang diam sekitar 24-30 jam terdorong
+    // keluar dari 50 teratas dan terlihat "hilang", padahal datanya utuh di server.
+    // Invalidasi ["wa-convos"] (SSE, kirim pesan, dst.) tetap mengenai query ini
+    // dan me-refetch semua halaman yang sudah dimuat.
+    const {
+        data: convData,
+        isLoading,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+    } = useInfiniteQuery({
         queryKey: ["wa-convos", tab, search, assignee],
-        queryFn: () => listWaConversations({
+        queryFn: ({ pageParam }) => listWaConversations({
             status: tab === "ALL" ? undefined : tab,
             q: search.trim() || undefined,
             assignee: assignee === "all" ? undefined : assignee,
             take: 50,
+            cursor: pageParam,
         }),
+        initialPageParam: undefined as number | undefined,
+        getNextPageParam: (last) => last.nextCursor ?? undefined,
         refetchInterval: 20000, // fallback lambat — realtime ditangani SSE
         refetchIntervalInBackground: true, // tetap poll walau window tak fokus
         refetchOnWindowFocus: true,
     });
-    const conversations = convData?.items ?? [];
+    // Gabung semua halaman + buang duplikat: urutan bergeser saat sebuah chat
+    // menerima pesan baru, jadi ketika halaman di-refetch satu baris bisa muncul
+    // di dua halaman sekaligus.
+    const conversations = useMemo(() => {
+        const seen = new Set<number>();
+        const out: WaConversation[] = [];
+        for (const page of convData?.pages ?? []) {
+            for (const c of page.items) {
+                if (seen.has(c.id)) continue;
+                seen.add(c.id);
+                out.push(c);
+            }
+        }
+        return out;
+    }, [convData]);
 
     // ─── Notifikasi pesan masuk (bunyi + notifikasi OS) ──────────────────────
     const [soundOn, setSoundOn] = useState(true);
@@ -536,10 +564,10 @@ export default function WhatsappInboxPage() {
     };
     const prevUnreadRef = useRef<Map<number, number> | null>(null);
     useEffect(() => {
-        if (!convData?.items) return;
+        if (!convData) return;
         const cur = new Map<number, number>();
         let hit: WaConversation | null = null;
-        for (const c of convData.items) {
+        for (const c of conversations) {
             cur.set(c.id, c.unreadCount);
             const prev = prevUnreadRef.current?.get(c.id) ?? 0;
             if (prevUnreadRef.current && c.unreadCount > prev) hit = c;
@@ -554,12 +582,21 @@ export default function WhatsappInboxPage() {
             n.onclick = () => { window.focus(); setSelectedId(target); n.close(); };
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [convData, soundOn]);
+    }, [conversations, soundOn]);
 
-    const selected = useMemo(
+    // Chat terpilih bisa berada di luar halaman yang sudah dimuat — mis. dibuka lewat
+    // "Buka chat WA" dari halaman lead, atau dari notifikasi chat lama. Tanpa fallback
+    // ini panel kanan tetap "Pilih percakapan" padahal chatnya ada.
+    const inList = useMemo(
         () => conversations.find((c) => c.id === selectedId) ?? null,
         [conversations, selectedId],
     );
+    const { data: selectedFallback } = useQuery({
+        queryKey: ["wa-convos", "one", selectedId],
+        queryFn: () => getWaConversation(selectedId as number),
+        enabled: selectedId != null && !inList,
+    });
+    const selected = inList ?? (selectedFallback?.id === selectedId ? selectedFallback : null);
 
     // Pesan terbaru percakapan terpilih — polling 3 dtk (near real-time) + saat fokus balik.
     const { data: msgData } = useQuery({
@@ -1137,6 +1174,16 @@ export default function WhatsappInboxPage() {
                             </div>
                         </button>
                     ))}
+                    {hasNextPage && (
+                        <button
+                            type="button"
+                            onClick={() => fetchNextPage()}
+                            disabled={isFetchingNextPage}
+                            className="w-full py-3 text-xs opacity-70 hover:opacity-100 hover:bg-muted/40 disabled:opacity-40"
+                        >
+                            {isFetchingNextPage ? "Memuat…" : "Muat percakapan lebih lama"}
+                        </button>
+                    )}
                 </div>
             </aside>
 
