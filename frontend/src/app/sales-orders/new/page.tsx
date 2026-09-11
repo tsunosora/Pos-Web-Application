@@ -32,6 +32,14 @@ interface FlatVariant {
     sku: string;
 }
 
+/** HP valid bila ≥ 9 digit setelah buang non-digit & awalan 62/0 — sama dgn aturan backend SO. */
+function isValidCustomerPhone(phone: string): boolean {
+    let d = phone.replace(/\D/g, "");
+    if (d.startsWith("62")) d = d.slice(2);
+    if (d.startsWith("0")) d = d.slice(1);
+    return d.length >= 9 && d.length <= 13;
+}
+
 export default function NewSalesOrderPage() {
     const router = useRouter();
     const { currentUser } = useCurrentUser();
@@ -42,6 +50,7 @@ export default function NewSalesOrderPage() {
     const [customerAddress, setCustomerAddress] = useState('');
     const [designerName, setDesignerName] = useState(currentUser?.name ?? '');
     const [notes, setNotes] = useState('');
+    const [label, setLabel] = useState(''); // nama event/pekerjaan — terpisah dari nama customer
     const [deadline, setDeadline] = useState('');
     const [items, setItems] = useState<DraftItem[]>([]);
     const [proofFiles, setProofFiles] = useState<File[]>([]);
@@ -195,6 +204,7 @@ export default function NewSalesOrderPage() {
         mutationFn: async () => {
             setError(null);
             if (!customerName.trim()) throw new Error('Nama customer wajib diisi');
+            if (!isValidCustomerPhone(customerPhone)) throw new Error('No. HP / WA wajib diisi (min. 9 digit). Pilih customer terdaftar atau isi nomornya — nama event/pekerjaan tulis di kolom Label, bukan di nama customer.');
             if (!designerName.trim()) throw new Error('Nama desainer wajib diisi');
             if (items.length === 0) throw new Error('Tambahkan minimal 1 item');
             for (const it of items) {
@@ -207,6 +217,7 @@ export default function NewSalesOrderPage() {
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim() || null,
                 customerAddress: customerAddress.trim() || null,
+                label: label.trim() || null,
                 designerName: designerName.trim(),
                 notes: notes.trim() || null,
                 deadline: deadline ? new Date(deadline).toISOString() : null,
@@ -289,7 +300,20 @@ export default function NewSalesOrderPage() {
                             placeholder="Nama pelanggan"
                         />
                     </Field>
-                    <Field label="No. HP / WA">
+                    <Field label="Label pekerjaan / event (opsional)">
+                        <input
+                            value={label}
+                            onChange={e => setLabel(e.target.value)}
+                            maxLength={120}
+                            className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
+                            placeholder="mis. Event Gemoy — bukan bagian nama customer"
+                        />
+                        <div className="mt-1 flex justify-between gap-2 text-[11px] text-muted-foreground">
+                            <span>Tampil sebagai label di samping nama customer & dicetak di nota.</span>
+                            <span className="shrink-0">{label.length}/120</span>
+                        </div>
+                    </Field>
+                    <Field label="No. HP / WA *">
                         <input
                             value={customerPhone}
                             onChange={e => setCustomerPhone(e.target.value)}

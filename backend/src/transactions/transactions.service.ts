@@ -26,6 +26,7 @@ type TransactionEditData = {
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
+    label?: string | null;
 };
 
 @Injectable()
@@ -156,6 +157,7 @@ export class TransactionsService {
         customerName?: string;
         customerPhone?: string;
         customerAddress?: string;
+        label?: string;             // nama event/pekerjaan (dari SO / diisi kasir)
         dueDate?: string;
         downPayment?: number;
         cashierName?: string;
@@ -207,6 +209,7 @@ export class TransactionsService {
         customerName?: string;
         customerPhone?: string;
         customerAddress?: string;
+        label?: string;             // nama event/pekerjaan (dari SO / diisi kasir)
         dueDate?: string;
         downPayment?: number;
         cashierName?: string;
@@ -647,6 +650,7 @@ export class TransactionsService {
                     customerName: data.customerName || null,
                     customerPhone: data.customerPhone || null,
                     customerAddress: data.customerAddress || null,
+                    label: (data.label || '').replace(/\s+/g, ' ').trim().slice(0, 120) || null,
                     dueDate: data.dueDate ? new Date(data.dueDate) : null,
                     downPayment: downPayment,
                     cashierName: data.cashierName || null,
@@ -873,6 +877,10 @@ export class TransactionsService {
             if (data.salesOrderId) {
                 try {
                     const so = await (tx as any).salesOrder.findUnique({ where: { id: data.salesOrderId } });
+                    // Label (nama event/pekerjaan) ikut ke nota bila kasir tak mengisinya sendiri.
+                    if (so?.label && !(transaction as any).label) {
+                        await (tx as any).transaction.update({ where: { id: transaction.id }, data: { label: so.label } });
+                    }
                     if (so && so.status !== 'INVOICED' && so.status !== 'CANCELLED') {
                         await (tx as any).salesOrder.update({
                             where: { id: data.salesOrderId },
@@ -1031,6 +1039,7 @@ export class TransactionsService {
         }).join('\n');
 
         const customerName = data.customerName || 'Umum';
+        const labelLine = (data as any).label ? `\n🏷️ Label: **${(data as any).label}**` : '';
         const grandTotal = Number(transaction.grandTotal).toLocaleString('id-ID');
         const paymentLabel = data.paymentMethod === 'CASH' ? 'Tunai'
             : data.paymentMethod === 'QRIS' ? 'QRIS'
@@ -1064,6 +1073,7 @@ export class TransactionsService {
             `━━━━━━━━━━━━━━━━━━━━━\n` +
             `📋 Invoice: \`${invoiceNumber}\`\n` +
             `👥 Pelanggan: **${customerName}**` +
+            labelLine +
             cashierLine +
             employeeLine +
             deadlineLine +
@@ -2276,6 +2286,9 @@ export class TransactionsService {
                 customerName: editData.customerName !== undefined ? editData.customerName : transaction.customerName,
                 customerPhone: editData.customerPhone !== undefined ? editData.customerPhone : transaction.customerPhone,
                 customerAddress: editData.customerAddress !== undefined ? editData.customerAddress : transaction.customerAddress,
+                label: editData.label !== undefined
+                    ? ((editData.label || '').replace(/\s+/g, ' ').trim().slice(0, 120) || null)
+                    : (transaction as any).label,
             }
         });
 

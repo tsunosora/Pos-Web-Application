@@ -17,6 +17,7 @@ import { resolveWaConversationBySalesOrder } from "@/lib/api/whatsapp-cloud";
 import { createRatingInviteFromSO, buildRatingUrl } from "@/lib/api/cs-rating";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
+import { LabelChip } from "@/components/LabelChip";
 import "dayjs/locale/id";
 
 dayjs.locale("id");
@@ -229,7 +230,7 @@ export default function SalesOrderDetailPage() {
                 <div className="lg:col-span-2 space-y-4">
                     <Section title="Customer">
                         <div className="space-y-1.5 text-sm">
-                            <Row icon={<User className="h-4 w-4 text-muted-foreground" />}>{so.customerName}</Row>
+                            <Row icon={<User className="h-4 w-4 text-muted-foreground" />}>{so.customerName}{so.label && <LabelChip label={so.label} wrap className="ml-2" />}</Row>
                             {so.customerPhone && <Row icon={<Phone className="h-4 w-4 text-muted-foreground" />}>{so.customerPhone}</Row>}
                             {so.customerPhone && (
                                 <div className="pl-6">

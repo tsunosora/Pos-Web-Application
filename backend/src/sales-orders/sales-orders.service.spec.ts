@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { SalesOrdersService } from './sales-orders.service';
+import { SalesOrdersService, isValidCustomerPhone, cleanLabel, PHONE_REQUIRED_MSG } from './sales-orders.service';
 
 /**
  * Regresi alur "satu pintu" lintas cabang: designer PUSAT membuat SO untuk lead
@@ -156,5 +156,43 @@ describe('SalesOrdersService.createLeadFromSO — ESTIMASI cocok dengan Daftar P
         await svc.createLeadFromSO(99);
         const totalDaftar = captured.rows!.reduce((s, it) => s + leadItemSubtotal(it), 0);
         expect(Math.round(totalDaftar)).toBe(captured.estimatedValue); // 100.000 === 100.000
+    });
+});
+
+describe('SalesOrdersService — HP pelanggan wajib & label pekerjaan', () => {
+    it.each(['081333618055', '+62 813-3361-8055', '6281333618055', '0882 0086 07834'])('HP valid: %s', (hp) => {
+        expect(isValidCustomerPhone(hp)).toBe(true);
+    });
+    // "8055" = pola nota EXINDO lama (hanya 4 digit terakhir) → KPI salah menghitung pelanggan.
+    it.each(['8055', '--', '+62', '0812', '', null, undefined])('HP tidak valid: %s', (hp) => {
+        expect(isValidCustomerPhone(hp as any)).toBe(false);
+    });
+
+    it('cleanLabel: rapikan spasi, kosong → null, maks 120 karakter', () => {
+        expect(cleanLabel('  Event   Gemoy  ')).toBe('Event Gemoy');
+        expect(cleanLabel('   ')).toBeNull();
+        expect(cleanLabel(null)).toBeNull();
+        expect(cleanLabel('x'.repeat(130))).toHaveLength(120);
+    });
+
+    it('create menolak SO tanpa HP valid SEBELUM menyentuh database', async () => {
+        const prisma: any = {}; // sengaja kosong: bila create sampai ke DB, tes ini akan meledak
+        const svc = new SalesOrdersService(prisma, {} as any);
+        await expect(svc.create({
+            customerName: '(EXINDO) Gemoy', customerPhone: null, designerName: 'Rangga',
+            items: [{ productVariantId: 1, quantity: 1 }],
+        } as any)).rejects.toThrow(PHONE_REQUIRED_MSG);
+    });
+
+    it('update: mengubah data pelanggan pada SO tanpa HP ditolak', async () => {
+        const prisma: any = {
+            salesOrder: {
+                findUnique: jest.fn().mockResolvedValue({ id: 7, status: 'DRAFT', customerPhone: null, branchName: null, items: [] }),
+                update: jest.fn(),
+            },
+        };
+        const svc = new SalesOrdersService(prisma, {} as any);
+        await expect(svc.update(7, { customerName: 'Exindo', label: 'Event Gemoy' })).rejects.toThrow(PHONE_REQUIRED_MSG);
+        expect(prisma.salesOrder.update).not.toHaveBeenCalled();
     });
 });

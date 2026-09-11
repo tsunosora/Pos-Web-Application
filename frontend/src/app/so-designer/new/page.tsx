@@ -53,6 +53,7 @@ function DesignerNewSOContent() {
     const [customerSearch, setCustomerSearch] = useState("");
     const [customers, setCustomers] = useState<CustomerHint[]>([]);
     const [notes, setNotes] = useState("");
+    const [label, setLabel] = useState(""); // nama event/pekerjaan — terpisah dari nama customer
     const [deadline, setDeadline] = useState("");
     const [items, setItems] = useState<DraftItem[]>([]);
     const [proofFiles, setProofFiles] = useState<File[]>([]);
@@ -249,6 +250,7 @@ function DesignerNewSOContent() {
             setCustomerName(so.customerName || "");
             setCustomerPhone(so.customerPhone || "");
             setCustomerAddress(so.customerAddress || "");
+            setLabel(so.label || "");
             setNotes(so.notes || "");
             if (so.deadline) {
                 // ISO → input datetime-local (buang detik/zona)
@@ -301,6 +303,7 @@ function DesignerNewSOContent() {
         if (!session) return;
         setError(null);
         if (!customerName.trim()) { setError("Nama customer wajib diisi"); return; }
+        if (!isValidCustomerPhone(customerPhone)) { setError("No. HP / WA wajib diisi (min. 9 digit). Pilih customer terdaftar atau isi nomornya — nama event/pekerjaan tulis di kolom Label, bukan di nama customer."); return; }
         if (items.length === 0) { setError("Tambahkan minimal 1 item"); return; }
 
         const busy = mode === 'send' ? setSending : mode === 'lead' ? setLeading : setSaving;
@@ -310,6 +313,7 @@ function DesignerNewSOContent() {
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim() || null,
                 customerAddress: customerAddress.trim() || null,
+                label: label.trim() || null,
                 notes: notes.trim() || null,
                 deadline: deadline ? new Date(deadline).toISOString() : null,
                 items: items.map(it => ({
@@ -433,7 +437,16 @@ function DesignerNewSOContent() {
                             <input value={customerName} onChange={e => setCustomerName(e.target.value)}
                                 className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" placeholder="Nama pelanggan" />
                         </Field>
-                        <Field label="No. HP / WA">
+                        <Field label="Label pekerjaan / event (opsional)">
+                            <input value={label} onChange={e => setLabel(e.target.value)} maxLength={120}
+                                placeholder="mis. Event Gemoy — bukan bagian nama customer"
+                                className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" />
+                            <div className="mt-1 flex justify-between gap-2 text-[11px] text-slate-400 dark:text-slate-500">
+                                <span>Tampil sebagai label di samping nama customer & dicetak di nota.</span>
+                                <span className="shrink-0">{label.length}/120</span>
+                            </div>
+                        </Field>
+                        <Field label="No. HP / WA *">
                             <input value={customerPhone} onChange={e => { setCustomerPhone(e.target.value); setPickedLead(null); }}
                                 className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" placeholder="08xx..." />
                             {leadsChecking && !pickedLead && (
@@ -763,6 +776,14 @@ function DesignerNewSOContent() {
             )}
         </div>
     );
+}
+
+/** HP valid bila ≥ 9 digit setelah buang non-digit & awalan 62/0 — sama dgn aturan backend SO. */
+function isValidCustomerPhone(phone: string): boolean {
+    let d = phone.replace(/\D/g, "");
+    if (d.startsWith("62")) d = d.slice(2);
+    if (d.startsWith("0")) d = d.slice(1);
+    return d.length >= 9 && d.length <= 13;
 }
 
 export default function DesignerNewSOPage() {

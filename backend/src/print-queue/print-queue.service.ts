@@ -18,7 +18,7 @@ export class PrintQueueService {
                     id: true,
                     invoiceNumber: true,
                     checkoutNumber: true,
-                    customerName: true,
+                    customerName: true, label: true, // label pekerjaan/event (chip di kartu)
                     customerPhone: true,
                     status: true,
                     createdAt: true,

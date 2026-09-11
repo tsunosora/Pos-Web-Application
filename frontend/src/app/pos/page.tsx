@@ -84,6 +84,7 @@ const cartToReceiptItems = (items: CartItem[]): ReceiptItem[] =>
         };
     });
 import { Suspense } from 'react';
+import { LabelChip } from "@/components/LabelChip";
 
 function POSPageContent() {
     const { data: products, isLoading } = useQuery({ queryKey: ['products'], queryFn: getProducts });
@@ -174,6 +175,7 @@ function POSPageContent() {
     const [productionPriority, setProductionPriority] = useState<'NORMAL' | 'EXPRESS'>('NORMAL');
     const [productionDeadline, setProductionDeadline] = useState('');
     const [productionNotes, setProductionNotes] = useState('');
+    const [orderLabel, setOrderLabel] = useState(''); // nama event/pekerjaan (dari SO / diisi kasir) — dicetak di nota
     // Titip cetak ke cabang lain: null = cetak di cabang kasir (default).
     const [productionBranchId, setProductionBranchId] = useState<number | null>(null);
 
@@ -254,6 +256,7 @@ function POSPageContent() {
         setCustomerName(soData.customerName || '');
         setCustomerPhone(soData.customerPhone || '');
         setCustomerAddress(soData.customerAddress || '');
+        setOrderLabel(soData.label || '');
         // Catatan/instruksi dari SO desainer → masuk ke catatan order (tampil di nota)
         if (soData.notes) setProductionNotes(soData.notes);
         setSalesOrderId(soData.id);
@@ -342,7 +345,7 @@ function POSPageContent() {
     const cancelSOMode = useCallback(() => {
         setSalesOrderId(null);
         clearCart();
-        setCustomerName(''); setCustomerPhone(''); setCustomerAddress('');
+        setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel('');
         // Tidak reset prefilledSoId: begitu ?fromSO hilang, fromSOId jadi null &
         // efek berhenti sendiri — reset ke null malah memicu prefill ulang (race).
         router.replace('/pos');
@@ -360,6 +363,7 @@ function POSPageContent() {
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
+        label: orderLabel.trim() || undefined,
         orderNotes: productionNotes.trim() || undefined,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         downPayment: downPayment !== '' ? Number(downPayment) : undefined,
@@ -524,6 +528,7 @@ function POSPageContent() {
             customerName: customerName.trim() || undefined,
             customerPhone: customerPhone.trim() || undefined,
             customerAddress: customerAddress.trim() || undefined,
+            label: orderLabel.trim() || undefined,
             orderNotes: productionNotes.trim() || undefined,
             dueDate: dueDate ? new Date(dueDate) : undefined,
             downPayment: paymentMethod === 'BAYAR_NANTI'
@@ -583,6 +588,7 @@ function POSPageContent() {
             customerName: customerName.trim() || undefined,
             customerPhone: customerPhone.trim() || undefined,
             customerAddress: customerAddress.trim() || undefined,
+            label: orderLabel.trim() || undefined,
             dueDate: dueDate || undefined,
             downPayment: paymentMethod === 'BAYAR_NANTI'
                 ? (dpBayarNanti !== '' ? Number(dpBayarNanti) : 0)
@@ -634,7 +640,7 @@ function POSPageContent() {
                         const exists = (customers as any[])?.some((c: any) => c.phone === trimPhone);
                         if (!exists) createCustomerMutation.mutate({ name: trimName, phone: trimPhone, address: customerAddress.trim() || undefined });
                     }
-                    setCustomerName(''); setCustomerPhone(''); setCustomerAddress('');
+                    setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel('');
                     setProductionPriority('NORMAL'); setProductionDeadline(''); setProductionNotes('');
                     setProductionBranchId(null);
                     setPaymentMethod('CASH'); setSelectedBankId('');
@@ -974,6 +980,7 @@ function POSPageContent() {
                                 Membuat nota dari <span className="font-mono">{soData.soNumber}</span>
                             </div>
                             <div className="text-emerald-600 dark:text-emerald-300 truncate">Customer: {soData.customerName}</div>
+                            {soData.label && <div className="mt-0.5"><LabelChip label={soData.label} /></div>}
                         </div>
                         <button
                             onClick={cancelSOMode}
@@ -1728,6 +1735,10 @@ function POSPageContent() {
                                                 )}
                                             </div>
                                         </div>
+                                        <input type="text" placeholder="Label pekerjaan / event (opsional)" value={orderLabel} maxLength={120}
+                                            onChange={e => setOrderLabel(e.target.value)}
+                                            title="Nama event/pekerjaan — tampil sebagai label & dicetak di nota, bukan bagian nama pelanggan"
+                                            className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg outline-none text-xs focus:border-primary transition-colors" />
                                         <input type="text" placeholder="Alamat (opsional)" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)}
                                             className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg outline-none text-xs focus:border-primary transition-colors" />
                                     </div>
@@ -2214,6 +2225,7 @@ function POSPageContent() {
                                 setCustomerName('');
                                 setCustomerPhone('');
                                 setCustomerAddress('');
+                                setOrderLabel('');
                                 setDiscount('');
                                 setShippingCost('');
                                 setMarketplaceFeeItems([]);

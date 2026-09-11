@@ -49,6 +49,7 @@ export const designerCreateSO = async (
         customerName: string;
         customerPhone?: string | null;
         customerAddress?: string | null;
+        label?: string | null; // nama event/pekerjaan
         notes?: string | null;
         deadline?: string | null;
         items: {
@@ -73,6 +74,7 @@ export const designerUpdateSO = async (
         customerName?: string;
         customerPhone?: string | null;
         customerAddress?: string | null;
+        label?: string | null; // nama event/pekerjaan
         notes?: string | null;
         deadline?: string | null;
         items?: {

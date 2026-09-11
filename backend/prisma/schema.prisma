@@ -390,6 +390,7 @@ model Transaction {
   productionPriority  String            @default("NORMAL") @map("production_priority") @db.VarChar(20)
   productionDeadline  DateTime?         @map("production_deadline")
   productionNotes     String?           @map("production_notes") @db.Text
+  label               String?           @db.VarChar(120) // nama event/pekerjaan (disalin dari SO); bukan bagian nama pelanggan
   checkoutNumber      String?           @unique @map("checkout_number") @db.VarChar(100)
   paidAt              DateTime?         @map("paid_at")
   checkoutCashierName String?           @map("checkout_cashier_name") @db.VarChar(100)
@@ -1521,6 +1522,7 @@ model SalesOrder {
   designerName    String           @map("designer_name") @db.VarChar(100)
   branchName      String?          @map("branch_name") @db.VarChar(100) // cabang asal SO (untuk atribusi pendapatan)
   notes           String?          @db.Text
+  label           String?          @db.VarChar(120) // nama event/pekerjaan: chip di samping nama pelanggan & dicetak di nota
   deadline        DateTime?
   sentToWaAt      DateTime?        @map("sent_to_wa_at")
   invoicedAt      DateTime?        @map("invoiced_at")

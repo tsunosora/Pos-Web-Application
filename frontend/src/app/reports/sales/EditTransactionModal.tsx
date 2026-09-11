@@ -104,6 +104,7 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
     const [customerName, setCustomerName] = useState<string>(transaction.customerName || '');
     const [customerPhone, setCustomerPhone] = useState<string>(transaction.customerPhone || '');
     const [customerAddress, setCustomerAddress] = useState<string>(transaction.customerAddress || '');
+    const [orderLabel, setOrderLabel] = useState<string>((transaction as any).label || ''); // nama event/pekerjaan
     const [reason, setReason] = useState('');
 
     // Product picker
@@ -167,7 +168,7 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
 
     // ── Mutations ───────────────────────────────────────────────────────────
     const directEditMutation = useMutation({
-        mutationFn: () => editTransaction(transaction.id, { items: buildPayload(), discount, customerName, customerPhone, customerAddress }),
+        mutationFn: () => editTransaction(transaction.id, { items: buildPayload(), discount, customerName, customerPhone, customerAddress, label: orderLabel }),
         onSuccess: (updated) => {
             // Tulis hasil server ke cache SEKETIKA supaya grandTotal/sisa langsung
             // benar tanpa menunggu refetch (yang tertahan staleTime 60s + cache
@@ -195,7 +196,7 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
     });
 
     const requestEditMutation = useMutation({
-        mutationFn: () => submitEditRequest(transaction.id, { items: buildPayload(), discount, customerName, customerPhone, customerAddress, reason }),
+        mutationFn: () => submitEditRequest(transaction.id, { items: buildPayload(), discount, customerName, customerPhone, customerAddress, label: orderLabel, reason }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['transaction-edit-requests'] });
             onSuccess();
@@ -481,6 +482,14 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
                                             className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                                         />
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-muted-foreground">Label pekerjaan / event</label>
+                                    <input type="text" value={orderLabel} maxLength={120}
+                                        onChange={(e) => setOrderLabel(e.target.value)}
+                                        placeholder="mis. Event Gemoy — bukan bagian nama pelanggan"
+                                        className="mt-1 w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                    />
                                 </div>
                                 <div>
                                     <label className="text-xs text-muted-foreground">Alamat</label>

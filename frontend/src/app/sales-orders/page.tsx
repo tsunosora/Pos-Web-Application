@@ -10,6 +10,7 @@ import { listSalesOrders, type SalesOrder, type SalesOrderStatus } from "@/lib/a
 import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
+import { LabelChip } from "@/components/LabelChip";
 import "dayjs/locale/id";
 
 dayjs.locale("id");
@@ -242,6 +243,7 @@ export default function SalesOrdersPage() {
                                         </td>
                                         <td className="px-3 py-2">
                                             <div className="font-medium truncate max-w-[200px]">{so.customerName}</div>
+                                            {so.label && <LabelChip label={so.label} />}
                                             {so.customerPhone && <div className="text-xs text-muted-foreground">{so.customerPhone}</div>}
                                         </td>
                                         <td className="px-3 py-2 text-xs">

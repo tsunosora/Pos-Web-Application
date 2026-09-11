@@ -11,6 +11,7 @@ import {
     CreditCard, Hash, Package, Printer, CheckCircle, Clock, AlertCircle,
 } from "lucide-react";
 import dayjs from "dayjs";
+import { LabelChip } from "@/components/LabelChip";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ interface Transaction {
     customerName: string | null;
     customerPhone: string | null;
     customerAddress: string | null;
+    label?: string | null; // nama event/pekerjaan (chip di samping nama pelanggan)
     dueDate: string | null;
     downPayment: number;
     cashierName: string | null;
@@ -138,6 +140,12 @@ function Receipt({ trx }: { trx: Transaction }) {
                 <div className="flex justify-between">
                     <span>Pelanggan:</span>
                     <span className="text-right max-w-[44mm] truncate">{trx.customerName}</span>
+                </div>
+            )}
+            {trx.label && (
+                <div className="flex justify-between gap-2">
+                    <span>Label:</span>
+                    <span className="text-right max-w-[44mm] break-words">{trx.label}</span>
                 </div>
             )}
             {trx.customerPhone && (
@@ -438,7 +446,7 @@ export default function TransactionDetailPage() {
                                 <>
                                     <div className="flex items-start gap-2 text-sm">
                                         <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                                        <span className="text-foreground font-medium">{trx.customerName}</span>
+                                        <span className="text-foreground font-medium">{trx.customerName}</span>{trx.label && <LabelChip label={trx.label} wrap className="ml-1" />}
                                     </div>
                                     {trx.customerPhone && (
                                         <div className="flex items-start gap-2 text-sm">

@@ -28,6 +28,7 @@ import {
 import { badgeToneClass } from "@/components/ui/status-badge";
 import { WorkOrderModal } from "@/components/produksi/WorkOrderModal";
 import dayjs from "dayjs";
+import { LabelChip } from "@/components/LabelChip";
 import "dayjs/locale/id";
 dayjs.locale("id");
 
@@ -789,6 +790,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
         || job.transactionItem?.productVariant?.variantName
         || "—";
     const customerName = job.transaction?.customerName || "—";
+    const jobLabel = (job.transaction as any)?.label as string | undefined;
     const qty = job.transactionItem?.quantity ?? 0;
     const dim = job.transactionItem?.widthCm && job.transactionItem?.heightCm
         ? `${job.transactionItem.widthCm}×${job.transactionItem.heightCm}cm`
@@ -887,6 +889,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                 <div className="flex items-center gap-1">
                     <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{customerName}</span>
+                    {jobLabel && <LabelChip label={jobLabel} className="ml-1 max-w-[55%]" />}
                 </div>
                 <DesignerInlineEdit
                     designerName={job.designerName}

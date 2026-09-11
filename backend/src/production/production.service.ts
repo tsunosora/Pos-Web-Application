@@ -80,7 +80,7 @@ export class ProductionService {
                     id: true,
                     invoiceNumber: true,
                     checkoutNumber: true,
-                    customerName: true,
+                    customerName: true, label: true, // label pekerjaan/event (chip di kartu)
                     customerPhone: true,
                     productionPriority: true,
                     productionDeadline: true,
@@ -641,7 +641,7 @@ export class ProductionService {
         const include = {
             transaction: {
                 select: {
-                    id: true, invoiceNumber: true, customerName: true, customerPhone: true,
+                    id: true, invoiceNumber: true, customerName: true, label: true, // label pekerjaan/event (chip di kartu) customerPhone: true,
                 },
             },
             transactionItem: {

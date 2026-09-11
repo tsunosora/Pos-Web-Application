@@ -27,6 +27,7 @@ export interface ReceiptSnapshot {
   customerName?: string;
   customerPhone?: string;
   customerAddress?: string;
+  label?: string; // nama event/pekerjaan — dicetak utuh di bawah nama pelanggan
   orderNotes?: string; // Catatan / instruksi order (dari SO / productionNotes) — tampil di nota
   dueDate?: Date;
   downPayment?: number;
@@ -90,6 +91,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     `*${title}*`,
     `Tanggal: ${dateStr}`,
     snap.customerName ? `Pelanggan: ${snap.customerName}${snap.customerPhone ? ` (${snap.customerPhone})` : ''}` : '',
+    snap.label ? `Label: ${snap.label}` : '',
     snap.customerAddress ? `Alamat: ${snap.customerAddress}` : '',
     snap.notaHeader ? `\n${snap.notaHeader}` : '',
     snap.productionBranchLabel ? `*Dicetak & diambil di: ${snap.productionBranchLabel}*` : '',
@@ -238,6 +240,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
     <div class="info-left">
       <strong>Kepada</strong><br>
       ${snap.customerName || 'Pelanggan Umum'} ${snap.customerPhone ? '|| ' + snap.customerPhone : ''}<br>
+      ${snap.label ? `<span style="display:inline-block; max-width:100%; margin:2px 0; padding:1px 6px; border:1px solid #000; border-radius:8px; font-size:11px; font-weight:bold; white-space:normal; word-break:break-word;">${snap.label.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}</span><br>` : ''}
       ${snap.customerAddress || ''}
     </div>
     <div class="info-right">
@@ -380,6 +383,7 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
     customerName: trx.customerName || undefined,
     customerPhone: trx.customerPhone || undefined,
     customerAddress: trx.customerAddress || undefined,
+    label: trx.label || undefined,
     orderNotes: trx.productionNotes || undefined,
     dueDate: trx.dueDate ? new Date(trx.dueDate) : undefined,
     downPayment: Number(trx.downPayment),

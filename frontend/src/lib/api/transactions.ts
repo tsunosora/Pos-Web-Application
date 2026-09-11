@@ -32,6 +32,7 @@ export const createTransaction = async (data: {
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
+    label?: string; // nama event/pekerjaan (dari SO / diisi kasir)
     dueDate?: string;
     downPayment?: number;
     cashierName?: string;
@@ -69,6 +70,7 @@ export type EditTransactionPayload = {
     customerName?: string;
     customerPhone?: string;
     customerAddress?: string;
+    label?: string | null;
 };
 export const editTransaction = async (id: number, data: EditTransactionPayload) =>
     (await api.patch(`/transactions/${id}`, data)).data;

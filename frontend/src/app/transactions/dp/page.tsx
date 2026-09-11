@@ -11,6 +11,7 @@ import dayjs from "dayjs";
 import Link from 'next/link';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import EditTransactionModal from '@/app/reports/sales/EditTransactionModal';
+import { LabelChip } from "@/components/LabelChip";
 
 export default function DPTransactionsPage() {
     const queryClient = useQueryClient();
@@ -234,6 +235,7 @@ export default function DPTransactionsPage() {
                                     <tr key={trx.id} className="hover:bg-muted/30 transition-colors">
                                         <td className="px-4 py-3 whitespace-nowrap">
                                             <p className="font-semibold text-foreground">{trx.customerName || 'Pelanggan Umum'}</p>
+                                            {trx.label && <LabelChip label={trx.label} className="mt-0.5" />}
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="text-sm text-primary font-mono">{trx.invoiceNumber}</span>
                                                 <span className="text-xs text-muted-foreground">• {dayjs(trx.createdAt).format('DD MMM YYYY')}</span>
@@ -330,6 +332,7 @@ export default function DPTransactionsPage() {
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
                                         <p className="font-semibold text-foreground truncate">{trx.customerName || 'Pelanggan Umum'}</p>
+                                        {trx.label && <LabelChip label={trx.label} className="mt-0.5" />}
                                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                             <span className="text-xs text-primary font-mono">{trx.invoiceNumber}</span>
                                             {isPending

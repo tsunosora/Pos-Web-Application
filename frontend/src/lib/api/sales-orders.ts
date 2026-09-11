@@ -36,6 +36,7 @@ export interface SalesOrder {
     customerName: string;
     customerPhone: string | null;
     customerAddress: string | null;
+    label: string | null; // nama event/pekerjaan (chip di samping nama pelanggan)
     designerName: string;
     notes: string | null;
     deadline: string | null;
@@ -63,6 +64,7 @@ export interface CreateSalesOrderPayload {
     customerName: string;
     customerPhone?: string | null;
     customerAddress?: string | null;
+    label?: string | null;
     designerName: string;
     notes?: string | null;
     deadline?: string | null;
@@ -116,6 +118,7 @@ export interface ActiveSalesOrderHit {
     status: SalesOrderStatus;
     customerName: string;
     customerPhone: string | null;
+    label?: string | null;
     designerName: string;
     createdAt: string;
 }

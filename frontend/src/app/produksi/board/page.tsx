@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
+import { LabelChip } from "@/components/LabelChip";
 import "dayjs/locale/id";
 dayjs.locale("id");
 
@@ -623,6 +624,7 @@ const KanbanCard = memo(function KanbanCard({
         || job.transactionItem?.productVariant?.variantName
         || "—";
     const customerName = job.transaction?.customerName || "—";
+    const jobLabel = (job.transaction as any)?.label as string | undefined;
     const qty = job.transactionItem?.quantity ?? 0;
     const dim = job.transactionItem?.widthCm && job.transactionItem?.heightCm
         ? `${job.transactionItem.widthCm}×${job.transactionItem.heightCm}cm`
@@ -671,6 +673,7 @@ const KanbanCard = memo(function KanbanCard({
                 <div className="flex items-center gap-1">
                     <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                     <span className="truncate">{customerName}</span>
+                    {jobLabel && <LabelChip label={jobLabel} className="ml-1 max-w-[55%]" />}
                 </div>
                 <div className="text-muted-foreground">
                     {qty} pcs{dim && ` · ${dim}`}
