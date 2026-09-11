@@ -10,6 +10,7 @@ import type { SalesOrder, SalesOrderStatus } from "@/lib/api/sales-orders";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 import { LabelChip } from "@/components/LabelChip";
+import { MarketplaceChip } from "@/components/MarketplaceChip";
 import "dayjs/locale/id";
 
 dayjs.locale("id");
@@ -165,6 +166,7 @@ export default function DesignerSODetailPage() {
                     </div>
                     <div className="text-xs text-indigo-100 truncate">{so.customerName}</div>
                     {so.label && <div className="mt-0.5"><LabelChip label={so.label} /></div>}
+                    {so.marketplace && <div className="mt-0.5"><MarketplaceChip platform={so.marketplace} orderNo={so.marketplaceOrderNo} /></div>}
                 </div>
                 {canEdit && (
                     <Link href={`/so-designer/new?id=${so.id}`}
@@ -189,6 +191,7 @@ export default function DesignerSODetailPage() {
                     <dl className="text-sm space-y-1">
                         <Row label="Customer">{so.customerName}</Row>
                         {so.label && <Row label="Label"><LabelChip label={so.label} wrap /></Row>}
+                        {so.marketplace && <Row label="Marketplace">{so.marketplace}{so.marketplaceOrderNo ? ` · No. pesanan ${so.marketplaceOrderNo}` : ""}</Row>}
                         {so.customerPhone && <Row label="HP">{so.customerPhone}</Row>}
                         {so.customerAddress && <Row label="Alamat">{so.customerAddress}</Row>}
                         <Row label="Desainer">{so.designerName}</Row>

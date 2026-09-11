@@ -158,6 +158,8 @@ export class TransactionsService {
         customerPhone?: string;
         customerAddress?: string;
         label?: string;             // nama event/pekerjaan (dari SO / diisi kasir)
+        marketplace?: string;       // platform marketplace (dari SO / dipilih kasir)
+        marketplaceOrderNo?: string;
         dueDate?: string;
         downPayment?: number;
         cashierName?: string;
@@ -210,6 +212,8 @@ export class TransactionsService {
         customerPhone?: string;
         customerAddress?: string;
         label?: string;             // nama event/pekerjaan (dari SO / diisi kasir)
+        marketplace?: string;       // platform marketplace (dari SO / dipilih kasir)
+        marketplaceOrderNo?: string;
         dueDate?: string;
         downPayment?: number;
         cashierName?: string;
@@ -651,6 +655,8 @@ export class TransactionsService {
                     customerPhone: data.customerPhone || null,
                     customerAddress: data.customerAddress || null,
                     label: (data.label || '').replace(/\s+/g, ' ').trim().slice(0, 120) || null,
+                    marketplace: (data.marketplace || '').replace(/\s+/g, ' ').trim().slice(0, 40) || null,
+                    marketplaceOrderNo: (data.marketplace || '').trim() ? ((data.marketplaceOrderNo || '').trim().slice(0, 60) || null) : null,
                     dueDate: data.dueDate ? new Date(data.dueDate) : null,
                     downPayment: downPayment,
                     cashierName: data.cashierName || null,
@@ -877,9 +883,15 @@ export class TransactionsService {
             if (data.salesOrderId) {
                 try {
                     const so = await (tx as any).salesOrder.findUnique({ where: { id: data.salesOrderId } });
-                    // Label (nama event/pekerjaan) ikut ke nota bila kasir tak mengisinya sendiri.
-                    if (so?.label && !(transaction as any).label) {
-                        await (tx as any).transaction.update({ where: { id: transaction.id }, data: { label: so.label } });
+                    // Label & marketplace dari SO ikut ke nota bila kasir tak mengisinya sendiri.
+                    const fromSo: any = {};
+                    if (so?.label && !(transaction as any).label) fromSo.label = so.label;
+                    if (so?.marketplace && !(transaction as any).marketplace) {
+                        fromSo.marketplace = so.marketplace;
+                        fromSo.marketplaceOrderNo = so.marketplaceOrderNo ?? null;
+                    }
+                    if (Object.keys(fromSo).length) {
+                        await (tx as any).transaction.update({ where: { id: transaction.id }, data: fromSo });
                     }
                     if (so && so.status !== 'INVOICED' && so.status !== 'CANCELLED') {
                         await (tx as any).salesOrder.update({
@@ -1040,6 +1052,7 @@ export class TransactionsService {
 
         const customerName = data.customerName || 'Umum';
         const labelLine = (data as any).label ? `\n🏷️ Label: **${(data as any).label}**` : '';
+        const marketplaceLine = (data as any).marketplace ? `\n🛍️ Marketplace: **${(data as any).marketplace}**` : '';
         const grandTotal = Number(transaction.grandTotal).toLocaleString('id-ID');
         const paymentLabel = data.paymentMethod === 'CASH' ? 'Tunai'
             : data.paymentMethod === 'QRIS' ? 'QRIS'
@@ -1074,6 +1087,7 @@ export class TransactionsService {
             `📋 Invoice: \`${invoiceNumber}\`\n` +
             `👥 Pelanggan: **${customerName}**` +
             labelLine +
+            marketplaceLine +
             cashierLine +
             employeeLine +
             deadlineLine +

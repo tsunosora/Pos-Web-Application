@@ -9,6 +9,7 @@ import { getCustomers } from "@/lib/api/customers";
 import { getProducts } from "@/lib/api/products";
 import { createSalesOrder, uploadProofs, type CreateSalesOrderPayload } from "@/lib/api/sales-orders";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { MARKETPLACE_OPTIONS, MARKETPLACE_OTHER, cleanMarketplace } from "@/lib/marketplace";
 
 interface DraftItem {
     key: string;
@@ -51,6 +52,11 @@ export default function NewSalesOrderPage() {
     const [designerName, setDesignerName] = useState(currentUser?.name ?? '');
     const [notes, setNotes] = useState('');
     const [label, setLabel] = useState(''); // nama event/pekerjaan — terpisah dari nama customer
+    const [isMarketplace, setIsMarketplace] = useState(false); // pembeli marketplace: HP boleh kosong
+    const [marketplacePick, setMarketplacePick] = useState<string>(MARKETPLACE_OPTIONS[0]);
+    const [marketplaceCustom, setMarketplaceCustom] = useState("");
+    const [marketplaceOrderNo, setMarketplaceOrderNo] = useState("");
+    const marketplaceValue = isMarketplace ? cleanMarketplace(marketplacePick === MARKETPLACE_OTHER ? marketplaceCustom : marketplacePick) : null;
     const [deadline, setDeadline] = useState('');
     const [items, setItems] = useState<DraftItem[]>([]);
     const [proofFiles, setProofFiles] = useState<File[]>([]);
@@ -204,7 +210,10 @@ export default function NewSalesOrderPage() {
         mutationFn: async () => {
             setError(null);
             if (!customerName.trim()) throw new Error('Nama customer wajib diisi');
-            if (!isValidCustomerPhone(customerPhone)) throw new Error('No. HP / WA wajib diisi (min. 9 digit). Pilih customer terdaftar atau isi nomornya — nama event/pekerjaan tulis di kolom Label, bukan di nama customer.');
+            if (isMarketplace) {
+                if (!marketplaceValue) throw new Error('Pilih platform marketplace (atau isi nama platform pada Lainnya).');
+                if (customerPhone.trim() && !isValidCustomerPhone(customerPhone)) throw new Error('No. HP pembeli marketplace boleh dikosongkan, tetapi bila diisi harus nomor yang valid (min. 9 digit).');
+            } else if (!isValidCustomerPhone(customerPhone)) throw new Error('No. HP / WA wajib diisi (min. 9 digit). Pilih customer terdaftar atau isi nomornya — nama event/pekerjaan tulis di kolom Label, bukan di nama customer. Pembeli marketplace: centang Order dari marketplace.');
             if (!designerName.trim()) throw new Error('Nama desainer wajib diisi');
             if (items.length === 0) throw new Error('Tambahkan minimal 1 item');
             for (const it of items) {
@@ -218,6 +227,8 @@ export default function NewSalesOrderPage() {
                 customerPhone: customerPhone.trim() || null,
                 customerAddress: customerAddress.trim() || null,
                 label: label.trim() || null,
+                marketplace: marketplaceValue,
+                marketplaceOrderNo: marketplaceValue ? (marketplaceOrderNo.trim() || null) : null,
                 designerName: designerName.trim(),
                 notes: notes.trim() || null,
                 deadline: deadline ? new Date(deadline).toISOString() : null,
@@ -292,7 +303,27 @@ export default function NewSalesOrderPage() {
                             </div>
                         )}
                     </div>
-                    <Field label="Nama Customer *">
+                    <Field label="Marketplace" full>
+                        <div className="rounded-lg border border-border p-3 space-y-2">
+                            <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
+                                <input type="checkbox" checked={isMarketplace} onChange={e => setIsMarketplace(e.target.checked)} className="h-4 w-4" />
+                                Order dari marketplace <span className="text-xs font-normal text-muted-foreground">(pembeli tanpa No. HP)</span>
+                            </label>
+                            {isMarketplace && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <select value={marketplacePick} onChange={e => setMarketplacePick(e.target.value)} className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background">
+                                        {MARKETPLACE_OPTIONS.map(m => <option key={m} value={m}>{m}</option>)}
+                                        <option value={MARKETPLACE_OTHER}>{MARKETPLACE_OTHER}…</option>
+                                    </select>
+                                    {marketplacePick === MARKETPLACE_OTHER && (
+                                        <input value={marketplaceCustom} onChange={e => setMarketplaceCustom(e.target.value)} maxLength={40} placeholder="Nama platform" className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background" />
+                                    )}
+                                    <input value={marketplaceOrderNo} onChange={e => setMarketplaceOrderNo(e.target.value)} maxLength={60} placeholder="No. pesanan marketplace (opsional)" className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background sm:col-span-2" />
+                                </div>
+                            )}
+                        </div>
+                    </Field>
+                    <Field label={isMarketplace ? "Nama / username pembeli *" : "Nama Customer *"}>
                         <input
                             value={customerName}
                             onChange={e => { setCustomerName(e.target.value); setCustomerId(null); }}
@@ -313,7 +344,7 @@ export default function NewSalesOrderPage() {
                             <span className="shrink-0">{label.length}/120</span>
                         </div>
                     </Field>
-                    <Field label="No. HP / WA *">
+                    <Field label={isMarketplace ? "No. HP / WA (opsional)" : "No. HP / WA *"}>
                         <input
                             value={customerPhone}
                             onChange={e => setCustomerPhone(e.target.value)}

@@ -391,6 +391,8 @@ model Transaction {
   productionDeadline  DateTime?         @map("production_deadline")
   productionNotes     String?           @map("production_notes") @db.Text
   label               String?           @db.VarChar(120) // nama event/pekerjaan (disalin dari SO); bukan bagian nama pelanggan
+  marketplace         String?           @db.VarChar(40) // platform marketplace (disalin dari SO / dipilih kasir)
+  marketplaceOrderNo  String?           @map("marketplace_order_no") @db.VarChar(60)
   checkoutNumber      String?           @unique @map("checkout_number") @db.VarChar(100)
   paidAt              DateTime?         @map("paid_at")
   checkoutCashierName String?           @map("checkout_cashier_name") @db.VarChar(100)
@@ -1523,6 +1525,8 @@ model SalesOrder {
   branchName      String?          @map("branch_name") @db.VarChar(100) // cabang asal SO (untuk atribusi pendapatan)
   notes           String?          @db.Text
   label           String?          @db.VarChar(120) // nama event/pekerjaan: chip di samping nama pelanggan & dicetak di nota
+  marketplace        String?       @db.VarChar(40) // platform marketplace (Shopee/Tokopedia/…); terisi = order marketplace, HP boleh kosong
+  marketplaceOrderNo String?       @map("marketplace_order_no") @db.VarChar(60)
   deadline        DateTime?
   sentToWaAt      DateTime?        @map("sent_to_wa_at")
   invoicedAt      DateTime?        @map("invoiced_at")

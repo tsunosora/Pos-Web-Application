@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { SalesOrdersService, isValidCustomerPhone, cleanLabel, PHONE_REQUIRED_MSG } from './sales-orders.service';
+import { SalesOrdersService, isValidCustomerPhone, cleanLabel, PHONE_REQUIRED_MSG, assertCustomerPhone, cleanMarketplace, MARKETPLACE_PHONE_INVALID_MSG } from './sales-orders.service';
 
 /**
  * Regresi alur "satu pintu" lintas cabang: designer PUSAT membuat SO untuk lead
@@ -194,5 +194,35 @@ describe('SalesOrdersService — HP pelanggan wajib & label pekerjaan', () => {
         const svc = new SalesOrdersService(prisma, {} as any);
         await expect(svc.update(7, { customerName: 'Exindo', label: 'Event Gemoy' })).rejects.toThrow(PHONE_REQUIRED_MSG);
         expect(prisma.salesOrder.update).not.toHaveBeenCalled();
+    });
+});
+
+describe('SalesOrdersService — order marketplace (pembeli tanpa HP)', () => {
+    it('order biasa tanpa HP ditolak; order marketplace tanpa HP diterima', () => {
+        expect(() => assertCustomerPhone(null, null)).toThrow(PHONE_REQUIRED_MSG);
+        expect(() => assertCustomerPhone('', 'Shopee')).not.toThrow();
+    });
+    it('order marketplace dengan HP asal-asalan tetap ditolak', () => {
+        expect(() => assertCustomerPhone('--', 'Shopee')).toThrow(MARKETPLACE_PHONE_INVALID_MSG);
+        expect(() => assertCustomerPhone('8055', 'TikTok Shop')).toThrow(MARKETPLACE_PHONE_INVALID_MSG);
+        expect(() => assertCustomerPhone('081333618055', 'Tokopedia')).not.toThrow();
+    });
+    it('cleanMarketplace: rapikan spasi, kosong → null, maks 40', () => {
+        expect(cleanMarketplace('  TikTok   Shop ')).toBe('TikTok Shop');
+        expect(cleanMarketplace('   ')).toBeNull();
+        expect(cleanMarketplace('x'.repeat(50))).toHaveLength(40);
+    });
+    it('update: SO lama tanpa HP boleh disimpan setelah ditandai marketplace', async () => {
+        const prisma: any = {
+            salesOrder: {
+                findUnique: jest.fn().mockResolvedValue({ id: 8, status: 'DRAFT', customerPhone: null, marketplace: null, branchName: null, items: [] }),
+                update: jest.fn().mockResolvedValue({ id: 8 }),
+            },
+        };
+        const svc = new SalesOrdersService(prisma, {} as any);
+        await svc.update(8, { customerName: 'Novi', marketplace: ' Shopee ', marketplaceOrderNo: ' 2409ABC ' });
+        expect(prisma.salesOrder.update).toHaveBeenCalledWith(expect.objectContaining({
+            data: expect.objectContaining({ customerName: 'Novi', marketplace: 'Shopee', marketplaceOrderNo: '2409ABC' }),
+        }));
     });
 });

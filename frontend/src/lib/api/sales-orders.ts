@@ -37,6 +37,8 @@ export interface SalesOrder {
     customerPhone: string | null;
     customerAddress: string | null;
     label: string | null; // nama event/pekerjaan (chip di samping nama pelanggan)
+    marketplace?: string | null; // platform marketplace; terisi = order marketplace
+    marketplaceOrderNo?: string | null;
     designerName: string;
     notes: string | null;
     deadline: string | null;
@@ -65,6 +67,8 @@ export interface CreateSalesOrderPayload {
     customerPhone?: string | null;
     customerAddress?: string | null;
     label?: string | null;
+    marketplace?: string | null; // platform marketplace; terisi = order marketplace
+    marketplaceOrderNo?: string | null;
     designerName: string;
     notes?: string | null;
     deadline?: string | null;
@@ -119,6 +123,7 @@ export interface ActiveSalesOrderHit {
     customerName: string;
     customerPhone: string | null;
     label?: string | null;
+    marketplace?: string | null;
     designerName: string;
     createdAt: string;
 }

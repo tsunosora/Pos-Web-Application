@@ -2594,7 +2594,7 @@ export class KpiService {
                     createdAt: { gte: start, lte: end },
                     ...(ctx.branchId != null ? { branchId: Number(ctx.branchId) } : {}),
                 },
-                select: { customerPhone: true, customerName: true },
+                select: { customerPhone: true, customerName: true, marketplace: true } as any,
             });
             const counts = new Map<string, number>();
             for (const t of txRows) {
@@ -2602,7 +2602,9 @@ export class KpiService {
                 if (phone.startsWith('62')) phone = phone.slice(2);
                 if (phone.startsWith('0')) phone = phone.slice(1);
                 const name = String(t.customerName || '').trim().toLowerCase();
-                const key = phone.length >= 5 ? `p:${phone}` : (name ? `n:${name}` : '');
+                // Pembeli marketplace (umumnya tanpa HP) dikenali dari platform + nama/username.
+                const mp = String(t.marketplace || '').trim().toLowerCase();
+                const key = mp && name ? `m:${mp}:${name}` : phone.length >= 5 ? `p:${phone}` : (name ? `n:${name}` : '');
                 if (!key) continue;
                 counts.set(key, (counts.get(key) || 0) + 1);
             }

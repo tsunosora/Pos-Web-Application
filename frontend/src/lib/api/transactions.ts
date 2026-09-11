@@ -33,6 +33,8 @@ export const createTransaction = async (data: {
     customerPhone?: string;
     customerAddress?: string;
     label?: string; // nama event/pekerjaan (dari SO / diisi kasir)
+    marketplace?: string; // platform marketplace (dari SO / dipilih kasir)
+    marketplaceOrderNo?: string;
     dueDate?: string;
     downPayment?: number;
     cashierName?: string;

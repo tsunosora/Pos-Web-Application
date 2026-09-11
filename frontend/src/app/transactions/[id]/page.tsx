@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import dayjs from "dayjs";
 import { LabelChip } from "@/components/LabelChip";
+import { MarketplaceChip } from "@/components/MarketplaceChip";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -52,6 +53,8 @@ interface Transaction {
     customerPhone: string | null;
     customerAddress: string | null;
     label?: string | null; // nama event/pekerjaan (chip di samping nama pelanggan)
+    marketplace?: string | null; // platform marketplace
+    marketplaceOrderNo?: string | null;
     dueDate: string | null;
     downPayment: number;
     cashierName: string | null;
@@ -146,6 +149,12 @@ function Receipt({ trx }: { trx: Transaction }) {
                 <div className="flex justify-between gap-2">
                     <span>Label:</span>
                     <span className="text-right max-w-[44mm] break-words">{trx.label}</span>
+                </div>
+            )}
+            {trx.marketplace && (
+                <div className="flex justify-between gap-2">
+                    <span>Marketplace:</span>
+                    <span className="text-right max-w-[44mm] break-words">{trx.marketplace}{trx.marketplaceOrderNo ? ` #${trx.marketplaceOrderNo}` : ''}</span>
                 </div>
             )}
             {trx.customerPhone && (
@@ -446,7 +455,7 @@ export default function TransactionDetailPage() {
                                 <>
                                     <div className="flex items-start gap-2 text-sm">
                                         <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                                        <span className="text-foreground font-medium">{trx.customerName}</span>{trx.label && <LabelChip label={trx.label} wrap className="ml-1" />}
+                                        <span className="text-foreground font-medium">{trx.customerName}</span>{trx.label && <LabelChip label={trx.label} wrap className="ml-1" />}{trx.marketplace && <MarketplaceChip platform={trx.marketplace} orderNo={trx.marketplaceOrderNo} className="ml-1" />}
                                     </div>
                                     {trx.customerPhone && (
                                         <div className="flex items-start gap-2 text-sm">

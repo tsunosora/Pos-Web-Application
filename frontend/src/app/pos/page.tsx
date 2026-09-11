@@ -85,6 +85,8 @@ const cartToReceiptItems = (items: CartItem[]): ReceiptItem[] =>
     });
 import { Suspense } from 'react';
 import { LabelChip } from "@/components/LabelChip";
+import { MarketplaceChip } from "@/components/MarketplaceChip";
+import { MARKETPLACE_OPTIONS } from "@/lib/marketplace";
 
 function POSPageContent() {
     const { data: products, isLoading } = useQuery({ queryKey: ['products'], queryFn: getProducts });
@@ -176,6 +178,8 @@ function POSPageContent() {
     const [productionDeadline, setProductionDeadline] = useState('');
     const [productionNotes, setProductionNotes] = useState('');
     const [orderLabel, setOrderLabel] = useState(''); // nama event/pekerjaan (dari SO / diisi kasir) — dicetak di nota
+    const [orderMarketplace, setOrderMarketplace] = useState(''); // platform marketplace (dari SO / dipilih kasir); kosong = bukan marketplace
+    const [orderMarketplaceNo, setOrderMarketplaceNo] = useState('');
     // Titip cetak ke cabang lain: null = cetak di cabang kasir (default).
     const [productionBranchId, setProductionBranchId] = useState<number | null>(null);
 
@@ -257,6 +261,8 @@ function POSPageContent() {
         setCustomerPhone(soData.customerPhone || '');
         setCustomerAddress(soData.customerAddress || '');
         setOrderLabel(soData.label || '');
+        setOrderMarketplace(soData.marketplace || '');
+        setOrderMarketplaceNo(soData.marketplaceOrderNo || '');
         // Catatan/instruksi dari SO desainer → masuk ke catatan order (tampil di nota)
         if (soData.notes) setProductionNotes(soData.notes);
         setSalesOrderId(soData.id);
@@ -345,7 +351,7 @@ function POSPageContent() {
     const cancelSOMode = useCallback(() => {
         setSalesOrderId(null);
         clearCart();
-        setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel('');
+        setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel(''); setOrderMarketplace(''); setOrderMarketplaceNo('');
         // Tidak reset prefilledSoId: begitu ?fromSO hilang, fromSOId jadi null &
         // efek berhenti sendiri — reset ke null malah memicu prefill ulang (race).
         router.replace('/pos');
@@ -364,6 +370,8 @@ function POSPageContent() {
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
         label: orderLabel.trim() || undefined,
+        marketplace: orderMarketplace.trim() || undefined,
+        marketplaceOrderNo: orderMarketplace.trim() ? (orderMarketplaceNo.trim() || undefined) : undefined,
         orderNotes: productionNotes.trim() || undefined,
         dueDate: dueDate ? new Date(dueDate) : undefined,
         downPayment: downPayment !== '' ? Number(downPayment) : undefined,
@@ -529,6 +537,8 @@ function POSPageContent() {
             customerPhone: customerPhone.trim() || undefined,
             customerAddress: customerAddress.trim() || undefined,
             label: orderLabel.trim() || undefined,
+            marketplace: orderMarketplace.trim() || undefined,
+            marketplaceOrderNo: orderMarketplace.trim() ? (orderMarketplaceNo.trim() || undefined) : undefined,
             orderNotes: productionNotes.trim() || undefined,
             dueDate: dueDate ? new Date(dueDate) : undefined,
             downPayment: paymentMethod === 'BAYAR_NANTI'
@@ -589,6 +599,8 @@ function POSPageContent() {
             customerPhone: customerPhone.trim() || undefined,
             customerAddress: customerAddress.trim() || undefined,
             label: orderLabel.trim() || undefined,
+            marketplace: orderMarketplace.trim() || undefined,
+            marketplaceOrderNo: orderMarketplace.trim() ? (orderMarketplaceNo.trim() || undefined) : undefined,
             dueDate: dueDate || undefined,
             downPayment: paymentMethod === 'BAYAR_NANTI'
                 ? (dpBayarNanti !== '' ? Number(dpBayarNanti) : 0)
@@ -640,7 +652,7 @@ function POSPageContent() {
                         const exists = (customers as any[])?.some((c: any) => c.phone === trimPhone);
                         if (!exists) createCustomerMutation.mutate({ name: trimName, phone: trimPhone, address: customerAddress.trim() || undefined });
                     }
-                    setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel('');
+                    setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel(''); setOrderMarketplace(''); setOrderMarketplaceNo('');
                     setProductionPriority('NORMAL'); setProductionDeadline(''); setProductionNotes('');
                     setProductionBranchId(null);
                     setPaymentMethod('CASH'); setSelectedBankId('');
@@ -981,6 +993,7 @@ function POSPageContent() {
                             </div>
                             <div className="text-emerald-600 dark:text-emerald-300 truncate">Customer: {soData.customerName}</div>
                             {soData.label && <div className="mt-0.5"><LabelChip label={soData.label} /></div>}
+                            {soData.marketplace && <div className="mt-0.5"><MarketplaceChip platform={soData.marketplace} orderNo={soData.marketplaceOrderNo} /></div>}
                         </div>
                         <button
                             onClick={cancelSOMode}
@@ -1739,6 +1752,19 @@ function POSPageContent() {
                                             onChange={e => setOrderLabel(e.target.value)}
                                             title="Nama event/pekerjaan — tampil sebagai label & dicetak di nota, bukan bagian nama pelanggan"
                                             className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg outline-none text-xs focus:border-primary transition-colors" />
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <input type="text" list="pos-marketplace-options" placeholder="Marketplace (opsional)" value={orderMarketplace} maxLength={40}
+                                                onChange={e => { setOrderMarketplace(e.target.value); if (!e.target.value.trim()) setOrderMarketplaceNo(""); }}
+                                                title="Isi bila order dari marketplace (Shopee/Tokopedia/TikTok Shop/Lazada/lainnya)"
+                                                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg outline-none text-xs focus:border-primary transition-colors" />
+                                            <datalist id="pos-marketplace-options">
+                                                {MARKETPLACE_OPTIONS.map(mp => <option key={mp} value={mp} />)}
+                                            </datalist>
+                                            <input type="text" placeholder="No. pesanan (opsional)" value={orderMarketplaceNo} maxLength={60}
+                                                disabled={!orderMarketplace.trim()}
+                                                onChange={e => setOrderMarketplaceNo(e.target.value)}
+                                                className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg outline-none text-xs focus:border-primary transition-colors disabled:opacity-50" />
+                                        </div>
                                         <input type="text" placeholder="Alamat (opsional)" value={customerAddress} onChange={e => setCustomerAddress(e.target.value)}
                                             className="w-full px-2.5 py-1.5 bg-background border border-border rounded-lg outline-none text-xs focus:border-primary transition-colors" />
                                     </div>
@@ -2225,7 +2251,7 @@ function POSPageContent() {
                                 setCustomerName('');
                                 setCustomerPhone('');
                                 setCustomerAddress('');
-                                setOrderLabel('');
+                                setOrderLabel(''); setOrderMarketplace(''); setOrderMarketplaceNo('');
                                 setDiscount('');
                                 setShippingCost('');
                                 setMarketplaceFeeItems([]);

@@ -28,6 +28,8 @@ export interface ReceiptSnapshot {
   customerPhone?: string;
   customerAddress?: string;
   label?: string; // nama event/pekerjaan — dicetak utuh di bawah nama pelanggan
+  marketplace?: string; // platform marketplace (pembeli tanpa HP)
+  marketplaceOrderNo?: string;
   orderNotes?: string; // Catatan / instruksi order (dari SO / productionNotes) — tampil di nota
   dueDate?: Date;
   downPayment?: number;
@@ -92,6 +94,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     `Tanggal: ${dateStr}`,
     snap.customerName ? `Pelanggan: ${snap.customerName}${snap.customerPhone ? ` (${snap.customerPhone})` : ''}` : '',
     snap.label ? `Label: ${snap.label}` : '',
+    snap.marketplace ? `Marketplace: ${snap.marketplace}${snap.marketplaceOrderNo ? ` (No. pesanan ${snap.marketplaceOrderNo})` : ''}` : '',
     snap.customerAddress ? `Alamat: ${snap.customerAddress}` : '',
     snap.notaHeader ? `\n${snap.notaHeader}` : '',
     snap.productionBranchLabel ? `*Dicetak & diambil di: ${snap.productionBranchLabel}*` : '',
@@ -241,6 +244,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
       <strong>Kepada</strong><br>
       ${snap.customerName || 'Pelanggan Umum'} ${snap.customerPhone ? '|| ' + snap.customerPhone : ''}<br>
       ${snap.label ? `<span style="display:inline-block; max-width:100%; margin:2px 0; padding:1px 6px; border:1px solid #000; border-radius:8px; font-size:11px; font-weight:bold; white-space:normal; word-break:break-word;">${snap.label.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}</span><br>` : ''}
+      ${snap.marketplace ? `<span style="display:inline-block; max-width:100%; margin:2px 0; padding:1px 6px; border:1px dashed #000; border-radius:8px; font-size:11px; white-space:normal; word-break:break-word;">Marketplace: ${snap.marketplace.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}${snap.marketplaceOrderNo ? ` · No. pesanan ${snap.marketplaceOrderNo.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}` : ''}</span><br>` : ''}
       ${snap.customerAddress || ''}
     </div>
     <div class="info-right">
@@ -384,6 +388,8 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
     customerPhone: trx.customerPhone || undefined,
     customerAddress: trx.customerAddress || undefined,
     label: trx.label || undefined,
+    marketplace: trx.marketplace || undefined,
+    marketplaceOrderNo: trx.marketplaceOrderNo || undefined,
     orderNotes: trx.productionNotes || undefined,
     dueDate: trx.dueDate ? new Date(trx.dueDate) : undefined,
     downPayment: Number(trx.downPayment),

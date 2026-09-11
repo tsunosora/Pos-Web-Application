@@ -50,6 +50,8 @@ export const designerCreateSO = async (
         customerPhone?: string | null;
         customerAddress?: string | null;
         label?: string | null; // nama event/pekerjaan
+        marketplace?: string | null; // platform marketplace (pembeli tanpa HP)
+        marketplaceOrderNo?: string | null;
         notes?: string | null;
         deadline?: string | null;
         items: {
@@ -75,6 +77,8 @@ export const designerUpdateSO = async (
         customerPhone?: string | null;
         customerAddress?: string | null;
         label?: string | null; // nama event/pekerjaan
+        marketplace?: string | null; // platform marketplace (pembeli tanpa HP)
+        marketplaceOrderNo?: string | null;
         notes?: string | null;
         deadline?: string | null;
         items?: {

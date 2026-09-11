@@ -12,6 +12,8 @@ export interface CreateSalesOrderDto {
     customerPhone?: string | null;
     customerAddress?: string | null;
     label?: string | null; // nama event/pekerjaan — BUKAN bagian nama pelanggan
+    marketplace?: string | null; // platform marketplace; terisi = order marketplace (HP boleh kosong)
+    marketplaceOrderNo?: string | null;
     designerName: string;
     branchName?: string | null; // cabang asal SO (auto dari designer.branchName atau manual)
     notes?: string | null;
@@ -45,13 +47,39 @@ export function isValidCustomerPhone(phone?: string | null): boolean {
 
 export const PHONE_REQUIRED_MSG =
     'No. HP / WA pelanggan wajib diisi (min. 9 digit). Pilih pelanggan terdaftar atau isi nomornya — ' +
-    'nama event/pekerjaan tulis di kolom Label, bukan di nama pelanggan.';
+    'nama event/pekerjaan tulis di kolom Label, bukan di nama pelanggan. Pembeli marketplace: centang Order Marketplace.';
 
 /** Label pekerjaan: trim, kosong → null, maks 120 karakter (sesuai kolom DB). */
 export function cleanLabel(label?: string | null): string | null {
     const t = String(label ?? '').replace(/\s+/g, ' ').trim();
     return t ? t.slice(0, 120) : null;
 }
+
+/** Nama platform marketplace (Shopee/Tokopedia/…/isian bebas): rapikan spasi, maks 40; kosong → null. */
+export function cleanMarketplace(v?: string | null): string | null {
+    const t = String(v ?? '').replace(/\s+/g, ' ').trim();
+    return t ? t.slice(0, 40) : null;
+}
+
+export const MARKETPLACE_PHONE_INVALID_MSG =
+    'No. HP pembeli marketplace boleh dikosongkan, tetapi bila diisi harus nomor yang valid (min. 9 digit).';
+
+/**
+ * Aturan HP SO. Order biasa WAJIB HP valid. Order marketplace (platform terisi) boleh
+ * tanpa HP — pembeli marketplace sering tak bisa/boleh dihubungi langsung — tapi bila
+ * HP diisi tetap harus valid. Melempar BadRequestException bila melanggar.
+ */
+export function assertCustomerPhone(phone: string | null | undefined, marketplace: string | null): void {
+    if (marketplace) {
+        if (String(phone ?? '').trim() && !isValidCustomerPhone(phone)) {
+            throw new BadRequestException(MARKETPLACE_PHONE_INVALID_MSG);
+        }
+        return;
+    }
+    if (!isValidCustomerPhone(phone)) throw new BadRequestException(PHONE_REQUIRED_MSG);
+}
+
+const cleanOrderNo = (v?: string | null): string | null => String(v ?? '').trim().slice(0, 60) || null;
 
 @Injectable()
 export class SalesOrdersService {
@@ -288,7 +316,7 @@ export class SalesOrdersService {
             orderBy: { createdAt: 'desc' },
             take: 10,
             select: {
-                id: true, soNumber: true, status: true, customerName: true, label: true,
+                id: true, soNumber: true, status: true, customerName: true, label: true, marketplace: true, marketplaceOrderNo: true,
                 customerPhone: true, designerName: true, createdAt: true,
             },
         });
@@ -341,9 +369,7 @@ export class SalesOrdersService {
         if (!data.customerName?.trim()) {
             throw new BadRequestException('Nama customer wajib diisi');
         }
-        if (!isValidCustomerPhone(data.customerPhone)) {
-            throw new BadRequestException(PHONE_REQUIRED_MSG);
-        }
+        assertCustomerPhone(data.customerPhone, cleanMarketplace(data.marketplace));
         if (!data.designerName?.trim()) {
             throw new BadRequestException('Nama desainer wajib diisi');
         }
@@ -376,6 +402,8 @@ export class SalesOrdersService {
                         customerPhone: data.customerPhone ?? null,
                         customerAddress: data.customerAddress ?? null,
                         label: cleanLabel(data.label),
+                        marketplace: cleanMarketplace(data.marketplace),
+                        marketplaceOrderNo: cleanMarketplace(data.marketplace) ? cleanOrderNo(data.marketplaceOrderNo) : null,
                         designerName: data.designerName,
                         branchName,
                         notes: data.notes ?? null,
@@ -456,9 +484,10 @@ export class SalesOrdersService {
             throw new BadRequestException('SO yang sudah diinvoice / dibatalkan tidak dapat diubah');
         }
         // Saat data pelanggan diedit, HP efektif tetap wajib valid (SO lama tanpa HP ikut dirapikan).
-        if (data.customerName !== undefined || data.customerPhone !== undefined) {
+        if (data.customerName !== undefined || data.customerPhone !== undefined || data.marketplace !== undefined) {
             const phone = data.customerPhone !== undefined ? data.customerPhone : existing.customerPhone;
-            if (!isValidCustomerPhone(phone)) throw new BadRequestException(PHONE_REQUIRED_MSG);
+            const mp = data.marketplace !== undefined ? cleanMarketplace(data.marketplace) : cleanMarketplace((existing as any).marketplace);
+            assertCustomerPhone(phone, mp);
         }
 
         const updateData: any = {};
@@ -467,6 +496,13 @@ export class SalesOrdersService {
         if (data.customerPhone !== undefined) updateData.customerPhone = data.customerPhone;
         if (data.customerAddress !== undefined) updateData.customerAddress = data.customerAddress;
         if (data.label !== undefined) updateData.label = cleanLabel(data.label);
+        if (data.marketplace !== undefined) {
+            updateData.marketplace = cleanMarketplace(data.marketplace);
+            if (!updateData.marketplace) updateData.marketplaceOrderNo = null;
+        }
+        if (data.marketplaceOrderNo !== undefined && (data.marketplace !== undefined ? updateData.marketplace : (existing as any).marketplace)) {
+            updateData.marketplaceOrderNo = cleanOrderNo(data.marketplaceOrderNo);
+        }
         if (data.designerName !== undefined) updateData.designerName = data.designerName;
         if (data.notes !== undefined) updateData.notes = data.notes;
         if (data.deadline !== undefined) updateData.deadline = data.deadline ? new Date(data.deadline) : null;
@@ -539,6 +575,7 @@ export class SalesOrdersService {
         lines.push('');
         lines.push(`Pelanggan: ${so.customerName}`);
         if (so.label) lines.push(`Label: ${so.label}`);
+        if (so.marketplace) lines.push(`Marketplace: ${so.marketplace}${so.marketplaceOrderNo ? ` (No. pesanan ${so.marketplaceOrderNo})` : ''}`);
         if (so.customerPhone) lines.push(`HP: ${so.customerPhone}`);
         lines.push(`Desainer: ${so.designerName}`);
         if (so.branchName) lines.push(`Cabang: ${so.branchName}`);

@@ -11,6 +11,7 @@ import { getPublicBranches, type PublicBranch } from "@/lib/api/production";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import dayjs from "dayjs";
 import { LabelChip } from "@/components/LabelChip";
+import { MarketplaceChip } from "@/components/MarketplaceChip";
 import "dayjs/locale/id";
 
 dayjs.locale("id");
@@ -244,6 +245,7 @@ export default function SalesOrdersPage() {
                                         <td className="px-3 py-2">
                                             <div className="font-medium truncate max-w-[200px]">{so.customerName}</div>
                                             {so.label && <LabelChip label={so.label} />}
+                                            {so.marketplace && <MarketplaceChip platform={so.marketplace} orderNo={so.marketplaceOrderNo} className="ml-1" />}
                                             {so.customerPhone && <div className="text-xs text-muted-foreground">{so.customerPhone}</div>}
                                         </td>
                                         <td className="px-3 py-2 text-xs">

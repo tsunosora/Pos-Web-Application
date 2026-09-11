@@ -60,6 +60,7 @@ export const buildThermalReceiptBody = (
     ${snap.cashierName ? `<div class="row"><span>Kasir</span><span>${esc(snap.cashierName)}</span></div>` : ''}
     ${snap.customerName ? `<div class="row"><span>Plgn</span><span>${esc(snap.customerName)}</span></div>` : ''}
     ${snap.label ? `<div class="row"><span>Label</span><span style="text-align:right; word-break:break-word;">${esc(snap.label)}</span></div>` : ''}
+    ${snap.marketplace ? `<div class="row"><span>Mktpl</span><span style="text-align:right; word-break:break-word;">${esc(snap.marketplace)}${snap.marketplaceOrderNo ? ` #${esc(snap.marketplaceOrderNo)}` : ''}</span></div>` : ''}
     ${snap.customerPhone ? `<div class="row"><span>HP</span><span>${esc(snap.customerPhone)}</span></div>` : ''}
     ${snap.productionBranchLabel ? `<div class="sub b">Diambil di: ${esc(snap.productionBranchLabel)}</div>` : ''}
     <div class="hr"></div>
