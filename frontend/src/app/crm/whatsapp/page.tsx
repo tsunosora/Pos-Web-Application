@@ -467,7 +467,13 @@ export default function WhatsappInboxPage() {
         hasNextPage,
         isFetchingNextPage,
     } = useInfiniteQuery({
-        queryKey: ["wa-convos", tab, search, assignee],
+        // Segmen "pages" WAJIB. Cache React Query dipersist ke IndexedDB (buster statis),
+        // dan sebelum paginasi kunci ["wa-convos", tab, search, assignee] menyimpan data
+        // berbentuk {items, nextCursor}. Kalau useInfiniteQuery memakai kunci yang sama,
+        // browser CS memulihkan bentuk lama -> query-core membaca `pages.length` -> halaman
+        // crash "This page couldn't load" (terjadi 2026-09-11). Kunci baru membuat cache
+        // lama tak pernah terbaca; prefiks "wa-convos" tetap kena invalidateQueries.
+        queryKey: ["wa-convos", "pages", tab, search, assignee],
         queryFn: ({ pageParam }) => listWaConversations({
             status: tab === "ALL" ? undefined : tab,
             q: search.trim() || undefined,
