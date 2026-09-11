@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
-import { SalesOrdersService, isValidCustomerPhone, cleanLabel, PHONE_REQUIRED_MSG, assertCustomerPhone, cleanMarketplace, MARKETPLACE_PHONE_INVALID_MSG } from './sales-orders.service';
+import { SalesOrdersService, isValidCustomerPhone, cleanLabel, PHONE_REQUIRED_MSG, assertCustomerPhone, cleanMarketplace, MARKETPLACE_PHONE_INVALID_MSG, buildDesignerStats, wibDateKey } from './sales-orders.service';
 
 /**
  * Regresi alur "satu pintu" lintas cabang: designer PUSAT membuat SO untuk lead
@@ -224,5 +224,55 @@ describe('SalesOrdersService — order marketplace (pembeli tanpa HP)', () => {
         expect(prisma.salesOrder.update).toHaveBeenCalledWith(expect.objectContaining({
             data: expect.objectContaining({ customerName: 'Novi', marketplace: 'Shopee', marketplaceOrderNo: '2409ABC' }),
         }));
+    });
+});
+
+describe('buildDesignerStats — kartu "Hore" desainer (hari & bulan WIB)', () => {
+    // 12 Sep 2026 10:00 WIB = 03:00 UTC
+    const NOW = new Date('2026-09-12T03:00:00Z');
+    const at = (iso: string, status = 'INVOICED', items = 1) => ({ createdAt: new Date(iso), status, items });
+
+    it('batas hari mengikuti WIB, bukan UTC', () => {
+        const s = buildDesignerStats([
+            at('2026-09-11T17:10:00Z', 'DRAFT', 2), // 12 Sep 00:10 WIB → hari ini
+            at('2026-09-11T16:30:00Z'),             // 11 Sep 23:30 WIB → kemarin
+        ], [], NOW);
+        expect(s.today).toEqual({ date: '2026-09-12', so: 1, items: 2 });
+        expect(wibDateKey('2026-09-11T16:30:00Z')).toBe('2026-09-11');
+    });
+
+    it('bulan ini: jumlah SO, item, jadi nota & hari aktif; bulan lalu tidak ikut', () => {
+        const s = buildDesignerStats([
+            at('2026-09-12T01:00:00Z', 'DRAFT', 3),
+            at('2026-09-01T02:00:00Z', 'INVOICED', 2),
+            at('2026-08-31T16:59:00Z', 'INVOICED', 5), // 31 Agu 23:59 WIB
+        ], [], NOW);
+        expect(s.month).toEqual({ key: '2026-09', so: 2, items: 5, invoiced: 1, activeDays: 2 });
+    });
+
+    it('rekor harian bulan ini + rekor sebelum hari ini (deteksi rekor baru)', () => {
+        const rows = [
+            ...Array.from({ length: 3 }, () => at('2026-09-12T02:00:00Z')),
+            ...Array.from({ length: 2 }, () => at('2026-09-10T02:00:00Z')),
+        ];
+        expect(buildDesignerStats(rows, [], NOW).bestDay).toEqual({ date: '2026-09-12', so: 3, previousBest: 2 });
+    });
+
+    it('"kemarin jam segini" hanya menghitung SO sampai jam yang sama', () => {
+        const s = buildDesignerStats([at('2026-09-11T02:00:00Z'), at('2026-09-11T05:00:00Z')], [], NOW);
+        expect(s.yesterdaySameTime.so).toBe(1);
+    });
+
+    it('hari kerja beruntun: hari toko tutup dilewati, hari desainer absen memutus', () => {
+        const rows = [at('2026-09-12T02:00:00Z'), at('2026-09-11T02:00:00Z'), at('2026-09-09T02:00:00Z'), at('2026-09-07T02:00:00Z')];
+        // 10 Sep toko tutup (tidak ada di storeDays) → dilewati; 8 Sep toko buka tapi desainer tanpa SO → putus
+        const storeDays = ['2026-09-07', '2026-09-08', '2026-09-09', '2026-09-11', '2026-09-12'];
+        expect(buildDesignerStats(rows, storeDays, NOW).streak).toBe(3);
+    });
+
+    it('belum ada SO hari ini: rantai dihitung mulai kemarin', () => {
+        const s = buildDesignerStats([at('2026-09-11T02:00:00Z')], ['2026-09-11', '2026-09-12'], NOW);
+        expect(s.streak).toBe(1);
+        expect(s.today.so).toBe(0);
     });
 });

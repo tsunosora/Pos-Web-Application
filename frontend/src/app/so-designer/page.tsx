@@ -42,7 +42,7 @@ export default function DesignerGatePage() {
                 setError("PIN salah. Coba lagi.");
                 return;
             }
-            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: result.id, name: result.name, pin: pin.trim(), branchName: result.branchName ?? null }));
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({ id: result.id, name: result.name, pin: pin.trim(), branchName: result.branchName ?? null, confirmedAt: Date.now() }));
             router.replace("/so-designer/dashboard");
         } catch {
             setError("Gagal menghubungi server. Coba lagi.");

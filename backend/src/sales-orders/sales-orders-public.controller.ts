@@ -75,6 +75,14 @@ export class SalesOrdersPublicController {
         });
     }
 
+    /** Statistik kinerja desainer ini (hari ini & bulan ini, WIB) — kartu "Hore" setelah buat SO. */
+    @Post('my-stats')
+    async myStats(@Body() body: { designerId: number; pin: string }) {
+        const result = await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        const name = result.name ?? '';
+        return { name, ...(await this.soService.designerStats(name)) };
+    }
+
     /** Detail SO (hanya baca, tanpa PIN) */
     @Get('detail/:id')
     async detail(@Param('id', ParseIntPipe) id: number) {

@@ -81,6 +81,73 @@ export function assertCustomerPhone(phone: string | null | undefined, marketplac
 
 const cleanOrderNo = (v?: string | null): string | null => String(v ?? '').trim().slice(0, 60) || null;
 
+/** Satu SO desainer utk statistik kinerja (items = jumlah baris item/desain di SO). */
+export interface DesignerStatsRow { createdAt: Date | string; status: string; items: number }
+
+export interface DesignerStats {
+    today: { date: string; so: number; items: number };
+    yesterdaySameTime: { so: number };
+    month: { key: string; so: number; items: number; invoiced: number; activeDays: number };
+    bestDay: { date: string; so: number; previousBest: number } | null; // previousBest = rekor sebelum hari ini
+    streak: number; // hari kerja beruntun (sampai hari ini) dengan ≥1 SO
+}
+
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000; // WIB = UTC+7, tanpa DST
+
+/** Tanggal kalender WIB "YYYY-MM-DD" dari waktu UTC. */
+export function wibDateKey(d: Date | string): string {
+    return new Date(new Date(d).getTime() + WIB_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/**
+ * Statistik kinerja desainer utk kartu "Hore" setelah buat SO (hari & bulan WIB).
+ * storeDays = tanggal WIB saat toko aktif (ada SO dari siapa pun) — hari libur/tutup
+ * dilewati sehingga tidak memutus "hari kerja beruntun".
+ */
+export function buildDesignerStats(rows: DesignerStatsRow[], storeDays: string[], now: Date = new Date()): DesignerStats {
+    const today = wibDateKey(now);
+    const monthKey = today.slice(0, 7);
+    const yesterday = wibDateKey(new Date(now.getTime() - 86_400_000));
+    const sameTimeYesterday = now.getTime() - 86_400_000;
+    const perDay = new Map<string, number>();
+    const stats: DesignerStats = {
+        today: { date: today, so: 0, items: 0 },
+        yesterdaySameTime: { so: 0 },
+        month: { key: monthKey, so: 0, items: 0, invoiced: 0, activeDays: 0 },
+        bestDay: null,
+        streak: 0,
+    };
+    for (const r of rows) {
+        const t = new Date(r.createdAt).getTime();
+        if (t > now.getTime()) continue;
+        const key = wibDateKey(r.createdAt);
+        perDay.set(key, (perDay.get(key) ?? 0) + 1);
+        if (key === today) { stats.today.so++; stats.today.items += r.items; }
+        if (key.startsWith(monthKey)) {
+            stats.month.so++;
+            stats.month.items += r.items;
+            if (r.status === 'INVOICED') stats.month.invoiced++;
+        }
+        if (key === yesterday && t <= sameTimeYesterday) stats.yesterdaySameTime.so++;
+    }
+    let previousBest = 0;
+    for (const [date, so] of perDay) {
+        if (!date.startsWith(monthKey)) continue;
+        stats.month.activeDays++;
+        if (!stats.bestDay || so > stats.bestDay.so || (so === stats.bestDay.so && date < stats.bestDay.date)) {
+            stats.bestDay = { date, so, previousBest: 0 };
+        }
+        if (date !== today) previousBest = Math.max(previousBest, so);
+    }
+    if (stats.bestDay) stats.bestDay.previousBest = previousBest;
+    const days = [...new Set([...storeDays, today])].filter(d => d <= today).sort().reverse();
+    for (const d of days) {
+        if ((perDay.get(d) ?? 0) > 0) stats.streak++;
+        else if (d !== today) break; // hari ini belum ada SO → hitung mulai kemarin
+    }
+    return stats;
+}
+
 @Injectable()
 export class SalesOrdersService {
     constructor(
@@ -267,6 +334,23 @@ export class SalesOrdersService {
         });
 
         return { rows, total, page: safePage, pageSize: take, counts };
+    }
+
+    /** Statistik kinerja 1 desainer (hari ini & bulan ini, WIB) — lihat buildDesignerStats. */
+    async designerStats(designerName: string, now: Date = new Date()): Promise<DesignerStats> {
+        const since = new Date(now.getTime() - 62 * 86_400_000); // cukup utk 1 bulan + rantai hari kerja
+        const [rows, days] = await Promise.all([
+            (this.prisma as any).salesOrder.findMany({
+                where: { designerName, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+                select: { createdAt: true, status: true, _count: { select: { items: true } } },
+            }),
+            (this.prisma as any).$queryRaw`SELECT DISTINCT DATE_FORMAT(CONVERT_TZ(created_at, '+00:00', '+07:00'), '%Y-%m-%d') AS d FROM sales_orders WHERE created_at >= ${since}`,
+        ]);
+        return buildDesignerStats(
+            rows.map((r: any) => ({ createdAt: r.createdAt, status: r.status, items: r._count?.items ?? 0 })),
+            (days as any[]).map((x: any) => String(x.d)),
+            now,
+        );
     }
 
     async findOne(id: number, branchId?: number | null) {

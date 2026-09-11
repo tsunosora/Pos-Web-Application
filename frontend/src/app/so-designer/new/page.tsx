@@ -1,15 +1,23 @@
 "use client";
 
-import { useState, useMemo, useEffect, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X, Send, UserPlus, Users, FileText, AlertTriangle } from "lucide-react";
 import { useDesignerSession } from "../useDesignerSession";
-import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, getPublicCustomers, designerLookupLeadsByPhone, designerListActiveCsLeads, type ActiveLeadPreview } from "@/lib/api/designers";
+import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, getPublicCustomers, designerLookupLeadsByPhone, designerListActiveCsLeads, designerListSOs, designerMyStats, type ActiveLeadPreview } from "@/lib/api/designers";
 import axios from "axios";
 import { MARKETPLACE_OPTIONS, MARKETPLACE_OTHER, cleanMarketplace } from "@/lib/marketplace";
+import { ProductPicker } from "../ProductPicker";
+import { estimateLine, formatRp } from "../price-estimate";
+import { CelebrationModal, type CelebrationKind } from "../CelebrationModal";
+import { setDesignerFormDirty } from "../shift-check";
+import type { DesignerStats } from "@/lib/api/designers";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+// Tombol "Buat Nota (Kirim)" disembunyikan (2026-09-12): desainer wajib lewat "Lead Order (CS)"
+// supaya tidak salah kirim langsung ke kasir. Ubah ke true untuk memunculkannya lagi.
+const SHOW_SEND_TO_CASHIER: boolean = false;
 
 /** URL gambar proof dari path tersimpan (strip prefix `public/`). */
 function proofUrl(filename: string) {
@@ -65,7 +73,7 @@ function DesignerNewSOContent() {
     const [proofFiles, setProofFiles] = useState<File[]>([]);
     const [existingProofs, setExistingProofs] = useState<{ id: number; filename: string }[]>([]); // proof yang sudah tersimpan (mode edit)
     const [deletingProof, setDeletingProof] = useState<number | null>(null);
-    const [variantSearch, setVariantSearch] = useState("");
+    const [usage, setUsage] = useState<Record<number, number>>({}); // productVariantId → jumlah dipakai di SO desainer ini
     const [products, setProducts] = useState<any[]>([]);
     const [productsLoaded, setProductsLoaded] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -80,6 +88,9 @@ function DesignerNewSOContent() {
     const [csLeadQuery, setCsLeadQuery] = useState(""); // kata kunci cari lead CS (server-side)
     const [pickedLead, setPickedLead] = useState<ActiveLeadPreview | null>(null); // lead CS yg dipilih dari kartu
     const [csPickerOpen, setCsPickerOpen] = useState(false); // modal daftar lead CS
+    const [celebration, setCelebration] = useState<{ kind: CelebrationKind; soNumber: string; message: string } | null>(null); // kartu "Hore" setelah Lead Order
+    const [myStats, setMyStats] = useState<DesignerStats | null>(null);
+    const [myStatsLoading, setMyStatsLoading] = useState(false);
 
     // Load customers sekali saat komponen mount
     useMemo(() => {
@@ -127,38 +138,49 @@ function DesignerNewSOContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [session?.id, isEdit, csLeadQuery]);
 
-    // Lazy-load produk saat pertama kali user klik search
-    async function ensureProducts() {
-        if (productsLoaded) return;
-        const res = await axios.get(`${API_BASE}/products/public`);
-        setProducts(res.data ?? []);
-        setProductsLoaded(true);
-    }
+    // Tandai form berisi → pengingat ganti shift memperingatkan sebelum sesi diganti.
+    useEffect(() => {
+        setDesignerFormDirty(items.length > 0 || !!customerName.trim() || !!notes.trim());
+    }, [items, customerName, notes]);
+    useEffect(() => () => setDesignerFormDirty(false), []);
 
-    const flatVariants: FlatVariant[] = useMemo(() => {
-        const out: FlatVariant[] = [];
-        for (const p of products) {
-            const mode: "UNIT" | "AREA_BASED" = p.pricingMode ?? "UNIT";
-            for (const v of p.variants ?? []) {
-                const suffix = v.variantName ? ` — ${v.variantName}` : "";
-                out.push({
-                    productVariantId: v.id,
-                    label: `${p.name}${suffix}`,
-                    pricingMode: mode,
-                    sku: v.sku ?? "",
-                    // Unlimited (trackStock=false) tak pernah habis; sisanya cek stok agregat.
-                    outOfStock: p.trackStock !== false && Number(v.stock ?? 0) <= 0,
-                });
-            }
+    // Katalog produk dimuat sekali di awal (bukan saat klik cari) supaya harga tiap item &
+    // estimasi total langsung tampil — termasuk saat membuka SO lama untuk diedit.
+    const productsReq = useRef<Promise<void> | null>(null);
+    function ensureProducts() {
+        if (!productsReq.current) {
+            productsReq.current = axios.get(`${API_BASE}/products/public`)
+                .then(res => { setProducts(res.data ?? []); setProductsLoaded(true); })
+                .catch(() => { productsReq.current = null; }); // gagal → dicoba lagi saat kolom cari difokus
         }
-        return out;
-    }, [products]);
+        return productsReq.current;
+    }
+    useEffect(() => { ensureProducts(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const filteredVariants = useMemo(() => {
-        const q = variantSearch.trim().toLowerCase();
-        if (!q) return flatVariants.slice(0, 30);
-        return flatVariants.filter(v => v.label.toLowerCase().includes(q) || v.sku.toLowerCase().includes(q)).slice(0, 30);
-    }, [flatVariants, variantSearch]);
+    // Riwayat SO desainer ini → urutan "Sering kamu pakai" di pemilih produk.
+    useEffect(() => {
+        if (!session) return;
+        designerListSOs(session.id, session.pin, 1, 60)
+            .then(res => {
+                const count: Record<number, number> = {};
+                for (const so of (res as any)?.rows ?? []) {
+                    for (const it of so.items ?? []) count[it.productVariantId] = (count[it.productVariantId] ?? 0) + 1;
+                }
+                setUsage(count);
+            })
+            .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [session?.id]);
+
+    // Harga per item & estimasi total — rumus sama dgn keranjang POS saat SO dibuka kasir.
+    const variantIndex = useMemo(() => {
+        const m = new Map<number, { product: any; variant: any }>();
+        for (const p of products) for (const v of p.variants ?? []) m.set(v.id, { product: p, variant: v });
+        return m;
+    }, [products]);
+    const lineEstimates = useMemo(() => items.map(it => estimateLine(it, variantIndex.get(it.productVariantId))), [items, variantIndex]);
+    const estimateTotal = lineEstimates.reduce((sum, e) => sum + (e?.subtotal ?? 0), 0);
+    const estimateIncomplete = lineEstimates.filter(e => e && e.subtotal == null).length;
 
     function addVariant(v: FlatVariant) {
         if (v.outOfStock) {
@@ -175,7 +197,6 @@ function DesignerNewSOContent() {
             unitType: v.pricingMode === "AREA_BASED" ? "cm" : undefined,
             pcs: v.pricingMode === "AREA_BASED" ? 1 : undefined,
         }]);
-        setVariantSearch("");
     }
 
     function updateItem(key: string, patch: Partial<DraftItem>) {
@@ -358,14 +379,25 @@ function DesignerNewSOContent() {
             } else if (mode === 'lead') {
                 // Buat Lead CRM tertaut — CS follow-up, nota dibuat dari SO nanti
                 const res = await designerCreateLeadFromSO(so.id, session.id, session.pin, leadOpts);
-                alert(
+                const message = (
                     res.merged
                         ? `SO ${so.soNumber || ''} ditempelkan ke lead "${res.lead?.name || ''}" yang sudah ada (satu pintu) — CS lanjut follow-up; nota dari SO ini setelah deal.`
                         : res.revised
                             ? `SO ${so.soNumber || ''} direvisi — data & gambar lead di CRM ikut diperbarui, dan notif revisi terkirim ke Discord (CS + Produksi).`
                             : res.existing
                                 ? `SO ${so.soNumber || ''} disimpan. Lead untuk SO ini sudah selesai (closing/lost) — data lead tidak diubah.`
-                                : `SO ${so.soNumber || ''} disimpan & masuk ke CS sebagai Lead Order baru — gambar desain tersimpan di lead & terkirim ke Discord (CS + Produksi). CS akan follow-up; nota dibuat dari SO ini nanti.`);
+                                : `SO ${so.soNumber || ''} disimpan & masuk ke CS sebagai Lead Order baru — gambar desain tersimpan di lead & terkirim ke Discord (CS + Produksi). CS akan follow-up; nota dibuat dari SO ini nanti.`
+                );
+                // Kartu "Hore" + statistik kinerja hari ini & bulan ini — penyemangat desainer.
+                // Tetap di halaman sampai desainer memilih "Buat SO Lagi" / "Ke Dashboard".
+                setCelebration({ kind: res.merged ? 'merged' : res.revised ? 'revised' : res.existing ? 'existing' : 'new', soNumber: so.soNumber || '', message });
+                setMyStats(null);
+                setMyStatsLoading(true);
+                designerMyStats(session.id, session.pin)
+                    .then(setMyStats)
+                    .catch(() => setMyStats(null))
+                    .finally(() => setMyStatsLoading(false));
+                return;
             } else {
                 alert(`SO ${so.soNumber || ''} ${isEdit ? 'diperbarui' : 'disimpan sebagai draft'}.`);
             }
@@ -535,54 +567,46 @@ function DesignerNewSOContent() {
 
                 {/* Items */}
                 <Card title={`Item (${items.length})`}>
-                    <div className="relative mb-3">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <input
-                            value={variantSearch}
-                            onChange={e => { setVariantSearch(e.target.value); ensureProducts(); }}
-                            onFocus={ensureProducts}
-                            placeholder="Cari produk untuk ditambahkan..."
-                            className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
-                        />
-                        {variantSearch && filteredVariants.length > 0 && (
-                            <div className="absolute z-10 mt-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                                {filteredVariants.map(v => (
-                                    <button key={v.productVariantId} type="button"
-                                        onMouseDown={e => e.preventDefault()}
-                                        onClick={() => addVariant(v)}
-                                        disabled={v.outOfStock}
-                                        className={`w-full text-left px-3 py-2 text-sm border-b border-slate-100 dark:border-slate-800 last:border-0 ${v.outOfStock ? "opacity-60 cursor-not-allowed text-slate-400 dark:text-slate-600" : "hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-700 dark:text-slate-200"}`}
-                                    >
-                                        <div className="font-medium flex items-center gap-2">
-                                            <span>{v.label}</span>
-                                            {v.outOfStock && (
-                                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">Stok habis</span>
-                                            )}
-                                        </div>
-                                        <div className="text-xs text-slate-400 dark:text-slate-500">{v.sku} • {v.pricingMode === "AREA_BASED" ? "per m²" : "per unit"}</div>
-                                    </button>
-                                ))}
-                            </div>
-                        )}
+                    <div className="mb-3">
+                        <ProductPicker products={products} loading={!productsLoaded} usage={usage} onOpen={ensureProducts} onPick={addVariant} />
                     </div>
 
                     {items.length === 0 ? (
                         <div className="text-center text-sm text-slate-400 dark:text-slate-500 py-6 border border-dashed border-slate-300 dark:border-slate-700 rounded-lg">
-                            Cari produk di atas untuk menambahkan item
+                            Pilih produk di atas untuk menambahkan item
                         </div>
                     ) : (
                         <div className="space-y-2">
-                            {items.map((it, idx) => (
+                            {items.map((it, idx) => { const est = lineEstimates[idx]; return (
                                 <div key={it.key} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-slate-50 dark:bg-slate-800/50">
                                     <div className="flex items-start justify-between gap-2">
-                                        <div>
+                                        <div className="min-w-0">
                                             <div className="text-xs text-slate-400 dark:text-slate-500">Item {idx + 1}</div>
                                             <div className="font-medium text-sm text-slate-800 dark:text-slate-200">{it.productLabel}</div>
+                                            {est && (
+                                                <div className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                                                    {est.custom
+                                                        ? <span className="font-medium text-amber-600 dark:text-amber-400">Harga khusus</span>
+                                                        : <span className="font-medium text-indigo-700 dark:text-indigo-300">{formatRp(est.unitPrice)}<span className="font-normal text-slate-400 dark:text-slate-500">{est.basis}</span></span>}
+                                                    {est.tier && <span className="ml-1 text-emerald-600 dark:text-emerald-400">(harga grosir)</span>}
+                                                    {est.detail && <span> · {est.detail}</span>}
+                                                </div>
+                                            )}
                                         </div>
-                                        <button onClick={() => setItems(p => p.filter(i => i.key !== it.key))}
-                                            className="p-1 hover:bg-red-100 dark:hover:bg-red-950/40 rounded text-red-500 dark:text-red-400">
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
+                                        <div className="flex items-start gap-2 shrink-0">
+                                            {est && (
+                                                <div className="text-right">
+                                                    <div className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Subtotal</div>
+                                                    {est.subtotal != null
+                                                        ? <div className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{formatRp(est.subtotal)}</div>
+                                                        : <div className="text-xs font-medium text-amber-600 dark:text-amber-400">isi ukuran</div>}
+                                                </div>
+                                            )}
+                                            <button onClick={() => setItems(p => p.filter(i => i.key !== it.key))}
+                                                className="p-1 hover:bg-red-100 dark:hover:bg-red-950/40 rounded text-red-500 dark:text-red-400">
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-2 mt-2">
                                         {it.pricingMode !== "AREA_BASED" && (
@@ -629,7 +653,19 @@ function DesignerNewSOContent() {
                                             className="w-full px-2 py-1 text-xs border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                                     </div>
                                 </div>
-                            ))}
+                            ); })}
+                        </div>
+                    )}
+                    {items.length > 0 && (
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/30 px-3 py-2">
+                            <div className="min-w-0">
+                                <div className="text-sm font-semibold text-indigo-800 dark:text-indigo-200">Estimasi total</div>
+                                <div className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80">
+                                    Harga katalog · harga final di kasir (diskon/ongkir belum termasuk)
+                                    {estimateIncomplete > 0 && <span className="text-amber-600 dark:text-amber-400"> · {estimateIncomplete} item belum diisi ukuran</span>}
+                                </div>
+                            </div>
+                            <div className="shrink-0 text-lg font-bold tabular-nums text-indigo-800 dark:text-indigo-200">{formatRp(estimateTotal)}</div>
                         </div>
                     )}
                 </Card>
@@ -709,15 +745,30 @@ function DesignerNewSOContent() {
                             {leading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
                             Lead Order (CS)
                         </button>
-                        <button onClick={() => handleSave('send')} disabled={saving || sending || leading}
-                            title="Order sudah pasti — kirim ke kasir untuk dibuatkan nota"
-                            className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            Buat Nota (Kirim)
-                        </button>
+                        {SHOW_SEND_TO_CASHIER && (
+                            <button onClick={() => handleSave('send')} disabled={saving || sending || leading}
+                                title="Order sudah pasti — kirim ke kasir untuk dibuatkan nota"
+                                className="flex-1 inline-flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                Buat Nota (Kirim)
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {celebration && (
+                <CelebrationModal
+                    designerName={session.name}
+                    kind={celebration.kind}
+                    soNumber={celebration.soNumber}
+                    message={celebration.message}
+                    stats={myStats}
+                    statsLoading={myStatsLoading}
+                    onNewSO={() => window.location.assign('/so-designer/new')}
+                    onDashboard={() => router.push('/so-designer/dashboard')}
+                />
+            )}
 
             {/* Modal daftar lead CS — bottom-sheet, dicari & di-scroll di dalam */}
             {csPickerOpen && (

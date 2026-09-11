@@ -68,14 +68,14 @@ interface CartState {
 }
 
 /** Returns the unit price that applies for a given qty based on price tiers. Falls back to basePrice. */
-function applyTierPrice(qty: number, basePrice: number, tiers: PriceTier[]): number {
+export function applyTierPrice(qty: number, basePrice: number, tiers: PriceTier[]): number {
     if (!tiers || tiers.length === 0) return basePrice;
     const sorted = [...tiers].sort((a, b) => b.minQty - a.minQty); // descending
     const matched = sorted.find(t => qty >= t.minQty && (t.maxQty === null || qty <= t.maxQty));
     return matched ? matched.price : basePrice;
 }
 
-function computeAreaPrice(width: number, height: number, unitPrice: number, unitType: 'm' | 'cm' | 'cm2' | 'menit') {
+export function computeAreaPrice(width: number, height: number, unitPrice: number, unitType: 'm' | 'cm' | 'cm2' | 'menit') {
     // Basis harga tergantung produk (Product.areaUnit → unitType saat add):
     //   m    → harga/m², input meter:  pengali = w × h ;            luas fisik = w × h (m²)
     //   cm   → harga/m², input cm:      pengali = (w × h) / 10000 ;  luas fisik = (w × h)/10000

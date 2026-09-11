@@ -10,6 +10,7 @@ export interface DesignerSession {
     name: string;
     pin: string;
     branchName?: string | null;
+    confirmedAt?: number; // kapan terakhir dipastikan (login / konfirmasi PIN saat ganti shift)
 }
 
 export function useDesignerSession(redirectIfNone = true): DesignerSession | null {

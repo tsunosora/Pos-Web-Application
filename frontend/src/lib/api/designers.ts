@@ -184,6 +184,19 @@ export const designerListSOs = async (
 ): Promise<import('./sales-orders').PagedSalesOrders> =>
     (await axios.post(`${BASE}/sales-orders/designer/my-list`, { designerId, pin, page, pageSize })).data;
 
+/** Statistik kinerja desainer (hari ini & bulan ini, WIB) — kartu "Hore" setelah Lead Order. */
+export interface DesignerStats {
+    name: string;
+    today: { date: string; so: number; items: number };
+    yesterdaySameTime: { so: number };
+    month: { key: string; so: number; items: number; invoiced: number; activeDays: number };
+    bestDay: { date: string; so: number; previousBest: number } | null;
+    streak: number;
+}
+
+export const designerMyStats = async (designerId: number, pin: string): Promise<DesignerStats> =>
+    (await axios.post(`${BASE}/sales-orders/designer/my-stats`, { designerId, pin })).data;
+
 /** Daftar customer terdaftar (public, nama+HP saja) */
 export const getPublicCustomers = async (): Promise<{ id: number; name: string; phone: string | null; address: string | null }[]> =>
     (await axios.get(`${BASE}/customers/public`)).data;
