@@ -4,7 +4,7 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
     DndContext, DragEndEvent, DragOverlay, DragStartEvent,
-    PointerSensor, TouchSensor, useSensor, useSensors,
+    MouseSensor, TouchSensor, useSensor, useSensors,
     rectIntersection, MeasuringStrategy,
     useDroppable, useDraggable,
 } from "@dnd-kit/core";
@@ -42,12 +42,14 @@ export function LeadKanbanBoard({ leads, onCardClick, onStatusChange }: Props) {
     const [mounted, setMounted] = useState(false);
     useEffect(() => setMounted(true), []);
 
-    // Sama persis dengan pipeline produksi (drag-drop yang mulus):
-    // - PointerSensor distance 8 → tap = buka detail, geser 8px = drag
-    // - TouchSensor delay 200ms → di HP, tahan dulu baru drag (scroll tetap jalan)
+    // - MouseSensor distance 8 → di komputer: klik = buka detail, geser 8px = drag
+    // - TouchSensor delay 500ms → di HP: TAHAN kartu min. ½ detik baru bisa digeser (lebih lama tetap boleh);
+    //   usap biasa = scroll.
+    // JANGAN pakai PointerSensor: event pointer juga dipicu jari, jadi usapan scroll 8px langsung
+    // dianggap drag (delay TouchSensor terlewati) → kartu ikut terseret saat scroll di HP.
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-        useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+        useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 500, tolerance: 8 } }),
     );
 
     const grouped = useMemo(() => {
@@ -158,12 +160,19 @@ const Column = memo(function Column({
 // Wrapper draggable tipis. Sama seperti pipeline: SELURUH kartu jadi drag source
 // (bukan cuma grip). useDraggable subscribe ke DnD context → re-render tiap
 // pointer move; tapi render-nya cuma <div>, murah. Konten berat (KanbanCardView)
-// di-memo terpisah → tidak re-render selama drag. touchAction:none supaya di HP
-// tidak scroll saat drag.
+// di-memo terpisah → tidak re-render selama drag. touch-action: manipulation (BUKAN none)
+// supaya usapan di atas kartu tetap men-scroll halaman; setelah tahan-geser aktif, TouchSensor
+// yang mencegah scroll. Tahan LAMA tidak boleh memicu aksi bawaan browser (pilih teks, menu gambar,
+// seret gambar bawaan) — itu membatalkan sentuhan (touchcancel) sehingga kartu tak bisa dipindah:
+// select-none + touch-callout none, contextmenu dicegah, dan <img> di kartu tidak bisa disentuh/diseret
+// (tap kartu tetap membuka detail lewat pembungkus gambar).
 const KanbanCard = memo(function KanbanCard({ lead, isActive, onClick }: { lead: Lead; isActive: boolean; onClick: () => void }) {
     const { attributes, listeners, setNodeRef } = useDraggable({ id: String(lead.id) });
     return (
-        <div ref={setNodeRef} {...attributes} {...listeners} style={{ touchAction: "none" }}>
+        <div ref={setNodeRef} {...attributes} {...listeners}
+            onContextMenu={(e) => e.preventDefault()}
+            className="select-none [&_img]:pointer-events-none"
+            style={{ touchAction: "manipulation", WebkitTouchCallout: "none", WebkitUserSelect: "none" }}>
             <KanbanCardView lead={lead} onClick={onClick} isDragging={isActive} />
         </div>
     );
