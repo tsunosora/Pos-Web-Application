@@ -611,7 +611,7 @@ export interface WaAnalytics {
 }
 
 export interface WaBenchmarkAgent {
-    userId: number; name: string; roleName?: string | null; isDesigner?: boolean;
+    userId: number; name: string; roleName?: string | null; isDesigner?: boolean; isOperator?: boolean; isManagement?: boolean;
     responses: number; avgSec: number; medianSec: number; fastestSec: number; withinSlaPct: number;
 }
 export interface WaBenchmarkOverall { responses: number; avgSec: number; medianSec: number }
@@ -619,8 +619,12 @@ export interface WaCsBenchmark {
     agents: WaBenchmarkAgent[];         // semua (kompat)
     csAgents?: WaBenchmarkAgent[];      // non-desainer (CS murni) — absen di backend lama
     designerAgents?: WaBenchmarkAgent[]; // desainer (dipisah) — absen di backend lama
+    operatorAgents?: WaBenchmarkAgent[]; // operator (dipisah) — absen di backend lama
+    managementAgents?: WaBenchmarkAgent[]; // owner & manajer (dipisah) — absen di backend lama
     overall: WaBenchmarkOverall;        // CS saja (backend baru) / semua (backend lama)
     overallDesigner?: WaBenchmarkOverall;
+    overallOperator?: WaBenchmarkOverall;
+    overallManagement?: WaBenchmarkOverall;
     slaMinutes: number;
 }
 export const getWaCsBenchmark = async (params: { from?: string; to?: string; channelId?: number; slaMinutes?: number } = {}): Promise<WaCsBenchmark> =>

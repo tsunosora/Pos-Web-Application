@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { isDesignerRole } from './wa-roles.util';
+import { isDesignerRole, isManagementRole, isOperatorRole } from './wa-roles.util';
 
 export interface AnalyticsQuery {
     from?: string;
@@ -34,6 +34,20 @@ export function pivotSeries(rows: Array<{ d: any; direction: string; c: any }>, 
     }
     return [...map.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
+
+type WaAgentGroup = 'CS' | 'DESIGNER' | 'OPERATOR' | 'MANAGEMENT';
+const WA_AGENT_GROUPS: WaAgentGroup[] = ['CS', 'DESIGNER', 'OPERATOR', 'MANAGEMENT'];
+
+/**
+ * Grup balas WA sebuah peran: Desainer → Operator → Owner/Manajer → sisanya CS.
+ * Peran CS di sistem ini tak bernama "CS" (umumnya "Admin"), jadi CS tak bisa
+ * dicocokkan langsung dari nama peran; CS = bukan salah satu dari tiga grup lain.
+ */
+const waAgentGroup = (roleName?: string | null): WaAgentGroup =>
+    isDesignerRole(roleName) ? 'DESIGNER'
+    : isOperatorRole(roleName) ? 'OPERATOR'
+    : isManagementRole(roleName) ? 'MANAGEMENT'
+    : 'CS';
 
 @Injectable()
 export class AnalyticsService {
@@ -171,13 +185,18 @@ export class AnalyticsService {
      * (jarak awal burst pesan masuk → balasan manusia pertama). Dipakai bersama
      * oleh csBenchmark & waCsMetricsByUser (leaderboard).
      */
-    /** Peta userId → apakah role desainer (untuk pending FRT terpisah CS vs Desainer). */
-    private async isDesignerByUserId(senderIds: number[]): Promise<Map<number, boolean>> {
+    /**
+     * Peta userId → grup balas WA (CS / Desainer / Operator / Owner-Manajer). Tiap grup punya
+     * pending FRT sendiri. Operator & Owner/Manajer DIPISAH seperti desainer: sebelumnya hanya
+     * desainer yang dipisah, sehingga operator & owner yang ikut membalas di inbox masuk tabel
+     * "Kecepatan balas CS" dan balasannya mengonsumsi pending CS (FRT CS tercemar).
+     */
+    private async groupByUserId(senderIds: number[]): Promise<Map<number, WaAgentGroup>> {
         const ids = [...new Set(senderIds)];
         const users = ids.length
             ? await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, role: { select: { name: true } } } })
             : [];
-        return new Map(users.map((u) => [u.id, isDesignerRole(u.role?.name)]));
+        return new Map(users.map((u) => [u.id, waAgentGroup(u.role?.name)]));
     }
 
     private async frtByAgent(fromDate: Date, toDate: Date, channelId?: number): Promise<Map<number, number[]>> {
@@ -188,35 +207,32 @@ export class AnalyticsService {
             select: { conversationId: true, direction: true, sentById: true, createdAt: true },
             orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
         });
-        const desById = await this.isDesignerByUserId(msgs.filter((m) => m.sentById != null).map((m) => m.sentById!));
+        const groupById = await this.groupByUserId(msgs.filter((m) => m.sentById != null).map((m) => m.sentById!));
 
         const perAgent = new Map<number, number[]>();
         let curConv = -1;
-        // Pending burst DIPISAH per grup: balasan desainer tak "mengklaim" burst CS (dan sebaliknya).
-        let pendingCs: Date | null = null;
-        let pendingDes: Date | null = null;
+        // Pending burst DIPISAH per grup (CS / Desainer / Operator / Owner-Manajer): balasan
+        // satu grup tak "mengklaim" burst milik grup lain.
+        const pending: Record<WaAgentGroup, Date | null> = { CS: null, DESIGNER: null, OPERATOR: null, MANAGEMENT: null };
         for (const m of msgs) {
             if (m.conversationId !== curConv) {
                 curConv = m.conversationId;
-                pendingCs = null;
-                pendingDes = null;
+                for (const g of WA_AGENT_GROUPS) pending[g] = null;
             }
             if (m.direction === 'INBOUND') {
-                if (!pendingCs) pendingCs = m.createdAt;
-                if (!pendingDes) pendingDes = m.createdAt;
+                for (const g of WA_AGENT_GROUPS) if (!pending[g]) pending[g] = m.createdAt;
             } else {
                 if (m.sentById == null) continue; // auto-reply/sistem → tak dinilai
-                const des = desById.get(m.sentById) ?? false;
-                const pending = des ? pendingDes : pendingCs;
-                if (pending) {
-                    const sec = (m.createdAt.getTime() - pending.getTime()) / 1000;
+                const group = groupById.get(m.sentById) ?? 'CS';
+                const since = pending[group];
+                if (since) {
+                    const sec = (m.createdAt.getTime() - since.getTime()) / 1000;
                     if (sec >= 0) {
                         const arr = perAgent.get(m.sentById) ?? [];
                         arr.push(sec);
                         perAgent.set(m.sentById, arr);
                     }
-                    if (des) pendingDes = null;
-                    else pendingCs = null;
+                    pending[group] = null;
                 }
             }
         }
@@ -271,10 +287,10 @@ export class AnalyticsService {
             select: { conversationId: true, direction: true, sentById: true, createdAt: true },
             orderBy: [{ conversationId: 'asc' }, { id: 'asc' }],
         });
-        // Konsisten dgn frtByAgent: hanya balasan dari GRUP yang sama (CS vs Desainer)
+        // Konsisten dgn frtByAgent: hanya balasan dari GRUP yang sama (CS / Desainer / Operator / Owner-Manajer)
         // yang mengonsumsi pending. Balasan grup lain diabaikan (tak mereset).
-        const desById = await this.isDesignerByUserId([userId, ...msgs.filter((m) => m.sentById != null).map((m) => m.sentById!)]);
-        const targetIsDesigner = desById.get(userId) ?? false;
+        const groupById = await this.groupByUserId([userId, ...msgs.filter((m) => m.sentById != null).map((m) => m.sentById!)]);
+        const targetGroup = groupById.get(userId) ?? 'CS';
 
         const responses: Array<{ conversationId: number; replyAt: Date; responseSec: number }> = [];
         let curConv = -1;
@@ -288,7 +304,7 @@ export class AnalyticsService {
                 if (!pending) pending = m.createdAt;
             } else {
                 if (m.sentById == null) continue;
-                if ((desById.get(m.sentById) ?? false) !== targetIsDesigner) continue; // grup beda → abaikan
+                if ((groupById.get(m.sentById) ?? 'CS') !== targetGroup) continue; // grup beda → abaikan
                 if (pending) {
                     if (m.sentById === userId) {
                         responses.push({
@@ -346,7 +362,10 @@ export class AnalyticsService {
                     userId: id,
                     name: info?.name ?? `User ${id}`,
                     roleName: info?.roleName ?? null,
-                    isDesigner: isDesignerRole(info?.roleName),
+                    group: waAgentGroup(info?.roleName),
+                    isDesigner: isDesignerRole(info?.roleName), // kompat frontend lama
+                    isOperator: waAgentGroup(info?.roleName) === 'OPERATOR',
+                    isManagement: waAgentGroup(info?.roleName) === 'MANAGEMENT',
                     responses: arr.length,
                     avgSec: Math.round(arr.reduce((a, b) => a + b, 0) / arr.length),
                     medianSec: Math.round(median(arr)),
@@ -365,15 +384,21 @@ export class AnalyticsService {
             };
         };
 
-        // Opsi 2: benchmark desainer DIPISAH dari CS (metrik CS tetap murni).
-        const csAgents = agents.filter((a) => !a.isDesigner);
-        const designerAgents = agents.filter((a) => a.isDesigner);
+        // Desainer, Operator, & Owner/Manajer DIPISAH dari CS (metrik CS tetap murni).
+        const csAgents = agents.filter((a) => a.group === 'CS');
+        const designerAgents = agents.filter((a) => a.group === 'DESIGNER');
+        const operatorAgents = agents.filter((a) => a.group === 'OPERATOR');
+        const managementAgents = agents.filter((a) => a.group === 'MANAGEMENT');
         return {
             agents, // semua (kompat lama)
             csAgents,
             designerAgents,
+            operatorAgents,
+            managementAgents,
             overall: overallFor(csAgents.map((a) => a.userId)), // CS saja
             overallDesigner: overallFor(designerAgents.map((a) => a.userId)),
+            overallOperator: overallFor(operatorAgents.map((a) => a.userId)),
+            overallManagement: overallFor(managementAgents.map((a) => a.userId)),
             slaMinutes,
         };
     }

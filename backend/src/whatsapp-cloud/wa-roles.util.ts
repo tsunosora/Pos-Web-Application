@@ -16,6 +16,24 @@ export function isOperatorRole(roleName?: string | null): boolean {
     return norm(roleName).includes('operator');
 }
 
+/**
+ * Owner / manajemen — SAMA dengan heuristik `isManager` di frontend (useCurrentUser.ts):
+ * nama owner persis, "pemilik", atau memuat manajer/manager/supervisor/kepala.
+ * Sengaja TIDAK memuat "admin": staf CS di sistem ini berperan "Admin".
+ */
+const OWNER_ROLE_NAMES = ['owner', 'superadmin', 'super_admin', 'super admin'];
+export function isManagementRole(roleName?: string | null): boolean {
+    const n = norm(roleName);
+    return (
+        OWNER_ROLE_NAMES.includes(n) ||
+        n === 'pemilik' ||
+        n.includes('manajer') ||
+        n.includes('manager') ||
+        n.includes('supervisor') ||
+        n.includes('kepala')
+    );
+}
+
 /** Role yang inbox-nya DIBATASI ke "milik saya + belum di-assign" (bukan lihat semua). */
 export function isScopedInboxRole(roleName?: string | null): boolean {
     return isDesignerRole(roleName) || isOperatorRole(roleName);

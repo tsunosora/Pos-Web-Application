@@ -113,7 +113,7 @@ function CsBenchmarkSection({ from, channelId }: { from: string; channelId: numb
             </div>
             <p className="text-xs opacity-60">
                 First Response Time: waktu dari pesan masuk pelanggan sampai balasan <b>manusia</b> pertama. Dinilai ke agen yang mengirim balasan; auto-reply tak dihitung.
-                Metrik <b>Desainer dipisah</b> agar CS tetap murni.
+                Metrik <b>Desainer</b>, <b>Operator</b>, dan <b>Owner/Manajer</b> dipisah agar CS tetap murni.
             </p>
             {isLoading ? (
                 <p className="text-sm opacity-60">Memuat…</p>
@@ -125,13 +125,23 @@ function CsBenchmarkSection({ from, channelId }: { from: string; channelId: numb
                 const emptyOverall = { responses: 0, avgSec: 0, medianSec: 0 };
                 const csAgents = data.csAgents ?? data.agents ?? [];
                 const designerAgents = data.designerAgents ?? [];
+                const operatorAgents = data.operatorAgents ?? [];
+                const managementAgents = data.managementAgents ?? [];
                 const overallCs = data.overall ?? emptyOverall;
                 const overallDes = data.overallDesigner ?? emptyOverall;
+                const overallOp = data.overallOperator ?? emptyOverall;
+                const overallMgmt = data.overallManagement ?? emptyOverall;
                 return (
                     <div className="space-y-4">
                         <BenchmarkTable title="CS" agents={csAgents} overall={overallCs} slaMinutes={data.slaMinutes} />
                         {designerAgents.length > 0 && (
                             <BenchmarkTable title="Desainer" agents={designerAgents} overall={overallDes} slaMinutes={data.slaMinutes} />
+                        )}
+                        {operatorAgents.length > 0 && (
+                            <BenchmarkTable title="Operator" agents={operatorAgents} overall={overallOp} slaMinutes={data.slaMinutes} />
+                        )}
+                        {managementAgents.length > 0 && (
+                            <BenchmarkTable title="Owner/Manajer" agents={managementAgents} overall={overallMgmt} slaMinutes={data.slaMinutes} />
                         )}
                     </div>
                 );

@@ -1,4 +1,4 @@
-import { isDesignerRole, roleCanInbox } from './wa-roles.util';
+import { isDesignerRole, isManagementRole, roleCanInbox } from './wa-roles.util';
 
 describe('wa-roles.util', () => {
     describe('isDesignerRole', () => {
@@ -7,6 +7,15 @@ describe('wa-roles.util', () => {
         });
         it.each(['CS', 'Kasir', 'Operator', '', null])('tidak cocok: %s', (r) => {
             expect(isDesignerRole(r as any)).toBe(false);
+        });
+    });
+
+    describe('isManagementRole', () => {
+        it.each(['Owner', 'Super Admin', 'superadmin', 'Pemilik', 'Manajer', 'Manager Toko', 'Supervisor', 'Kepala Cabang'])('cocok: %s', (r) => {
+            expect(isManagementRole(r)).toBe(true);
+        });
+        it.each(['Admin', 'CS', 'Customer Service', 'Operator', 'Desainer', 'Kasir', '', null])('tidak cocok: %s', (r) => {
+            expect(isManagementRole(r as any)).toBe(false);
         });
     });
 
