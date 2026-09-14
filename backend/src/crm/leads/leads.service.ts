@@ -153,6 +153,81 @@ export class LeadsService {
         return { items, total, page, limit };
     }
 
+    /**
+     * Data lead utk export offline (CSV/Excel/PDF): filter sama dgn list + multi-status (kolom pipeline)
+     * & basis tanggal (masuk / closing), detail lengkap (item, CS, SO, aktivitas terakhir). Maks 20.000 baris.
+     */
+    async exportRows(ctx: BranchContext, params: {
+        statuses?: string[];
+        source?: string;
+        level?: string;
+        assignedToId?: number;
+        dateFrom?: string;
+        dateTo?: string;
+        dateField?: 'created' | 'closed';
+        search?: string;
+        countOnly?: boolean;
+    }) {
+        const where: Prisma.LeadWhereInput = { ...branchWhere(ctx) };
+        const VALID: LeadStatus[] = ['NEW', 'FOLLOW_UP', 'NEGOTIATION', 'CLOSED_WON', 'CLOSED_LOST', 'INVALID'];
+        const statuses = (params.statuses ?? []).map((x) => x.trim().toUpperCase()).filter((x): x is LeadStatus => VALID.includes(x as LeadStatus));
+        if (statuses.length) where.status = { in: statuses };
+        if (params.source) where.source = params.source as any;
+        if (params.assignedToId) where.assignedToId = params.assignedToId;
+        if (params.level) where.level = params.level as any;
+        if (params.dateFrom || params.dateTo) {
+            // Semantik tanggal sama dgn list() supaya hasil export = yang tampil di halaman.
+            const range: Prisma.DateTimeFilter = {};
+            if (params.dateFrom) range.gte = new Date(params.dateFrom);
+            if (params.dateTo) {
+                const to = new Date(params.dateTo);
+                to.setHours(23, 59, 59, 999);
+                range.lte = to;
+            }
+            if (params.dateField === 'closed') where.closedAt = range;
+            else where.createdAt = range;
+        }
+        if (params.search) {
+            const norm = normalizePhone(params.search);
+            where.OR = [
+                { name: { contains: params.search } },
+                { phoneNormalized: norm ? { contains: norm } : undefined },
+                { city: { contains: params.search } },
+                { needs: { contains: params.search } },
+            ].filter(Boolean) as any;
+        }
+
+        const total = await this.prisma.lead.count({ where });
+        if (params.countOnly) return { total };
+
+        const MAX_ROWS = 20000;
+        const rows = await this.prisma.lead.findMany({
+            where,
+            orderBy: [{ createdAt: 'desc' }],
+            take: MAX_ROWS,
+            // select eksplisit: hanya kolom yg diekspor (tanpa ctwaClid/adReferral mentah) → payload ringan.
+            select: {
+                id: true, name: true, phone: true, city: true, source: true, sourceDetail: true, adCampaignName: true,
+                status: true, level: true, needs: true, estimatedValue: true, intakeAt: true, createdAt: true,
+                firstResponseAt: true, followUpDate: true, deliveryDeadline: true, closedAt: true, closeLostReason: true,
+                designerName: true, designVerdict: true, updatedAt: true,
+                assignedTo: { select: { id: true, name: true } },
+                createdBy: { select: { id: true, name: true } },
+                branch: { select: { id: true, name: true, code: true } },
+                convertedCustomer: { select: { id: true, name: true, phone: true } },
+                convertedSO: { select: { id: true, soNumber: true } },
+                adLabel: { select: { id: true, name: true } },
+                items: {
+                    orderBy: { id: 'asc' },
+                    select: { description: true, quantity: true, unitPrice: true, widthCm: true, heightCm: true, unitType: true, note: true },
+                },
+                activities: { orderBy: { createdAt: 'desc' }, take: 1, select: { kind: true, text: true, createdAt: true } },
+                _count: { select: { activities: true } },
+            },
+        });
+        return { total, truncated: total > rows.length, rows };
+    }
+
     /** Status summary untuk badge + dashboard. */
     async statusSummary(ctx: BranchContext) {
         const grouped = await this.prisma.lead.groupBy({

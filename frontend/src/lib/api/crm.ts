@@ -255,6 +255,28 @@ export const getLeads = async (params?: {
 export const getLeadStatusSummary = async (): Promise<Record<LeadStatus, number>> =>
     (await api.get('/crm/leads/status-summary')).data;
 
+// ── Export data lead (CSV / Excel / PDF) ──
+export interface LeadExportParams {
+    statuses?: LeadStatus[];          // kolom pipeline; kosong = semua
+    source?: LeadSource;
+    level?: LeadLevel;
+    assignedToId?: number;
+    dateFrom?: string;                // YYYY-MM-DD
+    dateTo?: string;
+    dateField?: 'created' | 'closed'; // basis tanggal: masuk / closing
+    search?: string;
+}
+export interface LeadExportResult { total: number; truncated?: boolean; rows?: any[] }
+/** Data lead lengkap utk export; countOnly = hanya jumlah (pratinjau). Owner/Admin/Manajer. */
+export const getLeadsExport = async (params: LeadExportParams, countOnly = false): Promise<LeadExportResult> =>
+    (await api.get('/crm/leads/export', {
+        params: {
+            ...params,
+            statuses: params.statuses?.length ? params.statuses.join(',') : undefined,
+            countOnly: countOnly ? '1' : undefined,
+        },
+    })).data;
+
 export const getLead = async (id: number): Promise<Lead> =>
     (await api.get(`/crm/leads/${id}`)).data;
 

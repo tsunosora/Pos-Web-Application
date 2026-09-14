@@ -1,5 +1,5 @@
 import {
-    BadRequestException,
+    BadRequestException, ForbiddenException,
     Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, Req,
     UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
@@ -18,6 +18,13 @@ import { compressImage } from '../../common/utils/compress-image.util';
 
 const LEAD_IMG_DIR = './public/uploads';
 try { fs.mkdirSync(LEAD_IMG_DIR, { recursive: true }); } catch { /* ignore */ }
+/** Export massal data pelanggan (PII) hanya utk Owner/Admin/Manajer — sama dgn isOwner/isManager di frontend. */
+function canExportLeads(roleName?: string | null): boolean {
+    const n = String(roleName ?? '').trim().toLowerCase();
+    return ['owner', 'pemilik', 'superadmin', 'super_admin', 'super admin', 'admin'].includes(n)
+        || /manajer|manager|supervisor|kepala/.test(n);
+}
+
 const randomHex = () => Array(32).fill(null).map(() => Math.round(Math.random() * 16).toString(16)).join('');
 
 @UseGuards(JwtAuthGuard)
@@ -50,6 +57,37 @@ export class LeadsController {
     @Get('status-summary')
     statusSummary(@CurrentBranch() ctx: BranchContext) {
         return this.leads.statusSummary(ctx);
+    }
+
+    /**
+     * Export data lead (CSV/Excel/PDF dibuat di frontend) — detail lengkap tanpa paginasi.
+     * statuses = kolom pipeline (koma), dateField = basis tanggal (created | closed), countOnly=1 = hitung saja.
+     * HARUS di atas @Get(':id') supaya "export" tidak dibaca sebagai id.
+     */
+    @Get('export')
+    exportLeads(
+        @Req() req: any,
+        @CurrentBranch() ctx: BranchContext,
+        @Query('statuses') statuses?: string,
+        @Query('source') source?: string,
+        @Query('assignedToId') assignedToId?: string,
+        @Query('level') level?: string,
+        @Query('dateFrom') dateFrom?: string,
+        @Query('dateTo') dateTo?: string,
+        @Query('dateField') dateField?: string,
+        @Query('search') search?: string,
+        @Query('countOnly') countOnly?: string,
+    ) {
+        if (!canExportLeads(req.user?.roleName)) {
+            throw new ForbiddenException('Export data lead hanya untuk Owner/Admin/Manajer.');
+        }
+        return this.leads.exportRows(ctx, {
+            statuses: statuses ? statuses.split(',') : undefined,
+            source, level, dateFrom, dateTo, search,
+            assignedToId: assignedToId ? +assignedToId : undefined,
+            dateField: dateField === 'closed' ? 'closed' : 'created',
+            countOnly: countOnly === '1',
+        });
     }
 
     @Get(':id')

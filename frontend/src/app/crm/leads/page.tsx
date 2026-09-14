@@ -20,9 +20,10 @@ import {
     Plus, Search, X, Phone, MessageSquare, Calendar, MapPin, Sparkles, Trash2,
     Loader2, ChevronRight, ChevronLeft, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
     CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays, Link2, Unlink, Palette,
-    Receipt, Package,
+    Receipt, Package, Download,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
+import { LeadExportModal } from "@/components/crm/LeadExportModal";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
@@ -151,6 +152,10 @@ export default function LeadsPage() {
     const [formOpen, setFormOpen] = useState(false);
     const [editingLead, setEditingLead] = useState<Lead | null>(null);
     const [detailId, setDetailId] = useState<number | null>(null);
+    const [exportOpen, setExportOpen] = useState(false);
+    const me = useCurrentUser();
+    // Export massal data pelanggan: Owner/Admin/Manajer (sama dgn pembatasan di backend).
+    const canExport = me.isOwner || me.isManager;
 
     const dateRange = datePreset === "custom"
         ? (customDateFrom || customDateTo ? { from: customDateFrom || "", to: customDateTo || "" } : null)
@@ -250,6 +255,15 @@ export default function LeadsPage() {
                     </div>
                 </div>
                 <div className="flex gap-2 items-center">
+                    {canExport && (
+                        <button
+                            onClick={() => setExportOpen(true)}
+                            className="px-3 py-2 border border-border bg-background rounded-xl text-sm font-semibold hover:bg-accent transition-colors flex items-center gap-1.5"
+                            title="Export data lead ke CSV, Excel, atau PDF"
+                        >
+                            <Download className="h-4 w-4" /> Export
+                        </button>
+                    )}
                     <button
                         onClick={openCreate}
                         className="px-4 py-2 bg-primary text-primary-foreground rounded-xl font-semibold shadow-sm hover:opacity-90 transition-opacity flex items-center gap-2"
@@ -445,6 +459,17 @@ export default function LeadsPage() {
                         onStatusChange={(id, status) => statusMut.mutate({ id, status })}
                     />
                 </div>
+            )}
+
+            {exportOpen && (
+                <LeadExportModal
+                    initial={{
+                        status: tabStatus, datePreset, customDateFrom, customDateTo,
+                        source: filterSource, level: filterLevel, assignedToId: filterAssignedTo, search,
+                    }}
+                    users={users ?? []}
+                    onClose={() => setExportOpen(false)}
+                />
             )}
 
             {/* Form modal */}
