@@ -168,6 +168,11 @@ export default function CloseShiftPage() {
     const getTotalKasbon = () => kasbon.reduce((sum, k) => sum + (Number(k.amount) || 0), 0);
     const getCashExpenseTotal = () =>
         (structuredExpenses['CASH'] || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    // Tampilkan angka apa adanya — 0 tetap "0" supaya input `required` tidak menganggapnya
+    // kosong. Pola lama `value={x || ''}` membuat nilai 0 tampil kosong, sehingga kasir yang
+    // mengisi 0 (mis. QRIS tanpa pemasukan) tidak bisa mengirim laporan tutup shift.
+    const numValue = (n: number) => (Number.isFinite(n) ? String(n) : '');
+
     const getQrisExpenseTotal = () =>
         (structuredExpenses['QRIS'] || []).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
     const getTotalKasbonToko = () =>
@@ -625,7 +630,7 @@ export default function CloseShiftPage() {
                                             <Input
                                                 type="number" min="0" required
                                                 className="pl-9 text-right font-bold"
-                                                value={actualCash || ''}
+                                                value={numValue(actualCash)}
                                                 onChange={(e) => setActualCash(Number(e.target.value))}
                                                 placeholder="0"
                                             />
@@ -645,7 +650,7 @@ export default function CloseShiftPage() {
                                             <Input
                                                 type="number" min="0" required
                                                 className="pl-9 text-right font-bold"
-                                                value={actualQris || ''}
+                                                value={numValue(actualQris)}
                                                 onChange={(e) => setActualQris(Number(e.target.value))}
                                                 placeholder="0"
                                             />
@@ -1116,7 +1121,7 @@ export default function CloseShiftPage() {
                                                 <Input
                                                     type="number" min="0"
                                                     className="pl-9 text-right text-sm"
-                                                    value={actualQris || ''}
+                                                    value={numValue(actualQris)}
                                                     onChange={(e) => setActualQris(Number(e.target.value))}
                                                     placeholder="0"
                                                 />
@@ -1129,7 +1134,7 @@ export default function CloseShiftPage() {
                                                 <Input
                                                     type="number" min="0"
                                                     className="pl-9 text-right text-sm font-bold"
-                                                    value={realQrisBalance || ''}
+                                                    value={numValue(realQrisBalance)}
                                                     onChange={(e) => setRealQrisBalance(Number(e.target.value))}
                                                     placeholder="0"
                                                 />
