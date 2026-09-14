@@ -149,7 +149,7 @@ export function getDimLabel(item: any): string {
     if (w == null || h == null) return '';
     const u = (ti.unitType || 'm').toLowerCase();
     if (u === 'menit') return `${w} menit`;
-    return `${w} × ${h} ${u}`;
+    return `${w} × ${h} ${u === 'cm2' ? 'cm' : u}`; // cm2 = produk basis cm², ukuran dalam cm
 }
 
 export function getAreaM2(item: any): number {

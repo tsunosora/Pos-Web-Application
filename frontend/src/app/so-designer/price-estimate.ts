@@ -43,13 +43,16 @@ export function estimateLine(it: EstimableItem, entry?: { product: any; variant:
 
     if (it.pricingMode === "AREA_BASED") {
         const u = (it.unitType || "cm") as "m" | "cm" | "cm2" | "menit";
-        const basis = u === "menit" ? "/menit" : "/m²";
+        const basis = u === "menit" ? "/menit" : u === "cm2" ? "/cm²" : "/m²";
         const w = Number(it.widthCm) || 0;
         const h = u === "menit" ? 1 : Number(it.heightCm) || 0;
         const pcs = Math.max(1, Math.round(Number(it.pcs) || 1));
         const filled = w > 0 && h > 0;
         const area = filled ? computeAreaPrice(w, h, base, u) : null;
-        let detail = !area ? null : u === "menit" ? `${w} menit` : `${w}×${h} ${u === "m" ? "m" : "cm"} = ${fmtArea(area.areaM2)} m²`;
+        let detail = !area ? null
+            : u === "menit" ? `${w} menit`
+            : u === "cm2" ? `${w}×${h} cm = ${fmtArea(w * h)} cm²`
+            : `${w}×${h} ${u === "m" ? "m" : "cm"} = ${fmtArea(area.areaM2)} m²`;
         if (detail && pcs > 1) detail += ` × ${pcs} pcs`;
         if (custom) return { unitPrice: base, basis, subtotal: Number(it.customPrice), detail, tier: false, custom: true };
         return { unitPrice: base, basis, subtotal: area ? area.price * pcs : null, detail, tier: false, custom: false };

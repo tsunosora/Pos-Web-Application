@@ -11,6 +11,7 @@ export interface PickerVariant {
     pricingMode: "UNIT" | "AREA_BASED";
     sku: string;
     outOfStock: boolean;
+    areaUnit?: string; // 'CM2' = produk luas dengan harga per cm²
 }
 
 interface VariantRow {
@@ -114,6 +115,7 @@ export function ProductPicker({ products, loading, usage, onOpen, onPick }: {
                         label: `${p.name}${v.variantName ? ` — ${v.variantName}` : ""}`,
                         pricingMode: mode,
                         sku: v.sku ?? "",
+                        areaUnit: p.areaUnit ?? undefined,
                         // Unlimited (trackStock=false) tak pernah habis; sisanya cek stok agregat.
                         outOfStock: p.trackStock !== false && Number(v.stock ?? 0) <= 0,
                     },

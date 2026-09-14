@@ -47,6 +47,7 @@ interface FlatVariant {
     pricingMode: "UNIT" | "AREA_BASED";
     sku: string;
     outOfStock: boolean; // produk lacak-stok & stok agregat habis (≤ 0)
+    areaUnit?: string; // 'CM2' = harga per cm²
 }
 
 function DesignerNewSOContent() {
@@ -194,7 +195,8 @@ function DesignerNewSOContent() {
             productLabel: v.label,
             pricingMode: v.pricingMode,
             quantity: 1,
-            unitType: v.pricingMode === "AREA_BASED" ? "cm" : undefined,
+            // Produk basis cm² (harga per cm²) → satuan dikunci cm²; produk luas lain default cm.
+            unitType: v.pricingMode === "AREA_BASED" ? (v.areaUnit === "CM2" ? "cm2" : "cm") : undefined,
             pcs: v.pricingMode === "AREA_BASED" ? 1 : undefined,
         }]);
     }
@@ -304,7 +306,10 @@ function DesignerNewSOContent() {
                     quantity: Number(it.quantity) || 1,
                     widthCm: it.widthCm ?? undefined,
                     heightCm: it.heightCm ?? undefined,
-                    unitType: it.unitType ?? (mode === 'AREA_BASED' ? 'cm' : undefined),
+                    // Produk basis cm²: SO lama kadang diisi "m" (trik agar pengali pas) atau "cm" — angkanya cm, jadi dinormalkan ke cm².
+                    unitType: mode === 'AREA_BASED' && it.productVariant?.product?.areaUnit === 'CM2' && it.unitType !== 'menit'
+                        ? 'cm2'
+                        : (it.unitType ?? (mode === 'AREA_BASED' ? 'cm' : undefined)),
                     pcs: it.pcs ?? (mode === 'AREA_BASED' ? 1 : undefined),
                     customPrice: it.customPrice ?? null,
                     note: it.note ?? undefined,
@@ -618,22 +623,28 @@ function DesignerNewSOContent() {
                                         )}
                                         {it.pricingMode === "AREA_BASED" && (
                                             <>
-                                                <Field label="Satuan">
-                                                    <select value={it.unitType ?? "cm"}
-                                                        onChange={e => updateItem(it.key, { unitType: e.target.value })}
-                                                        className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
-                                                        <option value="cm">cm</option>
-                                                        <option value="m">meter</option>
-                                                        <option value="menit">menit</option>
-                                                    </select>
-                                                </Field>
-                                                <Field label={`Lebar (${it.unitType ?? "cm"})`}>
+                                                {it.unitType === "cm2" ? (
+                                                    <Field label="Satuan">
+                                                        <div className="w-full px-2 py-1 text-sm rounded border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800/70 text-slate-700 dark:text-slate-300">cm² <span className="text-xs text-slate-400">(harga per cm²)</span></div>
+                                                    </Field>
+                                                ) : (
+                                                    <Field label="Satuan">
+                                                        <select value={it.unitType ?? "cm"}
+                                                            onChange={e => updateItem(it.key, { unitType: e.target.value })}
+                                                            className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100">
+                                                            <option value="cm">cm</option>
+                                                            <option value="m">meter</option>
+                                                            <option value="menit">menit</option>
+                                                        </select>
+                                                    </Field>
+                                                )}
+                                                <Field label={`Lebar (${it.unitType === "cm2" ? "cm" : it.unitType ?? "cm"})`}>
                                                     <input type="number" min={0} step="any" value={it.widthCm ?? ""}
                                                         onChange={e => updateItem(it.key, { widthCm: Number(e.target.value) })}
                                                         className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                                                 </Field>
                                                 {it.unitType !== "menit" && (
-                                                    <Field label={`Tinggi (${it.unitType ?? "cm"})`}>
+                                                    <Field label={`Tinggi (${it.unitType === "cm2" ? "cm" : it.unitType ?? "cm"})`}>
                                                         <input type="number" min={0} step="any" value={it.heightCm ?? ""}
                                                             onChange={e => updateItem(it.key, { heightCm: Number(e.target.value) })}
                                                             className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />

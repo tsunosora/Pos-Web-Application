@@ -73,6 +73,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
       const u = item.unitType || 'm';
       let dimStr = '';
       if (u === 'menit') dimStr = `${item.widthCm} menit`;
+      else if (u === 'cm2') dimStr = `${item.widthCm}x${item.heightCm} cm = ${(Number(item.widthCm) * Number(item.heightCm)).toLocaleString('id-ID', { maximumFractionDigits: 2 })} cm²`;
       else dimStr = `${item.widthCm}x${item.heightCm} ${u} = ${item.areaM2?.toLocaleString('id-ID', { maximumFractionDigits: 4 })} m²`;
       line += `\n  Jml: ${item.qty} | Dimensi: ${dimStr}`;
       if (item.pcs && item.pcs > 1) line += `\n  PCS/Kopi: ×${item.pcs}`;
@@ -150,7 +151,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
         unitTypeStr = 'Mnt';
       } else {
         dimStr = `${item.widthCm}x${item.heightCm}`;
-        unitTypeStr = u;
+        unitTypeStr = u === 'cm2' ? 'cm²' : u;
       }
     }
 

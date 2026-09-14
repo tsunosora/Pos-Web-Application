@@ -169,7 +169,7 @@ export class SalesOrdersService {
                                 orderBy: { minQty: 'asc' as const },
                                 select: { minQty: true, maxQty: true, price: true },
                             },
-                            product: { select: { id: true, name: true, pricingMode: true } },
+                            product: { select: { id: true, name: true, pricingMode: true, areaUnit: true } },
                         },
                     },
                 },
@@ -673,7 +673,7 @@ export class SalesOrdersService {
             const variantName = it.productVariant?.variantName ? ` — ${it.productVariant.variantName}` : '';
             let dim = '';
             if (it.widthCm && it.heightCm) {
-                const u = it.unitType || 'm';
+                const u = it.unitType === 'cm2' ? 'cm' : (it.unitType || 'm'); // cm2 = produk basis cm², ukuran dalam cm
                 dim = ` [${it.widthCm}×${it.heightCm}${u}]`;
             }
             const pcsStr = it.pcs && it.pcs > 1 ? ` ×${it.pcs}pcs` : '';

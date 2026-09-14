@@ -288,6 +288,7 @@ function POSPageContent() {
                     id: pv.product.id,
                     name: pv.product.name,
                     pricingMode: pv.product.pricingMode,
+                    areaUnit: pv.product.areaUnit,
                     trackStock: false, // produk terarsip: jangan blokir stok saat re-order
                 };
                 variant = {
@@ -313,7 +314,10 @@ function POSPageContent() {
                 addItem(product, variant, {
                     widthCm: Number(it.widthCm),
                     heightCm: it.unitType === 'menit' ? 1 : Number(it.heightCm),
-                    unitType: (it.unitType as 'm' | 'cm' | 'cm2' | 'menit') || 'cm',
+                    // Produk basis cm²: angka ukuran di SO selalu cm (SO lama sering diisi "m" agar pengali pas) → hitung per cm².
+                    unitType: product.areaUnit === 'CM2' && it.unitType !== 'menit'
+                        ? 'cm2'
+                        : ((it.unitType as 'm' | 'cm' | 'cm2' | 'menit') || 'cm'),
                     note: it.note || undefined,
                     pcs: it.pcs ? Number(it.pcs) : 1,
                 });
@@ -1091,6 +1095,8 @@ function POSPageContent() {
                                                         <Ruler className="w-3 h-3" />
                                                         {item.unitType === 'menit'
                                                             ? `${item.widthCm} unit`
+                                                            : item.unitType === 'cm2'
+                                                            ? `${item.widthCm}×${item.heightCm} cm = ${((item.widthCm || 0) * (item.heightCm || 0)).toLocaleString('id-ID', { maximumFractionDigits: 2 })} cm²`
                                                             : item.unitType === 'cm'
                                                             ? `${item.widthCm}×${item.heightCm} cm = ${(item.areaM2 || 0).toLocaleString('id-ID', { maximumFractionDigits: 4 })} m²`
                                                             : `${item.widthCm}×${item.heightCm} m = ${item.areaM2?.toLocaleString('id-ID')} m²`}
@@ -2165,7 +2171,7 @@ function POSPageContent() {
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-medium truncate">{item.name}</p>
                                             {item.pricingMode === 'AREA_BASED'
-                                                ? <p className="text-xs text-muted-foreground">{item.unitType === 'menit' ? `${item.widthCm} unit` : `${item.widthCm}×${item.heightCm} ${item.unitType || 'm'} = ${item.areaM2?.toFixed(4)} ${item.unitType === 'm' || item.unitType === 'cm' ? 'm²' : 'unit'}`}{item.note ? ` • ${item.note}` : ''}</p>
+                                                ? <p className="text-xs text-muted-foreground">{item.unitType === 'menit' ? `${item.widthCm} unit` : item.unitType === 'cm2' ? `${item.widthCm}×${item.heightCm} cm = ${(Number(item.widthCm) * Number(item.heightCm)).toLocaleString('id-ID', { maximumFractionDigits: 2 })} cm²` : `${item.widthCm}×${item.heightCm} ${item.unitType || 'm'} = ${item.areaM2?.toFixed(4)} ${item.unitType === 'm' || item.unitType === 'cm' ? 'm²' : 'unit'}`}{item.note ? ` • ${item.note}` : ''}</p>
                                                 : <p className="text-xs text-muted-foreground">×{item.qty} @ Rp {item.pricePerUnit.toLocaleString('id-ID')}{item.basePrice != null && item.pricePerUnit !== item.basePrice ? <span className="ml-1 text-orange-500 font-semibold">tier</span> : null}</p>
                                             }
                                             {item.note && <p className="text-xs whitespace-pre-wrap break-words"><span className="font-semibold">Catatan:</span> {item.note}</p>}

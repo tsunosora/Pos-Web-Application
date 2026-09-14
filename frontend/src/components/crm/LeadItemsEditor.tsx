@@ -21,7 +21,8 @@ export function calcItemSubtotal(item: { quantity?: number; unitPrice?: number; 
         return qty * w * price;
     }
     if (w > 0 && h > 0) {
-        const areaM2 = item.unitType === "m" ? w * h : (w * h) / 10000;
+        // "cm2" = produk basis cm² (harga per cm²) → pengali P×L tanpa ÷10.000, sama dgn backend.
+        const areaM2 = item.unitType === "m" || item.unitType === "cm2" ? w * h : (w * h) / 10000;
         return qty * areaM2 * price;
     }
     return qty * price;
@@ -264,11 +265,12 @@ export function LeadItemsEditor({ items, onChange }: Props) {
                                         </div>
                                         <div>
                                             <label className="text-[10px] text-muted-foreground">Satuan</label>
-                                            <select value={unit}
+                                            <select value={it.unitType === "cm2" ? "cm2" : unit}
                                                 onChange={(e) => updateItem(idx, { unitType: e.target.value })}
                                                 className="w-full border border-border rounded px-2 py-1 text-xs font-mono bg-background text-foreground">
                                                 <option value="cm">cm</option>
                                                 <option value="m">m</option>
+                                                <option value="cm2">cm²</option>
                                             </select>
                                         </div>
                                     </div>
