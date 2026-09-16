@@ -13,10 +13,12 @@ import {
   BadRequestException,
   ForbiddenException,
   Req,
+  Res,
   ParseIntPipe,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
+import type { Response } from 'express';
 import { extname } from 'path';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentBranch } from '../common/branch-context.decorator';
@@ -45,12 +47,94 @@ import {
   MoveTaskItemDto,
   CreateGroupDto,
   UpdateGroupDto,
+  ShiftCheckinDto,
+  CreateWarningDto,
+  AckWarningsDto,
+  SetTrialDto,
 } from './task-board.dto';
+import { TaskPiketService } from './task-piket.service';
+import { sendPiketPdf } from './piket-pdf.render';
 
 @UseGuards(JwtAuthGuard)
 @Controller('task-board')
 export class TaskBoardController {
-  constructor(private readonly svc: TaskBoardService) {}
+  constructor(
+    private readonly svc: TaskBoardService,
+    private readonly piket: TaskPiketService,
+  ) {}
+
+  // Piket harian — selalu data milik user yang login (bukan orang lain).
+  @Get('my-day')
+  myDay(@Req() req: any) {
+    return this.piket.myDay(req.user.userId);
+  }
+
+  @Post('checkin')
+  checkin(@Req() req: any, @Body() dto: ShiftCheckinDto) {
+    return this.piket.checkin(req.user.userId, dto.shift);
+  }
+
+  @Get('warnings/mine')
+  myWarnings(@Req() req: any) {
+    return this.piket.myWarnings(req.user.userId);
+  }
+
+  @Post('warnings/ack')
+  ackWarnings(@Req() req: any, @Body() dto: AckWarningsDto) {
+    return this.piket.ackWarnings(req.user.userId, dto.ids);
+  }
+
+  @Get('reminders/mine')
+  myReminders(@Req() req: any) {
+    return this.piket.myUpcoming(req.user.userId);
+  }
+
+  @Get('today/mine')
+  myToday(@Req() req: any) {
+    return this.piket.myToday(req.user.userId);
+  }
+
+  // Papan piket — semua karyawan boleh melihat (tanpa teguran/catatan pribadi)
+  @Get('board')
+  board(@CurrentBranch() ctx: BranchContext) {
+    return this.piket.piketBoard(ctx.branchId);
+  }
+
+  // PDF jadwal piket — dibuat otomatis dari jadwal & giliran terbaru (semua yang login)
+  @Get('board/pdf')
+  async boardPdf(@CurrentBranch() ctx: BranchContext, @Res() res: Response) {
+    sendPiketPdf(res, await this.piket.piketPdf(ctx.branchId));
+  }
+
+  @Get('trial')
+  async trial() {
+    return { trialUntil: await this.piket.trialUntil() };
+  }
+
+  @Patch('trial')
+  setTrial(@CurrentBranch() ctx: BranchContext, @Body() dto: SetTrialDto) {
+    return this.piket.setTrial(ctx, dto.until ?? null);
+  }
+
+  // Pantau & tegur — owner/manajer (dicek di service)
+  @Post('warnings')
+  createWarning(
+    @CurrentBranch() ctx: BranchContext,
+    @Body() dto: CreateWarningDto,
+    @Req() req: any,
+  ) {
+    return this.piket.createWarning(ctx, dto, req.user.userId);
+  }
+
+  @Get('monitor')
+  monitor(@CurrentBranch() ctx: BranchContext, @Query('date') date?: string) {
+    return this.piket.monitor(ctx, date);
+  }
+
+  @Get('monitor/recap')
+  recap(@CurrentBranch() ctx: BranchContext, @Query('month') month?: string) {
+    return this.piket.recap(ctx, month);
+  }
 
   // Schedules (jadwal berulang) — manager only (dicek di service)
   @Get('schedules')

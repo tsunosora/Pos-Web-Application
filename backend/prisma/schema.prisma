@@ -688,6 +688,8 @@ model StoreSettings {
   lowStockThreshold      Int       @default(5) @map("low_stock_threshold")
   shiftReminderTime      String?   @map("shift_reminder_time") @db.VarChar(5)
   shiftReminderTime2     String?   @map("shift_reminder_time_2") @db.VarChar(5)
+  // Piket: sampai tanggal ini ("YYYY-MM-DD") = masa uji coba → tanpa teguran otomatis & tak dihitung rekap.
+  piketTrialUntil        String?   @map("piket_trial_until") @db.VarChar(10)
   notifyGithubCommit     Boolean   @default(true) @map("notify_github_commit")
   discordWebhookUrl      String?   @map("discord_webhook_url") @db.Text
   githubWebhookSecret    String?   @map("github_webhook_secret") @db.VarChar(200)
@@ -1590,9 +1592,13 @@ model Designer {
   branchName String?  @map("branch_name") @db.VarChar(100) // nama cabang desainer ini (untuk auto-tag SO)
   branchId   Int?     @map("branch_id") // FK cabang home desainer — atribusi leaderboard (resolve dari branchName)
   isActive   Boolean  @default(true) @map("is_active")
+  // Akun tugas (User) orang ini → pop-up piket/teguran/pengingat di halaman ber-PIN
+  // (/so-designer, /produksi, /cetak). Null = belum terhubung.
+  userId     Int?     @map("user_id")
   createdAt  DateTime @default(now()) @map("created_at")
 
   @@index([branchId])
+  @@index([userId])
   @@map("designers")
 }
 
@@ -2674,6 +2680,12 @@ model TaskSchedule {
   startDate    DateTime? @map("start_date")
   endDate      DateTime? @map("end_date")
   isActive     Boolean   @default(true) @map("is_active")
+  // Piket: "PAGI" | "KEDUA" → kartu hanya dibuat utk karyawan yang memilih shift itu
+  // hari ini (saat pilih shift, bukan cron harian). Null = jadwal biasa.
+  shiftSlot       String? @map("shift_slot") @db.VarChar(10)
+  // Giliran harian: CSV userId berurutan, berputar tiap hari kalender dihitung dari
+  // startDate. Bila diisi, target assignee/grup/divisi/semua diabaikan.
+  rotationUserIds String? @map("rotation_user_ids") @db.VarChar(255)
 
   assigneeId  Int?     @map("assignee_id") // user spesifik (personal, privat)
   groupId     Int?     @map("group_id") // grup tim kustom (beberapa karyawan terpilih)
@@ -2753,4 +2765,39 @@ model TaskGroupMember {
 
   @@unique([groupId, userId])
   @@map("task_group_members")
+}
+
+// Pilihan shift harian karyawan untuk piket. 1 baris per user per tanggal.
+model TaskShiftCheckin {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  branchId  Int?     @map("branch_id")
+  dateKey   String   @map("date_key") @db.VarChar(10) // "YYYY-MM-DD"
+  shift     String   @db.VarChar(10) // PAGI | KEDUA | LIBUR
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, dateKey])
+  @@index([branchId, dateKey])
+  @@map("task_shift_checkins")
+}
+
+// Teguran tugas ke karyawan. Pop-up hanya tampil ke user penerima.
+model TaskWarning {
+  id             Int       @id @default(autoincrement())
+  userId         Int       @map("user_id") // penerima teguran
+  branchId       Int?      @map("branch_id")
+  dateKey        String    @map("date_key") @db.VarChar(10) // hari tugas yang ditegur
+  kind           String    @db.VarChar(10) // AUTO (lewat batas) | MANUAL (owner/manajer)
+  taskItemId     Int?      @map("task_item_id") // AUTO: kartu yang ditegur
+  message        String    @db.Text
+  createdById    Int?      @map("created_by")
+  createdByName  String?   @map("created_by_name") @db.VarChar(100)
+  acknowledgedAt DateTime? @map("acknowledged_at") // ditekan "Saya mengerti"
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@unique([kind, taskItemId]) // 1 teguran otomatis per kartu; MANUAL (null) tak bentrok
+  @@index([userId, acknowledgedAt])
+  @@index([branchId, dateKey])
+  @@map("task_warnings")
 }

@@ -15,6 +15,14 @@ export class DesignersService {
         return matchBranchId(branchName, branches);
     }
 
+    /** Akun tugas (User) yang dihubungkan ke PIN ini — null = lepas. */
+    private async validUserId(userId: number | null | undefined): Promise<number | null> {
+        if (userId == null) return null;
+        const u = await (this.prisma as any).user.findUnique({ where: { id: Number(userId) }, select: { id: true, isActive: true } });
+        if (!u || !u.isActive) throw new BadRequestException('Akun tugas tidak ditemukan atau nonaktif.');
+        return u.id;
+    }
+
     /** Daftar semua desainer (admin) */
     async findAll() {
         return (this.prisma as any).designer.findMany({ orderBy: { name: 'asc' } });
@@ -43,7 +51,7 @@ export class DesignersService {
     }
 
     /** Buat desainer baru (admin) */
-    async create(data: { name: string; pin: string; branchName?: string; branchId?: number | null }) {
+    async create(data: { name: string; pin: string; branchName?: string; branchId?: number | null; userId?: number | null }) {
         if (!data.name?.trim()) throw new BadRequestException('Nama desainer wajib diisi');
         if (!data.pin?.trim()) throw new BadRequestException('PIN wajib diisi');
         const branchName = data.branchName?.trim() || null;
@@ -55,18 +63,20 @@ export class DesignersService {
                 pin: data.pin.trim(),
                 branchName,
                 branchId,
+                userId: await this.validUserId(data.userId),
             },
         });
     }
 
     /** Update desainer (admin) */
-    async update(id: number, data: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null; branchId?: number | null }) {
+    async update(id: number, data: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null; branchId?: number | null; userId?: number | null }) {
         const existing = await (this.prisma as any).designer.findUnique({ where: { id } });
         if (!existing) throw new NotFoundException('Desainer tidak ditemukan');
         const upd: any = {};
         if (data.name !== undefined) upd.name = data.name.trim();
         if (data.pin !== undefined) upd.pin = data.pin.trim();
         if (data.isActive !== undefined) upd.isActive = data.isActive;
+        if (data.userId !== undefined) upd.userId = await this.validUserId(data.userId);
         if ('branchName' in data) upd.branchName = data.branchName?.trim() || null;
         // branchId: eksplisit diutamakan; kalau hanya branchName berubah, ikut re-resolve.
         if (data.branchId !== undefined) upd.branchId = data.branchId;

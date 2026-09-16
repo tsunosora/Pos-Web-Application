@@ -9,11 +9,48 @@ import {
   Max,
   IsDateString,
   IsArray,
+  Matches,
+  MinLength,
 } from 'class-validator';
 
 const FREQ = ['ONCE', 'DAILY', 'WEEKLY', 'MONTHLY'];
 const PRIO = ['LOW', 'NORMAL', 'HIGH', 'URGENT'];
 const STATUS = ['TODO', 'IN_PROGRESS', 'DONE'];
+const SHIFT_SLOT = ['PAGI', 'KEDUA'];
+const CHECKIN_SHIFT = ['PAGI', 'KEDUA', 'LIBUR'];
+
+/** Karyawan memilih shift hari ini → checklist khusus shift itu dibuat. */
+export class ShiftCheckinDto {
+  @IsIn(CHECKIN_SHIFT) shift!: 'PAGI' | 'KEDUA' | 'LIBUR';
+}
+
+/** Teguran manual owner/manajer ke satu karyawan. */
+export class CreateWarningDto {
+  @IsInt() userId!: number;
+  @IsString() @MinLength(3) @MaxLength(2000) message!: string;
+}
+
+/** Tandai teguran sudah dibaca (tanpa ids = semua teguran milik sendiri). */
+export class AckWarningsDto {
+  @IsOptional() @IsArray() @IsInt({ each: true }) ids?: number[];
+}
+
+/** Autentikasi PIN karyawan (halaman /so-designer, /produksi, /cetak). */
+export class PinAuthDto {
+  @IsInt() designerId!: number;
+  @IsString() @MaxLength(20) pin!: string;
+}
+export class PinCheckinDto extends PinAuthDto {
+  @IsIn(CHECKIN_SHIFT) shift!: 'PAGI' | 'KEDUA' | 'LIBUR';
+}
+export class PinAckDto extends PinAuthDto {
+  @IsOptional() @IsArray() @IsInt({ each: true }) ids?: number[];
+}
+
+/** Atur tanggal akhir masa uji coba piket (null = akhiri uji coba). */
+export class SetTrialDto {
+  @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) until?: string | null;
+}
 
 export class CreateScheduleDto {
   @IsString() @MaxLength(255) title!: string;
@@ -31,6 +68,9 @@ export class CreateScheduleDto {
   @IsOptional() @IsString() @MaxLength(20) targetRole?: string;
   @IsOptional() @IsBoolean() targetAll?: boolean;
   @IsOptional() @IsInt() branchId?: number; // owner boleh set; staff diabaikan
+  @IsOptional() @IsIn(SHIFT_SLOT) shiftSlot?: string | null; // piket: hanya utk yg pilih shift ini
+  @IsOptional() @IsString() @MaxLength(255) @Matches(/^\d+(,\d+)*$/)
+  rotationUserIds?: string | null; // giliran harian "18,19,24,9" (dihitung dari startDate)
 }
 
 export class UpdateScheduleDto extends CreateScheduleDto {

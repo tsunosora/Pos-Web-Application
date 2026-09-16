@@ -28,6 +28,39 @@ export function periodKeyFor(d: Date): string {
   return `${y}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+/** Parse CSV userId giliran ("18,19,24,9") → array angka valid, urutan dipertahankan. */
+export function parseRotation(csv?: string | null): number[] {
+  return (csv || '')
+    .split(',')
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/** Selisih hari kalender lokal (b - a), aman dari pergeseran jam/DST. */
+export function daysBetween(a: Date, b: Date): number {
+  const ua = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
+  const ub = Date.UTC(b.getFullYear(), b.getMonth(), b.getDate());
+  return Math.round((ub - ua) / 86400000);
+}
+
+/**
+ * Petugas giliran harian untuk `date`: urutan berputar tiap hari kalender
+ * dihitung dari `startDate` (hari ke-0 = orang pertama). Dipakai jadwal piket
+ * bergilir, mis. 4 orang: orang ke-1 → ke-2 → ke-3 → ke-4 → ke-1 …
+ * Jadwal WEEKLY (mis. hanya Minggu) memakai hitungan hari yang SAMA, jadi
+ * petugas hari Minggu = petugas harian hari itu.
+ */
+export function rotationAssigneeOn(
+  rule: { rotationUserIds?: string | null; startDate?: Date | null },
+  date: Date,
+): number | null {
+  const ids = parseRotation(rule.rotationUserIds);
+  if (ids.length === 0 || !rule.startDate) return null;
+  const n = ids.length;
+  const idx = ((daysBetween(rule.startDate, date) % n) + n) % n;
+  return ids[idx];
+}
+
 export function matchesOn(rule: RecurrenceRule, date: Date): boolean {
   if (rule.isActive === false) return false;
   if (rule.frequency === 'ONCE') return false; // ONCE dibuat langsung, bukan via cron

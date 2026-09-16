@@ -7,7 +7,12 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
-import { matchesOn, periodKeyFor } from './recurrence.util';
+import {
+  matchesOn,
+  parseRotation,
+  periodKeyFor,
+  rotationAssigneeOn,
+} from './recurrence.util';
 import {
   CreateScheduleDto,
   UpdateScheduleDto,
@@ -59,12 +64,25 @@ export class TaskBoardService {
       );
   }
 
-  /** Resolusi daftar penerima dari sebuah target (assignee/grup/role/semua).
-   *  Mengembalikan array userId (personal). [null] = kartu cabang tanpa penerima. */
-  private async resolveTargetUserIds(
-    t: { assigneeId?: number | null; groupId?: number | null; targetRole?: string | null; targetAll?: boolean | null },
+  /** Resolusi daftar penerima dari sebuah target (giliran/assignee/grup/role/semua).
+   *  Mengembalikan array userId (personal). [null] = kartu cabang tanpa penerima.
+   *  `date` hanya dipakai jadwal giliran (petugas berganti tiap hari). */
+  async resolveTargetUserIds(
+    t: {
+      assigneeId?: number | null;
+      groupId?: number | null;
+      targetRole?: string | null;
+      targetAll?: boolean | null;
+      rotationUserIds?: string | null;
+      startDate?: Date | null;
+    },
     branchId: number | null,
+    date: Date = new Date(),
   ): Promise<(number | null)[]> {
+    if (t.rotationUserIds) {
+      const who = rotationAssigneeOn(t, date);
+      return who != null ? [who] : [];
+    }
     if (t.assigneeId) return [t.assigneeId];
     if (t.groupId) {
       const members = await this.db.taskGroupMember.findMany({
@@ -94,6 +112,44 @@ export class TaskBoardService {
     return [null];
   }
 
+  /** Validasi & normalisasi field piket (khusus shift / giliran) dari DTO jadwal. */
+  private async piketFields(
+    dto: {
+      frequency?: string;
+      shiftSlot?: string | null;
+      rotationUserIds?: string | null;
+      startDate?: string | null;
+    },
+    existing?: any,
+  ): Promise<Record<string, any>> {
+    const out: Record<string, any> = {};
+    if (dto.shiftSlot !== undefined) out.shiftSlot = dto.shiftSlot || null;
+    if (dto.rotationUserIds !== undefined) {
+      const ids = parseRotation(dto.rotationUserIds);
+      if (new Set(ids).size !== ids.length)
+        throw new BadRequestException('Satu karyawan tidak boleh muncul dua kali di daftar giliran.');
+      if (ids.length) {
+        const found = await this.db.user.count({ where: { id: { in: ids }, isActive: true } });
+        if (found !== ids.length)
+          throw new BadRequestException('Ada karyawan di daftar giliran yang tidak ditemukan atau nonaktif.');
+      }
+      out.rotationUserIds = ids.length ? ids.join(',') : null;
+    }
+    const freq = dto.frequency ?? existing?.frequency;
+    const slot = out.shiftSlot !== undefined ? out.shiftSlot : existing?.shiftSlot;
+    const rot = out.rotationUserIds !== undefined ? out.rotationUserIds : existing?.rotationUserIds;
+    if (slot && freq === 'ONCE')
+      throw new BadRequestException('Tugas khusus shift harus berulang (harian/mingguan/bulanan).');
+    if (slot && rot)
+      throw new BadRequestException('Pilih salah satu: khusus shift ATAU giliran bergilir.');
+    // Giliran butuh titik awal hitungan; default hari ini.
+    if (rot && !dto.startDate && !existing?.startDate) {
+      const t = new Date();
+      out.startDate = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+    }
+    return out;
+  }
+
   // ---- SCHEDULE (aturan berulang) ----
   listSchedules(ctx: BranchContext) {
     const where: any = {};
@@ -119,6 +175,7 @@ export class TaskBoardService {
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
     const branchId = await this.branchForAssignee(dto.assigneeId, fallback);
+    const piket = await this.piketFields(dto);
     const sched = await this.db.taskSchedule.create({
       data: {
         title: dto.title,
@@ -135,6 +192,9 @@ export class TaskBoardService {
         groupId: dto.groupId ?? null,
         targetRole: dto.targetRole ?? null,
         targetAll: dto.targetAll ?? false,
+        shiftSlot: null,
+        rotationUserIds: null,
+        ...piket,
         branchId,
         createdById: userId,
         isActive: true,
@@ -149,13 +209,15 @@ export class TaskBoardService {
 
   async updateSchedule(ctx: BranchContext, id: number, dto: UpdateScheduleDto) {
     this.assertManager(ctx);
-    await this.getScheduleScoped(ctx, id);
+    const existing = await this.getScheduleScoped(ctx, id);
+    const piket = await this.piketFields(dto, existing);
     return this.db.taskSchedule.update({
       where: { id },
       data: {
         ...dto,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
+        ...piket,
       },
     });
   }
@@ -174,10 +236,16 @@ export class TaskBoardService {
     return s;
   }
 
-  // ---- MATERIALISASI (dipakai cron & tombol "generate sekarang") ----
-  private async materializeSchedule(sched: any, date: Date): Promise<number> {
+  // ---- MATERIALISASI (dipakai cron, tombol "generate sekarang" & pilih shift) ----
+  /** `onlyUserId` = buat kartu hanya untuk user itu (dipakai saat karyawan memilih shift). */
+  async materializeSchedule(
+    sched: any,
+    date: Date,
+    onlyUserId?: number,
+  ): Promise<number> {
     const periodKey = periodKeyFor(date);
-    const assignees = await this.resolveTargetUserIds(sched, sched.branchId);
+    let assignees = await this.resolveTargetUserIds(sched, sched.branchId, date);
+    if (onlyUserId != null) assignees = assignees.filter((a) => a === onlyUserId);
     let created = 0;
     for (const assigneeId of assignees) {
       // Kartu ikut cabang penerima (untuk targetRole lintas-cabang tiap user
@@ -223,15 +291,17 @@ export class TaskBoardService {
     return this.generateDue(new Date());
   }
 
-  /** Generate semua kartu jatuh tempo utk `date` (default hari ini). Idempoten. */
+  /** Generate semua kartu jatuh tempo utk `date` (default hari ini). Idempoten.
+   *  Jadwal khusus shift DILEWATI — kartunya dibuat saat karyawan memilih shift. */
   async generateDue(
     date = new Date(),
   ): Promise<{ created: number; scanned: number }> {
     const schedules = await this.db.taskSchedule.findMany({
-      where: { isActive: true, frequency: { not: 'ONCE' } },
+      where: { isActive: true, frequency: { not: 'ONCE' }, shiftSlot: null },
     });
     let created = 0;
     for (const s of schedules) {
+      if (s.shiftSlot) continue;
       if (matchesOn(s, date)) created += await this.materializeSchedule(s, date);
     }
     this.logger.log(
