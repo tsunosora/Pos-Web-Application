@@ -14,6 +14,7 @@ import {
     resolvePhotoUrl,
 } from '@/lib/api/production';
 import { getPublicDesigners } from '@/lib/api/designers';
+import { CetakPiketCard, CetakPiketIdentity, clearCetakPiketIdentity } from '@/components/tugas/PiketPinMounts';
 import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
@@ -199,6 +200,7 @@ export default function CetakPage() {
 
     const handleLogout = () => {
         localStorage.removeItem(PIN_KEY);
+        clearCetakPiketIdentity();
         setAuthed(false);
         setActiveBranchId(null);
         setActiveBranchName(null);
@@ -340,6 +342,7 @@ export default function CetakPage() {
                                 ))}
                             </select>
                         </p>
+                        <CetakPiketIdentity operatorName={operatorName} operators={designers} />
                     </div>
                     <div className="flex items-center gap-2">
                         <input
@@ -355,6 +358,9 @@ export default function CetakPage() {
                         >Keluar</button>
                     </div>
                 </div>
+
+                {/* Piket hari ini milik operator yang sudah memastikan PIN-nya */}
+                <CetakPiketCard operatorName={operatorName} operators={designers} className="mb-4" />
 
                 <div className="flex gap-2 overflow-x-auto mb-4 pb-1">
                     {TABS.map(t => {

@@ -10,6 +10,7 @@ export interface Designer {
     isActive: boolean;
     branchName?: string | null;
     branchId?: number | null;
+    userId?: number | null; // akun tugas → pop-up piket di halaman ber-PIN
     createdAt: string;
 }
 
@@ -22,10 +23,10 @@ export interface DesignerPublic {
 export const getDesigners = async (): Promise<Designer[]> =>
     (await api.get('/designers')).data;
 
-export const createDesigner = async (data: { name: string; pin: string; branchName?: string | null; branchId?: number | null }): Promise<Designer> =>
+export const createDesigner = async (data: { name: string; pin: string; branchName?: string | null; branchId?: number | null; userId?: number | null }): Promise<Designer> =>
     (await api.post('/designers', data)).data;
 
-export const updateDesigner = async (id: number, data: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null; branchId?: number | null }): Promise<Designer> =>
+export const updateDesigner = async (id: number, data: { name?: string; pin?: string; isActive?: boolean; branchName?: string | null; branchId?: number | null; userId?: number | null }): Promise<Designer> =>
     (await api.patch(`/designers/${id}`, data)).data;
 
 export const deleteDesigner = async (id: number): Promise<{ success: boolean }> =>

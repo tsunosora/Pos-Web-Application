@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dayjs from "dayjs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getTaskSchedules, createTaskSchedule, updateTaskSchedule, deleteTaskSchedule, generateTasksNow,
@@ -17,6 +18,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import {
     CalendarClock, Plus, Loader2, Lock, ArrowLeft, X, Trash2, Zap, Repeat, Power, Users2,
+    ArrowUp, ArrowDown, ClipboardCheck,
 } from "lucide-react";
 
 const FREQ_LABEL: Record<TaskFrequency, string> = {
@@ -27,6 +29,11 @@ const DOW = [
     { iso: 4, label: "Kam" }, { iso: 5, label: "Jum" }, { iso: 6, label: "Sab" }, { iso: 7, label: "Min" },
 ];
 const PRIORITIES: TaskPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
+const SLOT_LABEL = { PAGI: "Shift Pagi", KEDUA: "Shift Kedua" } as const;
+
+type UserLite = { id: number; name: string | null };
+
+const parseIds = (csv?: string | null) => (csv || "").split(",").filter(Boolean).map(Number);
 
 function scheduleSummary(s: TaskSchedule): string {
     if (s.frequency === "ONCE") return "Sekali";
@@ -39,7 +46,8 @@ function scheduleSummary(s: TaskSchedule): string {
     if (s.frequency === "MONTHLY") return `Tanggal ${s.dayOfMonth ?? "?"} tiap bulan`;
     return "";
 }
-function targetLabel(s: TaskSchedule): string {
+function targetLabel(s: TaskSchedule, nameOf: (id: number) => string): string {
+    if (s.rotationUserIds) return `Bergilir: ${parseIds(s.rotationUserIds).map(nameOf).join(" → ")}`;
     if (s.assignee?.name) return s.assignee.name;
     if (s.group?.name) return `Grup ${s.group.name}`;
     if (s.targetRole) return `Divisi ${s.targetRole}`;
@@ -59,6 +67,8 @@ export default function JadwalTugasPage() {
         queryFn: getTaskSchedules,
         enabled: canAssignTasks,
     });
+    const { data: users = [] } = useQuery<UserLite[]>({ queryKey: ["users"], queryFn: getUsers, enabled: canAssignTasks });
+    const nameOf = (id: number) => users.find((u) => u.id === id)?.name || `#${id}`;
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["task-schedules"] });
     const toggleMut = useMutation({
@@ -91,6 +101,7 @@ export default function JadwalTugasPage() {
                 breadcrumbs={[{ label: "Papan Tugas", href: "/tugas" }, { label: "Jadwal Rutin" }]}
                 actions={
                     <div className="flex flex-wrap gap-2">
+                        <Button variant="outline" size="sm" asChild><Link href="/tugas/pantau"><ClipboardCheck className="h-4 w-4" /> Pantau Piket</Link></Button>
                         <Button variant="outline" size="sm" onClick={() => setShowGroups(true)}><Users2 className="h-4 w-4" /> Grup Tim</Button>
                         <Button variant="outline" size="sm" onClick={() => genMut.mutate()} disabled={genMut.isPending}>
                             {genMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />} Buat Kartu Sekarang
@@ -102,7 +113,7 @@ export default function JadwalTugasPage() {
 
             {genMut.data && (
                 <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-                    {genMut.data.created} kartu tugas dibuat dari {genMut.data.scanned} jadwal aktif.
+                    {genMut.data.created} kartu tugas dibuat dari {genMut.data.scanned} jadwal aktif. Jadwal khusus shift dibuat saat karyawan memilih shift.
                 </div>
             )}
 
@@ -122,9 +133,17 @@ export default function JadwalTugasPage() {
                                     <span className="font-semibold text-sm text-foreground truncate">{s.title}</span>
                                     <span className="text-[10px] rounded-full border border-border px-1.5 py-0.5 text-muted-foreground">{FREQ_LABEL[s.frequency]}</span>
                                     <span className="text-[10px] rounded-full border border-border px-1.5 py-0.5 text-muted-foreground">{PRIORITY_LABEL[s.priority]}</span>
+                                    {s.shiftSlot && (
+                                        <span className={`text-[10px] rounded-full border px-1.5 py-0.5 ${s.shiftSlot === "PAGI" ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300" : "border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300"}`}>
+                                            {SLOT_LABEL[s.shiftSlot]}
+                                        </span>
+                                    )}
+                                    {s.rotationUserIds && (
+                                        <span className="text-[10px] rounded-full border border-teal-500/40 bg-teal-500/10 px-1.5 py-0.5 text-teal-700 dark:text-teal-300">Giliran</span>
+                                    )}
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-0.5">
-                                    {scheduleSummary(s)}{s.timeOfDay ? ` • ${s.timeOfDay}` : ""} • {targetLabel(s)}
+                                    {scheduleSummary(s)}{s.timeOfDay ? ` • ${s.timeOfDay}` : ""} • {targetLabel(s, nameOf)}
                                 </div>
                             </div>
                             <div className="flex items-center gap-1 shrink-0">
@@ -145,6 +164,7 @@ export default function JadwalTugasPage() {
             {showForm && (
                 <ScheduleFormModal
                     editing={editing}
+                    users={users}
                     onClose={() => setShowForm(false)}
                     onSaved={() => { invalidate(); setShowForm(false); }}
                 />
@@ -154,8 +174,8 @@ export default function JadwalTugasPage() {
     );
 }
 
-function ScheduleFormModal({ editing, onClose, onSaved }: {
-    editing: TaskSchedule | null; onClose: () => void; onSaved: () => void;
+function ScheduleFormModal({ editing, users, onClose, onSaved }: {
+    editing: TaskSchedule | null; users: UserLite[]; onClose: () => void; onSaved: () => void;
 }) {
     const [title, setTitle] = useState(editing?.title ?? "");
     const [description, setDescription] = useState(editing?.description ?? "");
@@ -166,10 +186,15 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
     const [timeOfDay, setTimeOfDay] = useState(editing?.timeOfDay ?? "");
     const [priority, setPriority] = useState<TaskPriority>(editing?.priority ?? "NORMAL");
     const [target, setTarget] = useState<TaskTarget>(editing ? targetFromSchedule(editing) : emptyTarget());
+    const [shiftSlot, setShiftSlot] = useState<"" | "PAGI" | "KEDUA">(editing?.shiftSlot ?? "");
+    const [useRotation, setUseRotation] = useState(!!editing?.rotationUserIds);
+    const [rotation, setRotation] = useState<number[]>(parseIds(editing?.rotationUserIds));
+    const [startDate, setStartDate] = useState(editing?.startDate ? dayjs(editing.startDate).format("YYYY-MM-DD") : dayjs().format("YYYY-MM-DD"));
 
     const toggleDay = (iso: number) =>
         setDays((d) => (d.includes(iso) ? d.filter((x) => x !== iso) : [...d, iso].sort()));
 
+    const shiftAllowed = !useRotation && frequency !== "ONCE";
     const buildPayload = () => ({
         title,
         description: description || null,
@@ -179,15 +204,20 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
         skipWeekends: frequency === "DAILY" ? skipWeekends : false,
         timeOfDay: timeOfDay || null,
         priority,
-        ...targetPayload(target),
+        ...targetPayload(useRotation ? emptyTarget() : target),
+        shiftSlot: shiftAllowed && shiftSlot ? shiftSlot : null,
+        rotationUserIds: useRotation ? rotation.join(",") : null,
+        ...(useRotation ? { startDate } : {}),
     });
 
     const saveMut = useMutation({
         mutationFn: () => editing ? updateTaskSchedule(editing.id, buildPayload()) : createTaskSchedule(buildPayload()),
         onSuccess: onSaved,
     });
+    const errMsg = (saveMut.error as { response?: { data?: { message?: string | string[] } } } | null)?.response?.data?.message;
 
-    const valid = title.trim() && (frequency !== "WEEKLY" || days.length > 0) && targetValid(target);
+    const valid = title.trim() && (frequency !== "WEEKLY" || days.length > 0) &&
+        (useRotation ? rotation.length > 0 && !!startDate : targetValid(target));
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -251,7 +281,7 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="block text-xs font-medium text-foreground mb-1">Jam jatuh tempo</label>
+                            <label className="block text-xs font-medium text-foreground mb-1">Jam batas (jatuh tempo)</label>
                             <input type="time" value={timeOfDay} onChange={(e) => setTimeOfDay(e.target.value)}
                                 className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm" />
                         </div>
@@ -263,10 +293,47 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
                             </select>
                         </div>
                     </div>
+                    {timeOfDay && (
+                        <p className="-mt-1 text-[11px] text-muted-foreground">Pengingat muncul 15 menit sebelum jam batas. Belum dicentang Selesai 15 menit setelah jam batas → teguran otomatis.</p>
+                    )}
 
-                    <TargetSelector target={target} setTarget={setTarget} />
+                    <div>
+                        <label className="block text-xs font-medium text-foreground mb-1">Cara pembagian</label>
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {([[false, "Penerima tetap"], [true, "Giliran bergilir harian"]] as const).map(([v, l]) => (
+                                <button key={String(v)} type="button" onClick={() => setUseRotation(v)}
+                                    className={`text-xs py-1.5 rounded-md border transition ${useRotation === v ? "border-primary bg-accent text-accent-foreground font-medium" : "border-border text-muted-foreground"}`}>{l}</button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {useRotation ? (
+                        <RotationEditor users={users} rotation={rotation} setRotation={setRotation} startDate={startDate} setStartDate={setStartDate} />
+                    ) : (
+                        <TargetSelector target={target} setTarget={setTarget} />
+                    )}
+
+                    {shiftAllowed && (
+                        <div>
+                            <label className="block text-xs font-medium text-foreground mb-1">Khusus shift (piket)</label>
+                            <div className="grid grid-cols-3 gap-1.5">
+                                {([["", "Tidak terikat shift"], ["PAGI", "Shift Pagi"], ["KEDUA", "Shift Kedua"]] as const).map(([v, l]) => (
+                                    <button key={v || "none"} type="button" onClick={() => setShiftSlot(v)}
+                                        className={`text-xs py-1.5 rounded-md border transition ${shiftSlot === v ? "border-primary bg-accent text-accent-foreground font-medium" : "border-border text-muted-foreground"}`}>{l}</button>
+                                ))}
+                            </div>
+                            {shiftSlot && (
+                                <p className="text-[11px] text-muted-foreground mt-1">
+                                    Kartu hanya dibuat untuk penerima yang memilih <b>{SLOT_LABEL[shiftSlot]}</b> hari itu di aplikasi (pop-up pilih shift).
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
 
+                {saveMut.isError && (
+                    <p className="mt-3 text-xs text-red-600">{Array.isArray(errMsg) ? errMsg.join(", ") : errMsg || "Gagal menyimpan jadwal."}</p>
+                )}
                 <div className="flex justify-end gap-2 mt-4">
                     <Button variant="outline" size="sm" onClick={onClose}>Batal</Button>
                     <Button size="sm" onClick={() => saveMut.mutate()} disabled={!valid || saveMut.isPending}>
@@ -274,6 +341,64 @@ function ScheduleFormModal({ editing, onClose, onSaved }: {
                     </Button>
                 </div>
             </div>
+        </div>
+    );
+}
+
+function RotationEditor({ users, rotation, setRotation, startDate, setStartDate }: {
+    users: UserLite[]; rotation: number[]; setRotation: (r: number[]) => void;
+    startDate: string; setStartDate: (s: string) => void;
+}) {
+    const nameOf = (id: number) => users.find((u) => u.id === id)?.name || `#${id}`;
+    const move = (i: number, d: -1 | 1) => {
+        const j = i + d;
+        if (j < 0 || j >= rotation.length) return;
+        const next = [...rotation];
+        [next[i], next[j]] = [next[j], next[i]];
+        setRotation(next);
+    };
+    const n = rotation.length;
+    const preview = n && startDate
+        ? Array.from({ length: 7 }, (_, k) => {
+            const d = dayjs().startOf("day").add(k, "day");
+            const diff = d.diff(dayjs(startDate).startOf("day"), "day");
+            return { d, who: nameOf(rotation[((diff % n) + n) % n]) };
+        })
+        : [];
+
+    return (
+        <div className="space-y-2 rounded-lg border border-border p-2.5">
+            <label className="block text-xs font-medium text-foreground">Urutan giliran</label>
+            {rotation.length > 0 && (
+                <ol className="space-y-1">
+                    {rotation.map((id, i) => (
+                        <li key={id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-sm">
+                            <span className="w-5 text-xs text-muted-foreground">{i + 1}.</span>
+                            <span className="flex-1 truncate text-foreground">{nameOf(id)}</span>
+                            <Button variant="ghost" size="icon-sm" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Naikkan"><ArrowUp className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon-sm" onClick={() => move(i, 1)} disabled={i === rotation.length - 1} aria-label="Turunkan"><ArrowDown className="h-3.5 w-3.5" /></Button>
+                            <Button variant="ghost" size="icon-sm" onClick={() => setRotation(rotation.filter((x) => x !== id))} aria-label="Hapus"><X className="h-3.5 w-3.5 text-red-500" /></Button>
+                        </li>
+                    ))}
+                </ol>
+            )}
+            <select value="" onChange={(e) => { const v = Number(e.target.value); if (v && !rotation.includes(v)) setRotation([...rotation, v]); }}
+                className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm">
+                <option value="">+ Tambah karyawan ke giliran</option>
+                {users.filter((u) => !rotation.includes(u.id)).map((u) => <option key={u.id} value={u.id}>{u.name || `User #${u.id}`}</option>)}
+            </select>
+            <div>
+                <label className="block text-xs font-medium text-foreground mb-1">Mulai giliran (hari itu = orang nomor 1)</label>
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+                    className="rounded-md border border-border bg-background px-3 py-1.5 text-sm" />
+            </div>
+            {preview.length > 0 && (
+                <div className="text-[11px] text-muted-foreground">
+                    <span className="font-medium text-foreground">7 hari ke depan:</span>{" "}
+                    {preview.map((p) => `${p.d.format("DD/MM")} ${p.who}`).join(" · ")}
+                </div>
+            )}
+            <p className="text-[11px] text-muted-foreground">Jadwal Mingguan (mis. hanya Minggu) memakai hitungan hari yang sama, jadi petugas hari Minggu = petugas giliran hari itu.</p>
         </div>
     );
 }

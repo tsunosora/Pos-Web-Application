@@ -30,6 +30,7 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { DailyTargetProgressCard } from "@/components/dashboard/DailyTargetProgressCard";
 import { DashboardCandleCard } from "@/components/dashboard/DashboardCandleCard";
+import { MyPiketCard } from "@/components/tugas/PiketDailyGate";
 import {
   AreaChart,
   Area,
@@ -146,6 +147,9 @@ export default function Home() {
           </span>
         }
       />
+
+      {/* Piket hari ini — hanya untuk karyawan yang ikut jadwal piket */}
+      <MyPiketCard />
 
       {/* Metric cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">

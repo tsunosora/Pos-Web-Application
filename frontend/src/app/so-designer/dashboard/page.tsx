@@ -8,6 +8,7 @@ import { designerListSOs } from "@/lib/api/designers";
 import { useDesignerSession, clearDesignerSession } from "../useDesignerSession";
 import type { SalesOrder, SalesOrderStatus } from "@/lib/api/sales-orders";
 import { badgeToneClass } from "@/components/ui/status-badge";
+import { DesignerPiketCard } from "@/components/tugas/PiketPinMounts";
 import dayjs from "dayjs";
 import "dayjs/locale/id";
 
@@ -83,6 +84,8 @@ export default function DesignerDashboardPage() {
             </div>
 
             <div className="max-w-3xl mx-auto p-4 space-y-4">
+                {/* Piket hari ini milik desainer yang login PIN */}
+                <DesignerPiketCard />
                 <div className="flex items-baseline justify-between">
                     <h2 className="font-semibold text-slate-700 dark:text-slate-200">Sales Order Kamu</h2>
                     {total > 0 && (

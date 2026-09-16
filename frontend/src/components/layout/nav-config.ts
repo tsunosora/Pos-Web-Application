@@ -4,6 +4,7 @@ import {
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
     MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock, Palette, QrCode, Zap, ShoppingBag, Instagram, Lock,
+    ClipboardCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
@@ -125,6 +126,8 @@ export const SECTIONS: NavSection[] = [
             { name: "Beranda Saya", href: "/beranda", icon: LayoutDashboard },
             { name: "Leaderboard", href: "/leaderboard", icon: Award },
             { name: "Papan Tugas", href: "/tugas", icon: ClipboardList },
+            { name: "Papan Piket", href: "/tugas/papan-piket", icon: Users },
+            { name: "Pantau Piket", href: "/tugas/pantau", icon: ClipboardCheck, managerOnly: true },
             { name: "Grup Tim", href: "/tugas/grup", icon: Users, managerOnly: true },
             { name: "Jadwal Tugas", href: "/tugas/jadwal", icon: CalendarClock, managerOnly: true },
         ],
@@ -146,7 +149,7 @@ export function canSeeNavItem(
 
 // ── Pembatasan menu per role/divisi ──────────────────────────────────────────
 // Basis menu yang SELALU boleh dilihat tiap staf (biar tak pernah "menu kosong").
-const TEAM_BASE = ["/beranda", "/leaderboard", "/tugas"];
+const TEAM_BASE = ["/beranda", "/leaderboard", "/tugas", "/tugas/papan-piket"];
 
 export type MenuPreset = { id: string; label: string; match: (name: string) => boolean; hrefs: string[] };
 
@@ -192,7 +195,8 @@ export function resolveAllowedHrefs(opts: {
     menuAccess: string[] | null;
 }): Set<string> | null {
     if (opts.isOwner || opts.isManager) return null;
-    if (opts.menuAccess) return new Set([...opts.menuAccess, "/beranda"]);
+    // Papan Piket selalu terlihat: semua karyawan perlu tahu pembagian piket.
+    if (opts.menuAccess) return new Set([...opts.menuAccess, "/beranda", "/tugas/papan-piket"]);
     return new Set(presetHrefsFor(opts.roleName) ?? MINIMAL_HREFS);
 }
 

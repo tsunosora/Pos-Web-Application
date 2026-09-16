@@ -11,6 +11,9 @@ export interface ProduksiSession {
     branchName: string | null;
     branchCode: string | null;
     operatorName: string | null;
+    // Operator terdaftar (nama + PIN pribadi) → pop-up piket miliknya. Kosong di mode PIN cabang.
+    operatorId?: number | null;
+    operatorPin?: string | null;
 }
 
 export function getStoredSession(): ProduksiSession | null {
@@ -25,13 +28,15 @@ export function getStoredSession(): ProduksiSession | null {
     }
 }
 
-export function saveSession(branchId: number | null = null, branchName: string | null = null, branchCode: string | null = null, operatorName: string | null = null) {
+export function saveSession(branchId: number | null = null, branchName: string | null = null, branchCode: string | null = null, operatorName: string | null = null, operatorId: number | null = null, operatorPin: string | null = null) {
     const session: ProduksiSession = {
         expires: Date.now() + PIN_TTL,
         branchId,
         branchName,
         branchCode,
         operatorName,
+        operatorId,
+        operatorPin,
     };
     localStorage.setItem(PIN_KEY, JSON.stringify(session));
 }

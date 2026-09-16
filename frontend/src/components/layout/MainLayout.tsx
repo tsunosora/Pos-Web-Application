@@ -17,6 +17,7 @@ import { ReadyJobsFab } from "./ReadyJobsFab";
 import { FloatingActionDock } from "./FloatingActionDock";
 import { FloatingThemeToggle } from "./FloatingThemeToggle";
 import { AiChatWidget } from "@/components/ai/AiChatWidget";
+import { PiketDailyGate } from "@/components/tugas/PiketDailyGate";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { useShiftReminder } from "@/hooks/useShiftReminder";
 import { useNotificationStore } from "@/store/notification-store";
@@ -103,6 +104,7 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="print:hidden"><DailyTargetBanner /></div>
             <div className="print:hidden"><BranchInboxPopup /></div>
             <div className="print:hidden"><BranchOutboxReadyPopup /></div>
+            <div className="print:hidden"><PiketDailyGate /></div>
             <ReadyJobsPopup onOpenModal={() => setReadyJobsModalOpen(true)} />
             <ReadyJobsModal open={readyJobsModalOpen} onClose={() => setReadyJobsModalOpen(false)} />
             {/* Rel tunggal kanan-bawah: Asisten AI di atas, notif orderan jadi di bawahnya.

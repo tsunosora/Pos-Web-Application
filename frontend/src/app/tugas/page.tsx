@@ -11,9 +11,10 @@ import {
 import { TaskKanbanBoard, PRIORITY_LABEL } from "@/components/tugas/TaskKanbanBoard";
 import { TargetSelector, targetPayload, targetValid, emptyTarget, type TaskTarget } from "@/components/tugas/TargetSelector";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { MyShiftChip } from "@/components/tugas/PiketDailyGate";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, Plus, CalendarClock, Loader2, X, Trash2, CheckCircle2, ImagePlus } from "lucide-react";
+import { ClipboardList, ClipboardCheck, Plus, CalendarClock, Loader2, X, Trash2, CheckCircle2, ImagePlus } from "lucide-react";
 import dayjs from "dayjs";
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -72,16 +73,25 @@ export default function TugasPage() {
                 description="Jadwal & tugas harian, mingguan, bulanan karyawan."
                 icon={ClipboardList}
                 actions={
-                    canAssignTasks ? (
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" asChild>
-                                <Link href="/tugas/jadwal"><CalendarClock className="h-4 w-4" /> Jadwal Rutin</Link>
-                            </Button>
-                            <Button size="sm" onClick={() => setShowCreate(true)}>
-                                <Plus className="h-4 w-4" /> Tugas Baru
-                            </Button>
-                        </div>
-                    ) : null
+                    <div className="flex flex-wrap items-center gap-2">
+                        <MyShiftChip />
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/tugas/papan-piket"><ClipboardList className="h-4 w-4" /> Papan Piket</Link>
+                        </Button>
+                        {canAssignTasks && (
+                            <>
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href="/tugas/pantau"><ClipboardCheck className="h-4 w-4" /> Pantau Piket</Link>
+                                </Button>
+                                <Button variant="outline" size="sm" asChild>
+                                    <Link href="/tugas/jadwal"><CalendarClock className="h-4 w-4" /> Jadwal Rutin</Link>
+                                </Button>
+                                <Button size="sm" onClick={() => setShowCreate(true)}>
+                                    <Plus className="h-4 w-4" /> Tugas Baru
+                                </Button>
+                            </>
+                        )}
+                    </div>
                 }
             />
 

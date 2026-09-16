@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Users } from "lucide-react";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
 import { getActiveCompanyBranches, type CompanyBranchLite } from "@/lib/api/discord";
+import { getUsers } from "@/lib/api";
 import { badgeToneClass } from "@/components/ui/status-badge";
 
 export default function DesignersSettingsPage() {
@@ -14,6 +15,7 @@ export default function DesignersSettingsPage() {
     const [name, setName] = useState("");
     const [pin, setPin] = useState("");
     const [branchId, setBranchId] = useState<number | null>(null);
+    const [userId, setUserId] = useState<number | null>(null);
     const [showPin, setShowPin] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -27,6 +29,13 @@ export default function DesignersSettingsPage() {
         queryKey: ["company-branches-active"],
         queryFn: getActiveCompanyBranches,
     });
+
+    // Akun tugas: tugas piket, teguran & pengingat karyawan ini menempel ke akun (User).
+    const { data: users = [] } = useQuery<{ id: number; name: string | null }[]>({
+        queryKey: ["users"],
+        queryFn: getUsers,
+    });
+    const userName = (id?: number | null) => (id ? users.find(u => u.id === id)?.name || `Akun #${id}` : null);
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["designers"] });
 
@@ -53,7 +62,7 @@ export default function DesignersSettingsPage() {
     });
 
     function resetForm() {
-        setShowForm(false); setEditId(null); setName(""); setPin(""); setBranchId(null); setError(null);
+        setShowForm(false); setEditId(null); setName(""); setPin(""); setBranchId(null); setUserId(null); setError(null);
     }
 
     function startEdit(d: Designer) {
@@ -61,6 +70,7 @@ export default function DesignersSettingsPage() {
         // Cocokkan cabang: pakai branchId bila ada, else tebak dari branchName lama.
         const bid = (d as any).branchId ?? branches.find(b => b.name === (d as any).branchName)?.id ?? null;
         setBranchId(bid);
+        setUserId(d.userId ?? null);
         setShowForm(true); setError(null);
     }
 
@@ -72,12 +82,12 @@ export default function DesignersSettingsPage() {
         const branch = branchId != null ? branches.find(b => b.id === branchId) : null;
         const branchName = branch?.name ?? null;
         if (editId) {
-            const upd: any = { name: name.trim(), branchName, branchId };
+            const upd: any = { name: name.trim(), branchName, branchId, userId };
             if (pin.trim()) upd.pin = pin.trim();
             updateMut.mutate({ id: editId, data: upd });
         } else {
             if (pin.length < 4) { setError("PIN minimal 4 karakter"); return; }
-            createMut.mutate({ name: name.trim(), pin: pin.trim(), branchName, branchId });
+            createMut.mutate({ name: name.trim(), pin: pin.trim(), branchName, branchId, userId });
         }
     }
 
@@ -153,6 +163,21 @@ export default function DesignersSettingsPage() {
                                 ))}
                             </select>
                         </div>
+                        <div className="col-span-2">
+                            <label className="text-xs font-medium text-muted-foreground block mb-1">
+                                Akun tugas <span className="font-normal">(pop-up piket, teguran &amp; pengingat di /so-designer, /produksi, /cetak)</span>
+                            </label>
+                            <select
+                                value={userId ?? ""}
+                                onChange={e => setUserId(e.target.value ? Number(e.target.value) : null)}
+                                className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background"
+                            >
+                                <option value="">— Belum terhubung —</option>
+                                {users.map(u => (
+                                    <option key={u.id} value={u.id}>{u.name || `Akun #${u.id}`}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                     <div className="flex justify-end gap-2">
                         <button onClick={resetForm} className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted">Batal</button>
@@ -183,6 +208,7 @@ export default function DesignersSettingsPage() {
                                 <th className="px-4 py-2 text-left font-medium">Nama</th>
                                 <th className="px-4 py-2 text-left font-medium">Cabang</th>
                                 <th className="px-4 py-2 text-left font-medium">PIN</th>
+                                <th className="px-4 py-2 text-left font-medium">Akun tugas</th>
                                 <th className="px-4 py-2 text-center font-medium">Status</th>
                                 <th className="px-4 py-2 text-right font-medium">Aksi</th>
                             </tr>
@@ -200,6 +226,9 @@ export default function DesignersSettingsPage() {
                                     </td>
                                     <td className="px-4 py-2 font-mono text-xs tracking-widest text-muted-foreground">
                                         {"•".repeat(d.pin.length)}
+                                    </td>
+                                    <td className="px-4 py-2 text-sm">
+                                        {userName(d.userId) ?? <span className="text-xs text-muted-foreground/50">—</span>}
                                     </td>
                                     <td className="px-4 py-2 text-center">
                                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${d.isActive ? badgeToneClass.success : badgeToneClass.neutral}`}>
@@ -247,7 +276,7 @@ export default function DesignersSettingsPage() {
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                <strong>Cara akses:</strong> Karyawan buka <code className="bg-blue-100 px-1 rounded">/so-designer</code> (buat SO) atau <code className="bg-blue-100 px-1 rounded">/produksi</code> (board produksi), pilih namanya & masukkan PIN → langsung kerja tanpa login akun. Reward dihitung per divisi sesuai kerja nyata (desain &amp; produksi bisa dapat keduanya).
+                <strong>Cara akses:</strong> Karyawan buka <code className="bg-blue-100 px-1 rounded">/so-designer</code> (buat SO) atau <code className="bg-blue-100 px-1 rounded">/produksi</code> (board produksi), pilih namanya & masukkan PIN → langsung kerja tanpa login akun. Reward dihitung per divisi sesuai kerja nyata (desain &amp; produksi bisa dapat keduanya). Isi <strong>Akun tugas</strong> supaya pop-up pilih shift, teguran &amp; pengingat piket karyawan ini muncul di halaman tersebut.
             </div>
         </div>
     );

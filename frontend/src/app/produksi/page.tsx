@@ -9,6 +9,7 @@ import {
 } from '@/lib/api';
 import { getPublicBranches, PublicBranch } from '@/lib/api/production';
 import { getPublicDesigners, verifyDesignerPin } from '@/lib/api/designers';
+import { ProduksiPiketGate, ProduksiPiketCard } from '@/components/tugas/PiketPinMounts';
 import {
     Tab, PIN_KEY, PIN_TTL,
     getStoredSession, saveSession, clearSession,
@@ -151,7 +152,8 @@ export default function ProduksiPage() {
                 if (!res.valid) { setPinError(res.message || 'PIN salah. Coba lagi.'); setPinInput(''); return; }
                 opName = operatorNameInput.trim();
             }
-            saveSession(bid, branch?.name ?? null, branch?.code ?? null, opName);
+            saveSession(bid, branch?.name ?? null, branch?.code ?? null, opName,
+                usingRegistry ? Number(selectedOpId) : null, usingRegistry ? pinInput : null);
             setOperatorName(opName);
             if (bid && branch) {
                 setActiveBranchId(bid);
@@ -486,6 +488,8 @@ export default function ProduksiPage() {
     // ── QUEUE SCREEN ───────────────────────────────────────────────────────────
     return (
         <div className="min-h-screen bg-background flex flex-col">
+            {/* Tugas piket, pengingat & teguran milik operator yang login PIN pribadi */}
+            <ProduksiPiketGate />
             {/* Header */}
             <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-20">
                 <div className="flex items-center gap-3">
@@ -521,6 +525,9 @@ export default function ProduksiPage() {
                     </button>
                 </div>
             </header>
+
+            {/* Piket hari ini milik operator yang login */}
+            <ProduksiPiketCard className="mx-4 mt-3" />
 
             {/* Tabs */}
             <div className="bg-card border-b border-border px-4 flex gap-1 overflow-x-auto">
