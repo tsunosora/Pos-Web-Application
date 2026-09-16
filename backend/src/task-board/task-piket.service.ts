@@ -13,7 +13,12 @@ import type { BranchContext } from '../common/branch-context.decorator';
 import { TaskBoardService } from './task-board.service';
 import { buildPiketPdfHtml, PDF_STAMP } from './piket-pdf.template';
 import { renderPiketPdf, stampLabel } from './piket-pdf.render';
-import { matchesOn, parseRotation, periodKeyFor, rotationAssigneeOn } from './recurrence.util';
+import {
+  matchesOn,
+  parseRotation,
+  periodKeyFor,
+  rotationAssigneeOn,
+} from './recurrence.util';
 
 /** Menit toleransi setelah jam batas tugas sebelum teguran otomatis dikirim. */
 export const AUTO_WARN_GRACE_MIN = 15;
@@ -22,6 +27,13 @@ export const AUTO_WARN_GRACE_MIN = 15;
 export const REMIND_BEFORE_MIN = 15;
 
 export type CheckinShift = 'PAGI' | 'KEDUA' | 'LIBUR';
+
+/** Satu slot tanda tangan PDF jadwal: label + orang ATAU jabatan (dua-duanya null = titik-titik). */
+export interface PiketSignSlot {
+  label: string;
+  userId: number | null;
+  roleId: number | null;
+}
 
 export function hhmm(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -60,7 +72,12 @@ export interface AutoWarnCandidate {
 export function selectAutoWarnItems(
   items: AutoWarnCandidate[],
   now: Date,
-  opts: { warnedItemIds: Set<number>; liburKeys: Set<string>; graceMin?: number; trialUntil?: string | null },
+  opts: {
+    warnedItemIds: Set<number>;
+    liburKeys: Set<string>;
+    graceMin?: number;
+    trialUntil?: string | null;
+  },
 ): AutoWarnCandidate[] {
   const graceMs = (opts.graceMin ?? AUTO_WARN_GRACE_MIN) * 60000;
   return items.filter((it) => {
@@ -69,13 +86,19 @@ export function selectAutoWarnItems(
     const dayKey = it.periodKey ?? periodKeyFor(new Date(it.dueDate));
     if (opts.liburKeys.has(`${it.assigneeId}|${dayKey}`)) return false;
     if (isTrialDay(dayKey, opts.trialUntil)) return false; // masa uji coba: tanpa teguran
-    const base = Math.max(new Date(it.dueDate).getTime(), new Date(it.createdAt).getTime());
+    const base = Math.max(
+      new Date(it.dueDate).getTime(),
+      new Date(it.createdAt).getTime(),
+    );
     return now.getTime() - base >= graceMs;
   });
 }
 
 /** Tanggal "YYYY-MM-DD" termasuk masa uji coba piket? */
-export function isTrialDay(dateKey: string, trialUntil?: string | null): boolean {
+export function isTrialDay(
+  dateKey: string,
+  trialUntil?: string | null,
+): boolean {
   return !!trialUntil && dateKey <= trialUntil;
 }
 
@@ -103,8 +126,16 @@ export class TaskPiketService {
    * Dirender ulang hanya bila isi kertasnya berubah; selain itu diambil dari cache memori.
    */
   async piketPdf(branchId: number | null, now = new Date()): Promise<Buffer> {
-    const board = await this.piketBoard(branchId, now);
-    const html = buildPiketPdfHtml({ ...board, remindBeforeMin: REMIND_BEFORE_MIN, graceMin: AUTO_WARN_GRACE_MIN });
+    const [board, signatures] = await Promise.all([
+      this.piketBoard(branchId, now),
+      this.piketSignatures(),
+    ]);
+    const html = buildPiketPdfHtml({
+      ...board,
+      signatures,
+      remindBeforeMin: REMIND_BEFORE_MIN,
+      graceMin: AUTO_WARN_GRACE_MIN,
+    });
     const hash = createHash('sha256').update(html).digest('hex');
     const key = String(branchId ?? 'all');
     const hit = this.pdfCache.get(key);
@@ -124,9 +155,16 @@ export class TaskPiketService {
   }
 
   /** PDF jadwal piket untuk pengguna PIN — cabang ikut data PIN karyawan. */
-  async pinPiketPdf(designerId: number, pin: string, now = new Date()): Promise<Buffer> {
+  async pinPiketPdf(
+    designerId: number,
+    pin: string,
+    now = new Date(),
+  ): Promise<Buffer> {
     await this.userForPin(designerId, pin);
-    const d = await this.db.designer.findUnique({ where: { id: designerId }, select: { branchId: true } });
+    const d = await this.db.designer.findUnique({
+      where: { id: designerId },
+      select: { branchId: true },
+    });
     return this.piketPdf(d?.branchId ?? null, now);
   }
 
@@ -135,12 +173,15 @@ export class TaskPiketService {
 
   /** Akun owner tidak diminta memilih shift & tidak menerima tugas shift. Cache 1 menit. */
   async ownerIds(): Promise<Set<number>> {
-    if (this.ownerCache && Date.now() - this.ownerCache.at < 60_000) return this.ownerCache.ids;
+    if (this.ownerCache && Date.now() - this.ownerCache.at < 60_000)
+      return this.ownerCache.ids;
     const users = await this.db.user.findMany({
       where: { isActive: true },
       select: { id: true, role: { select: { name: true } } },
     });
-    const ids = new Set<number>(users.filter((u: any) => isOwnerRole(u.role?.name)).map((u: any) => u.id));
+    const ids = new Set<number>(
+      users.filter((u: any) => isOwnerRole(u.role?.name)).map((u: any) => u.id),
+    );
     this.ownerCache = { at: Date.now(), ids };
     return ids;
   }
@@ -150,8 +191,11 @@ export class TaskPiketService {
 
   /** Tanggal akhir uji coba piket (tanpa teguran otomatis & tak dihitung rekap). Cache 1 menit. */
   async trialUntil(): Promise<string | null> {
-    if (this.trialCache && Date.now() - this.trialCache.at < 60_000) return this.trialCache.value;
-    const st = await this.db.storeSettings.findFirst({ select: { piketTrialUntil: true } });
+    if (this.trialCache && Date.now() - this.trialCache.at < 60_000)
+      return this.trialCache.value;
+    const st = await this.db.storeSettings.findFirst({
+      select: { piketTrialUntil: true },
+    });
     const value = st?.piketTrialUntil ?? null;
     this.trialCache = { at: Date.now(), value };
     return value;
@@ -163,14 +207,148 @@ export class TaskPiketService {
       throw new BadRequestException('Format tanggal harus YYYY-MM-DD.');
     const st = await this.db.storeSettings.findFirst({ select: { id: true } });
     if (!st) throw new NotFoundException('Pengaturan toko belum ada.');
-    await this.db.storeSettings.update({ where: { id: st.id }, data: { piketTrialUntil: until } });
+    await this.db.storeSettings.update({
+      where: { id: st.id },
+      data: { piketTrialUntil: until },
+    });
     this.trialCache = null;
     return { trialUntil: until };
   }
 
+  // ---- TANDA TANGAN PDF JADWAL (diatur owner/manajer di Pengaturan) ----
+  private signCache: { at: number; value: PiketSignSlot[] } | null = null;
+
+  /** Slot tanda tangan tersimpan (mentah, untuk form Pengaturan). Cache 1 menit. */
+  async piketSignSlots(): Promise<PiketSignSlot[]> {
+    if (this.signCache && Date.now() - this.signCache.at < 60_000)
+      return this.signCache.value;
+    const st = await this.db.storeSettings.findFirst({
+      select: { piketSignatures: true },
+    });
+    let value: PiketSignSlot[] = [];
+    try {
+      const parsed: unknown = JSON.parse(st?.piketSignatures || '[]');
+      if (Array.isArray(parsed))
+        value = parsed.slice(0, 3).map((o: any) => ({
+          label: String(o?.label ?? '').slice(0, 40) || 'Tanda tangan',
+          userId: o?.userId ?? null,
+          roleId: o?.roleId ?? null,
+        }));
+    } catch {
+      value = [];
+    }
+    this.signCache = { at: Date.now(), value };
+    return value;
+  }
+
+  /** Slot + nama siap cetak: orang → nama akun, jabatan → nama jabatan, kosong → null. */
+  async piketSignatures(): Promise<{ label: string; name: string | null }[]> {
+    const slots = await this.piketSignSlots();
+    if (!slots.length) return [];
+    const userIds = slots
+      .map((x) => x.userId)
+      .filter((x): x is number => x != null);
+    const roleIds = slots
+      .map((x) => x.roleId)
+      .filter((x): x is number => x != null);
+    const [users, roles] = await Promise.all([
+      userIds.length
+        ? this.db.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, name: true },
+          })
+        : [],
+      roleIds.length
+        ? this.db.role.findMany({
+            where: { id: { in: roleIds } },
+            select: { id: true, name: true },
+          })
+        : [],
+    ]);
+    const nameOf = (x: PiketSignSlot): string | null => {
+      if (x.userId != null)
+        return users.find((u: any) => u.id === x.userId)?.name ?? null;
+      if (x.roleId != null)
+        return roles.find((r: any) => r.id === x.roleId)?.name ?? null;
+      return null;
+    };
+    return slots.map((x) => ({ label: x.label, name: nameOf(x) }));
+  }
+
+  /** Owner/manajer mengatur tanda tangan: tiap slot label + orang ATAU jabatan. */
+  async setPiketSignatures(ctx: BranchContext, raw: unknown[]) {
+    this.assertManager(ctx);
+    const list = Array.isArray(raw) ? raw : [];
+    if (list.length > 3)
+      throw new BadRequestException('Maksimal 3 tanda tangan.');
+    const slots: PiketSignSlot[] = [];
+    for (const r of list) {
+      const o = (r ?? {}) as {
+        label?: unknown;
+        userId?: unknown;
+        roleId?: unknown;
+      };
+      const label = String(o.label ?? '').trim();
+      if (label.length > 40)
+        throw new BadRequestException('Label tanda tangan maksimal 40 huruf.');
+      const num = (v: unknown): number | null =>
+        v == null || v === '' ? null : Number(v);
+      const userId = num(o.userId);
+      const roleId = num(o.roleId);
+      if (userId != null && roleId != null)
+        throw new BadRequestException(
+          'Pilih orang atau jabatan, jangan keduanya.',
+        );
+      if (userId != null && !Number.isInteger(userId))
+        throw new BadRequestException('Orang yang dipilih tidak valid.');
+      if (roleId != null && !Number.isInteger(roleId))
+        throw new BadRequestException('Jabatan yang dipilih tidak valid.');
+      slots.push({ label: label || 'Tanda tangan', userId, roleId });
+    }
+    const userIds = [
+      ...new Set(
+        slots.map((x) => x.userId).filter((x): x is number => x != null),
+      ),
+    ];
+    if (userIds.length) {
+      const found = await this.db.user.findMany({
+        where: { id: { in: userIds }, isActive: true },
+        select: { id: true },
+      });
+      if (found.length !== userIds.length)
+        throw new BadRequestException(
+          'Orang yang dipilih tidak ditemukan atau nonaktif.',
+        );
+    }
+    const roleIds = [
+      ...new Set(
+        slots.map((x) => x.roleId).filter((x): x is number => x != null),
+      ),
+    ];
+    if (roleIds.length) {
+      const found = await this.db.role.findMany({
+        where: { id: { in: roleIds } },
+        select: { id: true },
+      });
+      if (found.length !== roleIds.length)
+        throw new BadRequestException('Jabatan yang dipilih tidak ditemukan.');
+    }
+    const st = await this.db.storeSettings.findFirst({ select: { id: true } });
+    if (!st) throw new NotFoundException('Pengaturan toko belum ada.');
+    await this.db.storeSettings.update({
+      where: { id: st.id },
+      data: { piketSignatures: slots.length ? JSON.stringify(slots) : null },
+    });
+    this.signCache = null;
+    this.pdfCache.clear(); // kertas berubah → jangan sajikan PDF lama
+    return { signatures: slots };
+  }
+
   private assertManager(ctx: BranchContext) {
     if (!this.board.canAssign(ctx))
-      throw new ForbiddenException('Hanya owner/manajer yang boleh memantau & menegur.');
+      throw new ForbiddenException(
+        'Hanya owner/manajer yang boleh memantau & menegur.',
+      );
   }
 
   /** Filter cabang: staf terkunci cabangnya; owner ikut cabang aktif (null = semua). */
@@ -180,17 +358,23 @@ export class TaskPiketService {
   }
 
   /** Jadwal khusus-shift yang berlaku pada `date` beserta penerimanya. */
-  private async shiftSchedulesOn(date: Date): Promise<{ sched: any; userIds: number[] }[]> {
+  private async shiftSchedulesOn(
+    date: Date,
+  ): Promise<{ sched: any; userIds: number[] }[]> {
     const rows = await this.db.taskSchedule.findMany({
-      where: { isActive: true, shiftSlot: { not: null }, frequency: { not: 'ONCE' } },
+      where: {
+        isActive: true,
+        shiftSlot: { not: null },
+        frequency: { not: 'ONCE' },
+      },
     });
     const out: { sched: any; userIds: number[] }[] = [];
     const owners = await this.ownerIds();
     for (const s of rows) {
       if (!s.shiftSlot || !matchesOn(s, date)) continue;
-      const ids = (await this.board.resolveTargetUserIds(s, s.branchId, date)).filter(
-        (x): x is number => x != null && !owners.has(x),
-      );
+      const ids = (
+        await this.board.resolveTargetUserIds(s, s.branchId, date)
+      ).filter((x): x is number => x != null && !owners.has(x));
       out.push({ sched: s, userIds: ids });
     }
     return out;
@@ -200,7 +384,9 @@ export class TaskPiketService {
   async myDay(userId: number, now = new Date()) {
     const dateKey = periodKeyFor(now);
     const [checkin, scheds, trial] = await Promise.all([
-      this.db.taskShiftCheckin.findUnique({ where: { userId_dateKey: { userId, dateKey } } }),
+      this.db.taskShiftCheckin.findUnique({
+        where: { userId_dateKey: { userId, dateKey } },
+      }),
       this.shiftSchedulesOn(now),
       this.trialUntil(),
     ]);
@@ -208,7 +394,8 @@ export class TaskPiketService {
     const slots = [...new Set(mine.map((s) => String(s.sched.shiftSlot)))];
     // Judul tugas per shift → ditampilkan di tombol pilihan shift.
     const tasksBySlot: Record<string, string[]> = {};
-    for (const s of mine) (tasksBySlot[s.sched.shiftSlot] ??= []).push(s.sched.title);
+    for (const s of mine)
+      (tasksBySlot[s.sched.shiftSlot] ??= []).push(s.sched.title);
     return {
       dateKey,
       needsCheckin: mine.length > 0,
@@ -216,23 +403,35 @@ export class TaskPiketService {
       tasksBySlot,
       trialUntil: isTrialDay(dateKey, trial) ? trial : null,
       // Belum ada piket hari ini → kapan jadwal piket orang ini mulai (untuk info di halaman kerja).
-      startsOn: mine.length === 0 ? await this.nextPiketStart(userId, now) : null,
-      checkin: checkin ? { shift: checkin.shift as CheckinShift, at: checkin.updatedAt } : null,
+      startsOn:
+        mine.length === 0 ? await this.nextPiketStart(userId, now) : null,
+      checkin: checkin
+        ? { shift: checkin.shift as CheckinShift, at: checkin.updatedAt }
+        : null,
     };
   }
 
   /** Tanggal mulai terdekat (di masa depan) dari jadwal aktif yang menarget user ini. */
-  private async nextPiketStart(userId: number, now: Date): Promise<string | null> {
+  private async nextPiketStart(
+    userId: number,
+    now: Date,
+  ): Promise<string | null> {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const rows = await this.db.taskSchedule.findMany({
-      where: { isActive: true, frequency: { not: 'ONCE' }, startDate: { gt: today } },
+      where: {
+        isActive: true,
+        frequency: { not: 'ONCE' },
+        startDate: { gt: today },
+      },
       orderBy: { startDate: 'asc' },
     });
     for (const s of rows) {
       if (!s.startDate || new Date(s.startDate) <= today) continue;
       const ids = s.rotationUserIds
         ? parseRotation(s.rotationUserIds)
-        : (await this.board.resolveTargetUserIds(s, s.branchId, now)).filter((x): x is number => x != null);
+        : (await this.board.resolveTargetUserIds(s, s.branchId, now)).filter(
+            (x): x is number => x != null,
+          );
       if (ids.includes(userId)) return periodKeyFor(new Date(s.startDate));
     }
     return null;
@@ -240,11 +439,18 @@ export class TaskPiketService {
 
   async checkin(userId: number, shift: CheckinShift, now = new Date()) {
     const dateKey = periodKeyFor(now);
-    const mine = (await this.shiftSchedulesOn(now)).filter((s) => s.userIds.includes(userId));
+    const mine = (await this.shiftSchedulesOn(now)).filter((s) =>
+      s.userIds.includes(userId),
+    );
     if (mine.length === 0)
-      throw new BadRequestException('Tidak ada jadwal piket shift untuk kamu hari ini.');
+      throw new BadRequestException(
+        'Tidak ada jadwal piket shift untuk kamu hari ini.',
+      );
 
-    const user = await this.db.user.findUnique({ where: { id: userId }, select: { branchId: true } });
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      select: { branchId: true },
+    });
     // User tanpa cabang (mis. owner yang ikut piket) → ikut cabang jadwal piketnya.
     const branchId = user?.branchId ?? mine[0].sched.branchId ?? null;
     await this.db.taskShiftCheckin.upsert({
@@ -266,7 +472,12 @@ export class TaskPiketService {
     let removed = 0;
     if (otherShiftIds.length) {
       const r = await this.db.taskItem.deleteMany({
-        where: { assigneeId: userId, periodKey: dateKey, status: 'TODO', scheduleId: { in: otherShiftIds } },
+        where: {
+          assigneeId: userId,
+          periodKey: dateKey,
+          status: 'TODO',
+          scheduleId: { in: otherShiftIds },
+        },
       });
       removed = r.count;
     }
@@ -281,12 +492,16 @@ export class TaskPiketService {
 
   // ---- AKSES LEWAT PIN (halaman /so-designer, /produksi, /cetak — tanpa login) ----
   /** Verifikasi PIN karyawan (tabel desainer/operator) → akun tugas yang terhubung. */
-  async userForPin(designerId: number, pin: string): Promise<{ userId: number | null; name: string }> {
+  async userForPin(
+    designerId: number,
+    pin: string,
+  ): Promise<{ userId: number | null; name: string }> {
     const d = await this.db.designer.findUnique({
       where: { id: designerId },
       select: { id: true, name: true, pin: true, isActive: true, userId: true },
     });
-    if (!d || !d.isActive || !pin || d.pin !== pin) throw new UnauthorizedException('PIN salah.');
+    if (!d || !d.isActive || !pin || d.pin !== pin)
+      throw new UnauthorizedException('PIN salah.');
     return { userId: d.userId ?? null, name: d.name };
   }
 
@@ -308,14 +523,28 @@ export class TaskPiketService {
   async myToday(userId: number, now = new Date()) {
     const dateKey = periodKeyFor(now);
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const dayEnd = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    );
     return this.db.taskItem.findMany({
       where: {
         assigneeId: userId,
-        OR: [{ periodKey: dateKey }, { periodKey: null, dueDate: { gte: dayStart, lt: dayEnd } }],
+        OR: [
+          { periodKey: dateKey },
+          { periodKey: null, dueDate: { gte: dayStart, lt: dayEnd } },
+        ],
       },
       orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
-      select: { id: true, title: true, description: true, status: true, dueDate: true, completedAt: true },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        status: true,
+        dueDate: true,
+        completedAt: true,
+      },
       take: 50,
     });
   }
@@ -327,11 +556,17 @@ export class TaskPiketService {
       select: { id: true, assigneeId: true, status: true },
     });
     if (!it || it.assigneeId !== userId)
-      throw new ForbiddenException('Anda hanya bisa mengubah tugas Anda sendiri.');
+      throw new ForbiddenException(
+        'Anda hanya bisa mengubah tugas Anda sendiri.',
+      );
     if (it.status !== 'DONE') {
       await this.db.taskItem.update({
         where: { id: itemId },
-        data: { status: 'DONE', completedAt: new Date(), completedById: userId },
+        data: {
+          status: 'DONE',
+          completedAt: new Date(),
+          completedById: userId,
+        },
       });
     }
     return { id: it.id, status: 'DONE' };
@@ -371,7 +606,9 @@ export class TaskPiketService {
       orderBy: { createdAt: 'asc' },
       take: 50,
     });
-    const itemIds = rows.map((r: any) => r.taskItemId).filter((x: any) => x != null);
+    const itemIds = rows
+      .map((r: any) => r.taskItemId)
+      .filter((x: any) => x != null);
     const items = itemIds.length
       ? await this.db.taskItem.findMany({
           where: { id: { in: itemIds } },
@@ -392,20 +629,31 @@ export class TaskPiketService {
   async ackWarnings(userId: number, ids?: number[]) {
     const where: any = { userId, acknowledgedAt: null };
     if (ids?.length) where.id = { in: ids };
-    const r = await this.db.taskWarning.updateMany({ where, data: { acknowledgedAt: new Date() } });
+    const r = await this.db.taskWarning.updateMany({
+      where,
+      data: { acknowledgedAt: new Date() },
+    });
     return { acknowledged: r.count };
   }
 
-  async createWarning(ctx: BranchContext, dto: { userId: number; message: string }, byUserId: number) {
+  async createWarning(
+    ctx: BranchContext,
+    dto: { userId: number; message: string },
+    byUserId: number,
+  ) {
     this.assertManager(ctx);
     const target = await this.db.user.findUnique({
       where: { id: dto.userId },
       select: { id: true, branchId: true, isActive: true },
     });
-    if (!target || !target.isActive) throw new NotFoundException('Karyawan tidak ditemukan.');
+    if (!target || !target.isActive)
+      throw new NotFoundException('Karyawan tidak ditemukan.');
     if (!ctx.isOwner && target.branchId !== ctx.branchId)
       throw new ForbiddenException('Bukan cabang Anda.');
-    const by = await this.db.user.findUnique({ where: { id: byUserId }, select: { name: true } });
+    const by = await this.db.user.findUnique({
+      where: { id: byUserId },
+      select: { name: true },
+    });
     return this.db.taskWarning.create({
       data: {
         userId: target.id,
@@ -424,23 +672,41 @@ export class TaskPiketService {
     const since = new Date(now.getTime() - 24 * 3600000);
     const cutoff = new Date(now.getTime() - AUTO_WARN_GRACE_MIN * 60000);
     const items: AutoWarnCandidate[] = await this.db.taskItem.findMany({
-      where: { status: { not: 'DONE' }, assigneeId: { not: null }, dueDate: { gte: since, lte: cutoff } },
+      where: {
+        status: { not: 'DONE' },
+        assigneeId: { not: null },
+        dueDate: { gte: since, lte: cutoff },
+      },
       select: {
-        id: true, title: true, status: true, dueDate: true, createdAt: true,
-        assigneeId: true, branchId: true, periodKey: true,
+        id: true,
+        title: true,
+        status: true,
+        dueDate: true,
+        createdAt: true,
+        assigneeId: true,
+        branchId: true,
+        periodKey: true,
       },
     });
     if (!items.length) return { created: 0 };
     const ids = items.map((i) => i.id);
     const userIds = [...new Set(items.map((i) => i.assigneeId as number))];
-    const keys = [...new Set(items.map((i) => i.periodKey ?? periodKeyFor(new Date(i.dueDate))))];
+    const keys = [
+      ...new Set(
+        items.map((i) => i.periodKey ?? periodKeyFor(new Date(i.dueDate))),
+      ),
+    ];
     const [warned, libur] = await Promise.all([
       this.db.taskWarning.findMany({
         where: { kind: 'AUTO', taskItemId: { in: ids } },
         select: { taskItemId: true },
       }),
       this.db.taskShiftCheckin.findMany({
-        where: { shift: 'LIBUR', userId: { in: userIds }, dateKey: { in: keys } },
+        where: {
+          shift: 'LIBUR',
+          userId: { in: userIds },
+          dateKey: { in: keys },
+        },
         select: { userId: true, dateKey: true },
       }),
     ]);
@@ -468,7 +734,8 @@ export class TaskPiketService {
         if (e?.code !== 'P2002') throw e; // sudah ditegur (idempoten)
       }
     }
-    if (created) this.logger.log(`Teguran otomatis: ${created} tugas lewat batas.`);
+    if (created)
+      this.logger.log(`Teguran otomatis: ${created} tugas lewat batas.`);
     return { created };
   }
 
@@ -477,10 +744,20 @@ export class TaskPiketService {
     this.assertManager(ctx);
     if (dateStr && !parseDateKey(dateStr))
       throw new BadRequestException('Format tanggal harus YYYY-MM-DD.');
-    const date = parseDateKey(dateStr) ?? new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const date =
+      parseDateKey(dateStr) ??
+      new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const dateKey = periodKeyFor(date);
-    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+    const dayStart = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+    );
+    const dayEnd = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate() + 1,
+    );
     const bw = this.branchWhere(ctx);
 
     const [items, checkins, warnings, shiftScheds] = await Promise.all([
@@ -488,12 +765,18 @@ export class TaskPiketService {
         where: {
           ...bw,
           assigneeId: { not: null },
-          OR: [{ periodKey: dateKey }, { periodKey: null, dueDate: { gte: dayStart, lt: dayEnd } }],
+          OR: [
+            { periodKey: dateKey },
+            { periodKey: null, dueDate: { gte: dayStart, lt: dayEnd } },
+          ],
         },
         orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
       }),
       this.db.taskShiftCheckin.findMany({ where: { ...bw, dateKey } }),
-      this.db.taskWarning.findMany({ where: { ...bw, dateKey }, orderBy: { createdAt: 'asc' } }),
+      this.db.taskWarning.findMany({
+        where: { ...bw, dateKey },
+        orderBy: { createdAt: 'asc' },
+      }),
       this.shiftSchedulesOn(date),
     ]);
 
@@ -522,14 +805,19 @@ export class TaskPiketService {
       select: { id: true, name: true, branchId: true },
     });
     const warnedItemIds = new Set<number>(
-      warnings.filter((w: any) => w.kind === 'AUTO' && w.taskItemId != null).map((w: any) => w.taskItemId),
+      warnings
+        .filter((w: any) => w.kind === 'AUTO' && w.taskItemId != null)
+        .map((w: any) => w.taskItemId),
     );
 
     const rows = users
       // Peserta yang hanya "diharapkan" (belum punya data) harus dari cabang yang dipantau.
       .filter(
         (u: any) =>
-          active.has(u.id) || bw.branchId == null || !globalOnly.has(u.id) || u.branchId === bw.branchId,
+          active.has(u.id) ||
+          bw.branchId == null ||
+          !globalOnly.has(u.id) ||
+          u.branchId === bw.branchId,
       )
       .map((u: any) => {
         const its = items
@@ -545,7 +833,11 @@ export class TaskPiketService {
               completedAt: i.completedAt,
               verifiedByOwnerAt: i.verifiedByOwnerAt,
               note: i.note,
-              late: done && !!due && !!i.completedAt && new Date(i.completedAt) > due,
+              late:
+                done &&
+                !!due &&
+                !!i.completedAt &&
+                new Date(i.completedAt) > due,
               overdue: !done && !!due && due < now,
               warned: warnedItemIds.has(i.id),
             };
@@ -567,8 +859,13 @@ export class TaskPiketService {
           warnings: warnings
             .filter((w: any) => w.userId === u.id)
             .map((w: any) => ({
-              id: w.id, kind: w.kind, message: w.message, taskItemId: w.taskItemId,
-              createdAt: w.createdAt, acknowledgedAt: w.acknowledgedAt, createdByName: w.createdByName,
+              id: w.id,
+              kind: w.kind,
+              message: w.message,
+              taskItemId: w.taskItemId,
+              createdAt: w.createdAt,
+              acknowledgedAt: w.acknowledgedAt,
+              createdByName: w.createdByName,
             })),
         };
       })
@@ -581,8 +878,18 @@ export class TaskPiketService {
 
     const trial = await this.trialUntil();
     // Tanggal yang akan datang: kartu belum dibuat → tampilkan rencana dari jadwal.
-    const plan = dateKey > periodKeyFor(now) ? await this.planFor(bw.branchId ?? null, date, false) : null;
-    return { dateKey, graceMinutes: AUTO_WARN_GRACE_MIN, trialUntil: trial, trial: isTrialDay(dateKey, trial), plan, rows };
+    const plan =
+      dateKey > periodKeyFor(now)
+        ? await this.planFor(bw.branchId ?? null, date, false)
+        : null;
+    return {
+      dateKey,
+      graceMinutes: AUTO_WARN_GRACE_MIN,
+      trialUntil: trial,
+      trial: isTrialDay(dateKey, trial),
+      plan,
+      rows,
+    };
   }
 
   async recap(ctx: BranchContext, monthStr?: string, now = new Date()) {
@@ -607,9 +914,18 @@ export class TaskPiketService {
         where: {
           ...bw,
           assigneeId: { not: null },
-          OR: [{ periodKey: { startsWith: prefix } }, { periodKey: null, dueDate: { gte: start, lt: end } }],
+          OR: [
+            { periodKey: { startsWith: prefix } },
+            { periodKey: null, dueDate: { gte: start, lt: end } },
+          ],
         },
-        select: { assigneeId: true, status: true, dueDate: true, completedAt: true, periodKey: true },
+        select: {
+          assigneeId: true,
+          status: true,
+          dueDate: true,
+          completedAt: true,
+          periodKey: true,
+        },
       }),
       this.db.taskShiftCheckin.findMany({
         where: { ...bw, dateKey: { startsWith: prefix } },
@@ -617,7 +933,12 @@ export class TaskPiketService {
       }),
       this.db.taskWarning.findMany({
         where: { ...bw, dateKey: { startsWith: prefix } },
-        select: { userId: true, kind: true, acknowledgedAt: true, dateKey: true },
+        select: {
+          userId: true,
+          kind: true,
+          acknowledgedAt: true,
+          dateKey: true,
+        },
       }),
     ]);
 
@@ -625,8 +946,17 @@ export class TaskPiketService {
     const row = (id: number) => {
       if (!acc.has(id))
         acc.set(id, {
-          userId: id, total: 0, doneOnTime: 0, doneLate: 0, missed: 0, pending: 0,
-          workDays: 0, liburDays: 0, warnAuto: 0, warnManual: 0, warnUnread: 0,
+          userId: id,
+          total: 0,
+          doneOnTime: 0,
+          doneLate: 0,
+          missed: 0,
+          pending: 0,
+          workDays: 0,
+          liburDays: 0,
+          warnAuto: 0,
+          warnManual: 0,
+          warnUnread: 0,
         });
       return acc.get(id);
     };
@@ -634,7 +964,12 @@ export class TaskPiketService {
     const trial = await this.trialUntil();
     const inTrial = (k?: string | null) => !!k && isTrialDay(k, trial);
     for (const i of items) {
-      if (inTrial(i.periodKey ?? (i.dueDate ? periodKeyFor(new Date(i.dueDate)) : null))) continue;
+      if (
+        inTrial(
+          i.periodKey ?? (i.dueDate ? periodKeyFor(new Date(i.dueDate)) : null),
+        )
+      )
+        continue;
       const r = row(i.assigneeId);
       r.total++;
       const due = i.dueDate ? new Date(i.dueDate) : null;
@@ -668,7 +1003,9 @@ export class TaskPiketService {
         return {
           ...r,
           name: names.get(r.userId) ?? `#${r.userId}`,
-          compliancePct: judged ? Math.round((r.doneOnTime / judged) * 100) : null,
+          compliancePct: judged
+            ? Math.round((r.doneOnTime / judged) * 100)
+            : null,
         };
       })
       .sort(
@@ -676,7 +1013,11 @@ export class TaskPiketService {
           (a.compliancePct ?? 101) - (b.compliancePct ?? 101) ||
           String(a.name).localeCompare(String(b.name)),
       );
-    return { month, rows, trialUntil: trial && trial >= `${month}-01` ? trial : null };
+    return {
+      month,
+      rows,
+      trialUntil: trial && trial >= `${month}-01` ? trial : null,
+    };
   }
 
   // ---- RENCANA (tanggal yang akan datang; kartu belum dibuat) ----
@@ -689,21 +1030,39 @@ export class TaskPiketService {
         where: {
           isActive: true,
           frequency: { not: 'ONCE' },
-          ...(branchId != null ? { OR: [{ branchId }, { branchId: null }] } : {}),
+          ...(branchId != null
+            ? { OR: [{ branchId }, { branchId: null }] }
+            : {}),
         },
         include: { group: { select: { name: true } } },
         orderBy: [{ timeOfDay: 'asc' }, { id: 'asc' }],
       })
-    ).filter((s: any) => (!piketOnly || this.isPiketSchedule(s)) && matchesOn(s, date));
+    ).filter(
+      (s: any) => (!piketOnly || this.isPiketSchedule(s)) && matchesOn(s, date),
+    );
 
-    const shiftOptions: Record<string, { title: string; timeOfDay: string | null }[]> = {};
+    const shiftOptions: Record<
+      string,
+      { title: string; timeOfDay: string | null }[]
+    > = {};
     const shiftUsers = new Set<number>();
     const owners = await this.ownerIds();
-    const perUser = new Map<number, { title: string; timeOfDay: string | null; rotation: boolean }[]>();
+    const perUser = new Map<
+      number,
+      { title: string; timeOfDay: string | null; rotation: boolean }[]
+    >();
     for (const s of schedules) {
       if (s.shiftSlot) {
-        (shiftOptions[s.shiftSlot] ??= []).push({ title: s.title, timeOfDay: s.timeOfDay });
-        for (const u of await this.board.resolveTargetUserIds(s, s.branchId, date)) if (u != null && !owners.has(u)) shiftUsers.add(u);
+        (shiftOptions[s.shiftSlot] ??= []).push({
+          title: s.title,
+          timeOfDay: s.timeOfDay,
+        });
+        for (const u of await this.board.resolveTargetUserIds(
+          s,
+          s.branchId,
+          date,
+        ))
+          if (u != null && !owners.has(u)) shiftUsers.add(u);
         continue;
       }
       const ids = s.rotationUserIds
@@ -712,34 +1071,60 @@ export class TaskPiketService {
       for (const u of ids) {
         if (u == null) continue;
         if (!perUser.has(u)) perUser.set(u, []);
-        perUser.get(u)!.push({ title: s.title, timeOfDay: s.timeOfDay, rotation: !!s.rotationUserIds });
+        perUser
+          .get(u)!
+          .push({
+            title: s.title,
+            timeOfDay: s.timeOfDay,
+            rotation: !!s.rotationUserIds,
+          });
       }
     }
     const ids = [...new Set([...perUser.keys(), ...shiftUsers])];
     const users = ids.length
-      ? await this.db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+      ? await this.db.user.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, name: true },
+        })
       : [];
     const rows = ids
       .map((id) => ({
         userId: id,
         name: users.find((u: any) => u.id === id)?.name ?? `#${id}`,
         needsShift: shiftUsers.has(id),
-        tasks: (perUser.get(id) ?? []).sort((a, b) => String(a.timeOfDay ?? '99').localeCompare(String(b.timeOfDay ?? '99'))),
+        tasks: (perUser.get(id) ?? []).sort((a, b) =>
+          String(a.timeOfDay ?? '99').localeCompare(
+            String(b.timeOfDay ?? '99'),
+          ),
+        ),
       }))
       .sort((a, b) => String(a.name).localeCompare(String(b.name)));
-    return { dateKey, trialUntil: isTrialDay(dateKey, trial) ? trial : null, shiftOptions, rows };
+    return {
+      dateKey,
+      trialUntil: isTrialDay(dateKey, trial) ? trial : null,
+      shiftOptions,
+      rows,
+    };
   }
 
   // ---- PAPAN PIKET (dilihat semua karyawan; tanpa teguran/catatan pribadi) ----
   /** Jadwal yang dianggap piket: khusus shift, giliran, atau target grup bernama "piket". */
   private isPiketSchedule(s: any): boolean {
-    return !!(s.shiftSlot || s.rotationUserIds || /piket/i.test(s.group?.name ?? ''));
+    return !!(
+      s.shiftSlot ||
+      s.rotationUserIds ||
+      /piket/i.test(s.group?.name ?? '')
+    );
   }
 
   async piketBoard(branchId: number | null, now = new Date()) {
     const dateKey = periodKeyFor(now);
     const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const dayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const dayEnd = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() + 1,
+    );
     const trial = await this.trialUntil();
 
     const schedules: any[] = (
@@ -747,7 +1132,9 @@ export class TaskPiketService {
         where: {
           isActive: true,
           frequency: { not: 'ONCE' },
-          ...(branchId != null ? { OR: [{ branchId }, { branchId: null }] } : {}),
+          ...(branchId != null
+            ? { OR: [{ branchId }, { branchId: null }] }
+            : {}),
         },
         include: { group: { select: { name: true } } },
         orderBy: [{ timeOfDay: 'asc' }, { id: 'asc' }],
@@ -766,15 +1153,28 @@ export class TaskPiketService {
     }
     const piketIds = new Set(schedules.map((s) => s.id));
     const [checkins, rawItems] = await Promise.all([
-      this.db.taskShiftCheckin.findMany({ where: { dateKey, ...(branchId != null ? { branchId } : {}) } }),
+      this.db.taskShiftCheckin.findMany({
+        where: { dateKey, ...(branchId != null ? { branchId } : {}) },
+      }),
       this.db.taskItem.findMany({
         where: {
           assigneeId: { not: null },
           ...(branchId != null ? { branchId } : {}),
-          OR: [{ periodKey: dateKey }, { periodKey: null, dueDate: { gte: dayStart, lt: dayEnd } }],
+          OR: [
+            { periodKey: dateKey },
+            { periodKey: null, dueDate: { gte: dayStart, lt: dayEnd } },
+          ],
         },
         orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
-        select: { id: true, title: true, status: true, dueDate: true, completedAt: true, assigneeId: true, scheduleId: true },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          dueDate: true,
+          completedAt: true,
+          assigneeId: true,
+          scheduleId: true,
+        },
       }),
     ]);
     // Hanya kartu dari jadwal piket — tugas pribadi di Papan Tugas tetap privat.
@@ -783,42 +1183,75 @@ export class TaskPiketService {
     const allIds = new Set<number>();
     for (const v of targets.values()) v.forEach((x) => allIds.add(x));
     items.forEach((i: any) => allIds.add(i.assigneeId));
-    const users = await this.db.user.findMany({ where: { id: { in: [...allIds] } }, select: { id: true, name: true } });
-    const nameOf = (id: number) => users.find((u: any) => u.id === id)?.name ?? `#${id}`;
+    const users = await this.db.user.findMany({
+      where: { id: { in: [...allIds] } },
+      select: { id: true, name: true },
+    });
+    const nameOf = (id: number) =>
+      users.find((u: any) => u.id === id)?.name ?? `#${id}`;
     const uniq = (xs: number[]) => [...new Set(xs)];
     const view = (s: any) => ({
-      id: s.id, title: s.title, description: s.description, timeOfDay: s.timeOfDay,
-      frequency: s.frequency, daysOfWeek: s.daysOfWeek,
-      startDate: s.startDate, groupName: s.group?.name ?? null,
+      id: s.id,
+      title: s.title,
+      description: s.description,
+      timeOfDay: s.timeOfDay,
+      frequency: s.frequency,
+      daysOfWeek: s.daysOfWeek,
+      startDate: s.startDate,
+      groupName: s.group?.name ?? null,
     });
 
     const shiftScheds = schedules.filter((s) => s.shiftSlot);
     const rotationScheds = schedules.filter((s) => s.rotationUserIds);
-    const groupScheds = schedules.filter((s) => !s.shiftSlot && !s.rotationUserIds);
+    const groupScheds = schedules.filter(
+      (s) => !s.shiftSlot && !s.rotationUserIds,
+    );
 
     // Giliran 4 pekan (Senin pekan ini) dari jadwal giliran harian.
     let rotation: any = null;
-    const primary = rotationScheds.find((s) => s.frequency === 'DAILY') ?? rotationScheds[0];
+    const primary =
+      rotationScheds.find((s) => s.frequency === 'DAILY') ?? rotationScheds[0];
     if (primary) {
       const iso = dayStart.getDay() === 0 ? 7 : dayStart.getDay();
-      const monday = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() - (iso - 1));
+      const monday = new Date(
+        dayStart.getFullYear(),
+        dayStart.getMonth(),
+        dayStart.getDate() - (iso - 1),
+      );
       const weeks = [];
       for (let w = 0; w < 4; w++) {
         const days = [];
         for (let d = 0; d < 7; d++) {
-          const date = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + w * 7 + d);
+          const date = new Date(
+            monday.getFullYear(),
+            monday.getMonth(),
+            monday.getDate() + w * 7 + d,
+          );
           const uid = rotationAssigneeOn(primary, date);
           const key = periodKeyFor(date);
-          days.push({ date: key, iso: d + 1, name: uid ? nameOf(uid) : null, isToday: key === dateKey, active: matchesOn(primary, date) });
+          days.push({
+            date: key,
+            iso: d + 1,
+            name: uid ? nameOf(uid) : null,
+            isToday: key === dateKey,
+            active: matchesOn(primary, date),
+          });
         }
         weeks.push({ start: days[0].date, days });
       }
-      rotation = { order: parseRotation(primary.rotationUserIds).map(nameOf), weeks };
+      rotation = {
+        order: parseRotation(primary.rotationUserIds).map(nameOf),
+        weeks,
+      };
     }
 
     // Status hari ini per orang.
     const todayScheds = schedules.filter((s) => matchesOn(s, now));
-    const shiftUsers = new Set(todayScheds.filter((s) => s.shiftSlot).flatMap((s) => targets.get(s.id) ?? []));
+    const shiftUsers = new Set(
+      todayScheds
+        .filter((s) => s.shiftSlot)
+        .flatMap((s) => targets.get(s.id) ?? []),
+    );
     const people = new Set<number>();
     for (const s of todayScheds) {
       if (s.rotationUserIds) {
@@ -827,7 +1260,16 @@ export class TaskPiketService {
       } else (targets.get(s.id) ?? []).forEach((u) => people.add(u));
     }
     items.forEach((i: any) => people.add(i.assigneeId));
-    const rank = (p: any) => (p.shift === 'PAGI' ? 0 : p.shift === 'KEDUA' ? 1 : p.needsShift && !p.shift ? 2 : p.shift === 'LIBUR' ? 4 : 3);
+    const rank = (p: any) =>
+      p.shift === 'PAGI'
+        ? 0
+        : p.shift === 'KEDUA'
+          ? 1
+          : p.needsShift && !p.shift
+            ? 2
+            : p.shift === 'LIBUR'
+              ? 4
+              : 3;
     const today = [...people]
       .map((uid) => {
         const c = checkins.find((x: any) => x.userId === uid);
@@ -838,23 +1280,47 @@ export class TaskPiketService {
           shift: c?.shift ?? null,
           tasks: items
             .filter((i: any) => i.assigneeId === uid)
-            .map((i: any) => ({ id: i.id, title: i.title, status: i.status, dueDate: i.dueDate, completedAt: i.completedAt })),
+            .map((i: any) => ({
+              id: i.id,
+              title: i.title,
+              status: i.status,
+              dueDate: i.dueDate,
+              completedAt: i.completedAt,
+            })),
         };
       })
-      .sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)));
+      .sort(
+        (a, b) =>
+          rank(a) - rank(b) || String(a.name).localeCompare(String(b.name)),
+      );
 
     // Rencana 7 hari ke depan supaya karyawan tahu gilirannya lebih awal.
     const upcoming = [];
     for (let i = 1; i <= 7; i++) {
-      upcoming.push(await this.planFor(branchId, new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate() + i), true));
+      upcoming.push(
+        await this.planFor(
+          branchId,
+          new Date(
+            dayStart.getFullYear(),
+            dayStart.getMonth(),
+            dayStart.getDate() + i,
+          ),
+          true,
+        ),
+      );
     }
 
     return {
       dateKey,
       trialUntil: isTrialDay(dateKey, trial) ? trial : null,
       shiftTasks: shiftScheds.map((s) => ({ ...view(s), slot: s.shiftSlot })),
-      shiftMembers: uniq(shiftScheds.flatMap((s) => targets.get(s.id) ?? [])).map(nameOf),
-      groupTasks: groupScheds.map((s) => ({ ...view(s), members: (targets.get(s.id) ?? []).map(nameOf) })),
+      shiftMembers: uniq(
+        shiftScheds.flatMap((s) => targets.get(s.id) ?? []),
+      ).map(nameOf),
+      groupTasks: groupScheds.map((s) => ({
+        ...view(s),
+        members: (targets.get(s.id) ?? []).map(nameOf),
+      })),
       rotationTasks: rotationScheds.map(view),
       rotation,
       today,
@@ -866,8 +1332,10 @@ export class TaskPiketService {
   /** Papan piket untuk pengguna PIN — cabang ikut data PIN karyawan. */
   async pinBoard(designerId: number, pin: string, now = new Date()) {
     await this.userForPin(designerId, pin);
-    const d = await this.db.designer.findUnique({ where: { id: designerId }, select: { branchId: true } });
+    const d = await this.db.designer.findUnique({
+      where: { id: designerId },
+      select: { branchId: true },
+    });
     return this.piketBoard(d?.branchId ?? null, now);
   }
-
 }

@@ -40,6 +40,8 @@ export interface PiketPdfInput {
       }[];
     }[];
   } | null;
+  /** Tanda tangan kaki halaman 2 (diatur owner/manajer di Pengaturan). */
+  signatures?: { label: string; name: string | null }[];
   remindBeforeMin: number;
   graceMin: number;
 }
@@ -586,6 +588,29 @@ export function buildPiketPdfHtml(input: PiketPdfInput): string {
     )
     .join('');
 
+  const signSlots = (input.signatures ?? []).filter(
+    (x) => x && (x.label || x.name),
+  );
+
+  const signHtml =
+    '<div class="sign">' +
+    (signSlots.length
+      ? signSlots
+      : [
+          { label: 'Dibuat oleh', name: null },
+
+          { label: 'Mengetahui', name: null },
+        ]
+    )
+
+      .map(
+        (x) =>
+          `<div>${esc(x.label || 'Tanda tangan')},<i></i><b>${x.name ? esc(x.name) : '…………………………'}</b></div>`,
+      )
+
+      .join('') +
+    '</div>';
+
   const page2 =
     `<section class="sheet"><header class="band"><h1>RINCIAN TUGAS PIKET<small>${esc(TOKO)}</small></h1>` +
     `<div class="meta"><b>Centang di aplikasi setelah selesai</b>Kartu Piket hari ini · menu Papan Piket</div></header>` +
@@ -595,7 +620,7 @@ export function buildPiketPdfHtml(input: PiketPdfInput): string {
       '',
     ) +
     `</div></div>` +
-    `<div class="sign"><div>Dibuat oleh,<i></i><b>Muhammad Faisal</b></div><div>Mengetahui,<i></i><b>…………………………</b></div></div></div>` +
+    `${signHtml}</div>` +
     `<footer class="foot"><span>Jadwal mengikuti data di aplikasi — unduh ulang bila ada perubahan.</span>${stamp}</footer></section>`;
 
   return `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Jadwal Piket</title><style>${CSS}</style></head><body>${page1}${page2}</body></html>`;

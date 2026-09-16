@@ -36,7 +36,10 @@ const taskImageStorage = diskStorage({
 });
 const taskImageFilter = (_req: any, file: any, cb: any) => {
   if (!file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp)$/))
-    return cb(new BadRequestException('Hanya berkas gambar yang diizinkan.'), false);
+    return cb(
+      new BadRequestException('Hanya berkas gambar yang diizinkan.'),
+      false,
+    );
   cb(null, true);
 };
 import {
@@ -51,6 +54,7 @@ import {
   CreateWarningDto,
   AckWarningsDto,
   SetTrialDto,
+  SetSignaturesDto,
 } from './task-board.dto';
 import { TaskPiketService } from './task-piket.service';
 import { sendPiketPdf } from './piket-pdf.render';
@@ -104,6 +108,17 @@ export class TaskBoardController {
   @Get('board/pdf')
   async boardPdf(@CurrentBranch() ctx: BranchContext, @Res() res: Response) {
     sendPiketPdf(res, await this.piket.piketPdf(ctx.branchId));
+  }
+
+  // Tanda tangan PDF jadwal piket — ubah hanya owner/manajer (dicek di service)
+  @Get('sign')
+  async sign() {
+    return { signatures: await this.piket.piketSignSlots() };
+  }
+
+  @Patch('sign')
+  setSign(@CurrentBranch() ctx: BranchContext, @Body() dto: SetSignaturesDto) {
+    return this.piket.setPiketSignatures(ctx, dto.signatures);
   }
 
   @Get('trial')
@@ -203,7 +218,9 @@ export class TaskBoardController {
     @UploadedFiles() files: Express.Multer.File[],
   ) {
     if (!this.svc.canAssign(ctx))
-      throw new ForbiddenException('Hanya owner/manajer yang boleh melampirkan gambar tugas.');
+      throw new ForbiddenException(
+        'Hanya owner/manajer yang boleh melampirkan gambar tugas.',
+      );
     if (!files || files.length === 0)
       throw new BadRequestException('Tidak ada berkas gambar.');
     await Promise.all(files.map((f) => compressImage(f.path)));

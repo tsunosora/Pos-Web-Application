@@ -113,7 +113,7 @@ function PdfControl() {
     return (
         <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm">
             <span className="font-medium text-foreground">PDF jadwal piket</span>
-            <span className="text-xs text-muted-foreground">dibuat otomatis dari jadwal, giliran &amp; masa uji coba — jadwal diubah, PDF ikut berubah</span>
+            <span className="text-xs text-muted-foreground">dibuat otomatis dari jadwal, giliran &amp; masa uji coba · tanda tangan diatur di Pengaturan → Umum</span>
             {mut.isError && <span className="text-xs font-medium text-rose-600">Gagal membuat PDF. Coba lagi.</span>}
             <Button size="sm" variant="outline" className="ml-auto" disabled={mut.isPending} onClick={() => mut.mutate()}>
                 {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Unduh PDF

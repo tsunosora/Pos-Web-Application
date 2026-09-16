@@ -690,6 +690,9 @@ model StoreSettings {
   shiftReminderTime2     String?   @map("shift_reminder_time_2") @db.VarChar(5)
   // Piket: sampai tanggal ini ("YYYY-MM-DD") = masa uji coba → tanpa teguran otomatis & tak dihitung rekap.
   piketTrialUntil        String?   @map("piket_trial_until") @db.VarChar(10)
+  // Piket: tanda tangan PDF jadwal — JSON [{label,userId,roleId}] maks 3 slot,
+  // diatur owner/manajer di Pengaturan. Kosong = titik-titik (tanda tangan manual).
+  piketSignatures        String?   @map("piket_signatures") @db.Text
   notifyGithubCommit     Boolean   @default(true) @map("notify_github_commit")
   discordWebhookUrl      String?   @map("discord_webhook_url") @db.Text
   githubWebhookSecret    String?   @map("github_webhook_secret") @db.VarChar(200)

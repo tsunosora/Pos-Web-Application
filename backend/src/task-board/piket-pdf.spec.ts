@@ -249,6 +249,7 @@ describe('TaskPiketService.piketPdf — dibuat ulang hanya bila isi berubah', ()
     jest
       .spyOn(svc, 'piketBoard')
       .mockImplementation(() => Promise.resolve(data as never));
+    jest.spyOn(svc, 'piketSignatures').mockResolvedValue([]); // tanda tangan diuji terpisah
     return { svc, set: (d: PiketPdfInput) => (data = d) };
   };
   beforeEach(() => (renderPiketPdf as jest.Mock).mockClear());
@@ -273,5 +274,138 @@ describe('TaskPiketService.piketPdf — dibuat ulang hanya bila isi berubah', ()
     const [x, y] = await Promise.all([svc.piketPdf(1), svc.piketPdf(1)]);
     expect(y).toBe(x);
     expect(renderPiketPdf).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('tanda tangan PDF (diatur di Pengaturan)', () => {
+  it('orang → nama akun, jabatan → nama jabatan, kosong → titik-titik', () => {
+    const html = buildPiketPdfHtml(
+      input({
+        signatures: [
+          { label: 'Dibuat oleh', name: 'Eka' },
+          { label: 'Mengetahui', name: 'Manajer Toko' },
+          { label: 'Diperiksa', name: null },
+        ],
+      }),
+    );
+    expect(html).toContain('<div>Dibuat oleh,<i></i><b>Eka</b></div>');
+    expect(html).toContain('<div>Mengetahui,<i></i><b>Manajer Toko</b></div>');
+    expect(html).toContain('<div>Diperiksa,<i></i><b>…………………………</b></div>');
+  });
+
+  it('belum diatur → dua slot titik-titik, tanpa nama apa pun di kode', () => {
+    const html = buildPiketPdfHtml(input());
+    expect(html).toContain('<div>Dibuat oleh,<i></i><b>…………………………</b></div>');
+    expect(html).toContain('<div>Mengetahui,<i></i><b>…………………………</b></div>');
+  });
+
+  it('label & nama tetap di-escape', () => {
+    const html = buildPiketPdfHtml(
+      input({ signatures: [{ label: '<b>x', name: '<img src=x>' }] }),
+    );
+    expect(html).toContain('&lt;b&gt;x');
+    expect(html).not.toContain('<img');
+  });
+});
+
+describe('TaskPiketService.setPiketSignatures', () => {
+  type Row = { id: number; name?: string; isActive?: boolean };
+  type Where = { id: { in: number[] }; isActive?: boolean };
+  const fake = (
+    init: {
+      piketSignatures?: string | null;
+      users?: Row[];
+      roles?: Row[];
+    } = {},
+  ) => {
+    const store: { id: number; piketSignatures: string | null } = {
+      id: 1,
+      piketSignatures: init.piketSignatures ?? null,
+    };
+    const pick = (rows: Row[], where: Where) =>
+      rows.filter(
+        (r) =>
+          where.id.in.includes(r.id) &&
+          (where.isActive === undefined || r.isActive === where.isActive),
+      );
+    const db = {
+      storeSettings: {
+        findFirst: () => Promise.resolve(store),
+        update: ({ data }: { data: Partial<typeof store> }) => {
+          Object.assign(store, data);
+          return Promise.resolve(store);
+        },
+      },
+      user: {
+        findMany: ({ where }: { where: Where }) =>
+          Promise.resolve(pick(init.users ?? [], where)),
+      },
+      role: {
+        findMany: ({ where }: { where: Where }) =>
+          Promise.resolve(pick(init.roles ?? [], where)),
+      },
+    };
+    return { store, db };
+  };
+  const svc = (f: ReturnType<typeof fake>, manager = true) =>
+    new TaskPiketService(f.db as never, { canAssign: () => manager } as never);
+  const ctx = {} as never;
+
+  it('bukan owner/manajer → ditolak', async () => {
+    await expect(
+      svc(fake(), false).setPiketSignatures(ctx, []),
+    ).rejects.toThrow(/owner\/manajer/i);
+  });
+
+  it('orang + jabatan sekaligus → ditolak', async () => {
+    const f = fake({ users: [{ id: 9, isActive: true }], roles: [{ id: 2 }] });
+    await expect(
+      svc(f).setPiketSignatures(ctx, [{ label: 'x', userId: 9, roleId: 2 }]),
+    ).rejects.toThrow(/jangan keduanya/i);
+  });
+
+  it('orang nonaktif atau jabatan tak ada → ditolak', async () => {
+    const f = fake({ users: [{ id: 9, isActive: false }], roles: [] });
+    await expect(
+      svc(f).setPiketSignatures(ctx, [{ userId: 9 }]),
+    ).rejects.toThrow(/tidak ditemukan atau nonaktif/i);
+    await expect(
+      svc(f).setPiketSignatures(ctx, [{ roleId: 7 }]),
+    ).rejects.toThrow(/Jabatan yang dipilih tidak ditemukan/i);
+  });
+
+  it('lebih dari 3 slot → ditolak', async () => {
+    await expect(
+      svc(fake()).setPiketSignatures(ctx, [{}, {}, {}, {}]),
+    ).rejects.toThrow(/Maksimal 3/);
+  });
+
+  it('valid → tersimpan & nama diambil dari akun/jabatan', async () => {
+    const f = fake({
+      users: [{ id: 9, isActive: true, name: 'Eka' }],
+      roles: [{ id: 2, name: 'Manajer' }],
+    });
+    const s = svc(f);
+    const res = await s.setPiketSignatures(ctx, [
+      { label: 'Dibuat oleh', userId: 9 },
+      { label: 'Mengetahui', roleId: 2 },
+      { label: '' },
+    ]);
+    expect(res.signatures).toEqual([
+      { label: 'Dibuat oleh', userId: 9, roleId: null },
+      { label: 'Mengetahui', userId: null, roleId: 2 },
+      { label: 'Tanda tangan', userId: null, roleId: null },
+    ]);
+    expect(await s.piketSignatures()).toEqual([
+      { label: 'Dibuat oleh', name: 'Eka' },
+      { label: 'Mengetahui', name: 'Manajer' },
+      { label: 'Tanda tangan', name: null },
+    ]);
+  });
+
+  it('JSON rusak di DB → dianggap kosong (PDF tetap bisa dibuat)', async () => {
+    expect(
+      await svc(fake({ piketSignatures: '{bukan json' })).piketSignSlots(),
+    ).toEqual([]);
   });
 });

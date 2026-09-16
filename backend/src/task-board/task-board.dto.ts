@@ -48,6 +48,11 @@ export class PinAckDto extends PinAuthDto {
 }
 
 /** Atur tanggal akhir masa uji coba piket (null = akhiri uji coba). */
+/** Tanda tangan PDF jadwal piket: maks 3 slot, tiap slot label + orang ATAU jabatan. */
+export class SetSignaturesDto {
+  @IsArray() signatures!: unknown[];
+}
+
 export class SetTrialDto {
   @IsOptional() @Matches(/^\d{4}-\d{2}-\d{2}$/) until?: string | null;
 }
@@ -69,7 +74,10 @@ export class CreateScheduleDto {
   @IsOptional() @IsBoolean() targetAll?: boolean;
   @IsOptional() @IsInt() branchId?: number; // owner boleh set; staff diabaikan
   @IsOptional() @IsIn(SHIFT_SLOT) shiftSlot?: string | null; // piket: hanya utk yg pilih shift ini
-  @IsOptional() @IsString() @MaxLength(255) @Matches(/^\d+(,\d+)*$/)
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  @Matches(/^\d+(,\d+)*$/)
   rotationUserIds?: string | null; // giliran harian "18,19,24,9" (dihitung dari startDate)
 }
 

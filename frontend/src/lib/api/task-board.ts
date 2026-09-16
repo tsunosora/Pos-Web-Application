@@ -234,6 +234,17 @@ export const getPiketBoard = async () =>
   (await api.get('/task-board/board')).data as PiketBoard;
 export const getPinPiketBoard = (designerId: number, pin: string) =>
   pinPost<PiketBoard>('board', { designerId, pin });
+/** Tanda tangan PDF jadwal piket — diatur owner/manajer di Pengaturan → Umum. */
+export interface PiketSignSlot {
+  label: string;
+  userId: number | null;
+  roleId: number | null;
+}
+export const getPiketSignatures = async () =>
+  (await api.get('/task-board/sign')).data as { signatures: PiketSignSlot[] };
+export const setPiketSignatures = async (signatures: PiketSignSlot[]) =>
+  (await api.patch('/task-board/sign', { signatures })).data as { signatures: PiketSignSlot[] };
+
 export const getPiketTrial = async () =>
   (await api.get('/task-board/trial')).data as { trialUntil: string | null };
 export const setPiketTrial = async (until: string | null) =>

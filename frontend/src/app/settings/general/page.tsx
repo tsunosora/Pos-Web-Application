@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { getSettings, updateSettings, uploadLogoImage } from '@/lib/api';
 import { Store, Phone, MapPin, Save, Loader2, Ruler, ToggleLeft, ToggleRight, UploadCloud, Percent, KeyRound } from 'lucide-react';
+import { PiketSignSettings } from '@/components/tugas/PiketSignSettings';
 
 export default function GeneralSettings() {
     const [isLoading, setIsLoading] = useState(true);
@@ -300,6 +301,11 @@ export default function GeneralSettings() {
                         </a>
                     </div>
                 </div>
+
+                {/* Tanda tangan kertas jadwal piket (owner/manajer) */}
+
+                <PiketSignSettings />
+
 
                 <button
                     type="submit"
