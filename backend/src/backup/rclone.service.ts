@@ -11,7 +11,8 @@ import * as path from 'path';
 
 const execAsync = promisify(exec);
 const CRON_JOB_NAME = 'rclone-auto-backup';
-const BACKUP_DIR = path.join(process.cwd(), 'backups');
+// Bisa ditimpa lewat env BACKUP_DIR — dipakai pengujian agar folder cadangan asli aman.
+const BACKUP_DIR = process.env.BACKUP_DIR || path.join(process.cwd(), 'backups');
 
 export interface BackupProgress {
     running: boolean;
@@ -144,6 +145,7 @@ export class RcloneService implements OnModuleInit {
         const now = new Date();
 
         let localPath: string | null = null;
+        let archived = false; // true = zip sudah selesai & utuh
         try {
             const pad = (n: number) => String(n).padStart(2, '0');
             const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
@@ -162,6 +164,7 @@ export class RcloneService implements OnModuleInit {
             const zipSize = fs.existsSync(localPath) ? fs.statSync(localPath).size : 0;
             this.setProgress({ phase: 'Arsip selesai', percent: 60, detail: fmtBytes(zipSize) });
             this.logger.log(`Backup saved locally: ${localPath}`);
+            archived = true;
 
             // 2) Upload via rclone dengan progress (60..98%).
             if (remote) {
@@ -191,20 +194,27 @@ export class RcloneService implements OnModuleInit {
             return { success: true, message: statusMsg, filename };
         } catch (err: any) {
             const msg: string = err?.message ?? String(err);
-            this.logger.error('Backup gagal:', msg);
-            this.setProgress({ running: false, phase: 'Gagal', ok: false, error: msg.slice(0, 400), detail: msg.slice(0, 200), finishedAt: new Date().toISOString() });
-            this.discord.notifyBackup({ ok: false, detail: msg.slice(0, 400) });
+            // Zip yang SUDAH selesai jangan dibuang hanya karena unggah gagal — dulu
+            // bug ini menghapus cadangan lokal yang baik (16 Sep 2026 hilang total).
+            const kept = archived && !!localPath && fs.existsSync(localPath);
+            const detail = kept
+                ? `Cadangan lokal tetap ada (${path.basename(localPath!)}), unggah gagal: ${msg}`
+                : msg;
+            this.logger.error('Backup gagal:', detail);
+            this.setProgress({ running: false, phase: kept ? 'Unggah gagal (lokal aman)' : 'Gagal', ok: false, error: detail.slice(0, 400), detail: detail.slice(0, 200), finishedAt: new Date().toISOString() });
+            this.discord.notifyBackup({ ok: false, detail: detail.slice(0, 400) });
             if (settings) {
                 await this.prisma.storeSettings.update({
                     where: { id: settings.id },
-                    data: { rcloneLastStatus: `Gagal: ${msg.slice(0, 400)}` } as any,
+                    data: { rcloneLastStatus: `Gagal: ${detail.slice(0, 400)}` } as any,
                 });
             }
-            // Clean up partial file
-            if (localPath && fs.existsSync(localPath)) {
-                try { fs.unlinkSync(localPath); } catch {}
+            if (kept) {
+                this.pruneLocalBackups(keepCount); // tetap jaga jumlah berkas lokal
+            } else if (localPath && fs.existsSync(localPath)) {
+                try { fs.unlinkSync(localPath); } catch {} // zip separuh — buang
             }
-            return { success: false, message: msg };
+            return { success: false, message: detail };
         }
     }
 
@@ -214,16 +224,28 @@ export class RcloneService implements OnModuleInit {
             const proc = spawn('rclone', [
                 'copy', localPath, remote,
                 '--use-json-log', '--stats', '500ms', '--stats-log-level', 'NOTICE',
+                '--retries', '3', '--low-level-retries', '10',
             ]);
             let lastLine = '';
             let settled = false;
-            const timer = setTimeout(() => {
-                proc.kill('SIGKILL');
-                if (!settled) { settled = true; reject(new Error('rclone timeout (5 menit)')); }
-            }, 300_000);
-            const finish = (fn: () => void) => { if (!settled) { settled = true; clearTimeout(timer); fn(); } };
+            // Dulu: batas 5 menit TOTAL → unggahan zip 1,9 GB selalu dibunuh di tengah
+            // jalan (butuh > 6 MB/s agar selesai). Sekarang: mati hanya bila TIDAK ADA
+            // kemajuan selama IDLE_MS, dengan batas mutlak MAX_MS untuk proses macet.
+            const IDLE_MS = 10 * 60_000;
+            const MAX_MS = 6 * 60 * 60_000;
+            let idle: NodeJS.Timeout;
+            let cap: NodeJS.Timeout;
+            const finish = (fn: () => void) => { if (!settled) { settled = true; clearTimeout(idle); clearTimeout(cap); fn(); } };
+            const stop = (why: string) => { proc.kill('SIGKILL'); finish(() => reject(new Error(why))); };
+            const bump = () => {
+                clearTimeout(idle);
+                idle = setTimeout(() => stop(`rclone tidak ada kemajuan ${IDLE_MS / 60_000} menit`), IDLE_MS);
+            };
+            bump();
+            cap = setTimeout(() => stop(`rclone melewati batas ${MAX_MS / 3_600_000} jam`), MAX_MS);
 
             const onData = (buf: Buffer) => {
+                bump(); // ada kabar dari rclone → reset hitungan diam
                 for (const line of buf.toString().split('\n')) {
                     const t = line.trim();
                     if (!t) continue;
