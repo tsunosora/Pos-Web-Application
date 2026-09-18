@@ -1,6 +1,7 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { StaffKpiService } from './staff-kpi.service';
+import { StaffPinService } from './staff-pin.service';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -11,7 +12,10 @@ const YMD = /^\d{4}-\d{2}-\d{2}$/;
 @UseGuards(ApiKeyGuard)
 @Controller('integrations')
 export class StaffKpiController {
-    constructor(private readonly service: StaffKpiService) { }
+    constructor(
+        private readonly service: StaffKpiService,
+        private readonly pins: StaffPinService,
+    ) { }
 
     /** Daftar staf (untuk memetakan karyawan HR ↔ user PosPro). */
     @Get('staff-list')
@@ -37,5 +41,28 @@ export class StaffKpiController {
             throw new BadRequestException('`branchId` harus angka.');
         }
         return this.service.kpi({ from, to, branchId: branch });
+    }
+
+    /** Apakah user ini punya PIN desainer yang bisa dipakai aplikasi HR? */
+    @Get('staff-pin')
+    hasPin(@Query('userId') userId?: string) {
+        return this.pins.hasPin(this.parseUserId(userId));
+    }
+
+    /** Verifikasi PIN desainer. Jawabannya hanya benar/salah. */
+    @Post('staff-pin/verify')
+    @HttpCode(200)
+    verifyPin(@Body() body: { userId?: number | string; pin?: string }) {
+        const pin = typeof body?.pin === 'string' ? body.pin : '';
+        if (!pin) throw new BadRequestException('`pin` wajib diisi.');
+        return this.pins.verify(this.parseUserId(body?.userId), pin);
+    }
+
+    private parseUserId(raw: unknown): number {
+        const id = Number(raw);
+        if (!Number.isInteger(id) || id <= 0) {
+            throw new BadRequestException('`userId` wajib berupa angka positif.');
+        }
+        return id;
     }
 }
