@@ -80,10 +80,15 @@ export class StaffKpiService {
         const branchId = params.branchId ?? null;
         const branchFilter = branchId ? { branchId } : {};
 
-        const [users, ratingRows, taskRows, salesGroups] = await Promise.all([
+        const [users, designers, ratingRows, taskRows, salesGroups] = await Promise.all([
             this.prisma.user.findMany({
                 select: { id: true, name: true, branchId: true, isActive: true },
                 orderBy: { name: 'asc' },
+            }),
+            // Alias nama per user (mis. user "Damara" memakai nama desainer "Damar").
+            this.prisma.designer.findMany({
+                where: { userId: { not: null } },
+                select: { name: true, userId: true },
             }),
             this.prisma.csRatingResponse.findMany({
                 where: { submittedAt: { not: null, gte: from, lte: to }, ...branchFilter },
@@ -122,10 +127,35 @@ export class StaffKpiService {
         const named = users.filter((u) => u.name);
         const matchedNames = new Set<string>();
 
+        // Semua nama yang mewakili satu user: namanya sendiri + nama desainernya.
+        const aliasesOf = new Map<number, string[]>();
+        for (const u of named) aliasesOf.set(u.id, [normalizeName(u.name)]);
+        for (const d of designers) {
+            if (d.userId == null) continue;
+            const list = aliasesOf.get(d.userId);
+            const key = normalizeName(d.name);
+            if (list && key && !list.includes(key)) list.push(key);
+        }
+
         const staff: StaffKpiRow[] = named.map((u) => {
-            const key = normalizeName(u.name);
-            const sales = salesByName.get(key);
-            if (sales) matchedNames.add(key);
+            const keys = aliasesOf.get(u.id) ?? [normalizeName(u.name)];
+            // Gabungkan penjualan dari semua alias orang ini.
+            let sales: ReturnType<typeof salesByName.get> = undefined;
+            for (const key of keys) {
+                const found = salesByName.get(key);
+                if (!found) continue;
+                matchedNames.add(key);
+                sales = sales
+                    ? {
+                        transactions: sales.transactions + found.transactions,
+                        grandTotal: sales.grandTotal + found.grandTotal,
+                        averageTicket: 0,
+                    }
+                    : { ...found };
+            }
+            if (sales && sales.averageTicket === 0 && sales.transactions > 0) {
+                sales.averageTicket = Math.round(sales.grandTotal / sales.transactions);
+            }
             return {
                 userId: u.id,
                 name: u.name as string,

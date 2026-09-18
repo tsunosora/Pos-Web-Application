@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Get, HttpCode, Post, Query, UseG
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { StaffKpiService } from './staff-kpi.service';
 import { StaffPinService } from './staff-pin.service';
+import { StaffDailyService } from './staff-daily.service';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -15,6 +16,7 @@ export class StaffKpiController {
     constructor(
         private readonly service: StaffKpiService,
         private readonly pins: StaffPinService,
+        private readonly dailyService: StaffDailyService,
     ) { }
 
     /** Daftar staf (untuk memetakan karyawan HR ↔ user PosPro). */
@@ -41,6 +43,20 @@ export class StaffKpiController {
             throw new BadRequestException('`branchId` harus angka.');
         }
         return this.service.kpi({ from, to, branchId: branch });
+    }
+
+    /** Angka harian satu orang: omzet kasir, order desain, kartu produksi. */
+    @Get('staff-daily')
+    daily(
+        @Query('userId') userId?: string,
+        @Query('from') from?: string,
+        @Query('to') to?: string,
+    ) {
+        if (!from || !YMD.test(from) || !to || !YMD.test(to)) {
+            throw new BadRequestException('Parameter `from` & `to` wajib, format YYYY-MM-DD.');
+        }
+        if (to < from) throw new BadRequestException('`to` mendahului `from`.');
+        return this.dailyService.daily({ userId: this.parseUserId(userId), from, to });
     }
 
     /** Apakah user ini punya PIN desainer yang bisa dipakai aplikasi HR? */
