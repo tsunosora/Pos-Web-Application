@@ -6,11 +6,18 @@ export type DailyRow = {
     date: string; // YYYY-MM-DD
     /** Kasir/CS: nota lunas yang ditutup orang ini. */
     transactions: number;
+    /** Nilai nota yang dia tutup sebagai kasir. */
     omzet: number;
     /** Desainer: sales order yang dia kerjakan hari itu. */
     designJobs: number;
+    /** Nilai nota dari sales order yang dia desain. */
+    designOmzet: number;
     /** Operator: bobot kredit perpindahan kartu produksi (0.5 bila berdua, dst). */
     operatorJobs: number;
+    /** Nilai item produksi yang dia kerjakan, dibagi rata bila dikerjakan beberapa orang. */
+    operatorOmzet: number;
+    /** Jumlah ketiga peran — "hari itu saya menghasilkan berapa". */
+    totalOmzet: number;
 };
 
 export type StaffDailyResponse = {
@@ -75,15 +82,39 @@ export class StaffDailyService {
                 },
                 select: { createdAt: true, grandTotal: true, cashierName: true, checkoutCashierName: true },
             }),
+            // Desainer: nilai order diambil dari nota yang lahir dari sales order itu.
             this.prisma.salesOrder.findMany({
                 where: { designerName: { in: aliases }, createdAt: { gte: start, lte: end } },
-                select: { createdAt: true },
+                select: {
+                    createdAt: true,
+                    transaction: { select: { status: true, grandTotal: true } },
+                },
             }),
+            // Operator: kartu produksi yang dia pindahkan. ProductionJobActivity hanya
+            // menyimpan jobId (tanpa relasi Prisma), jadi nilainya diambil menyusul.
             this.prisma.productionJobActivity.findMany({
                 where: { actorName: { in: aliases }, createdAt: { gte: start, lte: end } },
-                select: { createdAt: true, actorWeight: true },
+                select: { createdAt: true, actorWeight: true, jobId: true },
             }),
         ]);
+
+        // Nilai tiap kartu produksi = qty x harga saat transaksi.
+        const jobIds = [...new Set(activities.map((a) => a.jobId))];
+        const jobs = jobIds.length
+            ? await this.prisma.productionJob.findMany({
+                where: { id: { in: jobIds } },
+                select: {
+                    id: true,
+                    transactionItem: { select: { quantity: true, priceAtTime: true } },
+                },
+            })
+            : [];
+        const jobValue = new Map(
+            jobs.map((j) => [
+                j.id,
+                j.transactionItem ? Number(j.transactionItem.priceAtTime) * j.transactionItem.quantity : 0,
+            ]),
+        );
 
         const byDate = new Map<string, DailyRow>();
         const row = (date: string): DailyRow => {
@@ -92,7 +123,10 @@ export class StaffDailyService {
                 transactions: 0,
                 omzet: 0,
                 designJobs: 0,
+                designOmzet: 0,
                 operatorJobs: 0,
+                operatorOmzet: 0,
+                totalOmzet: 0,
             };
             byDate.set(date, r);
             return r;
@@ -110,11 +144,29 @@ export class StaffDailyService {
             r.transactions += 1;
             r.omzet += Number(t.grandTotal);
         }
-        for (const o of orders) row(ymd(o.createdAt)).designJobs += 1;
-        for (const a of activities) row(ymd(a.createdAt)).operatorJobs += a.actorWeight ?? 1;
+        for (const o of orders) {
+            const r = row(ymd(o.createdAt));
+            r.designJobs += 1;
+            // Hanya nota lunas yang dihitung sebagai omzet — seragam dengan sisi kasir.
+            if (o.transaction?.status === 'PAID') r.designOmzet += Number(o.transaction.grandTotal);
+        }
+        for (const a of activities) {
+            const r = row(ymd(a.createdAt));
+            const weight = a.actorWeight ?? 1;
+            r.operatorJobs += weight;
+            // Dibagi sesuai bobot: kerja berdua = setengah nilai per orang.
+            r.operatorOmzet += (jobValue.get(a.jobId) ?? 0) * weight;
+        }
 
         const days = [...byDate.values()]
-            .map((r) => ({ ...r, omzet: round2(r.omzet), operatorJobs: round2(r.operatorJobs) }))
+            .map((r) => ({
+                ...r,
+                omzet: round2(r.omzet),
+                designOmzet: round2(r.designOmzet),
+                operatorJobs: round2(r.operatorJobs),
+                operatorOmzet: round2(r.operatorOmzet),
+                totalOmzet: round2(r.omzet + r.designOmzet + r.operatorOmzet),
+            }))
             .sort((a, b) => a.date.localeCompare(b.date));
 
         return {
@@ -127,7 +179,10 @@ export class StaffDailyService {
                 transactions: days.reduce((s, d) => s + d.transactions, 0),
                 omzet: round2(days.reduce((s, d) => s + d.omzet, 0)),
                 designJobs: days.reduce((s, d) => s + d.designJobs, 0),
+                designOmzet: round2(days.reduce((s, d) => s + d.designOmzet, 0)),
                 operatorJobs: round2(days.reduce((s, d) => s + d.operatorJobs, 0)),
+                operatorOmzet: round2(days.reduce((s, d) => s + d.operatorOmzet, 0)),
+                totalOmzet: round2(days.reduce((s, d) => s + d.totalOmzet, 0)),
             },
         };
     }
