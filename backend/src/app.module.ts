@@ -22,6 +22,7 @@ import { BankAccountsModule } from './bank-accounts/bank-accounts.module';
 import { CustomersModule } from './customers/customers.module';
 import { HppModule } from './hpp/hpp.module';
 import { ReportsModule } from './reports/reports.module';
+import { IntegrationsModule } from './integrations/integrations.module';
 import { WhatsappModule } from './whatsapp/whatsapp.module';
 import { CompetitorsModule } from './competitors/competitors.module';
 import { StockOpnameModule } from './stock-opname/stock-opname.module';
@@ -71,7 +72,7 @@ import { StudioAiModule } from './studio-ai/studio-ai.module';
       rootPath: join(__dirname, '..', '..', 'public'), // Serve local uploads
     }),
     ScheduleModule.forRoot(),
-    PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule, PrinterRelayModule, SyncModule, LocalSyncModule, WhatsappCloudModule, MetaMessagingModule, MetaAdsModule, CustomProductMetricsModule, TaskBoardModule, StudioAiModule],
+    PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule, PrinterRelayModule, SyncModule, LocalSyncModule, WhatsappCloudModule, MetaMessagingModule, MetaAdsModule, CustomProductMetricsModule, TaskBoardModule, StudioAiModule, IntegrationsModule],
   controllers: [AppController],
   providers: [AppService],
 })
