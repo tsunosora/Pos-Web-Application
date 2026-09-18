@@ -14,6 +14,10 @@ export type DailyRow = {
     designOmzet: number;
     /** Operator: bobot kredit perpindahan kartu produksi (0.5 bila berdua, dst). */
     operatorJobs: number;
+    /** Task/piket yang dia selesaikan hari itu, tepat waktu. */
+    tasksOnTime: number;
+    /** Task/piket yang dia selesaikan hari itu tapi lewat tenggat. */
+    tasksLate: number;
     /** Nilai item produksi yang dia kerjakan, dibagi rata bila dikerjakan beberapa orang. */
     operatorOmzet: number;
     /** Jumlah ketiga peran — "hari itu saya menghasilkan berapa". */
@@ -71,7 +75,7 @@ export class StaffDailyService {
         const aliases = [user.name, ...designers.map((d) => d.name)].filter(Boolean);
         const aliasKeys = new Set(aliases.map((n) => normalizeName(n)));
 
-        const [txs, orders, activities] = await Promise.all([
+        const [txs, orders, activities, tasks] = await Promise.all([
             // Ambil nota yang menyebut nama ini di salah satu kolom kasir; aturan
             // "kredit ke penutup transaksi" diterapkan setelahnya.
             this.prisma.transaction.findMany({
@@ -95,6 +99,11 @@ export class StaffDailyService {
             this.prisma.productionJobActivity.findMany({
                 where: { actorName: { in: aliases }, createdAt: { gte: start, lte: end } },
                 select: { createdAt: true, actorWeight: true, jobId: true },
+            }),
+            // Task/piket dipetakan lewat id user (bukan nama), jadi selalu tepat orangnya.
+            this.prisma.taskItem.findMany({
+                where: { assigneeId: user.id, completedAt: { gte: start, lte: end } },
+                select: { completedAt: true, dueDate: true },
             }),
         ]);
 
@@ -126,6 +135,8 @@ export class StaffDailyService {
                 designOmzet: 0,
                 operatorJobs: 0,
                 operatorOmzet: 0,
+                tasksOnTime: 0,
+                tasksLate: 0,
                 totalOmzet: 0,
             };
             byDate.set(date, r);
@@ -158,6 +169,14 @@ export class StaffDailyService {
             r.operatorOmzet += (jobValue.get(a.jobId) ?? 0) * weight;
         }
 
+        for (const t of tasks) {
+            if (!t.completedAt) continue;
+            const r = row(ymd(t.completedAt));
+            // Tanpa tenggat tak mungkin terlambat.
+            if (t.dueDate && t.completedAt > t.dueDate) r.tasksLate += 1;
+            else r.tasksOnTime += 1;
+        }
+
         const days = [...byDate.values()]
             .map((r) => ({
                 ...r,
@@ -182,6 +201,8 @@ export class StaffDailyService {
                 designOmzet: round2(days.reduce((s, d) => s + d.designOmzet, 0)),
                 operatorJobs: round2(days.reduce((s, d) => s + d.operatorJobs, 0)),
                 operatorOmzet: round2(days.reduce((s, d) => s + d.operatorOmzet, 0)),
+                tasksOnTime: days.reduce((s, d) => s + d.tasksOnTime, 0),
+                tasksLate: days.reduce((s, d) => s + d.tasksLate, 0),
                 totalOmzet: round2(days.reduce((s, d) => s + d.totalOmzet, 0)),
             },
         };
