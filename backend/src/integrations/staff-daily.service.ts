@@ -12,6 +12,12 @@ export type DailyRow = {
     designJobs: number;
     /** Nilai nota dari sales order yang dia desain. */
     designOmzet: number;
+    /** Jasa desain yang benar-benar terjual di order itu, dipecah per jenjang. */
+    designServices: DesignService[];
+    /** Jumlah jasa desain (semua jenjang). */
+    designServiceCount: number;
+    /** Nilai rupiah jasa desainnya saja (bukan nilai nota) — ukuran bobot pekerjaan. */
+    designServiceValue: number;
     /** Operator: bobot kredit perpindahan kartu produksi (0.5 bila berdua, dst). */
     operatorJobs: number;
     /** Task/piket yang dia selesaikan hari itu, tepat waktu. */
@@ -24,6 +30,13 @@ export type DailyRow = {
     totalOmzet: number;
 };
 
+/** Satu jenjang jasa desain (Easy A / Standar / Medium / Hard, dst). */
+export type DesignService = {
+    level: string;
+    qty: number;
+    value: number;
+};
+
 export type StaffDailyResponse = {
     userId: number;
     name: string;
@@ -32,6 +45,20 @@ export type StaffDailyResponse = {
     days: DailyRow[];
     totals: Omit<DailyRow, 'date'>;
 };
+
+/** Gabungkan jenjang jasa desain dari banyak hari menjadi satu ringkasan. */
+function mergeServices(list: DesignService[]): DesignService[] {
+    const m = new Map<string, DesignService>();
+    for (const d of list) {
+        const g = m.get(d.level) ?? { level: d.level, qty: 0, value: 0 };
+        g.qty += d.qty;
+        g.value += d.value;
+        m.set(d.level, g);
+    }
+    return [...m.values()]
+        .map((d) => ({ ...d, value: Math.round((d.value + Number.EPSILON) * 100) / 100 }))
+        .sort((a, b) => b.value - a.value);
+}
 
 /** Date lokal -> "YYYY-MM-DD" (samakan dengan kalender kantor, bukan UTC). */
 function ymd(d: Date): string {
@@ -91,6 +118,7 @@ export class StaffDailyService {
                 where: { designerName: { in: aliases }, createdAt: { gte: start, lte: end } },
                 select: {
                     createdAt: true,
+                    transactionId: true,
                     transaction: { select: { status: true, grandTotal: true } },
                 },
             }),
@@ -125,6 +153,30 @@ export class StaffDailyService {
             ]),
         );
 
+        // Jasa desain adalah PRODUK di PosPro ("Jasa Desain") dengan varian berjenjang
+        // (Easy A/B, Standar, Medium, Hard). Jumlah sales order saja menyamakan Easy A
+        // dengan Hard, padahal bedanya belasan kali lipat — jadi jenjangnya ikut diambil.
+        const soTxIds = orders.map((o) => o.transactionId).filter((id): id is number => id != null);
+        const designItems = soTxIds.length
+            ? await this.prisma.transactionItem.findMany({
+                where: {
+                    transactionId: { in: soTxIds },
+                    productVariant: { product: { name: { contains: 'desain' } } },
+                },
+                select: {
+                    transactionId: true,
+                    quantity: true,
+                    priceAtTime: true,
+                    productVariant: { select: { variantName: true } },
+                },
+            })
+            : [];
+        // Tanggal mengikuti sales order-nya (saat desain dikerjakan), bukan tanggal nota.
+        const dateOfTx = new Map<number, string>();
+        for (const o of orders) {
+            if (o.transactionId != null) dateOfTx.set(o.transactionId, ymd(o.createdAt));
+        }
+
         const byDate = new Map<string, DailyRow>();
         const row = (date: string): DailyRow => {
             const r = byDate.get(date) ?? {
@@ -133,6 +185,9 @@ export class StaffDailyService {
                 omzet: 0,
                 designJobs: 0,
                 designOmzet: 0,
+                designServices: [],
+                designServiceCount: 0,
+                designServiceValue: 0,
                 operatorJobs: 0,
                 operatorOmzet: 0,
                 tasksOnTime: 0,
@@ -161,6 +216,23 @@ export class StaffDailyService {
             // Hanya nota lunas yang dihitung sebagai omzet — seragam dengan sisi kasir.
             if (o.transaction?.status === 'PAID') r.designOmzet += Number(o.transaction.grandTotal);
         }
+        for (const it of designItems) {
+            const date = it.transactionId != null ? dateOfTx.get(it.transactionId) : undefined;
+            if (!date) continue;
+            const r = row(date);
+            const level = it.productVariant?.variantName?.trim() || 'Tanpa jenjang';
+            const value = Number(it.priceAtTime) * it.quantity;
+            const found = r.designServices.find((d) => d.level === level);
+            if (found) {
+                found.qty += it.quantity;
+                found.value += value;
+            } else {
+                r.designServices.push({ level, qty: it.quantity, value });
+            }
+            r.designServiceCount += it.quantity;
+            r.designServiceValue += value;
+        }
+
         for (const a of activities) {
             const r = row(ymd(a.createdAt));
             const weight = a.actorWeight ?? 1;
@@ -182,6 +254,10 @@ export class StaffDailyService {
                 ...r,
                 omzet: round2(r.omzet),
                 designOmzet: round2(r.designOmzet),
+                designServiceValue: round2(r.designServiceValue),
+                designServices: r.designServices
+                    .map((d) => ({ ...d, value: round2(d.value) }))
+                    .sort((a, b) => b.value - a.value),
                 operatorJobs: round2(r.operatorJobs),
                 operatorOmzet: round2(r.operatorOmzet),
                 totalOmzet: round2(r.omzet + r.designOmzet + r.operatorOmzet),
@@ -199,6 +275,9 @@ export class StaffDailyService {
                 omzet: round2(days.reduce((s, d) => s + d.omzet, 0)),
                 designJobs: days.reduce((s, d) => s + d.designJobs, 0),
                 designOmzet: round2(days.reduce((s, d) => s + d.designOmzet, 0)),
+                designServices: mergeServices(days.flatMap((d) => d.designServices)),
+                designServiceCount: days.reduce((s, d) => s + d.designServiceCount, 0),
+                designServiceValue: round2(days.reduce((s, d) => s + d.designServiceValue, 0)),
                 operatorJobs: round2(days.reduce((s, d) => s + d.operatorJobs, 0)),
                 operatorOmzet: round2(days.reduce((s, d) => s + d.operatorOmzet, 0)),
                 tasksOnTime: days.reduce((s, d) => s + d.tasksOnTime, 0),
