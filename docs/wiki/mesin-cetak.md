@@ -6,7 +6,6 @@ Modul ini digunakan untuk melacak jumlah klik meteran pada mesin cetak (Paper) s
 
 Papan yang dipakai operator cetak sehari-hari:
 
-![Papan cetak operator](images/cetak.webp)
 
 ---
 
@@ -34,6 +33,66 @@ Saat transaksi kasir menagihkan produk yang membutuhkan cetakan paper (mempunyai
 1. **Terpisah dari Produksi Banner:** Memisahkan workflow antara ruang mesin outdoor/indoor (Banner) dengan ruang mesin plotter/laser (Paper).
 2. **Keamanan PIN Operator:** Sama seperti produksi banner, operator mesin cetak paper harus login menggunakan PIN 4 digit untuk mencatat siapa yang memproses dan menyelesaikan cetakan.
 3. **Status Job:** `ANTRIAN` → `PROSES` → `SELESAI` → `DIAMBIL`.
+
+---
+
+## Langkah demi langkah di papan operator
+
+### 1. Masuk dengan PIN cabang
+
+![Layar masuk papan cetak: pilih cabang lalu masukkan PIN operator cabang](images/cetak-1-pin.webp)
+
+PIN ini milik **cabang**, bukan perorangan, dan berlaku 24 jam di perangkat itu.
+Fungsinya membuktikan perangkatnya memang berada di cabang tersebut.
+
+### 2. Papan antrian terbuka
+
+![Papan cetak dengan tab Antrian, Proses, Siap Diambil, Diambil, dan Rekonsiliasi](images/cetak-2-papan.webp)
+
+Angka di tiap tab menunjukkan berapa pekerjaan yang ada di dalamnya, jadi
+operator langsung tahu mana yang perlu dikerjakan.
+
+### 3. Pilih nama, buktikan dengan PIN pribadi
+
+![Dialog PIN pribadi setelah memilih nama operator](images/cetak-3-pin-pribadi.webp)
+
+Memilih nama saja tidak cukup — aplikasi meminta **PIN pribadi** orang itu.
+Tanpa langkah ini, nama operator sebelumnya bisa tertinggal dan pekerjaan
+tercatat atas nama yang salah, padahal nama inilah yang dibaca
+[Leaderboard](leaderboard.md) dan poin HR.
+
+### 4. Ambil pekerjaan dari antrian
+
+![Tab Antrian berisi pekerjaan cetak beserta nomor job dan pelanggannya](images/cetak-4-antrian.webp)
+
+Tombol **Mulai Cetak** memindahkannya ke tab *Proses* dengan nama operator yang
+menempel.
+
+### 5. Sedang dicetak
+
+![Tab Proses dengan tombol Tandai Selesai](images/cetak-5-proses.webp)
+
+Nama tombolnya berganti mengikuti tahap: **Mulai Cetak** di Antrian,
+**Tandai Selesai** di Proses, **Konfirmasi Diambil** di Siap Diambil.
+
+### 6. Selesai — siap diambil
+
+![Tab Siap Diambil berisi cetakan yang menunggu pelanggan](images/cetak-6-selesai.webp)
+
+Saat menandai selesai, operator bisa mencentang rekan yang ikut mengerjakan,
+sama seperti di [Antrian Produksi](produksi.md).
+
+### 7. Diserahkan ke pelanggan
+
+![Tab Diambil menjadi riwayat penyerahan](images/cetak-7-diambil.webp)
+
+### 8. Rekonsiliasi klik mesin
+
+![Tab Rekonsiliasi membandingkan klik tercatat dengan angka meteran mesin](images/cetak-8-rekonsiliasi.webp)
+
+Tab terakhir inilah pembeda papan cetak: jumlah klik yang tercatat aplikasi
+dibandingkan dengan angka di meteran mesin. Selisihnya menunjukkan cetakan yang
+tidak masuk nota — entah karena lupa dicatat, tes cetak, atau gagal cetak.
 
 ---
 
