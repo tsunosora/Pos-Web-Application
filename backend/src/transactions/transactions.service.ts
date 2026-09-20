@@ -7,6 +7,7 @@ import { BranchContext } from '../common/branch-context.decorator';
 import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 import { branchWhere, assertBranchAccess } from '../common/branch-where.helper';
 import { ProductsService } from '../products/products.service';
+import { buildCompositeClickBatch } from './composite-click.util';
 
 type EditItemData = {
     id?: number;           // unset = item baru
@@ -327,6 +328,36 @@ export class TransactionsService {
                     });
                     if (!anchor) throw new BadRequestException(`Produk konfigurasi ${compositeProductId} belum punya varian anchor`);
 
+                    // Klik mesin komponen (isi/cover A3+). Dulu sengaja tidak diemit
+                    // ("Fase 1") → lembar yang dipakai buku tidak pernah masuk laporan
+                    // klik & notanya tak muncul di papan Cetak. Harga & HPP TIDAK
+                    // tersentuh: ini hanya pencatatan klik + antrian cetak.
+                    const compVariantIds = [
+                        ...new Set(((quote.breakdown ?? []) as any[])
+                            .map((b: any) => Number(b?.variantId))
+                            .filter((n: number) => Number.isFinite(n) && n > 0)),
+                    ];
+                    const compVariants = compVariantIds.length
+                        ? await (tx as any).productVariant.findMany({
+                            where: { id: { in: compVariantIds } },
+                            select: {
+                                id: true, clicksPerUnit: true,
+                                clickRate: { select: { id: true, isActive: true, pricePerClick: true } },
+                                product: {
+                                    select: {
+                                        clicksPerUnit: true,
+                                        clickRate: { select: { id: true, isActive: true, pricePerClick: true } },
+                                    },
+                                },
+                            },
+                        })
+                        : [];
+                    const compositeClickBatch = buildCompositeClickBatch(
+                        (quote.breakdown ?? []) as any[],
+                        compVariants as any[],
+                        qty,
+                    );
+
                     transactionItemsData.push({
                         productVariantId: anchor.id,   // BUKAN null → tergrup di laporan per-produk
                         customName: quote.name,        // nama deskriptif untuk nota
@@ -344,9 +375,10 @@ export class TransactionsService {
                             userNote: item.note ?? null,
                         }),
                         _requiresProduction: true,     // spawn 1 ProductionJob (buku harus dikerjakan)
-                        _clickRateId: null,            // Fase 1: klik belum diemit (lihat Task 9b)
+                        _clickRateId: null,            // klik komposit dicatat lewat _clickBatch (bisa >1 tarif)
                         _clickQuantity: 0,
                         _clickPricePerClick: 0,
+                        _clickBatch: compositeClickBatch,
                     });
                     subtotal += quote.price * qty;
                     continue;
@@ -637,7 +669,7 @@ export class TransactionsService {
             }
 
             // Strip internal flags before creating items
-            const itemsForCreate = transactionItemsData.map(({ _requiresProduction, _clickRateId, _clickQuantity, _clickPricePerClick, ...rest }: any) => rest);
+            const itemsForCreate = transactionItemsData.map(({ _requiresProduction, _clickRateId, _clickQuantity, _clickPricePerClick, _clickBatch, ...rest }: any) => rest);
 
             const transaction = await tx.transaction.create({
                 data: {
@@ -735,37 +767,54 @@ export class TransactionsService {
 
             for (let i = 0; i < transactionItemsData.length; i++) {
                 const d = transactionItemsData[i] as any;
-                if (d._clickRateId && d._clickQuantity > 0 && d._clickPricePerClick > 0) {
-                    const txItem = (transaction as any).items[i];
+                // Item biasa: satu tarif klik. Item COMPOSITE (mis. Buku Custom):
+                // bisa lebih dari satu tarif — isi (2 sisi) + cover (1 sisi).
+                const clickEntries: { rateId: number; clicks: number; pricePerClick: number; label: string | null }[] =
+                    Array.isArray(d._clickBatch) && d._clickBatch.length
+                        ? d._clickBatch
+                        : d._clickRateId && d._clickQuantity > 0 && d._clickPricePerClick > 0
+                            ? [{ rateId: d._clickRateId, clicks: d._clickQuantity, pricePerClick: d._clickPricePerClick, label: null }]
+                            : [];
+                if (!clickEntries.length) continue;
+
+                const txItem = (transaction as any).items[i];
+                for (const e of clickEntries) {
                     await (tx as any).clickLog.create({
                         data: {
-                            clickRateId: d._clickRateId,
+                            clickRateId: e.rateId,
                             transactionItemId: txItem.id,
-                            quantity: d._clickQuantity,
-                            pricePerClick: d._clickPricePerClick,
-                            totalCost: d._clickPricePerClick * d._clickQuantity,
+                            quantity: e.clicks,
+                            pricePerClick: e.pricePerClick,
+                            totalCost: e.pricePerClick * e.clicks,
                             date: effectiveDate,
                             // Click counter mengikuti cabang produksi (mesin fisik ada di sana).
                             branchId: productionBranchId,
                         },
                     });
-
-                    // Auto-create PrintJob for paper print tracking
-                    const jobNumber = `${prtPrefix}${String(prtSeq).padStart(4, '0')}`;
-                    prtSeq += 1;
-                    await (tx as any).printJob.create({
-                        data: {
-                            jobNumber,
-                            transactionId: transaction.id,
-                            transactionItemId: txItem.id,
-                            // Antrian print jalan di cabang produksi, bukan cabang kasir.
-                            branchId: productionBranchId,
-                            quantity: txItem.quantity,
-                            status: 'ANTRIAN',
-                            notes: d.note || null,
-                        },
-                    });
                 }
+
+                // Auto-create PrintJob for paper print tracking.
+                // transaction_item_id UNIK di print_jobs → tetap SATU antrian cetak per
+                // baris nota; untuk komposit jumlahnya = total lembar semua komponen.
+                const dariKomposit = Array.isArray(d._clickBatch) && d._clickBatch.length > 0;
+                const totalKlik = clickEntries.reduce((sum, e) => sum + e.clicks, 0);
+                const rincianKlik = clickEntries.map((e) => e.label).filter(Boolean).join(' + ') || null;
+                const jobNumber = `${prtPrefix}${String(prtSeq).padStart(4, '0')}`;
+                prtSeq += 1;
+                await (tx as any).printJob.create({
+                    data: {
+                        jobNumber,
+                        transactionId: transaction.id,
+                        transactionItemId: txItem.id,
+                        // Antrian print jalan di cabang produksi, bukan cabang kasir.
+                        branchId: productionBranchId,
+                        quantity: dariKomposit ? totalKlik : txItem.quantity,
+                        status: 'ANTRIAN',
+                        notes: dariKomposit
+                            ? [d.customName, rincianKlik].filter(Boolean).join(' — ') || null
+                            : d.note || null,
+                    },
+                });
             }
 
             // Ambil branchName dari SO jika belum di-set manual
