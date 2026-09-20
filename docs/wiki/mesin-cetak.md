@@ -2,6 +2,8 @@
 
 Modul ini digunakan untuk melacak jumlah klik meteran pada mesin cetak (Paper) serta antrian produksi khusus bahan lembaran (A3+/A4).
 
+![Klik mesin cetak](images/klik-mesin.png)
+
 ---
 
 ## 1. Konsep Click Counting (Meteran Mesin)

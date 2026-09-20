@@ -50,6 +50,54 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 28 | [🖨️ Printer Relay Agent](printer-relay-agent.md) | **Agen relay `agent.py`** — install di PC kasir, konfigurasi token/COM, auto-run tersembunyi (Startup / Task Scheduler), troubleshooting |
 | 29 | [🏆 Leaderboard & Metrik Custom](leaderboard.md) | **Papan peringkat** CS/Designer/Operator/Cabang + **Metrik Produk Custom** — Owner buat kolom pelacak produk/varian tertentu (PCS/QTY/OMZET/NOTA) |
 | 30 | [💻 Setup Pengembangan Lokal](setup-lokal.md) | **Koding di laptop, bukan di server** — prasyarat (Node 22/WSL2/MySQL 8), seed data tersamar, akun & PIN uji, fitur yang hanya bisa diuji di server, alur branch→push→deploy |
+| 31 | [🛒 Kasir POS](kasir-pos.md) | **Inti aplikasi** — tiga mode harga (satuan/m²/paket), harga khusus, sub ke printing luar, DP, titip cetak, dan enam hal yang terjadi otomatis setelah tombol bayar ditekan |
+| 32 | [🔒 Tutup Shift](tutup-shift.md) | Hitung uang fisik vs catatan sistem, selisih per metode bayar, pengeluaran shift dari Cashflow, rekap ke WhatsApp & Discord |
+| 33 | [💳 DP & Piutang](dp-piutang.md) | Nota belum lunas: DP, invoice `PENDING`, tambah pembayaran, pelunasan, dan kaitannya dengan Cashflow & Leaderboard |
+| 34 | [🏷️ Katalog Produk & Harga](katalog-produk.md) | Enam saklar penentu perilaku kasir (`requiresProduction`, tarif klik, `trackStock`, dll), varian, harga bertingkat, resep bahan, metrik custom |
+| 35 | [📦 Stok Masuk, Transfer & Mutasi](stok-masuk-transfer.md) | Tiga jalan stok berubah: pembelian supplier, transfer antar cabang, terpakai penjualan — dan bedanya dengan titip cetak |
+| 36 | [🧹 Papan Tugas & Piket](papan-tugas-piket.md) | Jadwal berulang & rotasi, teguran otomatis tiap 5 menit, absen shift, grup tim, PDF jadwal, pop-up di papan kerja ber-PIN |
+| 37 | [👥 Akun & PIN Karyawan](karyawan-akun-pin.md) | Dua pintu masuk (login & PIN kerja), peran, akses menu per peran, penandaan karyawan keluar beserta pagar keamanannya |
+| 38 | [🗓️ Absensi & Portal HR](absensi-hr.md) | Integrasi RateMyStaff: kartu Sekilas HR (Owner/Manajer) & kartu Absensi saya di dashboard + tiga papan kerja ber-PIN |
+| 39 | [💬 WhatsApp CRM (Cloud API)](whatsapp-cloud.md) | Modul terbesar setelah kasir: inbox, broadcast bertahap, balasan otomatis, template Meta, reminder POS, QR chat, analitik |
+| 40 | [📣 Inbox Sosial & Iklan Meta](sosial-iklan.md) | DM Instagram/Facebook dalam satu inbox, plus biaya per lead yang sebenarnya dari Click-to-WhatsApp |
+| 41 | [🎨 Studio Desain AI](studio-ai.md) | Perantara ke layanan AI: ide desain, teks promosi, pengisian rincian order, dan panduan aplikasi yang disertakan ke AI |
+| 42 | [⭐ Penilaian Pelayanan (Rating CS)](rating-cs.md) | Pelanggan menilai lewat tautan sekali pakai atau QR per cabang, tanpa login dan tanpa aplikasi |
+| 43 | [📈 Keuangan Owner](keuangan-owner.md) | Konsolidasi, anomali, rekonsiliasi, kas pusat & pendanaan cabang, tutup buku bulanan, biaya tetap, bonus, rekening bank |
+| 44 | [⚙️ Pengaturan](pengaturan.md) | Semua halaman `/settings/*` dan `/owner/*` beserta tabel yang disentuhnya, termasuk dua tingkat PIN operator |
+| 45 | [🌐 Halaman Publik](halaman-publik.md) | Halaman yang bisa dibuka tanpa login (landing, artikel, produk, penilaian, opname, papan TV) dan cara mengamankannya |
+| 46 | [🔐 Model Akses & Keamanan](keamanan-akses.md) | Empat cara akses (JWT, peran, PIN, tautan publik) + audit 91 endpoint tanpa penjaga login beserta alasannya |
+| 47 | [🖨️ Mesin Cetak & Antrian Paper](mesin-cetak.md) | Tarif klik per ukuran/warna/sisi, papan cetak operator, rekap klik mesin & rekonsiliasi |
+| 48 | [📰 Artikel / Blog](artikel.md) | Tulis artikel publik untuk mesin pencari, tampil di `/artikel` |
+| 49 | [🏪 Landing Page Builder](landing.md) | Menyusun halaman profil toko tanpa koding, tampil di `/landing` |
+| 50 | [🔔 Sistem Notifikasi Real-Time](notifications.md) | Lencana & pemberitahuan di dalam aplikasi: pesanan siap, stok menipis, tugas lewat tenggat |
+| 51 | [🤖 Notifikasi Discord](discord.md) | Rekap & peringatan ke kanal Discord, bisa berbeda per cabang |
+| 52 | [📅 Contoh Alur 1 Hari CS](contoh-alur-cs-harian.md) | Contoh nyata satu hari kerja CS memakai CRM, dari chat masuk sampai nota |
+| 53 | [📢 Arsip: Pengumuman v3.3](discord-announcement-v3.3.md) | Catatan rilis modul CRM — disimpan sebagai arsip |
+
+---
+
+## 📚 Referensi teknis (dibangkitkan dari kode)
+
+Empat halaman di bawah **dibuat otomatis** oleh `tools/gen-wiki-referensi.cjs`
+langsung dari kode sumber, jadi isinya tidak pernah tertinggal dari aplikasi.
+Jalankan ulang skripnya setiap kali menambah fitur:
+
+```bash
+node tools/gen-wiki-referensi.cjs
+```
+
+| Halaman | Isinya |
+|---|---|
+| [📡 Referensi Endpoint](referensi-endpoint.md) | Seluruh **580 endpoint** dalam 74 controller: metode, jalur, handler, penjaga akses, batas peran |
+| [🗄️ Referensi Basis Data](referensi-basis-data.md) | Seluruh **108 tabel** & **1.538 kolom** beserta keterangannya, plus 38 himpunan nilai (enum) |
+| [🧭 Referensi Halaman](referensi-halaman.md) | Seluruh **102 halaman** frontend, menu induknya, dan batas perannya |
+| [⚙️ Referensi Env & Cron](referensi-env-cron.md) | **43 variabel lingkungan** backend, 4 frontend, dan **9 pekerjaan terjadwal** |
+
+Pembagian tugasnya: halaman bernomor di atas menjelaskan **kenapa dan bagaimana**
+sebuah fitur dipakai; empat halaman referensi ini memuat **rinciannya yang persis**.
+Kalau ada kolom database yang maknanya belum jelas, tambahkan komentarnya di
+`backend/prisma/schema.prisma` lalu bangkitkan ulang — jangan menulisnya langsung
+di halaman referensi, karena akan tertimpa.
 
 ---
 
