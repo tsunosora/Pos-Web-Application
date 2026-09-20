@@ -98,6 +98,31 @@ disimpan di `branch_stocks`.
 > titip cetak memindahkan *pekerjaan*; buku titipan mencatat *utang jasa*
 > antar cabang.
 
+## Mencatat susut (bahan rusak / gagal cetak)
+
+Bahan hilang bukan hanya karena terjual. Tombol **Catat Susut** di Manajemen
+Stok mencatat kehilangan itu apa adanya, bukan dengan diam-diam mengedit angka
+stok.
+
+![Dialog Catat Susut Bahan: pilih varian, nama operator, alasan, jumlah, dan catatan](images/susut-1-form.webp)
+
+Empat isian yang diminta — dan tiga di antaranya adalah alasan mengapa fitur
+ini ada:
+
+| Isian | Kenapa penting |
+|---|---|
+| **Varian produk** | bahan mana persisnya yang berkurang |
+| **Nama operator** | siapa yang mengerjakan saat bahan itu rusak |
+| **Alasan** | pilihan baku, mis. *Gagal Cetak* |
+| **Jumlah & catatan** | berapa banyak dan kejadiannya seperti apa |
+
+![Laporan stok menampilkan baris Keluar -3 unit dengan keterangan susut](images/susut-2-laporan.webp)
+
+Hasilnya masuk ke [Laporan Stok](laporan-stok.md) sebagai mutasi **Keluar**
+dengan keterangan lengkap — di contoh ini `-3 unit`, saldo tersisa 832, dan
+keterangan *"Susut: Gagal Cetak — Sobek saat pemasangan mata ayam"*. Jadi
+selisih stok saat [opname](stock-opname.md) punya penjelasan, bukan misteri.
+
 ## 3. Terpakai oleh penjualan
 
 Setiap nota untuk produk bertanda `trackStock` memotong stok lewat resep

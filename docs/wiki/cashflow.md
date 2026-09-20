@@ -86,6 +86,57 @@ Rp 362.202.529,25, jauh berbeda dari angka bulan berjalan.
 Tombol **Export** di kanan atas mengunduh seluruh entri periode itu untuk
 diolah di spreadsheet.
 
+## Mengubah entri kas: lewat persetujuan
+
+Entri kas yang sudah tersimpan tidak bisa diubah sembarangan. Kasir hanya bisa
+**mengajukan**; pemilik atau manajer yang memutuskan.
+
+### 1. Yang dilihat kasir
+
+![Halaman cashflow dilihat akun kasir](images/kas-1-kasir.webp)
+
+Di baris entri, kasir tidak mendapat tombol *Edit* dan *Hapus* melainkan
+**Ajukan perubahan** dan **Ajukan hapus**.
+
+### 2. Mengisi usulan & alasannya
+
+![Dialog Kirim Permintaan Edit dengan nominal baru dan alasan](images/kas-2-ajukan.webp)
+
+Dialog *Kirim Permintaan Edit* memuat nilai yang ingin diubah (nominal,
+kategori, metode bayar) beserta **alasan**. Contohnya: nominal
+Rp 1.250.000 → Rp 1.150.000 karena nota supplier terbaca keliru.
+
+### 3. Kasir bisa memantau statusnya
+
+![Bagian Status Permintaan Saya menampilkan permintaan berstatus Menunggu](images/kas-3-status.webp)
+
+Setelah terkirim, muncul kotak **Status Permintaan Saya** — kasir tahu
+permintaannya masih *Menunggu*, tanpa perlu menanyakan ke atasan.
+
+### 4. Pemilik melihat antrean persetujuan
+
+![Kotak Permintaan Persetujuan (1) di halaman cashflow pemilik](images/kas-4-tinjau.webp)
+
+Di sisi pemilik muncul kotak **Permintaan Persetujuan (1)** yang menyebut jenis
+permintaan, entri yang disentuh, nominalnya, dan siapa pengajunya.
+
+### 5. Perbandingan sebelum–sesudah
+
+![Dialog Tinjau Permintaan: data saat ini dan perubahan yang diusulkan berdampingan](images/kas-5-detail.webp)
+
+Tombol *Tinjau* membuka perbandingan berdampingan: **Data Saat Ini** (kategori,
+nominal, tanggal, catatan) dan **Perubahan yang Diusulkan** — jadi keputusan
+diambil sambil melihat angka lama dan barunya sekaligus, bukan dari ingatan.
+
+### 6. Setelah disetujui
+
+![Ringkasan cashflow setelah perubahan disetujui: total pengeluaran menjadi Rp 1.150.000](images/kas-6-disetujui.webp)
+
+Sekali *Setujui*, entrinya berubah dan ringkasan ikut menyesuaikan: Total
+Pengeluaran **Rp 1.250.000 → Rp 1.150.000**. Permintaannya sendiri tersimpan
+sebagai riwayat berstatus disetujui, lengkap dengan siapa pengaju dan siapa
+penyetujunya.
+
 ## Apa Itu Cashflow dan Kenapa Penting?
 
 **Cashflow** (arus kas) adalah gambaran nyata kesehatan keuangan bisnis Anda dari hari ke hari.
