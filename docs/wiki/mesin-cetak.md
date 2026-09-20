@@ -96,6 +96,19 @@ tidak masuk nota — entah karena lupa dicatat, tes cetak, atau gagal cetak.
 
 ---
 
+## Pantauan dari sisi kantor
+
+![Antrian Cetak Paper di dashboard: kartu Antrian/Proses/Siap Diambil/Diambil dan tabel job cetak](images/prn-2-antrian.webp)
+
+Halaman **`/print-queue`** adalah versi kantor dari papan operator: empat kartu
+penghitung (Antrian, Proses, Siap Diambil, Diambil) di atas tabel yang memuat
+nomor job, nota asal, pelanggan, produk, qty, status cetak, status bayar, jam
+mulai/selesai, dan **nama operatornya**.
+
+Tombol *Buka Halaman Operator* menyeberang ke papan ber-PIN di
+[`/cetak`](mesin-cetak.md), jadi manajer memantau dari kursinya tanpa harus
+memakai PIN operator.
+
 ## 3. Rekonsiliasi Klik (Click Logs)
 
 Di menu **Klik Mesin Cetak**, manajer dapat:

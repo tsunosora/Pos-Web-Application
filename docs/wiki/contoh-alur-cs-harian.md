@@ -14,6 +14,31 @@
 
 ---
 
+## Layar yang dipakai sepanjang hari
+
+Empat halaman ini yang dibuka-tutup seorang CS dari pagi sampai tutup toko.
+
+![Daftar tugas follow-up CRM](images/crm-4-followup.webp)
+
+**Tugas follow-up** — daftar siapa yang harus dihubungi hari ini, lengkap
+dengan yang sudah lewat tenggat.
+
+![Inbox WhatsApp dengan daftar percakapan pelanggan](images/crm-1-inbox.webp)
+
+**Inbox WhatsApp** — tempat percakapan berlangsung; balasan pelanggan muncul di
+sini tanpa pindah aplikasi.
+
+![Pipeline lead CRM dengan kolom tahapan](images/crm-2-pipeline.webp)
+
+**Pipeline lead** — memindahkan calon pelanggan antar tahap sampai closing.
+
+![Katalog Kasir POS saat lead berubah menjadi nota](images/crm-6-kasir.webp)
+
+**Kasir POS** — saat lead setuju, nota dibuat dan leadnya ikut tertutup
+otomatis.
+
+Rangkaian jam per jam di bawah ini memakai keempat layar itu.
+
 ## ⏰ 08:30 — Sampai Kantor, Buka `/crm/follow-ups`
 
 Sari buka laptop, login ke PosPro. Sidebar menunjukkan badge merah **"Tugas Follow-up: 6"**. Klik → halaman terbuka di tab **"Tugas Saya"**.

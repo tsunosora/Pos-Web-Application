@@ -60,3 +60,11 @@ features:
     title: Template WA & Daily Worklist CS
     details: Halaman /crm/follow-ups jadi inbox tugas harian — semua reminder "hubungi customer hari ini" terkumpul, prioritas overdue di atas. Template WA siap copy-paste dengan placeholder auto-isi nama/SO/dll. KPI dashboard untuk response time & closing rate.
 ---
+
+## Sekilas tampilannya
+
+![Beranda PosPro: sidebar menu, ringkasan tugas, dan pintasan cepat](images/ui-1-terang.webp)
+
+Seluruh fitur berada dalam satu bingkai yang sama — lihat
+[Antarmuka & Fitur Kecil](antarmuka.md) untuk hal-hal yang dipakai setiap hari
+seperti mode gelap, pemilih cabang, dan lonceng notifikasi.

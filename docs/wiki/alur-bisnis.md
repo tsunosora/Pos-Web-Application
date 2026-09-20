@@ -32,6 +32,82 @@ harga, stok          pelanggan          antrian operator
 
 ---
 
+## Peta alur bergambar
+
+Satu pesanan, dari pelanggan datang sampai uangnya masuk laporan. Tiap langkah
+tertaut ke halaman yang membahasnya lebih dalam.
+
+### 1 · Pesanan masuk di kasir
+
+![Katalog Kasir POS dengan kartu produk per kategori](images/pos-1-katalog.webp)
+
+Kasir memilih produk (bisa per m² untuk cetakan besar), mengisi data pelanggan
+dan label pekerjaan. → [Kasir POS](kasir-pos.md)
+
+### 2 · Dibayar penuh atau DP
+
+![Checkout dengan uang muka terisi dan sisa tagihan tampil](images/dp-1-checkout.webp)
+
+Kalau pelanggan hanya membayar sebagian, notanya otomatis masuk daftar
+piutang. → [DP & Piutang](dp-piutang.md)
+
+### 3 · Pekerjaan muncul sendiri di papan
+
+![Papan antrian produksi berisi pekerjaan dari nota](images/produksi-2-antrian.webp)
+
+Produk yang butuh dikerjakan langsung tampil di papan produksi; tidak ada
+pencatatan ulang. → [Antrian Produksi](produksi.md)
+
+### 4 · Cetakan dihitung per klik mesin
+
+![Papan Antrian Cetak Paper di halaman operator](images/cetak-4-antrian.webp)
+
+Untuk cetakan paper, tiap job mencatat jumlah klik mesin sebagai dasar biaya
+produksi. → [Mesin Cetak & Klik](mesin-cetak.md)
+
+### 5 · Kalau dikerjakan cabang lain: titip cetak
+
+![Buku titipan antar cabang dengan posisi hutang-piutang](images/bt-1-buku.webp)
+
+Titipan antar cabang mencatat sendiri hutang-piutangnya, jadi tidak ada
+"utang lisan" antar toko. → [Titip Cetak](titip-cetak.md) ·
+[Buku Titipan](buku-titipan.md)
+
+### 6 · Barang diambil, sisanya dilunasi
+
+![Dialog pelunasan dengan kasir dan tanggal pelunasan sendiri](images/dp-6-lunasi.webp)
+
+Pelunasan dicatat atas nama kasir dan tanggal saat uangnya benar-benar
+diterima. → [DP & Piutang](dp-piutang.md)
+
+### 7 · Tutup shift: uang fisik vs catatan
+
+![Laporan tutup shift memperlihatkan selisih uang fisik terhadap catatan sistem](images/shift-3-selisih.webp)
+
+Sistem menghitung ekspektasi, kasir mengisi uang yang benar-benar ada, dan
+selisihnya terlihat. → [Tutup Shift](tutup-shift.md)
+
+### 8 · Semua uang tercatat di satu arus kas
+
+![Histori cashflow memperlihatkan entri otomatis dan entri manual berjajar](images/cf-5-histori.webp)
+
+Pembayaran, DP, pelunasan masuk otomatis; pengeluaran diketik manual. →
+[Cashflow](cashflow.md)
+
+### 9 · Pemilik membaca hasilnya
+
+![Laporan penjualan dengan pendapatan kas, invoice lunas, dan produk terlaris](images/ls-1-ringkasan.webp)
+
+Dari sini muncul laporan penjualan, laba kotor, dan peringkat tim. →
+[Laporan Penjualan](laporan-penjualan.md) · [Keuangan Owner](keuangan-owner.md)
+· [Leaderboard](leaderboard.md)
+
+### 10 · Pelanggan menilai pelayanannya
+
+![Halaman penilaian publik dengan bintang dan kolom masukan](images/rating-1-qr.webp)
+
+Nilai itu kembali masuk ke papan kinerja tim. → [Rating CS](rating-cs.md)
+
 ## Bagian 1 — Setup Pertama Kali
 
 Lakukan langkah ini **sekali** saat pertama kali menggunakan PosPro.
