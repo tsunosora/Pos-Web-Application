@@ -6,6 +6,10 @@ sehat**.
 
 ![Dashboard owner](images/owner.png)
 
+Laporan laba kotor yang dipakai sehari-hari:
+
+![Laporan laba kotor](images/profit.png)
+
 ## Analisa Keuangan — `/owner/analisa-keuangan`
 
 Satu halaman dengan banyak sudut pandang, masing-masing punya endpoint sendiri

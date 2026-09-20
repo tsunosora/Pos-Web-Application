@@ -4,6 +4,10 @@ Modul ini digunakan untuk melacak jumlah klik meteran pada mesin cetak (Paper) s
 
 ![Klik mesin cetak](images/klik-mesin.png)
 
+Papan yang dipakai operator cetak sehari-hari:
+
+![Papan cetak operator](images/cetak.png)
+
 ---
 
 ## 1. Konsep Click Counting (Meteran Mesin)

@@ -4,6 +4,10 @@
 
 ![Pipeline lead CRM](images/crm-leads.png)
 
+Database pelanggan yang terbentuk dari lead yang menjadi order:
+
+![Data pelanggan](images/customers.png)
+
 ---
 
 ## Apa itu CRM di PosPro?

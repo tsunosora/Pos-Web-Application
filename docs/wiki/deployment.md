@@ -59,7 +59,7 @@ cp .env.example .env
 
 Edit file `.env` (misal menggunakan `nano .env`) dan sesuaikan `DATABASE_URL` ke akun MySQL yang baru Anda buat, serta tentukan port jalan backend:
 
-```env
+```ini
 # Ubah kredensial sesuai dengan MySQL yang Anda buat di Langkah 1
 DATABASE_URL="mysql://pospro_user:<PASSWORD_ANDA>@localhost:3306/pospro_db"
 
@@ -116,7 +116,7 @@ cp .env.example .env.local
 
 Edit file `.env.local` (misal: `nano .env.local`). Arahkan `NEXT_PUBLIC_API_URL` ke domain _public_ yang nantinya akan diarahkan ke backend (kita asumsikan Anda akan mendeploy backend di `api.domainanda.com`).
 
-```env
+```ini
 # URL Publik Backend yang akan dibuat di Cloudflare
 NEXT_PUBLIC_API_URL="https://api.domainanda.com"
 

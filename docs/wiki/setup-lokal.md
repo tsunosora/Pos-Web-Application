@@ -39,6 +39,9 @@ sudo mysql -e "CREATE DATABASE pospro_dev CHARACTER SET utf8mb4; CREATE USER 'po
 
 ## 4. Masukkan data seed
 
+![Halaman login](images/login.png)
+
+
 Berkas seed dibuat di server dengan skrip `backend/prisma/scripts/dump-dev-seed.ts`
 (lihat bagian 8). Setelah berkasnya ada di laptop:
 
@@ -73,7 +76,7 @@ PIN untuk halaman kerja:
 
 `backend/.env` — buat sendiri, tidak pernah ada di repo:
 
-```env
+```ini
 DATABASE_URL="mysql://pospro_dev:dev12345@localhost:3306/pospro_dev"
 JWT_SECRET="rahasia-lokal-apa-saja"
 PORT=3001
@@ -91,7 +94,7 @@ cd backend && npm install && npx prisma generate && npm run start:dev
 
 `frontend/.env.local`:
 
-```env
+```ini
 NEXT_PUBLIC_API_URL="http://localhost:3001"
 ```
 
@@ -99,7 +102,7 @@ NEXT_PUBLIC_API_URL="http://localhost:3001"
 cd frontend && npm install && npm run dev -- -p 3002
 ```
 
-Buka <http://localhost:3002>. Pakai `npm run dev`, bukan `npm run build` —
+Buka `http://localhost:3002` di browser. Pakai `npm run dev`, bukan `npm run build` —
 build hanya diperlukan saat deploy.
 
 ## 7. Yang tidak bisa diuji di laptop

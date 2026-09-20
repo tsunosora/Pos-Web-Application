@@ -26,17 +26,38 @@ export default defineConfig({
           { text: 'Beranda', link: '/' },
           { text: 'Wiki Lengkap (Daftar Isi)', link: '/README' },
           { text: '🔄 Alur Bisnis', link: '/alur-bisnis' },
+          { text: '📅 Contoh Alur 1 Hari CS', link: '/contoh-alur-cs-harian' },
         ]
       },
       {
-        text: '🏪 Operasional Harian',
+        text: '🛒 Kasir & Penjualan',
+        items: [
+          { text: '🛒 Kasir POS', link: '/kasir-pos' },
+          { text: '🔒 Tutup Shift', link: '/tutup-shift' },
+          { text: '💳 DP & Piutang', link: '/dp-piutang' },
+          { text: '📊 Laporan Penjualan', link: '/laporan-penjualan' },
+          { text: '📄 Invoice & SPH (B2B)', link: '/invoice-sph' },
+          { text: '🧾 Nota Thermal 58mm', link: '/nota-thermal-58mm' },
+        ]
+      },
+      {
+        text: '🏷️ Produk & Stok',
+        items: [
+          { text: '🏷️ Katalog Produk & Harga', link: '/katalog-produk' },
+          { text: '📦 Stok Masuk, Transfer & Mutasi', link: '/stok-masuk-transfer' },
+          { text: '📊 Laporan Stok', link: '/laporan-stok' },
+          { text: '📋 Stok Opname', link: '/stock-opname' },
+          { text: '🏭 Data Supplier', link: '/suppliers' },
+          { text: '🧮 Kalkulator HPP', link: '/hpp-calculator' },
+        ]
+      },
+      {
+        text: '🖨️ Produksi & Cetak',
         items: [
           { text: '🖨️ Antrian Produksi', link: '/produksi' },
-          { text: '🖨️ Antrian Cetak Paper', link: '/mesin-cetak' },
-          { text: '📄 Invoice & SPH (B2B)', link: '/invoice-sph' },
+          { text: '🖨️ Mesin Cetak & Antrian Paper', link: '/mesin-cetak' },
           { text: '🎨 Sales Order & Designer', link: '/sales-orders' },
-          { text: '🏭 Data Supplier', link: '/suppliers' },
-          { text: '📋 Stok Opname', link: '/stock-opname' },
+          { text: '🖨️ Printer Relay Agent', link: '/printer-relay-agent' },
         ]
       },
       {
@@ -48,21 +69,64 @@ export default defineConfig({
         ]
       },
       {
-        text: '💰 Laporan & Keuangan',
+        text: '👥 Tim & Kinerja',
+        items: [
+          { text: '🧹 Papan Tugas & Piket', link: '/papan-tugas-piket' },
+          { text: '👥 Akun & PIN Karyawan', link: '/karyawan-akun-pin' },
+          { text: '🗓️ Absensi & Portal HR', link: '/absensi-hr' },
+          { text: '🏆 Leaderboard & Metrik Custom', link: '/leaderboard' },
+          { text: '⭐ Penilaian Pelayanan (CS)', link: '/rating-cs' },
+        ]
+      },
+      {
+        text: '💬 CRM & Pemasaran',
+        items: [
+          { text: '🎯 CRM — Lead & Follow-Up', link: '/crm' },
+          { text: '💬 WhatsApp CRM (Cloud API)', link: '/whatsapp-cloud' },
+          { text: '📣 Inbox Sosial & Iklan Meta', link: '/sosial-iklan' },
+          { text: '🎨 Studio Desain AI', link: '/studio-ai' },
+          { text: '🏪 Landing Page Builder', link: '/landing' },
+          { text: '📰 Artikel / Blog', link: '/artikel' },
+          { text: '🗺️ Peta Cuan Lokasi', link: '/peta-cuan' },
+        ]
+      },
+      {
+        text: '💰 Keuangan',
         items: [
           { text: '💸 Cashflow Bisnis', link: '/cashflow' },
-          { text: '📊 Laporan Stok', link: '/laporan-stok' },
+          { text: '📈 Keuangan Owner', link: '/keuangan-owner' },
           { text: '📜 Riwayat Tutup Shift', link: '/riwayat-shift' },
-          { text: '🧮 Kalkulator HPP', link: '/hpp-calculator' },
-          { text: '🗺️ Peta Cuan Lokasi', link: '/peta-cuan' },
-          { text: '🏆 Leaderboard & Metrik Custom', link: '/leaderboard' },
         ]
       },
       {
         text: '⚙️ Pengaturan & Teknis',
         items: [
+          { text: '⚙️ Pengaturan', link: '/pengaturan' },
+          { text: '🔔 Notifikasi Real-Time', link: '/notifications' },
+          { text: '🤖 Notifikasi Discord', link: '/discord' },
           { text: '💾 Backup & Restore', link: '/backup' },
           { text: '🚀 Panduan Deployment', link: '/deployment' },
+          { text: '🖥️ Aplikasi Desktop Offline', link: '/desktop-offline' },
+          { text: '💻 Setup Pengembangan Lokal', link: '/setup-lokal' },
+          { text: '🌐 Halaman Publik', link: '/halaman-publik' },
+          { text: '🔐 Model Akses & Keamanan', link: '/keamanan-akses' },
+        ]
+      },
+      {
+        text: '📚 Referensi (dari kode)',
+        collapsed: true,
+        items: [
+          { text: '📡 Endpoint API', link: '/referensi-endpoint' },
+          { text: '🗄️ Basis Data', link: '/referensi-basis-data' },
+          { text: '🧭 Halaman Aplikasi', link: '/referensi-halaman' },
+          { text: '⚙️ Env & Pekerjaan Terjadwal', link: '/referensi-env-cron' },
+        ]
+      },
+      {
+        text: '📢 Arsip',
+        collapsed: true,
+        items: [
+          { text: 'Pengumuman v3.3 (CRM)', link: '/discord-announcement-v3.3' },
         ]
       }
     ],
