@@ -109,6 +109,19 @@ Tombol *Buka Halaman Operator* menyeberang ke papan ber-PIN di
 [`/cetak`](mesin-cetak.md), jadi manajer memantau dari kursinya tanpa harus
 memakai PIN operator.
 
+## Dashboard klik per bulan
+
+![Klik Mesin Cetak: total klik tercatat, total biaya klik, reject, dan grafik klik per jenis cetak](images/klik-1-hitung.webp)
+
+**`/click-counting`** merekap pemakaian mesin sebulan: total klik tercatat,
+total biaya klik, jumlah reject, dan **biaya bersih yang dibayar**. Grafik dan
+tabel di bawahnya memecah per jenis cetak (A3+ warna, A3+ 2 muka, A4 warna, …)
+sehingga terlihat mesin dan jenis cetak mana yang paling banyak menelan biaya.
+
+Empat tabnya — *Dashboard, Log Klik, Reject Mesin, Rekonsiliasi* — memisahkan
+pemantauan dari pencatatan: log klik berisi catatan mentah, reject mencatat
+hasil gagal, dan rekonsiliasi membandingkannya dengan tagihan vendor mesin.
+
 ## 3. Rekonsiliasi Klik (Click Logs)
 
 Di menu **Klik Mesin Cetak**, manajer dapat:

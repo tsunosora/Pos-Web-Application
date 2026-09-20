@@ -66,6 +66,38 @@ di `/reports/finance/*`:
 keduanya menunjuk selisih yang perlu ditelusuri, bukan sekadar menampilkan
 angka besar.
 
+### Tutup buku bulanan
+
+![Tutup Buku Bulanan: pendapatan per kanal per pekan, pengeluaran per kategori, dan daftar piutang](images/tb-1-tutupbuku.webp)
+
+**`/reports/tutup-buku`** menyusun laporan akhir bulan **berbasis kas**: empat
+kartu ringkas (Pendapatan, Pengeluaran, Laba/Rugi kas, Sisa Piutang), lalu
+tabel *Pendapatan per Kanal* yang dipecah per pekan (01–07, 08–14, 15–21,
+22–28, 29–30) untuk Cash, Transfer, dan QRIS.
+
+Di bawahnya *Pengeluaran per Kategori* dengan pemecahan pekan yang sama, dan
+daftar **piutang outstanding** beserta DP yang sudah masuk. Tombol **Excel**
+dan **PDF** mengunduh versi yang siap dikirim.
+
+### Laporan bulanan dengan analisa otomatis
+
+![Laporan Bulanan Owner: omzet, pengeluaran, laba, margin, dan enam kotak analisa otomatis](images/lbl-1-bulanan.webp)
+
+**`/owner/laporan-bulanan`** melakukan hal yang biasanya dikerjakan manual:
+membaca angka bulan itu lalu menuliskan kesimpulannya. Enam kotak analisanya:
+
+| Kotak | Isi contohnya |
+|---|---|
+| **Ringkasan Eksekutif** | laba, margin, dan perbandingan dengan bulan lalu |
+| **Perkembangan Perusahaan** | tren beberapa bulan, bulan terbaik & terlemah |
+| **Efisiensi Biaya** | pos biaya terbesar dan kenaikan yang perlu dicek |
+| **Kesehatan Arus Kas** | piutang belum tertagih, hari paling ramai & paling sepi |
+| **Peringatan** | pergerakan uang tidak jelas yang perlu ditinjau |
+| **Rekomendasi** | tindakan konkret, mis. menagih piutang jatuh tempo |
+
+Centang **Sertakan beban tetap** menambahkan biaya tetap bulanan ke
+perhitungan, dan seluruh laporan bisa diekspor PDF/Excel.
+
 ## Kas pusat & pendanaan cabang
 
 Untuk usaha bercabang, uang sering berpindah antar cabang dan pusat:

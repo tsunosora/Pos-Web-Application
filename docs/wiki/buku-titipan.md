@@ -45,6 +45,19 @@ bagaimana nilainya terbentuk. Catatan ini dibuat otomatis saat cabang saling
 menitipkan cetakan — lihat [Titip Cetak](titip-cetak.md) untuk alur
 pembuatannya.
 
+### Laporan bahan yang dipakai untuk titipan
+
+![Laporan Bahan Titipan Antar Cabang dengan pemilih cabang produksi dan empat kartu penghitung](images/ibu-1-pemakaian.webp)
+
+**`/reports/inter-branch-usage`** menjawab pertanyaan yang tidak dijawab buku
+titipan: *"bahan siapa yang habis saat mengerjakan order cabang lain?"* — jadi
+visibilitas audit untuk pemilik, bukan hutang formal.
+
+Pilih cabang produksinya, pilih periode, lalu terlihat total order titipan,
+total bahan keluar (unit/m²), dan nilainya. Pada contoh di atas periodenya
+memang belum ada pemakaian bahan untuk titipan, sehingga daftarnya kosong —
+barisnya baru terisi begitu ada nota titip cetak ke cabang produksi.
+
 ## 🔄 Alur Lengkap
 
 ```

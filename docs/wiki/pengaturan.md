@@ -45,6 +45,21 @@ apakah produk boleh dihitung per m² seperti di percetakan.
 Metode pembayaran yang dinyalakan di sini yang nanti muncul sebagai pilihan di
 [Kasir POS](kasir-pos.md) dan saat pelunasan piutang.
 
+## Dua pengaturan yang mudah terlewat
+
+![Halaman Rekening Bank](images/bank-1-rekening.webp)
+
+**Rekening Bank** menyimpan rekening tujuan transfer. Daftar inilah yang muncul
+saat kasir memilih pembayaran transfer dan saat pelunasan piutang, sekaligus
+yang ikut tercetak pada struk tagihan yang dikirim ke pelanggan.
+
+![Pengaturan Tampilan Halaman Login: logo, warna tema, dan gambar latar](images/log-1-tampilan.webp)
+
+**Tampilan Login** mengatur wajah aplikasi sebelum orang masuk: logo di tengah
+panel login, warna tema (solid atau gradient, tersedia juga sebagai CSS
+variable untuk komponen lain), dan gambar latar. Berguna saat aplikasi dipakai
+toko lain dengan identitas sendiri.
+
 ## Yang perlu diperhatikan
 
 - **PIN operator ada dua tingkat**: PIN cabang (`branch_settings.operator_pin`)

@@ -47,6 +47,32 @@ REPEAT_ORDER (auto weekly cek customer dormant)
 
 ---
 
+## Dua halaman pendukung
+
+### Database pelanggan
+
+![Database Pelanggan: total pelanggan, pernah bertransaksi, total pendapatan, dan tabel riwayat per pelanggan](images/cust-1-pelanggan.webp)
+
+**`/customers`** bukan sekadar buku alamat: tiap baris memuat **total order**,
+**total pendapatan**, dan **tanggal order terakhir** — bahan untuk remarketing
+("siapa yang sudah 3 bulan tidak pesan lagi"). Tombol *Rapikan duplikat*
+menggabungkan data pelanggan yang tercatat dua kali, dan datanya bisa diekspor
+Excel/PDF.
+
+### Template pesan siap pakai
+
+![Message Templates dengan daftar placeholder dan template per kategori](images/tpl-1-template.webp)
+
+**`/crm/templates`** menyimpan teks yang sering dipakai — sambutan lead baru,
+follow-up hari ke-3, update progres, sampai after-sales — dengan
+**placeholder** yang diisi otomatis:
+
+`{{name}}`, `{{phone}}`, `{{soNumber}}`, `{{status}}`, `{{estimatedDays}}`,
+`{{monthsSinceLastOrder}}`
+
+Tombol **Seed 5 Default** mengisi lima template awal untuk yang baru mulai;
+tiap template bisa dipratinjau, diedit, dinonaktifkan, atau dihapus.
+
 ## Langkah demi langkah
 
 Contoh nyata: chat masuk dari pelanggan, ditindaklanjuti, sampai jadi nota.

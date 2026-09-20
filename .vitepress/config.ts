@@ -103,6 +103,7 @@ export default defineConfig({
         items: [
           { text: '⚙️ Pengaturan', link: '/pengaturan' },
           { text: '🖥️ Antarmuka & Fitur Kecil', link: '/antarmuka' },
+          { text: '📣 Dashboard Marketing', link: '/marketing' },
           { text: '🔔 Notifikasi Real-Time', link: '/notifications' },
           { text: '🤖 Notifikasi Discord', link: '/discord' },
           { text: '💾 Backup & Restore', link: '/backup' },

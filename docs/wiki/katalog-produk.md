@@ -6,6 +6,28 @@ produksi?" atau "kok harganya salah?" jawabannya ada di sini, bukan di halaman
 kasir.
 
 
+## Kategori & satuan
+
+![Manajemen Kategori dengan kategori produksi, sumber hitungan, dan satuan tampilan](images/kat-1-kategori.webp)
+
+**`/inventory/categories`** mengatur dua hal sekaligus:
+
+1. **Kategori produk** biasa (bisa punya sub-kategori) untuk mengelompokkan
+   katalog di kasir.
+2. **Kategori Produksi** — jenis pekerjaan seperti *Produksi Banner, Stiker,
+   UV Roll, Laser Cut, DTF* — beserta **sumber hitungannya** (dari antrian
+   produksi atau antrian cetak) dan **satuan tampilannya** (m² atau pcs).
+   Inilah yang memecah angka operator di [Leaderboard](leaderboard.md).
+
+Satu centang yang mudah terlewat: **"Hitung sebagai produk (pcs) di laporan
+CRM"**. Matikan untuk kategori add-on (kerah, lengan, rib) supaya satu jersey
+dengan tiga komponen tetap terhitung **1 pcs**, bukan 3.
+
+![Halaman Manajemen Satuan](images/kat-2-satuan.webp)
+
+**`/inventory/units`** menyimpan daftar satuan yang boleh dipakai produk dan
+bahan — dipakai saat membuat produk baru maupun saat mencatat stok masuk.
+
 ## Langkah demi langkah: menambah produk baru
 
 ### 1. Daftar produk & stok
