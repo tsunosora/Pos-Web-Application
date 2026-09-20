@@ -13,8 +13,9 @@ import {
     OperatorRejectType, OperatorRejectCause, OperatorCounterType,
     resolvePhotoUrl,
 } from '@/lib/api/production';
-import { getPublicDesigners } from '@/lib/api/designers';
-import { CetakPiketCard, CetakPiketIdentity, clearCetakPiketIdentity } from '@/components/tugas/PiketPinMounts';
+import { getPublicDesigners, verifyDesignerPin } from '@/lib/api/designers';
+import { KeyRound, Loader2 } from 'lucide-react';
+import { CetakPiketCard, CetakAbsensiCard, CetakPiketIdentity, clearCetakPiketIdentity, readCetakPiketIdentity, hasCetakPiketIdentity, saveCetakPiketIdentity } from '@/components/tugas/PiketPinMounts';
 import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
@@ -83,6 +84,10 @@ export default function CetakPage() {
 
     const [operatorName, setOperatorName] = useState('');
     const [designers, setDesigners] = useState<{ id: number; name: string }[]>([]);
+    const [pendingOp, setPendingOp] = useState<{ id: number; name: string } | null>(null);
+    const [opPin, setOpPin] = useState('');
+    const [opPinError, setOpPinError] = useState<string | null>(null);
+    const [opPinLoading, setOpPinLoading] = useState(false);
     const [tab, setTab] = useState<Tab>('ANTRIAN');
     const [jobs, setJobs] = useState<PrintJob[]>([]);
     const [total, setTotal] = useState(0);
@@ -120,8 +125,12 @@ export default function CetakPage() {
             setActiveBranchCode(session.branchCode);
             setAuthed(true);
         }
-        const storedOp = localStorage.getItem(OP_KEY);
-        if (storedOp) setOperatorName(storedOp);
+        // Nama operator hanya dipulihkan bila PIN-nya masih terbukti di perangkat ini
+        // (12 jam). Lewat itu, nama harus dipilih ulang dengan PIN — supaya pekerjaan
+        // tidak pernah tercatat atas nama orang yang sudah pulang.
+        const idn = readCetakPiketIdentity();
+        if (idn) setOperatorName(idn.name);
+        else localStorage.removeItem(OP_KEY);
         getPublicDesigners().then(setDesigners).catch(() => {});
     }, []);
 
@@ -208,12 +217,49 @@ export default function CetakPage() {
         setPinInput('');
     };
 
+    /** Pilih nama operator — wajib PIN pribadi, sama seperti halaman /produksi. */
+    const handlePilihOperator = (name: string) => {
+        if (!name) {
+            setOperatorName('');
+            localStorage.removeItem(OP_KEY);
+            clearCetakPiketIdentity();
+            return;
+        }
+        const d = designers.find(x => x.name === name);
+        if (!d) return;
+        if (hasCetakPiketIdentity(d.id)) { setOperatorName(name); localStorage.setItem(OP_KEY, name); return; }
+        setOpPin(''); setOpPinError(null); setPendingOp(d);
+    };
+
+    const submitOperatorPin = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pendingOp || !opPin.trim() || opPinLoading) return;
+        setOpPinLoading(true);
+        setOpPinError(null);
+        try {
+            const r = await verifyDesignerPin(pendingOp.id, opPin.trim());
+            if (!r.valid) { setOpPinError(`PIN salah. Kalau kamu bukan ${pendingOp.name}, pilih namamu sendiri.`); return; }
+            saveCetakPiketIdentity(pendingOp.id, pendingOp.name, opPin.trim());
+            setOperatorName(pendingOp.name);
+            localStorage.setItem(OP_KEY, pendingOp.name);
+            setPendingOp(null);
+            setOpPin('');
+        } catch {
+            setOpPinError('Gagal menghubungi server. Coba lagi.');
+        } finally {
+            setOpPinLoading(false);
+        }
+    };
+
     const ensureOperator = (): string | null => {
         const name = operatorName.trim();
         if (!name) {
             alert('Pilih nama operator dulu dari dropdown di kanan atas.');
             return null;
         }
+        // Bukti PIN kedaluwarsa saat halaman dibiarkan terbuka → minta lagi sebelum mencatat.
+        const d = designers.find(x => x.name === name);
+        if (d && !hasCetakPiketIdentity(d.id)) { setOpPin(''); setOpPinError(null); setPendingOp(d); return null; }
         return name;
     };
 
@@ -333,7 +379,7 @@ export default function CetakPage() {
                             Operator:{' '}
                             <select
                                 value={operatorName}
-                                onChange={e => { setOperatorName(e.target.value); localStorage.setItem(OP_KEY, e.target.value); }}
+                                onChange={e => handlePilihOperator(e.target.value)}
                                 className="ml-1 border border-border rounded px-2 py-1 text-sm bg-card font-semibold"
                             >
                                 <option value="">— Pilih operator —</option>
@@ -361,6 +407,38 @@ export default function CetakPage() {
 
                 {/* Piket hari ini milik operator yang sudah memastikan PIN-nya */}
                 <CetakPiketCard operatorName={operatorName} operators={designers} className="mb-4" />
+                <CetakAbsensiCard operatorName={operatorName} operators={designers} className="mb-4" />
+
+                {pendingOp && (
+                    <div role="dialog" aria-modal="true" aria-labelledby="cetak-op-pin-title"
+                        className="fixed inset-0 z-[90] flex items-end justify-center bg-slate-950/60 backdrop-blur-sm sm:items-center sm:p-4">
+                        <form onSubmit={submitOperatorPin} className="w-full overflow-hidden rounded-t-3xl bg-white shadow-2xl dark:bg-slate-900 sm:max-w-sm sm:rounded-3xl">
+                            <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-600 px-6 pb-5 pt-6 text-center text-white">
+                                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-white/20 ring-4 ring-white/25">
+                                    <KeyRound className="h-6 w-6" />
+                                </div>
+                                <h2 id="cetak-op-pin-title" className="text-lg font-extrabold">
+                                    Halo {pendingOp.name.trim().split(/\s+/)[0]}, masukkan PIN kamu
+                                </h2>
+                                <p className="mt-1 text-xs text-white/90">Supaya pekerjaan tercatat atas namamu — bukan nama operator sebelumnya.</p>
+                            </div>
+                            <div className="space-y-3 p-5">
+                                <input type="password" inputMode="numeric" autoComplete="off" autoFocus aria-label="PIN pribadi"
+                                    value={opPin} onChange={e => { setOpPin(e.target.value); setOpPinError(null); }} placeholder="PIN"
+                                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-center text-lg tracking-[0.4em] text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" />
+                                {opPinError && <p className="text-center text-xs font-medium text-rose-600">{opPinError}</p>}
+                                <button type="submit" disabled={!opPin.trim() || opPinLoading}
+                                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50">
+                                    {opPinLoading && <Loader2 className="h-4 w-4 animate-spin" />} Mulai kerja
+                                </button>
+                                <button type="button" onClick={() => { setPendingOp(null); setOpPin(''); setOpPinError(null); }}
+                                    className="w-full text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200">
+                                    Batal
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                )}
 
                 <div className="flex gap-2 overflow-x-auto mb-4 pb-1">
                     {TABS.map(t => {

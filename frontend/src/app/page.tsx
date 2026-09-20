@@ -30,7 +30,9 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useBranchStore } from "@/store/branch-store";
 import { DailyTargetProgressCard } from "@/components/dashboard/DailyTargetProgressCard";
 import { DashboardCandleCard } from "@/components/dashboard/DashboardCandleCard";
+import { HrSummaryCard } from "@/components/dashboard/HrSummaryCard";
 import { MyPiketCard } from "@/components/tugas/PiketDailyGate";
+import { MyAttendanceLinkCard } from "@/components/dashboard/MyAttendanceLinkCard";
 import {
   AreaChart,
   Area,
@@ -151,6 +153,9 @@ export default function Home() {
       {/* Piket hari ini — hanya untuk karyawan yang ikut jadwal piket */}
       <MyPiketCard />
 
+      {/* Portal absensi pribadi (semua karyawan yang sudah dipetakan di RateMyStaff) */}
+      <MyAttendanceLinkCard />
+
       {/* Metric cards */}
       <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <MetricCard
@@ -262,6 +267,9 @@ export default function Home() {
               )}
             </div>
           </Section>
+
+          {/* Sekilas HR dari RateMyStaff (owner/manajer) — lewat backend, kunci tak ke browser */}
+          <HrSummaryCard />
 
           {/* Target omzet harian vs beban bulanan */}
           <DailyTargetProgressCard />

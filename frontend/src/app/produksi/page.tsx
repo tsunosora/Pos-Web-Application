@@ -9,7 +9,7 @@ import {
 } from '@/lib/api';
 import { getPublicBranches, PublicBranch } from '@/lib/api/production';
 import { getPublicDesigners, verifyDesignerPin } from '@/lib/api/designers';
-import { ProduksiPiketGate, ProduksiPiketCard } from '@/components/tugas/PiketPinMounts';
+import { ProduksiPiketGate, ProduksiPiketCard, ProduksiAbsensiCard } from '@/components/tugas/PiketPinMounts';
 import {
     Tab, PIN_KEY, PIN_TTL,
     getStoredSession, saveSession, clearSession,
@@ -528,6 +528,7 @@ export default function ProduksiPage() {
 
             {/* Piket hari ini milik operator yang login */}
             <ProduksiPiketCard className="mx-4 mt-3" />
+            <ProduksiAbsensiCard className="mx-4 mt-3" />
 
             {/* Tabs */}
             <div className="bg-card border-b border-border px-4 flex gap-1 overflow-x-auto">
