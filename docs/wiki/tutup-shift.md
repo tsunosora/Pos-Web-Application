@@ -5,7 +5,48 @@ uang fisik, membandingkannya dengan catatan sistem, lalu mengirim rekap.
 Tujuannya bukan mencari-cari kesalahan, tapi membuat selisih **ketahuan pada
 hari yang sama** — bukan sebulan kemudian saat sudah tidak bisa ditelusuri.
 
-![Tutup shift](images/closeshift.webp)
+
+## Langkah demi langkah
+
+### 1. Buka halaman tutup shift
+
+![Kolom Data Sistem menampilkan total gross shift dan target saldo tunai](images/shift-1-angka.webp)
+
+Kolom kiri — **Data Sistem (Otomatis)** — diisi aplikasi: total penjualan shift
+ini, dan berapa uang tunai yang *seharusnya* ada di laci. Kasir tidak perlu
+menghitung apa pun di sini.
+
+### 2. Isi hasil hitungan fisik
+
+![Form diisi: nama kasir, shift kerja, jam tutup, dan uang tunai hasil hitungan](images/shift-2-isi.webp)
+
+Kolom kanan diisi kasir: namanya, shift yang dijalani, jam tutup, lalu **uang
+yang benar-benar ada** — tunai di laci, mutasi masuk QRIS, dan saldo rekening.
+
+### 3. Selisihnya dihitung otomatis
+
+![Badge merah KURANG Rp 15.000 muncul tepat di sebelah kolom yang diisi](images/shift-3-selisih.webp)
+
+Begitu angka diketik, selisihnya langsung muncul sebagai penanda:
+**KURANG** (merah) bila uang fisik lebih sedikit daripada catatan, **LEBIH**
+(hijau) bila sebaliknya. Karena muncul seketika, kasir masih sempat menghitung
+ulang sebelum laporan dikirim — bukan besok saat sudah tidak bisa ditelusuri.
+
+### 4. Kirim rekap
+
+![Laporan terkirim; rekap dikirim ke grup pemilik](images/shift-4-terkirim.webp)
+
+Rekap dikirim ke grup WhatsApp pemilik dan kanal Discord bila dikonfigurasi,
+lalu tersimpan sebagai riwayat.
+
+### 5. Tersimpan sebagai riwayat
+
+![Riwayat tutup shift berisi shift-shift yang sudah ditutup beserta selisihnya](images/shift-5-riwayat.webp)
+
+Semua shift yang pernah ditutup tersimpan di
+[Riwayat Tutup Shift](riwayat-shift.md), lengkap dengan selisih dan catatannya.
+
+---
 
 ## Cara kerjanya
 
