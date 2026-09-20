@@ -67,6 +67,9 @@ totalAmount = costAmount + serviceFee
 
 ## 🎨 Halaman `/branch-ledger`
 
+![Buku Titipan setelah satu pekerjaan titipan selesai: hutang jasa tercatat otomatis](images/titip-7-ledger.webp)
+
+
 ### Summary Cards (Mode Per Cabang)
 
 3 kartu di atas halaman:
