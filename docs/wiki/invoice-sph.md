@@ -1,6 +1,5 @@
 # 📄 Invoice Generator & Penawaran Harga (SPH)
 
-![Daftar invoice dan surat penawaran harga](images/invoice.webp)
 
 > Halaman **Invoice & Penawaran** adalah modul untuk membuat dokumen bisnis profesional — baik **Invoice (Faktur Tagihan)** maupun **Surat Penawaran Harga (SPH)**. Dirancang khusus untuk bisnis yang melayani klien perusahaan, brand, event organizer, atau instansi yang memerlukan dokumen formal sebelum dan sesudah deal.
 
@@ -32,6 +31,8 @@ Di sidebar kiri, klik menu **📄 Invoice & Penawaran**.
 
 ## Tampilan Halaman
 
+![Daftar dokumen: tab Invoice dan tab Penawaran Harga, beserta ringkasan nilainya](images/sph-1-daftar.webp)
+
 Di bagian atas terdapat **dua tab**:
 - Tab **Invoice** — daftar semua faktur tagihan
 - Tab **Penawaran Harga (SPH)** — daftar semua surat penawaran
@@ -62,6 +63,8 @@ Masing-masing tab memiliki kartu ringkasan di bagian atas:
 - Di tab **SPH**: klik **+ Buat SPH**
 
 ### Langkah 2 — Isi Informasi Klien
+
+![Form dokumen: data klien, item pekerjaan, pajak, dan catatan pembayaran](images/sph-2-form.webp)
 
 | Field | Keterangan |
 |---|---|
@@ -105,6 +108,8 @@ Isi kolom **Catatan/Notes** untuk informasi tambahan seperti:
 - Catatan khusus untuk klien
 
 ### Langkah 7 — Simpan
+
+![Dokumen tersimpan dengan status Draft](images/sph-3-tersimpan.webp)
 
 Klik **Simpan** — dokumen tersimpan dengan status **DRAFT**.
 
@@ -177,6 +182,8 @@ Banner MMT Outdoor
 
 ## Alur Status Dokumen
 
+![Status berubah menjadi Terkirim setelah dokumen dikirim ke klien](images/sph-5-terkirim.webp)
+
 Status dokumen menunjukkan di tahap mana proses bisnis sedang berjalan.
 
 ### Status Invoice
@@ -204,6 +211,8 @@ Di tabel daftar dokumen, klik tombol aksi di kolom **Status** — pilihan status
 
 ---
 
+![Dokumen ditandai Lunas; nilainya masuk ke ringkasan](images/sph-6-lunas.webp)
+
 ## Konversi SPH ke Invoice
 
 Ketika klien menyetujui penawaran Anda:
@@ -221,6 +230,8 @@ Ketika klien menyetujui penawaran Anda:
 ---
 
 ## Cetak / Export ke PDF
+
+![Pratinjau dokumen sebelum dicetak atau dikirim ke klien](images/sph-4-pratinjau.webp)
 
 1. Di baris dokumen yang ingin dicetak, klik ikon **🖨️**
 2. Jendela cetak akan terbuka dengan tampilan profesional:
