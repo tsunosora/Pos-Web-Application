@@ -6,6 +6,86 @@
 
 ---
 
+## Langkah demi langkah
+
+Contoh nyata: mencatat satu pembelian tinta Rp 1.250.000 dan melihat
+akibatnya sampai ke saldo kas.
+
+### 1. Membaca ringkasan periode
+
+![Halaman Cashflow: total pemasukan, pengeluaran, dan saldo bersih pada periode Bulan Ini](images/cf-1-ringkasan.webp)
+
+Tiga kartu di atas selalu menjawab satu pertanyaan: *"periode ini uang masuk
+berapa, keluar berapa, sisanya berapa."* Label kecil di bawah angka menyebut
+periode yang sedang dipilih, jadi angka tidak pernah tampil tanpa konteks.
+
+### 2. Saldo per kanal — bukan cuma total
+
+![Kartu Saldo & Mutasi per Kanal: Tunai dan QRIS dengan arus bersih dan jumlah mutasi](images/cf-2-kanal.webp)
+
+Uang tidak berada di satu tempat. Bagian ini memisahkan **Tunai**, **QRIS**,
+dan tiap rekening bank, lengkap dengan jumlah mutasi pada periode itu — supaya
+saat menghitung uang fisik di laci, angka pembandingnya jelas yang mana.
+Mengklik kanal akan menyaring riwayat di bawahnya.
+
+### 3. Mencatat pengeluaran manual
+
+![Dialog Tambah Entry: tipe Pengeluaran, kategori Bahan Baku, nominal 1.250.000, catatan pembelian tinta](images/cf-3-tambah.webp)
+
+**Tambah Entry** meminta empat hal: tipe (Pemasukan/Pengeluaran), kategori,
+metode pembayaran, dan nominal. Daftar kategorinya berganti mengikuti tipe —
+pengeluaran menawarkan *Bahan Baku, Gaji Karyawan, Sewa, Listrik & Air,
+Transportasi, Marketing, Pemeliharaan, Pajak* — jadi kategori pemasukan tidak
+mungkin nyasar ke pengeluaran.
+
+Catatan sebaiknya diisi spesifik ("tinta eco solvent 4 liter"), karena inilah
+satu-satunya keterangan yang muncul saat rekap bulanan dibaca ulang.
+
+### 4. Saldo langsung menyesuaikan
+
+![Ringkasan setelah entri tersimpan: pengeluaran Rp 1.250.000 dan saldo bersih turun](images/cf-4-tersimpan.webp)
+
+Begitu disimpan: Total Pengeluaran **Rp 0 → Rp 1.250.000**, saldo bersih
+**Rp 214.871.692,8 → Rp 213.621.692,8**, dan kartu kanal Tunai ikut mencatat
+arus keluar Rp 1,3 jt. Tidak ada langkah "hitung ulang" — semuanya satu
+sumber angka.
+
+### 5. Entri manual & otomatis berjajar di satu riwayat
+
+![Histori cashflow: entri manual Bahan Baku bertanda nama pengguna, di atas tiga entri DP bertanda Otomatis](images/cf-5-histori.webp)
+
+Perhatikan bedanya pada tiap baris:
+
+| Tanda | Artinya |
+|---|---|
+| chip **Otomatis** + *Oleh: System* | dibuat sendiri oleh sistem dari nota/pelunasan |
+| tanpa chip + *Oleh: (email pengguna)* | diketik manual, dan tercatat siapa yang mengetik |
+
+Entri otomatis inilah yang membuat [DP & Piutang](dp-piutang.md) tidak perlu
+dicatat dua kali — uang dari nota sudah masuk sendiri, lengkap dengan nomor
+invoicenya.
+
+### 6. Membaca tren, bukan cuma hari ini
+
+![Grafik tren 6 bulan dan grafik pengeluaran per kategori](images/cf-6-grafik.webp)
+
+Grafik **Tren 6 Bulan** menyandingkan pemasukan dan pengeluaran agar terlihat
+apakah jaraknya melebar atau menyempit. Di sebelahnya, **Pengeluaran per
+Kategori** menjawab "uangnya habis ke mana" — pada contoh ini seluruh batang
+merah adalah Bahan Baku, karena baru satu entri yang dicatat.
+
+### 7. Mengganti periode
+
+![Filter periode dengan 3 Bulan terpilih dan angka ringkasan yang berbeda](images/cf-7-periode.webp)
+
+Tujuh pilihan periode — *Hari Ini, Kemarin, Bulan Ini, 3 Bulan, Tahun Ini,
+Semua, Kustom* — mengganti seluruh isi halaman sekaligus, termasuk grafik dan
+riwayatnya. Contohnya periode 3 bulan memperlihatkan pemasukan
+Rp 362.202.529,25, jauh berbeda dari angka bulan berjalan.
+
+Tombol **Export** di kanan atas mengunduh seluruh entri periode itu untuk
+diolah di spreadsheet.
+
 ## Apa Itu Cashflow dan Kenapa Penting?
 
 **Cashflow** (arus kas) adalah gambaran nyata kesehatan keuangan bisnis Anda dari hari ke hari.
