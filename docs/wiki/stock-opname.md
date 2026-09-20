@@ -1,6 +1,5 @@
 # 📋 Stok Opname
 
-![Sesi opname berjalan, siap dibagikan tautannya ke petugas lapangan](images/opname.webp)
 
 > **Stok Opname** adalah proses hitung fisik stok yang ada di gudang untuk dicocokkan dengan data di sistem. PosPro menyediakan sistem opname berbasis **link unik** yang bisa dibagikan ke karyawan — karyawan hitung langsung dari HP tanpa perlu login ke akun utama.
 
@@ -28,11 +27,15 @@
 
 ### Buka Halaman Opname
 
+![Daftar sesi opname beserta statusnya](images/opname-1-daftar.webp)
+
 Buka menu **Manajemen Stok → Stok Opname** (atau langsung ke `/inventory/opname`).
 
 ---
 
 ### Membuat Sesi Baru
+
+![Beri label sesi, pilih kategori bila perlu, lalu tentukan masa berlaku tautan](images/opname-2-form.webp)
 
 1. Klik **+ Mulai Opname**
 2. Isi form:
@@ -46,6 +49,8 @@ Buka menu **Manajemen Stok → Stok Opname** (atau langsung ke `/inventory/opnam
 
 ### Membagikan Link ke Karyawan
 
+![Tautan operator siap disalin — tanpa login, berlaku sampai batas yang dipilih](images/opname-3-link.webp)
+
 Dari halaman detail sesi yang baru dibuat:
 
 1. Salin link dengan klik **Salin Link Operator**
@@ -57,6 +62,8 @@ Dari halaman detail sesi yang baru dibuat:
 ---
 
 ### Memantau Hasil Real-Time
+
+![Hitungan operator masuk berdampingan dengan stok sistem, selisihnya dihitung otomatis](images/opname-7-selisih.webp)
 
 Halaman detail sesi **auto-refresh setiap 10 detik** selama status masih Berlangsung.
 
@@ -75,6 +82,8 @@ Jika ada lebih dari satu operator yang submit untuk sesi yang sama, setiap kolom
 ---
 
 ### Menyelesaikan Sesi
+
+![Setelah selisih ditinjau, stok sistem diperbarui mengikuti hasil hitungan](images/opname-8-selesai.webp)
 
 Setelah semua operator selesai menghitung:
 
@@ -114,6 +123,8 @@ Jika opname perlu dibatalkan (misalnya salah tanggal atau ada kendala):
 
 ### Langkah 1 — Buka Link
 
+![Yang dibuka karyawan: cukup tautan, tidak perlu akun](images/opname-4-operator-nama.webp)
+
 Buka link yang dibagikan admin di browser HP. Pastikan link belum kedaluwarsa.
 
 ### Langkah 2 — Masukkan Nama
@@ -124,6 +135,8 @@ Tekan **Mulai Menghitung**.
 
 ### Langkah 3 — Hitung Fisik
 
+![Karyawan mengisi jumlah fisik per barang; stok sistem sengaja tidak diperlihatkan supaya hitungannya jujur](images/opname-5-operator-hitung.webp)
+
 Produk ditampilkan dikelompokkan per kategori. Untuk setiap varian produk:
 
 - Hitung fisik stok di gudang
@@ -133,6 +146,8 @@ Produk ditampilkan dikelompokkan per kategori. Untuk setiap varian produk:
 > **Data tersimpan otomatis** di perangkat ini setiap kali ada perubahan. Jika sinyal terputus atau browser ditutup, data tidak hilang — cukup buka link yang sama lagi.
 
 ### Langkah 4 — Kirim Hasil
+
+![Konfirmasi bahwa hitungan sudah diterima admin](images/opname-6-operator-terkirim.webp)
 
 Setelah selesai menghitung semua produk:
 
