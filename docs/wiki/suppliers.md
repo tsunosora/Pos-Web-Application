@@ -6,6 +6,40 @@
 
 ---
 
+## Langkah demi langkah: supplier baru & harga belinya
+
+### 1. Isi data supplier
+
+![Form supplier: nama, kontak person, telepon, email, dan alamat](images/sup-3-form.webp)
+
+Hanya **nama** yang wajib; sisanya (PIC, telepon, email, alamat) opsional tapi
+berguna saat harus menghubungi cepat karena bahan habis.
+
+### 2. Kartunya langsung muncul
+
+![Kartu supplier baru dengan kontak dan penanda 0 item](images/sup-4-tersimpan.webp)
+
+Supplier baru langsung tampil sebagai kartu dengan penanda **0 item** — artinya
+belum ada daftar harga beli yang dicatat untuknya.
+
+### 3. Catat harga beli per bahan
+
+![Dialog Tambah Barang: varian produk, harga beli, dan catatan](images/sup-5-harga.webp)
+
+Lewat **Lihat Barang → Tambah Barang**, pilih varian produknya lalu isi
+**harga beli** dan catatan bebas (mis. *"harga per lembar, minimal ambil 1
+rim"*). Satu bahan bisa dicatat di beberapa supplier dengan harga berbeda —
+itulah gunanya membandingkan.
+
+### 4. Daftar harga per supplier
+
+![Rincian supplier dengan daftar barang dan harga belinya](images/sup-6-daftar-barang.webp)
+
+Penanda di kartu berubah jadi **1 item** dan rinciannya menampilkan bahan
+beserta harga belinya. Harga inilah yang dipakai sebagai acuan modal di
+[Kalkulator HPP](hpp-calculator.md) dan yang muncul otomatis saat mencatat
+[pembelian stok masuk](stok-masuk-transfer.md).
+
 ## Halamannya
 
 ![Data Supplier: kartu supplier dengan kontak, jumlah item, dan tombol Lihat Barang](images/sup-1-daftar.webp)
