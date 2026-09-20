@@ -102,6 +102,29 @@ itulah sebabnya broadcast selalu berbasis template.
 
 ## Balasan otomatis & pesan cepat
 
+![Form aturan balasan otomatis: pemicu, channel, teks balasan, dan prioritas](images/wa-1b-aturan.webp)
+
+Aturannya **rule-based, tanpa AI**, dan dievaluasi saat pesan masuk selama
+percakapan masih dalam jendela 24 jam. Urutan pemeriksaannya:
+
+**kata kunci → salam (chat baru) → default / di luar jam**
+
+Dua pagar penting tertulis langsung di halamannya: balasan otomatis
+**dilewati** bila agen manusia baru saja membalas (<30 menit) — supaya bot
+tidak menimpa percakapan yang sedang berjalan — dan pesan **STOP** dari
+pelanggan otomatis meng-opt-out kontak itu.
+
+Tiap aturan memilih pemicu (mis. *Salam pembuka*), channel mana yang dipakai,
+teks balasannya (boleh disalin dari template), dan **prioritas** bila ada
+beberapa aturan yang cocok sekaligus.
+
+![Halaman Pesan Cepat dengan penjelasan pemakaian pintasan](images/wa-2-pesancepat.webp)
+
+**Pesan Cepat** berbeda dari template Meta: ini daftar balasan milik sendiri
+yang dipanggil CS di kotak chat dengan mengetik `/pintasan`. Karena berupa
+teks bebas, hanya sah dikirim selama percakapan masih dalam 24 jam.
+
+
 | Fitur | Halaman | Tabel |
 |---|---|---|
 | Balasan otomatis (kata kunci → jawaban) | `/crm/whatsapp/auto-reply` | `wa_auto_reply_rules` |
@@ -116,12 +139,29 @@ bisa berupa teks bebas.
 
 ## Reminder POS
 
+![Halaman Reminder Otomatis dengan daftar event POS](images/wa-3-reminder.webp)
+
+Reminder mengirim template otomatis saat sebuah **event POS** terjadi —
+misalnya pesanan siap diambil. Tiga syaratnya disebut di halaman itu juga:
+template harus berstatus **APPROVED**, channel harus aktif, dan kontak yang
+sudah opt-out otomatis dilewati. Tiap event hanya dikirim **sekali per
+transaksi/follow-up**, jadi pelanggan tidak menerima pesan berulang.
+
+
 Halaman **`/crm/whatsapp/reminders`** (Manajer+). Menghubungkan kejadian di
 kasir dengan pesan otomatis: pesanan siap diambil, DP jatuh tempo, ucapan
 terima kasih. Konfigurasinya di `wa_reminder_configs`, dan setiap pengiriman
 dicatat di `wa_reminder_logs` supaya tidak terkirim dua kali.
 
 ## QR Chat
+
+![Halaman QR Chat dengan panel pembuatan QR](images/wa-4-qr.webp)
+
+QR Chat membuat kode yang begitu dipindai langsung membuka WhatsApp dengan
+pesan pembuka yang sudah terisi. Berguna ditempel di meja kasir, spanduk, atau
+kemasan — dan karena tiap QR bisa dibedakan, ketahuan pesan datang dari media
+yang mana.
+
 
 Halaman **`/crm/whatsapp/qr`**. Membuat tautan/QR yang begitu dipindai langsung
 membuka chat dengan pesan pembuka terisi. Tiap QR punya kode sendiri
@@ -130,11 +170,48 @@ membuka chat dengan pesan pembuka terisi. Tiap QR punya kode sendiri
 
 ## Analitik
 
+![Analitik WhatsApp: pesan masuk/keluar, kontak, lead, estimasi biaya API, dan kecepatan balas CS](images/wa-5-analitik.webp)
+
+Tiga lapis angka dalam satu halaman:
+
+1. **Volume** — pesan masuk & keluar (berikut yang gagal), percakapan baru,
+   total kontak beserta jumlah opt-out, lead dari WA, dan broadcast.
+2. **Estimasi biaya WhatsApp API** — mengikuti model harga per-pesan Meta:
+   pesan *template* ditagih per kategori (Marketing / Utilitas / Autentikasi)
+   sementara balasan *layanan* dalam jendela 24 jam gratis. Tarif per pesan
+   diisi sendiri sesuai akun, lalu sistem mengalikannya dengan volume nyata.
+3. **Kecepatan balas CS** — *First Response Time* dihitung sampai balasan
+   **manusia** pertama; auto-reply tidak dihitung, dan metrik Desainer,
+   Operator, serta Owner/Manajer dipisah agar angka CS tetap murni.
+
+
 Halaman **`/crm/whatsapp/analytics`** (Manajer+): jumlah percakapan, kecepatan
 balas CS, dan sebaran jam sibuk. Angka kecepatan balas inilah yang dipakai di
 [Leaderboard](leaderboard.md) kolom "Balas WA".
 
 ## Konfigurasi
+
+![Pengaturan channel & penyimpanan media WhatsApp](images/wa-7-konfigurasi.webp)
+
+Selain kredensial channel, halaman pengaturan mengurus **penyimpanan media**:
+foto dan berkas yang masuk lewat WhatsApp menumpuk di server. Pembersihan
+otomatis bisa dimatikan (media disimpan sampai dihapus manual) atau dijalankan
+lewat tombol di halaman itu — dengan pengingat untuk memantau sisa disk.
+
+![Halaman Katalog Produk WhatsApp Business](images/wa-6-katalog.webp)
+
+**Katalog** menghubungkan produk ke katalog resmi WhatsApp Business (Meta
+Commerce). Produk tersimpan di katalog WABA, dan URL gambarnya harus bisa
+diakses publik. Halaman ini hanya berfungsi bila katalog sudah terhubung di
+Commerce Manager — di lingkungan demo dokumentasi ini sengaja belum
+dihubungkan.
+
+![Halaman Bot WhatsApp lama di menu Pengaturan](images/wa-8-botlama.webp)
+
+Menu **Pengaturan → Bot WhatsApp** adalah konfigurasi bot generasi lama
+(berbasis nomor pribadi & grup). Keduanya bisa hidup berdampingan; lihat
+bagian *Bedanya dengan bot WA lama* di awal halaman ini.
+
 
 | Variabel | Untuk |
 |---|---|
