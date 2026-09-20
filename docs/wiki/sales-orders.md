@@ -14,6 +14,70 @@
 
 ---
 
+## Langkah demi langkah
+
+Contoh nyata: desainer menerima order spanduk, membuat SO-nya, lalu kasir
+mengubahnya jadi nota.
+
+### 1. Desainer masuk lewat portal
+
+![Portal desainer: pilih nama lalu masukkan PIN](images/so-1-portal.webp)
+
+Desainer tidak perlu akun email. Cukup memilih namanya dan memasukkan **PIN
+pribadi** — PIN yang sama dengan yang dipakai di papan produksi dan cetak.
+
+### 2. Dasbor desainer
+
+![Dasbor desainer berisi SO miliknya beserta statusnya](images/so-2-dashboard.webp)
+
+Isinya hanya SO milik desainer itu, lengkap dengan statusnya: masih draft,
+sudah terkirim, atau sudah jadi nota.
+
+### 3. Buat SO baru
+
+![Form Sales Order: data pelanggan, label pekerjaan, catatan, dan daftar item](images/so-3-buat.webp)
+
+Form ini menampung yang tidak muat di nota: **label pekerjaan**, catatan teknis
+(bahan, finishing, ukuran), tenggat, dan daftar item. Tombol **Ambil data dari
+Lead CS** menarik data pelanggan dari [lead CRM](crm.md) supaya tidak diketik
+ulang.
+
+> SO menolak disimpan bila belum ada satu pun item — pesannya
+> *"Tambahkan minimal 1 item"*. Ini disengaja: SO tanpa item tidak bisa
+> dikerjakan siapa pun.
+
+### 4. SO tersimpan di daftar desainer
+
+![SO baru muncul di dasbor desainer](images/so-4-tersimpan.webp)
+
+Setelah disimpan, SO muncul di dasbor desainer dan ikut terkirim ke kanal
+Discord internal bila dikonfigurasi.
+
+### 5. Kantor melihat SO yang masuk
+
+![Daftar Sales Order di sisi kantor beserta status dan tombol aksi](images/so-5-kantor.webp)
+
+Kasir dan manajer melihat semua SO: berapa yang masih draft, berapa yang
+menunggu dibuatkan nota, dan berapa yang sudah jadi invoice.
+
+### 6. Kasir menekan "Buat Nota"
+
+![Kasir terbuka dengan item dan data pelanggan dari SO sudah terisi](images/so-6-kasir.webp)
+
+Tombol **Buat Nota** membuka halaman kasir dengan item dan data pelanggan dari
+SO sudah terbawa — tidak ada yang diketik ulang, jadi tidak ada salah ketik
+antara desainer dan kasir.
+
+### 7. Nota jadi, SO berubah status
+
+![Transaksi selesai dari SO](images/so-7-nota.webp)
+
+Begitu notanya tersimpan, SO berpindah status menjadi **Invoiced** dan nomor
+SO-nya ikut tercetak di struk — jadi pekerjaan di produksi selalu bisa
+ditelusuri kembali ke SO-nya.
+
+---
+
 ## 🔐 Login Desainer (Portal Khusus)
 
 Desainer tidak pakai login email/password — mereka punya **PIN** numerik.
