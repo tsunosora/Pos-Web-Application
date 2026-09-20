@@ -48,6 +48,12 @@ penghubung. Akibatnya:
 - Staf yang hanya punya PIN tanpa akun login juga belum kelihatan, sampai
   PIN-nya ditautkan ke akun login di [Akun & PIN Karyawan](karyawan-akun-pin.md).
 
+> **Catatan dokumentasi:** kartu HR hanya muncul bila `HR_API_KEY` sudah diisi
+> dan aplikasi HR-nya bisa dihubungi. Di lingkungan demo yang dipakai membuat
+> tangkapan layar dokumentasi ini, integrasi tersebut memang dimatikan — jadi
+> halaman ini sengaja tidak menyertakan tangkapan layar kartunya, ketimbang
+> memasang gambar yang tidak sesuai keadaan sebenarnya.
+
 ## Konfigurasi
 
 | Variabel | Untuk |

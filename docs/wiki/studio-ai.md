@@ -36,6 +36,18 @@ browser**.
 | `POST /studio-ai/test` | uji sambungan & kunci |
 | `GET/POST /studio-ai/config` | pengaturan model & kunci (Owner) |
 
+## Mulai dari contoh, bukan halaman kosong
+
+![Pilih Inspirasi Demo: 48 kategori industri yang mengisi brief secara otomatis](images/ai-2-inspirasi.webp)
+
+Tombol **Demo** membuka daftar 48 kategori industri — dari Konveksi, Coffee
+Brand, Klinik, sampai Wedding Organizer. Memilih satu kategori langsung
+mengisi seluruh brief dengan contoh yang masuk akal untuk industri itu, lalu
+tinggal disesuaikan.
+
+Gunanya praktis: desainer yang baru belajar memakai studio ini bisa melihat
+dulu bentuk brief yang benar sebelum menulis sendiri.
+
 ## Panduan aplikasi di dalam AI
 
 Berkas `backend/src/studio-ai/app-guide.ts` berisi penjelasan cara kerja PosPro

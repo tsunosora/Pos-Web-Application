@@ -8,6 +8,20 @@
 
 ---
 
+## Apa yang diantre agen ini
+
+![Antrian Cetak Paper: kartu penghitung dan tabel job cetak beserta operatornya](images/prn-2-antrian.webp)
+
+Agen relay bekerja di belakang halaman **`/print-queue`** di atas: job cetak
+yang dibuat aplikasi diambil agen di komputer yang terhubung printer, lalu
+statusnya dikembalikan ke halaman ini.
+
+![Pengaturan Printer Struk di aplikasi](images/prn-1-printer.webp)
+
+Ukuran kertas dan isi header/footer struknya sendiri diatur di aplikasi
+(**Pengaturan → Printer Struk**), bukan di agen — agen hanya meneruskan hasil
+cetaknya ke printer fisik.
+
 ## Prasyarat
 
 1. **Python** terpasang di PC kasir — unduh dari <https://python.org>, centang **Add Python to PATH**.

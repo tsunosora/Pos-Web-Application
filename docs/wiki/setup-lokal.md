@@ -10,6 +10,15 @@ CPU dan RAM server justru lega (25 inti, 23 GB); yang sempit hanya disknya.
 
 ---
 
+## Hasil akhirnya
+
+![Halaman login PosPro saat dijalankan di komputer sendiri](images/login.webp)
+
+Kalau seluruh langkah di bawah berhasil, alamat lokal (mis.
+`http://localhost:3002`) akan menampilkan halaman login yang sama dengan versi
+produksi — lengkap dengan data seed yang sudah disamarkan, sehingga bisa
+dipakai mencoba fitur tanpa menyentuh data toko sungguhan.
+
 ## 1. Prasyarat
 
 | Kebutuhan | Versi | Catatan |
