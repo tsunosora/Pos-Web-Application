@@ -60,6 +60,8 @@ mencoba sendiri:
 
 ## Daftar Isi Wiki
 
+> **Baru pertama melihat PosPro?** Mulai dari [🚀 Tur Singkat — PosPro dalam 12 Layar](tur-singkat.md).
+
 > **Baru di sini?** Mulai dari [🔄 Alur Bisnis](alur-bisnis.md) untuk memahami bagaimana semua fitur terhubung, lalu baca panduan sesuai peran Anda.
 
 | # | Halaman | Ringkasan |

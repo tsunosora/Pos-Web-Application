@@ -23,6 +23,7 @@ export default defineConfig({
       {
         text: '📖 Panduan Awal',
         items: [
+          { text: '🚀 Tur Singkat (12 Layar)', link: '/tur-singkat' },
           { text: 'Beranda', link: '/' },
           { text: 'Wiki Lengkap (Daftar Isi)', link: '/README' },
           { text: '🔄 Alur Bisnis', link: '/alur-bisnis' },
