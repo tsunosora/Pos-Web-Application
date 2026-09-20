@@ -1,9 +1,68 @@
 # ⭐ Penilaian Pelayanan (Rating CS)
 
-![Halaman penilaian yang dibuka pelanggan lewat QR cabang](images/rating-publik.webp)
-
 Fitur kecil dengan pengaruh besar: pelanggan menilai pelayanan lewat tautan,
 tanpa memasang aplikasi dan tanpa login.
+
+## Langkah demi langkah
+
+Dua jalur yang berakhir di satu rekap: pelanggan walk-in yang memindai QR di
+meja kasir, dan pelanggan yang diundang lewat WhatsApp setelah pesanannya
+selesai.
+
+### 1. Yang dilihat pelanggan (tanpa login, tanpa aplikasi)
+
+![Halaman penilaian publik: pertanyaan, pilihan petugas, tombol Ya/Tidak, lima bintang, kolom masukan](images/rating-1-qr.webp)
+
+Tautan **`/nilai/cabang/[branchId]`** inilah yang dicetak jadi QR di meja
+kasir. Halamannya sengaja sependek mungkin: satu pertanyaan, Ya/Tidak,
+bintang, dan satu kolom masukan opsional.
+
+Kolom *"Siapa yang melayani Anda?"* juga opsional — kalau pelanggan sungkan
+menyebut nama, penilaiannya tetap terkirim sebagai penilaian cabang.
+
+### 2. Mengisi penilaian
+
+![Form terisi: petugas Dimas Saputra, jawaban Ya, lima bintang menyala, komentar pelanggan](images/rating-2-isi.webp)
+
+Semua dalam satu layar, tanpa pindah halaman. Bintang dan Ya/Tidak dua hal
+berbeda dan keduanya disimpan: ada pelanggan yang menjawab "Ya" tapi memberi
+tiga bintang, dan selisih itu yang justru berguna dibaca.
+
+### 3. Selesai — satu kali kirim
+
+![Layar ucapan terima kasih setelah penilaian terkirim](images/rating-3-terima.webp)
+
+Ucapan terima kasihnya bisa diganti sendiri oleh Owner (lihat langkah 6).
+Tautan undangan bersifat sekali pakai; setelah terkirim, membukanya lagi tidak
+bisa dipakai menilai dua kali.
+
+### 4. Mengundang lewat pesanan yang sudah selesai
+
+![Bagian Minta Penilaian CS di detail sales order dengan tombol WhatsApp dan tautan penilaian](images/rating-4-undangan.webp)
+
+Di detail [Sales Order](sales-orders.md) berstatus **INVOICED** muncul bagian
+*Minta Penilaian CS*. Sekali klik, sistem membuat tautan bertoken untuk
+pelanggan itu dan menyiapkan pesan WhatsApp-nya.
+
+Bedanya dengan QR meja: penilaian dari tautan ini otomatis tertaut ke nota,
+pelanggan, dan CS yang menangani — tidak perlu menebak siapa yang dinilai.
+
+### 5. Rekapnya per petugas
+
+![Bagian Penilaian CS di Dashboard Owner: rata-rata 5.0, puas 100%, tabel per petugas](images/rating-5-rekap.webp)
+
+Di **Dashboard Owner** hasilnya diringkas jadi tiga angka — rata-rata bintang,
+persen "Ya", dan jumlah penilaian — lalu dipecah per petugas. Angka % Puas
+inilah yang ikut dipakai sebagai nilai kualitas di [Leaderboard](leaderboard.md)
+dan pada perhitungan bonus kualitas.
+
+### 6. Mengubah pertanyaan & ucapan terima kasih
+
+![Dialog pengaturan penilaian: kolom pertanyaan, ucapan terima kasih, dan centang aktif](images/rating-6-atur.webp)
+
+Pertanyaannya bukan bawaan yang terkunci. Owner bisa menggantinya — global
+untuk semua cabang atau khusus satu cabang — sekaligus mengubah ucapan terima
+kasih dan mematikan sementara poling lewat centang aktif.
 
 ## Alurnya
 
