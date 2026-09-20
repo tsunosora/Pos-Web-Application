@@ -6,6 +6,18 @@
 
 ---
 
+## Halamannya
+
+![Data Supplier: kartu supplier dengan kontak, jumlah item, dan tombol Lihat Barang](images/sup-1-daftar.webp)
+
+Tiap supplier tampil sebagai kartu berisi nomor kontak, jumlah barang yang
+dipasok, dan tombol **Lihat Barang** untuk membuka daftar bahan beserta harga
+belinya. Pencarian di atas mencari sekaligus pada nama supplier, kontak, dan
+nama bahan — berguna saat yang diingat hanya "siapa yang jual vinyl".
+
+Harga beli yang tersimpan di sini menjadi dasar perhitungan modal di
+[Kalkulator HPP](hpp-calculator.md) dan laporan laba kotor.
+
 ## Apa itu Supplier Management?
 
 Fitur **Supplier Management** memungkinkan Anda menyimpan database pemasok (supplier/vendor) dan menghubungkan setiap varian produk ke supplier-nya lengkap dengan **harga beli** masing-masing.

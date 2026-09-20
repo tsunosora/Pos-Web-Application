@@ -21,6 +21,30 @@ Tanpa Buku Titipan, B kelihatan rugi padahal kerja, dan A kelihatan untung padah
 
 ---
 
+## Tampilannya
+
+### Posisi hutang-piutang antar cabang
+
+![Buku Titipan Antar Cabang: kartu hutang keluar, piutang masuk, posisi netto, dan daftar titipan](images/bt-1-buku.webp)
+
+Tiga kartu di atas menjawab satu kalimat: *"saya lebih banyak berhutang atau
+menagih?"* — Hutang Keluar, Piutang Masuk, dan **Posisi Netto** dengan
+keterangan arahnya.
+
+Dua baris filter memisahkan sudut pandang (**Saya Berhutang / Piutang Saya /
+Semua**) dan status pembayaran (Belum Dibayar, Sebagian, Lunas, Batal). Tiap
+baris menyebut nomor nota, arah titipan (`PST → CAB`), nama pelanggan, tanggal,
+dan sisa *outstanding*-nya.
+
+### Rincian per titipan
+
+![Rincian satu baris titipan antar cabang](images/bt-2-rincian.webp)
+
+Tombol **Detail** membuka rincian titipan itu: apa yang dikerjakan dan
+bagaimana nilainya terbentuk. Catatan ini dibuat otomatis saat cabang saling
+menitipkan cetakan — lihat [Titip Cetak](titip-cetak.md) untuk alur
+pembuatannya.
+
 ## 🔄 Alur Lengkap
 
 ```

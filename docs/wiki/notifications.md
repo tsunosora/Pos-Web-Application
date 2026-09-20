@@ -6,6 +6,24 @@ Dokumentasi lengkap sistem notifikasi real-time pada aplikasi PosPro POS.
 
 ---
 
+## Yang diatur pemilik
+
+![Pengaturan Notifikasi: saklar transaksi baru, stok hampir habis dengan batas minimum, sinkronisasi offline, dan pengingat tutup shift](images/notif-1-pengaturan.webp)
+
+Halaman **`/settings/notifications`** mengatur notifikasi yang muncul di ikon
+lonceng. Empat saklar utamanya:
+
+| Notifikasi | Pemicunya |
+|---|---|
+| **Transaksi Baru** | setiap transaksi POS berhasil |
+| **Stok Hampir Habis** | stok ≤ batas minimum (contoh: 5 unit) setelah transaksi |
+| **Sinkronisasi Offline Selesai** | data transaksi offline berhasil diunggah |
+| **Pengingat Tutup Shift** | jam tertentu tiap hari, diatur terpisah per shift |
+
+Jam pengingat tutup shift diisi per shift (mis. 15.30 untuk shift pagi, 20.30
+untuk shift sore), jadi pengingatnya mengikuti jadwal toko — bukan jam tetap
+bawaan sistem.
+
 ## Arsitektur Umum
 
 ```

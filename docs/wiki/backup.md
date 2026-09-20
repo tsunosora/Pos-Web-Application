@@ -6,6 +6,33 @@
 
 ---
 
+## Langkah demi langkah
+
+### 1. Satu tombol untuk seluruh data
+
+![Halaman Backup & Recovery: tombol Backup Semua Sekarang, ekspor backup pilihan, dan area restore](images/bk-1-halaman.webp)
+
+**Backup Semua Sekarang** membungkus semuanya jadi satu file ZIP yang berisi:
+
+| Isi ZIP | Keterangan |
+|---|---|
+| `data.json` | seluruh record database yang dipilih |
+| `uploads/` | semua foto produk, logo, dan lampiran |
+| `whatsapp_bot_config.json` | grup & konfigurasi bot WA |
+
+Di sebelah kanan ada area **Restore dari Backup** — tinggal seret file ZIP-nya
+untuk memulihkan ke sistem baru. Inilah jalur pindah server yang dipakai saat
+migrasi.
+
+### 2. Memilih kelompok data yang ingin disimpan
+
+![Daftar grup data yang bisa dicentang untuk backup pilihan](images/bk-2-grup.webp)
+
+Tidak semua backup harus utuh. Data dikelompokkan — Master Data, Cabang &
+Pengaturan Cabang, Pengguna, Produk & Inventori, dan seterusnya — sehingga bisa
+mengambil hanya bagian yang diperlukan, misalnya saat ingin memindahkan
+katalog produk ke instalasi baru tanpa membawa riwayat transaksi.
+
 ## Apa itu Fitur Backup?
 
 Fitur **Backup & Restore** memungkinkan Anda mengekspor seluruh (atau sebagian) data database PosPro ke dalam satu file ZIP. File tersebut bisa disimpan sebagai cadangan dan digunakan untuk memulihkan data jika terjadi masalah.

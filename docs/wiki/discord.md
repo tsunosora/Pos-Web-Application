@@ -6,6 +6,15 @@ Kirim event penting toko ke channel Discord lewat **webhook**, dengan **multi-ch
 
 > Berbeda dari integrasi Discord lama di `Pengaturan › Notifikasi` (yang khusus notif commit GitHub & low-stock sederhana). Sistem ini lebih lengkap dan terstruktur per channel.
 
+## Halamannya
+
+![Pengaturan Discord di dashboard](images/disc-1-pengaturan.webp)
+
+Konfigurasi webhook Discord ada di **`/settings/discord`**. Dari sini laporan
+tutup shift dan pemberitahuan lain dikirim otomatis ke channel tim — dan bila
+pengiriman gagal, bisa dikirim ulang dari
+[Riwayat Shift](riwayat-shift.md).
+
 ## Channel
 
 Buat 1 webhook Discord untuk tiap channel (di Discord: *Channel Settings › Integrations › Webhooks › New Webhook*), lalu tempel URL-nya:

@@ -40,6 +40,28 @@ Mode Cabang adalah kemampuan PosPro untuk menjalankan **beberapa toko/cabang** d
 
 ---
 
+## Pengaturannya
+
+### Konfigurasi per cabang
+
+![Pengaturan Per Cabang: pilih cabang, PIN operator, target omzet harian, dan titipan antar cabang](images/mc-1-config.webp)
+
+Tiap cabang punya konfigurasi sendiri yang dipilih lewat tombol di atas:
+
+| Pengaturan | Gunanya |
+|---|---|
+| **PIN Operator** | PIN untuk masuk papan [Produksi](produksi.md) & [Cetak](mesin-cetak.md) di cabang itu |
+| **Target Omzet Harian** | dasar progress bar & notifikasi; dikosongkan = dihitung otomatis dari beban tetap ÷ jumlah hari |
+| **Titipan Antar Cabang** | margin titip cetak antar cabang, bawaannya **0%** (cabang hanya mengganti biaya nyata) |
+
+### Daftar cabang
+
+![Halaman daftar cabang perusahaan](images/mc-2-cabang.webp)
+
+Cabang ditambah dan diberi kode di sini (PST, CAB, …). Kode itulah yang muncul
+sebagai awalan nomor nota — `SO-PST-20260920-0019` — sehingga asal tiap
+dokumen langsung terbaca.
+
 ## 👤 Konsep Role & Akses
 
 PosPro pakai 2 tipe role dalam Mode Cabang:

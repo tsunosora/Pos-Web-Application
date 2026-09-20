@@ -6,6 +6,15 @@ Selain nota A5 (PDF/browser), PosPro mendukung cetak **struk thermal 58mm** untu
 
 ---
 
+## Pengaturannya di aplikasi
+
+![Halaman pengaturan Printer Struk](images/prn-1-printer.webp)
+
+Ukuran kertas, header, dan footer struk diatur di **Pengaturan → Printer
+Struk**. Isian di sinilah yang tercetak pada tiap nota 58 mm — termasuk nama
+toko dan alamat yang terlihat pada contoh struk di
+[Kasir POS](kasir-pos.md).
+
 ## Cara Pakai
 
 1. Saat mencetak nota, pilih format struk **Thermal 58mm** (default A5 tetap ada).

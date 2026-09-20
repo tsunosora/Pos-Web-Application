@@ -7,6 +7,18 @@ menyusun ide, teks promosi, dan mengisi rincian order — bukan membuat gambar.
 > disertai tangkapan layar karena tampilannya bergantung pada konfigurasi AI
 > tiap instalasi.
 
+## Tampilannya
+
+![Studio Desain: form brief produk di kiri, pratinjau mockup dan output prompt di kanan](images/ai-1-studio.webp)
+
+Layarnya terbagi dua: **kiri** formulir brief (nama brand, judul, tagline,
+deskripsi, CTA, fitur unggulan), **kanan** pratinjau wireframe beserta terminal
+*Output Prompt* yang menampilkan hasil dalam format JSON siap pakai.
+
+Tombol **Asisten AI — Isi Brief Otomatis** mengisi formulir itu dari satu
+kalimat bebas, misalnya *"sunscreen SPF50 untuk remaja, harga terjangkau, mau
+viral di IG"*. Jadi desainer tidak memulai dari halaman kosong.
+
 ## Cara kerja
 
 PosPro **tidak memuat model AI sendiri**. Backend hanya menjadi perantara ke

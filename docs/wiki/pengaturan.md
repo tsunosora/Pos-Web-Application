@@ -24,6 +24,27 @@ dan sebagian hanya untuk Owner/Manajer.
 | `/owner/akses-menu` | menu apa yang boleh dilihat tiap peran | `roles.menu_access` |
 | `/owner/hpp-produk` | rumus HPP per produk | `hpp_worksheets` |
 
+## Peta halaman pengaturan
+
+![Halaman Pengaturan dengan menu kiri (Toko, Tim & Cabang, Sistem) dan Profil Toko di kanan](images/set-1-menu.webp)
+
+Semua konfigurasi berada di satu tempat, dikelompokkan jadi tiga:
+
+| Kelompok | Isinya |
+|---|---|
+| **TOKO** | Profil Toko, Pembayaran, Rekening Bank, Printer Struk, Tampilan Login |
+| **TIM & CABANG** | [Karyawan (Akun & PIN)](karyawan-akun-pin.md), Cabang Perusahaan, [Per Cabang](mode-cabang.md) |
+| **SISTEM** | [Bot WhatsApp](whatsapp-cloud.md), [Notifikasi](notifications.md), [Discord](discord.md), [Backup & Recovery](backup.md) |
+
+Profil Toko memegang hal-hal yang muncul di mana-mana: logo nota, nama toko,
+telepon, alamat, dan saklar **Mode Pricing Berdasarkan Luas** — yang menentukan
+apakah produk boleh dihitung per m² seperti di percetakan.
+
+![Halaman pengaturan metode pembayaran](images/set-2-pembayaran.webp)
+
+Metode pembayaran yang dinyalakan di sini yang nanti muncul sebagai pilihan di
+[Kasir POS](kasir-pos.md) dan saat pelunasan piutang.
+
 ## Yang perlu diperhatikan
 
 - **PIN operator ada dua tingkat**: PIN cabang (`branch_settings.operator_pin`)

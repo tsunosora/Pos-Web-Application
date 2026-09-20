@@ -3,6 +3,27 @@
 Dua fitur yang membuat biaya pemasaran bisa dihubungkan dengan pemasukan nyata,
 bukan hanya dengan "jangkauan" dan "tayangan".
 
+## Tampilannya
+
+### Inbox sosial
+
+![Inbox Sosial menggabungkan percakapan Instagram dan Messenger dalam satu daftar](images/sos-1-sosial.webp)
+
+Pesan Instagram dan Facebook Messenger masuk ke satu daftar yang sama, dengan
+penanda asal tiap percakapan dan jumlah pesan belum dibaca. Tab di atas
+menyaring **Semua / Messenger / Instagram**, sehingga CS tidak perlu berpindah
+aplikasi untuk membalas.
+
+### Iklan Meta
+
+![Halaman Iklan Meta dengan standar KPI dan filter periode serta label](images/sos-2-iklan.webp)
+
+Halaman iklan menampilkan standar KPI yang dipakai toko — CTR ≥2%, ROAS ≥4×,
+CPR ≤ 5% dari profit — lalu membandingkannya dengan angka nyata per akun iklan
+dan per label. Karena labelnya sama dengan label pekerjaan di nota, biaya iklan
+bisa disandingkan dengan **omzet dari closing yang benar-benar terjadi**, bukan
+sekadar jumlah klik.
+
 ## Inbox Instagram & Facebook
 
 ![DM Instagram dan Facebook dalam satu inbox](images/sosial-inbox.webp)

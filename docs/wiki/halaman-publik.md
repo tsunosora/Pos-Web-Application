@@ -20,6 +20,24 @@ terlihat dari luar.
 | `/login` | semua | halaman masuk |
 | `/help` | staf | panduan singkat di dalam aplikasi |
 
+## Papan TV di toko
+
+![Layar PIN sebelum papan TV ditampilkan](images/pub-1-tv.webp)
+
+**`/tv/leaderboard`** dipasang di layar TV toko. Sebelum tampil, halaman ini
+meminta PIN cabang — jadi papan yang memuat angka omzet tidak bisa dibuka
+sembarang orang yang menebak alamatnya.
+
+![Papan Juara di TV: target harian, peringkat cabang, CS, designer, dan operator](images/pub-2-tv-papan.webp)
+
+Setelah PIN benar, tampil papan empat kuadran: **Tim/Cabang**, **CS/Sales**,
+**Designer**, dan **Operator**, dengan bar **Target Harian** di atas dan jam
+besar di kanan. Pilihan periode (Hari Ini / 7 Hari / Bulan Ini) dan pemilih
+cabang membuat satu layar bisa dipakai untuk pantauan harian maupun bulanan.
+
+Angkanya sama dengan [Leaderboard](leaderboard.md) di dashboard — bedanya
+halaman ini dirancang untuk dibaca dari jauh dan menyegarkan dirinya sendiri.
+
 ## Halaman kerja ber-PIN
 
 Bukan publik, tapi juga bukan login biasa:
