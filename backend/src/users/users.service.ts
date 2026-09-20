@@ -94,6 +94,9 @@ export class UsersService {
         role: true,
         branchId: true,
         branch: { select: { id: true, name: true, code: true } },
+        isActive: true,
+        resignedAt: true,
+        resignNote: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' }
@@ -153,7 +156,140 @@ export class UsersService {
     });
   }
 
+  /** Role lintas cabang — dipakai utk jaga agar Owner aktif terakhir tak ikut dimatikan. */
+  private static readonly OWNER_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
+
+  /**
+   * Hitung jejak kerja user di tabel lain. Dipakai sebelum hapus permanen: FK
+   * ke `users` dipasang SET NULL (19 kolom) jadi menghapus akun akan
+   * MENGOSONGKAN riwayat (atribusi CS di leaderboard, pencatat kas, riwayat
+   * tugas, dst) tanpa peringatan — 2 tabel lain malah RESTRICT (error mentah).
+   */
+  /**
+   * Kolom FK ke `users` yang menyimpan jejak kerja seseorang. Ditulis deklaratif
+   * supaya bisa dicocokkan dengan skema Prisma di unit test (salah nama field
+   * cuma ketahuan saat runtime kalau ditulis inline).
+   */
+  static readonly HISTORY_FK: { model: string; fields: string[]; label: string }[] = [
+    { model: 'cashflow', fields: ['userId'], label: 'catatan kas' },
+    { model: 'cashflowChangeRequest', fields: ['requesterId', 'reviewedBy'], label: 'pengajuan koreksi kas' },
+    { model: 'transactionEditRequest', fields: ['requestedById', 'reviewedById'], label: 'pengajuan edit nota' },
+    { model: 'lead', fields: ['assignedToId', 'createdById'], label: 'lead CRM' },
+    { model: 'customer', fields: ['assignedCsId'], label: 'pelanggan (CS)' },
+    { model: 'leadActivity', fields: ['createdById'], label: 'aktivitas lead' },
+    { model: 'followUp', fields: ['assignedToId', 'createdById'], label: 'follow-up' },
+    { model: 'csRatingResponse', fields: ['assignedCsId'], label: 'penilaian CS' },
+    { model: 'waMessage', fields: ['sentById'], label: 'pesan WhatsApp' },
+    { model: 'waConversation', fields: ['assignedToId'], label: 'percakapan WhatsApp' },
+    { model: 'socialConversation', fields: ['assignedToId'], label: 'percakapan medsos' },
+    { model: 'socialMessage', fields: ['sentById'], label: 'pesan medsos' },
+    { model: 'stockTransfer', fields: ['createdById'], label: 'transfer stok' },
+    { model: 'taskItem', fields: ['assigneeId', 'completedById'], label: 'tugas karyawan' },
+    { model: 'taskSchedule', fields: ['assigneeId', 'createdById'], label: 'jadwal tugas' },
+  ];
+
+  /**
+   * Hitung jejak kerja user di tabel lain. Dipakai sebelum hapus permanen: FK
+   * ke `users` dipasang SET NULL (19 kolom) jadi menghapus akun akan
+   * MENGOSONGKAN riwayat (atribusi CS di leaderboard, pencatat kas, riwayat
+   * tugas, dst) tanpa peringatan — 2 tabel lain malah RESTRICT (error mentah).
+   */
+  private async historySummary(id: number): Promise<string[]> {
+    const db = this.prisma as any;
+    const counts: number[] = await Promise.all(
+      UsersService.HISTORY_FK.map((h) =>
+        db[h.model].count({
+          where:
+            h.fields.length === 1
+              ? { [h.fields[0]]: id }
+              : { OR: h.fields.map((f) => ({ [f]: id })) },
+        }),
+      ),
+    );
+    return UsersService.HISTORY_FK
+      .map((h, i) => ({ label: h.label, n: Number(counts[i]) || 0 }))
+      .filter((h) => h.n > 0)
+      .map((h) => `${h.n} ${h.label}`);
+  }
+
+  /**
+   * Tandai karyawan keluar / aktifkan kembali.
+   * - `active: false` → tak bisa login lagi (token yang sudah ada pun langsung
+   *   mati karena JwtStrategy cek isActive tiap request) + akun PIN desainer/
+   *   operator yang tertaut ikut dinonaktifkan (PIN pintu terpisah dari login
+   *   email — lihat Designer.isActive).
+   * - `active: true` → status & PIN dipulihkan, tanggal keluar dihapus.
+   * Riwayat kerja tidak pernah dihapus.
+   */
+  async setStatus(
+    id: number,
+    data: { active: boolean; note?: string | null },
+    actorUserId: number | null,
+  ) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, name: true, isActive: true, role: { select: { name: true } } },
+    });
+    if (!user) throw new BadRequestException('Pengguna tidak ditemukan.');
+
+    const active = !!data.active;
+    if (!active) {
+      if (actorUserId != null && actorUserId === id) {
+        throw new BadRequestException('Tidak bisa menandai akun Anda sendiri keluar.');
+      }
+      const isOwner = UsersService.OWNER_ROLES.includes((user.role?.name ?? '').toUpperCase());
+      if (isOwner) {
+        const otherOwners = await this.prisma.user.count({
+          where: {
+            id: { not: id },
+            isActive: true,
+            role: { name: { in: UsersService.OWNER_ROLES } },
+          },
+        });
+        if (otherOwners === 0) {
+          throw new BadRequestException(
+            'Ini akun Owner aktif terakhir. Menonaktifkannya bisa mengunci semua orang dari pengaturan.',
+          );
+        }
+      }
+    }
+
+    const note = typeof data.note === 'string' ? data.note.trim().slice(0, 255) : '';
+    const updated = await this.prisma.user.update({
+      where: { id },
+      data: {
+        isActive: active,
+        resignedAt: active ? null : new Date(),
+        resignNote: active ? null : note || null,
+      },
+      select: {
+        id: true, name: true, email: true, phone: true, roleId: true, role: true,
+        branchId: true, branch: { select: { id: true, name: true, code: true } },
+        isActive: true, resignedAt: true, resignNote: true, createdAt: true,
+      },
+    });
+
+    // PIN (halaman /so-designer, /produksi, /cetak) pintu terpisah → ikut ditutup.
+    const pin = await (this.prisma as any).designer.updateMany({
+      where: { userId: id },
+      data: { isActive: active },
+    });
+
+    return { ...updated, pinAccountsChanged: Number(pin?.count) || 0 };
+  }
+
+  /**
+   * Hapus permanen — HANYA untuk akun yang belum pernah dipakai (mis. salah
+   * buat). Akun yang sudah punya jejak kerja wajib pakai `setStatus` supaya
+   * laporan & leaderboard bulan lalu tidak berubah.
+   */
   async deleteUser(id: number) {
+    const history = await this.historySummary(id);
+    if (history.length) {
+      throw new BadRequestException(
+        `Akun ini sudah punya riwayat (${history.join(', ')}). Menghapusnya akan mengosongkan data itu dari laporan. Pakai "Tandai keluar" — akunnya mati tapi riwayatnya utuh.`,
+      );
+    }
     return this.prisma.user.delete({
       where: { id }
     });

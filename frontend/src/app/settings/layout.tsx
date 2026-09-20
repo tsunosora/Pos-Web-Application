@@ -1,6 +1,6 @@
 "use client";
 
-import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, Palette, GitBranch, SlidersHorizontal, Webhook, Printer } from 'lucide-react';
+import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, GitBranch, SlidersHorizontal, Webhook, Printer } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -19,8 +19,11 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: stri
     {
         title: 'Tim & Cabang',
         items: [
-            { href: '/settings/users', icon: Users, label: 'Manajemen Staf' },
-            { href: '/settings/designers', icon: Palette, label: 'Kelola Karyawan' },
+            // SATU halaman karyawan: akun login (email+sandi) & PIN kerja
+            // (/so-designer, /produksi, /cetak) diatur per orang di sana.
+            // Halaman /settings/designers masih ada sebagai alat lanjutan,
+            // tapi tidak lagi di menu supaya tidak tertukar lagi.
+            { href: '/settings/users', icon: Users, label: 'Karyawan (Akun & PIN)' },
             { href: '/settings/branches', icon: GitBranch, label: 'Cabang Perusahaan' },
             { href: '/settings/branch-config', icon: SlidersHorizontal, label: 'Per Cabang' },
         ],

@@ -61,6 +61,10 @@ model User {
   roleId       Int?      @map("role_id")
   branchId     Int?      @map("branch_id") // Cabang tempat user ditugaskan; null = Owner/SuperAdmin (akses semua cabang)
   isActive     Boolean   @default(true) @map("is_active") // false = akun dinonaktifkan (tak bisa login, token dicabut)
+  // Karyawan keluar/resign: akun TIDAK dihapus (riwayat lead/kas/tugas ikut hilang),
+  // cukup isActive=false + tanggal keluar di bawah ini supaya laporan lama tetap utuh.
+  resignedAt   DateTime? @map("resigned_at")
+  resignNote   String?   @map("resign_note") @db.VarChar(255)
   createdAt    DateTime? @default(now()) @map("created_at")
   updatedAt    DateTime? @default(now()) @map("updated_at")
 
@@ -349,6 +353,11 @@ model StockMovement {
   branch         CompanyBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@index([branchId])
+  // Generator nomor nota mencari referenceId terakhir hari ini
+  // (WHERE reference_id LIKE 'tx-SO-...%' ORDER BY reference_id DESC) di DALAM
+  // transaksi checkout. Tanpa index ini MySQL full-scan + filesort seluruh tabel
+  // — tabel yang terus bertambah tiap penjualan.
+  @@index([referenceId])
   @@map("stock_movements")
 }
 

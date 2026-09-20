@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Check, X, Eye, EyeOff, UserCheck, UserX, KeyRound, AlertTriangle } from "lucide-react";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
 import { getActiveCompanyBranches, type CompanyBranchLite } from "@/lib/api/discord";
 import { getUsers } from "@/lib/api";
 import { badgeToneClass } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/page-header";
+import Link from "next/link";
 
 export default function DesignersSettingsPage() {
     const qc = useQueryClient();
@@ -30,12 +32,14 @@ export default function DesignersSettingsPage() {
         queryFn: getActiveCompanyBranches,
     });
 
-    // Akun tugas: tugas piket, teguran & pengingat karyawan ini menempel ke akun (User).
-    const { data: users = [] } = useQuery<{ id: number; name: string | null }[]>({
+    // Akun login yang tertaut: tugas piket, teguran & pengingat menempel ke akun
+    // (User), dan status keluar akun itu ikut menutup PIN di sini.
+    const { data: users = [] } = useQuery<{ id: number; name: string | null; isActive?: boolean; resignedAt?: string | null }[]>({
         queryKey: ["users"],
         queryFn: getUsers,
     });
-    const userName = (id?: number | null) => (id ? users.find(u => u.id === id)?.name || `Akun #${id}` : null);
+    const akun = (id?: number | null) => (id ? users.find(u => u.id === id) : undefined);
+    const userName = (id?: number | null) => (id ? akun(id)?.name || `Akun #${id}` : null);
 
     const invalidate = () => qc.invalidateQueries({ queryKey: ["designers"] });
 
@@ -94,25 +98,28 @@ export default function DesignersSettingsPage() {
     const isSaving = createMut.isPending || updateMut.isPending;
 
     return (
-        <div className="p-6 space-y-5 max-w-3xl">
-            <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
-                <div className="flex items-start gap-3 min-w-0">
-                    <div className="hidden sm:flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-                        <Users className="h-5 w-5" />
-                    </div>
-                    <div>
-                        <h1 className="text-xl font-bold tracking-tight">Kelola Karyawan</h1>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                            Satu daftar karyawan (nama + PIN). Dipakai login di portal desainer <code className="bg-muted px-1 rounded">/so-designer</code> &amp; board produksi <code className="bg-muted px-1 rounded">/produksi</code> — siapa saja bisa jadi desainer maupun operator.
-                        </p>
-                    </div>
-                </div>
-                <button
-                    onClick={() => { resetForm(); setShowForm(true); }}
-                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors shrink-0"
-                >
-                    <Plus className="h-4 w-4" /> Tambah Karyawan
-                </button>
+        <div className="p-4 sm:p-6 space-y-5 max-w-5xl">
+            <PageHeader
+                title="PIN Kerja Karyawan"
+                description="Nama + PIN untuk masuk halaman kerja: /so-designer (buat SO), /produksi & /cetak. Ini BUKAN akun login aplikasi kasir — satu orang boleh punya keduanya."
+                icon={KeyRound}
+                breadcrumbs={[{ label: 'Pengaturan', href: '/settings' }, { label: 'PIN Kerja Karyawan' }]}
+                actions={
+                    <button
+                        onClick={() => { resetForm(); setShowForm(true); }}
+                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-xl text-sm font-semibold hover:bg-primary/90 transition-colors shrink-0"
+                    >
+                        <Plus className="h-4 w-4" /> Tambah PIN Karyawan
+                    </button>
+                }
+            />
+
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs text-foreground/80 flex flex-wrap items-center gap-2">
+                <span>
+                    Pengaturan PIN kini bisa dilakukan langsung per orang di halaman{" "}
+                    <Link href="/settings/users" className="font-semibold text-primary hover:underline">Karyawan (Akun &amp; PIN)</Link>{" "}
+                    — halaman ini tetap ada untuk keperluan lanjutan (mis. mengganti PIN massal).
+                </span>
             </div>
 
             {/* Form tambah / edit */}
@@ -208,7 +215,7 @@ export default function DesignersSettingsPage() {
                                 <th className="px-4 py-2 text-left font-medium">Nama</th>
                                 <th className="px-4 py-2 text-left font-medium">Cabang</th>
                                 <th className="px-4 py-2 text-left font-medium">PIN</th>
-                                <th className="px-4 py-2 text-left font-medium">Akun tugas</th>
+                                <th className="px-4 py-2 text-left font-medium">Akun login</th>
                                 <th className="px-4 py-2 text-center font-medium">Status</th>
                                 <th className="px-4 py-2 text-right font-medium">Aksi</th>
                             </tr>
@@ -218,17 +225,46 @@ export default function DesignersSettingsPage() {
                                 <tr key={d.id} className={`hover:bg-muted/20 ${!d.isActive ? "opacity-50" : ""}`}>
                                     <td className="px-4 py-2 font-medium">{d.name}</td>
                                     <td className="px-4 py-2 text-sm text-muted-foreground">
-                                        {(d as any).branchName ? (
-                                            <span className={`${badgeToneClass.info} border text-xs font-medium px-2 py-0.5 rounded-full`}>{(d as any).branchName}</span>
-                                        ) : (
-                                            <span className="text-xs text-muted-foreground/50">Pusat</span>
-                                        )}
+                                        {(() => {
+                                            // Seragamkan tampilan: pakai kode cabang (PST/CAB) bila cabangnya
+                                            // dikenal; data lama hanya menyimpan nama cabang sebagai teks.
+                                            const b = branches.find(x => x.id === d.branchId);
+                                            const label = b ? (b.code || b.name) : (d.branchName || null);
+                                            return label ? (
+                                                <span className={`${badgeToneClass.info} border text-xs font-medium px-2 py-0.5 rounded-full`} title={b?.name || d.branchName || undefined}>{label}</span>
+                                            ) : (
+                                                <span className="text-xs text-muted-foreground/50">—</span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-4 py-2 font-mono text-xs tracking-widest text-muted-foreground">
                                         {"•".repeat(d.pin.length)}
                                     </td>
                                     <td className="px-4 py-2 text-sm">
-                                        {userName(d.userId) ?? <span className="text-xs text-muted-foreground/50">—</span>}
+                                        {d.userId ? (() => {
+                                            const u = akun(d.userId);
+                                            const keluar = u?.isActive === false;
+                                            return (
+                                                <div className="space-y-0.5">
+                                                    <div className="text-sm truncate max-w-[150px]" title={userName(d.userId) ?? undefined}>
+                                                        {userName(d.userId)}
+                                                    </div>
+                                                    {keluar && (
+                                                        <span className={`inline-flex items-center gap-1 ${d.isActive ? badgeToneClass.danger : badgeToneClass.neutral} border text-[11px] font-semibold px-2 py-0.5 rounded-full`}
+                                                            title={d.isActive
+                                                                ? 'Akun login sudah ditandai keluar tapi PIN ini masih aktif — sebaiknya dinonaktifkan.'
+                                                                : 'Akun login sudah keluar dan PIN ini sudah nonaktif.'}>
+                                                            {d.isActive && <AlertTriangle className="w-3 h-3" />}
+                                                            {d.isActive ? 'akun keluar, PIN masih aktif' : 'akun sudah keluar'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })() : (
+                                            <span className="text-[11px] text-muted-foreground italic" title="PIN ini berdiri sendiri: orangnya tidak punya akun login. Menandai keluar di tab Akun Login tidak akan menutup PIN ini.">
+                                                tanpa akun login
+                                            </span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-2 text-center">
                                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${d.isActive ? badgeToneClass.success : badgeToneClass.neutral}`}>
@@ -276,7 +312,7 @@ export default function DesignersSettingsPage() {
             </div>
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                <strong>Cara akses:</strong> Karyawan buka <code className="bg-blue-100 px-1 rounded">/so-designer</code> (buat SO) atau <code className="bg-blue-100 px-1 rounded">/produksi</code> (board produksi), pilih namanya & masukkan PIN → langsung kerja tanpa login akun. Reward dihitung per divisi sesuai kerja nyata (desain &amp; produksi bisa dapat keduanya). Isi <strong>Akun tugas</strong> supaya pop-up pilih shift, teguran &amp; pengingat piket karyawan ini muncul di halaman tersebut.
+                <strong>Cara akses:</strong> Karyawan buka <code className="bg-blue-100 px-1 rounded">/so-designer</code> (buat SO) atau <code className="bg-blue-100 px-1 rounded">/produksi</code> (board produksi), pilih namanya &amp; masukkan PIN → langsung kerja tanpa login akun. Reward dihitung per divisi sesuai kerja nyata (desain &amp; produksi bisa dapat keduanya). <strong>Isi kolom &ldquo;Akun login&rdquo;</strong> kalau orangnya juga punya akun: pop-up shift, teguran &amp; pengingat piket ikut muncul di halaman ber-PIN, <strong>dan PIN ini otomatis tertutup saat akunnya ditandai keluar</strong>. Kalau dibiarkan kosong, PIN harus dinonaktifkan manual di sini saat karyawan berhenti.
             </div>
         </div>
     );

@@ -42,6 +42,11 @@ export const getUsers = async () => (await api.get('/users')).data;
 export const createUser = async (data: any) => (await api.post('/users', data)).data;
 export const updateUser = async (id: number, data: { name?: string, roleId?: number, phone?: string, password?: string, branchId?: number | null }) =>
     (await api.patch(`/users/${id}`, data)).data;
+// Tandai karyawan keluar / aktifkan kembali. Akun tidak pernah dihapus supaya
+// riwayat lead, kas & tugasnya tetap utuh di laporan; `pinAccountsChanged` =
+// jumlah akun PIN (desainer/operator) yang ikut ditutup.
+export const setUserStatus = async (id: number, data: { active: boolean; note?: string }) =>
+    (await api.patch(`/users/${id}/status`, data)).data as { name: string | null; isActive: boolean; resignedAt: string | null; pinAccountsChanged: number };
 export const deleteUser = async (id: number) => (await api.delete(`/users/${id}`)).data;
 export interface AppRole { id: number; name: string; menuAccess?: string[] | null }
 export const getRoles = async () => (await api.get('/users/roles')).data as AppRole[];

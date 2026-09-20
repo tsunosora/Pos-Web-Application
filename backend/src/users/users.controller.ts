@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -37,6 +37,19 @@ export class UsersController {
   @Patch(':id')
   updateUser(@Param('id') id: string, @Body() data: { name?: string, roleId?: number, phone?: string, password?: string }) {
     return this.usersService.updateUser(+id, data);
+  }
+
+  // Tandai karyawan keluar (active:false) / aktifkan kembali (active:true).
+  // Akun TIDAK dihapus supaya riwayat lead, kas & tugas tetap utuh di laporan.
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
+  @Patch(':id/status')
+  setUserStatus(
+    @Param('id') id: string,
+    @Body() data: { active: boolean; note?: string },
+    @Req() req: any,
+  ) {
+    return this.usersService.setStatus(+id, data, req?.user?.userId ?? null);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
