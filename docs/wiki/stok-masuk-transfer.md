@@ -1,10 +1,35 @@
 # 📦 Stok Masuk, Transfer & Mutasi
 
-![Memindahkan bahan dari satu cabang ke cabang lain](images/transfer-stok.webp)
 
 Tiga jalan stok berubah di PosPro: **dibeli**, **dipindah antar cabang**, dan
 **terpakai oleh penjualan**. Semuanya meninggalkan jejak di `stock_movements`,
 jadi pertanyaan "stok ini hilang ke mana?" selalu bisa dijawab.
+
+## Langkah demi langkah: transfer stok antar cabang
+
+### 1. Pilih cabang asal & tujuan, lalu barangnya
+
+![Form transfer: cabang asal, cabang tujuan, catatan, dan daftar barang](images/inv-5-transfer.webp)
+
+Cabang asal dan tujuan dipilih lebih dulu, baru barangnya dicari dan diisi
+jumlahnya. Catatan membantu mengingat alasan pemindahan.
+
+### 2. Transfer dibuat
+
+![Transfer tercatat setelah dibuat](images/inv-6-terkirim.webp)
+
+Begitu dibuat, stok cabang pengirim berkurang dan cabang penerima bertambah
+dalam satu langkah — total stok perusahaan tidak berubah.
+
+### 3. Jejaknya di laporan stok
+
+![Laporan stok memuat mutasi dari transfer tadi](images/inv-7-mutasi.webp)
+
+Semua pergerakan — pembelian, penjualan, transfer, opname — meninggalkan jejak
+di [Laporan Stok](laporan-stok.md), jadi pertanyaan "stok ini hilang ke mana?"
+selalu bisa dijawab.
+
+---
 
 ## 1. Pembelian dari supplier
 

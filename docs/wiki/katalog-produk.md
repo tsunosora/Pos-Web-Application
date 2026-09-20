@@ -5,7 +5,42 @@ kasir ditentukan. Sebagian besar pertanyaan "kok tidak muncul di papan
 produksi?" atau "kok harganya salah?" jawabannya ada di sini, bukan di halaman
 kasir.
 
-![Manajemen stok](images/inventory.webp)
+
+## Langkah demi langkah: menambah produk baru
+
+### 1. Daftar produk & stok
+
+![Daftar produk beserta stok per cabang](images/inv-1-daftar.webp)
+
+Halaman inventori menampilkan seluruh produk beserta stok di cabang aktif.
+
+### 2. Isi data produk
+
+![Form produk baru: nama, kategori, satuan, deskripsi, dan varian pertama](images/inv-2-produk.webp)
+
+Yang wajib: nama, **kategori**, **satuan**, serta satu varian beserta harganya.
+Di sinilah saklar-saklar penting itu disetel — *wajib produksi*, *lacak stok*,
+tarif klik, dan mode harga.
+
+### 3. Harga bertingkat
+
+![Tombol Tambah Tier Harga membuka baris rentang jumlah dan harganya](images/inv-3-tingkat.webp)
+
+Tombol **Harga Bertingkat** menambahkan baris rentang jumlah → harga
+(mis. 1–99 pcs, 100–499, 500+). Kasir tidak perlu menghitung apa pun; harga
+mengikuti jumlah yang diketik.
+
+### 4. Produk tersimpan
+
+![Produk baru tersimpan dan siap dijual di kasir](images/inv-4-tersimpan.webp)
+
+Setelah tersimpan, produk langsung muncul di [Kasir POS](kasir-pos.md).
+
+> Form ini memakai validasi bawaan browser. Kalau ada kolom wajib yang
+> terlewat, tombol simpan **tidak melakukan apa-apa** dan pesannya mudah
+> terlewat — periksa kategori, satuan, dan harga varian lebih dulu.
+
+---
 
 ## Susunan datanya
 
