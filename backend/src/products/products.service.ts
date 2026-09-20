@@ -136,8 +136,14 @@ export class ProductsService {
      * Dipakai preview POS DAN saat checkout (validasi ulang harga di server —
      * jangan percaya harga dari client).
      */
-    async computeComposite(productId: number, selectedOptions: Record<string, any>) {
-        const product = await (this.prisma as any).product.findUnique({ where: { id: productId } });
+    async computeComposite(productId: number, selectedOptions: Record<string, any>, db?: any) {
+        // `db` = klien Prisma yang dipakai. WAJIB diisi `tx` bila dipanggil dari
+        // dalam $transaction: memakai this.prisma di sana meminta koneksi KEDUA
+        // dari pool yang sama sementara transaksi masih memegang koneksi pertama
+        // -> saat checkout ramai, semua slot pool terpakai transaksi yang saling
+        // menunggu slot bebas -> "Timed out fetching a new connection".
+        const client: any = db ?? this.prisma;
+        const product = await client.product.findUnique({ where: { id: productId } });
         if (!product) throw new NotFoundException(`Produk ${productId} tidak ditemukan`);
         const config = product.compositeConfig;
         if (product.pricingMode !== 'COMPOSITE' || !config) {
@@ -149,7 +155,7 @@ export class ProductsService {
             .map((c: any) => Number(selectedOptions[c.variantFrom]))
             .filter((n: number) => Number.isFinite(n) && n > 0);
         const uniqueIds = [...new Set<number>(variantIds)];
-        const variants = await (this.prisma as any).productVariant.findMany({
+        const variants = await client.productVariant.findMany({
             where: { id: { in: uniqueIds } },
             select: { id: true, variantName: true, price: true, hpp: true, product: { select: { name: true } } },
         });

@@ -10,8 +10,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             // transaksi ke-abort ("transaction expired") walau kerjanya wajar. Dinaikkan
             // agar checkout/pelunasan tetap selesai di beban tinggi (mis. menuju 1000+ chat).
             transactionOptions: {
-                maxWait: 10_000,  // tunggu slot mulai transaksi maks 10 dtk
-                timeout: 20_000,  // batas jalannya transaksi 20 dtk
+                maxWait: 20_000,  // tunggu slot mulai transaksi maks 20 dtk
+                // 19 Sep 2026: penyimpanan host melambat drastis (fsync ±1,6 dtk,
+                // disk 100% sibuk) → checkout gagal "transaction expired" di batas
+                // 20 dtk padahal kerjanya wajar. Dinaikkan supaya nota tetap
+                // TERSIMPAN (lambat) alih-alih hilang. Normal: transaksi <1 dtk.
+                timeout: 90_000,
             },
         });
     }
