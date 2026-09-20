@@ -31,6 +31,48 @@ selalu bisa dijawab.
 
 ---
 
+## Langkah demi langkah: mencatat pembelian (stok masuk)
+
+Contoh nyata: membeli 50 lembar A3+ Sticker Vinyl Glossy seharga Rp 18.500 per
+lembar.
+
+### 1. Buka Manajemen Stok
+
+![Halaman Manajemen Stok & Produk dengan tombol Pembelian, Catat Susut, dan Tambah Produk](images/beli-1-stok.webp)
+
+Tiga tombol aksi di kanan atas memisahkan tiga hal yang sering tertukar:
+**Pembelian** (stok bertambah), **Catat Susut** (stok berkurang karena rusak /
+hilang), dan **Tambah Produk** (menambah jenis barang, bukan jumlahnya).
+
+### 2. Isi nota pembelian
+
+![Dialog Pembelian Bahan Baku: supplier, no. invoice, catatan, dan keranjang berisi 50 lembar seharga 18.500](images/beli-2-form.webp)
+
+Supplier dan nomor invoice bersifat opsional, tapi mengisinya membuat
+pembelian bisa ditelusuri balik ke [Data Supplier](suppliers.md). Saat bahan
+dipilih, sistem menampilkan **stok saat ini** (di contoh: 1.524) agar terlihat
+posisi sebelum penambahan, lalu menghitung **Total Nilai Pembelian**
+Rp 925.000 sendiri.
+
+Keterangan kecil di kaki dialog menegaskan akibatnya: *"1 item · stok akan
+bertambah setelah simpan"*.
+
+### 3. Stok bertambah
+
+![Daftar stok setelah pembelian tersimpan](images/beli-3-stok-naik.webp)
+
+Sekali simpan, stok cabang itu naik dari **1.524 → 1.574** — penambahan 50
+lembar persis, tanpa perlu mengedit angka stok secara manual.
+
+### 4. Tercatat sebagai mutasi "Masuk"
+
+![Laporan stok memperlihatkan total masuk +50 unit dari pembelian](images/beli-4-laporan.webp)
+
+Di [Laporan Stok](laporan-stok.md), pembelian tadi muncul sebagai mutasi
+bertipe **Masuk** dan ikut menaikkan *Total Masuk* periode itu (+50). Jadi tiap
+lembar bahan yang masuk gudang punya jejak: siapa suppliernya, nomor notanya,
+dan kapan dicatat.
+
 ## 1. Pembelian dari supplier
 
 Halaman pembelian mencatat nota dari supplier: bahan apa, berapa banyak, harga
