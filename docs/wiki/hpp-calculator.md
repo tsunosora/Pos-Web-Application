@@ -2,7 +2,58 @@
 
 > Kalkulator HPP adalah alat bantu untuk menghitung biaya produksi per unit secara terstruktur — terpisah dari alur transaksi kasir. Hasil kalkulasi bisa langsung diterapkan ke varian produk di inventori sebagai nilai HPP resmi.
 
-![Kalkulator HPP](images/hpp.webp)
+
+---
+
+## Langkah demi langkah
+
+Contoh nyata: menghitung modal satu lembar stiker vinyl A3+ cutting.
+
+### 1. Buka kalkulator
+
+![Kalkulator HPP dengan bagian parameter, bahan baku, biaya tetap, dan hasil](images/hpp-1-kalkulator.webp)
+
+Halamannya terbagi empat bagian yang dibaca dari atas ke bawah: parameter
+produk, **bahan baku** (biaya variabel), **biaya tetap** bulanan, lalu hasil
+analisisnya.
+
+### 2. Susun resep & biaya tetap
+
+![Resep bahan berisi tiga baris dan biaya tetap bulanan beserta target volume](images/hpp-2-bahan.webp)
+
+Bahan dimasukkan satu per satu: pilih bahannya, isi **pemakaian per pcs** dan
+**harga belinya**, lalu tekan Tambah. Bahan bisa diambil dari katalog produk
+atau diketik manual untuk hal yang tidak berbentuk barang (misalnya susut
+pisau cutting).
+
+Di bagian **Biaya Tetap** dimasukkan sewa, listrik, gaji — biaya yang tetap
+keluar berapa pun produksinya. Angka **Target Volume Sebulan** yang membagi
+biaya itu ke tiap pcs; makin besar volumenya, makin kecil beban tetap per
+barang.
+
+### 3. Hitung hasilnya
+
+![Hasil analisis: struktur modal dan tiga opsi harga jual beserta marginnya](images/hpp-3-hasil.webp)
+
+Hasilnya memecah modal menjadi dua: **bahan baku** (Rp 11.850) dan **biaya
+tetap per pcs** (Rp 5.000), sehingga total modal pokok Rp 16.850. Di bawahnya
+muncul opsi harga jual beserta marginnya — kompetitif, standar, dan premium —
+jadi keputusan harga diambil dari angka, bukan perasaan.
+
+### 4. Simpan sebagai worksheet
+
+![Worksheet tersimpan dan bisa dibuka lagi](images/hpp-4-simpan.webp)
+
+Perhitungan disimpan sebagai *worksheet* dan bisa dibuka lagi kapan saja —
+berguna saat harga bahan naik dan semua produk perlu dihitung ulang.
+
+### 5. Rumus HPP per produk
+
+![Daftar produk beserta rumus HPP yang sudah tersimpan](images/hpp-5-rumus.webp)
+
+Worksheet bisa **ditempelkan ke produk atau varian** di katalog. Sejak itu,
+laporan [laba kotor](laporan-penjualan.md) memakai modal yang sudah dihitung,
+bukan tebakan.
 
 ---
 
