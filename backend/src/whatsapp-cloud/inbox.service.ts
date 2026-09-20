@@ -235,7 +235,14 @@ export class InboxService {
 
                 for (const msg of value?.messages ?? []) {
                     try {
-                        await this.handleInbound(channel, value, msg);
+                        // Serialisasi per nomor: Meta kerap mengirim beberapa webhook
+                        // PARALEL untuk kontak yang sama. Tanpa ini dua request bersamaan
+                        // meng-upsert baris waContact/waConversation yang sama → "Lock wait
+                        // timeout" dan pesannya ikut hangus (handler gagal, tak diulang).
+                        await this.serializeByKey(
+                            `in:${msg?.from ?? msg?.id ?? 'unknown'}`,
+                            () => this.handleInbound(channel, value, msg),
+                        );
                     } catch (e) {
                         await this.logEvent('message', msg?.id, msg, (e as Error).message);
                         this.logger.error(`Gagal proses pesan masuk ${msg?.id}: ${(e as Error).message}`);
@@ -483,6 +490,26 @@ export class InboxService {
     private extractMediaMime(msg: any): string | null {
         const t = (msg?.type || '').toLowerCase();
         return msg?.[t]?.mime_type ?? null;
+    }
+
+    /**
+     * Antrean per-kunci. Task dengan kunci sama dijalankan BERURUTAN; kunci
+     * berbeda tetap paralel. Dipakai agar webhook untuk satu nomor tidak saling
+     * rebut lock baris di MySQL (dan tidak memicu duplikat waMessage).
+     */
+    private readonly inboundChain = new Map<string, Promise<unknown>>();
+
+    private serializeByKey<T>(key: string, task: () => Promise<T>): Promise<T> {
+        const prev = this.inboundChain.get(key) ?? Promise.resolve();
+        // then(task, task): rantai tetap lanjut walau task sebelumnya gagal.
+        const run = prev.then(task, task);
+        const settled = run.catch(() => undefined);
+        this.inboundChain.set(key, settled);
+        void settled.then(() => {
+            // Hapus hanya bila tak ada task baru yang menyusul → Map tak bocor.
+            if (this.inboundChain.get(key) === settled) this.inboundChain.delete(key);
+        });
+        return run;
     }
 
     private async handleInbound(channel: any, value: any, msg: any): Promise<void> {
@@ -775,7 +802,7 @@ export class InboxService {
         }
         if (opts.phoneIn !== undefined) {
             // Daftar kosong → tak ada yang cocok (sentinel agar hasil kosong, bukan semua).
-            contactAnd.push({ phoneNormalized: { in: opts.phoneIn.length ? opts.phoneIn : [' __none__'] } });
+            contactAnd.push({ phoneNormalized: { in: opts.phoneIn.length ? opts.phoneIn : ['__none__'] } });
         }
         if (contactAnd.length) where.contact = contactAnd.length === 1 ? contactAnd[0] : { AND: contactAnd };
         const rows = await this.prisma.waConversation.findMany({
@@ -834,20 +861,28 @@ export class InboxService {
             include: { channel: true },
         });
         if (conv && conv.unreadCount > 0) {
-            const lastInbound = await this.prisma.waMessage.findFirst({
-                where: { conversationId, direction: WaDirection.INBOUND, waMessageId: { not: null } },
-                orderBy: { id: 'desc' },
-                select: { waMessageId: true },
-            });
-            if (lastInbound?.waMessageId) {
-                void this.cloud.markAsRead(conv.channel.phoneNumberId, lastInbound.waMessageId);
-            }
-            // Reset unread HANYA bila memang ada yang belum dibaca → hindari tulis DB
-            // tiap polling (3 dtk) yang mubazir.
-            await this.prisma.waConversation.update({
-                where: { id: conversationId },
+            // Reset unread lewat SATU statement kondisional. Sebelumnya polanya
+            // "baca lalu update": tiap agen yang membuka chat ini polling per 3 dtk,
+            // jadi beberapa request bisa sama-sama melihat unreadCount > 0 lalu
+            // sama-sama menulis baris waConversation yang SAMA → rebutan lock dan
+            // berujung "Lock wait timeout exceeded" (MySQL 1205). Dengan updateMany
+            // bersyarat, hanya satu yang benar-benar menulis (count = 1); sisanya
+            // no-op tanpa menyentuh baris.
+            const reset = await this.prisma.waConversation.updateMany({
+                where: { id: conversationId, unreadCount: { gt: 0 } },
                 data: { unreadCount: 0 },
             });
+            // Centang biru hanya dikirim oleh pemenang → tak lagi spam ke Meta.
+            if (reset.count > 0) {
+                const lastInbound = await this.prisma.waMessage.findFirst({
+                    where: { conversationId, direction: WaDirection.INBOUND, waMessageId: { not: null } },
+                    orderBy: { id: 'desc' },
+                    select: { waMessageId: true },
+                });
+                if (lastInbound?.waMessageId) {
+                    void this.cloud.markAsRead(conv.channel.phoneNumberId, lastInbound.waMessageId);
+                }
+            }
         }
         const rows = await this.prisma.waMessage.findMany({
             where: { conversationId },
