@@ -39,3 +39,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# build lama sementara dari deploy.sh (rollback)
+/.next.prev/
