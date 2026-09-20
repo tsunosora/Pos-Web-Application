@@ -133,6 +133,76 @@ transaksi database** — kalau ada satu yang gagal, semuanya dibatalkan:
 > varian/produknya belum punya tarif klik. Lihat
 > [Katalog Produk & Harga](katalog-produk.md).
 
+## Mengubah nota yang sudah jadi: permintaan edit
+
+Nota yang sudah tersimpan tidak bisa diam-diam diubah kasir. Yang tersedia
+adalah **permintaan edit** — diajukan kasir, ditinjau manajer, dan seluruhnya
+meninggalkan jejak.
+
+### 1. Kasir melihat tombol yang berbeda
+
+![Daftar piutang dilihat kasir; aksi barisnya "Ajukan Perubahan"](images/req-1-daftar-kasir.webp)
+
+Tombol pada baris nota menyesuaikan peran: manajer melihat **Edit**, kasir
+melihat **Ajukan Perubahan**. Peran yang otomatis dianggap penyetuju —
+*Owner, Admin, Manajer, Supervisor, Kepala* — tidak akan melihat jalur
+pengajuan ini karena mereka memang boleh mengubah langsung.
+
+### 2. Menyusun usulan perubahan
+
+![Dialog Ajukan Perubahan Transaksi dengan daftar item, harga dasar, dan tombol Tambah Produk](images/req-2-form.webp)
+
+Dialognya menampilkan nota apa adanya: item pesanan, ukuran, harga dasar per
+unit, dan tombol untuk menambah produk. Kasir mengubah angkanya seperti sedang
+mengedit — bedanya hasilnya belum tersimpan ke nota.
+
+### 3. Alasan wajib diisi
+
+![Bagian Ringkasan & Info Pelanggan terbuka dengan kolom alasan terisi](images/req-3-alasan.webp)
+
+Tanpa alasan, pengajuan ditolak aplikasi dengan pesan *"Harap isi alasan
+permintaan edit"*. Kolomnya ada di bagian **Ringkasan & Info Pelanggan** yang
+bisa dilipat. Aturan ini yang membuat riwayat perubahan bisa dibaca ulang
+berbulan-bulan kemudian tanpa menebak-nebak.
+
+### 4. Pengajuan terkirim
+
+![Daftar kembali seperti semula setelah pengajuan terkirim](images/req-4-terkirim.webp)
+
+Nota **belum berubah**. Yang tercatat baru satu baris permintaan berstatus
+*Menunggu*, dan lonceng manajer mendapat penanda.
+
+### 5. Manajer meninjau
+
+![Halaman Permintaan Edit Transaksi: nomor nota, pengaju, waktu, alasan, tombol Setujui dan Tolak](images/req-5-tinjau.webp)
+
+**`/transactions/edit-requests`** memuat dua tab: **Menunggu** (dengan angka
+jumlahnya) dan **Riwayat**. Tiap kartu menyebut nomor nota, **siapa yang
+mengajukan**, waktunya, dan alasannya — lalu dua tombol: *Setujui* atau
+*Tolak*.
+
+### 6. Persetujuan butuh dua klik
+
+![Tombol berubah menjadi Konfirmasi Setujui setelah diklik sekali](images/req-6-konfirmasi.webp)
+
+Menekan *Setujui* tidak langsung menerapkan perubahan; tombolnya berubah jadi
+**Konfirmasi Setujui**. Pagar kecil ini mencegah klik tidak sengaja pada daftar
+yang isinya mirip-mirip.
+
+### 7. Selesai dan pindah ke riwayat
+
+![Tab Menunggu kosong setelah permintaan disetujui](images/req-7-selesai.webp)
+
+Setelah dikonfirmasi, permintaannya hilang dari tab *Menunggu* dan tersimpan di
+*Riwayat* lengkap dengan siapa yang menyetujui. Nota barulah berubah pada titik
+ini.
+
+> **Catatan pengujian (September 2026):** saat alur ini diuji untuk dokumentasi,
+> ditemukan bahwa menyetujui perubahan **ukuran** pada item berbasis luas (m²)
+> menghitung ulang totalnya dengan satuan yang salah sehingga nilainya melonjak.
+> Perbaikannya sedang ditangani terpisah; periksa kembali total nota setelah
+> menyetujui perubahan pada item per-m².
+
 ## Batas & aturan yang berlaku
 
 - Stok tidak cukup → nota ditolak dengan pesan yang menyebut nama bahannya.
