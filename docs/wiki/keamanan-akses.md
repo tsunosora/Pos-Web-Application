@@ -41,6 +41,31 @@ verifikasi terjadi lewat PIN. Ini pertukaran yang disadari — kalau papan
 produksi menuntut login penuh, dalam praktiknya staf akan berbagi satu akun,
 yang justru lebih buruk untuk penelusuran.
 
+### Wujud gerbang PIN-nya
+
+Tiga papan kerja memakai pola yang sama — dibuka tanpa akun, tapi tetap
+meminta identitas sebelum apa pun terlihat.
+
+![Halaman /produksi meminta pilih cabang dan PIN operator sebelum antrian tampil](images/sec-1-produksi.webp)
+
+**`/produksi`** — pilih cabang, pilih nama operator, lalu masukkan PIN. Daftar
+pekerjaan baru muncul setelah PIN benar.
+
+![Halaman /cetak meminta cabang dan PIN operator](images/sec-2-cetak.webp)
+
+**`/cetak`** — pola yang sama. Sejak September 2026 halaman ini memakai **PIN
+pribadi** tiap karyawan, bukan PIN cabang bersama, supaya nama yang tercatat
+pada hitungan klik mesin benar-benar orang yang mengerjakan.
+
+![Portal Desainer meminta memilih nama desainer sebelum masuk](images/sec-3-desainer.webp)
+
+**`/so-designer`** — portal desainer, dipakai membuat Surat Order tanpa akun
+login. Namanya dipilih dari daftar, lalu dikunci PIN masing-masing.
+
+Pola ini disengaja: komputer produksi dan meja desain sering dipakai
+bergantian, dan memaksa login email di sana justru membuat orang berbagi satu
+akun. PIN pendek per orang lebih jujur mencatat siapa mengerjakan apa.
+
 ## 4. Tautan publik & webhook
 
 Halaman penilaian pelanggan, opname lapangan, landing page, artikel, dan webhook

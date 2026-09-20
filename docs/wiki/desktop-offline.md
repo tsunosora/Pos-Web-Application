@@ -6,6 +6,25 @@ PosPro tersedia sebagai **aplikasi desktop Windows (Electron)** yang menjalankan
 
 ---
 
+## Seperti apa saat koneksi putus
+
+![Kasir POS dalam keadaan normal, tersambung ke server](images/off-1-online.webp)
+
+Dalam keadaan normal tidak ada penanda apa pun — aplikasi bekerja seperti
+biasa.
+
+![Badge merah bertuliskan Mode Offline di pojok kanan bawah](images/off-2b-badge.webp)
+
+Begitu koneksi putus, muncul badge merah **Mode Offline** di pojok kanan bawah.
+Bila ada transaksi yang belum terkirim, jumlahnya ikut ditulis
+(*"Mode Offline · 3 menunggu"*). Saat koneksi kembali, badge berganti menjadi
+indikator kuning **"Menyinkronkan …"** sampai antreannya habis, lalu hilang
+sendiri.
+
+Penanda ini berlaku baik di versi web/PWA maupun di aplikasi desktop, dan
+itulah satu-satunya hal yang berubah di layar — kasir tetap bisa melanjutkan
+transaksi.
+
 ## Kenapa Ada Versi Desktop?
 
 Versi web/PWA butuh koneksi ke server. Bila internet cabang tidak stabil, kasir bisa berhenti total. Versi desktop membawa database + backend di dalam komputer sehingga:
