@@ -42,7 +42,10 @@ export default function CloseShiftPage() {
     // `today` & default reportDate diset ulang di client (useEffect) supaya selalu
     // mengikuti tanggal saat dibuka, bukan tanggal build/SSR (yang membuat kalender
     // mentok di tanggal build — bug 21-23 tidak bisa dipilih).
-    const [today, setToday] = useState(localTodayStr);
+    // `today` sengaja mulai kosong: JANGAN bake tanggal build ke atribut max
+    // (kalau di-bake, max bisa tertinggal di tanggal build & memblokir "hari ini").
+    // useEffect di bawah mengisinya ke tanggal client saat halaman dibuka.
+    const [today, setToday] = useState('');
     const [reportDate, setReportDate] = useState(localTodayStr);
     const [closeTime, setCloseTime] = useState(() => {
         const now = new Date();
@@ -438,6 +441,26 @@ export default function CloseShiftPage() {
                                     </div>
                                 </div>
 
+                                {/* Pengeluaran Shift Ini — pengeluaran yang dicatat di menu Cashflow
+                                    (di luar form tutup shift), mis. bayar mesin/supplier via transfer.
+                                    Ditampilkan agar pemasukan tidak terlihat berdiri sendiri tanpa
+                                    pengeluaran tandingannya. Read-only; tidak mengubah hitungan target. */}
+                                {Array.isArray(shiftData?.shiftExpenses) && shiftData.shiftExpenses.length > 0 && (
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-semibold text-red-500 uppercase tracking-wider">Pengeluaran Shift Ini</p>
+                                        {shiftData.shiftExpenses.map((e: any, i: number) => (
+                                            <div key={i} className="flex justify-between py-1 border-b border-border/60 gap-2">
+                                                <span className="text-muted-foreground">🧾 {e.bankName ? `${e.bankName} — ` : ''}{e.note}</span>
+                                                <span className="font-semibold text-red-500">−{formatCurrency(e.amount)}</span>
+                                            </div>
+                                        ))}
+                                        <div className="flex justify-between py-1">
+                                            <span className="text-xs font-semibold text-muted-foreground">Total Pengeluaran</span>
+                                            <span className="font-bold text-red-500">−{formatCurrency(shiftData.expensesTotal || 0)}</span>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Target Saldo Kasir — real-time */}
                                 <div className="space-y-1">
                                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -586,7 +609,7 @@ export default function CloseShiftPage() {
                                                 type="date"
                                                 required
                                                 value={reportDate}
-                                                max={today}
+                                                max={today || undefined}
                                                 onChange={(e) => setReportDate(e.target.value)}
                                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             />
