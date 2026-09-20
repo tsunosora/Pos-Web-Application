@@ -64,6 +64,7 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 | 42 | [⭐ Penilaian Pelayanan (Rating CS)](rating-cs.md) | Pelanggan menilai lewat tautan sekali pakai atau QR per cabang, tanpa login dan tanpa aplikasi |
 | 43 | [📈 Keuangan Owner](keuangan-owner.md) | Konsolidasi, anomali, rekonsiliasi, kas pusat & pendanaan cabang, tutup buku bulanan, biaya tetap, bonus, rekening bank |
 | 44 | [⚙️ Pengaturan](pengaturan.md) | Semua halaman `/settings/*` dan `/owner/*` beserta tabel yang disentuhnya, termasuk dua tingkat PIN operator |
+| 44a | [🖥️ Antarmuka & Fitur Kecil](antarmuka.md) | Mode gelap, pemilih cabang, lonceng notifikasi, chip Shift, menu profil, ciutkan sidebar, dan panduan dalam aplikasi |
 | 45 | [🌐 Halaman Publik](halaman-publik.md) | Halaman yang bisa dibuka tanpa login (landing, artikel, produk, penilaian, opname, papan TV) dan cara mengamankannya |
 | 46 | [🔐 Model Akses & Keamanan](keamanan-akses.md) | Empat cara akses (JWT, peran, PIN, tautan publik) + audit 91 endpoint tanpa penjaga login beserta alasannya |
 | 47 | [🖨️ Mesin Cetak & Antrian Paper](mesin-cetak.md) | Tarif klik per ukuran/warna/sisi, papan cetak operator, rekap klik mesin & rekonsiliasi |
