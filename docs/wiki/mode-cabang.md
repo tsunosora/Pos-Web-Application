@@ -86,7 +86,7 @@ PosPro pakai 2 tipe role dalam Mode Cabang:
 
 ### Langkah 1 — Login sebagai Owner
 
-Login pakai akun dengan role **Owner** atau **SuperAdmin** (`owner@voliko.com` atau setara). Akun staff biasa tidak bisa mengelola cabang.
+Login pakai akun dengan role **Owner** atau **SuperAdmin** (`owner@tokokamu.test` atau setara). Akun staff biasa tidak bisa mengelola cabang.
 
 ### Langkah 2 — Buka Pengaturan Cabang
 
@@ -148,7 +148,7 @@ Cabang baru punya stok **0 untuk semua varian**. Ada 2 cara mengisi:
 
 ### Kasir Cabang Sewon
 
-1. **Login** dengan akun cabang Sewon (mis. `kasir.swn@voliko.com`)
+1. **Login** dengan akun cabang Sewon (mis. `kasir.cabang@tokokamu.test`)
 2. Topbar tampilkan badge hijau `SWN · Voliko Cabang Sewon`
 3. Buka **POS** — katalog produk sama (share global), tapi **stok yang tampil = stok Sewon saja**
 4. Bertransaksi normal — transaksi tercatat `branchId=Sewon`
@@ -157,7 +157,7 @@ Cabang baru punya stok **0 untuk semua varian**. Ada 2 cara mengisi:
 
 ### Owner / SuperAdmin
 
-1. Login `owner@voliko.com`
+1. Login `owner@tokokamu.test`
 2. Topbar tampilkan dropdown **"Pusat ▾"** (atau cabang terakhir yang dipilih)
 3. **Pilih "Pusat"** → semua query (POS, laporan, cashflow, stok) scoped ke Pusat
 4. **Pilih "Sewon"** → switcher invalidate cache → data refresh dengan stok & transaksi Sewon

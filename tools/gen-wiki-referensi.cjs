@@ -150,7 +150,11 @@ function bacaModel() {
         const sisa = m[3] || '';
         // Komentar bisa di ujung baris, atau satu-dua baris DI ATAS kolomnya —
         // gaya kedua dipakai untuk penjelasan panjang, jadi keduanya dipungut.
-        const ket = (sisa.match(/\/\/\s*(.*)$/) || [])[1] || komentarKolom.join(' ');
+        const ketMentah = (sisa.match(/\/\/\s*(.*)$/) || [])[1] || komentarKolom.join(' ');
+        // Komentar schema sesekali memuat pengenal akun nyata (mis. act_<digit>
+        // milik akun iklan Meta). Wiki ini publik, jadi angkanya disamarkan
+        // tanpa perlu mengubah schema.
+        const ket = ketMentah.replace(/\b(act_)\d{6,}/g, '$1XXXXXXXXXX');
         komentarKolom = [];
         kini.kolom.push({
             nama: m[1], tipe: m[2],

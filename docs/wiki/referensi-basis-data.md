@@ -2315,7 +2315,7 @@ Indeks & kunci: `@@index([branchId])`
 |---|---|---|---|
 | `id` | `Int` | _sama_ | — |
 | `accessToken` | `String?` | `access_token` | — |
-| `adAccountId` | `String?` | `ad_account_id` | Ad Account Meta terpilih utk modul Ads (mis. "act_510575292057613"). Kosong = auto-pilih akun pertama dari me/adaccounts. Token WA yg sama dipakai (scope ads_read). |
+| `adAccountId` | `String?` | `ad_account_id` | Ad Account Meta terpilih utk modul Ads (mis. "act_XXXXXXXXXX"). Kosong = auto-pilih akun pertama dari me/adaccounts. Token WA yg sama dipakai (scope ads_read). |
 | `updatedAt` | `DateTime` | `updated_at` | — |
 
 ### WaContact — `wa_contacts`
