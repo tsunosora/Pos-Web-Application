@@ -15,6 +15,16 @@ Pastikan Home Server Anda sudah terinstal:
 
 ---
 
+## Sebelum mulai: amankan data yang ada
+
+![Halaman Backup & Recovery dengan tombol Backup Semua Sekarang dan area restore](images/bk-1-halaman.webp)
+
+Kalau ini pemasangan **ulang** atau pindah server, ambil dulu backup lengkap
+dari instalasi lama lewat **Pengaturan → Backup & Recovery**. Satu file ZIP itu
+memuat database, folder `uploads/`, dan konfigurasi bot WhatsApp — dan file yang
+sama nanti bisa diunggah lewat *Restore dari Backup* setelah server baru
+berjalan. Rinciannya di [Backup & Recovery](backup.md).
+
 ## 🛠️ Langkah 1: Persiapan Database MySQL
 
 Masuk ke MySQL _command line_ di server Anda:

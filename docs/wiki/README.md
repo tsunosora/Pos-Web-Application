@@ -12,6 +12,52 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 
 ---
 
+## 🖼️ Halaman dengan alur bergambar
+
+36 halaman memuat **alur langkah demi langkah** — tiap langkah ada
+tangkapan layarnya, diambil dari aplikasi yang benar-benar berjalan dengan data
+contoh (nama toko, pelanggan, dan karyawan disamarkan). Cocok dibaca sambil
+mencoba sendiri:
+
+- [🔄 Alur Bisnis PosPro — Panduan Lengkap Alur Penggunaan](alur-bisnis.md) — 11 gambar
+- [Mesin Cetak & Antrian Paper](mesin-cetak.md) — 10 gambar
+- [🖨️ Antrian Produksi](produksi.md) — 10 gambar
+- [🎯 CRM — Lead Pipeline, Follow-Up & Customer Relationship](crm.md) — 9 gambar
+- [💳 DP & Piutang](dp-piutang.md) — 9 gambar
+- [🖥️ Antarmuka & Fitur Kecil](antarmuka.md) — 8 gambar
+- [💰 Cashflow Bisnis](cashflow.md) — 8 gambar
+- [👥 Akun & PIN Karyawan](karyawan-akun-pin.md) — 8 gambar
+- [🎨 Sales Order & Designer Portal](sales-orders.md) — 8 gambar
+- [📋 Stok Opname](stock-opname.md) — 8 gambar
+- [💬 WhatsApp CRM (Cloud API)](whatsapp-cloud.md) — 8 gambar
+- [🛒 Kasir POS](kasir-pos.md) — 7 gambar
+- [🧹 Papan Tugas & Piket](papan-tugas-piket.md) — 7 gambar
+- [Artikel / Blog](artikel.md) — 6 gambar
+- [📄 Invoice Generator & Penawaran Harga (SPH)](invoice-sph.md) — 6 gambar
+- [📈 Keuangan Owner](keuangan-owner.md) — 6 gambar
+- [⭐ Penilaian Pelayanan (Rating CS)](rating-cs.md) — 6 gambar
+- [🔁 Titip Cetak Antar Cabang](titip-cetak.md) — 6 gambar
+- [📅 Contoh Alur 1 Hari Kerja CS dengan PosPro CRM](contoh-alur-cs-harian.md) — 5 gambar
+- [🧮 Kalkulator HPP (Harga Pokok Penjualan)](hpp-calculator.md) — 5 gambar
+- [Landing Page Builder](landing.md) — 5 gambar
+- [📊 Laporan Penjualan](laporan-penjualan.md) — 5 gambar
+- [🔒 Tutup Shift](tutup-shift.md) — 5 gambar
+- [📒 Buku Titipan Antar Cabang (Inter-Branch Ledger)](buku-titipan.md) — 4 gambar
+- [🌐 Halaman Publik](halaman-publik.md) — 4 gambar
+- [🏷️ Katalog Produk & Harga](katalog-produk.md) — 4 gambar
+- [🔐 Model Akses & Keamanan](keamanan-akses.md) — 4 gambar
+- [⚙️ Pengaturan](pengaturan.md) — 4 gambar
+- [📣 Inbox Sosial & Iklan Meta](sosial-iklan.md) — 4 gambar
+- [💾 Backup & Restore Data](backup.md) — 3 gambar
+- [📊 Laporan Stok](laporan-stok.md) — 3 gambar
+- [🏆 Leaderboard & Metrik Produk Custom](leaderboard.md) — 3 gambar
+- [🏢 Mode Cabang (Multi-Tenant per Branch)](mode-cabang.md) — 3 gambar
+- [🖨️ Printer Relay Agent — Cetak Thermal untuk Cabang](printer-relay-agent.md) — 3 gambar
+- [📜 Riwayat Tutup Shift](riwayat-shift.md) — 3 gambar
+- [📦 Stok Masuk, Transfer & Mutasi](stok-masuk-transfer.md) — 3 gambar
+
+---
+
 ## Daftar Isi Wiki
 
 > **Baru di sini?** Mulai dari [🔄 Alur Bisnis](alur-bisnis.md) untuk memahami bagaimana semua fitur terhubung, lalu baca panduan sesuai peran Anda.
