@@ -47,6 +47,65 @@ REPEAT_ORDER (auto weekly cek customer dormant)
 
 ---
 
+## Langkah demi langkah
+
+Contoh nyata: chat masuk dari pelanggan, ditindaklanjuti, sampai jadi nota.
+
+### 1. Chat masuk di inbox WhatsApp
+
+![Inbox WhatsApp dengan percakapan terbuka dan kolom balasan](images/crm-1-inbox.webp)
+
+Percakapan masuk berkumpul di satu inbox — bukan di HP pribadi CS. Riwayatnya
+tersimpan, jadi CS berikutnya tahu apa yang sudah dibicarakan. Balasan diketik
+langsung di sini, dan `/` memanggil [pesan cepat](whatsapp-cloud.md).
+
+### 2. Pipeline lead
+
+![Pipeline lead dengan tab Baru, Follow Up, Negosiasi, Closing, Lost](images/crm-2-pipeline.webp)
+
+Setiap calon pelanggan berdiri sebagai **lead** dengan tahapannya. Angka di tiap
+tab memperlihatkan berapa yang tertahan di situ — kalau "Follow Up" menumpuk,
+artinya ada yang tidak ditindaklanjuti.
+
+### 3. Buka lead untuk melihat riwayatnya
+
+![Detail lead beserta tombol aksi: pindah tahap, template WA, buat nota](images/crm-3-detail.webp)
+
+Detail lead memuat kebutuhannya, sumbernya (WhatsApp, Instagram, iklan), dan
+riwayat percakapannya, lengkap dengan tombol aksi di satu tempat.
+
+### 4. Pindahkan tahapannya
+
+![Lead berpindah ke tahap Follow Up](images/crm-4-followup.webp)
+
+Tombol **→ Follow Up** / **→ Negosiasi** memindahkan tahap tanpa membuka form.
+Tombol **Tandai Direspon Sekarang** mencatat kapan lead itu dijawab — angka
+inilah yang muncul sebagai kecepatan respons di [Leaderboard](leaderboard.md).
+
+### 5. Tugas follow-up
+
+![Daftar tugas follow-up yang menunggu ditindaklanjuti](images/crm-5-tugas.webp)
+
+Lead yang perlu dihubungi lagi muncul sebagai tugas, jadi tidak bergantung pada
+ingatan CS.
+
+### 6. Jadikan nota di kasir
+
+![Kasir terbuka dengan data pelanggan dari lead sudah terisi](images/crm-6-kasir.webp)
+
+Tombol **Buat Nota di Kasir** membuka halaman kasir dengan data pelanggan dari
+lead sudah terbawa — tidak perlu mengetik ulang nama dan nomor HP.
+
+### 7. Nota jadi, lead otomatis ditutup
+
+![Transaksi selesai dari lead](images/crm-7-nota.webp)
+
+Begitu notanya tersimpan, **lead otomatis berubah menjadi *Closing*** tanpa
+perlu diubah manual. Jadi angka di pipeline selalu mencerminkan keadaan
+sebenarnya, bukan sisa pekerjaan administrasi.
+
+---
+
 ## 1. Halaman `/crm/leads` — Pipeline Lead
 
 ### Apa itu Lead?
