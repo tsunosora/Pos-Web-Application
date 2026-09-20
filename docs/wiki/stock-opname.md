@@ -1,5 +1,7 @@
 # 📋 Stok Opname
 
+![Sesi opname berjalan, siap dibagikan tautannya ke petugas lapangan](images/opname.webp)
+
 > **Stok Opname** adalah proses hitung fisik stok yang ada di gudang untuk dicocokkan dengan data di sistem. PosPro menyediakan sistem opname berbasis **link unik** yang bisa dibagikan ke karyawan — karyawan hitung langsung dari HP tanpa perlu login ke akun utama.
 
 ---

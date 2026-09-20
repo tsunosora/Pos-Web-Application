@@ -1,5 +1,7 @@
 # 📦 Stok Masuk, Transfer & Mutasi
 
+![Memindahkan bahan dari satu cabang ke cabang lain](images/transfer-stok.webp)
+
 Tiga jalan stok berubah di PosPro: **dibeli**, **dipindah antar cabang**, dan
 **terpakai oleh penjualan**. Semuanya meninggalkan jejak di `stock_movements`,
 jadi pertanyaan "stok ini hilang ke mana?" selalu bisa dijawab.

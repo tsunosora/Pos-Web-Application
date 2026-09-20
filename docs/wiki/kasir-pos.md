@@ -4,7 +4,7 @@ Halaman **`/pos`** adalah inti aplikasi: tempat nota dibuat. Satu tombol
 "Proses Pembayaran" di sini memicu enam hal sekaligus di belakang layar, dan
 itulah yang membedakan PosPro dari kasir biasa.
 
-![Kasir POS](images/pos.png)
+![Kasir POS](images/pos.webp)
 
 ## Siapa yang memakai
 

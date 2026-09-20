@@ -1,5 +1,7 @@
 # 📒 Buku Titipan Antar Cabang (Inter-Branch Ledger)
 
+![Posisi hutang-piutang jasa antar cabang](images/buku-titipan.webp)
+
 > Sistem otomatis pembukuan hutang-piutang antar cabang yang muncul karena **titip cetak**. Kasir cabang A jualan & terima uang, tapi cetakan dikerjakan di cabang B → cabang A "berhutang" ke cabang B sebesar HPP bahan + fee layanan.
 
 ---

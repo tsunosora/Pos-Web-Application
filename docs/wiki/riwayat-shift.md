@@ -1,5 +1,7 @@
 # 📜 Riwayat Tutup Shift
 
+![Riwayat shift yang sudah ditutup beserta selisih kasnya](images/riwayat-shift.webp)
+
 > Panduan halaman **Riwayat Tutup Shift** — log historis semua laporan tutup shift beserta backup pesan laporan.
 
 ---

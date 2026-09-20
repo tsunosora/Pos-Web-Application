@@ -2,11 +2,11 @@
 
 Modul ini digunakan untuk melacak jumlah klik meteran pada mesin cetak (Paper) serta antrian produksi khusus bahan lembaran (A3+/A4).
 
-![Klik mesin cetak](images/klik-mesin.png)
+![Klik mesin cetak](images/klik-mesin.webp)
 
 Papan yang dipakai operator cetak sehari-hari:
 
-![Papan cetak operator](images/cetak.png)
+![Papan cetak operator](images/cetak.webp)
 
 ---
 

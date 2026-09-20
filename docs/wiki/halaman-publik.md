@@ -1,5 +1,9 @@
 # 🌐 Halaman Publik
 
+![Papan TV yang dipasang di toko — tanpa login](images/tv-leaderboard.webp)
+
+![Landing page yang dilihat calon pelanggan](images/landing-publik.webp)
+
 Tidak semua halaman PosPro butuh login. Sebagian memang dibuat untuk dibuka
 pelanggan atau ditempel sebagai QR — daftarnya di sini supaya jelas apa yang
 terlihat dari luar.

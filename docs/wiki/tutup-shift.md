@@ -5,7 +5,7 @@ uang fisik, membandingkannya dengan catatan sistem, lalu mengirim rekap.
 Tujuannya bukan mencari-cari kesalahan, tapi membuat selisih **ketahuan pada
 hari yang sama** — bukan sebulan kemudian saat sudah tidak bisa ditelusuri.
 
-![Tutup shift](images/closeshift.png)
+![Tutup shift](images/closeshift.webp)
 
 ## Cara kerjanya
 

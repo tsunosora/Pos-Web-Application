@@ -1,5 +1,7 @@
 # 📅 Contoh Alur 1 Hari Kerja CS dengan PosPro CRM
 
+![Tugas follow-up yang menunggu ditindaklanjuti CS](images/follow-up.webp)
+
 > Skenario realistis seorang CS (Customer Service) di toko cetak/jersey custom yang pakai PosPro CRM, dari pagi sampai sore. Tunjukan bagaimana halaman `/crm/follow-ups`, `/crm/leads`, dan modul lain digunakan dalam keseharian.
 
 ---

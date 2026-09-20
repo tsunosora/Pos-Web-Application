@@ -1,5 +1,7 @@
 # Artikel / Blog
 
+![Mengelola artikel yang tampil di halaman publik](images/artikel-admin.webp)
+
 Buat artikel dengan editor **rich text** (seperti Word), tampilkan di landing page & halaman blog publik.
 
 ## Kelola artikel (admin)

@@ -3,6 +3,10 @@
 Halaman **`/desainer`** (menu *Studio Desain*). Membantu desainer dan CS
 menyusun ide, teks promosi, dan mengisi rincian order — bukan membuat gambar.
 
+> Antarmukanya dibuka dari menu **Studio Desain** di sidebar. Halaman ini tidak
+> disertai tangkapan layar karena tampilannya bergantung pada konfigurasi AI
+> tiap instalasi.
+
 ## Cara kerja
 
 PosPro **tidak memuat model AI sendiri**. Backend hanya menjadi perantara ke

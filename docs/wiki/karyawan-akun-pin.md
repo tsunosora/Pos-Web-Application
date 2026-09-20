@@ -1,5 +1,7 @@
 # 👥 Akun & PIN Karyawan
 
+![Satu daftar orang: akun login dan PIN kerja dalam satu baris](images/karyawan.webp)
+
 Halaman **`/settings/users`** (menu *Karyawan (Akun & PIN)*) mengelola satu
 daftar orang. Dulu ini dua halaman terpisah dan membingungkan; sekarang satu
 baris = satu orang, dengan dua "pintu" yang bisa dimiliki sendiri-sendiri atau

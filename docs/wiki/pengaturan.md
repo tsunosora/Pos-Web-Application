@@ -1,5 +1,9 @@
 # ⚙️ Pengaturan
 
+![Profil toko, tema, dan tampilan halaman login](images/pengaturan-umum.webp)
+
+![Metode pembayaran, pajak, dan format nota bawaan](images/pembayaran.webp)
+
 Semua di bawah menu **Pengaturan** (`/settings/*`). Satu halaman = satu urusan,
 dan sebagian hanya untuk Owner/Manajer.
 

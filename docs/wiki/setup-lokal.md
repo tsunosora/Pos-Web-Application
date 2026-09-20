@@ -39,7 +39,7 @@ sudo mysql -e "CREATE DATABASE pospro_dev CHARACTER SET utf8mb4; CREATE USER 'po
 
 ## 4. Masukkan data seed
 
-![Halaman login](images/login.png)
+![Halaman login](images/login.webp)
 
 
 Berkas seed dibuat di server dengan skrip `backend/prisma/scripts/dump-dev-seed.ts`

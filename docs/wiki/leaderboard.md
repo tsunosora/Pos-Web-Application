@@ -2,7 +2,7 @@
 
 > **Leaderboard** adalah papan peringkat kinerja tim — CS, Designer, Operator, dan per Cabang. Semua angka dihitung otomatis dari data nota, lead, Sales Order, dan job produksi; tidak ada input manual. **Metrik Produk Custom** memungkinkan Owner menambah kolom sendiri untuk melacak produk/varian tertentu.
 
-![Leaderboard tim](images/leaderboard.png)
+![Leaderboard tim](images/leaderboard.webp)
 
 ---
 

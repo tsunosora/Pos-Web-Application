@@ -5,7 +5,7 @@ kasir ditentukan. Sebagian besar pertanyaan "kok tidak muncul di papan
 produksi?" atau "kok harganya salah?" jawabannya ada di sini, bukan di halaman
 kasir.
 
-![Manajemen stok](images/inventory.png)
+![Manajemen stok](images/inventory.webp)
 
 ## Susunan datanya
 

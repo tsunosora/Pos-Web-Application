@@ -1,5 +1,7 @@
 # 📄 Invoice Generator & Penawaran Harga (SPH)
 
+![Daftar invoice dan surat penawaran harga](images/invoice.webp)
+
 > Halaman **Invoice & Penawaran** adalah modul untuk membuat dokumen bisnis profesional — baik **Invoice (Faktur Tagihan)** maupun **Surat Penawaran Harga (SPH)**. Dirancang khusus untuk bisnis yang melayani klien perusahaan, brand, event organizer, atau instansi yang memerlukan dokumen formal sebelum dan sesudah deal.
 
 ---

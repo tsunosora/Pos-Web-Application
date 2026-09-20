@@ -1,5 +1,7 @@
 # 🔐 Model Akses & Keamanan
 
+![Mengatur menu yang boleh dilihat tiap peran](images/akses-menu.webp)
+
 Empat cara berbeda seseorang bisa mengakses PosPro. Memahami keempatnya penting
 sebelum menyimpulkan sesuatu "aman" atau "bocor".
 

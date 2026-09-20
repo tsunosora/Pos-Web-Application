@@ -1,5 +1,7 @@
 # 🖨️ Printer Relay Agent — Cetak Thermal untuk Cabang
 
+![Daftar perangkat printer yang terhubung](images/printer.webp)
+
 **Printer Relay Agent** (`agent.py`) adalah program kecil yang dijalankan di **PC kasir yang colok printer thermal**. Ia "menelpon keluar" ke server PosPro (long-poll), mengambil job cetak, lalu meneruskannya ke printer lokal — sehingga **banyak kasir bisa mencetak ke satu printer** tanpa buka port/firewall dan tanpa masalah *mixed-content* HTTPS.
 
 > Kapan pakai ini? Untuk **cabang tanpa Aplikasi Desktop**. Kalau cabang sudah pakai [Aplikasi Desktop Offline](desktop-offline.md), agen relay sudah bundel di dalamnya (cukup isi `printerRelayToken`) — tidak perlu `agent.py` terpisah. Lihat juga [Nota Thermal 58mm](nota-thermal-58mm.md).

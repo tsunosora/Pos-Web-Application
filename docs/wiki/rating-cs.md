@@ -1,5 +1,7 @@
 # ⭐ Penilaian Pelayanan (Rating CS)
 
+![Halaman penilaian yang dibuka pelanggan lewat QR cabang](images/rating-publik.webp)
+
 Fitur kecil dengan pengaruh besar: pelanggan menilai pelayanan lewat tautan,
 tanpa memasang aplikasi dan tanpa login.
 

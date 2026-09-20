@@ -1,6 +1,6 @@
 # 🔄 Alur Bisnis PosPro — Panduan Lengkap Alur Penggunaan
 
-![Dashboard harian](images/dashboard.png)
+![Dashboard harian](images/dashboard.webp)
 
 Halaman ini menjelaskan bagaimana semua modul PosPro bekerja bersama dalam satu ekosistem bisnis — mulai dari pertama kali setup, operasional harian kasir, hingga review keuangan pemilik toko.
 

@@ -1,5 +1,7 @@
 # 🗺️ Peta Cuan Lokasi
 
+![Posisi cabang sendiri dan kompetitor di sekitarnya](images/peta-cuan.webp)
+
 > **Peta Cuan Lokasi** adalah fitur peta interaktif berbasis OpenStreetMap yang membantu pemilik bisnis **melihat kinerja cabang secara visual**, **mencatat posisi kompetitor**, dan **menemukan bisnis sejenis** di area manapun — semua dalam satu tampilan peta.
 
 ---

@@ -2,7 +2,7 @@
 
 > Kalkulator HPP adalah alat bantu untuk menghitung biaya produksi per unit secara terstruktur — terpisah dari alur transaksi kasir. Hasil kalkulasi bisa langsung diterapkan ke varian produk di inventori sebagai nilai HPP resmi.
 
-![Kalkulator HPP](images/hpp.png)
+![Kalkulator HPP](images/hpp.webp)
 
 ---
 

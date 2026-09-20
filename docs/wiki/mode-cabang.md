@@ -1,5 +1,7 @@
 # 🏢 Mode Cabang (Multi-Tenant per Branch)
 
+![Pengaturan cabang & setelan per cabang](images/cabang.webp)
+
 > Panduan lengkap fitur **Mode Cabang** — memungkinkan PosPro mengelola beberapa toko cabang dalam satu sistem, dengan data operasional terpisah per cabang namun master data (produk, pelanggan, supplier) tetap bersama.
 
 ---

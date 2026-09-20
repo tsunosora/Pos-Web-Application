@@ -1,5 +1,7 @@
 # 🏭 Manajemen Data Supplier
 
+![Daftar supplier beserta barang yang biasa dibeli](images/suppliers.webp)
+
 > Panduan lengkap untuk mengelola data pemasok dan menghubungkan harga beli ke varian produk.
 
 ---

@@ -1,5 +1,7 @@
 # 💾 Backup & Restore Data
 
+![Jadwal backup, jumlah arsip yang disimpan, dan status terakhir](images/backup.webp)
+
 > Panduan lengkap untuk mengekspor data ke file ZIP dan memulihkan data dari backup.
 
 ---

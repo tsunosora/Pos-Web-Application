@@ -1,5 +1,7 @@
 # Notifikasi Discord
 
+![Memilih kejadian apa yang dikirim ke kanal Discord](images/discord.webp)
+
 Kirim event penting toko ke channel Discord lewat **webhook**, dengan **multi-channel** dan **toggle per-event**, diatur dari `Pengaturan › Discord` (`/settings/discord`).
 
 > Berbeda dari integrasi Discord lama di `Pengaturan › Notifikasi` (yang khusus notif commit GitHub & low-stock sederhana). Sistem ini lebih lengkap dan terstruktur per channel.

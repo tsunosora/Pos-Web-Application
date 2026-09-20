@@ -4,11 +4,11 @@ Kumpulan halaman yang hanya dilihat pemilik: bukan "berapa penjualan hari ini"
 (itu ada di [Laporan Penjualan](laporan-penjualan.md)), tapi **apakah usahanya
 sehat**.
 
-![Dashboard owner](images/owner.png)
+![Dashboard owner](images/owner.webp)
 
 Laporan laba kotor yang dipakai sehari-hari:
 
-![Laporan laba kotor](images/profit.png)
+![Laporan laba kotor](images/profit.webp)
 
 ## Analisa Keuangan — `/owner/analisa-keuangan`
 

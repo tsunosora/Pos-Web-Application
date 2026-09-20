@@ -1,5 +1,7 @@
 # 🧾 Cetak Nota Thermal 58mm
 
+![Detail nota — dari sini nota dicetak ulang ke printer thermal](images/transaksi-detail.webp)
+
 Selain nota A5 (PDF/browser), PosPro mendukung cetak **struk thermal 58mm** untuk printer struk mini kasir. Struk dirender otomatis (logo, item, total, footer) menjadi gambar raster ESC/POS lalu dikirim ke printer. **Format A5 lama tetap tersedia dan tidak berubah.**
 
 ---

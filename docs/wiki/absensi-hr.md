@@ -1,5 +1,7 @@
 # 🗓️ Absensi & Portal HR
 
+![Dua kartu HR di dashboard: Sekilas HR untuk Owner/Manajer dan Absensi saya untuk semua staf](images/dashboard-hr.webp)
+
 PosPro tidak mengurus absensi sendiri. Absensi, penilaian, dan poin karyawan
 ditangani aplikasi terpisah (**RateMyStaff**), dan PosPro hanya **menjadi
 jendelanya** — supaya karyawan tidak perlu mengingat dua alamat.

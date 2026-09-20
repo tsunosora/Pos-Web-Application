@@ -1,5 +1,7 @@
 # 📊 Laporan Stok
 
+![Riwayat seluruh pergerakan stok](images/laporan-stok.webp)
+
 Halaman **Laporan Stok** (`/reports/stock`) memberikan visibilitas lengkap atas semua pergerakan stok dalam periode tertentu — siapa yang melakukan pembelian bahan baku, berapa yang terjual, kapan terjadi koreksi, dan berapa saldo stok saat ini.
 
 ---

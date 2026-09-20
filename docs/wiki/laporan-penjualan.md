@@ -2,7 +2,7 @@
 
 > **Laporan Penjualan** adalah pusat analisis transaksi toko — tempat Anda memantau performa penjualan, melihat produk yang sedang tren, menelusuri histori order pelanggan, hingga mengekspor data untuk pembukuan atau laporan ke atasan.
 
-![Rekap penjualan](images/sales.png)
+![Rekap penjualan](images/sales.webp)
 
 ---
 

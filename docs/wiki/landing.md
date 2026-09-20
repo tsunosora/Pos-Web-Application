@@ -1,5 +1,7 @@
 # Landing Page Builder
 
+![Menyusun isi landing page tanpa koding](images/landing-builder.webp)
+
 Bangun landing page toko dengan **drag-and-drop** (pakai library Puck), kelola dari dashboard, sajikan di **domain custom terpisah**.
 
 ## Alur pakai

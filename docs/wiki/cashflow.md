@@ -1,5 +1,7 @@
 # 💰 Cashflow Bisnis
 
+![Arus kas masuk & keluar dengan rincian per kategori](images/cashflow.webp)
+
 > **Cashflow Bisnis** adalah halaman pusat arus kas toko — tempat Anda melihat, mencatat, dan menganalisis semua uang yang masuk dan keluar dari bisnis, baik yang otomatis tercatat dari transaksi kasir maupun yang diinput manual oleh admin.
 
 ---

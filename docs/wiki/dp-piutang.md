@@ -4,7 +4,7 @@ Halaman **`/transactions/dp`** mengumpulkan semua nota yang **belum lunas** —
 baik yang dibayar sebagian (DP) maupun invoice perusahaan yang belum dibayar
 sama sekali. Ini daftar tagihan yang harus ditagih, bukan sekadar laporan.
 
-![Daftar DP / Piutang](images/dp.png)
+![Daftar DP / Piutang](images/dp.webp)
 
 ## Bagaimana nota bisa masuk ke sini
 

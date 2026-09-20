@@ -2,11 +2,11 @@
 
 > **TL;DR**: Modul CRM PosPro membantu Anda **tidak kehilangan calon customer**, **tidak lupa follow-up**, dan **tidak melupakan customer lama**. Dari chat WA pertama sampai repeat order tahun depan — semua ter-tracking otomatis.
 
-![Pipeline lead CRM](images/crm-leads.png)
+![Pipeline lead CRM](images/crm-leads.webp)
 
 Database pelanggan yang terbentuk dari lead yang menjadi order:
 
-![Data pelanggan](images/customers.png)
+![Data pelanggan](images/customers.webp)
 
 ---
 

@@ -1,5 +1,7 @@
 # Sistem Notifikasi Real-Time
 
+![Daftar pemberitahuan di dalam aplikasi](images/notifikasi.webp)
+
 Dokumentasi lengkap sistem notifikasi real-time pada aplikasi PosPro POS.
 
 ---
