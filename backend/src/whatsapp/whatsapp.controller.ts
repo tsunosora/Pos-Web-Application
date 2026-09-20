@@ -1,6 +1,16 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
+/**
+ * Bot WhatsApp lama (sesi QR). Masih dipakai karena Cloud API resmi tidak bisa
+ * mengirim ke GRUP, sementara rekap shift dikirim ke grup pemilik.
+ *
+ * Seluruh endpoint di sini wajib login: modul ini bisa mengirim pesan dan
+ * mengubah konfigurasi bot, jadi tidak boleh terbuka seperti sisa versi awal
+ * aplikasi. Frontend memanggilnya lewat klien API yang sudah membawa token.
+ */
+@UseGuards(JwtAuthGuard)
 @Controller('whatsapp')
 export class WhatsappController {
     constructor(private readonly whatsappService: WhatsappService) { }

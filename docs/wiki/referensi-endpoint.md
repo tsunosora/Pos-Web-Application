@@ -5,7 +5,7 @@
 
 
 PosPro menyajikan **580 endpoint** dalam **74 controller**.
-Sebanyak **91 endpoint tanpa penjaga login** — itu memang disengaja untuk
+Sebanyak **81 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
 
@@ -1200,19 +1200,20 @@ Berkas: `backend/src/whatsapp-cloud/whatsapp-cloud.controller.ts`
 ## WhatsappController — `/whatsapp`
 
 Berkas: `backend/src/whatsapp/whatsapp.controller.ts`
+Penjaga tingkat kelas: `JwtAuthGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| GET | `/whatsapp/status` | `getStatus` | — _terbuka_ | — |
-| GET | `/whatsapp/config` | `getConfig` | — _terbuka_ | — |
-| GET | `/whatsapp/groups` | `getGroups` | — _terbuka_ | — |
-| POST | `/whatsapp/logout` | `logout` | — _terbuka_ | — |
-| POST | `/whatsapp/send` | `sendToGroup` | — _terbuka_ | — |
-| POST | `/whatsapp/broadcast` | `broadcast` | — _terbuka_ | — |
-| POST | `/whatsapp/announce` | `announce` | — _terbuka_ | — |
-| POST | `/whatsapp/config/broadcast-groups` | `updateBroadcastGroups` | — _terbuka_ | — |
-| POST | `/whatsapp/config/announcement` | `setAnnouncement` | — _terbuka_ | — |
-| POST | `/whatsapp/config/design-group` | `setDesignGroup` | — _terbuka_ | — |
+| GET | `/whatsapp/status` | `getStatus` | `JwtAuthGuard` | — |
+| GET | `/whatsapp/config` | `getConfig` | `JwtAuthGuard` | — |
+| GET | `/whatsapp/groups` | `getGroups` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/logout` | `logout` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/send` | `sendToGroup` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/broadcast` | `broadcast` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/announce` | `announce` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/config/broadcast-groups` | `updateBroadcastGroups` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/config/announcement` | `setAnnouncement` | `JwtAuthGuard` | — |
+| POST | `/whatsapp/config/design-group` | `setDesignGroup` | `JwtAuthGuard` | — |
 
 ## WhatsappWebhookController — `/whatsapp/webhook`
 

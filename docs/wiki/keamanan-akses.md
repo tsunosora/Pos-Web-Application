@@ -50,7 +50,7 @@ webhook).
 
 ## Audit endpoint tanpa penjaga login
 
-Kondisi per **20 September 2026**: dari **580 endpoint**, **91 tanpa
+Kondisi per **20 September 2026**: dari **580 endpoint**, **81 tanpa
 `JwtAuthGuard`**. Daftar terbaru selalu bisa dibangkitkan ulang —
 lihat [Referensi Endpoint](referensi-endpoint.md).
 
@@ -58,7 +58,7 @@ lihat [Referensi Endpoint](referensi-endpoint.md).
 |---|---:|---|
 | `ProductionController` | 21/28 | papan produksi ber-PIN |
 | `SalesOrdersPublicController` | 12/12 | portal desainer ber-PIN |
-| `WhatsappController` (bot lama) | 10/10 | sisa versi awal — **perlu diberi penjaga**, lihat di bawah |
+| `WhatsappController` (bot lama) | 0/10 | sudah diberi penjaga login (20 Sep 2026) — lihat di bawah |
 | `PrintQueueController` | 8/8 | papan cetak ber-PIN |
 | `TaskBoardPinController` | 6/6 | piket di papan kerja ber-PIN |
 | `KpiPublicController` | 5/5 | papan TV & verifikasi PIN |
@@ -79,20 +79,15 @@ lihat [Referensi Endpoint](referensi-endpoint.md).
 | `WebhookController` | 1/1 | webhook GitHub (diverifikasi `github_webhook_secret`) |
 | `AppController` | 1/1 | health check |
 
-### Yang perlu ditinjau: bot WhatsApp lama
+### Catatan: bot WhatsApp lama
 
 `WhatsappController` (modul `backend/src/whatsapp/`) adalah bot berbasis sesi QR
 yang masih terpasang karena WhatsApp Cloud API resmi tidak bisa mengirim ke
 **grup**, sementara rekap shift dikirim ke grup pemilik.
 
-Modul ini **belum memakai penjaga login** seperti modul lain, dan itu sisa dari
-versi awal aplikasi — bukan keputusan yang disengaja. Perbaikannya sederhana:
-menambahkan `@UseGuards(JwtAuthGuard)` di tingkat kelasnya. Frontend memanggil
-endpoint ini lewat klien API yang sudah menyertakan token, jadi tidak ada yang
-rusak.
-
-> Sampai penjaga itu dipasang, jangan menyambungkan bot lama ke nomor
-> WhatsApp yang dipakai berjualan.
+Modul ini sempat tidak memakai penjaga login — sisa dari versi awal aplikasi,
+bukan keputusan yang disengaja. Sejak 20 September 2026 seluruh endpointnya
+memakai `JwtAuthGuard` seperti modul lain.
 
 ## Hal lain yang patut diperhatikan
 
