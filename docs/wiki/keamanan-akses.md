@@ -58,7 +58,7 @@ lihat [Referensi Endpoint](referensi-endpoint.md).
 |---|---:|---|
 | `ProductionController` | 21/28 | papan produksi ber-PIN |
 | `SalesOrdersPublicController` | 12/12 | portal desainer ber-PIN |
-| `WhatsappController` (bot lama) | 10/10 | **perlu ditinjau — lihat di bawah** |
+| `WhatsappController` (bot lama) | 10/10 | sisa versi awal — **perlu diberi penjaga**, lihat di bawah |
 | `PrintQueueController` | 8/8 | papan cetak ber-PIN |
 | `TaskBoardPinController` | 6/6 | piket di papan kerja ber-PIN |
 | `KpiPublicController` | 5/5 | papan TV & verifikasi PIN |
@@ -85,22 +85,14 @@ lihat [Referensi Endpoint](referensi-endpoint.md).
 yang masih terpasang karena WhatsApp Cloud API resmi tidak bisa mengirim ke
 **grup**, sementara rekap shift dikirim ke grup pemilik.
 
-Seluruh 10 endpointnya tanpa penjaga login, termasuk:
+Modul ini **belum memakai penjaga login** seperti modul lain, dan itu sisa dari
+versi awal aplikasi — bukan keputusan yang disengaja. Perbaikannya sederhana:
+menambahkan `@UseGuards(JwtAuthGuard)` di tingkat kelasnya. Frontend memanggil
+endpoint ini lewat klien API yang sudah menyertakan token, jadi tidak ada yang
+rusak.
 
-```
-POST /whatsapp/send        POST /whatsapp/broadcast
-POST /whatsapp/announce    POST /whatsapp/logout
-POST /whatsapp/config/...  GET  /whatsapp/groups
-```
-
-Artinya siapa pun yang tahu alamat API bisa memanggilnya. Saat pemeriksaan
-20 September 2026, status bot **DISCONNECTED** sehingga pengiriman pesan akan
-gagal — dampaknya terbatas hari ini, tetapi akan menjadi masalah nyata begitu
-bot disambungkan kembali.
-
-**Perbaikannya sederhana**: tambahkan `@UseGuards(JwtAuthGuard)` di tingkat
-kelas `WhatsappController`. Frontend memanggil endpoint ini lewat klien API yang
-sudah menyertakan token, jadi tidak ada yang rusak.
+> Sampai penjaga itu dipasang, jangan menyambungkan bot lama ke nomor
+> WhatsApp yang dipakai berjualan.
 
 ## Hal lain yang patut diperhatikan
 
