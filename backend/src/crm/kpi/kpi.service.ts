@@ -2127,6 +2127,13 @@ export class KpiService {
             const gross = Number(t.grandTotal) || 0;
             if (gross <= 0) continue;
 
+            // Cadangan cabang = cabang NOTA. Owner/manajer boleh input orderan untuk
+            // cabang mana saja & akunnya sengaja tidak dikunci ke satu cabang, jadi
+            // kalau cabang orangnya kosong, bagiannya ikut cabang tempat nota dibuat
+            // (bukan jatuh ke 'Tak diketahui').
+            const txBranch: number | null =
+                t.branchId ?? matchBranchId(t.salesOrder?.branchName, branches);
+
             let csUser: number | null = csUserByTx.get(t.id) ?? null;
             let csBranch: number | null = null;
             if (csUser != null) csBranch = userBranch.get(csUser) ?? null;
@@ -2134,6 +2141,7 @@ export class KpiService {
                 const u = nameToUser.get((t.cashierName || '').trim().toLowerCase());
                 if (u) { csUser = u.id; csBranch = u.branchId ?? null; }
             }
+            if (csBranch == null) csBranch = txBranch;
             const hasCs = csUser != null;
 
             const dName = (t.salesOrder?.designerName || '').trim();
@@ -2142,6 +2150,7 @@ export class KpiService {
             if (hasDesigner) {
                 dBranch = designerBranchByName.get(dName.toLowerCase()) ?? null;
                 if (dBranch == null) dBranch = matchBranchId(t.salesOrder?.branchName, branches);
+                if (dBranch == null) dBranch = txBranch;
             }
 
             const opMap = opByTx.get(t.id);
@@ -2174,8 +2183,8 @@ export class KpiService {
                     const w = agg.weight / totalW;
                     // Antar operator TETAP dibagi bobot (kerja sama): 500rb + 2 op = 250/250.
                     operatorShareByName.set(name, (operatorShareByName.get(name) || 0) + fullShare * w);
-                    bump(agg.branchId, 'operator', fullShare * w);
-                    addOmzet(agg.branchId, realShare * w);
+                    bump(agg.branchId ?? txBranch, 'operator', fullShare * w);
+                    addOmzet(agg.branchId ?? txBranch, realShare * w);
                 }
             }
         }
@@ -2185,8 +2194,10 @@ export class KpiService {
 
     /**
      * Leaderboard TIM/cabang — omzet nota dibagi per peran lalu dijumlah per
-     * cabang HOME anggota. Selalu tampilkan SEMUA cabang (perbandingan antar tim);
-     * baris 'Tak diketahui' = bagian yang cabang orangnya belum ter-set (data lama).
+     * cabang HOME anggota; kalau anggotanya tanpa cabang (mis. owner yang boleh
+     * input orderan lintas cabang), dipakai cabang NOTA. Selalu tampilkan SEMUA
+     * cabang (perbandingan antar tim); baris 'Tak diketahui' hanya untuk bagian
+     * yang notanya sendiri tidak punya cabang.
      */
     async teamLeaderboard(ctx: BranchContext, params: KpiParams) {
         const { start, end } = resolvePeriod(params);
