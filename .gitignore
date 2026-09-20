@@ -131,3 +131,7 @@ toko/dumperr.txt
 # Python cache (tools/print-bridge)
 __pycache__/
 *.pyc
+
+# Arsip backup yang dibuat aplikasi (bisa puluhan GB) — jangan pernah ikut commit
+backend/backups/
+backups/

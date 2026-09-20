@@ -17,15 +17,28 @@ const SETTINGS = {
   rcloneKeepCount: 14,
 };
 
-const make = (opts: { uploadFails?: boolean; archiveFails?: boolean } = {}) => {
+const make = (
+  opts: {
+    uploadFails?: boolean;
+    archiveFails?: boolean;
+    uploadsDirAda?: boolean;
+  } = {},
+) => {
   const prisma = {
     storeSettings: {
       findFirst: () => Promise.resolve(SETTINGS),
       update: () => Promise.resolve(SETTINGS),
     },
   };
+  const jejak = {
+    includeImages: undefined as boolean | undefined,
+    uploadsDisinkron: 0,
+  };
   const backupService = {
-    writeBackupToFile: (p: string) => {
+    uploadsDir:
+      opts.uploadsDirAda === false ? path.join(TMP, 'tidak-ada') : TMP,
+    writeBackupToFile: (p: string, _cb?: unknown, includeImages = true) => {
+      jejak.includeImages = includeImages;
       fs.writeFileSync(p, opts.archiveFails ? 'zip-separuh' : 'zip-lengkap');
       return opts.archiveFails
         ? Promise.reject(new Error('disk penuh'))
@@ -48,7 +61,13 @@ const make = (opts: { uploadFails?: boolean; archiveFails?: boolean } = {}) => {
       opts.uploadFails
         ? Promise.reject(new Error('rclone tidak ada kemajuan 10 menit'))
         : Promise.resolve();
-  return { svc, discord };
+  (
+    svc as unknown as { runRcloneUploads: () => Promise<void> }
+  ).runRcloneUploads = () => {
+    jejak.uploadsDisinkron += 1;
+    return Promise.resolve();
+  };
+  return { svc, discord, jejak };
 };
 
 const zips = () => fs.readdirSync(TMP).filter((f) => f.endsWith('.zip'));
@@ -82,5 +101,27 @@ describe('RcloneService.runBackup — cadangan lokal tidak ikut hilang', () => {
     expect(zips()).toHaveLength(1);
     expect(svc.getProgress().percent).toBe(100);
     expect(svc.getProgress().ok).toBe(true);
+  });
+});
+
+describe('RcloneService.runBackup — gambar dicadangkan terpisah', () => {
+  it('zip terjadwal dibuat TANPA gambar (hemat ±2 GB tulisan per backup)', async () => {
+    const { svc, jejak } = make();
+    await svc.runBackup();
+    expect(jejak.includeImages).toBe(false);
+  });
+
+  it('gambar disinkron inkremental setelah zip terunggah', async () => {
+    const { svc, jejak } = make();
+    const res = await svc.runBackup();
+    expect(res.success).toBe(true);
+    expect(jejak.uploadsDisinkron).toBe(1);
+    expect(res.message).toMatch(/gambar/i);
+  });
+
+  it('unggah zip gagal → sinkron gambar tidak ikut dijalankan', async () => {
+    const { svc, jejak } = make({ uploadFails: true });
+    await svc.runBackup();
+    expect(jejak.uploadsDisinkron).toBe(0);
   });
 });

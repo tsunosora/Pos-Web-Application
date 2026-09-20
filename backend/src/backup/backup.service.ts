@@ -269,22 +269,32 @@ export class BackupService {
         }
         tablesToExport = [...new Set(tablesToExport)];
 
-        // Query semua tabel secara paralel — jauh lebih cepat dari sequential loop
+        // Dump per-tabel dengan paralelisme DIBATASI. Promise.all atas ~106 tabel
+        // sekaligus merebut SEMUA slot connection pool Prisma (default 11) selama
+        // backup berjalan, sehingga request normal (login, POS, webhook WA) gagal
+        // dengan "Timed out fetching a new connection". 4 cukup cepat tanpa
+        // membuat aplikasi tak responsif saat backup terjadwal jalan.
+        const DUMP_CONCURRENCY = 4;
         let dumped = 0;
         const totalTables = tablesToExport.length;
-        const results = await Promise.all(
-            tablesToExport.map(async (table) => {
-                try {
-                    const rows = await (this.prisma as any)[table].findMany();
-                    return { table, rows };
-                } catch {
-                    return { table, rows: [] };
-                } finally {
-                    dumped++;
-                    onTableProgress?.(dumped, totalTables);
-                }
-            })
-        );
+        const results: { table: string; rows: any[] }[] = [];
+        for (let i = 0; i < tablesToExport.length; i += DUMP_CONCURRENCY) {
+            const chunk = tablesToExport.slice(i, i + DUMP_CONCURRENCY);
+            const part = await Promise.all(
+                chunk.map(async (table) => {
+                    try {
+                        const rows = await (this.prisma as any)[table].findMany();
+                        return { table, rows };
+                    } catch {
+                        return { table, rows: [] };
+                    } finally {
+                        dumped++;
+                        onTableProgress?.(dumped, totalTables);
+                    }
+                })
+            );
+            results.push(...part);
+        }
 
         const data: Record<string, any[]> = {};
         const counts: Record<string, number> = {};
@@ -604,9 +614,20 @@ export class BackupService {
     }
 
     // ── Write backup ZIP langsung ke file (untuk rclone) ───────────────────
+    /** Folder gambar — dipakai RcloneService untuk menyinkronkannya terpisah. */
+    get uploadsDir(): string {
+        return UPLOADS_DIR;
+    }
+
+    /**
+     * @param includeImages false = zip berisi data saja (±70 MB). Dipakai backup
+     * terjadwal: gambar (±2 GB) disinkronkan terpisah & inkremental, supaya disk
+     * tidak menulis ulang 2 GB yang sama dua kali sehari.
+     */
     async writeBackupToFile(
         filePath: string,
         onTableProgress?: (done: number, total: number) => void,
+        includeImages = true,
     ): Promise<void> {
         const dir = path.dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -615,7 +636,7 @@ export class BackupService {
         await new Promise<void>((resolve, reject) => {
             writeStream.on('finish', resolve);
             writeStream.on('error', reject);
-            this.streamBackupZip('all', writeStream, true, onTableProgress).catch(reject);
+            this.streamBackupZip('all', writeStream, includeImages, onTableProgress).catch(reject);
         });
     }
 }

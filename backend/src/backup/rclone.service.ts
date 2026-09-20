@@ -154,13 +154,16 @@ export class RcloneService implements OnModuleInit {
 
             // 1) Dump DB + arsip ZIP (progress per-tabel → 5..55%).
             this.logger.log(`Generating backup: ${filename}`);
+            // includeImages=false → zip hanya data (±70 MB). Gambar (±2 GB) diunggah
+            // terpisah & inkremental di langkah berikutnya: isinya nyaris tak berubah
+            // tiap hari, jadi menulis ulang 2 GB dua kali sehari cuma menyiksa disk.
             await this.backupService.writeBackupToFile(localPath, (done, total) => {
                 if (done >= total) {
                     this.setProgress({ phase: 'Mengarsipkan (ZIP)…', percent: 55, detail: `${total} tabel` });
                 } else {
                     this.setProgress({ phase: `Menyiapkan data (${done}/${total} tabel)`, percent: 5 + Math.round((done / total) * 45), detail: '' });
                 }
-            });
+            }, false);
             const zipSize = fs.existsSync(localPath) ? fs.statSync(localPath).size : 0;
             this.setProgress({ phase: 'Arsip selesai', percent: 60, detail: fmtBytes(zipSize) });
             this.logger.log(`Backup saved locally: ${localPath}`);
@@ -171,8 +174,15 @@ export class RcloneService implements OnModuleInit {
                 this.setProgress({ phase: 'Mengunggah ke Google Drive…', percent: 60, detail: '' });
                 this.logger.log(`Uploading to rclone remote: ${remote}`);
                 await this.runRcloneCopy(localPath, remote);
+                this.logger.log('Upload data complete');
+
+                // Gambar: `rclone copy` (bukan sync) → hanya berkas baru/berubah yang
+                // dikirim, dan berkas yang terhapus di lokal TIDAK ikut dihapus di
+                // Drive. Aman untuk cadangan.
+                this.setProgress({ phase: 'Menyinkronkan gambar…', percent: 90, detail: '' });
+                await this.runRcloneUploads(remote);
                 this.setProgress({ phase: 'Unggah selesai', percent: 98, detail: '' });
-                this.logger.log('Upload complete');
+                this.logger.log('Upload complete (data + gambar)');
             } else {
                 this.setProgress({ percent: 96 });
             }
@@ -182,7 +192,7 @@ export class RcloneService implements OnModuleInit {
             this.pruneLocalBackups(keepCount);
 
             const statusMsg = remote
-                ? `Berhasil — upload ke ${remote} (${filename})`
+                ? `Berhasil — upload ke ${remote} (${filename} + gambar inkremental)`
                 : `Berhasil — disimpan lokal (${filename})`;
             await this.prisma.storeSettings.update({
                 where: { id: settings.id },
@@ -219,10 +229,34 @@ export class RcloneService implements OnModuleInit {
     }
 
     /** rclone copy dengan progress JSON — update this.progress (rentang 60..98%). */
+    /**
+     * Sinkron folder gambar ke `<remote>/uploads`. Inkremental: rclone melewati
+     * berkas yang sudah sama, jadi jalan harian biasanya hanya memindah beberapa
+     * megabyte. Pakai timeout diam yang sama dengan unggahan zip.
+     */
+    private runRcloneUploads(remote: string): Promise<void> {
+        const dir = this.backupService.uploadsDir;
+        if (!fs.existsSync(dir)) {
+            this.logger.log('Folder uploads tidak ada — lewati sinkron gambar');
+            return Promise.resolve();
+        }
+        return this.runRclone(
+            ['copy', dir, `${remote}/uploads`, '--transfers', '4', '--checkers', '8'],
+            'Menyinkronkan gambar…',
+            90,
+            8,
+        );
+    }
+
     private runRcloneCopy(localPath: string, remote: string): Promise<void> {
+        return this.runRclone(['copy', localPath, remote], 'Mengunggah ke Google Drive…', 60, 30);
+    }
+
+    /** Menjalankan rclone dengan progres, timeout diam, dan batas mutlak. */
+    private runRclone(args: string[], phase: string, basePercent: number, span: number): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             const proc = spawn('rclone', [
-                'copy', localPath, remote,
+                ...args,
                 '--use-json-log', '--stats', '500ms', '--stats-log-level', 'NOTICE',
                 '--retries', '3', '--low-level-retries', '10',
             ]);
@@ -256,8 +290,8 @@ export class RcloneService implements OnModuleInit {
                         if (st && st.totalBytes > 0) {
                             const up = Math.min(1, st.bytes / st.totalBytes);
                             this.setProgress({
-                                phase: 'Mengunggah ke Google Drive…',
-                                percent: 60 + Math.round(up * 38),
+                                phase,
+                                percent: basePercent + Math.round(up * span),
                                 detail: `${fmtBytes(st.bytes)} / ${fmtBytes(st.totalBytes)}${st.speed ? ' • ' + fmtBytes(st.speed) + '/s' : ''}`,
                             });
                         }
