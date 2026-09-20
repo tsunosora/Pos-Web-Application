@@ -6,6 +6,33 @@ Halaman **Laporan Stok** (`/reports/stock`) memberikan visibilitas lengkap atas 
 
 ---
 
+## Langkah demi langkah
+
+### 1. Ringkasan pergerakan
+
+![Laporan Stok: total catatan, total masuk, total keluar, dan net pergerakan](images/lst-1-ringkasan.webp)
+
+Empat kartu menjawab pertanyaan gudang: berapa catatan pergerakan, berapa yang
+masuk, berapa yang keluar, dan berapa selisih bersihnya. Angka minus pada *Net
+Pergerakan* berarti bulan itu stok lebih banyak terpakai daripada ditambah.
+
+### 2. Tiap baris menyebut sebabnya
+
+![Tabel pergerakan stok dengan tipe Masuk/Keluar/Koreksi dan keterangan sumbernya](images/lst-2-mutasi.webp)
+
+Kolom **Tipe** memisahkan tiga sebab yang sering tertukar saat audit:
+
+| Tipe | Contoh keterangan |
+|---|---|
+| **Keluar** | `Transfer ke Cabang Selatan (TRF-20260920-0002)` |
+| **Masuk** | pembelian / stok masuk dari supplier |
+| **Koreksi** | `Stok Opname #9357e11f — -703` |
+
+Karena keterangannya menyebut nomor dokumen asal, tiap perubahan stok bisa
+ditelusuri balik ke [transfer](stok-masuk-transfer.md) atau
+[stok opname](stock-opname.md) yang menyebabkannya. Tombol **Export CSV**
+mengunduh daftar sesuai filter yang sedang aktif.
+
 ## Cara Membuka
 
 Dari sidebar navigasi: **Laporan → Laporan Stok**

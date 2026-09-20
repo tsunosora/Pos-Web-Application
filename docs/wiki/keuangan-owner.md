@@ -10,6 +10,41 @@ Laporan laba kotor yang dipakai sehari-hari:
 
 ![Laporan laba kotor](images/profit.webp)
 
+## Langkah demi langkah
+
+### 1. Laba kotor: omzet dikurangi HPP
+
+![Laporan Laba Kotor dengan ringkasan pendapatan dikurangi harga pokok penjualan](images/ko-1-laba.webp)
+
+Halaman **`/reports/profit`** menjawab pertanyaan yang tidak dijawab laporan
+penjualan: dari omzet sekian, berapa yang benar-benar jadi laba setelah
+dikurangi modal bahan. Angkanya memakai HPP yang disusun di
+[Kalkulator HPP](hpp-calculator.md).
+
+### 2. Rincian per produk & margin
+
+![Rincian laba kotor per produk beserta margin](images/ko-2-rincian.webp)
+
+Di sinilah terlihat produk yang ramai tapi tipis marginnya — informasi yang
+tidak muncul di leaderboard maupun rekap penjualan.
+
+### 3. Analisa keuangan: saldo kas sebagai candlestick
+
+![Halaman Analisa Keuangan menampilkan grafik candlestick saldo kas harian](images/ko-3-analisa.webp)
+
+**`/owner/analisa-keuangan`** menggambar saldo kas berjalan seperti grafik
+saham: tiap batang mewakili satu periode (harian/mingguan/bulanan), sehingga
+hari ramai dan hari sepi terbaca sebagai pola, bukan sebagai deretan angka.
+
+### 4. Perbandingan periode & ke mana uang pergi
+
+![Bagian perbandingan periode dengan omzet, pengeluaran, laba bersih, dan rincian pengeluaran](images/ko-4-anomali.webp)
+
+Bagian bawahnya membandingkan periode berjalan dengan periode sebelumnya —
+omzet, pengeluaran, dan laba bersih beserta selisih persennya — lalu memecah
+**"Pengeluaran ke Mana"** per kategori. Ini bahan rapat bulanan yang biasanya
+harus disusun manual di spreadsheet.
+
 ## Analisa Keuangan — `/owner/analisa-keuangan`
 
 Satu halaman dengan banyak sudut pandang, masing-masing punya endpoint sendiri

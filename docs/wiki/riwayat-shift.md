@@ -6,6 +6,34 @@
 
 ---
 
+## Langkah demi langkah
+
+### 1. Log semua tutup shift
+
+![Riwayat Tutup Shift: daftar shift beserta kasir, tanggal, nominal, dan tombol aksi](images/rs-1-daftar.webp)
+
+Tiap baris = satu penutupan shift: nama shift, kasirnya, waktu tutup, total
+uang, dan pengeluaran bila ada. Tiga tombol di kanan tiap baris:
+
+| Tombol | Gunanya |
+|---|---|
+| **Koreksi** | memperbaiki laporan shift yang salah input |
+| **Salin Pesan** | menyalin teks laporan untuk dikirim manual |
+| **Kirim Ulang Discord** | mengirim ulang laporan bila pengiriman otomatis gagal |
+
+### 2. Koreksi yang jujur — data transaksi tidak ikut berubah
+
+![Dialog Koreksi Laporan Shift dengan ekspektasi tunai, saldo aktual, panduan koreksi, dan daftar pengeluaran](images/rs-2-koreksi.webp)
+
+Dialog koreksi menampilkan **Ekspektasi** (versi sistem) di atas **Saldo
+Aktual** (versi yang dihitung manual), lalu memberi *Panduan Koreksi* untuk dua
+kasus yang paling sering terjadi: menambah keterangan pengeluaran tanpa
+mengubah saldo, atau mengubah saldo saja.
+
+Peringatan di atasnya tegas: koreksi hanya mengubah **laporan shift**, bukan
+data transaksi — dan **alasan koreksi wajib diisi**. Dengan begitu selisih kas
+tetap punya jejak, bukan hilang diam-diam.
+
 ## Apa itu Riwayat Tutup Shift?
 
 Halaman ini menyimpan **semua laporan tutup shift** yang pernah dikirim. Berbeda dengan halaman Tutup Shift (yang digunakan kasir untuk menutup shift aktif), halaman ini berfungsi sebagai **arsip** — berguna untuk:

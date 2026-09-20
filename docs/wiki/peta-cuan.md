@@ -6,6 +6,28 @@
 
 ---
 
+## Langkah demi langkah
+
+### 1. Cabang sendiri, kompetitor, dan warna marginnya
+
+![Peta Cuan Lokasi: panel daftar cabang & kompetitor di kiri, peta OpenStreetMap di kanan, legenda margin di bawah](images/peta-1-cabang.webp)
+
+Layar terbagi dua: **kiri** daftar cabang (tab *Cabang*) dan pesaing yang
+dicatat (tab *Kompetitor*), **kanan** petanya. Tiga tombol *Layer* di atas
+menyalakan/mematikan titik cabang, kompetitor, dan hasil pencarian.
+
+Warna titik bukan hiasan — mengikuti legenda margin di kiri bawah:
+
+| Warna | Arti |
+|---|---|
+| hijau | profit tinggi (>35%) |
+| kuning | profit sedang (15–35%) |
+| merah | profit rendah (<15%) |
+| wajik merah | kompetitor yang dicatat manual |
+
+Artinya satu pandangan ke peta sudah menjawab "cabang mana yang sehat dan
+siapa saja yang berjualan di dekatnya".
+
 ## Apa Kegunaan Fitur Ini?
 
 Sebagai pemilik bisnis, Anda sering menghadapi pertanyaan seperti:

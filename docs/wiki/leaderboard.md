@@ -6,6 +6,25 @@
 
 ---
 
+## Langkah demi langkah
+
+### 1. Papan peringkat tim
+
+![Leaderboard menampilkan peringkat CS dan Designer beserta angka kinerjanya](images/lb-1-papan.webp)
+
+Satu papan untuk seluruh karyawan, dipisah per divisi. Tiap kolom angka punya
+keterangan **"Cara Hitung"** — jadi tidak ada peringkat yang tidak bisa
+dijelaskan asal-usulnya saat ditanya karyawan.
+
+### 2. Rincian angka per orang
+
+![Tabel leaderboard dengan kolom omzet, nota, dan cuan per karyawan](images/lb-2-tabel.webp)
+
+Kolom **Cuan** menjumlahkan omzet *dan* piutang, supaya CS yang menutup order
+besar berjangka tidak kalah dari CS yang melayani banyak order kecil tunai.
+Nilai kualitas diambil dari [Rating CS](rating-cs.md), dan pencapaian ini yang
+dipakai pada perhitungan bonus di [Dashboard Owner](keuangan-owner.md).
+
 ## Cara Mengakses
 
 Buka menu **Leaderboard** di sidebar, atau langsung ke `/leaderboard`. Filter **periode** (Hari Ini / Minggu / Bulan / Kustom) dan **cabang** berlaku untuk semua divisi sekaligus.

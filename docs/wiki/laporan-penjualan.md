@@ -6,6 +6,50 @@
 
 ---
 
+## Langkah demi langkah
+
+### 1. Empat angka pokok
+
+![Laporan Penjualan: pendapatan kas, invoice lunas, volume transaksi, dan rata-rata order](images/ls-1-ringkasan.webp)
+
+Yang membedakan halaman ini dari "total penjualan" biasa adalah dua angka
+pertamanya dipisah dengan sengaja:
+
+| Kartu | Artinya |
+|---|---|
+| **Pendapatan Kas** | uang yang benar-benar masuk pada periode itu (*cash basis*) |
+| **Invoice Lunas** | nilai nota berstatus PAID (*accrual*) |
+| **Volume Transaksi** | jumlah struk |
+| **Rata-rata Order** | nilai belanja per struk (*basket size*) |
+
+Selisih dua angka pertama itulah yang biasanya berupa piutang dan DP — lihat
+[DP & Piutang](dp-piutang.md).
+
+Di bawahnya: **Top 5 Produk Terlaris** dan **distribusi metode pembayaran**
+(tunai / QRIS / transfer) lengkap dengan jumlah transaksinya.
+
+### 2. Tab Trend Produk
+
+![Tab Trend Produk memperlihatkan pergerakan penjualan tiap produk](images/ls-2-tren.webp)
+
+Ringkasan menjawab "berapa", tab ini menjawab "produk mana yang sedang naik
+atau turun" — berguna sebelum memutuskan stok bahan atau promo.
+
+### 3. Tab Histori Log
+
+![Tab Histori Log berisi daftar transaksi satu per satu](images/ls-3-histori.webp)
+
+Daftar transaksi apa adanya, untuk menelusuri satu nota tertentu saat ada
+selisih atau komplain.
+
+### 4. Ganti periode, seluruh halaman ikut
+
+![Filter periode Laporan Penjualan dengan pilihan Hari Ini terpilih](images/ls-4-periode.webp)
+
+Delapan pilihan periode — *Hari Ini, Kemarin, Minggu Ini, Bulan Ini, Bulan
+Lalu, Tahun Ini, Semua, Kustom*. Tombol **Excel** dan **PDF** di kanan atas
+mengunduh laporan periode yang sedang aktif.
+
 ## Cara Mengakses
 
 Di sidebar kiri, klik menu **Laporan → Penjualan**, atau langsung buka `/reports/sales`.
