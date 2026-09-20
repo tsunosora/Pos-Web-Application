@@ -17,6 +17,20 @@ tokennya kedaluwarsa.
 
 ## 2. Pembatasan peran (RolesGuard)
 
+### Wujudnya di layar
+
+![Tampilan aplikasi dari akun berperan Kasir: menu sidebar jauh lebih pendek](images/peran-1-kasir.webp)
+
+Pembatasan peran bukan sekadar tolakan di server — menunya memang tidak muncul.
+Akun berperan **Kasir** pada contoh di atas hanya melihat lima kelompok menu
+(Beranda, Penjualan & Keuangan, Pelanggan & Order, Tim & Kinerja, Pengaturan),
+sementara akun Owner melihat dua belas termasuk Dashboard Owner, Inventori,
+Produksi & Cetak, WhatsApp CRM, Landing Page, dan Analisa & Kalkulator.
+
+Daftar menu tiap peran diatur di **`/owner/akses-menu`** — lihat
+[Akun & PIN Karyawan](karyawan-akun-pin.md).
+
+
 Di atas login, sebagian endpoint dibatasi peran tertentu dengan `@Roles(...)`,
 misalnya kartu HR yang hanya untuk Owner dan Manajer. Pencocokan namanya
 tidak peduli huruf besar/kecil, tapi **harus sama persis** — `MANAJER` cocok,

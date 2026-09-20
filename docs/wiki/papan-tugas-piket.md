@@ -79,6 +79,15 @@ menegur**, bukan atasan.
 
 ## Empat halaman
 
+### Grup tim untuk tugas massal
+
+![Halaman Grup Tim dengan daftar grup dan jumlah anggotanya](images/grup-1-tugas.webp)
+
+**`/tugas/grup`** mengelompokkan karyawan jadi tim (mis. *Piket Pusat — semua
+karyawan*, *Piket Pusat — tinggal di toko*) supaya satu jadwal bisa diberikan
+ke banyak orang sekaligus, bukan satu per satu.
+
+
 | Halaman | Untuk siapa | Isinya |
 |---|---|---|
 | `/tugas` | semua staf | papan tugas umum, bisa digeser antar kolom |

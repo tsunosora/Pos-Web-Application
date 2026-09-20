@@ -73,6 +73,14 @@ mencatat manual, dan tidak ada yang perlu diingat sampai akhir bulan.
 
 ## 🎨 Toggle "Titip Cetak" di POS Kasir
 
+![Halaman Titipan Keluar dengan hitungan per status](images/tk-1-keluar.webp)
+
+Sisi pengirim punya halamannya sendiri: **`/titipan-keluar`** mendaftar semua
+orderan yang dititipkan ke cabang lain beserta hitungan per status — *Dikirim*,
+*Dikerjakan*, *Siap Diambil*, *Selesai* — sehingga kasir tahu pekerjaannya
+sudah sampai tahap mana tanpa menelepon cabang tujuan.
+
+
 Di halaman `/pos`, panel kanan (cart sidebar) ada **banner sticky** tepat di bawah header "Keranjang":
 
 ### Mode Normal (Cetak di Cabang Ini)
