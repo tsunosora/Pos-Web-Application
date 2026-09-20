@@ -10,6 +10,63 @@ Laporan laba kotor yang dipakai sehari-hari:
 
 ![Laporan laba kotor](images/profit.webp)
 
+## Dashboard Owner dari atas ke bawah
+
+Halaman **`/owner`** adalah satu layar panjang yang dibaca dari atas ke bawah.
+Tiga tombol di bilah oranye membawa ke turunannya: *Analisa Keuangan*,
+*Laporan Bulanan*, dan kembali ke aplikasi biasa.
+
+### Delapan angka pokok
+
+![Dashboard Owner: delapan kartu ringkasan keuangan dan bagian beban tetap bulanan](images/own-1-ringkasan.webp)
+
+| Kartu | Isinya |
+|---|---|
+| **Omzet (terbayar)** | uang dari transaksi lunas, beserta jumlah transaksinya |
+| **Laba Kotor** | omzet − HPP, lengkap dengan persentase margin |
+| **Estimasi Laba Bersih** | laba kotor − beban tetap |
+| **Piutang** | yang belum dibayar pelanggan |
+| **HPP (modal)** | harga pokok barang yang terjual |
+| **Beban Tetap / Bulan** | gaji, sewa, angsuran mesin — diisi sendiri di bawahnya |
+| **Biaya Operasional (kas)** | pengeluaran kas periode itu (informasi; tidak dikurangkan lagi) |
+| **Saldo Bank** | saldo tercatat dari penutupan shift |
+
+Pemilih periode (*Hari Ini / 7 Hari / Bulan Ini / Kustom*) dan pemilih cabang
+di kanan mengganti seluruh isi halaman.
+
+### Tren, jam ramai, dan laba per kategori
+
+![Bagian tengah dashboard: tren arus kas, jam ramai, dan laba per kategori](images/own-2-tengah.webp)
+
+Berurutan: **Tren Arus Kas 6 bulan**, **Kapan Order Ramai / Sepi**, lalu
+**Laba per Kategori / Mesin** — tabel yang menyandingkan omzet, modal, laba,
+dan margin tiap kategori, sehingga terlihat pekerjaan mana yang tipis
+marginnya meski ramai.
+
+### Saldo, produk penyumbang laba, dan lead
+
+![Saldo kas & bank, top produk penyumbang laba, serta ringkasan lead CRM](images/own-3-bawah.webp)
+
+**Saldo Kas & Bank** memecah arus masuk/keluar per kanal (tunai, QRIS, bank).
+**Top Produk Penyumbang Laba** mengurutkan delapan produk dengan laba kotor
+tertinggi — bukan yang paling laku, tapi yang paling menghasilkan. Di bawahnya
+ringkasan **Leads (CRM)**: total lead, closing, lost, closing rate, dan
+sumbernya.
+
+### Bonus, metrik kustom, dan beban tugas
+
+![Bagian bawah dashboard: pengaturan bonus, pencapaian bonus, metrik produk custom, dan beban tugas karyawan](images/own-4-akhir.webp)
+
+Empat bagian terakhir mengurus orang, bukan uang:
+
+- **Pengaturan Bonus** per cabang dan **Pencapaian Bonus** — target dan
+  realisasinya.
+- **Metrik Produk Custom** — menentukan produk apa yang dihitung khusus di
+  [Leaderboard](leaderboard.md).
+- **Beban Tugas Karyawan** — siapa yang menumpuk pekerjaan, terhubung ke
+  [Papan Tugas & Piket](papan-tugas-piket.md).
+- **Penilaian CS** — rekap bintang dari [Rating CS](rating-cs.md).
+
 ## Langkah demi langkah
 
 ### 1. Laba kotor: omzet dikurangi HPP
