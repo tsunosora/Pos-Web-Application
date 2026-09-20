@@ -49,8 +49,9 @@ Tidak ada langkah "memindahkan" apa pun — nota `PARTIAL` otomatis muncul di
 **`/transactions/dp`**. Barisnya menampilkan total belanja, DP masuk, dan sisa
 tagihan sekaligus, lengkap dengan label pekerjaannya.
 
-Empat tab di atas memisahkan jenis utang: **DP** (sudah bayar sebagian),
-**Kredit**, dan **Bayar Nanti** (invoice tanpa pembayaran sama sekali).
+Tab di atas memisahkan jenis utang — **Semua**, **DP** (sudah bayar
+sebagian), **Kredit**, dan **Bayar Nanti** (invoice tanpa pembayaran sama
+sekali).
 Baris yang melewati jatuh tempo diberi peringatan merah.
 
 ### 4. Pelanggan menambah cicilan

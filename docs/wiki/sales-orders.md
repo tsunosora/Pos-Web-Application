@@ -2,7 +2,7 @@
 
 > Sistem **Sales Order (SO)** untuk alur kerja desainer → kasir/operator. Desainer (internal atau freelance) bisa input order baru via portal sendiri tanpa akun staff penuh, lalu broadcast ke channel Discord internal (#produksi) supaya kasir lanjutkan ke invoice.
 
-![Sales order](images/sales-order.webp)
+![Daftar Sales Order beserta status tiap dokumen](images/sales-order.webp)
 
 ---
 

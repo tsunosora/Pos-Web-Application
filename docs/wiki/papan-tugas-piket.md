@@ -6,7 +6,7 @@ Menyapu, buang sampah, bersihkan toilet, rapikan tempat tidur bagi yang tinggal
 di toko — semuanya terjadwal, tercatat, dan kalau lewat tenggat, **sistem yang
 menegur**, bukan atasan.
 
-![Papan piket](images/piket-4-papan.webp)
+![Papan piket hari ini beserta kartu tugas tiap orang](images/piket-4-papan.webp)
 
 ## Langkah demi langkah
 
