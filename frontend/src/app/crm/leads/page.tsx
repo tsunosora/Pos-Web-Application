@@ -210,6 +210,8 @@ export default function LeadsPage() {
     const deleteMut = useMutation({
         mutationFn: deleteLead,
         onSuccess: () => { invalidate(); setDetailId(null); },
+        // Server menolak lead yang sudah jadi nota (CLOSED_WON) — tampilkan alasannya.
+        onError: (e: any) => alert(e?.response?.data?.message || "Gagal menghapus lead"),
     });
 
     const openCreate = () => { setEditingLead(null); setFormOpen(true); };
@@ -498,9 +500,10 @@ export default function LeadsPage() {
                     leadId={detailId}
                     onClose={() => setDetailId(null)}
                     onEdit={(lead) => { setDetailId(null); openEdit(lead); }}
-                    onDelete={(id) => {
+                    // Hapus lead hanya setingkat manajer (server juga menjaga) — staf lain tak melihat tombolnya.
+                    onDelete={canExport ? (id) => {
                         if (confirm("Hapus lead ini? Aktivitas terkait ikut terhapus.")) deleteMut.mutate(id);
-                    }}
+                    } : undefined}
                 />
             )}
         </div>
@@ -1047,7 +1050,7 @@ function LeadDetailDrawer({
     leadId: number;
     onClose: () => void;
     onEdit: (lead: Lead) => void;
-    onDelete: (id: number) => void;
+    onDelete?: (id: number) => void;
 }) {
     const qc = useQueryClient();
     const { isOwner } = useCurrentUser();
@@ -1675,6 +1678,7 @@ function LeadDetailDrawer({
                     </div>
 
                     {/* Delete */}
+                    {onDelete && (
                     <div className="pt-4 border-t">
                         <button
                             onClick={() => onDelete(lead2.id)}
@@ -1683,6 +1687,7 @@ function LeadDetailDrawer({
                             <Trash2 className="h-3 w-3" /> Hapus lead
                         </button>
                     </div>
+                    )}
                 </div>
 
                 {/* Modals — di-portal ke body agar TIDAK terjebak containing-block

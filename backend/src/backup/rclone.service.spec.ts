@@ -22,11 +22,15 @@ const make = (
     uploadFails?: boolean;
     archiveFails?: boolean;
     uploadsDirAda?: boolean;
+    dbGagal?: boolean;
   } = {},
 ) => {
   const prisma = {
     storeSettings: {
-      findFirst: () => Promise.resolve(SETTINGS),
+      findFirst: () =>
+        opts.dbGagal
+          ? Promise.reject(new Error('Timed out fetching a new connection'))
+          : Promise.resolve(SETTINGS),
       update: () => Promise.resolve(SETTINGS),
     },
   };
@@ -101,6 +105,17 @@ describe('RcloneService.runBackup — cadangan lokal tidak ikut hilang', () => {
     expect(zips()).toHaveLength(1);
     expect(svc.getProgress().percent).toBe(100);
     expect(svc.getProgress().ok).toBe(true);
+  });
+});
+
+describe('RcloneService.runBackup — progres tidak macet', () => {
+  it('galat DB saat membaca pengaturan → running kembali false & cadangan berikutnya boleh jalan', async () => {
+    const { svc } = make({ dbGagal: true });
+    const res = await svc.runBackup();
+    expect(res.success).toBe(false);
+    expect(svc.getProgress().running).toBe(false);
+    const lagi = await svc.runBackup();
+    expect(lagi.message).not.toMatch(/sedang berjalan/i);
   });
 });
 

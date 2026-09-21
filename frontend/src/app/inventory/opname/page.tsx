@@ -176,7 +176,8 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
         refetchInterval: (query) => query.state.data?.status === 'ONGOING' ? 10000 : false,
     });
 
-    // confirmed stock state for each variant (pre-filled with latest input)
+    // Angka yang DIUBAH MANUAL oleh owner. Selain itu kolom konfirmasi selalu mengikuti input
+    // penghitung terbaru — dulu angka pertama "membeku" padahal operator mengirim ulang (data diperbarui tiap 10 dtk).
     const [confirmed, setConfirmed] = useState<Record<number, number>>({});
 
     // Build variant summary: { variantId → { product, variant, systemStock, inputs: [{operator, actual}] } }
@@ -200,16 +201,11 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
         return map;
     }, [session?.items]);
 
-    // Init confirmed from latest inputs
-    useMemo(() => {
-        const init: Record<number, number> = {};
-        variantMap.forEach((v, vid) => {
-            if (!(vid in confirmed)) {
-                init[vid] = v.inputs[0]?.actual ?? v.systemStock;
-            }
-        });
-        if (Object.keys(init).length > 0) setConfirmed(prev => ({ ...init, ...prev }));
-    }, [variantMap]);
+    const nilaiKonfirmasi = (vid: number): number => {
+        if (vid in confirmed) return confirmed[vid];
+        const v = variantMap.get(vid);
+        return v?.inputs[0]?.actual ?? v?.systemStock ?? 0;
+    };
 
     const cancelMutation = useMutation({
         mutationFn: () => cancelOpnameSession(sessionId),
@@ -220,7 +216,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
         mutationFn: () => finishOpnameSession(sessionId,
             Array.from(variantMap.keys()).map(vid => ({
                 productVariantId: vid,
-                confirmedStock: confirmed[vid] ?? variantMap.get(vid)?.systemStock ?? 0,
+                confirmedStock: nilaiKonfirmasi(vid),
             }))
         ),
         onSuccess: () => { qc.invalidateQueries({ queryKey: ['opname-sessions'] }); onBack(); },
@@ -317,7 +313,7 @@ function SessionDetail({ sessionId, onBack }: { sessionId: string; onBack: () =>
                         </thead>
                         <tbody>
                             {Array.from(variantMap.values()).map((v: any) => {
-                                const confirmedVal = confirmed[v.variantId] ?? v.systemStock;
+                                const confirmedVal = nilaiKonfirmasi(v.variantId);
                                 const finalVariance = confirmedVal - v.systemStock;
                                 const variantsByOp = Object.fromEntries(
                                     v.inputs.map((inp: any) => [inp.operator, inp])

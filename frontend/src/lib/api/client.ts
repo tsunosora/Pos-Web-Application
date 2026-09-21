@@ -1,6 +1,10 @@
 import axios from 'axios';
 import { getActiveBranchId } from '@/store/branch-store';
 import { boardSessionExpired, getBoardToken, isBoardPage } from '@/lib/board-token';
+import { halamanPublik, urlLogin } from '@/lib/rute-publik';
+
+// Banyak kueri paralel bisa 401 bersamaan → cukup satu kali pindah ke /login.
+let menujuLogin = false;
 
 // Di aplikasi desktop, main process menyuntik base URL API lewat preload
 // (window.electron.apiBaseUrl). Mode "100% offline" → backend LOKAL. Fallback ke
@@ -78,8 +82,11 @@ api.interceptors.response.use(
                 // middleware masih lihat cookie → pantul /login → / → 401 lagi →
                 // loop redirect tak henti (flicker). Format samakan dgn logout.
                 document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-                if (!window.location.pathname.startsWith('/login')) {
-                    window.location.href = '/login';
+                // Halaman publik (TV, opname, katalog …) tetap di tempat — jangan dilempar ke /login.
+                const path = window.location.pathname;
+                if (!path.startsWith('/login') && !halamanPublik(path) && !menujuLogin) {
+                    menujuLogin = true;
+                    window.location.href = urlLogin(path + window.location.search);
                 }
             }
         }

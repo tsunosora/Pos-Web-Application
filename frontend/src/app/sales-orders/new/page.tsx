@@ -248,7 +248,13 @@ export default function NewSalesOrderPage() {
             };
             const so = await createSalesOrder(payload);
             if (proofFiles.length > 0) {
-                await uploadProofs(so.id, proofFiles);
+                // SO sudah tersimpan: gagal unggah bukti jangan membuat tombol Simpan membuat SO kedua —
+                // lanjut ke halaman SO itu & beri tahu bukti perlu diunggah ulang.
+                try {
+                    await uploadProofs(so.id, proofFiles);
+                } catch (e: any) {
+                    alert(`SO ${so.soNumber || ''} tersimpan, tapi unggah bukti gagal: ${e?.response?.data?.message || e?.message || 'galat'}. Unggah ulang dari halaman SO.`);
+                }
             }
             return so;
         },

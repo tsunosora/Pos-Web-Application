@@ -635,6 +635,7 @@ export default function WhatsappInboxPage() {
     const firstLoadRef = useRef(true);
 
     // ─── Real-time via SSE ── refetch HANYA saat ada event (bukan polling tiap detik).
+    // Juga dibaca callback kiriman WA yang selesai belakangan (hasil kiriman ke A tak ditempel ke B).
     const selectedIdRef = useRef(selectedId);
     useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
     useEffect(() => {
@@ -752,9 +753,9 @@ export default function WhatsappInboxPage() {
         return () => document.removeEventListener("mousedown", onDown);
     }, [showEmoji]);
     const replyMut = useMutation({
-        mutationFn: (v: { text: string; replyTo?: string }) => replyWaText(selectedId as number, v.text, v.replyTo),
+        mutationFn: (v: { convId: number; text: string; replyTo?: string }) => replyWaText(v.convId, v.text, v.replyTo),
         // Optimistic: pesan langsung tampil (status "mengirim…") tanpa nunggu round-trip.
-        onMutate: (v: { text: string; replyTo?: string }) => {
+        onMutate: (v: { convId: number; text: string; replyTo?: string }) => {
             const tempId = Date.now() + Math.floor(Math.random() * 1000);
             const optimistic: WaMessage = {
                 id: tempId,
@@ -781,14 +782,20 @@ export default function WhatsappInboxPage() {
             requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
             return { tempId, prevDraft, prevReplyingTo };
         },
-        onSuccess: (realMsg, _v, ctx) => {
-            // Ganti pesan sementara dgn hasil asli dari server (tanpa kedip / refetch).
-            setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== ctx?.tempId), [realMsg]));
+        onSuccess: (realMsg, v, ctx) => {
+            // Ganti pesan sementara dgn hasil asli — HANYA bila percakapan itu masih terbuka.
+            if (v.convId === selectedIdRef.current) {
+                setMessages((prev) => mergeMessages(prev.filter((m) => m.id !== ctx?.tempId), [realMsg]));
+            } else {
+                qc.invalidateQueries({ queryKey: ["wa-messages", v.convId] });
+            }
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
         },
-        onError: (e: unknown, _v, ctx) => {
-            // Gagal: buang pesan sementara & kembalikan teks agar mudah kirim ulang.
-            if (ctx) {
+        onError: (e: unknown, v, ctx) => {
+            // Gagal: buang pesan sementara & kembalikan teks agar mudah kirim ulang — hanya ke
+            // percakapan yang sama. Dulu teks & kutipan pelanggan A pindah ke kotak ketik B,
+            // lalu terkirim ke pelanggan B.
+            if (ctx && v.convId === selectedIdRef.current) {
                 setMessages((prev) => prev.filter((m) => m.id !== ctx.tempId));
                 setDraft(ctx.prevDraft);
                 setReplyingTo(ctx.prevReplyingTo ?? null);
@@ -802,24 +809,27 @@ export default function WhatsappInboxPage() {
     const [sendProgress, setSendProgress] = useState<{ current: number; total: number } | null>(null);
     const mediaMut = useMutation({
         // Kirim banyak lampiran berurutan; caption (draft) & konteks reply hanya di gambar pertama.
-        mutationFn: async (payload: { files: File[]; caption?: string; replyTo?: string }) => {
+        mutationFn: async (payload: { convId: number; files: File[]; caption?: string; replyTo?: string }) => {
             const total = payload.files.length;
             for (let i = 0; i < total; i++) {
                 setSendProgress({ current: i + 1, total });
                 await replyWaMedia(
-                    selectedId as number,
+                    payload.convId,
                     payload.files[i],
                     i === 0 ? payload.caption : undefined,
                     i === 0 ? payload.replyTo : undefined,
                 );
             }
         },
-        onSuccess: () => {
-            setDraft("");
-            setPendingFiles([]);
-            setReplyingTo(null);
-            if (fileInputRef.current) fileInputRef.current.value = "";
-            qc.invalidateQueries({ queryKey: ["wa-messages", selectedId] });
+        onSuccess: (_d, v) => {
+            // Kotak ketik & lampiran hanya dibersihkan bila percakapan yang sama masih terbuka.
+            if (v.convId === selectedIdRef.current) {
+                setDraft("");
+                setPendingFiles([]);
+                setReplyingTo(null);
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            }
+            qc.invalidateQueries({ queryKey: ["wa-messages", v.convId] });
             qc.invalidateQueries({ queryKey: ["wa-convos"] });
         },
         onError: (e: unknown) => {
@@ -865,10 +875,11 @@ export default function WhatsappInboxPage() {
     const sendComposer = () => {
         if (mediaMut.isPending || replyMut.isPending) return;
         const replyTo = replyingTo?.waMessageId || undefined;
+        if (selectedId == null) return;
         if (pendingFiles.length) {
-            mediaMut.mutate({ files: pendingFiles, caption: draft.trim() || undefined, replyTo });
+            mediaMut.mutate({ convId: selectedId, files: pendingFiles, caption: draft.trim() || undefined, replyTo });
         } else if (draft.trim()) {
-            replyMut.mutate({ text: draft.trim(), replyTo });
+            replyMut.mutate({ convId: selectedId, text: draft.trim(), replyTo });
         }
     };
 

@@ -53,8 +53,14 @@ export async function pushNow(): Promise<{ pushed: number; errors: number }> {
   const outbox = await getOutbox();
   if (!outbox.length) return { pushed: 0, errors: 0 };
 
+  // Cabang & waktu tempat op DIBUAT ikut dikirim: server memakai cabang itu (dulu nota offline
+  // masuk ke cabang yang aktif saat sinkron) dan tanggalnya bila dijual di hari lain.
   const res = await pushSync(
-    outbox.map((o) => ({ clientId: o.clientId, type: o.type, payload: o.payload })),
+    outbox.map((o) => ({
+      clientId: o.clientId, type: o.type, payload: o.payload,
+      branchId: o.branchId ?? null,
+      occurredAt: o.createdAt ? new Date(o.createdAt).toISOString() : undefined,
+    })),
   );
 
   let pushed = 0;
@@ -79,8 +85,18 @@ export async function syncNow(): Promise<void> {
   if (typeof navigator !== 'undefined' && !navigator.onLine) return;
   running = true;
   try {
-    await pushNow();
-    await pullNow();
+    // Satu tab saja yang mendorong outbox (IndexedDB dipakai bersama semua tab POS).
+    const locks = typeof navigator !== 'undefined' ? (navigator as any).locks : undefined;
+    if (locks?.request) {
+      await locks.request('pospro-sync', { ifAvailable: true }, async (lock: unknown) => {
+        if (!lock) return; // tab lain sedang sinkron
+        await pushNow();
+        await pullNow();
+      });
+    } else {
+      await pushNow();
+      await pullNow();
+    }
   } catch {
     // Diamkan — siklus berikutnya (interval / event online) mencoba lagi.
   } finally {

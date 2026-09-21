@@ -6,6 +6,7 @@ import { StockPurchasesService } from '../stock-purchases/stock-purchases.servic
 import { StockTransfersService } from '../stock-transfers/stock-transfers.service';
 import { StockOpnameService } from '../stock-opname/stock-opname.service';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { pilihKolomKasManual } from '../cashflow/cashflow.service';
 import { requireBranch } from '../common/branch-where.helper';
 import {
   ENTITY_REGISTRY,
@@ -121,12 +122,24 @@ export class SyncService {
     ops: PushOp[],
     caller: SyncCaller = { isDevice: false, userId: null },
   ): Promise<PushResult> {
-    const branchId = requireBranch(branchCtx);
     const results: PushOpResult[] = [];
 
     for (const op of ops) {
       try {
-        results.push(await this.applyOp(op, branchId, branchCtx, caller));
+        // Cabang = cabang tempat op DIBUAT (dikirim klien), bukan cabang aktif saat sinkron —
+        // dulu nota offline cabang A masuk ke cabang B bila owner/akun lain aktif di B saat
+        // koneksi kembali. Staf/perangkat bercabang hanya boleh cabangnya sendiri.
+        let branchId: number;
+        if (op.branchId != null) {
+          const b = Number(op.branchId);
+          if (!Number.isInteger(b) || b <= 0) throw new Error('cabang op tidak valid');
+          if (!branchCtx.isOwner && b !== branchCtx.branchId) throw new Error('cabang op tidak cocok dengan akun/perangkat ini');
+          branchId = b;
+        } else {
+          branchId = requireBranch(branchCtx);
+        }
+        const ctxOp: BranchContext = { ...branchCtx, branchId };
+        results.push(await this.applyOp(op, branchId, ctxOp, caller));
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         this.logger.warn(`push op gagal (${op.type}, clientId=${op.clientId}): ${message}`);
@@ -145,15 +158,57 @@ export class SyncService {
   ): Promise<PushOpResult> {
     if (!op.clientId) throw new Error('clientId wajib ada');
 
-    // Idempotensi: kalau clientId sudah pernah diterapkan → balas serverId lama.
-    const existing = await this.prisma.syncedOp.findUnique({ where: { clientId: op.clientId } });
-    if (existing) {
-      return { clientId: op.clientId, status: 'duplicate', serverId: existing.serverId ?? undefined };
+    // Idempotensi: KLAIM clientId dulu, baru kerjakan. Dulu dicatat SETELAH nota dibuat → dua
+    // push bersamaan (2 tab / kiriman ulang) sama-sama lolos cek dan nota tercatat dobel.
+    const klaim = await this.claimOp(op.clientId, op.type, branchId);
+    if (klaim !== 'baru') {
+      return { clientId: op.clientId, status: 'duplicate', serverId: klaim.serverId ?? undefined };
     }
+    try {
+      return await this.kerjakanOp(op, branchId, branchCtx, caller);
+    } catch (e) {
+      // Gagal → lepas klaim supaya bisa dicoba lagi / ditinjau.
+      await this.prisma.syncedOp.deleteMany({ where: { clientId: op.clientId, serverId: null } }).catch(() => {});
+      throw e;
+    }
+  }
 
+  /** 'baru' = klaim berhasil; selain itu baris lama (sudah/sedang diterapkan). Klaim macet > 10 menit dilepas. */
+  private async claimOp(clientId: string, type: string, branchId: number): Promise<'baru' | { serverId: number | null }> {
+    try {
+      await this.prisma.syncedOp.create({ data: { clientId, type, serverId: null, branchId } });
+      return 'baru';
+    } catch (e: any) {
+      if (e?.code !== 'P2002') throw e;
+      const ada = await this.prisma.syncedOp.findUnique({ where: { clientId } });
+      if (ada && ada.serverId == null && Date.now() - new Date(ada.createdAt).getTime() > 10 * 60_000
+        && !['stockTransfer.create', 'stockOpname.finish'].includes(ada.type)) {
+        // Proses sebelumnya mati di tengah jalan — ambil alih klaimnya.
+        const r = await this.prisma.syncedOp.updateMany({ where: { clientId, serverId: null, createdAt: ada.createdAt }, data: { createdAt: new Date() } });
+        if (r.count === 1) return 'baru';
+      }
+      return { serverId: ada?.serverId ?? null };
+    }
+  }
+
+  private async kerjakanOp(
+    op: PushOp,
+    branchId: number,
+    branchCtx: BranchContext,
+    caller: SyncCaller,
+  ): Promise<PushOpResult> {
     switch (op.type) {
       case 'transaction.create': {
-        const tx = await this.transactions.create({ ...op.payload, branchId });
+        // Pencatat = akun login (bukan isi payload yang bisa dipalsukan). Waktu jual offline:
+        // nota yang dibuat HARI LAIN (≤ 7 hari) memakai tanggal itu, bukan tanggal sinkron.
+        const { actorUserId: _aktorPayload, branchId: _cabangPayload, ...payload } = op.payload ?? {};
+        const tanggal = this.tanggalOffline(op.occurredAt);
+        const tx = await this.transactions.create({
+          ...payload,
+          ...(tanggal && !payload.transactionDate ? { transactionDate: tanggal } : {}),
+          branchId,
+          actorUserId: caller.isDevice ? null : caller.userId ?? null,
+        });
         await this.recordOp(op.clientId, op.type, tx.id, branchId);
         return {
           clientId: op.clientId,
@@ -224,21 +279,26 @@ export class SyncService {
     serverId: number | null,
     branchId: number,
   ): Promise<void> {
-    await this.prisma.syncedOp.create({ data: { clientId, type, serverId, branchId } });
+    // Klaim sudah dibuat di awal → isi hasilnya. Op tanpa id hasil tetap tercatat (serverId null
+    // tapi type diberi tanda selesai lewat createdAt lama tak dipakai lagi).
+    await this.prisma.syncedOp.updateMany({ where: { clientId }, data: { serverId, type, branchId } });
+  }
+
+  /** occurredAt (ISO) → 'YYYY-MM-DD' WIB bila HARI LAIN dari hari ini, ≤ 7 hari lalu & tidak di masa depan. */
+  private tanggalOffline(occurredAt?: string): string | null {
+    if (!occurredAt) return null;
+    const t = new Date(occurredAt);
+    const now = new Date();
+    if (Number.isNaN(t.getTime()) || t > now || now.getTime() - t.getTime() > 7 * 24 * 3600 * 1000) return null;
+    const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return ymd(t) === ymd(now) ? null : ymd(t);
   }
 
   // Insert cashflow manual dari device offline (pola branch connect seperti CashflowService).
   // userId dari payload DIABAIKAN (bisa dipalsukan) — pencatat = user JWT, perangkat = kosong.
   private async createCashflow(payload: any, branchId: number, caller: SyncCaller) {
-    const {
-      bankAccountId,
-      userId: _userId,
-      user: _user,
-      branch: _branch,
-      branchId: _branchId,
-      bankAccount: _bankAccount,
-      ...rest
-    } = payload ?? {};
+    // Kolom sama dengan form Kas online (nominal > 0, tanpa tanggal/shift/relasi sisipan).
+    const { bankAccountId, ...rest } = pilihKolomKasManual(payload);
     return this.prisma.cashflow.create({
       data: {
         ...rest,

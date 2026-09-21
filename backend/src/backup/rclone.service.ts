@@ -153,14 +153,17 @@ export class RcloneService implements OnModuleInit {
             startedAt: new Date().toISOString(), finishedAt: null, ok: null, error: null,
         });
 
-        const settings: any = await this.prisma.storeSettings.findFirst();
-        const remote: string | null = settings?.rcloneRemote || null;
-        const keepCount: number = settings?.rcloneKeepCount ?? 7;
         const now = new Date();
-
+        // Dibaca DI DALAM try: dulu galat DB di sini (sebelum try) membuat progress.running
+        // macet true → semua cadangan berikutnya (termasuk jadwal malam) ditolak "sedang berjalan".
+        let settings: any = null;
+        let keepCount = 7;
         let localPath: string | null = null;
         let archived = false; // true = zip sudah selesai & utuh
         try {
+            settings = await this.prisma.storeSettings.findFirst();
+            const remote: string | null = settings?.rcloneRemote || null;
+            keepCount = settings?.rcloneKeepCount ?? 7;
             const pad = (n: number) => String(n).padStart(2, '0');
             const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
             const filename = `pospro-backup-${storeSlug(settings?.storeName)}-${dateStr}.zip`;
@@ -231,7 +234,7 @@ export class RcloneService implements OnModuleInit {
                 await this.prisma.storeSettings.update({
                     where: { id: settings.id },
                     data: { rcloneLastStatus: `Gagal: ${detail.slice(0, 400)}` } as any,
-                });
+                }).catch((e: any) => this.logger.warn(`Gagal mencatat status cadangan: ${e?.message ?? e}`));
             }
             if (kept) {
                 this.pruneLocalBackups(keepCount, storeSlug(settings?.storeName)); // tetap jaga jumlah berkas lokal

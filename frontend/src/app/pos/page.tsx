@@ -187,9 +187,17 @@ function POSPageContent() {
     const [dpBayarNanti, setDpBayarNanti] = useState('');
     const [dpMethodBayarNanti, setDpMethodBayarNanti] = useState<'CASH' | 'QRIS' | 'BANK_TRANSFER'>('CASH');
     const [dpBankBayarNanti, setDpBankBayarNanti] = useState('');
+    // Ganti cabang → rekening & cabang produksi pilihan cabang lama direset (dulu nota di cabang B
+    // tersimpan dengan rekening cabang A).
+    useEffect(() => {
+        setSelectedBankId('');
+        setDpBankBayarNanti('');
+        setProductionBranchId(null);
+    }, [effectiveBranchId]);
 
     // Backdate state (khusus manager)
-    const todayStr = new Date().toISOString().split('T')[0];
+    // Tanggal lokal (WIB) — toISOString() = UTC: 00.00–06.59 WIB masih "kemarin".
+    const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
     const [transactionDate, setTransactionDate] = useState('');       // kosong = hari ini
     const [cashflowToday, setCashflowToday] = useState(false);        // true = cashflow masuk shift hari ini
 
@@ -237,17 +245,29 @@ function POSPageContent() {
     const checkoutKeyRef = useRef<string | null>(null);
     // Keranjang dikosongkan (batal/selesai) → percobaan berikutnya pakai kunci baru.
     useEffect(() => { if (cart.length === 0) checkoutKeyRef.current = null; }, [cart.length]);
+    // Kunci checkout = UUID keranjang + sidik isi kiriman (keranjang yang diubah = permintaan baru).
+    // Dipakai JUGA oleh antrean offline, supaya POST yang ternyata sampai ke server & kiriman ulang
+    // offline-nya tercatat sebagai SATU nota.
+    const kunciCheckout = (payload: unknown): string => {
+        if (!checkoutKeyRef.current) {
+            checkoutKeyRef.current = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                ? crypto.randomUUID()
+                : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        }
+        let h = 2166136261;
+        for (const ch of JSON.stringify(payload)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+        return `${checkoutKeyRef.current}:${(h >>> 0).toString(36)}`;
+    };
     const transactionMutation = useMutation({
-        mutationFn: (payload: Parameters<typeof createTransaction>[0]) => {
-            if (!checkoutKeyRef.current) {
-                checkoutKeyRef.current = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-                    ? crypto.randomUUID()
-                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-            }
-            // Sidik isi kiriman ikut di kunci: keranjang yang diubah = permintaan baru.
-            let h = 2166136261;
-            for (const ch of JSON.stringify(payload)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
-            return createTransaction(payload, `${checkoutKeyRef.current}:${(h >>> 0).toString(36)}`);
+        mutationFn: (payload: Parameters<typeof createTransaction>[0]) => createTransaction(payload, kunciCheckout(payload)),
+        // Nota GAGAL tersimpan harus terlihat — dulu diam saja: modal tertutup, pelanggan sudah
+        // bayar & dapat struk, tapi nota tak pernah tercatat.
+        onError: (err: any) => {
+            const m = err?.response?.data?.message;
+            const pesan = Array.isArray(m) ? m.join(', ') : (m || err?.message || 'Koneksi bermasalah');
+            setCheckoutModalOpen(true);
+            addNotification({ type: 'system', title: 'Nota GAGAL disimpan', message: String(pesan) });
+            if (typeof window !== 'undefined') window.alert(`Nota GAGAL disimpan: ${pesan}\n\nKeranjang tidak dihapus — periksa lalu coba lagi.`);
         },
         onSuccess: (data) => {
             setCheckoutModalOpen(false);
@@ -393,6 +413,19 @@ function POSPageContent() {
         // efek berhenti sendiri — reset ke null malah memicu prefill ulang (race).
         router.replace('/pos');
     }, [clearCart, router]);
+
+    // Meninggalkan ?fromSO tanpa "Batalkan" (mis. klik menu Kasir POS) → mode SO ikut lepas.
+    // Dulu salesOrderId tetap menempel: nota walk-in berikutnya "menagih" SO itu & SO aslinya
+    // tak bisa ditagih lagi.
+    useEffect(() => {
+        // Pindah ke SO lain ditangani efek prefill di atas; di sini hanya saat ?fromSO hilang.
+        if (salesOrderId == null || fromSOId != null) return;
+        setSalesOrderId(null);
+        clearCart();
+        setCustomerName(''); setCustomerPhone(''); setCustomerAddress(''); setOrderLabel(''); setOrderMarketplace(''); setOrderMarketplaceNo('');
+        addNotification({ type: 'system', title: 'Mode SO dilepas', message: 'Keranjang dari SO dikosongkan karena halaman SO ditinggalkan.' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fromSOId, salesOrderId]);
 
     // ---- Pre-payment invoice helpers (from current cart, before transaction) ----
     const buildCurrentSnap = (): ReceiptSnapshot => ({
@@ -666,7 +699,8 @@ function POSPageContent() {
             // mendorongnya idempoten saat online. Cetak tetap jalan via modal (di
             // aplikasi desktop: langsung ke printer lokal, tanpa server).
             const { enqueueOp } = await import('@/lib/offline/repo');
-            await enqueueOp('transaction.create', payload, effectiveBranchId ?? null);
+            await enqueueOp('transaction.create', payload, effectiveBranchId ?? null, kunciCheckout(payload));
+            checkoutKeyRef.current = null;
             clearCart(); setCheckoutModalOpen(false);
             setPaymentMethod('CASH'); setSelectedBankId('');
             // Bersihkan mode SO juga (kalau nota offline ini dari SO)
@@ -1004,7 +1038,7 @@ function POSPageContent() {
                     <div className="flex items-center gap-1 shrink-0">
                         {cart.length > 0 && (
                             <button
-                                onClick={() => { if (confirm('Kosongkan keranjang?')) clearCart(); }}
+                                onClick={() => { if (confirm('Kosongkan keranjang?')) { if (salesOrderId) cancelSOMode(); else clearCart(); } }}
                                 className="p-1.5 text-primary-foreground/80 hover:text-primary-foreground hover:bg-primary-foreground/10 rounded-lg transition"
                                 title="Kosongkan keranjang"
                                 aria-label="Kosongkan keranjang"

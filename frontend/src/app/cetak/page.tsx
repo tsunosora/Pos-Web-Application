@@ -249,7 +249,7 @@ export default function CetakPage() {
         setOpPinLoading(true);
         setOpPinError(null);
         try {
-            const r = await verifyDesignerPin(pendingOp.id, opPin.trim());
+            const r = await verifyDesignerPin(pendingOp.id, opPin.trim(), activeBranchId);
             if (!r.valid) { setOpPinError(`PIN salah. Kalau kamu bukan ${pendingOp.name}, pilih namamu sendiri.`); return; }
             saveCetakPiketIdentity(pendingOp.id, pendingOp.name, opPin.trim());
             setOperatorName(pendingOp.name);

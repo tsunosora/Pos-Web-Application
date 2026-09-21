@@ -43,16 +43,21 @@ export async function replaceRef(store: RefStore, rows: unknown[]): Promise<void
 }
 
 // ---------- Outbox (mutasi offline menunggu push) ----------
-/** Antre mutasi offline. Mengembalikan clientId (UUID) yang dibuat. */
+/**
+ * Antre mutasi offline. Mengembalikan clientId yang dipakai. `clientId` boleh diberikan (POS
+ * memakai kunci idempotensi checkout) supaya percobaan online yang ternyata sampai ke server &
+ * kiriman ulang offline-nya dikenali sebagai SATU nota, bukan dua.
+ */
 export async function enqueueOp(
   type: OutboxOpType,
   payload: any,
   branchId: number | null,
+  givenClientId?: string,
 ): Promise<string> {
-  const clientId =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+  const clientId = givenClientId ||
+    (typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
-      : `op-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+      : `op-${Date.now()}-${Math.floor(Math.random() * 1e9)}`);
   const op: OutboxOp = {
     clientId,
     type,

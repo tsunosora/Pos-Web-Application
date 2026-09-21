@@ -315,6 +315,15 @@ export class ProductsService {
             }
         }
 
+        // Varian yang dihapus dari form tapi sudah punya riwayat → tolak SEBELUM menyimpan apa pun
+        // (dulu produk sudah tersimpan separuh, lalu penghapusan varian menghapus riwayat stoknya).
+        if (deletedVariantIds?.length) {
+            const berRiwayat = await this.variantsWithHistory(deletedVariantIds);
+            if (berRiwayat.length) {
+                const nama = (existing as any).variants?.filter((v: any) => berRiwayat.includes(v.id)).map((v: any) => v.variantName || v.sku).join(', ');
+                throw new BadRequestException(`Varian ${nama || berRiwayat.join(', ')} sudah punya riwayat (nota/stok/SO) — tidak bisa dihapus. Batalkan penghapusan varian itu, lalu simpan lagi.`);
+            }
+        }
         try {
             await this.prisma.product.update({ where: { id }, data: productData });
 
@@ -478,8 +487,40 @@ export class ProductsService {
         return this.prisma.product.update({ where: { id }, data: { imageUrls: JSON.stringify(imageUrls) } });
     }
 
+    /**
+     * Varian yang sudah punya RIWAYAT (nota, pergerakan/pembelian stok, SO, lead, opname, transfer,
+     * dipakai sebagai bahan BOM produk lain). Menghapusnya menghapus/memutus riwayat itu: dulu
+     * cascade menghapus pergerakan & pembelian stok, dan baris nota kehilangan produknya.
+     */
+    private async variantsWithHistory(variantIds: number[]): Promise<number[]> {
+        const ids = variantIds.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+        if (!ids.length) return [];
+        const db: any = this.prisma;
+        const w = { productVariantId: { in: ids } };
+        const baris: any[][] = await Promise.all([
+            db.transactionItem.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.stockMovement.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.stockPurchaseItem.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.salesOrderItem.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.leadItem.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.stockOpnameItem.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.stockTransferItem.findMany({ where: w, select: { productVariantId: true }, distinct: ['productVariantId'] }),
+            db.ingredient.findMany({ where: { rawMaterialVariantId: { in: ids } }, select: { rawMaterialVariantId: true } }),
+            db.variantIngredient.findMany({ where: { rawMaterialVariantId: { in: ids } }, select: { rawMaterialVariantId: true } }),
+        ]);
+        const ada = new Set<number>();
+        for (const list of baris) for (const r of list) ada.add(Number(r.productVariantId ?? r.rawMaterialVariantId));
+        return ids.filter((i) => ada.has(i));
+    }
+
     async remove(id: number) {
-        await this.findOne(id);
+        const produk: any = await this.findOne(id);
+        // Punya riwayat → arsipkan saja (disembunyikan dari daftar, riwayat utuh).
+        const berRiwayat = await this.variantsWithHistory((produk?.variants ?? []).map((v: any) => v.id));
+        if (berRiwayat.length) {
+            await (this.prisma as any).product.update({ where: { id }, data: { isActive: false } });
+            return { id, archived: true, message: 'Produk sudah punya riwayat (nota/stok/SO/bahan BOM), jadi diarsipkan (disembunyikan dari daftar). Riwayat tetap aman.' };
+        }
         try {
             // Hard-delete kalau produk belum pernah dipakai (cascade varian & BOM).
             await this.prisma.product.delete({ where: { id } });
@@ -570,6 +611,9 @@ export class ProductsService {
     }
 
     async removeVariant(variantId: number) {
+        if ((await this.variantsWithHistory([variantId])).length) {
+            throw new BadRequestException('Varian ini sudah punya riwayat (nota/stok/SO/bahan BOM) — tidak bisa dihapus agar riwayat tetap utuh. Arsipkan produknya bila tidak dipakai lagi.');
+        }
         return this.prisma.productVariant.delete({ where: { id: variantId } });
     }
 

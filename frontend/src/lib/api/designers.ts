@@ -40,9 +40,10 @@ export const getPublicDesigners = async (): Promise<DesignerPublic[]> =>
 
 /** Verifikasi PIN — return { valid, id, name } */
 /** PIN benar → server juga memberi token papan kerja (disimpan untuk /produksi & /cetak). */
-export const verifyDesignerPin = async (id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> => {
+export const verifyDesignerPin = async (id: number, pin: string, branchId?: number | null): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> => {
     try {
-        const r = (await axios.post(`${BASE}/designers/public/verify`, { id, pin })).data;
+        // branchId = cabang papan yang dipilih (token papan kerja dibatasi ke cabang itu).
+        const r = (await axios.post(`${BASE}/designers/public/verify`, { id, pin, branchId: branchId ?? undefined })).data;
         rememberBoardToken(r);
         return r;
     } catch (e) {

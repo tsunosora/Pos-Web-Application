@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { isDesignerRole, isManagementRole, isOperatorRole } from './wa-roles.util';
+import { akhirHari, awalHari, ymdLokal } from '../common/utils/tanggal.util';
 
 export interface AnalyticsQuery {
     from?: string;
@@ -15,12 +16,12 @@ export interface DailyPoint {
     outbound: number;
 }
 
-/** Pivot hasil raw {d, direction, c} → deret harian penuh (isi 0 utk hari kosong). */
+/** Pivot hasil raw {d, direction, c} → deret harian penuh (isi 0 utk hari kosong). Hari = hari WIB. */
 export function pivotSeries(rows: Array<{ d: any; direction: string; c: any }>, fromDate: Date, toDate: Date): DailyPoint[] {
-    const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+    const fmt = (dt: Date) => ymdLokal(dt);
     const map = new Map<string, DailyPoint>();
     // isi semua tanggal dalam rentang dengan 0
-    for (let t = new Date(fmt(fromDate)); t <= toDate; t = new Date(t.getTime() + 86400000)) {
+    for (let t = awalHari(fmt(fromDate)); t <= toDate; t = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1)) {
         const key = fmt(t);
         map.set(key, { date: key, inbound: 0, outbound: 0 });
     }
@@ -54,8 +55,9 @@ export class AnalyticsService {
     constructor(private readonly prisma: PrismaService) {}
 
     private range(from?: string, to?: string) {
-        const toDate = to ? new Date(to) : new Date();
-        const fromDate = from ? new Date(from) : new Date(toDate.getTime() - 30 * 86400000);
+        // 'YYYY-MM-DD' = hari WIB utuh (dulu tengah malam UTC = 07.00 WIB → pesan pagi hilang).
+        const toDate = to ? akhirHari(to) : new Date();
+        const fromDate = from ? awalHari(from) : new Date(toDate.getTime() - 30 * 86400000);
         return { fromDate, toDate };
     }
 
@@ -93,7 +95,8 @@ export class AnalyticsService {
         const { fromDate, toDate } = this.range(opts.from, opts.to);
         const chFilter = opts.channelId ? `AND channel_id = ${Number(opts.channelId)}` : '';
         const rows: any[] = await this.prisma.$queryRawUnsafe(
-            `SELECT DATE(created_at) d, direction, COUNT(*) c
+            // Kelompokkan per hari WIB (created_at disimpan UTC).
+            `SELECT DATE(CONVERT_TZ(created_at, '+00:00', '+07:00')) d, direction, COUNT(*) c
              FROM wa_messages
              WHERE created_at BETWEEN ? AND ? ${chFilter}
              GROUP BY d, direction

@@ -383,6 +383,7 @@ function DesignerNewSOContent() {
             const so = isEdit
                 ? await designerUpdateSO(Number(editId), session.id, session.pin, payload)
                 : await designerCreateSO(session.id, session.pin, payload);
+            try {
             if (proofFiles.length > 0) {
                 await designerUploadProofs(so.id, session.id, session.pin, proofFiles);
             }
@@ -414,6 +415,14 @@ function DesignerNewSOContent() {
                 return;
             } else {
                 alert(`SO ${so.soNumber || ''} ${isEdit ? 'diperbarui' : 'disimpan sebagai draft'}.`);
+            }
+            } catch (lanjutan: any) {
+                // SO SUDAH tersimpan; yang gagal langkah berikutnya (unggah bukti / kirim / lead).
+                // Pindah ke mode edit SO itu supaya menekan tombol lagi tidak membuat SO kedua.
+                const pesan = lanjutan?.response?.data?.message || lanjutan?.message || 'galat';
+                alert(`SO ${so.soNumber || ''} tersimpan, tapi langkah berikutnya gagal: ${pesan}\n\nHalaman beralih ke edit SO ini — coba lagi dari sini.`);
+                if (!isEdit && so?.id) router.replace(`/so-designer/new?id=${so.id}`);
+                return;
             }
             // Kembali ke dashboard (halaman awal); SO baru muncul paling atas
             router.push('/so-designer/dashboard');

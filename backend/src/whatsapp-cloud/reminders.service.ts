@@ -121,7 +121,12 @@ export class RemindersService {
         // begitu 200 FU lama menumpuk, FU baru tak pernah dapat pengingat.
         const now = new Date();
         const due = await this.prisma.followUp.findMany({
-            where: { status: 'PENDING', dueDate: { lte: now, gte: new Date(now.getTime() - 7 * 24 * 3600 * 1000) } },
+            where: {
+                status: 'PENDING',
+                dueDate: { lte: now, gte: new Date(now.getTime() - 7 * 24 * 3600 * 1000) },
+                // Lead yang sudah menang/gagal/tidak valid tak diingatkan (pesan template berbayar).
+                OR: [{ leadId: null }, { lead: { status: { notIn: ['CLOSED_WON', 'CLOSED_LOST', 'INVALID'] } } }],
+            },
             include: { customer: { select: { name: true, phone: true } }, lead: { select: { name: true, phone: true } } },
             orderBy: { dueDate: 'desc' },
             take: 200,

@@ -247,7 +247,12 @@ export class InvoiceService implements OnModuleInit {
     }
 
     async remove(id: number, branchCtx?: BranchContext) {
-        await this.getScoped(id, branchCtx);
+        const inv = await this.getScoped(id, branchCtx);
+        // Dokumen yang sudah dikirim/dibayar tidak dihapus (nomornya juga bisa terpakai ulang) —
+        // batalkan/ubah statusnya. Draf & yang dibatalkan/ditolak/kedaluwarsa boleh dihapus.
+        if (!['DRAFT', 'CANCELLED', 'REJECTED', 'EXPIRED'].includes(inv.status)) {
+            throw new BadRequestException(`Dokumen berstatus ${inv.status} tidak bisa dihapus — batalkan dulu.`);
+        }
         return this.model.delete({ where: { id } });
     }
 }

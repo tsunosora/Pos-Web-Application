@@ -44,7 +44,7 @@ export class DesignersService {
     }
 
     /** Verifikasi PIN desainer — return { valid, id, name, branchName } */
-    async verifyPin(id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> {
+    async verifyPin(id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null; branchId?: number | null }> {
         // id/PIN kosong atau bukan angka → tolak biasa (dulu jadi galat 500 dari Prisma).
         if (!Number.isInteger(id) || id <= 0 || typeof pin !== 'string' || !pin) return { valid: false };
         const designer = await (this.prisma as any).designer.findUnique({ where: { id } });
@@ -54,7 +54,7 @@ export class DesignersService {
         if (designer.pin !== pin) {
             return { valid: false };
         }
-        return { valid: true, id: designer.id, name: designer.name, branchName: designer.branchName ?? null };
+        return { valid: true, id: designer.id, name: designer.name, branchName: designer.branchName ?? null, branchId: designer.branchId ?? null };
     }
 
     /** Buat desainer baru (admin) */

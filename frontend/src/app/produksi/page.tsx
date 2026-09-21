@@ -145,7 +145,7 @@ export default function ProduksiPage() {
             let opName: string;
             if (usingRegistry) {
                 // Operator pilih namanya (dari daftar karyawan) + verifikasi PIN-nya.
-                const res = await verifyDesignerPin(Number(selectedOpId), pinInput);
+                const res = await verifyDesignerPin(Number(selectedOpId), pinInput, bid);
                 if (!res.valid || !res.name) { setPinError('PIN operator salah.'); setPinInput(''); return; }
                 opName = res.name;
             } else {

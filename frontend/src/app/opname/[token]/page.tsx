@@ -5,7 +5,10 @@ import { useParams } from 'next/navigation';
 import { verifyOpnameToken, getOpnameProducts, submitOpnameItems } from '@/lib/api';
 import { CheckCircle2, Minus, Plus, Send, AlertCircle, Loader2, ClipboardList } from 'lucide-react';
 
-const STORAGE_KEY = (token: string) => `opname_draft_v2_${token}`;
+// Draf per SESI + OPERATOR: di tablet bersama draf operator A dulu termuat untuk operator B
+// lalu terkirim atas nama B (menimpa hitungan orang lain).
+const STORAGE_KEY_LAMA = (token: string) => `opname_draft_v2_${token}`;
+const STORAGE_KEY = (token: string, operator: string) => `opname_draft_v3_${token}_${operator.trim().toLowerCase()}`;
 
 type VerifyResult = {
     sessionId: string;
@@ -219,19 +222,26 @@ function CountingScreen({
     // Load from localStorage draft
     useEffect(() => {
         try {
-            const saved = localStorage.getItem(STORAGE_KEY(token));
+            let saved = localStorage.getItem(STORAGE_KEY(token, operatorName));
+            // Draf versi lama (tanpa nama operator): tanya dulu, jangan dimuat diam-diam.
+            const lama = localStorage.getItem(STORAGE_KEY_LAMA(token));
+            if (!saved && lama && confirm(`Ada hitungan tersimpan di perangkat ini yang belum dikirim. Lanjutkan hitungan itu sebagai ${operatorName}?`)) {
+                saved = lama;
+                localStorage.setItem(STORAGE_KEY(token, operatorName), lama);
+                localStorage.removeItem(STORAGE_KEY_LAMA(token));
+            }
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (parsed.counts) setCounts(parsed.counts);
                 if (parsed.estimations) setEstimations(parsed.estimations);
             }
         } catch { /* ignore */ }
-    }, [token]);
+    }, [token, operatorName]);
 
     // Auto-save to localStorage
     const save = useCallback((c: Record<number, number>, e: Record<number, EstimationData>) => {
-        try { localStorage.setItem(STORAGE_KEY(token), JSON.stringify({ counts: c, estimations: e })); } catch { /* ignore */ }
-    }, [token]);
+        try { localStorage.setItem(STORAGE_KEY(token, operatorName), JSON.stringify({ counts: c, estimations: e })); } catch { /* ignore */ }
+    }, [token, operatorName]);
 
     const handleChange = (variantId: number, val: number) => {
         setCounts(prev => {
@@ -293,7 +303,7 @@ function CountingScreen({
                 })
             );
             await submitOpnameItems(token, { operatorName, items });
-            localStorage.removeItem(STORAGE_KEY(token));
+            localStorage.removeItem(STORAGE_KEY(token, operatorName));
             setSubmitted(true);
         } catch (e: any) {
             setError(e.message || 'Gagal menyimpan, coba lagi.');

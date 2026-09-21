@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGuards, UseInterceptors } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { DesignersService } from './designers.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ManagerGuard } from '../auth/role-groups';
 import { signBoardToken } from '../auth/board-auth';
@@ -12,6 +13,7 @@ export class DesignersPublicController {
     constructor(
         private readonly service: DesignersService,
         private readonly jwt: JwtService,
+        private readonly prisma: PrismaService,
     ) {}
 
     @Get('public')
@@ -25,8 +27,17 @@ export class DesignersPublicController {
     async verifyPin(@Body() body: { id: number; pin: string; branchId?: number | null }) {
         const r = await this.service.verifyPin(Number(body.id), body.pin);
         if (!r.valid) return r;
-        const boardToken = signBoardToken(this.jwt, { designerId: r.id, name: r.name, branchId: body.branchId ?? null });
-        return { ...r, boardToken };
+        // Token papan SELALU satu cabang: cabang yang dipilih di layar (karyawan boleh memegang mesin
+        // cabang mana pun) bila cabang aktif, selain itu cabang desainer. Dulu kosong = SEMUA cabang.
+        let branchId: number | null = r.branchId ?? null;
+        const dipilih = Number(body.branchId);
+        if (Number.isInteger(dipilih) && dipilih > 0) {
+            const b = await this.prisma.companyBranch.findFirst({ where: { id: dipilih, isActive: true }, select: { id: true } });
+            if (b) branchId = b.id;
+        }
+        const boardToken = signBoardToken(this.jwt, { designerId: r.id, name: r.name, branchId });
+        const { branchId: _b, ...publik } = r;
+        return { ...publik, boardToken };
     }
 }
 

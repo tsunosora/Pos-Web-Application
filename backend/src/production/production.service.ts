@@ -842,6 +842,14 @@ export class ProductionService {
         return proof;
     }
 
+    async assertProofInBranch(proofId: number, branchId: number | null) {
+        const proof = await (this.prisma as any).productionJobProof.findUnique({ where: { id: proofId }, select: { job: { select: { branchId: true } } } });
+        const jobBranch = proof?.job?.branchId ?? null;
+        if (proof && jobBranch != null && jobBranch !== branchId) {
+            throw new ForbiddenException('Bukti ini milik job cabang lain.');
+        }
+    }
+
     async deleteProof(proofId: number, actor?: { name?: string; role?: 'ADMIN' | 'OPERATOR' }) {
         const proof = await (this.prisma as any).productionJobProof.findUnique({
             where: { id: proofId }, select: { jobId: true, filename: true },
@@ -880,6 +888,15 @@ export class ProductionService {
     }
 
     async deleteJob(id: number) {
+        // Job yang sudah dikerjakan menyimpan kredit desainer/operator (KPI & bonus) & potongan roll
+        // → jangan dihapus permanen; pakai "Batalkan" (setJobCancelled). Hapus hanya job yang belum
+        // disentuh sama sekali.
+        const job: any = await (this.prisma as any).productionJob.findUnique({ where: { id }, select: { status: true, rollLengthUsed: true } });
+        if (!job) throw new NotFoundException('Job tidak ditemukan');
+        const aktivitas = await (this.prisma as any).productionJobActivity.count({ where: { jobId: id } }).catch(() => 0);
+        if (job.status !== 'ANTRIAN' || Number(job.rollLengthUsed) > 0 || aktivitas > 0) {
+            throw new BadRequestException('Job ini sudah dikerjakan (ada riwayat/kredit operator) — batalkan saja, jangan dihapus.');
+        }
         // ProductionJobProof di-cascade-delete otomatis (onDelete: Cascade di schema)
         await (this.prisma as any).productionJob.delete({ where: { id } });
         return { ok: true };

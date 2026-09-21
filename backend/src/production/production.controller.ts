@@ -288,6 +288,8 @@ export class ProductionController {
         if (!body.operatorName?.trim()) {
             throw new BadRequestException('Nama operator wajib diisi');
         }
+        // PIN cabang A tak boleh menghapus bukti job cabang B (id bukti mudah ditebak).
+        await this.productionService.assertProofInBranch(proofId, body.branchId != null ? Number(body.branchId) : null);
         return this.productionService.deleteProof(proofId, { name: body.operatorName.trim(), role: 'OPERATOR' });
     }
 

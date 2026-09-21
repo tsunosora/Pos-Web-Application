@@ -9,6 +9,7 @@ import { ManagerGuard, Menu, MenuGuard, OwnerGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 import type { FinanceTimeframe } from './reports.service';
+import { ymdLokal } from '../common/utils/tanggal.util';
 
 export type StructuredExpenseItem = { name: string; amount: number };
 export type StructuredExpenses = Record<string, StructuredExpenseItem[]>;
@@ -114,7 +115,7 @@ export class ReportsController {
         @Query('includeFixed') includeFixed?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
         const e = endDate || iso(now);
         const tf: FinanceTimeframe = (['day', 'week', 'month', 'year'] as const).includes(timeframe as any) ? timeframe : 'day';
@@ -129,7 +130,7 @@ export class ReportsController {
         @Query('endDate') endDate?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
         const e = endDate || iso(now);
         return this.reportsService.getFinanceHeatmap(branchCtx, s, e);
@@ -144,7 +145,7 @@ export class ReportsController {
         @Query('includeFixed') includeFixed?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(now);
         const e = endDate || iso(now);
         return this.reportsService.getFinanceJournal(branchCtx, s, e, includeFixed !== 'false');
@@ -158,7 +159,7 @@ export class ReportsController {
         @Query('endDate') endDate?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
         const e = endDate || iso(now);
         return this.reportsService.getFinanceAnomalies(branchCtx, s, e);
@@ -173,7 +174,7 @@ export class ReportsController {
         @Query('includeFixed') includeFixed?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
         const e = endDate || iso(now);
         return this.reportsService.getFinanceExpenseBreakdown(branchCtx, s, e, includeFixed !== 'false');
@@ -188,7 +189,7 @@ export class ReportsController {
         @Query('includeFixed') includeFixed?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
         const e = endDate || iso(now);
         return this.reportsService.getFinanceComparison(branchCtx, s, e, includeFixed !== 'false');
@@ -202,7 +203,7 @@ export class ReportsController {
         @Query('endDate') endDate?: string,
     ) {
         const now = new Date();
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // tanggal WIB — toISOString() menjadikan tgl 1 (00.00 WIB) = akhir bulan lalu
         const s = startDate || iso(new Date(now.getFullYear(), now.getMonth(), 1));
         const e = endDate || iso(now);
         return this.reportsService.getFinanceReconciliation(branchCtx, s, e);

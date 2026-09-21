@@ -92,6 +92,8 @@ export interface PushOp {
   clientId: string; // UUID v4 dari device (kunci idempotensi)
   type: PushOpType;
   payload: any; // bentuk sesuai type (lihat sync.service)
+  branchId?: number | null; // cabang tempat op DIBUAT (bukan cabang aktif saat sinkron)
+  occurredAt?: string; // waktu op dibuat di perangkat (ISO)
 }
 
 export interface PushBody {

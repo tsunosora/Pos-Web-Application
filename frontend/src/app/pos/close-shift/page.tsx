@@ -46,17 +46,18 @@ export default function CloseShiftPage() {
     // (kalau di-bake, max bisa tertinggal di tanggal build & memblokir "hari ini").
     // useEffect di bawah mengisinya ke tanggal client saat halaman dibuka.
     const [today, setToday] = useState('');
-    const [reportDate, setReportDate] = useState(localTodayStr);
-    const [closeTime, setCloseTime] = useState(() => {
-        const now = new Date();
-        return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    });
+    // Tanggal & jam tutup juga mulai kosong lalu diisi saat mount: dulu dihitung saat prerender
+    // (jam build) DAN di browser → teks "Laporan akan dicatat …" beda → galat hidrasi React #418.
+    const [reportDate, setReportDate] = useState('');
+    const [closeTime, setCloseTime] = useState('');
 
-    // Koreksi tanggal ke waktu client saat mount (HTML prerender bisa membawa tanggal build).
+    // Isi tanggal & jam dari waktu client saat mount (HTML prerender bisa membawa tanggal build).
     useEffect(() => {
         const t = localTodayStr();
+        const now = new Date();
         setToday(t);
         setReportDate(t);
+        setCloseTime(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
     }, []);
 
     // ─── State: Saldo Aktual ─────────────────────────────────────────────
@@ -270,6 +271,7 @@ export default function CloseShiftPage() {
         e.preventDefault();
         if (!shiftData) return;
         if (!adminName) { alert('Pilih nama kasir terlebih dahulu!'); return; }
+        if (!reportDate || !closeTime) { alert('Isi tanggal dan jam tutup shift.'); return; }
 
         // Build closedAt from selected date + close time — avoid wrong date if submitted late
         const closedAtDate = new Date(`${reportDate}T${closeTime}:00`);
@@ -629,7 +631,7 @@ export default function CloseShiftPage() {
                                             />
                                         </div>
                                     </div>
-                                    {reportDate !== today && (
+                                    {today !== '' && reportDate !== today && (
                                         <div className="flex items-start gap-2 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-lg">
                                             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                             <p className="text-xs text-amber-600 dark:text-amber-300">

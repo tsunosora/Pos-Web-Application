@@ -6,6 +6,7 @@ import { Building2, ChevronDown, Check, Globe } from "lucide-react";
 import axios from "@/lib/api/client";
 import { useBranchStore } from "@/store/branch-store";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useCartStore } from "@/store/cart-store";
 
 type Branch = {
     id: number;
@@ -55,6 +56,12 @@ export function BranchSwitcher() {
     }, [isOwner, branches, activeBranchId, setActiveBranchId]);
 
     const handleSelect = (id: number | null) => {
+        // Keranjang POS berisi stok & rekening cabang lama → minta konfirmasi & kosongkan.
+        const keranjang = useCartStore.getState().items;
+        if (id !== activeBranchId && keranjang.length > 0) {
+            if (!confirm('Ganti cabang akan mengosongkan keranjang kasir. Lanjut?')) { setOpen(false); return; }
+            useCartStore.getState().clearCart();
+        }
         setActiveBranchId(id);
         setOpen(false);
         // Invalidate semua query — data akan refetch dengan header X-Branch-Id baru.

@@ -111,6 +111,7 @@ export class KpiService {
     ) {}
 
     private periodLabel(p: KpiParams): string {
+        if ((p as any).label) return String((p as any).label);
         if (p.period === 'today') return 'Hari Ini';
         if (p.period === 'week') return 'Minggu Ini';
         if (p.period === 'month') return 'Bulan Ini';
@@ -1406,6 +1407,7 @@ export class KpiService {
                 transaction: {
                     select: {
                         invoiceNumber: true,
+                        customerPhone: true,
                         salesOrder: { select: { designerName: true } },
                     },
                 },
@@ -1423,13 +1425,17 @@ export class KpiService {
         ));
         const soByNumber = new Map<string, string>();
         if (unlinkedInvoices.length) {
+            // Nomor nota & nomor SO memakai format & urutan harian yang SAMA → nomor kembar tiap hari.
+            // Cocokkan hanya SO yang belum tertaut nota DAN ber-HP pelanggan sama (dulu SO lain
+            // yang kebetulan bernomor sama ikut mendapat kredit desain).
             const sos: any[] = await (this.prisma as any).salesOrder.findMany({
-                where: { soNumber: { in: unlinkedInvoices } },
-                select: { soNumber: true, designerName: true },
+                where: { soNumber: { in: unlinkedInvoices }, transactionId: null },
+                select: { soNumber: true, designerName: true, customerPhone: true },
             });
             for (const so of sos) {
                 const dn = (so.designerName || '').trim();
-                if (dn) soByNumber.set(so.soNumber, dn);
+                const hp = String(so.customerPhone || '').replace(/\D/g, '').replace(/^62/, '0');
+                if (dn && hp) soByNumber.set(`${so.soNumber}|${hp}`, dn);
             }
         }
 
@@ -1437,7 +1443,8 @@ export class KpiService {
         const byDesigner = new Map<string, Stat>();
         for (const it of items) {
             const fromRel = (it.transaction?.salesOrder?.designerName || '').trim();
-            const fromNum = soByNumber.get(it.transaction?.invoiceNumber || '') || '';
+            const hpNota = String((it.transaction as any)?.customerPhone || '').replace(/\D/g, '').replace(/^62/, '0');
+            const fromNum = hpNota ? soByNumber.get(`${it.transaction?.invoiceNumber || ''}|${hpNota}`) || '' : '';
             const name = fromRel || fromNum || 'Belum di-assign';
             const qty = Number(it.quantity) || 1;
             const tier = ((it.productVariant?.variantName || 'Standar').trim()) || 'Standar';

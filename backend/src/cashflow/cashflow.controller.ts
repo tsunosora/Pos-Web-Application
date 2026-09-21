@@ -98,7 +98,7 @@ export class CashflowController {
 
     @Delete(':id')
     @UseGuards(ManagerGuard)
-    remove(@Param('id') id: string, @CurrentBranch() branchCtx: BranchContext) {
-        return this.cashflowService.remove(+id, branchCtx);
+    remove(@Param('id') id: string, @CurrentBranch() branchCtx: BranchContext, @Request() req: any) {
+        return this.cashflowService.remove(+id, branchCtx, { userId: req.user?.userId, email: req.user?.email });
     }
 }

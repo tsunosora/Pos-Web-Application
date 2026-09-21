@@ -10,7 +10,7 @@ import { ProductsService } from '../products/products.service';
 import { buildCompositeClickBatch } from './composite-click.util';
 import { areaFactors, assertSaneArea, lineTotalOf, normalizeUnit, storedPriceMultiplier, storedUnit } from './area-unit.util';
 import { assertValidEditInput, assertValidTransactionInput, satuBaris } from './transaction-input.util';
-import { akhirHari, awalHari } from '../common/utils/tanggal.util';
+import { akhirHari, awalHari, ymdLokal } from '../common/utils/tanggal.util';
 // Pemasukan otomatis lain (modal pusat, pelunasan titipan, pemasukan tambahan) juga tanpa
 // userId — dulu ikut terhitung "Penjualan" di dasbor.
 import { KATEGORI_PENJUALAN } from '../common/kategori-kas';
@@ -111,6 +111,26 @@ export class TransactionsService {
      */
     private async lockTransactionRow(tx: any, id: number) {
         await tx.$queryRaw`SELECT id FROM transactions WHERE id = ${id} FOR UPDATE`;
+    }
+
+    /**
+     * Nomor checkout (SC-…) dihitung "terakhir + 1": dua pelunasan bersamaan di cabang sama bisa
+     * mendapat nomor yang sama → P2002. Transaksi DB-nya sudah dibatalkan penuh, jadi aman diulang
+     * dengan nomor baru (dulu kasir melihat "duplikat" & nota tetap belum lunas).
+     */
+    private async ulangBilaBentrok<T>(kerja: () => Promise<T>): Promise<T> {
+        for (let coba = 0; ; coba++) {
+            try {
+                return await kerja();
+            } catch (e: any) {
+                if (e?.code !== 'P2002' || coba >= 4) throw e;
+            }
+        }
+    }
+
+    /** Catat kunci checkout POS sebagai op sinkron (lihat controller create). Gagal = diamkan. */
+    async catatKunciCheckout(kunci: string, txId: number | null, branchId: number | null) {
+        await this.prisma.syncedOp.create({ data: { clientId: kunci, type: 'transaction.create', serverId: txId, branchId } }).catch(() => {});
     }
 
     /**
@@ -280,6 +300,16 @@ export class TransactionsService {
         actorUserId?: number | null;
     }) {
         assertValidTransactionInput(data);
+        // Rekening tujuan (lunas / DP) harus milik cabang nota ini (atau rekening bersama) & aktif.
+        for (const bid of [(data as any).bankAccountId, (data as any).dpBankAccountId]) {
+            if (!bid) continue;
+            const bank: any = await this.prisma.bankAccount.findUnique({ where: { id: Number(bid) } });
+            if (!bank || bank.isActive === false) throw new BadRequestException('Rekening bank tujuan tidak ditemukan / nonaktif.');
+            const cabangNota = (data as any).branchId ?? null;
+            if (bank.branchId != null && cabangNota != null && bank.branchId !== cabangNota) {
+                throw new BadRequestException('Rekening bank milik cabang lain — pilih rekening cabang ini.');
+            }
+        }
         const branchId = data.branchId ?? null;
         // Cabang yang mengeksekusi produksi (mesin cetak + stok bahan + antrian + click counter).
         // Kalau user kasir pilih "titip cetak ke Pusat", branchId (transaksi) = Bantul, productionBranchId = Pusat.
@@ -795,7 +825,7 @@ export class TransactionsService {
 
             // Create ProductionJob for items that require production
             const hasProductionItems = transactionItemsData.some((d: any) => d._requiresProduction);
-            const jobDateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const jobDateStr = ymdLokal().replace(/-/g, ''); // tanggal WIB (dulu UTC)
             const jobPrefix = `JOB-${jobDateStr}-`;
             let jobSeq = 0;
             if (hasProductionItems) {
@@ -1344,7 +1374,7 @@ export class TransactionsService {
 
     async addPartialPayment(id: number, data: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
         await this.assertTxBranchAccess(id, branchCtx);
-        return this.prisma.$transaction(async (tx) => {
+        return this.ulangBilaBentrok(() => this.prisma.$transaction(async (tx) => {
             await this.lockTransactionRow(tx, id);
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
@@ -1440,12 +1470,12 @@ export class TransactionsService {
                     dpBankAccountId: data.bankAccountId ?? null,
                 } as any
             });
-        });
+        }));
     }
 
     async payOff(id: number, data: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }, branchCtx?: BranchContext) {
         await this.assertTxBranchAccess(id, branchCtx);
-        return this.prisma.$transaction(async (tx) => {
+        return this.ulangBilaBentrok(() => this.prisma.$transaction(async (tx) => {
             await this.lockTransactionRow(tx, id);
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
@@ -1552,7 +1582,7 @@ export class TransactionsService {
                     // Status PAID sudah cukup sebagai penanda "lunas penuh"
                 }
             });
-        });
+        }));
     }
 
     async updatePaymentMethod(id: number, data: { paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
@@ -1781,9 +1811,9 @@ export class TransactionsService {
             for (let i = 6; i >= 0; i--) {
                 const d = new Date(now);
                 d.setDate(d.getDate() - i);
-                const dateStr = d.toISOString().split('T')[0];
+                const dateStr = ymdLokal(d); // hari WIB (dulu UTC: penjualan 00–07 WIB jatuh ke kemarin)
                 const total = cfs
-                    .filter(c => c.createdAt?.toISOString().split('T')[0] === dateStr)
+                    .filter(c => c.createdAt && ymdLokal(c.createdAt) === dateStr)
                     .reduce((sum, c) => sum + Number(c.amount), 0);
                 data.push({ label: `${d.getDate()}/${d.getMonth() + 1}`, total });
             }
@@ -1999,7 +2029,7 @@ export class TransactionsService {
         notes: string | null,
         isSubOrder: boolean = false,
     ) {
-        const jobDateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+        const jobDateStr = ymdLokal().replace(/-/g, ''); // tanggal WIB (dulu UTC)
         const jobPrefix = `JOB-${jobDateStr}-`;
         const lastJob = await tx.productionJob.findFirst({
             where: { jobNumber: { startsWith: jobPrefix } },
@@ -2131,6 +2161,16 @@ export class TransactionsService {
                     }
                 }
             }
+            // Roll yang sudah dipotong operator (job sudah dimulai) dikembalikan — dulu hilang saat
+            // item dibuang lewat edit, karena restore roll membaca job yang ikut terhapus di bawah.
+            const jobLama: any = await tx.productionJob.findFirst({ where: { transactionItemId: txItem.id } });
+            if (jobLama?.rollVariantId && Number(jobLama.rollLengthUsed) > 0) {
+                const cabangRoll: number | null = jobLama.branchId ?? editTxBranchId;
+                await this._adjustStock(tx, cabangRoll, jobLama.rollVariantId, Number(jobLama.rollLengthUsed));
+                await this.logMovement(tx, jobLama.rollVariantId, 'IN', Number(jobLama.rollLengthUsed), `Hapus Item (roll) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, cabangRoll);
+            }
+            // Klik mesin item ini dibatalkan (bukan dibiarkan jadi biaya mesin tanpa nota).
+            await tx.clickLog.updateMany({ where: { transactionItemId: txItem.id, voidedAt: null }, data: { voidedAt: new Date(), voidedById: actorUserId, voidReason: `Item dihapus dari nota ${transaction.invoiceNumber}` } });
             // Hapus ProductionJob dulu (FK constraint: productionJob.transactionItemId → transactionItem.id)
             await tx.productionJob.deleteMany({ where: { transactionItemId: txItem.id } });
             await tx.transactionItem.delete({ where: { id: txItem.id } });
@@ -2833,8 +2873,13 @@ export class TransactionsService {
             // Hapus ProductionJob untuk semua item (FK tanpa onDelete Cascade)
             const itemIds = _items.map((i: any) => i.id);
             if (itemIds.length > 0) {
+                // Klik mesin nota ini dibatalkan — dulu tertinggal tanpa nota & tetap dihitung biaya mesin.
+                await (tx as any).clickLog.updateMany({ where: { transactionItemId: { in: itemIds }, voidedAt: null }, data: { voidedAt: new Date(), voidReason: `Nota ${transaction.invoiceNumber} dihapus` } });
                 await (tx as any).productionJob.deleteMany({ where: { transactionItemId: { in: itemIds } } });
             }
+            // Permintaan edit atas nota ini ikut dihapus — dulu relasinya menahan hapus nota
+            // ("masih dipakai data lain").
+            await (tx as any).transactionEditRequest.deleteMany({ where: { transactionId: id } });
 
             // Lead yang closing lewat nota ini dibuka lagi: dulu tetap CLOSED_WON menunjuk nota yang
             // sudah tiada, lalu KPI/bonus CS memakai estimatedValue-nya seolah tetap terjual.

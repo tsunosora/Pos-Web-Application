@@ -69,6 +69,15 @@ export class BankAccountsService {
         const existing = await this.prisma.bankAccount.findUnique({ where: { id } });
         if (!existing) throw new NotFoundException('Rekening tidak ditemukan');
         assertBranchAccess(branchCtx, (existing as any).branchId ?? null);
+        // Masih dipakai nota/kas → jangan dihapus (dulu nota & kas kehilangan rekeningnya, transfer
+        // lenyap dari ringkasan per rekening, saldonya tak ikut tutup buku). Nonaktifkan saja.
+        const [nota, kas] = await Promise.all([
+            this.prisma.transaction.count({ where: { OR: [{ bankAccountId: id }, { dpBankAccountId: id } as any] } }),
+            this.prisma.cashflow.count({ where: { bankAccountId: id } }),
+        ]);
+        if (nota + kas > 0) {
+            throw new BadRequestException(`Rekening ini dipakai ${nota} nota & ${kas} catatan kas — tidak bisa dihapus. Nonaktifkan saja (sembunyikan dari pilihan).`);
+        }
         return this.prisma.bankAccount.delete({ where: { id } });
     }
 }

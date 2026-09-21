@@ -19,6 +19,8 @@ export interface PushOpInput {
   clientId: string;
   type: 'transaction.create' | 'cashflow.create';
   payload: any;
+  branchId?: number | null; // cabang tempat op dibuat (bukan cabang aktif saat sinkron)
+  occurredAt?: string; // waktu op dibuat (ISO)
 }
 
 export interface PushOpResult {

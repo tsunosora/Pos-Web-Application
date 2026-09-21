@@ -1,7 +1,8 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { BranchContext } from '../common/branch-context.decorator';
+import { alasanKasTakBisaDihapus } from '../cashflow/cashflow.service';
 import { assertBranchAccess } from '../common/branch-where.helper';
 
 /**
@@ -30,6 +31,8 @@ function pilihIsiPermintaan(payload: Record<string, any> | null | undefined): Re
 
 @Injectable()
 export class CashflowRequestsService {
+    private readonly audit = new Logger('CashflowAudit');
+
     constructor(
         private prisma: PrismaService,
         private notifications: NotificationsService,
@@ -59,6 +62,10 @@ export class CashflowRequestsService {
         });
         if (!cashflow) throw new NotFoundException('Cashflow entry tidak ditemukan');
         if (branchCtx) assertBranchAccess(branchCtx, cashflow.branchId ?? null);
+        if (type === 'DELETE') {
+            const alasan = alasanKasTakBisaDihapus(cashflow);
+            if (alasan) throw new BadRequestException(alasan);
+        }
         if (type === 'EDIT') {
             payload = pilihIsiPermintaan(payload);
             if (!Object.keys(payload).length) throw new BadRequestException('Tidak ada perubahan yang diminta');
@@ -156,6 +163,11 @@ export class CashflowRequestsService {
             });
             if (klaim.count !== 1) throw new BadRequestException('Permintaan ini sudah diproses');
             if (req.type === 'DELETE') {
+                const kas = await tx.cashflow.findUnique({ where: { id: req.cashflowId } });
+                const alasan = kas ? alasanKasTakBisaDihapus(kas) : null;
+                if (alasan) throw new BadRequestException(alasan);
+                // Baris permintaan ikut terhapus (cascade) bersama kasnya → catat jejaknya di log.
+                this.audit.warn(`[AUDIT] cashflow_delete_request_approved request=${requestId} requester=${req.requesterId} reviewer=${reviewerId} data=${JSON.stringify(kas)}`);
                 await tx.cashflow.delete({ where: { id: req.cashflowId } });
             } else {
                 // Saring ulang: permintaan lama yang dibuat sebelum penyaringan tetap aman.

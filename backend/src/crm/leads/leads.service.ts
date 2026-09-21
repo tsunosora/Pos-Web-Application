@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ymdLokal } from '../../common/utils/tanggal.util';
 import { LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere, requireBranch } from '../../common/branch-where.helper';
@@ -456,6 +457,11 @@ export class LeadsService {
 
             // Case 2: ada pending → update dueDate
             if (existing) {
+                // Jadwal diubah → catatan pengingat WA lama untuk FU ini dilepas supaya tanggal baru
+                // diingatkan lagi (dedup pengingat per FU dulu membuatnya tak pernah diingatkan).
+                if (existing.dueDate && new Date(existing.dueDate).getTime() !== new Date(params.followUpDate as any).getTime()) {
+                    await (this.prisma as any).waReminderLog.deleteMany({ where: { refId: existing.id, eventType: { in: ['FOLLOWUP_DUE', 'PAYMENT_DUE'] } } }).catch(() => {});
+                }
                 if (hasModel) {
                     await (this.prisma as any).followUp.update({
                         where: { id: existing.id },
@@ -542,6 +548,31 @@ export class LeadsService {
             ...i,
             quantity: Math.min(Math.max(Math.floor(Number(i.quantity) || 1), 1), 100_000),
         }));
+        // Isian bebas dari pengunjung disaring (dulu nilai aneh → galat 500). Harga item katalog
+        // diambil dari KATALOG, bukan kiriman pengunjung (dulu unitPrice:1 terbawa ke nota saat
+        // CS convert tanpa memeriksa).
+        const angkaPositif = (v: unknown) => { const n = Number(v); return Number.isFinite(n) && n > 0 && n < 1_000_000 ? n : undefined; };
+        const idVarian = Array.from(new Set(items.map(i => Number(i.productVariantId)).filter(n => Number.isInteger(n) && n > 0)));
+        const katalog = new Map<number, number>();
+        if (idVarian.length) {
+            const vs = await this.prisma.productVariant.findMany({ where: { id: { in: idVarian } }, select: { id: true, price: true } });
+            for (const v of vs) katalog.set(v.id, Number(v.price));
+        }
+        items = items.map(i => {
+            const vid = Number(i.productVariantId);
+            const diKatalog = Number.isInteger(vid) && katalog.has(vid);
+            const hargaKiriman = Number(i.unitPrice);
+            return {
+                ...i,
+                description: String(i.description).slice(0, 255),
+                productVariantId: diKatalog ? vid : null,
+                unitPrice: diKatalog ? katalog.get(vid)! : (Number.isFinite(hargaKiriman) && hargaKiriman >= 0 ? hargaKiriman : 0),
+                widthCm: angkaPositif(i.widthCm),
+                heightCm: angkaPositif(i.heightCm),
+                unitType: ['m', 'cm', 'cm2', 'menit'].includes(String(i.unitType)) ? i.unitType : undefined,
+                note: i.note ? String(i.note).slice(0, 500) : undefined,
+            };
+        });
         // Filter spam judol/link: diam-diam buang (pura-pura sukses) agar bot
         // tidak beradaptasi/mengulang. Tidak membuat lead & tidak notif.
         if (isSpammyOrder(name, note, address)) {
@@ -551,14 +582,16 @@ export class LeadsService {
         // sumItemsTotal sadar item area: qty × (w×h/10000) × harga/m²
         const itemsTotal = this.sumItemsTotal(items);
 
-        // Dedup: order identik (nama+HP sama) dari website dalam 5 menit terakhir
-        // dianggap submit ganda → kembalikan lead yang sudah ada, jangan buat baru.
+        // Dedup: order IDENTIK (nama+HP & nilai item sama) dari website dalam 5 menit terakhir
+        // dianggap submit ganda → kembalikan lead yang sudah ada. Dulu cukup nama sama → order
+        // kedua pelanggan (atau pelanggan lain bernama sama) diam-diam hilang.
         const phoneNorm = normalizePhone(phone);
         const recent = await this.prisma.lead.findFirst({
             where: {
                 source: 'WEBSITE' as any,
                 name,
-                ...(phoneNorm ? { phoneNormalized: phoneNorm } : {}),
+                ...(phoneNorm ? { phoneNormalized: phoneNorm } : { phoneNormalized: null }),
+                estimatedValue: itemsTotal > 0 ? itemsTotal : null,
                 createdAt: { gte: new Date(Date.now() - 5 * 60_000) },
             },
             orderBy: { createdAt: 'desc' },
@@ -935,6 +968,13 @@ export class LeadsService {
         if (lead.status === 'CLOSED_WON' && !ctx.isOwner) {
             throw new ForbiddenException('Lead ini sudah pernah di-convert. Hubungi owner untuk convert ulang.');
         }
+        // Sudah punya nota (mis. convert sebelumnya gagal SETELAH nota & DP tersimpan) → jangan
+        // buat nota kedua. Dulu status belum CLOSED_WON sehingga convert ulang lolos → penjualan,
+        // DP & potong stok dobel.
+        if ((lead as any).convertedTransactionId) {
+            const ada = await this.prisma.transaction.findUnique({ where: { id: (lead as any).convertedTransactionId }, select: { invoiceNumber: true } });
+            if (ada) throw new BadRequestException(`Lead ini sudah punya nota ${ada.invoiceNumber}. Lanjutkan dari nota itu (bayar/edit) — jangan convert ulang.`);
+        }
 
         // SO desainer yang tertaut & masih aktif (belum nota/batal) → pakai SO itu: jangan
         // buat SO/nota baru dan jangan timpa tautannya. Nota dibuat dari SO itu di kasir
@@ -1128,6 +1168,11 @@ export class LeadsService {
 
                 const tx = await this.transactionsService.create(txPayload);
                 transactionId = (tx as any).id ?? null;
+                // Tautkan nota ke lead SEKARANG — langkah berikut (nomor SO/invoice/job) bisa gagal,
+                // dan tanpa tautan ini convert ulang membuat nota kedua.
+                if (transactionId) {
+                    await this.prisma.lead.update({ where: { id: leadId }, data: { convertedTransactionId: transactionId } as any }).catch(() => {});
+                }
                 transactionItemsCreated = txItems.length;
                 transactionItemsSkipped = 0;
 
@@ -1147,7 +1192,7 @@ export class LeadsService {
                     const needJob = allTxItems.filter((i: any) => !jobbedSet.has(i.id));
 
                     if (needJob.length > 0) {
-                        const jobDateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                        const jobDateStr = ymdLokal().replace(/-/g, ''); // tanggal WIB
                         const jobPrefix = `JOB-${jobDateStr}-`;
                         const lastJob = await (this.prisma as any).productionJob.findFirst({
                             where: { jobNumber: { startsWith: jobPrefix } },
@@ -1213,8 +1258,12 @@ export class LeadsService {
         if (data.createSalesOrderDraft && !activeLinkedSo) {
             // Tanpa desainer → kosong (kolom wajib). Dulu 'TBD' → dihitung KPI sbg desainer "TBD".
             const designerName = (data.designerName || '').trim();
+            // Nomor SO bisa bentrok dengan SO lain yang dibuat bersamaan → ulangi dgn nomor baru.
+            let so: any = null;
+            for (let coba = 0; coba < 5 && !so; coba++) {
             const soNumber = await this.generateSoNumber((lead as any).branchId ?? ctx.branchId ?? null);
-            const so = await this.prisma.salesOrder.create({
+            try {
+            so = await this.prisma.salesOrder.create({
                 data: {
                     soNumber,
                     status: 'DRAFT',
@@ -1227,6 +1276,8 @@ export class LeadsService {
                     branchName: (lead as any).branch?.name ?? null,
                 },
             });
+            } catch (e: any) { if (e?.code !== 'P2002' || coba === 4) throw e; }
+            }
             salesOrderId = so.id;
 
             // Include items dari lead → SalesOrderItem. WAJIB productVariantId.
@@ -1270,7 +1321,7 @@ export class LeadsService {
         if (data.createInvoiceDraft) {
             const invType = data.invoiceType || 'INVOICE';
             const prefix = invType === 'QUOTATION' ? 'SPH' : 'INV';
-            const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const yyyymmdd = ymdLokal().replace(/-/g, ''); // tanggal WIB (sama dgn modul invoice)
             const startsWith = `${prefix}-${yyyymmdd}`;
             // Cari nomor terakhir hari ini supaya urutan rapi
             const last = await this.prisma.invoice.findFirst({
@@ -1356,6 +1407,7 @@ export class LeadsService {
                 ...(transactionId ? { convertedTransactionId: transactionId } : {}),
             },
         });
+        if (willMarkWon) await this.lewatiFollowUpTerbuka(leadId);
 
         // Log activity di lead + customer
         await this.prisma.leadActivity.create({
@@ -1413,6 +1465,12 @@ export class LeadsService {
         };
     }
 
+    /** Lead selesai (menang/gagal/tidak valid) → follow-up yang masih terbuka ditutup (SKIPPED),
+     *  supaya pengingat WA otomatis tak terkirim ke lead yang sudah selesai. */
+    private async lewatiFollowUpTerbuka(leadId: number) {
+        await (this.prisma as any).followUp.updateMany({ where: { leadId, status: 'PENDING' }, data: { status: 'SKIPPED' } }).catch(() => {});
+    }
+
     async closeLost(ctx: BranchContext, leadId: number, data: CloseLostDto, userId?: number) {
         await this.detail(ctx, leadId);
         const updated = await this.prisma.lead.update({
@@ -1423,6 +1481,7 @@ export class LeadsService {
                 closedAt: new Date(),
             },
         });
+        await this.lewatiFollowUpTerbuka(leadId);
         await this.prisma.leadActivity.create({
             data: {
                 leadId,
@@ -1445,6 +1504,7 @@ export class LeadsService {
                 closedAt: new Date(),
             },
         });
+        await this.lewatiFollowUpTerbuka(leadId);
         await this.prisma.leadActivity.create({
             data: {
                 leadId,
@@ -1496,7 +1556,11 @@ export class LeadsService {
     }
 
     async remove(ctx: BranchContext, id: number) {
-        await this.detail(ctx, id);
+        const lead: any = await this.detail(ctx, id);
+        // Lead yang sudah closing / tertaut nota-SO adalah dasar KPI & bonus CS → jangan dihapus.
+        if (lead.status === 'CLOSED_WON' || lead.convertedTransactionId || lead.convertedSalesOrderId) {
+            throw new BadRequestException('Lead ini sudah closing / tertaut nota atau SO — tidak bisa dihapus. Tandai gagal atau tidak valid saja.');
+        }
         await this.prisma.lead.delete({ where: { id } });
         return { ok: true };
     }

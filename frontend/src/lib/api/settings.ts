@@ -2,8 +2,12 @@ import api from './client';
 import { offlineCache } from '../offline/cache';
 
 // Store Settings — cache offline (pajak & format struk dipakai POS tanpa internet).
+// PIN & rahasia integrasi (terlihat oleh owner) TIDAK ikut disimpan di cache perangkat — dulu
+// terbaca akun lain di perangkat yang sama lewat IndexedDB.
+const RAHASIA = ['operatorPin', 'marketingPin', 'discordWebhookUrl', 'githubWebhookSecret', 'rcloneRemote'];
 export const getSettings = async () =>
-    offlineCache('settings', async () => (await api.get('/settings')).data);
+    offlineCache('settings', async () => (await api.get('/settings')).data,
+        (d: any) => { if (!d || typeof d !== 'object') return d; const c = { ...d }; for (const k of RAHASIA) delete c[k]; return c; });
 export const updateSettings = async (data: any) => (await api.patch('/settings', data)).data;
 export const getPublicSettings = async () => {
     const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';

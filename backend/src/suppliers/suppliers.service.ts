@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -56,6 +56,9 @@ export class SuppliersService {
 
   async remove(id: number) {
     await this.findOne(id);
+    // Pembelian lama kehilangan pemasoknya bila dihapus → tolak bila sudah ada pembelian.
+    const beli = await (this.prisma as any).stockPurchase.count({ where: { supplierId: id } });
+    if (beli > 0) throw new BadRequestException(`Pemasok ini punya ${beli} pembelian — tidak bisa dihapus agar riwayat pembelian tetap lengkap.`);
     return (this.prisma as any).supplier.delete({ where: { id } });
   }
 

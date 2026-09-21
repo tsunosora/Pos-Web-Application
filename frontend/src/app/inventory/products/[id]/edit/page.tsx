@@ -376,7 +376,7 @@ export default function EditProductPage() {
                         tierName: t.tierName || null,
                         minQty: parseInt(t.minQty),
                         maxQty: t.maxQty ? parseInt(t.maxQty) : null,
-                        price: parseInt(t.price),
+                        price: Number(t.price), // harga bisa berdesimal (dulu parseInt memotongnya)
                     })),
                 })),
                 ingredients: ingredients
@@ -419,6 +419,17 @@ export default function EditProductPage() {
         },
         onError: (err: any) => {
             alert(err?.response?.data?.message || 'Gagal menyimpan produk');
+            // Kembalikan varian yang tadi dihapus dari form & kosongkan daftar hapus — dulu tetap
+            // hilang dari layar & setiap simpan ulang gagal lagi sampai halaman dimuat ulang.
+            if (removedVariants.length) {
+                setVariants(prev => {
+                    const next = [...prev];
+                    for (const r of [...removedVariants].sort((a, b) => a.index - b.index)) next.splice(Math.min(r.index, next.length), 0, r.variant);
+                    return next;
+                });
+                setRemovedVariants([]);
+                setDeletedVariantIds([]);
+            }
         }
     });
 
@@ -439,10 +450,15 @@ export default function EditProductPage() {
     };
 
     const addVariant = () => setVariants(prev => [...prev, defaultVariant()]);
+    // Varian yang sudah tersimpan & dihapus dari form — disimpan agar bisa DIKEMBALIKAN ke daftar
+    // bila server menolak (varian yang punya riwayat nota/stok tidak bisa dihapus).
+    const [removedVariants, setRemovedVariants] = useState<{ index: number; variant: VariantForm }[]>([]);
     const removeVariant = (index: number) => {
         const variant = variants[index];
         if (variant?.id) {
+            if (!confirm(`Hapus varian "${variant.variantName || variant.sku}"? Varian yang sudah punya riwayat nota/stok tidak bisa dihapus.`)) return;
             setDeletedVariantIds(prev => [...prev, variant.id!]);
+            setRemovedVariants(prev => [...prev, { index, variant }]);
         }
         setVariants(prev => prev.filter((_, i) => i !== index));
     };

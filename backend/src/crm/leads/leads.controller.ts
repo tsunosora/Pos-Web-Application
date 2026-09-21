@@ -8,6 +8,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { ManagerGuard } from '../../auth/role-groups';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { LeadsService } from './leads.service';
@@ -164,7 +165,9 @@ export class LeadsController {
         return this.leads.linkToSalesOrder(ctx, id, body.salesOrderId);
     }
 
+    // Menghapus lead menghapus riwayat aktivitas CRM & mengubah KPI lalu → setingkat manajer.
     @Delete(':id')
+    @UseGuards(ManagerGuard)
     remove(@CurrentBranch() ctx: BranchContext, @Param('id', ParseIntPipe) id: number) {
         return this.leads.remove(ctx, id);
     }

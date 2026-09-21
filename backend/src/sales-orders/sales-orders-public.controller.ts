@@ -143,9 +143,14 @@ export class SalesOrdersPublicController {
     /** Buat SO baru */
     @Post()
     async create(@Body() body: { designerId: number; pin: string } & CreateSalesOrderPayload) {
-        const { designerId, pin, ...raw } = body;
+        const { designerId, pin, customerId, ...raw } = body as any;
         const designer = await verifyDesigner(this.designersService, Number(designerId), pin);
-        const soData = await this.unmaskPickedCustomer(raw);
+        // customerId hanya diterima bila terbukti lewat HP samaran customer yang dipilih (sama
+        // dengan update). Dulu customerId bebas diisi → jawaban SO memuat HP & alamat lengkap
+        // pelanggan mana pun (tinggal menebak id).
+        const soData = String(raw.customerPhone ?? '').includes('*')
+            ? await this.unmaskPickedCustomer({ ...raw, customerId })
+            : raw;
         return this.soService.create({
             ...soData,
             designerName: designer.name!,       // gunakan nama yang terdaftar

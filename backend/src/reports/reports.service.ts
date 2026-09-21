@@ -6,7 +6,7 @@ import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
 import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
 import { lineTotalOf, storedPriceMultiplier } from '../transactions/area-unit.util';
-import { akhirHari, awalHari } from '../common/utils/tanggal.util';
+import { akhirHari, awalHari, ymdLokal } from '../common/utils/tanggal.util';
 import { KATEGORI_PENJUALAN } from '../common/kategori-kas';
 
 export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
@@ -1443,7 +1443,7 @@ export class ReportsService {
         const num = (v: any) => Number(v || 0);
         const sev = (v: number, med: number, high: number): 'low' | 'med' | 'high' => (v >= high ? 'high' : v >= med ? 'med' : 'low');
         const anomalies: { date: string; type: string; severity: 'low' | 'med' | 'high'; reason: string; amount: number; refId: number | null }[] = [];
-        const iso = (d: Date) => d.toISOString().slice(0, 10);
+        const iso = ymdLokal; // hari WIB (shift tutup 00.30 WIB bukan "kemarin")
 
         // 1) Selisih kas shift
         const shifts: any[] = await this.prisma.shiftReport.findMany({

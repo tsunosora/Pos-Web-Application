@@ -227,7 +227,12 @@ export class TaskBoardService {
   async deleteSchedule(ctx: BranchContext, id: number) {
     this.assertManager(ctx);
     await this.getScheduleScoped(ctx, id);
-    return this.db.taskSchedule.delete({ where: { id } }); // cascade hapus TaskItem
+    // Kartu yang pernah dibuat jadwal ini (riwayat piket, termasuk yang selesai/terlambat) dilepas
+    // dari jadwalnya dulu — dulu ikut terhapus (cascade) & rekap piket bulan lalu berubah.
+    // Kartu yang belum dikerjakan & belum lewat tenggat tetap ikut dihapus.
+    await this.db.taskItem.deleteMany({ where: { scheduleId: id, status: { not: 'DONE' }, dueDate: { gt: new Date() } } });
+    await this.db.taskItem.updateMany({ where: { scheduleId: id }, data: { scheduleId: null } });
+    return this.db.taskSchedule.delete({ where: { id } });
   }
 
   private async getScheduleScoped(ctx: BranchContext, id: number) {
@@ -253,6 +258,12 @@ export class TaskBoardService {
       // Kartu ikut cabang penerima (untuk targetRole lintas-cabang tiap user
       // dapat kartu di cabangnya sendiri). Fallback = cabang schedule.
       const branchId = await this.branchForAssignee(assigneeId, sched.branchId);
+      // Tanpa penerima: indeks unik (jadwal, penerima, periode) tak berlaku untuk NULL di MySQL →
+      // cek manual, kalau tidak tiap cron/"Generate sekarang" menambah kartu kembar.
+      if (assigneeId == null) {
+        const ada = await this.db.taskItem.findFirst({ where: { scheduleId: sched.id, assigneeId: null, periodKey }, select: { id: true } });
+        if (ada) continue;
+      }
       try {
         await this.db.taskItem.create({
           data: {

@@ -3,13 +3,14 @@
 import { Bell, User, Menu, ChevronDown, LogOut, FileText, Settings, Building2, ShoppingCart, Package, RefreshCw, GitCommit, Info, CheckCheck, Trash2 } from "lucide-react";
 import { useUIStore } from "@/store/ui-store";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useState, useRef, useEffect } from "react";
 import { useNotificationStore, AppNotification } from "@/store/notification-store";
 import { BranchSwitcher } from "./BranchSwitcher";
 import { SubNav } from "./SubNav";
 import { ThemeToggle } from "./ThemeToggle";
+import { clearSessionData, outboxBelumTerkirim } from "@/lib/session";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function relativeTime(timestamp: number): string {
@@ -46,6 +47,7 @@ function notifBg(type: AppNotification['type']): string {
 export function Header() {
     const toggleSidebar = useUIStore((state) => state.toggleSidebar);
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [notifOpen, setNotifOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -91,11 +93,17 @@ export function Header() {
         return () => document.removeEventListener('mousedown', handleClick);
     }, []);
 
-    const handleLogout = () => {
-        if (confirm('Yakin ingin keluar dari aplikasi?')) {
+    const handleLogout = async () => {
+        const belum = await outboxBelumTerkirim();
+        const tanya = belum > 0
+            ? `Masih ada ${belum} transaksi offline yang BELUM terkirim ke server.\nKeluar sekarang? (Antrean tetap disimpan & dikirim saat ada yang login lagi di perangkat ini.)`
+            : 'Yakin ingin keluar dari aplikasi?';
+        if (confirm(tanya)) {
             localStorage.removeItem('token');
             sessionStorage.removeItem('token');
             document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            // Keranjang, cache & notifikasi akun ini jangan terbawa ke akun berikutnya.
+            await clearSessionData(queryClient);
             router.push('/login');
         }
     };

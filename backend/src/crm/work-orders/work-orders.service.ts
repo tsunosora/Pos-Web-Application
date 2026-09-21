@@ -61,13 +61,18 @@ export class WorkOrdersService {
             String(now.getMonth() + 1).padStart(2, '0') +
             String(now.getFullYear()).slice(-2);
         const fabricInitial = (fabricType || 'X').trim().charAt(0).toUpperCase();
-        // Hitung berapa WO hari ini untuk running number
-        const start = new Date(now); start.setHours(0, 0, 0, 0);
-        const end = new Date(now); end.setHours(23, 59, 59, 999);
-        const countToday = await this.wo.count({
-            where: { createdAt: { gte: start, lte: end } },
+        // Nomor urut = nomor TERBESAR hari ini + 1 (dulu jumlah baris + 1 → setelah ada WO yang
+        // terhapus, nomor berikutnya bentrok dengan yang masih ada).
+        const hariIni: any[] = await this.wo.findMany({
+            where: { woNumber: { contains: `.${ddmmyy}.` } },
+            select: { woNumber: true },
         });
-        const seq = String(countToday + 1).padStart(2, '0');
+        let maks = 0;
+        for (const r of hariIni) {
+            const n = parseInt(String(r.woNumber).split('.')[0], 10);
+            if (Number.isFinite(n) && n > maks) maks = n;
+        }
+        const seq = String(maks + 1).padStart(2, '0');
         return `${seq}.${ddmmyy}.${fabricInitial}`;
     }
 
@@ -163,9 +168,11 @@ export class WorkOrdersService {
         if (existing) return existing;
 
         const { autofill } = await this.buildAutofill(data.productionJobId);
+        // Nomor bisa bentrok dgn WO lain yang dibuat bersamaan → ulangi dgn nomor baru.
+        for (let coba = 0; ; coba++) {
         const woNumber = data.woNumber || await this.genWoNumber(data.fabricType);
-
-        return this.wo.create({
+        try {
+        return await this.wo.create({
             data: {
                 productionJobId: data.productionJobId,
                 woNumber,
@@ -195,6 +202,10 @@ export class WorkOrdersService {
                 createdById: userId ?? null,
             },
         });
+        } catch (e: any) {
+            if (e?.code !== 'P2002' || data.woNumber || coba >= 4) throw e;
+        }
+        }
     }
 
     async update(id: number, data: UpsertWorkOrderDto, userId?: number) {

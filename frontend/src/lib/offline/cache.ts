@@ -6,12 +6,13 @@ import { getMeta, setMeta } from './repo';
 //
 // Perilaku: online → ambil dari server + simpan cache; offline/fetch gagal →
 // kembalikan cache terakhir. Kalau belum pernah ada cache → lempar error asli.
-export async function offlineCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+export async function offlineCache<T>(key: string, fetcher: () => Promise<T>, untukCache?: (d: T) => T): Promise<T> {
   const cacheKey = `cache:${key}`;
   try {
     const data = await fetcher();
-    // Simpan cache tanpa memblokir hasil (best-effort).
-    void setMeta(cacheKey, data);
+    // Simpan cache tanpa memblokir hasil (best-effort). `untukCache` membuang isi rahasia dari
+    // salinan yang disimpan di perangkat.
+    void setMeta(cacheKey, untukCache ? untukCache(data) : data);
     return data;
   } catch (err) {
     const cached = await getMeta<T>(cacheKey);

@@ -17,7 +17,9 @@ function pct(n: number, d: number) {
     return d > 0 ? Math.round((n / d) * 100) : 0;
 }
 function isoDaysAgo(days: number) {
-    return new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+    // Tanggal lokal (WIB), bukan UTC.
+    const d = new Date(Date.now() - days * 86400000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 const RATE_KEY = "wa_msg_rates_idr";

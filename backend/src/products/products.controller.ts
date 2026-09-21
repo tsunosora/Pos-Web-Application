@@ -1,14 +1,14 @@
 import {
     Controller, Get, Post, Body, Patch, Param, Delete,
     ParseIntPipe, UseGuards, UseInterceptors, UploadedFile,
-    UploadedFiles, BadRequestException, Put, Query
+    UploadedFiles, BadRequestException, Put, Query, ForbiddenException, Req,
 } from '@nestjs/common';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ManagerGuard } from '../auth/role-groups';
+import { ManagerGuard, isManagerLevelRole } from '../auth/role-groups';
 import { compressImage } from '../common/utils/compress-image.util';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
@@ -75,7 +75,11 @@ export class ProductsController {
     }
 
     @Patch(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: any) {
+    update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: any, @Req() req: any) {
+        // Menghapus varian lewat form produk = setingkat manajer (sama dgn DELETE varian/produk).
+        if (updateProductDto?.deletedVariantIds?.length && !isManagerLevelRole(req.user?.roleName)) {
+            throw new ForbiddenException('Menghapus varian hanya untuk owner/manajer.');
+        }
         return this.productsService.update(id, updateProductDto);
     }
 

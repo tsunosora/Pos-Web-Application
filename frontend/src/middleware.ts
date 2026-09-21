@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { halamanPublik, tujuanSetelahLogin, urlLogin } from './lib/rute-publik';
 
 export function middleware(request: NextRequest) {
     const host = request.headers.get('host') ?? '';
@@ -33,25 +34,22 @@ export function middleware(request: NextRequest) {
 
     const token = request.cookies.get('token')?.value;
     const isLoginPage = pathname.startsWith('/login');
-    // /produksi (operator PIN page) public, KECUALI /produksi/pipeline (admin kanban → JWT-required).
-    // /produksi/board (operator pipeline view) tetap PUBLIC (PIN-protected di sisi backend).
-    const isProduksiPublic = pathname.startsWith('/produksi') && !pathname.startsWith('/produksi/pipeline');
     // /desainer = halaman Studio Desain mandiri dgn login sendiri (autentikasi ke
     // akun POS via /auth/login) → publik, biar tak dipaksa ke /login POS. Aset
     // iframe /studio-desain/* TETAP butuh cookie token (bukan publik) → hanya
     // termuat setelah login Studio berhasil.
-    // Kebijakan Privasi & Penghapusan Data: wajib bisa dibuka publik (syarat penerbitan aplikasi Meta).
-    const isLegalPage = pathname === '/kebijakan-privasi' || pathname === '/hapus-data';
-    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname.startsWith('/marketing') || pathname.startsWith('/tv') || pathname === '/artikel' || pathname.startsWith('/artikel/') || pathname.startsWith('/nilai/') || pathname.startsWith('/desainer') || isLegalPage;
+    // /produksi/board (operator pipeline view) tetap PUBLIC (PIN-protected di sisi backend).
+    const isPublicPage = halamanPublik(pathname);
 
     // If there is no token and the user is NOT on the login page (or public paths), redirect to login
     if (!token && !isLoginPage && !isPublicPage) {
-        return NextResponse.redirect(new URL('/login', request.url));
+        // Bawa jalur asal (?next=) → setelah login kembali ke halaman yang tadi dibuka.
+        return NextResponse.redirect(new URL(urlLogin(pathname + request.nextUrl.search), request.url));
     }
 
     // If there IS a token and the user is trying to access the login page, redirect to dashboard
     if (token && isLoginPage) {
-        return NextResponse.redirect(new URL('/', request.url));
+        return NextResponse.redirect(new URL(tujuanSetelahLogin(request.nextUrl.searchParams.get('next')), request.url));
     }
 
     return NextResponse.next();

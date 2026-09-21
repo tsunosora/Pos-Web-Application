@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, Eye, EyeOff } from "lucide-react"
+import { clearSessionData } from "@/lib/session"
+import { tujuanSetelahLogin } from "@/lib/rute-publik"
 
 interface UserAuthFormProps extends React.HTMLAttributes<HTMLDivElement> {
     mobileGlass?: boolean;
@@ -57,12 +59,12 @@ export function UserAuthForm({ className, mobileGlass, ...props }: UserAuthFormP
             expires.setTime(expires.getTime() + (1 * 24 * 60 * 60 * 1000));
             document.cookie = `token=${data.access_token};expires=${expires.toUTCString()};path=/`;
 
-            // Bersihkan seluruh query cache (memory + IndexedDB) sebelum navigasi.
-            // Ini memastikan user baru tidak kebawa data/error dari sesi user sebelumnya,
-            // dan semua query di-fetch ulang dengan token baru.
-            queryClient.clear();
+            // Bersihkan data sesi sebelumnya (cache kueri + IndexedDB, keranjang, notifikasi, cache
+            // offline, cabang aktif) sebelum navigasi — user baru tak kebawa data sesi sebelumnya.
+            await clearSessionData(queryClient);
 
-            router.replace('/');
+            // Kembali ke halaman asal (?next=) bila sesi tadi habis di tengah pekerjaan.
+            router.replace(tujuanSetelahLogin(new URLSearchParams(window.location.search).get('next')));
         } catch (error: any) {
             setErrorMsg(error.message);
         } finally {

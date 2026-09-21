@@ -2,8 +2,8 @@ import { AnalyticsService, pivotSeries } from './analytics.service';
 
 describe('pivotSeries', () => {
     it('mengisi hari kosong dengan 0 & memisah inbound/outbound', () => {
-        const from = new Date('2026-07-01T00:00:00Z');
-        const to = new Date('2026-07-03T23:59:59Z');
+        const from = new Date('2026-07-01T00:00:00');
+        const to = new Date('2026-07-03T23:59:59');
         const rows = [
             { d: '2026-07-01', direction: 'INBOUND', c: 5 },
             { d: '2026-07-01', direction: 'OUTBOUND', c: 3 },
@@ -18,8 +18,8 @@ describe('pivotSeries', () => {
     });
 
     it('menangani COUNT BigInt (via Number)', () => {
-        const from = new Date('2026-07-01T00:00:00Z');
-        const to = new Date('2026-07-01T23:59:59Z');
+        const from = new Date('2026-07-01T00:00:00');
+        const to = new Date('2026-07-01T23:59:59');
         const series = pivotSeries([{ d: '2026-07-01', direction: 'OUTBOUND', c: BigInt(7) }], from, to);
         expect(series[0].outbound).toBe(7);
     });

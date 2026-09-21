@@ -73,6 +73,13 @@ export class ClickCountingService {
 
   async deleteRate(id: number) {
     await (this.prisma as any).clickRate.findUniqueOrThrow({ where: { id } });
+    // Tarif masih dipakai produk/varian → dulu dilepas diam-diam & penjualan berikutnya tak lagi
+    // mencatat klik mesin. Tolak; nonaktifkan/ubah produknya dulu.
+    const [produk, varian] = await Promise.all([
+      (this.prisma as any).product.count({ where: { clickRateId: id } }),
+      (this.prisma as any).productVariant.count({ where: { clickRateId: id } }),
+    ]);
+    if (produk + varian > 0) throw new BadRequestException(`Tarif ini masih dipakai ${produk} produk & ${varian} varian — pindahkan dulu ke tarif lain.`);
     return (this.prisma as any).clickRate.delete({ where: { id } });
   }
 

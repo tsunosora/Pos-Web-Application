@@ -14,3 +14,8 @@ export function awalHari(s: string): Date {
 export function akhirHari(s: string): Date {
     return HANYA_TANGGAL.test(s) ? new Date(`${s}T23:59:59.999`) : new Date(s);
 }
+
+/** Tanggal lokal WIB 'YYYY-MM-DD' (bukan toISOString yang UTC: 00.00–06.59 WIB jadi kemarin). */
+export function ymdLokal(d: Date = new Date()): string {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

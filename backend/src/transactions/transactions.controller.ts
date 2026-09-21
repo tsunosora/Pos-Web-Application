@@ -15,7 +15,7 @@ export class TransactionsController {
 
     @Post()
     @UseInterceptors(IdempotencyInterceptor) // kiriman ulang dgn Idempotency-Key sama → nota yang sama (T-23)
-    create(@Body() createTransactionDto: {
+    async create(@Body() createTransactionDto: {
         items: { productVariantId?: number; quantity: number; widthCm?: number; heightCm?: number; unitType?: string; pcs?: number; note?: string; customPrice?: number; isSubOrder?: boolean; subPrice?: number; subVendor?: string; compositeProductId?: number; compositeOptions?: Record<string, any> }[];
         paymentMethod: PaymentMethod;
         discount?: number;
@@ -44,7 +44,13 @@ export class TransactionsController {
         const branchId = requireBranch(branchCtx);
         // Validasi: kalau ada productionBranchId & berbeda, pastikan cabang tujuan valid & aktif.
         // Cek detail di service supaya bisa akses Prisma.
-        return this.transactionsService.create({ ...createTransactionDto, branchId, actorUserId: req.user?.userId ?? null });
+        const tx = await this.transactionsService.create({ ...createTransactionDto, branchId, actorUserId: req.user?.userId ?? null });
+        // Kunci checkout dicatat juga sebagai op sinkron: bila jawaban POST ini hilang & kasir
+        // terlempar ke antrean offline dengan kunci yang sama, kiriman ulangnya dikenali sebagai
+        // nota yang SAMA (bukan nota kedua).
+        const kunci = String(req.headers?.['idempotency-key'] ?? '').slice(0, 64);
+        if (kunci) await this.transactionsService.catatKunciCheckout(kunci, (tx as any)?.id ?? null, branchId);
+        return tx;
     }
 
     @Get()

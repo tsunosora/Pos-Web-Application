@@ -1,4 +1,37 @@
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { KATEGORI_PENJUALAN } from '../common/kategori-kas';
+
+/**
+ * Kas yang TIDAK boleh dihapus langsung: otomatis dari nota / tutup buku / modal / pelunasan titipan
+ * (ubah lewat asalnya), atau sudah masuk laporan shift yang ditutup (catat entri koreksi saja).
+ */
+export function pilihKolomKasManual(data: any) {
+    // Hanya kolom form Kas yang diterima (juga untuk kas dari sinkron offline). Dulu seluruh body
+    // di-spread: nominal negatif (diam-diam menurunkan ekspektasi kas laci), tanggal, shiftReport, dll.
+    const raw = data ?? {};
+    if (raw.type !== 'INCOME' && raw.type !== 'EXPENSE') throw new BadRequestException('Jenis kas harus INCOME atau EXPENSE.');
+    const amount = Number(raw.amount);
+    if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) throw new BadRequestException('Nominal harus lebih dari 0.');
+    const paymentMethod = raw.paymentMethod ?? 'CASH';
+    if (!['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal.');
+    return {
+        type: raw.type as 'INCOME' | 'EXPENSE',
+        category: String(raw.category ?? '').slice(0, 100) || 'Lainnya',
+        amount,
+        note: raw.note == null ? null : String(raw.note).slice(0, 1000),
+        platformSource: raw.platformSource == null ? null : String(raw.platformSource).slice(0, 50),
+        paymentMethod,
+        excludeFromShift: raw.excludeFromShift === true,
+        bankAccountId: paymentMethod === 'BANK_TRANSFER' && raw.bankAccountId ? Number(raw.bankAccountId) : null,
+    };
+}
+
+export function alasanKasTakBisaDihapus(cf: any): string | null {
+    const otomatis = [...KATEGORI_PENJUALAN, 'PENGOSONGAN_SALDO', 'MODAL_MASUK', 'INTER_BRANCH_SETTLEMENT', 'Biaya Platform'];
+    if (cf.userId == null && otomatis.includes(String(cf.category))) return 'Kas ini dibuat otomatis (nota / tutup buku / titipan) — ubah lewat asalnya, bukan dihapus.';
+    if (cf.shiftReportId != null) return 'Kas ini sudah masuk laporan shift yang ditutup — catat entri koreksi (kebalikannya) alih-alih menghapus.';
+    return null;
+}
 import { PrismaService } from '../prisma/prisma.service';
 import { CashflowType, Prisma } from '@prisma/client';
 import { BranchContext } from '../common/branch-context.decorator';
@@ -62,24 +95,10 @@ export class CashflowService {
         branchCtx: BranchContext,
     ) {
         const branchId = requireBranch(branchCtx);
-        const { bankAccountId: bankRaw, ...raw } = data as any;
-        // Hanya kolom form Kas yang diterima. Dulu seluruh body di-spread: nominal negatif
-        // (diam-diam menurunkan ekspektasi kas laci), tanggal, shiftReport, dll. bisa diselipkan.
-        if (raw.type !== 'INCOME' && raw.type !== 'EXPENSE') throw new BadRequestException('Jenis kas harus INCOME atau EXPENSE.');
-        const amount = Number(raw.amount);
-        if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) throw new BadRequestException('Nominal harus lebih dari 0.');
-        const paymentMethod = raw.paymentMethod ?? 'CASH';
-        if (!['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal.');
-        const bankAccountId = paymentMethod === 'BANK_TRANSFER' && bankRaw ? Number(bankRaw) : null;
+        const { bankAccountId, ...kolom } = pilihKolomKasManual(data);
         const rest = {
-            type: raw.type,
-            category: String(raw.category ?? '').slice(0, 100) || 'Lainnya',
-            amount,
-            note: raw.note == null ? null : String(raw.note).slice(0, 1000),
-            platformSource: raw.platformSource == null ? null : String(raw.platformSource).slice(0, 50),
-            paymentMethod,
-            excludeFromShift: raw.excludeFromShift === true,
-            ...(raw.user ? { user: raw.user } : {}), // disisipkan controller (akun pencatat)
+            ...kolom,
+            ...((data as any).user ? { user: (data as any).user } : {}), // disisipkan controller (akun pencatat)
         };
         return this.prisma.cashflow.create({
             data: {
@@ -371,10 +390,16 @@ export class CashflowService {
             .sort((a, b) => b.total - a.total);
     }
 
-    async remove(id: number, branchCtx: BranchContext) {
+    private readonly audit = new Logger('CashflowAudit');
+
+    async remove(id: number, branchCtx: BranchContext, actor?: { userId?: number; email?: string }) {
         const entry = await this.prisma.cashflow.findUnique({ where: { id } });
         if (!entry) throw new NotFoundException('Cashflow entry not found');
         assertBranchAccess(branchCtx, (entry as any).branchId ?? null);
+        const alasan = alasanKasTakBisaDihapus(entry);
+        if (alasan) throw new BadRequestException(alasan);
+        // Jejak audit: baris dihapus permanen, jadi isinya dicatat di log.
+        this.audit.warn(`[AUDIT] cashflow_delete user=${actor?.userId ?? '?'} email=${actor?.email ?? '?'} data=${JSON.stringify(entry)}`);
         return this.prisma.cashflow.delete({ where: { id } });
     }
 }

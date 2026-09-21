@@ -80,6 +80,15 @@ export class SocialInboxService {
         });
     }
     async removeChannel(id: number) {
+        // Sama dengan kanal WA: kanal yang sudah punya percakapan/komentar tidak dihapus (cascade
+        // menghapus seluruh riwayat DM & komentar) — nonaktifkan saja.
+        const [dm, komentar] = await Promise.all([
+            this.prisma.socialConversation.count({ where: { channelId: id } }),
+            this.prisma.socialComment.count({ where: { channelId: id } }),
+        ]);
+        if (dm + komentar > 0) {
+            throw new ConflictException(`Kanal punya ${dm} percakapan & ${komentar} komentar — nonaktifkan saja (jangan hapus) agar riwayatnya aman.`);
+        }
         await this.prisma.socialChannel.delete({ where: { id } });
         return { ok: true };
     }
