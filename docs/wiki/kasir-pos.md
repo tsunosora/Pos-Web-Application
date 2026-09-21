@@ -197,16 +197,20 @@ Setelah dikonfirmasi, permintaannya hilang dari tab *Menunggu* dan tersimpan di
 *Riwayat* lengkap dengan siapa yang menyetujui. Nota barulah berubah pada titik
 ini.
 
-> **Catatan pengujian (September 2026):** saat alur ini diuji untuk dokumentasi,
-> ditemukan bahwa menyetujui perubahan **ukuran** pada item berbasis luas (m²)
-> menghitung ulang totalnya dengan satuan yang salah sehingga nilainya melonjak.
-> Perbaikannya sedang ditangani terpisah; periksa kembali total nota setelah
-> menyetujui perubahan pada item per-m².
+> **Sudah diperbaiki (21 September 2026):** dulu mengedit nota berisi item per-m²
+> bisa membuat totalnya melonjak ×10.000 atau ditolak "stok tidak cukup", karena
+> satuan item lama tersimpan "m" padahal isinya cm. Sekarang satuan item lama
+> dibaca dari luas yang tersimpan, harganya tetap harga saat nota dibuat, dan
+> edit yang tidak mengubah ukuran tidak mengubah total sama sekali. Rinciannya
+> di [Laporan Penjualan → Edit transaksi](laporan-penjualan.md#edit-transaksi-aturan-ukuran-satuan).
 
 ## Batas & aturan yang berlaku
 
 - Stok tidak cukup → nota ditolak dengan pesan yang menyebut nama bahannya.
   Produk yang tidak melacak stok tidak pernah diblokir.
+- Ukuran yang jelas salah satuan ditolak: satu lembar lebih dari **1.000 m²**
+  (mis. 300×100 dengan satuan **m** = 30.000 m²) → *"… tidak masuk akal. Periksa
+  satuannya (cm atau m)."* Nota tanpa satuan dianggap **cm**.
 - Marketplace: nota order marketplace boleh **tanpa nomor HP**, dan biaya
   platformnya dicatat per kategori (`marketplaceFeeItems`).
 - Mengubah nota yang sudah jadi butuh **permintaan edit** yang disetujui

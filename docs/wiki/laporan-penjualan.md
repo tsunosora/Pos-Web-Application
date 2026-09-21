@@ -226,6 +226,26 @@ Klik **baris transaksi** (bukan ikon chevron) untuk membuka modal detail yang be
 - Info DP dan sisa tagihan (untuk transaksi PARTIAL)
 - Tombol **Cetak Struk**, **Bagikan via WA**, dan **Edit Transaksi**
 
+### Edit transaksi: aturan ukuran & satuan
+
+Berlaku sejak 21 September 2026 untuk item yang harganya dihitung per luas:
+
+| Yang diedit | Yang terjadi |
+|---|---|
+| Nama pelanggan, label, diskon, jumlah item lain | Total item area **tidak berubah sepeser pun**. |
+| Lebar / tinggi / jumlah pcs | Dihitung ulang dengan **harga saat nota dibuat** (termasuk harga nego), bukan harga katalog hari ini. |
+| Satuan item lama | **Terkunci.** Kalau satuannya memang salah, hapus item itu lalu tambah ulang dengan satuan yang benar. |
+| Tambah produk baru | Satuan mengikuti produknya (cm, atau cm² untuk produk per cm²); boleh diganti sebelum disimpan. |
+
+**Contoh.** Nota banner 114×135 cm @ Rp 125.000/m² = Rp 192.375. Admin hanya
+membetulkan nama pelanggan → total tetap Rp 192.375. Admin mengubah lebar jadi
+228 cm → baris itu jadi Rp 384.750 (luas ×2, harga per m² tetap).
+
+**Kenapa satuan dikunci.** Nota lama (Agustus–September 2026) ada yang tersimpan
+berlabel "m" padahal ukurannya cm. Dulu, sekali nota seperti itu diedit, totalnya
+melonjak ×10.000 — atau ditolak "stok tidak cukup". Sekarang satuan dibaca dari
+luas yang benar-benar tersimpan, jadi label lama tidak bisa lagi merusak total.
+
 ---
 
 ## Export Data
@@ -275,6 +295,6 @@ Klik **📄 Export PDF** untuk laporan ringkas dalam format tabel, siap dicetak 
 
 ---
 
-*Dokumentasi PosPro — Laporan Penjualan | Terakhir diperbarui: April 2026*
+*Dokumentasi PosPro — Laporan Penjualan | Terakhir diperbarui: September 2026*
 
 **© 2026 Muhammad Faisal. All rights reserved.**
