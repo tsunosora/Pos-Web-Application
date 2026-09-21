@@ -77,7 +77,12 @@ export default function BranchConfigPage() {
         },
     });
 
+    // Cabang pemilik isi form. Saat ganti cabang, form masih berisi data cabang sebelumnya sampai
+    // data baru termuat — dulu "Simpan" di jeda itu menulis PIN/grup WA/kop nota cabang A ke cabang B.
+    const [formUntuk, setFormUntuk] = useState<number | null>(null);
+    useEffect(() => { setFormUntuk(null); }, [activeBranchId]);
     useEffect(() => {
+        if (detail) setFormUntuk(activeBranchId);
         if (detail?.settings) {
             setForm(detail.settings);
             const groups = (detail.settings.waBroadcastGroups || []) as string[];
@@ -90,6 +95,7 @@ export default function BranchConfigPage() {
 
     const saveMutation = useMutation({
         mutationFn: async () => {
+            if (formUntuk == null || formUntuk !== activeBranchId) throw new Error('Data cabang ini belum selesai dimuat — tunggu sebentar lalu simpan lagi.');
             const groups = waBroadcastRaw
                 .split('\n')
                 .map(s => s.trim())
@@ -327,7 +333,7 @@ export default function BranchConfigPage() {
                     <div className="flex justify-end">
                         <Button
                             onClick={() => saveMutation.mutate()}
-                            disabled={saveMutation.isPending}
+                            disabled={saveMutation.isPending || formUntuk !== activeBranchId}
                             className="gap-2"
                         >
                             <Save className="w-4 h-4" />

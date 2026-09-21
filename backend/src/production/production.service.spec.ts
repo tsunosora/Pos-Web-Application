@@ -8,6 +8,7 @@ import { ProductionService } from './production.service';
 describe('ProductionService.startJob — Sub Order tidak potong bahan', () => {
     function buildTx(job: any) {
         const tx: any = {
+            $queryRaw: jest.fn().mockResolvedValue([]), // kunci baris stok (SELECT … FOR UPDATE)
             productionJob: {
                 findUnique: jest.fn().mockResolvedValue(job),
                 updateMany: jest.fn().mockResolvedValue({ count: 1 }), // klaim status atomik

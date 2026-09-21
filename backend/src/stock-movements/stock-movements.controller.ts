@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, UseGuards } fr
 import { StockMovementsService } from './stock-movements.service';
 import { MovementType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 
@@ -10,7 +11,10 @@ import type { BranchContext } from '../common/branch-context.decorator';
 export class StockMovementsController {
     constructor(private readonly stockMovementsService: StockMovementsService) { }
 
+    // Mengubah stok = peran yang punya menu Stok (dulu cukup login, mis. akun desainer).
     @Post()
+    @Menu('/inventory')
+    @UseGuards(MenuGuard)
     create(
         @Body() createMovementDto: { productVariantId: number; type: MovementType; quantity: number; reason?: string },
         @CurrentBranch() branchCtx: BranchContext,

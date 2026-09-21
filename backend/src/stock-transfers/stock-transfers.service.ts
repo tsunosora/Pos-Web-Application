@@ -62,7 +62,8 @@ export class StockTransfersService {
                 });
                 if (!variant) throw new NotFoundException(`Varian ID ${item.productVariantId} tidak ditemukan`);
 
-                // Cek stok cabang asal
+                // Cek stok cabang asal — baris dikunci dulu (penjualan bersamaan dulu bisa membuat stok minus).
+                await (tx as any).$queryRaw`SELECT id FROM branch_stocks WHERE branch_id = ${data.fromBranchId} AND product_variant_id = ${item.productVariantId} FOR UPDATE`;
                 const fromBs = await (tx as any).branchStock.findUnique({
                     where: { branchId_productVariantId: { branchId: data.fromBranchId, productVariantId: item.productVariantId } },
                     select: { stock: true },

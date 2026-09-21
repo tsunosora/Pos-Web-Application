@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUsers, getRoles, updateUser, deleteUser, setUserStatus, createRole, updateRole, deleteRole, createUser } from "@/lib/api";
 import { getDesigners, createDesigner, updateDesigner, deleteDesigner, type Designer } from "@/lib/api/designers";
 import { Loader2, ShieldAlert, UserCog, Plus, Trash2, Edit, X, Shield, Key, Building2, UserX, UserCheck, Search, Users, Phone, KeyRound } from "lucide-react";
@@ -57,6 +57,8 @@ export default function UserManagementSettings() {
         wantLogin: true, wantPin: false, pinValue: '', pinBranchId: '', pinActive: true,
     };
     const [userModal, setUserModal] = useState<OrangModal>(kosongModal);
+    const [menyimpan, setMenyimpan] = useState(false);
+    const sedangSimpan = useRef(false);
 
     const loadData = async () => {
         setIsLoading(true);
@@ -220,6 +222,9 @@ export default function UserManagementSettings() {
         if (m.wantPin && !m.pinId && !m.pinValue.trim()) {
             return alert("PIN kerja wajib diisi (4–10 angka).");
         }
+        if (sedangSimpan.current) return; // klik ganda → akun ganda
+        sedangSimpan.current = true;
+        setMenyimpan(true);
 
         try {
             let userId: number | null = m.id ?? null;
@@ -238,6 +243,9 @@ export default function UserManagementSettings() {
                 } else {
                     const dibuat: any = await createUser(payload);
                     userId = dibuat?.id ?? null;
+                    // Akun sudah jadi: bila langkah PIN di bawah gagal lalu disimpan ulang, perbarui akun
+                    // ini — dulu dibuat lagi (email ganda / akun dobel).
+                    if (userId) setUserModal((u) => ({ ...u, id: userId as number }));
                 }
             }
 
@@ -270,6 +278,9 @@ export default function UserManagementSettings() {
             loadData();
         } catch (error: any) {
             alert(error?.response?.data?.message || "Gagal menyimpan data karyawan");
+        } finally {
+            sedangSimpan.current = false;
+            setMenyimpan(false);
         }
     };
 
@@ -878,7 +889,7 @@ export default function UserManagementSettings() {
 
                             <div className="pt-1 flex justify-end gap-2">
                                 <button type="button" onClick={() => setUserModal({ ...userModal, isOpen: false })} className="px-4 py-2 text-sm font-medium rounded-xl hover:bg-muted border border-border">Batal</button>
-                                <button type="submit" className="px-6 py-2 text-sm font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 shadow-sm">Simpan Data</button>
+                                <button type="submit" disabled={menyimpan} className="px-6 py-2 text-sm font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 shadow-sm disabled:opacity-50">{menyimpan ? "Menyimpan…" : "Simpan Data"}</button>
                             </div>
                         </form>
                     </div>

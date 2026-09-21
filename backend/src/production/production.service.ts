@@ -267,6 +267,8 @@ export class ProductionService {
 
                 // Cek stok per cabang (kalau job punya branchId). Fallback ke global kalau job lama tanpa branchId.
                 if (jobBranchId != null) {
+                    // Kunci baris stok dulu: dua operator memulai job bersamaan dulu sama-sama lolos cek → stok minus.
+                    await (tx as any).$queryRaw`SELECT id FROM branch_stocks WHERE branch_id = ${jobBranchId} AND product_variant_id = ${data.rollVariantId} FOR UPDATE`;
                     const bs = await (tx as any).branchStock.findUnique({
                         where: { branchId_productVariantId: { branchId: jobBranchId, productVariantId: data.rollVariantId } },
                         select: { stock: true },
@@ -588,6 +590,7 @@ export class ProductionService {
                 const areaToDeduct = Math.ceil(data.totalAreaM2);
 
                 if (batchBranchId != null) {
+                    await (tx as any).$queryRaw`SELECT id FROM branch_stocks WHERE branch_id = ${batchBranchId} AND product_variant_id = ${data.rollVariantId} FOR UPDATE`;
                     const bs = await (tx as any).branchStock.findUnique({
                         where: { branchId_productVariantId: { branchId: batchBranchId, productVariantId: data.rollVariantId } },
                         select: { stock: true },

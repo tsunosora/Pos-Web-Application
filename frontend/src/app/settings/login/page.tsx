@@ -26,8 +26,12 @@ export default function LoginAppearancePage() {
     const [saved, setSaved] = useState(false);
     const logoFileRef = useRef<HTMLInputElement>(null);
 
+    // Form diisi SEKALI dari pengaturan. Dulu setiap penyegaran (mis. setelah unggah logo) mengisi
+    // ulang semuanya → gambar latar & tagline yang belum disimpan hilang.
+    const sudahDiisi = useRef(false);
     useEffect(() => {
-        if (!settings) return;
+        if (!settings || sudahDiisi.current) return;
+        sudahDiisi.current = true;
         try { setBgImages(settings.loginBgImages ? JSON.parse(settings.loginBgImages) : []); } catch { setBgImages([]); }
         try { setTaglines(settings.loginTaglines ? JSON.parse(settings.loginTaglines) : []); } catch { setTaglines([]); }
         setLoginLogoUrl(settings.loginLogoUrl ?? null);
@@ -52,6 +56,8 @@ export default function LoginAppearancePage() {
             qc.invalidateQueries({ queryKey: ['settings'] });
             setSaved(true);
             setTimeout(() => setSaved(false), 2000);
+        } catch (e: any) {
+            alert(e?.response?.data?.message || 'Gagal menyimpan tampilan login.');
         } finally {
             setSaving(false);
         }
