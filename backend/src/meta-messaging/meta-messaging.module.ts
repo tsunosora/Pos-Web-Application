@@ -6,6 +6,7 @@ import { SocialCommentsService } from './social-comments.service';
 import { LeadsModule } from '../crm/leads/leads.module';
 import { MetaMessagingController } from './meta-messaging.controller';
 import { SocialWebhookController } from './social-webhook.controller';
+import { DataDeletionController } from './data-deletion.controller';
 
 /**
  * Inbox sosial: Instagram DM + Facebook Messenger (Messenger Platform / Graph API).
@@ -14,7 +15,7 @@ import { SocialWebhookController } from './social-webhook.controller';
  */
 @Module({
     imports: [PrismaModule, LeadsModule],
-    controllers: [MetaMessagingController, SocialWebhookController],
+    controllers: [MetaMessagingController, SocialWebhookController, DataDeletionController],
     providers: [MetaApiService, SocialInboxService, SocialCommentsService],
     exports: [SocialInboxService],
 })
