@@ -11,7 +11,7 @@ const esc = (s: unknown) =>
 /** Baris dimensi untuk item AREA_BASED (m²/menit). */
 const dimLine = (it: ReceiptSnapshot['items'][number]): string => {
   if (it.pricingMode !== 'AREA_BASED') return '';
-  const u = it.unitType || 'm';
+  const u = it.unitType || 'cm';
   const body = u === 'menit' ? `${it.widthCm} mnt` : `${it.widthCm}×${it.heightCm} ${u === 'cm2' ? 'cm' : u}`;
   const pcs = it.pcs && it.pcs > 1 ? ` ×${it.pcs}` : '';
   return `<div class="sub">${esc(body + pcs)}</div>`;

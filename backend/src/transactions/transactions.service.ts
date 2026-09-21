@@ -8,6 +8,7 @@ import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 import { branchWhere, assertBranchAccess } from '../common/branch-where.helper';
 import { ProductsService } from '../products/products.service';
 import { buildCompositeClickBatch } from './composite-click.util';
+import { areaFactors, assertSaneArea, normalizeUnit, storedPriceMultiplier, storedUnit } from './area-unit.util';
 
 type EditItemData = {
     id?: number;           // unset = item baru
@@ -464,30 +465,15 @@ export class TransactionsService {
 
                     // priceMultiplier: raw area in input unit (for price calculation)
                     // areaM2: always in m² (for stock deduction & movement logging)
+                    // Satuan kosong/tak dikenal = 'cm' — SAMA untuk menghitung & menyimpan (T-08).
+                    const areaUnit = normalizeUnit(item.unitType);
                     let priceMultiplier = 0;
                     let areaM2 = 0;
                     // Kalau widthCm null (dari CRM convert tanpa dimensi), skip kalkulasi area —
                     // customPrice akan override lineTotal di bawah.
                     if (widthCm != null) {
-                        const w = widthCm;
-                        if (item.unitType === 'm') {
-                            priceMultiplier = w * heightCm;
-                            areaM2 = w * heightCm;
-                        } else if (item.unitType === 'cm2') {
-                            // produk basis cm² (harga per cm²): pengali harga = P×L (cm²);
-                            // luas FISIK utk stok tetap m² (÷10.000).
-                            priceMultiplier = w * heightCm;
-                            areaM2 = (w * heightCm) / 10000;
-                        } else if (item.unitType === 'cm') {
-                            priceMultiplier = (w * heightCm) / 10000;
-                            areaM2 = (w * heightCm) / 10000;
-                        } else if (item.unitType === 'menit') {
-                            priceMultiplier = w;
-                            areaM2 = w;
-                        } else {
-                            priceMultiplier = (w * heightCm) / 10000;
-                            areaM2 = (w * heightCm) / 10000;
-                        }
+                        ({ priceMultiplier, areaM2 } = areaFactors(areaUnit, widthCm, heightCm));
+                        assertSaneArea(areaUnit, widthCm, heightCm, areaM2, variant.product.name);
                     }
 
                     areaCm2 = areaM2 * 10000;
@@ -505,7 +491,8 @@ export class TransactionsService {
                         // (priceAtTime × area × pcs) menjumlah TEPAT ke total tertagih
                         // (mis. harga nego dari CRM lead / override admin). Tanpa ini
                         // priceAtTime tetap harga katalog → baris nota tak = grandTotal.
-                        if (areaM2 > 0 && pcs > 0) areaPriceAtTime = item.customPrice / (areaM2 * pcs);
+                        // Dibagi PENGALI HARGA (bukan luas m²) supaya benar juga utk produk per cm².
+                        if (priceMultiplier > 0 && pcs > 0) areaPriceAtTime = item.customPrice / (priceMultiplier * pcs);
                     }
 
                     if (!requiresProduction && trackStock && !isSubOrder) {
@@ -515,7 +502,7 @@ export class TransactionsService {
                         const stockBranchId = productionBranchId ?? branchId;
                         await this._assertBranchStock(tx, stockBranchId, variant.id, totalAreaM2, variant.product.name);
                         await this._adjustStock(tx, stockBranchId, variant.id, -totalAreaM2);
-                        await this.logMovement(tx, variant.id, 'OUT', totalAreaM2, `Penjualan Cetak ${widthCm}×${heightCm}${item.unitType || 'm'} ×${pcs}pcs (${totalAreaM2.toFixed(2)}m²) — ${preInvoiceNumber}`, movementRef, stockBranchId);
+                        await this.logMovement(tx, variant.id, 'OUT', totalAreaM2, `Penjualan Cetak ${widthCm}×${heightCm}${areaUnit === 'cm2' ? 'cm' : areaUnit} ×${pcs}pcs (${totalAreaM2.toFixed(2)}m²) — ${preInvoiceNumber}`, movementRef, stockBranchId);
 
                         // Deduct product-level BOM (AREA_BASED)
                         const ingredients = (variant.product as any).ingredients || [];
@@ -552,7 +539,7 @@ export class TransactionsService {
                         heightCm,
                         areaCm2,
                         pcs,
-                        unitType: item.unitType || 'm',
+                        unitType: areaUnit,
                         note: item.note || null,
                         _requiresProduction: requiresProduction,
                         _clickRateId: _areaClickRate?.isActive ? _areaClickRate.id : null,
@@ -1082,11 +1069,11 @@ export class TransactionsService {
             // Format dimensi untuk produk area-based
             let dimensiStr = '';
             if (item.widthCm && item.heightCm) {
-                const unit = item.unitType || 'm';
+                const unit = normalizeUnit(item.unitType);
                 if (unit === 'menit') {
                     dimensiStr = ` [${item.widthCm} unit]`;
                 } else {
-                    const suffix = unit === 'cm' ? 'cm' : 'm';
+                    const suffix = unit === 'm' ? 'm' : 'cm';
                     dimensiStr = ` [${item.widthCm}×${item.heightCm}${suffix}]`;
                 }
                 if (item.pcs && item.pcs > 1) dimensiStr += ` ×${item.pcs}pcs`;
@@ -2005,6 +1992,7 @@ export class TransactionsService {
 
         // ── TAMBAH ITEM BARU ────────────────────────────────────────────────────
         const newItems = editData.items.filter((e) => !e.id && e.newVariantId && !e.remove);
+        const addedIds = new Set<number>(); // item baru: sudah dijumlah di sini, jangan dijumlah lagi di bawah
         for (const editItem of newItems) {
             const variant = await tx.productVariant.findUnique({
                 where: { id: editItem.newVariantId },
@@ -2020,6 +2008,7 @@ export class TransactionsService {
             let lineTotal = 0;
             let unitResolvedPrice = 0; // per-unit price for UNIT mode (for priceAtTime storage)
             let overrideAreaPriceAtTime: number | null = null; // per-m² efektif kalau ada override area
+            let newItemUnit: string | null = null;
             let widthCm: number | null = null;
             let heightCm: number | null = null;
             let areaCm2: number | null = null;
@@ -2028,20 +2017,17 @@ export class TransactionsService {
             if (pricingMode === 'AREA_BASED') {
                 const w = editItem.widthCm ?? 1;
                 const h = editItem.heightCm ?? 1;
-                const unit = editItem.unitType || 'm';
+                const unit = normalizeUnit(editItem.unitType); // default 'cm', sama dgn nota baru (T-08)
+                newItemUnit = unit;
                 widthCm = w; heightCm = h;
-                let priceMultiplier = 0;
-                let areaM2 = 0;
-                if (unit === 'm') { priceMultiplier = w * h; areaM2 = w * h; }
-                else if (unit === 'cm') { priceMultiplier = (w * h) / 10000; areaM2 = (w * h) / 10000; } // cm² → m²
-                else if (unit === 'menit') { priceMultiplier = w; areaM2 = w; }
-                else { priceMultiplier = (w * h) / 10000; areaM2 = (w * h) / 10000; }
+                const { priceMultiplier, areaM2 } = areaFactors(unit, w, h);
+                assertSaneArea(unit, w, h, areaM2, product.name);
                 areaCm2 = areaM2 * 10000;
                 const itemPcs = Math.max(1, editItem.pcs ?? 1);
                 lineTotal = editItem.priceOverride != null ? editItem.priceOverride : priceMultiplier * Number(variant.price) * itemPcs;
-                // Kalau ada override, simpan per-m² efektif supaya nota (priceAtTime × area × pcs) = total.
-                if (editItem.priceOverride != null && areaM2 > 0 && itemPcs > 0) {
-                    overrideAreaPriceAtTime = editItem.priceOverride / (areaM2 * itemPcs);
+                // Kalau ada override, simpan harga satuan efektif supaya nota (priceAtTime × pengali × pcs) = total.
+                if (editItem.priceOverride != null && priceMultiplier > 0 && itemPcs > 0) {
+                    overrideAreaPriceAtTime = editItem.priceOverride / (priceMultiplier * itemPcs);
                 }
 
                 if (trackStock) {
@@ -2108,8 +2094,9 @@ export class TransactionsService {
                 ? overrideAreaPriceAtTime
                 : (pricingMode === 'AREA_BASED' ? Number(variant.price) : unitResolvedPrice);
             const newTxItem = await tx.transactionItem.create({
-                data: { transactionId, productVariantId: variant.id, quantity: qty, priceAtTime: itemPriceAtTime, hppAtTime, widthCm, heightCm, areaCm2, unitType: pricingMode === 'AREA_BASED' ? (editItem.unitType || 'm') : null, pcs: pricingMode === 'AREA_BASED' ? Math.max(1, editItem.pcs ?? 1) : 1 }
+                data: { transactionId, productVariantId: variant.id, quantity: qty, priceAtTime: itemPriceAtTime, hppAtTime, widthCm, heightCm, areaCm2, unitType: pricingMode === 'AREA_BASED' ? newItemUnit : null, pcs: pricingMode === 'AREA_BASED' ? Math.max(1, editItem.pcs ?? 1) : 1 }
             });
+            addedIds.add(newTxItem.id);
 
             // Create production job if product requires production
             if (product.requiresProduction) {
@@ -2148,24 +2135,13 @@ export class TransactionsService {
             if (pricingMode === 'AREA_BASED') {
                 const newW = editItem.widthCm ?? Number(txItem.widthCm);
                 const newH = editItem.heightCm ?? Number(txItem.heightCm ?? 1);
-                const unitType = editItem.unitType || 'm';
-
-                let newPriceMultiplier = 0;
-                let newAreaM2 = 0;
-
-                if (unitType === 'm') {
-                    newPriceMultiplier = newW * newH;
-                    newAreaM2 = newW * newH;
-                } else if (unitType === 'cm') {
-                    newPriceMultiplier = (newW * newH) / 10000; // cm² → m²
-                    newAreaM2 = (newW * newH) / 10000;
-                } else if (unitType === 'menit') {
-                    newPriceMultiplier = newW;
-                    newAreaM2 = newW;
-                } else {
-                    newPriceMultiplier = (newW * newH) / 10000;
-                    newAreaM2 = (newW * newH) / 10000;
-                }
+                // Satuan item lama TIDAK ikut diedit: selalu satuan tersimpan yang disimpulkan
+                // dari datanya. Label lama bisa salah ('m' padahal isinya cm) dan modal edit
+                // mengirim label itu balik → dulu total meledak ×10.000 (T-08). Kalau satuannya
+                // memang salah, hapus item lalu tambah ulang.
+                const unitType = storedUnit(txItem);
+                const { priceMultiplier: newPriceMultiplier, areaM2: newAreaM2 } = areaFactors(unitType, newW, newH);
+                assertSaneArea(unitType, newW, newH, newAreaM2, product.name);
 
                 const newAreaCm2 = newAreaM2 * 10000;
                 const oldAreaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
@@ -2214,14 +2190,16 @@ export class TransactionsService {
                     }
                 }
 
-                const newPcs = Math.max(1, editItem.pcs ?? 1);
-                const newLineTotal = editItem.priceOverride != null ? editItem.priceOverride : newPriceMultiplier * Number(variant.price) * newPcs;
-                // Store per-m² price in priceAtTime (consistent with original checkout format).
-                // The total is derived from priceAtTime × area × pcs at display/calculation time.
-                // Kalau ada override, turunkan per-m² efektif supaya nota menjumlah tepat ke total.
-                let storedPriceAtTime = Number(variant.price);
-                if (editItem.priceOverride != null && newAreaM2 > 0 && newPcs > 0) {
-                    storedPriceAtTime = editItem.priceOverride / (newAreaM2 * newPcs);
+                const newPcs = Math.max(1, editItem.pcs ?? (Number(txItem.pcs) || 1));
+                // Harga satuan = harga SAAT NOTA DIBUAT (priceAtTime), bukan harga katalog hari ini —
+                // sama dengan item UNIT. Dulu harga katalog dipakai, sehingga mengedit nama pelanggan
+                // saja bisa mengubah total bila harga/tier/harga nego berbeda.
+                let storedPriceAtTime = Number(txItem.priceAtTime);
+                let newLineTotal = storedPriceAtTime * newPriceMultiplier * newPcs;
+                if (editItem.priceOverride != null) {
+                    newLineTotal = editItem.priceOverride;
+                    // Harga satuan efektif supaya nota (priceAtTime × pengali × pcs) = total.
+                    if (newPriceMultiplier > 0 && newPcs > 0) storedPriceAtTime = editItem.priceOverride / (newPriceMultiplier * newPcs);
                 }
 
                 await tx.transactionItem.update({
@@ -2322,13 +2300,14 @@ export class TransactionsService {
         const removedIds = new Set(removeItems.map((e) => e.id));
         const editedIds = new Set(editExistingItems.map((e) => e.id));
         for (const existingItem of updatedTransaction.items) {
-            if (removedIds.has(existingItem.id) || editedIds.has(existingItem.id)) continue;
-            // newItems are already counted in newSubtotal above
+            // Item baru sudah dijumlah saat dibuat — dulu terhitung DUA KALI (tambah item
+            // Rp 5.500 lewat edit → total naik Rp 11.000).
+            if (removedIds.has(existingItem.id) || editedIds.has(existingItem.id) || addedIds.has(existingItem.id)) continue;
             if (existingItem.widthCm !== null) {
-                // AREA_BASED: priceAtTime is per-m² price, total = priceAtTime × area × pcs
-                const areaM2 = existingItem.areaCm2 ? Number(existingItem.areaCm2) / 10000 : 0;
+                // AREA_BASED: total = priceAtTime × pengali tersimpan × pcs (per cm² → area_cm2, lainnya → m²).
+                const mult = storedPriceMultiplier(existingItem);
                 const existingPcs = Math.max(1, Number(existingItem.pcs) || 1);
-                newSubtotal += areaM2 > 0 ? Number(existingItem.priceAtTime) * areaM2 * existingPcs : Number(existingItem.priceAtTime);
+                newSubtotal += mult > 0 ? Number(existingItem.priceAtTime) * mult * existingPcs : Number(existingItem.priceAtTime);
             } else {
                 newSubtotal += Number(existingItem.priceAtTime) * existingItem.quantity;
             }

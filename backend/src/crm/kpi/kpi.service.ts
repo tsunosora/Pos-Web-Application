@@ -6,6 +6,7 @@ import type { BranchContext } from '../../common/branch-context.decorator';
 import { DiscordService } from '../../discord/discord.service';
 import { ReportsService } from '../../reports/reports.service';
 import { AnalyticsService } from '../../whatsapp-cloud/analytics.service';
+import { lineTotalOf } from '../../transactions/area-unit.util';
 import {
     aggregateByTx,
     buildMatchWhere,
@@ -732,10 +733,7 @@ export class KpiService {
 
     // ── Detail Operator (antrian cetak & produksi, di-key nama operator) ───────
     private lineOmzetOf(ti: any): number {
-        const areaM2 = (Number(ti?.areaCm2) || 0) / 10000 * (Number(ti?.pcs) || 1);
-        return areaM2 > 0
-            ? Number(ti?.priceAtTime || 0) * areaM2
-            : Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
+        return ti ? lineTotalOf(ti) : 0; // per cm² ikut benar (T-08)
     }
 
     /** Baris nota dari transaksi terkait job; sumber = lead bila ada, else walk-in. */
@@ -767,7 +765,7 @@ export class KpiService {
         const metric = opts.metric;
 
         const tiSelect = {
-            priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
+            priceAtTime: true, quantity: true, pcs: true, areaCm2: true, unitType: true,
             transaction: { select: { id: true, invoiceNumber: true, customerName: true, customerPhone: true, status: true, createdAt: true } },
         };
 
@@ -1573,7 +1571,7 @@ export class KpiService {
                 transactionItemId: true,
                 transactionItem: {
                     select: {
-                        priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
+                        priceAtTime: true, quantity: true, pcs: true, areaCm2: true, unitType: true,
                         productVariant: { select: { product: { select: { category: { select: { productionCategoryId: true } } } } } },
                     },
                 },
@@ -1626,12 +1624,7 @@ export class KpiService {
         const areaM2Of = (ti: any) => (Number(ti?.areaCm2) || 0) / 10000 * (Number(ti?.pcs) || 1);
         // Omzet per line: item AREA = harga/m² × luas total (area × pcs); item UNIT = harga × qty.
         // Tanpa cabang area, item AREA (quantity=1, priceAtTime per-m²) akan undercount besar.
-        const lineOmzet = (ti: any) => {
-            const areaM2 = areaM2Of(ti);
-            return areaM2 > 0
-                ? Number(ti?.priceAtTime || 0) * areaM2
-                : Number(ti?.priceAtTime || 0) * (Number(ti?.quantity) || 1);
-        };
+        const lineOmzet = (ti: any) => (ti ? lineTotalOf(ti) : 0); // per cm² ikut benar (T-08)
         const bump = (cats: Map<number, CatMetric>, id: number, m: CatMetric) => {
             const c = cats.get(id) || { jobs: 0, pcs: 0, areaM2: 0, omzet: 0 };
             c.jobs += m.jobs; c.pcs += m.pcs; c.areaM2 += m.areaM2; c.omzet += m.omzet;
@@ -1648,7 +1641,7 @@ export class KpiService {
                     transactionItemId: true,
                     transactionItem: {
                         select: {
-                            priceAtTime: true, quantity: true, pcs: true, areaCm2: true,
+                            priceAtTime: true, quantity: true, pcs: true, areaCm2: true, unitType: true,
                             productVariant: { select: { product: { select: { category: { select: { productionCategoryId: true } } } } } },
                         },
                     },

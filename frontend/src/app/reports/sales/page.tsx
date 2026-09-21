@@ -19,6 +19,7 @@ import dayjs from "dayjs";
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useBranchStore } from '@/store/branch-store';
 import EditTransactionModal from './EditTransactionModal';
+import { sizeLabel, storedPriceMultiplier, storedUnit } from '@/lib/area-unit';
 
 type SalesPeriodKey = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom';
 type ReportTab = 'ringkasan' | 'trend' | 'histori';
@@ -869,7 +870,7 @@ export default function SalesReportPage() {
                                     {selectedTransaction.items?.map((item: any) => {
                                         const isAreaBased = item.widthCm !== null && item.widthCm !== undefined;
                                         const pcs = Math.max(1, Number(item.pcs) || 1);
-                                        const unitType = item.unitType || 'm';
+                                        const unitType = storedUnit(item); // label lama bisa salah (T-08)
                                         let dimLabel = '';
                                         let lineTotal = 0;
 
@@ -879,10 +880,12 @@ export default function SalesReportPage() {
                                                 dimLabel = `${item.widthCm} menit`;
                                                 lineTotal = Number(item.priceAtTime) * Number(item.widthCm) * pcs;
                                             } else {
-                                                const unitLabel = unitType === 'cm' ? 'cm' : 'm';
-                                                dimLabel = `${item.widthCm}×${item.heightCm} ${unitLabel} = ${areaM2.toFixed(4)} m²`;
+                                                dimLabel = unitType === 'cm2'
+                                                    ? `${item.widthCm}×${item.heightCm} cm = ${(Number(item.widthCm) * Number(item.heightCm)).toLocaleString('id-ID')} cm²`
+                                                    : `${item.widthCm}×${item.heightCm} ${sizeLabel(unitType)} = ${areaM2.toFixed(4)} m²`;
                                                 if (pcs > 1) dimLabel += ` × ${pcs} pcs`;
-                                                lineTotal = Number(item.priceAtTime) * areaM2 * pcs;
+                                                const mult = item.areaCm2 != null ? storedPriceMultiplier({ unitType, areaCm2: item.areaCm2 }) : areaM2;
+                                                lineTotal = Number(item.priceAtTime) * mult * pcs;
                                             }
                                         } else {
                                             lineTotal = item.quantity * Number(item.priceAtTime);
@@ -914,13 +917,14 @@ export default function SalesReportPage() {
                                     const computedSubtotal = (selectedTransaction.items || []).reduce((sum: number, item: any) => {
                                         const isAreaBased = item.widthCm !== null && item.widthCm !== undefined;
                                         const pcs = Math.max(1, Number(item.pcs) || 1);
-                                        const unitType = item.unitType || 'm';
+                                        const unitType = storedUnit(item);
                                         if (isAreaBased) {
                                             if (unitType === 'menit') {
                                                 return sum + Number(item.priceAtTime) * Number(item.widthCm) * pcs;
                                             } else {
                                                 const areaM2 = item.areaCm2 != null ? Number(item.areaCm2) / 10000 : (Number(item.areaM2) || 0);
-                                                return sum + Number(item.priceAtTime) * areaM2 * pcs;
+                                                const mult = item.areaCm2 != null ? storedPriceMultiplier({ unitType, areaCm2: item.areaCm2 }) : areaM2;
+                                                return sum + Number(item.priceAtTime) * mult * pcs;
                                             }
                                         } else {
                                             return sum + item.quantity * Number(item.priceAtTime);

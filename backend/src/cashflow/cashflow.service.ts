@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CashflowType, Prisma } from '@prisma/client';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch, assertBranchAccess } from '../common/branch-where.helper';
+import { lineTotalOf } from '../transactions/area-unit.util';
 
 /**
  * Kategori internal untuk pembayaran antar cabang (Buku Titipan).
@@ -133,6 +134,7 @@ export class CashflowService {
                         quantity: true,
                         priceAtTime: true,
                         areaCm2: true,
+                        pcs: true,
                         unitType: true,
                         note: true,
                         productVariant: {
@@ -151,9 +153,9 @@ export class CashflowService {
                 invoiceNumber: t.invoiceNumber,
                 customerName: t.customerName,
                 items: t.items.map((it: any) => {
-                    const price = Number(it.priceAtTime);
                     const areaM2 = it.areaCm2 ? Number(it.areaCm2) / 10000 : null;
-                    const lineTotal = areaM2 != null ? price * areaM2 : price * it.quantity;
+                    // pcs & produk per cm² ikut dihitung (dulu pcs diabaikan) — T-08.
+                    const lineTotal = lineTotalOf(it);
                     const p = it.productVariant?.product;
                     return {
                         name: it.productVariant?.variantName

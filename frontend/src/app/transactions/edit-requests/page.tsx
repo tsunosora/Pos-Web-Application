@@ -39,7 +39,7 @@ function EditDiff({ request }: { request: TransactionEditRequest }) {
                             <>
                                 <span className="line-through">{Number(current.widthCm).toFixed(2)} × {Number(current.heightCm).toFixed(2)}</span>
                                 <span className="text-foreground font-medium">→</span>
-                                <span className="text-emerald-600 font-medium">{editItem.widthCm} × {editItem.heightCm} {editItem.unitType || 'm'}</span>
+                                <span className="text-emerald-600 font-medium">{editItem.widthCm} × {editItem.heightCm} {editItem.unitType || 'cm'}</span>
                             </>
                         ) : (
                             <>

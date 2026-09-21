@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { editTransaction, submitEditRequest, deleteTransaction, EditItemPayload } from '@/lib/api/transactions';
 import { getProducts } from '@/lib/api/products';
+import { normalizeUnit, priceMultiplier, storedUnit } from '@/lib/area-unit';
 import { X, Save, Send, AlertTriangle, Plus, Trash2, Search, PackagePlus, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -47,32 +48,19 @@ function calcLineTotal(item: EditItem): number {
         const w = item.widthCm ?? 0;
         const h = item.heightCm ?? 1;
         const pcs = Math.max(1, item.pcs || 1);
-        let mult = 0;
-        if (item.unitType === 'm') mult = w * h;
-        else if (item.unitType === 'cm') mult = (w * h) / 10000; // cm² → m², konsisten dgn cart-store/backend/receipt
-        else if (item.unitType === 'menit') mult = w;
-        else mult = (w * h) / 10000;
-        return mult * item.priceAtTime * pcs;
+        // Sama dgn backend (area-unit.util): cm & m per m², cm2 per cm², menit per menit.
+        return priceMultiplier(normalizeUnit(item.unitType), w, h) * item.priceAtTime * pcs;
     }
     return item.priceAtTime * item.quantity;
 }
 
-// Simpulkan unitType untuk item area LAMA yang unitType-nya null (dibuat sebelum
-// kolom unitType disimpan). JANGAN default 'm' — itu membuat calcLineTotal &
-// backend menghitung w*h TANPA /10000 → total & stok meledak ~10.000×.
-// Pakai areaCm2 (otoritatif) sebagai penentu; default aman 'cm'.
+// Satuan item LAMA disimpulkan dari datanya (areaCm2), bukan dari labelnya: label
+// data lama bisa 'm' padahal isinya cm → dulu total meledak ×10.000 (T-08).
+// Server memakai aturan yang sama dan tidak menerima penggantian satuan item lama.
 function inferUnitType(item: any): string {
-    if (item.unitType) return item.unitType;
-    const w = Number(item.widthCm) || 0;
-    // Pola 'menit': durasi disimpan di widthCm, heightCm null.
-    if (w > 0 && (item.heightCm === null || item.heightCm === undefined)) return 'menit';
-    const h = Number(item.heightCm) || 0;
-    const areaCm2 = item.areaCm2 != null ? Number(item.areaCm2) : null;
-    if (areaCm2 && areaCm2 > 0 && w > 0 && h > 0) {
-        // (w×h)×10000 ≈ areaCm2 → nilai dalam meter; kalau w×h ≈ areaCm2 → cm.
-        if (Math.abs(w * h * 10000 - areaCm2) / areaCm2 < 0.02) return 'm';
-    }
-    return 'cm';
+    // Pola 'menit' lama: durasi di widthCm, heightCm null.
+    if (!item.unitType && Number(item.widthCm) > 0 && item.heightCm == null) return 'menit';
+    return storedUnit(item);
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -262,7 +250,8 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
             widthCm: isAreaBased ? 1 : null,
             heightCm: isAreaBased ? 1 : null,
             areaCm2: null,
-            unitType: 'm',
+            // Ikut basis luas produk; default cm (sama dgn POS & server).
+            unitType: product.areaUnit === 'CM2' ? 'cm2' : 'cm',
             pricingMode: isAreaBased ? 'AREA_BASED' : 'UNIT',
             isNew: true,
         };
@@ -367,10 +356,13 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
                                                             <label className="text-[10px] text-muted-foreground font-medium uppercase">Satuan</label>
                                                             <select value={item.unitType}
                                                                 onChange={(e) => updateItem(idx, 'unitType', e.target.value)}
-                                                                className="mt-1 w-full px-2 py-1.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                                                                disabled={!item.isNew}
+                                                                title={item.isNew ? undefined : 'Satuan item lama tidak bisa diganti. Kalau salah satuan, hapus item ini lalu tambah ulang.'}
+                                                                className="mt-1 w-full px-2 py-1.5 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60 disabled:cursor-not-allowed"
                                                             >
-                                                                <option value="m">m</option>
                                                                 <option value="cm">cm</option>
+                                                                <option value="m">m</option>
+                                                                <option value="cm2">cm²</option>
                                                                 <option value="menit">menit</option>
                                                             </select>
                                                         </div>

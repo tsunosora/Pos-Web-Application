@@ -5,6 +5,7 @@ import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchang
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
 import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
+import { lineTotalOf } from '../transactions/area-unit.util';
 
 export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
 
@@ -97,7 +98,8 @@ export class ReportsService {
                     const pcs = Math.max(1, Number(item.pcs) || 1);
                     areaM2 = Number(item.areaCm2) / 10000 * pcs;
                     itemHpp = hpp * areaM2;
-                    itemRevenue = Number(item.priceAtTime) * areaM2;
+                    // Produk per cm²: priceAtTime per cm² → pakai pengali tersimpan (T-08).
+                    itemRevenue = lineTotalOf(item);
                 } else {
                     // Unit based
                     itemHpp = hpp * qty;

@@ -1,3 +1,5 @@
+import { storedPriceMultiplier, storedUnit } from './area-unit';
+
 export interface ReceiptItem {
   name: string;
   sku: string;
@@ -70,7 +72,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
   const itemLines = snap.items.map(item => {
     let line = `- ${item.name}`;
     if (item.pricingMode === 'AREA_BASED') {
-      const u = item.unitType || 'm';
+      const u = item.unitType || 'cm';
       let dimStr = '';
       if (u === 'menit') dimStr = `${item.widthCm} menit`;
       else if (u === 'cm2') dimStr = `${item.widthCm}x${item.heightCm} cm = ${(Number(item.widthCm) * Number(item.heightCm)).toLocaleString('id-ID', { maximumFractionDigits: 2 })} cm²`;
@@ -141,7 +143,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
 
   const rows = snap.items.map((item, i) => {
     const isArea = item.pricingMode === 'AREA_BASED';
-    const u = item.unitType || 'm';
+    const u = item.unitType || 'cm';
     let dimStr = '-';
     let unitTypeStr = 'PCS';
 
@@ -349,23 +351,23 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
     transactionId: trx.id,
     items: trx.items?.map((item: any) => {
       const pricingMode = item.productVariant?.product?.pricingMode || 'UNIT';
-      let u = item.unitType || 'm';
-      let w = Number(item.widthCm || 0);
-      let h = Number(item.heightCm || 1);
+      // Satuan disimpulkan dari data (label lama bisa 'm' padahal isinya cm) — T-08.
+      const u = storedUnit(item);
+      const w = Number(item.widthCm || 0);
+      const h = Number(item.heightCm || 1);
       // areaCm2 = nilai otoritatif dari backend (selalu m²×10000). Utamakan ini
       // supaya nota tetap benar walau unitType/dimensi mentah pernah tersimpan
       // tidak konsisten (mis. data lama sebelum unitType disimpan saat edit).
       let areaM2 = 0;
       if (item.areaCm2 != null && Number(item.areaCm2) > 0) areaM2 = Number(item.areaCm2) / 10000;
-      else if (u === 'm') areaM2 = w * h;
-      else if (u === 'cm') areaM2 = (w * h) / 10000;
-      else if (u === 'menit') areaM2 = w;
+      else areaM2 = u === 'menit' ? w : u === 'm' ? w * h : (w * h) / 10000;
 
-      // AREA_BASED: priceAtTime = harga per m², lineTotal = pricePerM2 × area × pcs
+      // AREA_BASED: lineTotal = priceAtTime × pengali tersimpan × pcs (per cm² → cm², lainnya → m²)
       // UNIT: priceAtTime = harga per unit, lineTotal = price × qty
       const pcs = Math.max(1, Number(item.pcs) || 1);
+      const mult = item.areaCm2 != null && Number(item.areaCm2) > 0 ? storedPriceMultiplier({ unitType: u, areaCm2: item.areaCm2 }) : areaM2;
       const lineTotal = pricingMode === 'AREA_BASED'
-          ? Number(item.priceAtTime) * areaM2 * pcs
+          ? Number(item.priceAtTime) * mult * pcs
           : Number(item.priceAtTime) * item.quantity;
 
       return {
@@ -375,7 +377,7 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
         price: lineTotal,
         pricePerUnit: Number(item.priceAtTime),
         pricingMode,
-        unitType: item.unitType,
+        unitType: u,
         widthCm: item.widthCm,
         heightCm: item.heightCm,
         note: item.note,

@@ -1,5 +1,7 @@
 // Pure helper functions and types for the produksi (production) feature
 
+import { storedUnit } from '@/lib/area-unit';
+
 export type Tab = 'ANTRIAN' | 'PROSES' | 'MENUNGGU_PASANG' | 'PASANG' | 'SELESAI' | 'DIAMBIL';
 
 export const PIN_KEY = 'produksi_pin_session';
@@ -152,7 +154,7 @@ export function getDimLabel(item: any): string {
     const w = ti.widthCm != null ? Number(ti.widthCm) : null;
     const h = ti.heightCm != null ? Number(ti.heightCm) : null;
     if (w == null || h == null) return '';
-    const u = (ti.unitType || 'm').toLowerCase();
+    const u = storedUnit(ti); // label lama bisa 'm' padahal isinya cm (T-08)
     if (u === 'menit') return `${w} menit`;
     return `${w} × ${h} ${u === 'cm2' ? 'cm' : u}`; // cm2 = produk basis cm², ukuran dalam cm
 }

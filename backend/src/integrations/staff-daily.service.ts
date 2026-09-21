@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { normalizeName } from './staff-kpi.aggregate';
+import { lineTotalOf } from '../transactions/area-unit.util';
 
 export type DailyRow = {
     date: string; // YYYY-MM-DD
@@ -142,14 +143,15 @@ export class StaffDailyService {
                 where: { id: { in: jobIds } },
                 select: {
                     id: true,
-                    transactionItem: { select: { quantity: true, priceAtTime: true } },
+                    transactionItem: { select: { quantity: true, priceAtTime: true, pcs: true, areaCm2: true, unitType: true } },
                 },
             })
             : [];
         const jobValue = new Map(
             jobs.map((j) => [
                 j.id,
-                j.transactionItem ? Number(j.transactionItem.priceAtTime) * j.transactionItem.quantity : 0,
+                // Item area: harga per m² × luas × pcs (dulu harga × quantity = nilai spanduk jauh terlalu kecil).
+                j.transactionItem ? lineTotalOf(j.transactionItem) : 0,
             ]),
         );
 
