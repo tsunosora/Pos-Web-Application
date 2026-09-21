@@ -897,7 +897,7 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                     )}
                     <div className="grid sm:grid-cols-2 gap-2">
                         <label className="text-sm">Label
-                            <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Voliko FB / IG"
+                            <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="mis. Toko Anda – Instagram"
                                 className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none" />
                         </label>
                         <label className="text-sm">Platform
@@ -914,7 +914,7 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                             </label>
                         ) : (
                             <label className="text-sm">IG User ID
-                                <input value={form.igId ?? ""} onChange={(e) => setForm({ ...form, igId: e.target.value })} placeholder="17841469359167630"
+                                <input value={form.igId ?? ""} onChange={(e) => setForm({ ...form, igId: e.target.value })} placeholder="1784…………… (17 digit)"
                                     className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none font-mono" />
                                 <span className="text-[11px] opacity-50">Dari App Dashboard → Instagram → “Buat token akses” (angka di bawah nama akun).</span>
                             </label>
