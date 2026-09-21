@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, WaConversationStatus, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
@@ -105,6 +105,36 @@ export class InboxService {
 
     /** Kumpulan phoneNormalized pelanggan dari SO milik seorang desainer (User).
      *  Basis penautan chat↔SO: cocok by designerName (nama User) + nomor pelanggan. */
+    /**
+     * Akses satu percakapan untuk staf non-admin — cermin penyaringan daftar percakapan:
+     * kanal cabangnya (atau kanal global); desainer/operator juga hanya chat miliknya,
+     * yang belum di-assign, atau pelanggan SO-nya. Dulu id percakapan lain bisa dibuka,
+     * dibalas, dihapus pesannya, atau diambil alih langsung.
+     */
+    async assertConversationAccess(conversationId: number, u: { userId: number; branchId: number | null; scopedMine: boolean }) {
+        const c = await this.prisma.waConversation.findUnique({
+            where: { id: conversationId },
+            select: { assignedToId: true, channel: { select: { branchId: true } }, contact: { select: { phoneNormalized: true } } },
+        });
+        if (!c) throw new NotFoundException('Percakapan tidak ditemukan');
+        if (u.branchId != null && c.channel.branchId != null && c.channel.branchId !== u.branchId) {
+            throw new ForbiddenException('Percakapan ini milik kanal cabang lain.');
+        }
+        if (u.scopedMine && c.assignedToId != null && c.assignedToId !== u.userId) {
+            const hp = c.contact.phoneNormalized;
+            if (!hp || !(await this.designerSoPhonesByUser(u.userId)).includes(hp)) {
+                throw new ForbiddenException('Percakapan ini sedang ditangani staf lain.');
+            }
+        }
+    }
+
+    /** Id percakapan pemilik sebuah pesan (untuk cek akses rute /messages/:id). */
+    async conversationIdOfMessage(messageId: number): Promise<number> {
+        const m = await this.prisma.waMessage.findUnique({ where: { id: messageId }, select: { conversationId: true } });
+        if (!m) throw new NotFoundException('Pesan tidak ditemukan');
+        return m.conversationId;
+    }
+
     async designerSoPhonesByUser(userId: number): Promise<string[]> {
         const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
         if (!u?.name) return [];

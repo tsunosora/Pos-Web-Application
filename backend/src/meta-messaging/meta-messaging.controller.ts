@@ -121,14 +121,16 @@ export class MetaMessagingController {
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...INBOX_ROLES)
     @Get('conversations/:id/messages')
-    getMessages(@Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
+    async getMessages(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
+        await this.inbox.assertConversationScope(id, this.scope(req));
         return this.inbox.getMessages(id, { take: query.take ? +query.take : undefined, cursor: query.cursor ? +query.cursor : undefined });
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...INBOX_ROLES)
     @Post('conversations/:id/reply')
-    reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string }) {
+    async reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string }) {
+        await this.inbox.assertConversationScope(id, this.scope(req));
         return this.inbox.reply(id, req.user.userId, body.text);
     }
 

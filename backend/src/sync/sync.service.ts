@@ -93,6 +93,9 @@ export class SyncService {
     if (spec.branchField && branchCtx.branchId != null) {
       where[spec.branchField] = branchCtx.branchId;
     }
+    if (spec.branchOrGlobal && branchCtx.branchId != null) {
+      where.OR = [{ [spec.branchOrGlobal]: branchCtx.branchId }, { [spec.branchOrGlobal]: null }];
+    }
     // Delta hanya untuk model ber-updatedAt; model tanpa updatedAt (mis. roles) selalu full.
     if (spec.hasUpdatedAt && sinceDate) {
       where.updatedAt = { gt: sinceDate };
@@ -100,7 +103,7 @@ export class SyncService {
     const delegate = (this.prisma as unknown as Record<string, { findMany: (a: unknown) => Promise<unknown[]> }>)[
       spec.delegate
     ];
-    // Kolom rahasia (hash sandi, PIN, webhook, rclone) dibuang untuk SEMUA pemanggil.
+    // Kolom rahasia (webhook, rclone) dibuang untuk SEMUA pemanggil.
     const omit = spec.omit?.length ? Object.fromEntries(spec.omit.map((f) => [f, true])) : undefined;
     return delegate.findMany(omit ? { where, omit } : { where });
   }

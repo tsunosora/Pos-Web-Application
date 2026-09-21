@@ -15,6 +15,7 @@ export interface EntitySpec {
   hasUpdatedAt: boolean; // punya kolom updatedAt (untuk delta)? kalau tidak → selalu full
   branchField?: string; // kalau ter-scope cabang (mis. branchStocks.branchId)
   omit?: string[]; // kolom rahasia — TIDAK PERNAH dikirim ke klien mana pun
+  branchOrGlobal?: string; // kolom cabang: perangkat bercabang menarik baris cabangnya + yang tanpa cabang
 }
 
 export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
@@ -26,18 +27,20 @@ export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
   storeSettings: {
     delegate: 'storeSettings',
     hasUpdatedAt: true,
+    // PIN papan tetap dikirim ke PERANGKAT (desktop offline membuka papan kerja tanpa internet);
+    // entitas ini memang tidak bisa ditarik klien web (lihat WEB_PULLABLE_ENTITIES).
     omit: [
-      'operatorPin',
-      'marketingPin',
       'discordWebhookUrl',
       'githubWebhookSecret',
       'rcloneRemote',
       'rcloneLastStatus',
     ],
   },
-  branchSettings: { delegate: 'branchSettings', hasUpdatedAt: true, omit: ['operatorPin'] },
-  // passwordHash tak pernah dikirim (web tak punya login offline).
-  users: { delegate: 'user', hasUpdatedAt: true, omit: ['passwordHash'] },
+  branchSettings: { delegate: 'branchSettings', hasUpdatedAt: true },
+  // Hanya PERANGKAT (didaftarkan owner) yang menarik users — termasuk passwordHash untuk login
+  // offline desktop (local-sync mewajibkannya). Perangkat bercabang: akun cabangnya + akun tanpa
+  // cabang (owner). Klien web tidak bisa menarik entitas ini sama sekali.
+  users: { delegate: 'user', hasUpdatedAt: true, branchOrGlobal: 'branchId' },
   bankAccounts: { delegate: 'bankAccount', hasUpdatedAt: true },
   products: { delegate: 'product', hasUpdatedAt: true },
   productVariants: { delegate: 'productVariant', hasUpdatedAt: true },

@@ -117,17 +117,32 @@ export class RemindersService {
     /** Cron tiap 15 menit: kirim reminder untuk follow-up yang jatuh tempo. */
     @Cron('0 */15 * * * *')
     async sweepFollowUps() {
+        // Hanya jatuh tempo 7 hari terakhir, terbaru dulu. Dulu 200 FU tertua tanpa kursor:
+        // begitu 200 FU lama menumpuk, FU baru tak pernah dapat pengingat.
+        const now = new Date();
         const due = await this.prisma.followUp.findMany({
-            where: { status: 'PENDING', dueDate: { lte: new Date() } },
+            where: { status: 'PENDING', dueDate: { lte: now, gte: new Date(now.getTime() - 7 * 24 * 3600 * 1000) } },
             include: { customer: { select: { name: true, phone: true } }, lead: { select: { name: true, phone: true } } },
+            orderBy: { dueDate: 'desc' },
             take: 200,
         });
+        // Satu percobaan per FU: yang pernah dicatat (terkirim/gagal/dilewati) tidak dikirim ulang
+        // tiap 15 menit — timeout setelah Meta menerima dulu berarti pesan dobel ke pelanggan.
+        const sudah = new Set(
+            (await this.prisma.waReminderLog.findMany({
+                where: { eventType: { in: ['FOLLOWUP_DUE', 'PAYMENT_DUE'] }, refId: { in: due.map((f) => f.id) } },
+                select: { refId: true },
+            })).map((l) => l.refId),
+        );
         for (const fu of due) {
+            if (sudah.has(fu.id)) continue;
             const phone = fu.customer?.phone ?? fu.lead?.phone ?? null;
             const name = fu.customer?.name ?? fu.lead?.name ?? 'Pelanggan';
             if (!phone) continue;
             const eventType: ReminderEvent = fu.type === 'PAYMENT_REMINDER' ? 'PAYMENT_DUE' : 'FOLLOWUP_DUE';
-            await this.send(eventType, fu.id, phone, [name, fu.notes ?? '']);
+            // Variabel ke-2 = tanggal jatuh tempo, BUKAN catatan FU (catatan internal tim).
+            const jatuhTempo = fu.dueDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+            await this.send(eventType, fu.id, phone, [name, jatuhTempo]);
         }
     }
 }

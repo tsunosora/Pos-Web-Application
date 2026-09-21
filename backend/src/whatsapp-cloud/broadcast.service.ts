@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -27,8 +27,10 @@ export interface CreateBroadcastInput {
 }
 
 @Injectable()
-export class BroadcastService {
+export class BroadcastService implements OnModuleInit {
     private readonly logger = new Logger(BroadcastService.name);
+    /** Broadcast yang loop kirimnya sedang berjalan di proses ini (satu loop per broadcast). */
+    private readonly berjalan = new Set<number>();
 
     constructor(
         private readonly prisma: PrismaService,
@@ -273,8 +275,36 @@ export class BroadcastService {
         return { ok: true, status: 'RUNNING' };
     }
 
-    /** Loop kirim ke recipient PENDING dgn throttle; berhenti bila pause/cancel. */
+    /**
+     * Server baru hidup: tak ada loop yang berjalan, jadi broadcast RUNNING dijadikan PAUSED
+     * (dulu tertahan RUNNING selamanya & tak bisa dilanjutkan). Staf melanjutkan dengan sadar.
+     */
+    async onModuleInit() {
+        const r = await this.prisma.waBroadcast.updateMany({ where: { status: 'RUNNING' }, data: { status: 'PAUSED' } }).catch(() => ({ count: 0 }));
+        if (r.count) this.logger.warn(`${r.count} broadcast RUNNING dijeda setelah server restart — lanjutkan manual dari menu Broadcast.`);
+    }
+
+    /**
+     * Satu loop per broadcast. Jeda lalu lanjutkan cepat-cepat dulu memunculkan loop kedua
+     * saat loop pertama masih menunggu Meta → sisa penerima menerima pesan DUA kali.
+     */
     async process(id: number): Promise<void> {
+        if (this.berjalan.has(id)) return; // loop lama masih hidup & akan melihat status RUNNING lagi
+        this.berjalan.add(id);
+        try {
+            await this.prosesLoop(id);
+        } finally {
+            this.berjalan.delete(id);
+        }
+        // Dilanjutkan tepat saat loop ini berhenti? Jalankan lagi bila masih RUNNING & ada sisa.
+        const cur = await this.prisma.waBroadcast.findUnique({ where: { id }, select: { status: true } });
+        if (cur?.status === 'RUNNING' && (await this.prisma.waBroadcastRecipient.count({ where: { broadcastId: id, status: 'PENDING' } })) > 0) {
+            void this.process(id).catch((e) => this.logger.error(`Broadcast ${id} gagal: ${(e as Error).message}`));
+        }
+    }
+
+    /** Loop kirim ke recipient PENDING dgn throttle; berhenti bila pause/cancel. */
+    private async prosesLoop(id: number): Promise<void> {
         const b = await this.prisma.waBroadcast.findUnique({
             where: { id },
             include: { channel: true, template: true },

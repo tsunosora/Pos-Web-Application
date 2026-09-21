@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { SocialDirection, SocialPlatform } from '@prisma/client';
 import type { SocialChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -250,6 +250,19 @@ export class SocialInboxService {
         const lastIn = new Map(last.map((r) => [r.conversationId, r._max.createdAt]));
         const items = page.map((c) => ({ ...c, lastInboundAt: lastIn.get(c.id) ?? null }));
         return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
+    }
+
+    /**
+     * Staf cabang hanya membuka/membalas DM kanal cabangnya (kanal tanpa cabang = milik semua).
+     * Daftar percakapan sudah tersaring, tapi dulu id percakapan cabang lain bisa dibuka langsung.
+     */
+    async assertConversationScope(conversationId: number, scope: { branchId?: number }) {
+        if (scope.branchId == null) return;
+        const conv = await this.prisma.socialConversation.findUnique({ where: { id: conversationId }, select: { channel: { select: { branchId: true } } } });
+        if (!conv) throw new NotFoundException('Percakapan tidak ditemukan');
+        if (conv.channel.branchId != null && conv.channel.branchId !== scope.branchId) {
+            throw new ForbiddenException('Percakapan ini milik kanal cabang lain.');
+        }
     }
 
     async getMessages(conversationId: number, opts: { take?: number; cursor?: number } = {}) {

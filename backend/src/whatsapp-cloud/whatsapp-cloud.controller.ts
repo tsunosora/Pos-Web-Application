@@ -523,6 +523,17 @@ export class WhatsappCloudController {
 
     // ─── Inbox ───────────────────────────────────────────────────────────────
 
+    /** Admin/owner: semua percakapan. Staf lain: sama dengan penyaringan daftar percakapan. */
+    private async cekAksesPercakapan(req: any, conversationId: number) {
+        const roleName = String(req.user?.roleName || '').toUpperCase();
+        if ((ADMIN_ROLES as readonly string[]).includes(roleName)) return;
+        await this.inbox.assertConversationAccess(conversationId, {
+            userId: req.user.userId,
+            branchId: req.user?.branchId ?? null,
+            scopedMine: isScopedInboxRole(req.user?.roleName),
+        });
+    }
+
     /** Daftar percakapan. Non-admin otomatis dibatasi ke cabangnya sendiri. */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations')
@@ -564,14 +575,16 @@ export class WhatsappCloudController {
     /** SO yang terkait percakapan ini (via nomor HP pelanggan) — badge "SO" di header. */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations/:id/sales-orders')
-    conversationSalesOrders(@Param('id', ParseIntPipe) id: number) {
+    async conversationSalesOrders(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.salesOrdersForConversation(id);
     }
 
     /** Nota/transaksi terkait percakapan (via nomor HP) — untuk autofill variabel template. */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations/:id/notas')
-    conversationNotas(@Param('id', ParseIntPipe) id: number) {
+    async conversationNotas(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.notasForConversation(id);
     }
 
@@ -591,7 +604,8 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations/:id')
-    getConversation(@Param('id', ParseIntPipe) id: number) {
+    async getConversation(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.getConversation(id);
     }
 
@@ -604,7 +618,8 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('conversations/:id/messages')
-    getMessages(@Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
+    async getMessages(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.getMessages(id, {
             cursor: query.cursor ? +query.cursor : undefined,
             take: query.take ? +query.take : undefined,
@@ -614,7 +629,8 @@ export class WhatsappCloudController {
     /** Proxy biner media inbound (gambar/dokumen/audio/video) — backend pegang token Meta. */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Get('messages/:id/media')
-    async getMessageMedia(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    async getMessageMedia(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+        await this.cekAksesPercakapan(req, await this.inbox.conversationIdOfMessage(id));
         const { buffer, contentType, filename } = await this.inbox.getMessageMedia(id);
         const safeName = filename.replace(/["\r\n]/g, '');
         res.setHeader('Content-Type', contentType);
@@ -647,10 +663,12 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Patch('conversations/:id')
-    updateConversation(
+    async updateConversation(
+        @Req() req: any,
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { assignedToId?: number | null; status?: WaConversationStatus; snoozedUntil?: string | null },
     ) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.updateConversation(id, {
             assignedToId: body.assignedToId,
             status: body.status,
@@ -669,18 +687,20 @@ export class WhatsappCloudController {
     /** Balas teks (hanya sah di dalam jendela 24 jam → 409 bila lewat). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/reply')
-    reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string; replyTo?: string }) {
+    async reply(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { text: string; replyTo?: string }) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.replyText(id, req.user.userId, body.text, body.replyTo);
     }
 
     /** Balas via template (sah kapan pun, termasuk luar jendela 24 jam). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/reply-template')
-    replyTemplate(
+    async replyTemplate(
         @Req() req: any,
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { name: string; language?: string; components?: any[]; previewText?: string },
     ) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.replyTemplate(id, req.user.userId, body);
     }
 
@@ -688,23 +708,25 @@ export class WhatsappCloudController {
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/reply-media')
     @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 90 * 1024 * 1024 } }))
-    replyMedia(
+    async replyMedia(
         @Req() req: any,
         @Param('id', ParseIntPipe) id: number,
         @UploadedFile() file: Express.Multer.File,
         @Body() body: { caption?: string; replyTo?: string },
     ) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.replyMedia(id, req.user.userId, file, body?.caption, body?.replyTo);
     }
 
     /** Kirim 1 produk katalog ke percakapan (interactive product message). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('conversations/:id/send-product')
-    sendProduct(
+    async sendProduct(
         @Req() req: any,
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { productRetailerId: string; productName?: string; bodyText?: string; image?: string; price?: string; description?: string; url?: string },
     ) {
+        await this.cekAksesPercakapan(req, id);
         return this.inbox.sendProduct(id, req.user.userId, body);
     }
 
@@ -718,14 +740,16 @@ export class WhatsappCloudController {
     /** Reaksi emoji ke sebuah pesan (emoji kosong = hapus reaksi). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Post('messages/:id/react')
-    react(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { emoji?: string }) {
+    async react(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { emoji?: string }) {
+        await this.cekAksesPercakapan(req, await this.inbox.conversationIdOfMessage(id));
         return this.inbox.reactToMessage(id, req.user.userId, body?.emoji ?? '');
     }
 
     /** Hapus pesan dari CRM (soft-delete → tampil sebagai "pesan dihapus", data tetap tersimpan). */
     @UseGuards(JwtAuthGuard, WaInboxGuard)
     @Delete('messages/:id')
-    deleteMessage(@Param('id', ParseIntPipe) id: number) {
+    async deleteMessage(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+        await this.cekAksesPercakapan(req, await this.inbox.conversationIdOfMessage(id));
         return this.inbox.deleteMessage(id);
     }
 }
