@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FollowUpsService } from '../crm/follow-ups/follow-ups.service';
 import { toWaPhone } from '../common/utils/phone.util';
@@ -455,6 +455,20 @@ export class ProductionService {
         const updated = await (this.prisma as any).productionJob.findUnique({ where: { id }, include: this.jobInclude() });
         await this.logOperatorDone(id, 'SELESAI', opName, undefined, coOperatorNames, operatorBranchId ?? (job as any).branchId ?? null);
         return updated;
+    }
+
+    /**
+     * Papan kerja / staf hanya boleh menggerakkan job cabangnya sendiri (id job mudah ditebak:
+     * dulu token papan cabang A bisa memulai/menyelesaikan job cabang B & mendapat kreditnya).
+     * branchId null = owner / tanpa batas cabang.
+     */
+    async assertJobsInBranch(opts: { jobIds?: number[]; batchId?: number }, branchId: number | null) {
+        if (branchId == null) return;
+        const where: any = opts.batchId != null ? { batchId: opts.batchId } : { id: { in: (opts.jobIds ?? []).map(Number).filter(Number.isInteger) } };
+        const jobs = await this.prisma.productionJob.findMany({ where, select: { id: true, branchId: true } });
+        if (jobs.some((j) => j.branchId != null && j.branchId !== branchId)) {
+            throw new ForbiddenException('Job ini milik cabang lain — buka papan kerja cabang tersebut.');
+        }
     }
 
     async pickupJob(id: number) {

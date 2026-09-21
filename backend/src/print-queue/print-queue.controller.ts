@@ -2,7 +2,17 @@ import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards
 import { JwtService } from '@nestjs/jwt';
 import { PrintQueueService } from './print-queue.service';
 import type { PrintJobStatus } from './print-queue.service';
-import { BoardOrUserGuard, hidePhonesForBoard, signBoardToken } from '../auth/board-auth';
+import { BoardOrUserGuard, boardSessionOf, hidePhonesForBoard, signBoardToken } from '../auth/board-auth';
+import { isOwnerRole } from '../common/branch-context.decorator';
+
+/** Cabang yang boleh dilihat/digerakkan: papan → cabang PIN; staf → cabangnya; owner → bebas (null). */
+function cabangPapan(req: any): number | null {
+    const board = boardSessionOf(req);
+    if (board) return board.branchId ?? null;
+    const user = req?.user ?? {};
+    if (isOwnerRole(user.roleName)) return null;
+    return typeof user.branchId === 'number' ? user.branchId : null;
+}
 import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 
 // Papan /cetak dipakai tanpa akun login: semua endpoint (kecuali verifikasi PIN)
@@ -27,7 +37,7 @@ export class PrintQueueController {
         return hidePhonesForBoard(req, await this.svc.listJobs(
             status,
             search,
-            branchId ? parseInt(branchId) : undefined,
+            cabangPapan(req) ?? (branchId ? parseInt(branchId) : undefined), // papan/staf: cabangnya sendiri
             page ? parseInt(page) : 1,
             pageSize ? parseInt(pageSize) : 20,
         ));
@@ -35,8 +45,8 @@ export class PrintQueueController {
 
     @Get('stats')
     @UseGuards(BoardOrUserGuard)
-    stats(@Query('branchId') branchId?: string) {
-        return this.svc.stats(branchId ? parseInt(branchId) : undefined);
+    stats(@Req() req: any, @Query('branchId') branchId?: string) {
+        return this.svc.stats(cabangPapan(req) ?? (branchId ? parseInt(branchId) : undefined));
     }
 
     /** Satu-satunya pintu tanpa token: PIN benar → dapat token papan kerja. */
@@ -50,31 +60,36 @@ export class PrintQueueController {
 
     @Post('jobs/:id/start')
     @UseGuards(BoardOrUserGuard)
-    start(@Param('id', ParseIntPipe) id: number, @Body('operatorName') operatorName?: string) {
+    async start(@Param('id', ParseIntPipe) id: number, @Body('operatorName') operatorName: string | undefined, @Req() req: any) {
+        await this.svc.assertJobsInBranch([id], cabangPapan(req));
         return this.svc.startJob(id, operatorName);
     }
 
     @Post('jobs/:id/finish')
     @UseGuards(BoardOrUserGuard)
-    finish(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+    async finish(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
+        await this.svc.assertJobsInBranch([id], cabangPapan(req));
         return this.svc.finishJob(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')
     @UseGuards(BoardOrUserGuard)
-    pickup(@Param('id', ParseIntPipe) id: number) {
+    async pickup(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+        await this.svc.assertJobsInBranch([id], cabangPapan(req));
         return this.svc.pickupJob(id);
     }
 
     @Post('jobs/bulk-pickup')
     @UseGuards(BoardOrUserGuard)
-    bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }) {
+    async bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }, @Req() req: any) {
+        await this.svc.assertJobsInBranch(body?.ids ?? [], cabangPapan(req));
         return this.svc.bulkPickup(body?.ids ?? [], body?.branchId);
     }
 
     @Post('jobs/:id/notes')
     @UseGuards(BoardOrUserGuard)
-    notes(@Param('id', ParseIntPipe) id: number, @Body('notes') notes: string) {
+    async notes(@Param('id', ParseIntPipe) id: number, @Body('notes') notes: string, @Req() req: any) {
+        await this.svc.assertJobsInBranch([id], cabangPapan(req));
         return this.svc.updateNotes(id, notes);
     }
 }

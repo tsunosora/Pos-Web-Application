@@ -61,6 +61,15 @@ function meterWriteCtx(req: any, bodyBranchId?: number | string | null): BranchC
     return { branchId: bid, isOwner: true, userBranchId, roleName: user.roleName ?? null };
 }
 
+/** Cabang yang boleh digerakkan: papan kerja → cabang PIN; staf → cabangnya; owner → semua (null). */
+function cabangAksiJob(req: any): number | null {
+    const board = boardSessionOf(req);
+    if (board) return board.branchId ?? null;
+    const user = req?.user ?? {};
+    if (isOwnerRole(user.roleName)) return null;
+    return typeof user.branchId === 'number' ? user.branchId : null;
+}
+
 // Papan kerja /produksi dipakai tanpa akun login. Endpoint papan kerja dijaga
 // BoardOrUserGuard: wajib token papan kerja (didapat setelah PIN benar di server)
 // ATAU token login akun. Dulu PIN hanya dicek di peramban, sehingga siapa pun di
@@ -81,19 +90,20 @@ export class ProductionController {
         @Query('priority') priority?: string,
         @Query('branchId') branchId?: string,
     ) {
-        return hidePhonesForBoard(req, await this.productionService.getJobs(status, priority, branchId ? parseInt(branchId) : undefined));
+        // Papan/staf: selalu cabangnya sendiri (dulu ?branchId= cabang lain ikut terbaca).
+        return hidePhonesForBoard(req, await this.productionService.getJobs(status, priority, cabangAksiJob(req) ?? (branchId ? parseInt(branchId) : undefined)));
     }
 
     @Get('rolls')
     @UseGuards(BoardOrUserGuard)
-    getRolls(@Query('branchId') branchId?: string) {
-        return this.productionService.getRolls(branchId ? parseInt(branchId) : undefined);
+    getRolls(@Req() req: any, @Query('branchId') branchId?: string) {
+        return this.productionService.getRolls(cabangAksiJob(req) ?? (branchId ? parseInt(branchId) : undefined));
     }
 
     @Get('stats')
     @UseGuards(BoardOrUserGuard)
-    getStats(@Query('branchId') branchId?: string) {
-        return this.productionService.getStats(branchId ? parseInt(branchId) : undefined);
+    getStats(@Req() req: any, @Query('branchId') branchId?: string) {
+        return this.productionService.getStats(cabangAksiJob(req) ?? (branchId ? parseInt(branchId) : undefined));
     }
 
     // ─── Pipeline Kanban (admin view, JWT) ─────────────────────────────────────
@@ -298,54 +308,64 @@ export class ProductionController {
 
     @Post('jobs/:id/start')
     @UseGuards(BoardOrUserGuard)
-    startJob(
+    async startJob(
         @Param('id', ParseIntPipe) id: number,
         @Body() data: { rollVariantId?: number; usedWaste: boolean; rollAreaM2?: number; operatorNote?: string },
+        @Req() req: any,
     ) {
+        await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
         return this.productionService.startJob(id, data);
     }
 
     @Post('jobs/:id/complete')
     @UseGuards(BoardOrUserGuard)
-    completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+    async completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
+        await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
         return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/start-assembly')
     @UseGuards(BoardOrUserGuard)
-    startAssembly(@Param('id', ParseIntPipe) id: number, @Body('assemblyNote') assemblyNote?: string) {
+    async startAssembly(@Param('id', ParseIntPipe) id: number, @Body('assemblyNote') assemblyNote: string | undefined, @Req() req: any) {
+        await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
         return this.productionService.startAssembly(id, assemblyNote);
     }
 
     @Post('jobs/:id/complete-assembly')
     @UseGuards(BoardOrUserGuard)
-    completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+    async completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
+        await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
         return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')
     @UseGuards(BoardOrUserGuard)
-    pickupJob(@Param('id', ParseIntPipe) id: number) {
+    async pickupJob(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+        await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
         return this.productionService.pickupJob(id);
     }
 
     @Post('jobs/bulk-pickup')
     @UseGuards(BoardOrUserGuard)
-    bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }) {
+    async bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }, @Req() req: any) {
+        await this.productionService.assertJobsInBranch({ jobIds: body?.ids ?? [] }, cabangAksiJob(req));
         return this.productionService.bulkPickup(body?.ids ?? [], body?.branchId);
     }
 
     @Post('batches')
     @UseGuards(BoardOrUserGuard)
-    createBatch(
+    async createBatch(
         @Body() data: { jobIds: number[]; rollVariantId?: number; usedWaste: boolean; totalAreaM2?: number },
+        @Req() req: any,
     ) {
+        await this.productionService.assertJobsInBranch({ jobIds: data?.jobIds ?? [] }, cabangAksiJob(req));
         return this.productionService.createBatch(data);
     }
 
     @Post('batches/:id/complete')
     @UseGuards(BoardOrUserGuard)
-    completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
+    async completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
+        await this.productionService.assertJobsInBranch({ batchId: id }, cabangAksiJob(req));
         return this.productionService.completeBatch(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 

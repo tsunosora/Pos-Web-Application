@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscordService } from '../discord/discord.service';
 
@@ -67,6 +67,15 @@ export class PrintQueueService {
             if (!Number.isNaN(n)) nextSeq = n + 1;
         }
         return `${prefix}${String(nextSeq).padStart(4, '0')}`;
+    }
+
+    /** Papan / staf hanya menggerakkan job cabangnya (lihat production.service assertJobsInBranch). */
+    async assertJobsInBranch(jobIds: number[], branchId: number | null) {
+        if (branchId == null) return;
+        const jobs = await this.prisma.printJob.findMany({ where: { id: { in: jobIds.map(Number).filter(Number.isInteger) } }, select: { branchId: true } });
+        if (jobs.some((j) => j.branchId != null && j.branchId !== branchId)) {
+            throw new ForbiddenException('Job cetak ini milik cabang lain — buka papan cetak cabang tersebut.');
+        }
     }
 
     async listJobs(status?: PrintJobStatus, search?: string, branchId?: number, page = 1, pageSize = 20) {
