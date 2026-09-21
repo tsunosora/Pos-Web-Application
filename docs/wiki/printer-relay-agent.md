@@ -110,6 +110,13 @@ Cocok kalau ingin agen **restart otomatis** bila crash.
 
 ---
 
+## Keandalan poll (sejak 22 September 2026)
+
+Server tidak lagi menulis "terakhir terlihat" ke database setiap poll (cukup
+sekali per 5 menit), dan poll yang diputus agen langsung dikeluarkan dari
+antrean — dulu struk berikutnya bisa diserahkan ke koneksi yang sudah putus dan
+kasir mendapat "Timeout: agen printer tidak merespons".
+
 ## Catatan penting
 
 - **Dua salinan `agent.py` wajib sinkron** — ada di `tools/print-bridge/agent.py` dan `frontend/public/print-agent/agent.py`. Saat mengubah logika agen, perbarui **keduanya** ke versi yang sama.

@@ -126,6 +126,14 @@ Tombol *Buka Halaman Operator* menyeberang ke papan ber-PIN di
 [`/cetak`](mesin-cetak.md), jadi manajer memantau dari kursinya tanpa harus
 memakai PIN operator.
 
+Sejak 22 September 2026:
+
+- **Tagihan vendor & rekonsiliasi** harus dibuka per cabang (pilih cabang di
+  topbar). Meteran adalah mesin fisik satu cabang; mode Semua Cabang dulu
+  memasangkan meteran awal cabang A dengan meteran akhir cabang B.
+- Item cetak kertas yang **ditambahkan lewat edit nota** kini ikut masuk papan
+  /cetak dan tercatat kliknya, sama seperti saat checkout.
+
 ## Dashboard klik per bulan
 
 ![Klik Mesin Cetak: total klik tercatat, total biaya klik, reject, dan grafik klik per jenis cetak](images/klik-1-hitung.webp)

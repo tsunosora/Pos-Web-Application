@@ -132,6 +132,11 @@ Kampanye bisa disimpan sebagai **draf** atau dijadwalkan.
 Setelah dijalankan, status tiap penerima tercatat satu per satu — terkirim,
 gagal, atau dilewati karena opt-out.
 
+Sejak 22 September 2026 tiap penerima **dipesan dulu** sebelum template dikirim.
+Bila server terhenti di tengah pengiriman, penerima yang sedang diproses ditandai
+*tidak pasti* (bukan dikirim ulang saat broadcast dilanjutkan), dan broadcast
+yang loop-nya mati otomatis menjadi **Dijeda**, bukan tertahan "Berjalan".
+
 #### 6. Template yang dipakai
 
 ![Daftar template Meta beserta status persetujuannya](images/bc-6-template.webp)

@@ -202,6 +202,13 @@ Klik tombol **"Convert"** di detail lead → 3 checkbox:
 - Order dari halaman publik memakai **harga katalog**, bukan harga yang dikirim
   formulir. Order dianggap sama hanya bila nama, No. HP, dan nilainya sama.
 
+Sejak 22 September 2026 **"Buat Nota di Kasir"** dari lead menyalin harga item
+dengan benar: item ukuran → jumlah kopi = qty dan harga custom = total baris
+(dulu harga per m² tercatat sebagai harga seluruh baris), item yang harganya
+sama dengan katalog tidak dikunci sebagai harga custom (tier tetap berlaku).
+Tier harga di editor item lead memilih tier dengan minimal terbesar yang cocok,
+sama dengan kasir.
+
 ### Alur B: Tautkan Lead ke SO Desainer (Jun 2026)
 
 Kasus umum: customer chat CS (jadi lead), lalu desainer **sudah keburu bikin SO** dari portal desainer. Kalau CS convert lead seperti biasa, hasilnya **nota dobel** (1 dari convert, 1 dari SO saat di-checkout di POS).

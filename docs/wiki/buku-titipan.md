@@ -181,6 +181,13 @@ Sejak 22 September 2026 pelunasan (tunai maupun kirim bahan) **dikunci per titip
 
 ---
 
+Sejak 22 September 2026 pelunasan tunai hanya bisa dicatat oleh **cabang yang
+berhutang** (atau Owner) — sama dengan bayar pakai bahan. Dulu cabang penerima
+juga bisa, sehingga bisa mencatat pengeluaran kas di buku cabang lain.
+
+Bila nota titip cetak **diedit** (item/qty berubah), nilai hutang titipan yang
+belum lunas dihitung ulang otomatis; hutang yang sudah lunas tidak diubah.
+
 ## 📦 Settlement: Bayar dengan Kirim Bahan
 
 Cocok kalau A punya stok bahan yang B butuhkan (kertas, tinta, banner mentah). Lebih praktis daripada transfer uang berkali-kali.

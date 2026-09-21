@@ -126,6 +126,10 @@ Menghapus jadwal (sejak 22 September 2026) hanya menghapus kartu yang **belum
 jatuh tempo dan belum selesai**. Kartu yang sudah lewat atau selesai tetap ada
 sebagai riwayat.
 
+Satu jadwal yang gagal dibuatkan kartu tidak lagi menghentikan jadwal lain hari
+itu, dan bila server dijalankan ulang sebelum 08.00 kartu hari itu dibuat
+susulan (sejak 22 September 2026).
+
 ## Teguran otomatis
 
 Pekerjaan terjadwal **tiap 5 menit** memeriksa tugas yang lewat batas waktu dan

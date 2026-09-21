@@ -274,6 +274,18 @@ ini.
 - Batas tanggal untuk nota mundur tanggal memakai tanggal lokal (dulu pukul
   00.00–06.59 dianggap masih kemarin).
 
+### Total tersimpan vs layar (sejak 22 September 2026)
+
+Server menghitung ulang harga dari katalog dan pajak dari pengaturan terbaru.
+Bila total tersimpan berbeda dengan layar (mis. harga diubah owner saat halaman
+kasir terbuka), kasir langsung diberi tahu jumlah yang benar, struk memakai
+angka tersimpan, dan daftar produk dimuat ulang. Tarif per m² di struk untuk
+item ukuran berharga custom kini tarif efektifnya (luas × tarif = total).
+
+Di **edit nota**, kolom harga custom item satuan adalah **harga satuan** (dikali
+qty), sedangkan item ukuran adalah **total baris** — pratinjau kini sama dengan
+yang disimpan. Item satuan baru di edit nota memakai harga tier sesuai qty.
+
 ## Endpoint terkait
 
 | Metode | Jalur | Untuk |

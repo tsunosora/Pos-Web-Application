@@ -247,6 +247,10 @@ Sejak 22 September 2026 progres cadangan tidak lagi macet di "sedang berjalan"
 bila database sempat tidak menjawab di awal proses. Dulu semua cadangan
 berikutnya, termasuk jadwal malam, ikut ditolak sampai server dijalankan ulang.
 
+Sejak 22 September 2026 tabel yang gagal dibaca saat cadangan dibuat (mis.
+database sibuk) dicoba ulang; bila tetap gagal, **cadangan dinyatakan gagal**.
+Dulu tabel itu diam-diam tersimpan kosong dan cadangan tetap "Berhasil".
+
 ## Catatan Penting
 
 - **Backup rutin dianjurkan** — minimal seminggu sekali, atau sebelum setiap update sistem
