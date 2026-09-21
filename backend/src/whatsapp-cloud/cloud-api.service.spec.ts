@@ -55,7 +55,7 @@ describe('CloudApiService', () => {
             fetchMock.mockResolvedValue(
                 errResponse(401, { error: { message: 'Invalid OAuth token', code: 190 } }),
             );
-            await expect(service.sendText('PNID123', '628', 'x')).rejects.toThrow(/401.*Invalid OAuth token.*190/);
+            await expect(service.sendText('PNID123', '628', 'x')).rejects.toThrow(/Invalid OAuth token.*190/); // pesan ramah pengguna (tanpa kode HTTP)
         });
 
         it('melempar bila token belum diset', async () => {

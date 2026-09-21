@@ -100,7 +100,9 @@ function makeDb(schedules: any[], groups: Record<number, number[]>) {
         if (items.some((i) => i.scheduleId === data.scheduleId && i.assigneeId === data.assigneeId && i.periodKey === data.periodKey)) {
           const e: any = new Error('dup'); e.code = 'P2002'; throw e;
         }
-        const row = { id: items.length + 1, createdAt: new Date(), ...data };
+        // createdAt tetap (sebelum hari uji), bukan jam sungguhan: dulu test ini mulai gagal
+        // sendiri sejak 21 Sep 2026 08.35 karena kartu terlihat "dibuat setelah batas".
+        const row = { id: items.length + 1, createdAt: new Date(2026, 8, 20, 12, 0), ...data };
         items.push(row);
         return row;
       }),
