@@ -55,6 +55,8 @@ export class SettingsService {
         return {
             storeName: s.storeName,
             storePhone: s.storePhone ?? null,
+            // Dipakai halaman publik Kebijakan Privasi & Penghapusan Data (syarat Meta).
+            storeAddress: s.storeAddress ?? null,
             logoImageUrl: s.logoImageUrl ?? null,
             loginLogoUrl: s.loginLogoUrl ?? null,
             loginBgImages: s.loginBgImages ? JSON.parse(s.loginBgImages) : [],

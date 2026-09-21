@@ -61,7 +61,7 @@ export class SocialInboxService {
             data: {
                 ...(input.label !== undefined ? { label: input.label.trim() } : {}),
                 ...(input.igId !== undefined ? { igId: input.igId?.trim() || null } : {}),
-                ...(input.accessToken !== undefined && input.accessToken.trim() ? { accessToken: input.accessToken.trim() } : {}),
+                ...(input.accessToken !== undefined && this.cleanToken(input.accessToken) ? { accessToken: this.cleanToken(input.accessToken) } : {}),
                 ...(input.branchId !== undefined ? { branchId: input.branchId ?? null } : {}),
                 ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
             },

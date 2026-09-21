@@ -65,12 +65,14 @@ export function MainLayout({ children }: MainLayoutProps) {
     const isTvPage = pathname.startsWith("/tv");
     // Studio Desain (iframe feeds-auto) — full-screen tanpa chrome dashboard.
     const isDesainerPage = pathname.startsWith("/desainer");
-    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage || isTvPage || isDesainerPage;
+    // Kebijakan Privasi & Penghapusan Data — halaman publik (syarat Meta), tanpa chrome dashboard.
+    const isLegalPublic = pathname === "/kebijakan-privasi" || pathname === "/hapus-data";
+    const isStandalone = isLoginPage || isOpnamePage || isProduksiPage || isCetakPage || isPublicProductPage || isDesignerPortal || isHelpPage || isLandingBuilder || isLandingPublic || isArtikelPublic || isMarketingPublic || isNilaiPublic || isOwnerPage || isTvPage || isDesainerPage || isLegalPublic;
     // Toggle dark mode mengambang untuk halaman publik INTERNAL (staff/operator),
     // BUKAN halaman login & bukan halaman storefront publik (landing/artikel/produk).
     // /tv punya toggle dark sendiri di TvHeader → jangan dobel. /desainer = iframe
     // (studio punya tema sendiri) → jangan tampilkan toggle POS.
-    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic && !isTvPage && !isDesainerPage;
+    const showFloatingTheme = isStandalone && !isLoginPage && !isLandingPublic && !isArtikelPublic && !isPublicProductPage && !isLandingBuilder && !isNilaiPublic && !isTvPage && !isDesainerPage && !isLegalPublic;
     // Widget chat AI: di halaman POS biasa (login-authenticated) + dashboard Owner.
     // TIDAK di halaman publik/kiosk/login/desainer (bisa tanpa login → hindari 401 redirect).
     const showAiChat = !isStandalone || isOwnerPage;

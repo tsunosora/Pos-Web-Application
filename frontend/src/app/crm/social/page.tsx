@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X, ArrowLeft, ExternalLink,
-    RefreshCw, EyeOff, Eye, MailOpen, CheckCheck, Reply, UserPlus, Radio,
+    RefreshCw, EyeOff, Eye, MailOpen, CheckCheck, Reply, UserPlus, Radio, KeyRound,
 } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
-    listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken, testSocialConnection, getSocialWebhookDebug,
+    listSocialChannels, createSocialChannel, updateSocialChannel, deleteSocialChannel, listPagesFromToken, testSocialConnection, getSocialWebhookDebug,
     getSocialCounts, createLeadFromSocialContact, subscribeSocialChannel,
     listSocialComments, getSocialCommentThread, replySocialComment, hideSocialComment, updateSocialCommentThread,
     createLeadFromSocialComment, syncSocialComments, getSocialSyncStatus,
@@ -36,6 +36,13 @@ const errMsg = (e: unknown, fallback: string) =>
 const contactName = (c: SocialConversation["contact"]) => c.name || `${c.platform === "INSTAGRAM" ? "IG" : "FB"} ${c.externalId.slice(-6)}`;
 const authorLabel = (c: Pick<SocialComment, "authorName">, platform: SocialPlatform) =>
     c.authorName ? (platform === "INSTAGRAM" ? `@${c.authorName}` : c.authorName) : "Pengguna";
+/** Token IG Login berawalan "IG", token Facebook/Page berawalan "EAA" — salah tempel = "Cannot parse access token". */
+function tokenMismatch(platform: SocialPlatform, token: string): string | null {
+    const t = token.trim();
+    if (platform === "MESSENGER" && /^IG/.test(t)) return "Ini token Instagram (IG…). Ubah Platform menjadi Instagram, lalu tempel di kolom Access Token.";
+    if (platform === "INSTAGRAM" && /^EAA/.test(t)) return "Ini token Facebook (EAA…). Untuk Instagram pakai token dari App Dashboard → Instagram → “Buat token akses” (berawalan IG…).";
+    return null;
+}
 const PlatformIcon = ({ p, className }: { p: SocialPlatform; className?: string }) =>
     p === "INSTAGRAM" ? <Instagram className={className} /> : <Facebook className={className} />;
 
@@ -666,6 +673,18 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
         onError: (e: unknown) => alert(errMsg(e, "Gagal menambah channel")),
     });
     const delMut = useMutation({ mutationFn: (id: number) => deleteSocialChannel(id), onSuccess: invalidate });
+    // Ganti token tanpa menghapus channel (hapus channel = riwayat DM & komentar ikut terhapus).
+    const [tokenFor, setTokenFor] = useState<number | null>(null);
+    const [newToken, setNewToken] = useState("");
+    const tokenMut = useMutation({
+        mutationFn: async (ch: SocialChannel) => {
+            const r = await testSocialConnection({ platform: ch.platform, pageId: ch.pageId, igId: ch.igId ?? undefined, accessToken: newToken });
+            await updateSocialChannel(ch.id, { accessToken: newToken });
+            return r;
+        },
+        onSuccess: (r) => { alert(`✓ Token diganti — akun: ${r.name || r.id}`); setTokenFor(null); setNewToken(""); invalidate(); },
+        onError: (e: unknown) => alert(`${errMsg(e, "Gagal mengganti token")}\nToken lama tetap dipakai.`),
+    });
     const testMut = useMutation({
         mutationFn: () => testSocialConnection({ platform: form.platform, pageId: form.pageId, igId: form.igId ?? undefined, accessToken: form.accessToken }),
         onSuccess: (r) => alert(`✓ Koneksi OK — akun: ${r.name || r.id}`),
@@ -728,11 +747,12 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                         <div className="flex gap-2">
                             <input type="password" value={loginToken} onChange={(e) => setLoginToken(e.target.value)} placeholder="Tempel token login…"
                                 className="flex-1 rounded-lg bg-muted/60 px-3 py-1.5 text-sm outline-none font-mono" />
-                            <button type="button" onClick={() => pagesMut.mutate()} disabled={pagesMut.isPending || !loginToken.trim()}
+                            <button type="button" onClick={() => pagesMut.mutate()} disabled={pagesMut.isPending || !loginToken.trim() || !!tokenMismatch("MESSENGER", loginToken)}
                                 className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 whitespace-nowrap">
                                 {pagesMut.isPending ? "Mengambil…" : "Ambil Page"}
                             </button>
                         </div>
+                        {tokenMismatch("MESSENGER", loginToken) && <p className="text-[11px] text-red-600 dark:text-red-400">{tokenMismatch("MESSENGER", loginToken)}</p>}
                         {pages.length > 0 && (
                             <div className="space-y-1">
                                 {pages.map((p) => (
@@ -774,6 +794,7 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                         <label className="text-sm sm:col-span-2">Access Token
                             <input type="password" value={form.accessToken} onChange={(e) => setForm({ ...form, accessToken: e.target.value })} placeholder={form.platform === "INSTAGRAM" ? "Token dari 'Buat token' Instagram…" : "Page token (EAAG…)"}
                                 className="mt-1 w-full rounded-lg bg-muted/60 px-3 py-2 outline-none font-mono" />
+                            {tokenMismatch(form.platform, form.accessToken) && <span className="text-[11px] text-red-600 dark:text-red-400">{tokenMismatch(form.platform, form.accessToken)}</span>}
                         </label>
                         <label className="text-sm sm:col-span-2">Cabang
                             <select value={form.branchId ?? ""} onChange={(e) => setForm({ ...form, branchId: e.target.value ? +e.target.value : null })}
@@ -800,7 +821,8 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
 
                     <div className="space-y-1.5">
                         {channels.map((ch: SocialChannel) => (
-                            <div key={ch.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                            <div key={ch.id} className="rounded-lg border border-border px-3 py-2 text-sm space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <PlatformIcon p={ch.platform} className="w-4 h-4 text-pink-500" />
                                 <div className="min-w-0 flex-1">
                                     <div className="truncate">{ch.label} <span className="text-xs opacity-50">({PLATFORM_LABEL[ch.platform]})</span></div>
@@ -811,7 +833,27 @@ function ChannelManager({ onClose }: { onClose: () => void }) {
                                     className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-muted hover:bg-muted/70 disabled:opacity-50 whitespace-nowrap">
                                     <Radio className="w-3.5 h-3.5" /> Aktifkan webhook
                                 </button>
-                                <button onClick={() => { if (confirm(`Hapus channel "${ch.label}"?`)) delMut.mutate(ch.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                                <button onClick={() => { setTokenFor(tokenFor === ch.id ? null : ch.id); setNewToken(""); }} title="Ganti access token (mis. token kedaluwarsa)"
+                                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg bg-muted hover:bg-muted/70 whitespace-nowrap">
+                                    <KeyRound className="w-3.5 h-3.5" /> Ganti token
+                                </button>
+                                <button onClick={() => { if (confirm(`Hapus channel "${ch.label}"?\n\nSemua percakapan DM & komentar channel ini ikut terhapus. Untuk memperbarui token, pakai "Ganti token".`)) delMut.mutate(ch.id); }} className="p-1.5 rounded-lg hover:bg-red-500/10 text-red-500"><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                            {tokenFor === ch.id && (
+                                <div className="space-y-1">
+                                    <div className="flex gap-2">
+                                        <input type="password" value={newToken} onChange={(e) => setNewToken(e.target.value)} autoFocus
+                                            placeholder={ch.platform === "INSTAGRAM" ? "Token baru dari “Buat token akses” (IG…)" : "Page token baru (EAA…)"}
+                                            className="flex-1 min-w-0 rounded-lg bg-muted/60 px-3 py-1.5 text-sm outline-none font-mono" />
+                                        <button onClick={() => tokenMut.mutate(ch)} disabled={tokenMut.isPending || !newToken.trim() || !!tokenMismatch(ch.platform, newToken)}
+                                            className="text-sm px-3 py-1.5 rounded-lg bg-primary text-primary-foreground disabled:opacity-50 whitespace-nowrap">
+                                            {tokenMut.isPending ? "Menguji…" : "Tes & simpan"}
+                                        </button>
+                                    </div>
+                                    {tokenMismatch(ch.platform, newToken) && <p className="text-[11px] text-red-600 dark:text-red-400">{tokenMismatch(ch.platform, newToken)}</p>}
+                                    <p className="text-[11px] opacity-60">Token dites ke Meta dulu; kalau gagal, token lama tetap dipakai. Riwayat DM &amp; komentar tidak berubah.</p>
+                                </div>
+                            )}
                             </div>
                         ))}
                         {channels.length === 0 && <p className="text-xs opacity-60">Belum ada channel.</p>}

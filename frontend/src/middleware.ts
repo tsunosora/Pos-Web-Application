@@ -22,7 +22,8 @@ export function middleware(request: NextRequest) {
         if (
             pathname.startsWith('/_next/') || pathname === '/manifest.webmanifest' ||
             pathname.startsWith('/uploads') || pathname === '/landing' ||
-            pathname === '/artikel' || pathname.startsWith('/artikel/')
+            pathname === '/artikel' || pathname.startsWith('/artikel/') ||
+            pathname === '/kebijakan-privasi' || pathname === '/hapus-data'
         ) {
             return NextResponse.next();
         }
@@ -39,7 +40,9 @@ export function middleware(request: NextRequest) {
     // akun POS via /auth/login) → publik, biar tak dipaksa ke /login POS. Aset
     // iframe /studio-desain/* TETAP butuh cookie token (bukan publik) → hanya
     // termuat setelah login Studio berhasil.
-    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname.startsWith('/marketing') || pathname.startsWith('/tv') || pathname === '/artikel' || pathname.startsWith('/artikel/') || pathname.startsWith('/nilai/') || pathname.startsWith('/desainer');
+    // Kebijakan Privasi & Penghapusan Data: wajib bisa dibuka publik (syarat penerbitan aplikasi Meta).
+    const isLegalPage = pathname === '/kebijakan-privasi' || pathname === '/hapus-data';
+    const isPublicPage = pathname.startsWith('/opname/') || isProduksiPublic || pathname.startsWith('/cetak') || pathname.startsWith('/p/') || pathname.startsWith('/so-designer') || pathname.startsWith('/marketing') || pathname.startsWith('/tv') || pathname === '/artikel' || pathname.startsWith('/artikel/') || pathname.startsWith('/nilai/') || pathname.startsWith('/desainer') || isLegalPage;
 
     // If there is no token and the user is NOT on the login page (or public paths), redirect to login
     if (!token && !isLoginPage && !isPublicPage) {
