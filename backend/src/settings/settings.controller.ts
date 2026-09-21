@@ -13,6 +13,7 @@ const randomHex = () => Array(32).fill(null).map(() => (Math.round(Math.random()
 // perlu GET /settings (nama toko, pajak, tema, dll.), tapi tidak boleh membaca PIN
 // papan kerja, URL webhook, atau tujuan cadangan.
 const SECRET_FIELDS = ['operatorPin', 'marketingPin', 'discordWebhookUrl', 'githubWebhookSecret', 'rcloneRemote'] as const;
+const OWNER_ONLY_FIELDS = ['discordWebhookUrl', 'githubWebhookSecret', 'rcloneRemote'] as const;
 
 @Controller('settings')
 export class SettingsController {
@@ -27,9 +28,12 @@ export class SettingsController {
     @UseGuards(JwtAuthGuard)
     async getSettings(@Req() req: any) {
         const s: any = await this.settingsService.getSettings();
-        if (!s || isManagerLevelRole(req.user?.roleName)) return s;
+        if (!s || isOwnerLevelRole(req.user?.roleName)) return s;
         const aman = { ...s };
-        for (const f of SECRET_FIELDS) if (f in aman) aman[f] = null;
+        // Manajer tetap melihat PIN papan (mereka yang mengelolanya); webhook & tujuan cadangan
+        // hanya owner — sama dengan aturan simpannya (peran Admin kasir/CS setingkat manajer).
+        const sembunyikan = isManagerLevelRole(req.user?.roleName) ? OWNER_ONLY_FIELDS : SECRET_FIELDS;
+        for (const f of sembunyikan) if (f in aman) aman[f] = null;
         return aman;
     }
 
