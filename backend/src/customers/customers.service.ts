@@ -1,6 +1,15 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { toWaPhone, phoneKey, maskPhone } from '../common/utils/phone.util';
+import { lineTotalOf } from '../transactions/area-unit.util';
+
+/**
+ * Nilai belanja satu nota. Nota LUNAS = total nota; nota DP = uang yang sudah diterima.
+ * `downPayment` nota lunas menyimpan DP awal saja (0 bila lunas sekali bayar) — dulu dijumlah
+ * mentah sehingga "Total Belanja" pelanggan kurang ±Rp 440 jt di produksi.
+ */
+const nilaiNota = (t: { status?: unknown; grandTotal?: unknown; downPayment?: unknown }) =>
+    Number(t.status === 'PAID' ? t.grandTotal : t.downPayment) || 0;
 
 @Injectable()
 export class CustomersService {
@@ -152,7 +161,7 @@ export class CustomersService {
         const transactions = orClause.length > 0
             ? await this.prisma.transaction.findMany({
                 where: { status: { in: ['PAID', 'PARTIAL'] }, OR: orClause },
-                select: { customerPhone: true, customerName: true, downPayment: true, createdAt: true },
+                select: { customerPhone: true, customerName: true, downPayment: true, grandTotal: true, status: true, createdAt: true },
             })
             : [];
 
@@ -166,7 +175,7 @@ export class CustomersService {
             return {
                 ...c,
                 totalOrders: matching.length,
-                totalRevenue: matching.reduce((sum, t) => sum + Number(t.downPayment), 0),
+                totalRevenue: matching.reduce((sum, t) => sum + nilaiNota(t), 0),
                 lastOrderDate: sorted[0]?.createdAt ?? null,
             };
         });
@@ -176,12 +185,10 @@ export class CustomersService {
 
     /** Ringkasan ringan untuk kartu atas (tanpa load semua customer). */
     async summaryStats() {
-        const [totalCustomers, rev, activePhones] = await Promise.all([
+        const [totalCustomers, lunas, dp, activePhones] = await Promise.all([
             this.prisma.customer.count(),
-            this.prisma.transaction.aggregate({
-                _sum: { downPayment: true },
-                where: { status: { in: ['PAID', 'PARTIAL'] } },
-            }),
+            this.prisma.transaction.aggregate({ _sum: { grandTotal: true }, where: { status: 'PAID' } }),
+            this.prisma.transaction.aggregate({ _sum: { downPayment: true }, where: { status: 'PARTIAL' } }),
             this.prisma.transaction.findMany({
                 where: { status: { in: ['PAID', 'PARTIAL'] }, customerPhone: { not: null } },
                 select: { customerPhone: true },
@@ -190,7 +197,7 @@ export class CustomersService {
         ]);
         return {
             totalCustomers,
-            totalRevenue: Number(rev._sum.downPayment || 0),
+            totalRevenue: Number(lunas._sum.grandTotal || 0) + Number(dp._sum.downPayment || 0),
             activeCustomers: activePhones.length,
         };
     }
@@ -211,7 +218,7 @@ export class CustomersService {
             orderBy: { createdAt: 'desc' },
         });
 
-        const totalRevenue = transactions.reduce((sum, t) => sum + Number(t.downPayment), 0);
+        const totalRevenue = transactions.reduce((sum, t) => sum + nilaiNota(t), 0);
         const totalOrders = transactions.length;
         const lastOrderDate = transactions[0]?.createdAt ?? null;
 
@@ -223,7 +230,7 @@ export class CustomersService {
                 const name = item.productVariant.product.name;
                 if (!productMap[name]) productMap[name] = { name, qty: 0, revenue: 0 };
                 productMap[name].qty += item.quantity;
-                productMap[name].revenue += Number(item.priceAtTime);
+                productMap[name].revenue += lineTotalOf(item); // dulu harga satuan saja (tanpa qty/luas)
             }
         }
         const topProducts = Object.values(productMap).sort((a, b) => b.qty - a.qty).slice(0, 8);
@@ -237,7 +244,7 @@ export class CustomersService {
             const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
             const total = transactions
                 .filter(t => t.createdAt && t.createdAt >= monthStart && t.createdAt <= monthEnd)
-                .reduce((sum, t) => sum + Number(t.downPayment), 0);
+                .reduce((sum, t) => sum + nilaiNota(t), 0);
             return { month: monthNames[d.getMonth()], total };
         });
 
@@ -280,7 +287,7 @@ export class CustomersService {
                 (!c.phone && t.customerName === c.name)
             );
 
-            const totalRevenue = matching.reduce((sum, t) => sum + Number(t.downPayment), 0);
+            const totalRevenue = matching.reduce((sum, t) => sum + nilaiNota(t), 0);
             const totalOrders = matching.length;
             const avgOrder = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
             const lastOrderDate = matching[0]?.createdAt ?? null;
@@ -293,7 +300,7 @@ export class CustomersService {
                     const name = item.productVariant.product.name;
                     if (!productMap[name]) productMap[name] = { name, qty: 0, revenue: 0 };
                     productMap[name].qty += item.quantity;
-                    productMap[name].revenue += Number(item.priceAtTime);
+                    productMap[name].revenue += lineTotalOf(item);
                 }
             }
             const topProducts = Object.values(productMap)

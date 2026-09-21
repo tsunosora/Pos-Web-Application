@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { isOwnerLevelRole } from '../auth/role-groups';
+import { isManagerLevelRole, isOwnerLevelRole } from '../auth/role-groups';
 import * as bcrypt from 'bcrypt';
 
 /** Pelaku aksi (dari req.user) — dasar batas wewenang owner vs admin/manajer. */
@@ -393,6 +393,9 @@ export class UsersService {
     if (isOwnerLevelRole(n) && !isOwnerLevelRole(actor.roleName)) {
       throw new ForbiddenException('Hanya owner yang boleh membuat role owner.');
     }
+    if (isManagerLevelRole(n) && !isOwnerLevelRole(actor.roleName)) {
+      throw new ForbiddenException('Hanya owner yang boleh membuat peran setingkat manajer.');
+    }
     return this.prisma.role.create({
       data: { name: n }
     });
@@ -404,6 +407,11 @@ export class UsersService {
     if (!role) throw new BadRequestException('Role tidak ditemukan.');
     if ((isOwnerLevelRole(role.name) || isOwnerLevelRole(n)) && !isOwnerLevelRole(actor.roleName)) {
       throw new ForbiddenException('Hanya owner yang boleh mengubah role owner.');
+    }
+    // Nama peran menentukan level akses (mis. "Kasir" → "Manajer" menaikkan SEMUA akunnya di
+    // semua cabang). Melintasi batas setingkat-manajer hanya boleh oleh owner.
+    if (isManagerLevelRole(role.name) !== isManagerLevelRole(n) && !isOwnerLevelRole(actor.roleName)) {
+      throw new ForbiddenException('Hanya owner yang boleh mengubah level peran (setingkat manajer ↔ staf).');
     }
     return this.prisma.role.update({
       where: { id },

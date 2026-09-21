@@ -114,8 +114,9 @@ export class SalesOrdersPublicController {
     @Post('detail/:id')
     @HttpCode(200) // hanya baca
     async detail(@Param('id', ParseIntPipe) id: number, @Body() body: { designerId: number; pin: string }) {
-        await verifyDesigner(this.designersService, Number(body?.designerId), body?.pin);
-        return this.soService.findOne(id);
+        const designer = await verifyDesigner(this.designersService, Number(body?.designerId), body?.pin);
+        // Hanya SO miliknya — detail memuat No. HP & alamat lengkap pelanggan.
+        return this.ownSo(id, designer.name);
     }
 
     /**
