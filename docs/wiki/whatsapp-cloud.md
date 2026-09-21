@@ -177,6 +177,16 @@ pelanggan, WhatsApp hanya mengizinkan template yang sudah disetujui Meta. Karena
 itu broadcast memakai template, sementara balasan di dalam percakapan aktif
 bisa berupa teks bebas.
 
+### Pengaman balasan otomatis (sejak 22 September 2026)
+
+- Paling banyak **satu balasan otomatis per percakapan per jam** (sapaan pertama
+  tetap dikirim). Dulu pelanggan yang mengirim 5 foto menerima 5 balasan sama.
+- Tidak membalas **nomor kanal kita sendiri** (dua nomor toko bisa saling balas
+  tanpa akhir).
+- **STOP/BERHENTI** dikenali juga dengan tanda baca, emoji, atau kata tambahan
+  pendek ("stop kak", "Berhenti ya 🙏", tombol "Stop promotions"). Begitu juga
+  MULAI.
+
 ## Reminder POS
 
 ![Halaman Reminder Otomatis dengan daftar event POS](images/wa-3-reminder.webp)
@@ -198,6 +208,17 @@ Pengingat **follow-up / tagihan jatuh tempo** (bila diaktifkan) sejak 22 Septemb
 follow-up (yang gagal tidak dikirim ulang tiap 15 menit), dan variabel ke-2 template
 berisi **tanggal jatuh tempo** — catatan internal follow-up tidak pernah dikirim ke
 pelanggan. Pakai `{{1}}` = nama pelanggan dan `{{2}}` = tanggal saat membuat template.
+
+Sejak 22 September 2026 pengingat "siap ambil" dan pengingat follow-up
+**dipesan dulu sebelum dikirim**, sehingga klik ganda atau dua proses bersamaan
+tidak mengirim template berbayar dua kali; menandai siap ambil yang sudah siap/
+diserahkan tidak memicu pengingat lagi.
+
+Pesan masuk yang gagal diproses karena database sibuk kini dijawab "coba lagi"
+ke Meta sehingga dikirim ulang (dulu ±300 pesan masuk Agustus 2026 hilang).
+Balasan yang sudah sampai ke pelanggan tetapi gagal tersimpan tidak lagi
+memunculkan "Gagal mengirim" (yang membuat staf mengirim ulang), dan lampiran
+yang sudah terkirim langsung keluar dari daftar kirim.
 
 ## QR Chat
 

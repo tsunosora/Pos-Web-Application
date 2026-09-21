@@ -89,6 +89,9 @@ toko lain dengan identitas sendiri.
 - **Rekening bank yang sudah dipakai** nota atau entri kas tidak bisa dihapus
   (sejak 22 September 2026) — nonaktifkan saja. Nota juga hanya menerima rekening
   milik cabang nota itu.
+- **Pengaturan cabang**: tombol Simpan menunggu data cabang terpilih termuat —
+  dulu saat berganti cabang, PIN/grup WA/kop nota cabang sebelumnya bisa
+  tersimpan ke cabang baru (sejak 22 September 2026).
 - **Hapus cabang khusus Owner**, dan ditolak bila cabang masih punya transaksi,
   catatan kas, akun karyawan, atau stok. Nonaktifkan saja cabangnya supaya
   riwayatnya tetap utuh.

@@ -241,6 +241,30 @@ Sejak 22 September 2026:
 - Salinan pengaturan yang disimpan untuk mode offline tidak memuat PIN, webhook
   Discord, rahasia GitHub, dan tujuan rclone.
 
+## Pengetatan 22 September 2026 (putaran 6)
+
+- **Faktur A4** meng-escape semua teks (nama & alamat pelanggan, nama item, kasir,
+  rekening). Dulu nama pelanggan dari formulir order publik yang berisi kode bisa
+  berjalan saat faktur dicetak di domain kasir.
+- **Unggahan gambar** pengaturan (logo, QRIS, latar & logo login) hanya menerima
+  gambar asli (JPG/PNG/WEBP/GIF, maks. 10 MB); SVG ditolak. Folder `/uploads`
+  hanya menyajikan ekstensi gambar sebagai gambar — berkas lain selalu dipaksa
+  diunduh tanpa skrip. Rute logo di domain kasir hanya meneruskan gambar raster.
+- **Kunci login per email** hanya menahan IP yang ikut salah menebak (≥3×). Dulu
+  siapa pun yang tahu email bisa mengunci akun owner/kasir 15 menit dari mana
+  saja. Kunci per IP dan per IP+email tetap berlaku.
+- IP klien untuk pembatas PIN, login, dan penilaian CS hanya diambil dari header
+  proksi bila koneksi datang dari cloudflared di server; klien LAN tak bisa lagi
+  mengarang IP.
+- Rincian KPI akun tanpa cabang (owner) tertutup bagi staf; pengumuman juara ke
+  Discord hanya setingkat manajer; mencatat mutasi, pembelian, dan transfer stok
+  hanya peran yang punya menu Stok; set stok absolut khusus manajer.
+- Header keamanan frontend: halaman kasir tak bisa dibingkai situs lain dan tipe
+  berkas tak ditebak browser. Masukan Studio AI dibatasi panjangnya.
+- Webhook GitHub memverifikasi tanda tangan atas body mentah. **Disarankan owner
+  mengisi rahasia webhook GitHub** (Pengaturan → Integrasi) — selama kosong,
+  pemberitahuan commit diterima tanpa verifikasi.
+
 ## Hal lain yang patut diperhatikan
 
 - **`/tv/leaderboard`** menampilkan omzet dan nama karyawan tanpa login,

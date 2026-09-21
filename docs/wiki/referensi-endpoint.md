@@ -400,7 +400,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | GET | `/crm/kpi/design-output` | `designOutput` | `JwtAuthGuard` | — |
 | GET | `/crm/kpi/cs-trend` | `csTrend` | `JwtAuthGuard` | — |
 | GET | `/crm/kpi/designer-trend` | `designerTrend` | `JwtAuthGuard` | — |
-| POST | `/crm/kpi/discord-recap` | `discordRecap` | `JwtAuthGuard` | — |
+| POST | `/crm/kpi/discord-recap` | `discordRecap` | `ManagerGuard` | — |
 | GET | `/crm/kpi/source-breakdown` | `sourceBreakdown` | `JwtAuthGuard` | — |
 | GET | `/crm/kpi/detail` | `detail` | `JwtAuthGuard` | — |
 
@@ -928,7 +928,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/stock-movements` | `create` | `JwtAuthGuard` | — |
+| POST | `/stock-movements` | `create` | `MenuGuard` | — |
 | GET | `/stock-movements` | `findAll` | `JwtAuthGuard` | — |
 | GET | `/stock-movements/waste` | `findWaste` | `JwtAuthGuard` | — |
 | GET | `/stock-movements/:id` | `findOne` | `JwtAuthGuard` | — |
@@ -963,7 +963,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/stock-purchases` | `create` | `JwtAuthGuard` | — |
+| POST | `/stock-purchases` | `create` | `MenuGuard` | — |
 | GET | `/stock-purchases` | `findAll` | `JwtAuthGuard` | — |
 
 ## StockTransferController — `/stock-transfers`
@@ -975,7 +975,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 |---|---|---|---|---|
 | GET | `/stock-transfers` | `list` | `JwtAuthGuard` | — |
 | GET | `/stock-transfers/:id` | `getOne` | `JwtAuthGuard` | — |
-| POST | `/stock-transfers` | `create` | `JwtAuthGuard` | — |
+| POST | `/stock-transfers` | `create` | `MenuGuard` | — |
 
 ## StockTransfersController — `/stock-transfers`
 

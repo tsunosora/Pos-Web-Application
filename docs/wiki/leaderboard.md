@@ -52,6 +52,10 @@ Pengaturan **Metrik Produk Custom** ada di **Owner Dashboard** (`/owner`) — pa
 
 ---
 
+Sejak 22 September 2026 papan TV dan leaderboard **tidak menghitung job dari
+nota yang dihapus/dibatalkan** (juga di mode Semua Cabang), dan jumlah pcs item
+per meter memakai qty × pcs (spanduk 9 kopi = 9 pcs, dulu 1).
+
 ## Metrik Produk Custom ⭐
 
 Fitur untuk **Owner**: buat kolom sendiri di leaderboard yang menghitung **produk khusus** — misalnya "Roll Up Banner F340" atau "Jersey Kantor". Kolom ini **terpisah** dari metrik bawaan, jadi tidak mengubah atau menggandakan angka yang sudah ada. Anda bisa membuat **lebih dari satu** metrik (tiap metrik = satu kolom baru).

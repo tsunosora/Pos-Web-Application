@@ -38,6 +38,12 @@ Di tiga halaman ber-PIN itu tidak ada login email, jadi PIN dikirim ke
 `POST /hr/pin/my-portal`; backend yang memverifikasi PIN lalu menukarnya dengan
 tautan portal. Tautannya tidak bisa ditebak dari browser.
 
+### Angka yang dikirim ke HR (sejak 22 September 2026)
+
+Penjualan harian memakai **tanggal lunas** (bukan tanggal nota), dan nilai
+produksi operator dihitung **sekali per job** saat dia menyelesaikannya (KIRIM/
+SELESAI) — dulu setiap perpindahan tahap kartu menambah nilai job lagi.
+
 ## Pemetaan orang
 
 Aplikasi HR menyimpan `posproUserId` pada data karyawannya. Itu satu-satunya

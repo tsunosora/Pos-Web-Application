@@ -221,6 +221,13 @@ beserta tanggal jatuh temponya, lalu ikut masuk perhitungan laba supaya
 diambil dari data yang sama dengan [Leaderboard](leaderboard.md), jadi tidak ada
 rekap terpisah yang harus diisi tangan.
 
+### Dasar hitung bonus (sejak 22 September 2026)
+
+Capaian CS memakai **omzet nota lunas pada bulan pelunasannya** (bagian CS
+tersebut), bukan lagi nilai lead Won/estimasi dan walk-in yang belum dibayar.
+Capaian operator memakai nota lunas pada bulan pelunasannya. Bonus tim dan
+bonus kualitas hanya untuk nama yang punya capaian di bulan itu.
+
 ## Rekening bank & metode bayar
 
 `bank_accounts` menyimpan rekening penerima transfer; saat kasir memilih
