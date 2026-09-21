@@ -117,7 +117,15 @@ export class RcloneService implements OnModuleInit {
         // diam-diam mengembalikan retensi ke 7 (T-06).
         const ubah: Record<string, unknown> = {};
         if (data.enabled !== undefined) ubah.rcloneEnabled = !!data.enabled;
-        if (data.remote !== undefined) ubah.rcloneRemote = data.remote?.trim() || null;
+        if (data.remote !== undefined) {
+            const r = data.remote?.trim() || null;
+            // Hanya remote bernama dari rclone.conf ("nama:folder"). Tolak remote inline
+            // (":webdav,url=…"), opsi ("--…") & koma — dulu bisa mengirim cadangan ke server siapa pun.
+            if (r && !/^[A-Za-z0-9_][A-Za-z0-9_.-]*:[^,\s][^,]*$|^[A-Za-z0-9_][A-Za-z0-9_.-]*:$/.test(r)) {
+                throw new BadRequestException('Tujuan rclone harus berformat "nama-remote:folder" sesuai rclone.conf di server.');
+            }
+            ubah.rcloneRemote = r;
+        }
         if (data.schedule !== undefined) ubah.rcloneSchedule = data.schedule || '0 2 * * *';
         if (data.keepCount !== undefined) {
             const k = Math.round(Number(data.keepCount));

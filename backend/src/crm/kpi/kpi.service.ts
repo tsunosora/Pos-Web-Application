@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere } from '../../common/branch-where.helper';
 import { matchBranchId } from '../../common/branch-name.util';
@@ -7,6 +7,7 @@ import { DiscordService } from '../../discord/discord.service';
 import { ReportsService } from '../../reports/reports.service';
 import { AnalyticsService } from '../../whatsapp-cloud/analytics.service';
 import { lineTotalOf } from '../../transactions/area-unit.util';
+import { KATEGORI_PENJUALAN } from '../../common/kategori-kas';
 import {
     aggregateByTx,
     buildMatchWhere,
@@ -214,7 +215,7 @@ export class KpiService {
         if (!where) return empty; // metrik tanpa aturan → nol (defensif)
         const items: RawItem[] = await (this.prisma as any).transactionItem.findMany({
             where: { transactionId: { in: txIds }, ...where },
-            select: { transactionId: true, quantity: true, pcs: true, priceAtTime: true },
+            select: { transactionId: true, quantity: true, pcs: true, priceAtTime: true, areaCm2: true, unitType: true },
         });
         return aggregateByTx(items, (metric.countMode as CountMode) || 'PCS');
     }
@@ -232,7 +233,7 @@ export class KpiService {
         if (!where) return empty;
         const items: any[] = await (this.prisma as any).transactionItem.findMany({
             where: { id: { in: itemIds }, ...where },
-            select: { id: true, transactionId: true, quantity: true, pcs: true, priceAtTime: true },
+            select: { id: true, transactionId: true, quantity: true, pcs: true, priceAtTime: true, areaCm2: true, unitType: true },
         });
         return valueByItemId(items, (metric.countMode as CountMode) || 'PCS');
     }
@@ -593,8 +594,13 @@ export class KpiService {
         const { start, end } = resolvePeriod(params);
         const user = await this.prisma.user.findUnique({
             where: { id: opts.userId },
-            select: { id: true, name: true, email: true, role: { select: { name: true } } },
+            select: { id: true, name: true, email: true, branchId: true, role: { select: { name: true } } },
         });
+        // Rincian omzet/cuan memuat nota & No. HP pelanggan tanpa saring cabang → staf hanya boleh
+        // membuka rincian akun cabangnya (dulu ?userId= akun cabang lain terbuka).
+        if (!ctx.isOwner && user?.branchId != null && user.branchId !== ctx.userBranchId) {
+            throw new ForbiddenException('Rincian ini milik akun cabang lain.');
+        }
         const person = {
             userId: opts.userId,
             name: user?.name || user?.email || `User #${opts.userId}`,
@@ -2245,6 +2251,7 @@ export class KpiService {
                     createdAt: { gte: start, lte: end },
                     type: 'INCOME',
                     userId: null, // auto-entry sistem saat nota PAID = uang masuk nyata
+                    category: { in: KATEGORI_PENJUALAN }, // sama dgn dasbor: modal/pelunasan titipan bukan omzet
                     ...(bid != null ? { branchId: bid } : {}),
                 },
                 _sum: { amount: true },
@@ -2955,10 +2962,19 @@ export class KpiService {
             }))
             .sort((a, b) => b.dicek - a.dicek || b.closing - a.closing);
 
+        // Piutang nyata SAAT INI (semua nota belum lunas cabang ini, termasuk walk-in & lead lama).
+        // pendingValue di atas hanya nota lead yang dibuat dalam periode — dulu dipakai kartu Piutang owner.
+        const piutangRows: any[] = await this.tx.findMany({
+            where: { status: { in: ['PENDING', 'PARTIAL'] }, ...(ctx.branchId != null ? { branchId: Number(ctx.branchId) } : {}) },
+            select: { grandTotal: true, downPayment: true },
+        });
+        const receivablesOutstanding = Math.round(piutangRows.reduce((s, t) => s + Math.max(0, Number(t.grandTotal) - Number(t.downPayment)), 0));
+
         return {
             period: { start: start.toISOString(), end: end.toISOString() },
             customMetricDefs, // [{ id, label, countMode }] — kolom produk custom utk leaderboard CS
             totals: {
+                receivablesOutstanding,
                 totalLeads,
                 closedWon,
                 closedLost,

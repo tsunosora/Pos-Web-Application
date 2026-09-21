@@ -90,7 +90,8 @@ export type TransactionEditRequest = {
     reviewNote: string | null;
     createdAt: string;
     updatedAt: string;
-    transaction: { id: number; invoiceNumber: string; grandTotal: string; status: string; items: any[] };
+    transaction: { id: number; invoiceNumber: string; grandTotal: string; discount?: string; customerName?: string | null; customerPhone?: string | null; status: string; items: any[] };
+    newVariantNames?: Record<string, string>;
     requestedBy: { id: number; name: string | null; email: string };
     reviewedBy: { id: number; name: string | null; email: string } | null;
 };

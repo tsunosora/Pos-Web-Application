@@ -12,6 +12,8 @@ export interface BranchInboxItem {
     widthCm: number | null;
     heightCm: number | null;
     pcs: number | null;
+    unitType?: string | null;
+    areaCm2?: number | null;
     note: string | null;
     productionJob?: { id: number; jobNumber: string; status: string } | null;
     printJob?: { id: number; jobNumber: string; status: string } | null;
@@ -113,6 +115,8 @@ export interface BranchOutboxItem {
     widthCm: number | null;
     heightCm: number | null;
     pcs: number | null;
+    unitType?: string | null;
+    areaCm2?: number | null;
     note: string | null;
 }
 

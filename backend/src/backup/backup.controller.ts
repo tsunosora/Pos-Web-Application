@@ -8,10 +8,11 @@ import { BackupService, BackupGroupKey } from './backup.service';
 import { RcloneService } from './rclone.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DiscordService } from '../discord/discord.service';
-import { ManagerGuard, OwnerGuard } from '../auth/role-groups';
+import { ManagerGuard, OwnerGuard, isOwnerLevelRole } from '../auth/role-groups';
 
-// Cadangan berisi SELURUH data toko (pelanggan, transaksi, pengguna) → setingkat
-// manajer. Memulihkan (menimpa database) hanya owner (T-01).
+// Halaman cadangan setingkat manajer (status & jalankan cadangan terjadwal). Mengunduh cadangan
+// penuh (berisi token WA/Meta, PIN, hash sandi), memulihkan, dan mengubah tujuan rclone hanya
+// owner — peran "Admin" (kasir/CS) setingkat manajer.
 @UseGuards(JwtAuthGuard, ManagerGuard)
 @Controller('backup')
 export class BackupController {
@@ -31,10 +32,13 @@ export class BackupController {
     }
 
     @Post('export')
+    @UseGuards(OwnerGuard)
     async exportBackup(
         @Body() body: { groups: string[]; includeImages?: boolean },
         @Res() res: Response,
+        @Req() req: any,
     ) {
+        this.logger.warn(`[AUDIT] backup_export user=${req.user?.userId ?? '?'} email=${req.user?.email ?? '?'} grup=${(body.groups || ['all']).join(',')}`);
         const groups = body.groups || ['all'];
         const isAll = groups.includes('all');
         const includeImages = body.includeImages !== false;
@@ -54,6 +58,7 @@ export class BackupController {
     }
 
     @Post('preview')
+    @UseGuards(OwnerGuard)
     @UseInterceptors(FileInterceptor('file'))
     previewBackup(@UploadedFile() file: Express.Multer.File) {
         if (!file) throw new BadRequestException('File backup wajib diunggah.');
@@ -96,11 +101,14 @@ export class BackupController {
     // ── Rclone ───────────────────────────────────────────────────────────────
 
     @Get('rclone/status')
-    getRcloneStatus() {
-        return this.rcloneService.getStatus();
+    async getRcloneStatus(@Req() req: any) {
+        const s: any = await this.rcloneService.getStatus();
+        // Tujuan & folder cadangan hanya untuk owner.
+        return isOwnerLevelRole(req.user?.roleName) ? s : { ...s, remote: s?.remote ? '(diatur owner)' : null, localBackupDir: undefined };
     }
 
     @Post('rclone/settings')
+    @UseGuards(OwnerGuard)
     saveRcloneSettings(@Body() body: {
         enabled: boolean;
         remote?: string;

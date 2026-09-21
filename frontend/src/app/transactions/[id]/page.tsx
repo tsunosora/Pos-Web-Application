@@ -15,6 +15,7 @@ import { LabelChip } from "@/components/LabelChip";
 import { MarketplaceChip } from "@/components/MarketplaceChip";
 import { useStoreProfile } from "@/hooks/useStoreName";
 import { areaQtyLabel, lineTotalOf, sizeLabel, storedUnit } from "@/lib/area-unit";
+import { catatanItemNota, namaItemNota } from "@/lib/nota-item";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -178,11 +179,13 @@ function Receipt({ trx }: { trx: Transaction }) {
 
             {/* Items */}
             {trx.items.map((item, idx) => {
-                const isArea = item.productVariant.product.pricingMode === "AREA_BASED";
+                const isArea = (item as any).productVariant?.product?.pricingMode === "AREA_BASED";
                 // Item area: harga per m²/cm² × luas × pcs (dulu harga × jumlah = hanya harga per m²).
                 const lineTotal = lineTotalOf(item);
-                const productName = item.productVariant.product.name;
-                const variantName = item.productVariant.name;
+                // Item custom tak punya varian (dulu halaman ini error); composite pakai customName.
+                const productName = namaItemNota(item as any);
+                const variantName = (item as any).customName ? null : (item as any).productVariant?.name;
+                const catatan = catatanItemNota((item as any).note);
 
                 return (
                     <div key={item.id} className={idx > 0 ? "mt-1.5" : ""}>
@@ -196,8 +199,8 @@ function Receipt({ trx }: { trx: Transaction }) {
                                 {item.pcs && item.pcs > 1 ? ` × ${item.pcs} pcs` : ""}
                             </p>
                         )}
-                        {item.note && (
-                            <p className="text-[10px] pl-1 whitespace-pre-wrap break-words"><span className="font-semibold">Catatan:</span> {item.note}</p>
+                        {catatan && (
+                            <p className="text-[10px] pl-1 whitespace-pre-wrap break-words"><span className="font-semibold">Catatan:</span> {catatan}</p>
                         )}
                         <div className="flex justify-between pl-1">
                             <span>
@@ -424,13 +427,14 @@ export default function TransactionDetailPage() {
                                 </thead>
                                 <tbody className="divide-y divide-border/60">
                                     {trx.items.map(item => {
-                                        const isArea = item.productVariant.product.pricingMode === "AREA_BASED";
+                                        const isArea = (item as any).productVariant?.product?.pricingMode === "AREA_BASED";
                                         const lineTotal = lineTotalOf(item); // area: harga × luas × pcs
+                                        const catatan = catatanItemNota((item as any).note);
                                         return (
                                             <tr key={item.id} className="hover:bg-accent transition-colors">
                                                 <td className="px-4 py-3">
-                                                    <p className="font-medium text-foreground">{item.productVariant.product.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{item.productVariant.name}</p>
+                                                    <p className="font-medium text-foreground">{namaItemNota(item as any)}</p>
+                                                    {!(item as any).customName && (item as any).productVariant?.name && <p className="text-xs text-muted-foreground">{(item as any).productVariant.name}</p>}
                                                     {isArea && item.widthCm && item.heightCm && (
                                                         <p className="text-xs text-primary">
                                                             {Number(item.widthCm).toLocaleString("id-ID")} × {Number(item.heightCm).toLocaleString("id-ID")} {sizeLabel(storedUnit(item))}
@@ -442,8 +446,8 @@ export default function TransactionDetailPage() {
                                                             <Printer className="w-3 h-3" /> {item.clickType}
                                                         </p>
                                                     )}
-                                                    {item.note && (
-                                                        <p className="text-xs text-muted-foreground italic">"{item.note}"</p>
+                                                    {catatan && (
+                                                        <p className="text-xs text-muted-foreground italic">"{catatan}"</p>
                                                     )}
                                                     {item.originalPrice != null && (
                                                         <p className="text-xs text-amber-700 dark:text-amber-300">

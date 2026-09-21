@@ -29,8 +29,11 @@ export function computeDailyTargets(
   branches: BranchTargetInput[],
   pusatFixedTotal: number,
   daysInMonth: number,
+  jumlahCabangAktif?: number,
 ): DailyTargetStatus[] {
-  const nBranches = branches.length || 1;
+  // Beban pusat dibagi rata ke SEMUA cabang aktif — walau yang ditampilkan hanya satu cabang
+  // (dulu tampilan per cabang membebankan seluruh beban pusat ke cabang itu).
+  const nBranches = (jumlahCabangAktif && jumlahCabangAktif > 0 ? jumlahCabangAktif : branches.length) || 1;
   const pusatSharePerBranch = pusatFixedTotal / nBranches;
   const days = daysInMonth > 0 ? daysInMonth : 30;
 

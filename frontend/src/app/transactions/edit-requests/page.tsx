@@ -16,15 +16,40 @@ const STATUS_CONFIG = {
     REJECTED: { label: 'Ditolak', color: 'text-red-600', bg: 'bg-red-500/10 border-red-500/20', icon: XCircle },
 };
 
+const rp = (n: unknown) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
+
 function EditDiff({ request }: { request: TransactionEditRequest }) {
     const { editData, transaction } = request;
     const currentItems: any[] = transaction.items || [];
+    const ed: any = editData;
 
     return (
         <div className="mt-3 space-y-1.5">
-            {(editData.items || []).map((editItem: any) => {
+            {(editData.items || []).map((editItem: any, idx: number) => {
+                // Item BARU (dulu tak tampil sama sekali).
+                if (!editItem.id) {
+                    const nama = request.newVariantNames?.[String(editItem.newVariantId)] || `Varian #${editItem.newVariantId}`;
+                    const ukuran = editItem.widthCm != null ? `${editItem.widthCm} × ${editItem.heightCm ?? 1} ${editItem.unitType || 'cm'}${editItem.pcs > 1 ? ` × ${editItem.pcs} pcs` : ''}` : `Qty ${editItem.quantity ?? 1}`;
+                    return (
+                        <div key={`baru-${idx}`} className="text-xs flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 font-semibold">+ Item baru</span>
+                            <span className="font-medium text-foreground">{nama}</span>
+                            <span className="text-muted-foreground">{ukuran}</span>
+                            {editItem.priceOverride != null && <span className="text-amber-600 font-medium">harga manual {rp(editItem.priceOverride)}</span>}
+                        </div>
+                    );
+                }
                 const current = currentItems.find((i: any) => i.id === editItem.id);
                 if (!current) return null;
+                const labelHapus = current.productVariant?.product?.name || current.customName || `Item #${editItem.id}`;
+                if (editItem.remove) {
+                    return (
+                        <div key={editItem.id} className="text-xs flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-700 font-semibold">− Dihapus</span>
+                            <span className="font-medium text-foreground line-through">{labelHapus}</span>
+                        </div>
+                    );
+                }
 
                 const productName = current.productVariant?.product?.name || `Item #${editItem.id}`;
                 const variantName = current.productVariant?.variantName;
@@ -37,26 +62,46 @@ function EditDiff({ request }: { request: TransactionEditRequest }) {
                         <span className="font-medium text-foreground">{label}:</span>
                         {isAreaBased ? (
                             <>
-                                <span className="line-through">{Number(current.widthCm).toFixed(2)} × {Number(current.heightCm).toFixed(2)}</span>
+                                <span className="line-through">{Number(current.widthCm).toFixed(2)} × {Number(current.heightCm).toFixed(2)}{Number(current.pcs) > 1 ? ` × ${current.pcs} pcs` : ''}</span>
                                 <span className="text-foreground font-medium">→</span>
-                                <span className="text-emerald-600 font-medium">{editItem.widthCm} × {editItem.heightCm} {editItem.unitType || 'cm'}</span>
+                                <span className="text-emerald-600 font-medium">{editItem.widthCm ?? current.widthCm} × {editItem.heightCm ?? current.heightCm}{(editItem.pcs ?? current.pcs) > 1 ? ` × ${editItem.pcs ?? current.pcs} pcs` : ''}</span>
                             </>
                         ) : (
                             <>
                                 <span className="line-through">Qty {current.quantity}</span>
                                 <span className="text-foreground font-medium">→</span>
-                                <span className="text-emerald-600 font-medium">Qty {editItem.quantity}</span>
+                                <span className="text-emerald-600 font-medium">Qty {editItem.quantity ?? current.quantity}</span>
                             </>
+                        )}
+                        {editItem.priceOverride != null && (
+                            <span className="text-amber-600 font-medium">· harga manual {rp(editItem.priceOverride)} (sebelumnya {rp(current.priceAtTime)})</span>
                         )}
                     </div>
                 );
             })}
-            {editData.discount !== undefined && editData.discount !== null && (
+            {/* Diskon hanya bila BERUBAH (modal edit selalu mengirimnya); dulu yang dicoret = total nota. */}
+            {editData.discount !== undefined && editData.discount !== null && Number(editData.discount) !== Number(transaction.discount || 0) && (
                 <div className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <span className="font-medium text-foreground">Diskon:</span>
-                    <span className="line-through">Rp {Number(request.transaction.grandTotal).toLocaleString('id-ID')}</span>
+                    <span className="line-through">{rp(transaction.discount)}</span>
                     <span className="text-foreground font-medium">→</span>
-                    <span className="text-emerald-600 font-medium">Rp {Number(editData.discount).toLocaleString('id-ID')}</span>
+                    <span className="text-emerald-600 font-medium">{rp(editData.discount)}</span>
+                </div>
+            )}
+            {ed.customerName !== undefined && ed.customerName !== (transaction.customerName ?? '') && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-foreground">Nama pelanggan:</span>
+                    <span className="line-through">{transaction.customerName || '—'}</span>
+                    <span className="text-foreground font-medium">→</span>
+                    <span className="text-emerald-600 font-medium">{ed.customerName || '—'}</span>
+                </div>
+            )}
+            {ed.customerPhone !== undefined && ed.customerPhone !== (transaction.customerPhone ?? '') && (
+                <div className="text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+                    <span className="font-medium text-foreground">No. HP:</span>
+                    <span className="line-through">{transaction.customerPhone || '—'}</span>
+                    <span className="text-foreground font-medium">→</span>
+                    <span className="text-emerald-600 font-medium">{ed.customerPhone || '—'}</span>
                 </div>
             )}
         </div>

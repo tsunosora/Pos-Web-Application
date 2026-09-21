@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BranchStockService } from '../branch-stock/branch-stock.service';
 import type { BranchContext } from '../common/branch-context.decorator';
@@ -40,7 +40,7 @@ export class StockTransferService {
         return `${prefix}${String(nextSeq).padStart(4, '0')}`;
     }
 
-    async create(input: CreateTransferInput, ctx: BranchContext) {
+    async create(input: CreateTransferInput, ctx: BranchContext, actorUserId: number | null = null) {
         if (input.fromBranchId === input.toBranchId) {
             throw new BadRequestException('Cabang asal dan tujuan tidak boleh sama.');
         }
@@ -86,7 +86,7 @@ export class StockTransferService {
                     fromBranchId: input.fromBranchId,
                     toBranchId: input.toBranchId,
                     notes: input.notes?.trim() || null,
-                    createdById: ctx.userBranchId != null ? null : null, // optional, bisa di-pass dari user nanti
+                    createdById: actorUserId, // jejak siapa yang memindah stok (dulu selalu kosong)
                     items: {
                         create: input.items.map((it) => ({
                             productVariantId: it.productVariantId,
@@ -154,7 +154,7 @@ export class StockTransferService {
         });
     }
 
-    async getById(id: number) {
+    async getById(id: number, ctx?: BranchContext) {
         const transfer = await (this.prisma as any).stockTransfer.findUnique({
             where: { id },
             include: {
@@ -164,6 +164,10 @@ export class StockTransferService {
             },
         });
         if (!transfer) throw new NotFoundException('Transfer tidak ditemukan');
+        // Staf hanya melihat transfer yang melibatkan cabangnya.
+        if (ctx && !ctx.isOwner && transfer.fromBranchId !== ctx.userBranchId && transfer.toBranchId !== ctx.userBranchId) {
+            throw new ForbiddenException('Anda tidak memiliki akses ke data cabang lain.');
+        }
         return transfer;
     }
 }

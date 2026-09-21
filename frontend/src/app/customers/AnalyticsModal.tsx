@@ -182,7 +182,11 @@ export function AnalyticsModal({ customerId, onClose }: { customerId: number; on
                                                 </p>
                                             </div>
                                             <div className="text-right shrink-0 space-y-1">
-                                                <p className="text-sm font-semibold">Rp {t.downPayment.toLocaleString("id-ID")}</p>
+                                                {/* Nilai nota; DP hanya untuk nota belum lunas (dulu nota lunas tampil Rp 0 / nilai DP-nya). */}
+                                                <p className="text-sm font-semibold">Rp {Number(t.grandTotal ?? t.downPayment).toLocaleString("id-ID")}</p>
+                                                {t.status !== "PAID" && Number(t.downPayment) > 0 && (
+                                                    <p className="text-[10px] text-muted-foreground">dibayar Rp {Number(t.downPayment).toLocaleString("id-ID")}</p>
+                                                )}
                                                 <div className="flex items-center gap-1.5 justify-end">
                                                     <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${STATUS_CLS[t.status] ?? ""}`}>
                                                         {STATUS_LABEL[t.status] ?? t.status}

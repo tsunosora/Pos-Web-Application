@@ -103,38 +103,45 @@ export class StockOpnameService {
         cekAngkaStok(confirmedItems.map((i) => i.confirmedStock), 'Stok konfirmasi');
 
         const sessionBranchId: number | null = (session as any).branchId ?? null;
+        // Satu transaksi DB: klaim sesi dulu (klik ganda / dua manajer tak menerapkan dua kali),
+        // kunci stok cabang, cache global pakai increment. Timeout longgar (disk server lambat).
+        return this.prisma.$transaction(async (db: any) => {
+        const klaim = await db.stockOpnameSession.updateMany({ where: { id, status: 'ONGOING' }, data: { status: 'COMPLETED', endDate: new Date() } });
+        if (klaim.count !== 1) throw new BadRequestException('Sesi sudah ditutup atau dibatalkan');
 
-        // Ambil stok saat ini dari BranchStock (per cabang) jika tersedia
-        const variantIds = confirmedItems.map(i => i.productVariantId);
+        // Ambil stok saat ini dari BranchStock (per cabang) jika tersedia — dikunci s/d selesai.
+        const variantIds = confirmedItems.map(i => Number(i.productVariantId));
+        if (sessionBranchId != null && variantIds.length) {
+            await db.$queryRawUnsafe(`SELECT id FROM branch_stocks WHERE branch_id = ? AND product_variant_id IN (${variantIds.map(() => '?').join(',')}) FOR UPDATE`, sessionBranchId, ...variantIds);
+        }
         const branchStocks = sessionBranchId
-            ? await (this.prisma as any).branchStock.findMany({
+            ? await db.branchStock.findMany({
                 where: { branchId: sessionBranchId, productVariantId: { in: variantIds } },
                 select: { productVariantId: true, stock: true },
             })
             : [];
         const bsMap = new Map<number, number>(branchStocks.map((b: any) => [b.productVariantId, Number(b.stock)]));
 
-        const variants = await this.prisma.productVariant.findMany({
+        const variants: any[] = await db.productVariant.findMany({
             where: { id: { in: variantIds } },
             select: { id: true, stock: true },
         });
-        const globalMap = new Map(variants.map(v => [v.id, Number(v.stock)]));
+        const globalMap = new Map(variants.map((v: any) => [v.id, Number(v.stock)]));
 
         for (const item of confirmedItems) {
             const currentBranchStock = sessionBranchId ? (bsMap.get(item.productVariantId) ?? 0) : (globalMap.get(item.productVariantId) ?? 0);
             const diff = item.confirmedStock - currentBranchStock;
-            const currentGlobal = globalMap.get(item.productVariantId) ?? 0;
-            const newGlobal = currentGlobal + diff;
 
-            // Update agregat global (cache)
-            await this.prisma.productVariant.update({
+            // Update agregat global (cache) — increment atomik (dulu snapshot + selisih: penjualan
+            // cabang lain selama proses tertimpa).
+            await db.productVariant.update({
                 where: { id: item.productVariantId },
-                data: { stock: newGlobal },
+                data: { stock: { increment: diff } },
             });
 
             // Upsert BranchStock
             if (sessionBranchId != null) {
-                await (this.prisma as any).branchStock.upsert({
+                await db.branchStock.upsert({
                     where: { branchId_productVariantId: { branchId: sessionBranchId, productVariantId: item.productVariantId } },
                     update: { stock: item.confirmedStock },
                     create: { branchId: sessionBranchId, productVariantId: item.productVariantId, stock: item.confirmedStock },
@@ -142,7 +149,7 @@ export class StockOpnameService {
             }
 
             if (diff !== 0) {
-                await this.prisma.stockMovement.create({
+                await db.stockMovement.create({
                     data: {
                         productVariantId: item.productVariantId,
                         type: 'ADJUST',
@@ -156,12 +163,8 @@ export class StockOpnameService {
             }
         }
 
-        await this.prisma.stockOpnameSession.update({
-            where: { id },
-            data: { status: 'COMPLETED', endDate: new Date() },
-        });
-
         return { message: 'Stok opname selesai', updated: confirmedItems.length };
+        }, { timeout: 60_000, maxWait: 10_000 });
     }
 
     // ─── Sync offline: terapkan koreksi stok tanpa sesi ───────────────────────
@@ -336,8 +339,10 @@ export class StockOpnameService {
             const teks = `${d.operatorName}: ${d.actualStock}`;
             catatanTimpa.set(d.productVariantId, lama ? `${lama}, ${teks}` : teks);
         }
+        // Hanya baris barang yang dikirim kali ini yang diganti — hitungan operator lain untuk
+        // barang lain tetap utuh (dulu semua baris operator ini ikut terhapus).
         await this.prisma.stockOpnameItem.deleteMany({
-            where: { sessionId: token, OR: [{ operatorName: operator }, { productVariantId: { in: variantIds } }] },
+            where: { sessionId: token, productVariantId: { in: variantIds } },
         });
 
         await (this.prisma as any).stockOpnameItem.createMany({

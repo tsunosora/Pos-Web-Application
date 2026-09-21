@@ -272,8 +272,10 @@ function CountingScreen({
         setSubmitting(true);
         setError(null);
         try {
+            // Hanya barang yang BENAR-BENAR dihitung operator ini. Dulu semua barang terkirim (yang tak
+            // disentuh = 0) dan menimpa hitungan operator lain untuk rak yang bukan bagiannya.
             const items = products.flatMap(p =>
-                p.variants.map(v => {
+                p.variants.filter(v => estimations[v.id]?.isEstimated ? !!estimations[v.id]?.decimalVal : counts[v.id] !== undefined).map(v => {
                     const est = estimations[v.id];
                     if (est?.isEstimated) {
                         return {

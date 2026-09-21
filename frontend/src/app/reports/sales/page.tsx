@@ -106,8 +106,9 @@ export default function SalesReportPage() {
         mutationFn: ({ id, method, bankId }: { id: number; method: string; bankId: string }) =>
             updateTransactionPaymentMethod(id, { paymentMethod: method, bankAccountId: bankId ? Number(bankId) : undefined }),
         onSuccess: (updated) => {
-            queryClient.invalidateQueries({ queryKey: ['transactions', startDate, endDate] });
-            queryClient.invalidateQueries({ queryKey: ['salesSummary', startDate, endDate] });
+            // Awalan saja: kunci aslinya memuat cabang aktif (dulu tak pernah cocok → daftar basi).
+            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['salesSummary'] });
             setSelectedTransaction((prev: any) => prev ? { ...prev, paymentMethod: updated.paymentMethod, bankAccountId: updated.bankAccountId } : null);
             setEditPayment(null);
         }
@@ -187,12 +188,25 @@ export default function SalesReportPage() {
         const pmRev: Record<string, number> = { CASH: 0, QRIS: 0, BANK_TRANSFER: 0 };
         const bankRev: Record<string, number> = {};
         let totalOmzet = 0;
-        for (const t of rows) {
+        // Hanya nota LUNAS yang dihitung omzet (sama dgn layar). Dulu nota "Bayar Nanti" ikut dan —
+        // karena tersimpan CASH — masuk "Pendapatan Tunai". DP & pelunasan dipecah per metodenya.
+        const lunas = rows.filter((t: any) => t.status === 'PAID');
+        const tambah = (m: string, jml: number, bankId: any, bank: any) => {
+            if (!(m in pmRev) || jml <= 0) return;
+            pmRev[m] += jml;
+            if (m === 'BANK_TRANSFER') { const bn = bankName(bankId, bank); bankRev[bn] = (bankRev[bn] || 0) + jml; }
+        };
+        for (const t of lunas) {
             const gt = Number(t.grandTotal) || 0;
             totalOmzet += gt;
-            const m = t.paymentMethod;
-            if (m in pmCount) { pmCount[m]++; pmRev[m] += gt; }
-            if (m === 'BANK_TRANSFER') { const bn = bankName(t.bankAccountId, t.bankAccount); bankRev[bn] = (bankRev[bn] || 0) + gt; }
+            const dp = Number(t.downPayment) || 0;
+            if (t.paymentMethod in pmCount) pmCount[t.paymentMethod]++;
+            if (t.dpPaymentMethod && dp > 0 && dp < gt) {
+                tambah(t.dpPaymentMethod, dp, t.dpBankAccountId, null);
+                tambah(t.paymentMethod, gt - dp, t.bankAccountId, t.bankAccount);
+            } else {
+                tambah(t.paymentMethod, gt, t.bankAccountId, t.bankAccount);
+            }
         }
         const periodeLabel = SALES_PERIODS.find(p => p.key === period)?.label ?? `${startDate} s/d ${endDate}`;
         const ringkasan: any[][] = [
@@ -204,9 +218,10 @@ export default function SalesReportPage() {
             ['Filter Metode', filterMetode ? methodLabel(filterMetode) : 'Semua'],
             ['Filter Waktu', filterWaktu === 'semua' ? 'Semua' : filterWaktu],
             [],
-            ['Total Transaksi', rows.length],
+            ['Total Transaksi (lunas)', lunas.length],
+            ['Belum lunas (tidak dihitung omzet)', rows.length - lunas.length],
             ['Total Omzet (Rp)', totalOmzet],
-            ['Rata-rata / Transaksi (Rp)', rows.length ? Math.round(totalOmzet / rows.length) : 0],
+            ['Rata-rata / Transaksi (Rp)', lunas.length ? Math.round(totalOmzet / lunas.length) : 0],
             ['Pendapatan Tunai (Rp)', pmRev.CASH],
             [],
             ['METODE PEMBAYARAN', 'Jumlah Trx', 'Pendapatan (Rp)'],
@@ -919,27 +934,14 @@ export default function SalesReportPage() {
                             {/* Summary Totals */}
                             <div className="border-t border-border pt-4 space-y-2 text-sm">
                                 {(() => {
-                                    const computedSubtotal = (selectedTransaction.items || []).reduce((sum: number, item: any) => {
-                                        const isAreaBased = item.widthCm !== null && item.widthCm !== undefined;
-                                        const pcs = Math.max(1, Number(item.pcs) || 1);
-                                        const unitType = storedUnit(item);
-                                        if (isAreaBased) {
-                                            if (unitType === 'menit') {
-                                                return sum + Number(item.priceAtTime) * Number(item.widthCm) * pcs;
-                                            } else {
-                                                const areaM2 = item.areaCm2 != null ? Number(item.areaCm2) / 10000 : (Number(item.areaM2) || 0);
-                                                const mult = item.areaCm2 != null ? storedPriceMultiplier({ unitType, areaCm2: item.areaCm2 }) : areaM2;
-                                                return sum + Number(item.priceAtTime) * mult * pcs;
-                                            }
-                                        } else {
-                                            return sum + item.quantity * Number(item.priceAtTime);
-                                        }
-                                    }, 0);
+                                    // Total TERSIMPAN di nota (sama dgn baris daftar & nota cetak). Dulu dihitung ulang
+                                    // dari item: harga manual per m²/cm² yang dibulatkan & selisih nota lama bikin beda.
+                                    const computedSubtotal = Number(selectedTransaction.totalAmount) || 0;
                                     const discount = Number(selectedTransaction.discount) || 0;
                                     const tax = Number(selectedTransaction.tax) || 0;
                                     const shippingCost = Number(selectedTransaction.shippingCost) || 0;
                                     const mFee = Number(selectedTransaction.marketplaceFee) || 0;
-                                    const computedGrandTotal = Math.round(computedSubtotal) - discount + tax + shippingCost;
+                                    const computedGrandTotal = Number(selectedTransaction.grandTotal) || (Math.round(computedSubtotal) - discount + tax + shippingCost);
                                     const downPayment = Number(selectedTransaction.downPayment) || 0;
                                     return (
                                         <>
@@ -981,8 +983,8 @@ export default function SalesReportPage() {
                                                     </div>
                                                 </>
                                             )}
-                                            {/* DP Details if partial */}
-                                            {selectedTransaction.status === 'PARTIAL' && (
+                                            {/* Belum lunas (DP / bayar nanti): uang diterima & sisa tagihan */}
+                                            {(selectedTransaction.status === 'PARTIAL' || selectedTransaction.status === 'PENDING') && (
                                                 <div className="mt-3 p-3 bg-orange-500/5 rounded-lg border border-orange-500/20 space-y-1">
                                                     <div className="flex justify-between font-medium text-orange-700 text-xs">
                                                         <span>Uang Muka (DP)</span>
@@ -1006,12 +1008,12 @@ export default function SalesReportPage() {
                                     label="Cetak Struk"
                                     defaultFormat={settings?.receiptDefaultFormat}
                                     snap={mapTransactionToReceipt(selectedTransaction, settings)}
-                                    status={selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS'}
+                                    status={selectedTransaction.status === 'PAID' ? 'LUNAS' : 'TAGIHAN'}
                                     bankAccounts={bankAccounts}
                                     align="left"
                                 />
                                 <button
-                                    onClick={() => handleShareWA(mapTransactionToReceipt(selectedTransaction, settings), selectedTransaction.status === 'PARTIAL' ? 'TAGIHAN' : 'LUNAS', bankAccounts)}
+                                    onClick={() => handleShareWA(mapTransactionToReceipt(selectedTransaction, settings), selectedTransaction.status === 'PAID' ? 'LUNAS' : 'TAGIHAN', bankAccounts)}
                                     className="flex items-center gap-2 px-4 py-2 bg-[#25D366] text-white rounded-lg text-sm font-medium hover:bg-[#20bd5a] transition-colors outline-none"
                                 >
                                     <MessageCircle className="w-4 h-4" /> WA
@@ -1044,15 +1046,15 @@ export default function SalesReportPage() {
                         setShowEditModal(false);
                         if (updated) {
                             setSelectedTransaction(updated);
-                            queryClient.invalidateQueries({ queryKey: ['transactions', startDate, endDate] });
-                            queryClient.invalidateQueries({ queryKey: ['salesSummary', startDate, endDate] });
+                            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+                            queryClient.invalidateQueries({ queryKey: ['salesSummary'] });
                         }
                     }}
                     onDeleted={() => {
                         setShowEditModal(false);
                         setSelectedTransaction(null);
-                        queryClient.invalidateQueries({ queryKey: ['transactions', startDate, endDate] });
-                        queryClient.invalidateQueries({ queryKey: ['salesSummary', startDate, endDate] });
+                        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+                        queryClient.invalidateQueries({ queryKey: ['salesSummary'] });
                     }}
                 />
             )}

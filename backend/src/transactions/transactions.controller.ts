@@ -93,8 +93,8 @@ export class TransactionsController {
 
     // Static routes MUST come before :id to avoid NestJS swallowing them
     @Get('edit-requests')
-    getEditRequests(@Query('status') status?: string) {
-        return this.transactionsService.getEditRequests(status);
+    getEditRequests(@Query('status') status?: string, @CurrentBranch() branchCtx?: BranchContext) {
+        return this.transactionsService.getEditRequests(status, branchCtx);
     }
 
     @Patch('edit-requests/:requestId/review')

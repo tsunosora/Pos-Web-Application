@@ -1,3 +1,4 @@
+import { lineTotalOf } from '../../transactions/area-unit.util';
 export type CountMode = 'PCS' | 'QTY' | 'OMZET' | 'NOTA';
 
 export interface MatchRule {
@@ -12,6 +13,8 @@ export interface RawItem {
     quantity: number | null;
     pcs: number | null;
     priceAtTime: number | null;
+    areaCm2?: unknown;
+    unitType?: string | null;
 }
 
 /** Nilai satu item untuk mode non-NOTA. */
@@ -23,7 +26,8 @@ export function computeItemValue(item: RawItem, mode: CountMode): number {
         case 'QTY':
             return qty;
         case 'OMZET':
-            return price * qty;
+            // Item area disimpan qty 1 & harga per m²/cm² → total baris = harga × luas × pcs.
+            return item.areaCm2 != null && Number(item.areaCm2) > 0 ? lineTotalOf(item) : price * qty;
         case 'PCS':
         default:
             return qty * pcs;

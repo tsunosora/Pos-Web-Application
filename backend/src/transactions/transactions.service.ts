@@ -8,13 +8,12 @@ import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
 import { branchWhere, assertBranchAccess } from '../common/branch-where.helper';
 import { ProductsService } from '../products/products.service';
 import { buildCompositeClickBatch } from './composite-click.util';
-import { areaFactors, assertSaneArea, normalizeUnit, storedPriceMultiplier, storedUnit } from './area-unit.util';
+import { areaFactors, assertSaneArea, lineTotalOf, normalizeUnit, storedPriceMultiplier, storedUnit } from './area-unit.util';
 import { assertValidEditInput, assertValidTransactionInput, satuBaris } from './transaction-input.util';
 import { akhirHari, awalHari } from '../common/utils/tanggal.util';
-
-// Kategori kas otomatis dari PENJUALAN. Pemasukan otomatis lain (modal pusat, pelunasan titipan,
-// pemasukan tambahan saat tutup shift) juga tanpa userId — dulu ikut terhitung "Penjualan" di dasbor.
-const KATEGORI_PENJUALAN = ['Penjualan Lunas', 'Pembayaran DP', 'Pelunasan DP'];
+// Pemasukan otomatis lain (modal pusat, pelunasan titipan, pemasukan tambahan) juga tanpa
+// userId — dulu ikut terhitung "Penjualan" di dasbor.
+import { KATEGORI_PENJUALAN } from '../common/kategori-kas';
 
 type EditItemData = {
     id?: number;           // unset = item baru
@@ -1642,8 +1641,8 @@ export class TransactionsService {
                     const vid = item.productVariantId;
                     if (!vid) continue;
                     if (!prevItemSales[vid]) prevItemSales[vid] = { qty: 0, revenue: 0 };
-                    prevItemSales[vid].qty += item.quantity;
-                    prevItemSales[vid].revenue += Number(item.priceAtTime) * item.quantity;
+                    prevItemSales[vid].qty += item.areaCm2 ? Math.max(1, Number((item as any).pcs) || 1) : item.quantity;
+                    prevItemSales[vid].revenue += lineTotalOf(item as any); // area: harga × luas × pcs
                 }
             }
         }
@@ -1702,8 +1701,10 @@ export class TransactionsService {
                         revenue: 0,
                     };
                 }
-                itemSales[variantId].qty += item.quantity;
-                itemSales[variantId].revenue += Number(item.priceAtTime) * item.quantity;
+                // Item area disimpan qty 1 & harga per m²/cm² → jumlah = pcs, pendapatan = total baris
+                // (dulu "1 pcs · Rp 25.000" untuk banner 2 pcs senilai Rp 150.000).
+                itemSales[variantId].qty += item.areaCm2 ? Math.max(1, Number((item as any).pcs) || 1) : item.quantity;
+                itemSales[variantId].revenue += lineTotalOf(item as any);
             }
         }
 
@@ -2587,16 +2588,23 @@ export class TransactionsService {
         return request;
     }
 
-    async getEditRequests(status?: string) {
-        return (this.prisma as any).transactionEditRequest.findMany({
-            where: status ? { status } : undefined,
+    async getEditRequests(status?: string, branchCtx?: BranchContext) {
+        // Staf/manajer cabang hanya melihat permintaan atas nota cabangnya.
+        const cabang = branchCtx && !branchCtx.isOwner ? { transaction: { branchId: branchCtx.userBranchId ?? -1 } } : {};
+        const rows: any[] = await (this.prisma as any).transactionEditRequest.findMany({
+            where: { ...(status ? { status } : {}), ...cabang },
             orderBy: { createdAt: 'desc' },
             include: {
-                transaction: { select: { id: true, invoiceNumber: true, grandTotal: true, status: true, items: { include: { productVariant: { include: { product: true } } } } } },
+                transaction: { select: { id: true, invoiceNumber: true, grandTotal: true, discount: true, customerName: true, customerPhone: true, status: true, items: { include: { productVariant: { include: { product: true } } } } } },
                 requestedBy: { select: { id: true, name: true, email: true } },
                 reviewedBy: { select: { id: true, name: true, email: true } },
             }
         });
+        // Nama varian untuk item BARU di permintaan (layar persetujuan dulu tak menampilkannya).
+        const ids = [...new Set(rows.flatMap((r) => ((r.editData?.items ?? []) as any[]).map((i) => Number(i.newVariantId)).filter((n) => n > 0)))];
+        const varian = ids.length ? await this.prisma.productVariant.findMany({ where: { id: { in: ids } }, select: { id: true, variantName: true, product: { select: { name: true } } } }) : [];
+        const nama = Object.fromEntries(varian.map((v: any) => [v.id, v.variantName ? `${v.product?.name} — ${v.variantName}` : v.product?.name]));
+        return rows.map((r) => ({ ...r, newVariantNames: nama }));
     }
 
     async reviewEditRequest(requestId: number, reviewerId: number, reviewerRoleId: number | null, approved: boolean, reviewNote?: string) {
@@ -2827,6 +2835,11 @@ export class TransactionsService {
             if (itemIds.length > 0) {
                 await (tx as any).productionJob.deleteMany({ where: { transactionItemId: { in: itemIds } } });
             }
+
+            // Lead yang closing lewat nota ini dibuka lagi: dulu tetap CLOSED_WON menunjuk nota yang
+            // sudah tiada, lalu KPI/bonus CS memakai estimatedValue-nya seolah tetap terjual.
+            await (tx as any).lead.updateMany({ where: { convertedTransactionId: id, status: 'CLOSED_WON' }, data: { status: 'NEGOTIATION', convertedTransactionId: null } });
+            await (tx as any).lead.updateMany({ where: { convertedTransactionId: id }, data: { convertedTransactionId: null } });
 
             // Hapus transaksi (cascade hapus items)
             await tx.transaction.delete({ where: { id } });

@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/branch-inbox';
 import { startPrintJob, finishPrintJob, pickupPrintJob } from '@/lib/api/print-queue';
 import { Inbox, Package, Printer, Clock, CheckCircle2, ArrowRight, Truck, AlertCircle, Play, ExternalLink, Flag } from 'lucide-react';
+import { sizeLabel, storedUnit } from "@/lib/area-unit";
 
 const TABS: { key: HandoverStatus | 'ALL'; label: string; color: string }[] = [
     { key: 'BARU', label: 'Baru Masuk', color: 'text-red-500' },
@@ -151,9 +152,9 @@ export default function TitipanMasukPage() {
                                             return (
                                                 <span key={it.id} className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-lg border ${b.color}`}>
                                                     <b.icon className="w-3 h-3" />
-                                                    {it.quantity}× {it.productName}
+                                                    {it.pricingMode === 'AREA_BASED' ? `${Math.max(1, Number(it.pcs) || 1)}×` : `${it.quantity}×`} {it.productName}
                                                     {it.pricingMode === 'AREA_BASED' && it.widthCm && it.heightCm
-                                                        ? ` (${it.widthCm}×${it.heightCm}cm)`
+                                                        ? ` (${it.widthCm}×${it.heightCm} ${sizeLabel(storedUnit(it))})`
                                                         : ''}
                                                 </span>
                                             );

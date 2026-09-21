@@ -17,6 +17,18 @@ const dimLine = (it: ReceiptSnapshot['items'][number]): string => {
   return `<div class="sub">${esc(body + pcs)}</div>`;
 };
 
+/** Baris "jumlah × harga": item area = luas total × harga per m²/cm² (dulu "1 x Rp 125.000"
+ *  padahal totalnya Rp 577.500 — baris tak bisa dicek pelanggan). */
+const qtyLine = (it: ReceiptSnapshot['items'][number]): string => {
+  if (it.pricingMode !== 'AREA_BASED') return `${it.qty} x ${rp(it.pricePerUnit)}`;
+  const pcs = it.pcs && it.pcs > 1 ? it.pcs : 1;
+  const hargaSatuan = 'Rp ' + Number(it.pricePerUnit || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+  if (it.unitType === 'menit') return `${Number(it.widthCm || 0) * pcs} mnt x ${hargaSatuan}`;
+  const perCm2 = it.unitType === 'cm2';
+  const luas = (Number(it.areaM2) || 0) * (perCm2 ? 10000 : 1) * pcs;
+  return `${luas.toLocaleString('id-ID', { maximumFractionDigits: 2 })} ${perCm2 ? 'cm²' : 'm²'} x ${hargaSatuan}`;
+};
+
 /** Hanya isi <div.receipt> — dipakai html2canvas & preview React. Lebar tetap 384px. */
 export const buildThermalReceiptBody = (
   snap: ReceiptSnapshot,
@@ -27,7 +39,7 @@ export const buildThermalReceiptBody = (
     .map((it) => {
       const note = it.note ? `<div class="note"><span class="b">Catatan:</span> ${esc(it.note)}</div>` : '';
       return `<div class="it"><div class="nm">${esc(it.name)}</div>${dimLine(it)}${note}
-      <div class="row"><span>${it.qty} x ${rp(it.pricePerUnit)}</span><span>${rp(it.price)}</span></div></div>`;
+      <div class="row"><span>${esc(qtyLine(it))}</span><span>${rp(it.price)}</span></div></div>`;
     })
     .join('');
 
@@ -39,6 +51,9 @@ export const buildThermalReceiptBody = (
        <div class="row b"><span>Pelunasan</span><span>${rp(snap.grandTotal - snap.downPayment!)}</span></div>`
       : `<div class="row"><span>DP</span><span>${rp(snap.downPayment!)}</span></div>
        <div class="row b"><span>Sisa</span><span>${rp(snap.grandTotal - snap.downPayment!)}</span></div>`;
+  // Bayar nanti (belum ada DP): sisa = seluruh total.
+  const sisaPenuh = !hasDp && status === 'TAGIHAN' && snap.status !== 'PAID'
+    ? `<div class="row b"><span>Sisa</span><span>${rp(snap.grandTotal - (snap.downPayment ?? 0))}</span></div>` : '';
 
   const pm =
     snap.paymentMethod === 'BANK_TRANSFER'
@@ -75,7 +90,7 @@ export const buildThermalReceiptBody = (
       ${snap.taxAmount ? `<div class="row"><span>Pajak ${snap.taxRate.toFixed(0)}%</span><span>${rp(snap.taxAmount)}</span></div>` : ''}
       ${snap.shippingCost ? `<div class="row"><span>Ongkir</span><span>${rp(snap.shippingCost)}</span></div>` : ''}
       <div class="row total"><span>TOTAL</span><span>${rp(snap.grandTotal)}</span></div>
-      ${dpRows}
+      ${dpRows}${sisaPenuh}
       <div class="row"><span>Bayar</span><span>${esc(pm)}</span></div>
       <div class="row b"><span>Status</span><span>${esc(status)}</span></div>
       ${status === 'LUNAS' ? `<div class="stamp" aria-label="LUNAS">LUNAS</div>` : ''}

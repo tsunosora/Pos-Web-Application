@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { StockTransferService } from './stock-transfer.service';
 import { CurrentBranch } from '../common/branch-context.decorator';
@@ -22,12 +22,12 @@ export class StockTransferController {
     }
 
     @Get(':id')
-    getOne(@Param('id', ParseIntPipe) id: number) {
-        return this.service.getById(id);
+    getOne(@Param('id', ParseIntPipe) id: number, @CurrentBranch() ctx: BranchContext) {
+        return this.service.getById(id, ctx);
     }
 
     @Post()
-    create(@Body() body: CreateTransferDto, @CurrentBranch() ctx: BranchContext) {
-        return this.service.create(body, ctx);
+    create(@Body() body: CreateTransferDto, @CurrentBranch() ctx: BranchContext, @Req() req: any) {
+        return this.service.create(body, ctx, req.user?.userId ?? null);
     }
 }

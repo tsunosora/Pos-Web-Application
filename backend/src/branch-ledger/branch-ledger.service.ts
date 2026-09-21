@@ -159,7 +159,7 @@ export class BranchLedgerService {
 
         const items: any[] = await this.prisma.$queryRawUnsafe(
             `SELECT ti.id, ti.quantity, ti.hpp_at_time, ti.note,
-                    ti.width_cm, ti.height_cm, ti.pcs,
+                    ti.width_cm, ti.height_cm, ti.pcs, ti.area_cm2,
                     pv.hpp AS variant_hpp, pv.variant_name, pv.sku,
                     p.name AS product_name, p.pricing_mode
              FROM transaction_items ti
@@ -187,6 +187,11 @@ export class BranchLedgerService {
                 widthCm: it.width_cm != null ? Number(it.width_cm) : null,
                 heightCm: it.height_cm != null ? Number(it.height_cm) : null,
                 pcs: it.pcs != null ? Number(it.pcs) : null,
+                // Jumlah dasar HPP: item area = luas total m² (per lembar × pcs), UNIT = qty —
+                // sama dengan hitungan total ledger (ledger-cost.util). Dulu layar memakai qty (=1).
+                basisQty: it.pricing_mode === 'AREA_BASED' && it.area_cm2
+                    ? (Number(it.area_cm2) / 10000) * Math.max(1, Number(it.pcs) || 1)
+                    : Number(it.quantity),
                 note: it.note,
             })),
             settlements: settlements.map(s => ({

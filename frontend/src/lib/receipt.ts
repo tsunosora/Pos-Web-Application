@@ -1,4 +1,5 @@
 import { storedPriceMultiplier, storedUnit } from './area-unit';
+import { catatanItemNota, namaItemNota } from './nota-item';
 
 export interface ReceiptItem {
   name: string;
@@ -112,9 +113,13 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     `----------------------`,
     `Subtotal   : Rp ${snap.subtotal.toLocaleString('id-ID')}`,
     snap.discount ? `Diskon      : -Rp ${snap.discount.toLocaleString('id-ID')}` : '',
-    `Pajak ${(snap.taxRate).toFixed(2)}% : Rp ${snap.taxAmount.toLocaleString('id-ID')}`,
+    snap.taxAmount ? `Pajak ${(snap.taxRate).toFixed(2)}% : Rp ${snap.taxAmount.toLocaleString('id-ID')}` : '',
     snap.shippingCost ? `Ongkos Kirim: Rp ${snap.shippingCost.toLocaleString('id-ID')}` : '',
     `*TOTAL BAYAR: Rp ${snap.grandTotal.toLocaleString('id-ID')}*`,
+    // Tagihan: sebutkan yang sudah dibayar & sisanya (dulu hanya TOTAL — pelanggan ber-DP
+    // membaca harus membayar penuh).
+    status === 'TAGIHAN' && (snap.downPayment ?? 0) > 0 ? `Sudah dibayar: Rp ${(snap.downPayment ?? 0).toLocaleString('id-ID')}` : '',
+    status === 'TAGIHAN' ? `*Sisa tagihan: Rp ${Math.max(0, snap.grandTotal - (snap.downPayment ?? 0)).toLocaleString('id-ID')}*` : '',
     `----------------------`,
     `Pembayaran : ${pm}`,
     `Status     : *${status}*`,
@@ -375,7 +380,7 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
           : Number(item.priceAtTime) * item.quantity;
 
       return {
-        name: item.productVariant?.product?.name + (item.productVariant?.variantName ? ` — ${item.productVariant.variantName}` : ''),
+        name: namaItemNota(item), // item custom/composite: customName (dulu "undefined")
         sku: item.productVariant?.sku || '',
         qty: item.quantity,
         price: lineTotal,
@@ -384,7 +389,7 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
         unitType: u,
         widthCm: item.widthCm,
         heightCm: item.heightCm,
-        note: item.note,
+        note: catatanItemNota(item.note) ?? undefined, // composite: catatan pelanggan, bukan JSON rincian
         pcs: pcs > 1 ? pcs : undefined,
         areaM2
       };
@@ -414,7 +419,12 @@ export const mapTransactionToReceipt = (trx: any, settings: any, branchSettings?
     storeName: pick(bs?.storeName, settings?.storeName) || 'Toko',
     storeAddress: pick(bs?.storeAddress, settings?.storeAddress) || undefined,
     storePhone: pick(bs?.storePhone, settings?.storePhone) || undefined,
-    taxRate: settings?.enableTax ? Number(settings.taxRate ?? 10) : 0,
+    // Tarif pajak NOTA INI (dari nilai tersimpan), bukan setelan toko hari ini.
+    taxRate: (() => {
+      const dasar = Number(trx.totalAmount) - Number(trx.discount || 0);
+      const pajak = Number(trx.tax) || 0;
+      return pajak > 0 && dasar > 0 ? Math.round((pajak / dasar) * 10000) / 100 : 0;
+    })(),
     timestamp: new Date(trx.createdAt),
     notaHeader: bs?.notaHeader || undefined,
     notaFooter: bs?.notaFooter || undefined,

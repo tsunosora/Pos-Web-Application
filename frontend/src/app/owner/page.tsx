@@ -74,7 +74,8 @@ const fmtRpShort = (n: number) => {
 
 // Kategori pengeluaran kas yang BUKAN biaya operasional (pembelian stok / settlement internal).
 // "sub"/"printing luar" = COGS yang sudah masuk HPP (Laba Kotor) → jangan tampil lagi di opex biar tak ganda.
-const NON_OPEX_KEYWORDS = ["inter", "antar cabang", "titipan", "stok", "stock", "beli", "pembelian", "supplier", "restock", "modal", "sub / printing", "printing luar"];
+// "pengosongan" = pindah saldo akhir bulan ke pusat (bukan biaya); "biaya platform" sudah dikurangkan di Laba Kotor.
+const NON_OPEX_KEYWORDS = ["inter", "antar cabang", "titipan", "stok", "stock", "beli", "pembelian", "supplier", "restock", "modal", "sub / printing", "printing luar", "pengosongan", "biaya platform"];
 const isNonOpex = (cat?: string) => NON_OPEX_KEYWORDS.some(k => (cat || "").toLowerCase().includes(k));
 
 function computeRange(period: Period, cStart: string, cEnd: string): { start: string; end: string } {
@@ -160,7 +161,8 @@ export default function OwnerDashboardPage() {
     const opex = expenseCats.filter(e => !isNonOpex(e.category)).reduce((s, e) => s + Number(e.total || 0), 0);
     const opexEff = expenseCats.length ? opex : Number(cashSummary.totalExpense || 0);
 
-    const piutang = Number(kpiQ.data?.totals?.pendingValue || 0);
+    // Piutang = seluruh sisa tagihan belum lunas saat ini (semua nota, bukan hanya lead periode ini).
+    const piutang = Number(kpiQ.data?.totals?.receivablesOutstanding ?? kpiQ.data?.totals?.pendingValue ?? 0);
     const banks: BankAccountSummary[] = banksQ.data || [];
     const bankBalance = banks.filter(b => b.currentBalance != null).reduce((s, b) => s + Number(b.currentBalance || 0), 0);
 
@@ -638,7 +640,7 @@ export default function OwnerDashboardPage() {
                             <p><b>Omzet</b> = penjualan netto transaksi <b>lunas</b> (total − diskon). <b>HPP</b> = modal barang terjual. <b>Laba Kotor</b> = Omzet − HPP.</p>
                             <p><b>Estimasi Laba Bersih</b> = Laba Kotor − <b>beban tetap</b> (prorata: beban bulanan × hari periode ÷ 30). Biaya operasional kas ditampilkan terpisah sebagai info (tidak dikurangi, agar tidak dobel dengan beban tetap & HPP).</p>
                             <p><b>Beban Tetap</b> kamu input sendiri (gaji, sewa, angsuran, supplier). <b>Pusat/Semua</b> ikut dihitung di semua cabang; beban cabang tertentu hanya saat cabang itu dipilih.</p>
-                            <p><b>Piutang</b> = sisa tagihan belum lunas. Semua angka ikut <b>periode</b> & <b>cabang</b> di atas (kecuali Tren Arus Kas: 6 bulan terakhir).</p>
+                            <p><b>Piutang</b> = seluruh sisa tagihan belum lunas saat ini (semua nota, tidak ikut periode). Angka lain ikut <b>periode</b> & <b>cabang</b> di atas (kecuali Tren Arus Kas: 6 bulan terakhir).</p>
                         </CaraHitung>
                     </>
                 )}

@@ -147,6 +147,8 @@ export class BranchInboxService {
                     widthCm: it.widthCm ? Number(it.widthCm) : null,
                     heightCm: it.heightCm ? Number(it.heightCm) : null,
                     pcs: it.pcs,
+                    unitType: it.unitType ?? null,
+                    areaCm2: it.areaCm2 != null ? Number(it.areaCm2) : null,
                     note: it.note,
                     productionJob: it.productionJob,
                     printJob: it.printJob,
@@ -452,6 +454,8 @@ export class BranchInboxService {
                     widthCm: it.widthCm ? Number(it.widthCm) : null,
                     heightCm: it.heightCm ? Number(it.heightCm) : null,
                     pcs: it.pcs,
+                    unitType: it.unitType ?? null,
+                    areaCm2: it.areaCm2 != null ? Number(it.areaCm2) : null,
                     note: it.note,
                 })),
             };

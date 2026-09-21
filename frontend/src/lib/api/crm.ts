@@ -557,6 +557,7 @@ export interface KpiReport {
         totalWalkinTx: number;
         totalWalkinPcs: number;
         totalWalkinValue: number;
+        receivablesOutstanding?: number; // piutang seluruh nota belum lunas saat ini (cabang terpilih)
         wonValue: number;
         lostValue: number;
         pendingValue: number;

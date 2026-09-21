@@ -232,9 +232,9 @@ export default function BranchLedgerPage() {
                                                                         {it.productName}
                                                                         {it.variantName && <span className="text-muted-foreground"> — {it.variantName}</span>}
                                                                     </td>
-                                                                    <td className="text-right">{it.quantity}</td>
+                                                                    <td className="text-right">{it.pricingMode === 'AREA_BASED' && it.basisQty != null ? `${Number(it.basisQty).toLocaleString('id-ID', { maximumFractionDigits: 2 })} m²` : it.quantity}</td>
                                                                     <td className="text-right">{rupiah(it.effectiveHpp)}</td>
-                                                                    <td className="text-right font-semibold">{rupiah(it.effectiveHpp * it.quantity)}</td>
+                                                                    <td className="text-right font-semibold">{rupiah(it.effectiveHpp * (it.basisQty ?? it.quantity))}</td>
                                                                 </tr>
                                                             ))}
                                                         </tbody>

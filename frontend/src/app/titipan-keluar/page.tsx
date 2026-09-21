@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { listBranchOutbox, confirmBranchOutboxPickup, type BranchOutboxEntry, type HandoverStatus } from '@/lib/api/branch-inbox';
 import { Send, Clock, CheckCircle2, Truck, PackageCheck, AlertTriangle, Inbox } from 'lucide-react';
+import { sizeLabel, storedUnit } from "@/lib/area-unit";
 
 type TabKey = 'BARU' | 'DIPROSES' | 'SIAP_AMBIL' | 'DISERAHKAN' | 'ALL';
 
@@ -169,7 +170,7 @@ export default function TitipanKeluarPage() {
                                                 </div>
                                                 {i.widthCm && i.heightCm && (
                                                     <p className="text-muted-foreground mt-0.5">
-                                                        {i.widthCm}×{i.heightCm} cm{i.pcs ? ` · ${i.pcs} pcs` : ''}
+                                                        {i.widthCm}×{i.heightCm} {sizeLabel(storedUnit(i))}{i.pcs ? ` · ${i.pcs} pcs` : ''}
                                                     </p>
                                                 )}
                                                 {i.note && <p className="text-muted-foreground italic mt-0.5">Catatan: {i.note}</p>}

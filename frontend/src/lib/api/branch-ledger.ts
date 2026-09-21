@@ -40,6 +40,7 @@ export interface LedgerItem {
     widthCm: number | null;
     heightCm: number | null;
     pcs: number | null;
+    basisQty?: number; // area: luas total m²; UNIT: qty — dasar subtotal HPP
     note: string | null;
 }
 

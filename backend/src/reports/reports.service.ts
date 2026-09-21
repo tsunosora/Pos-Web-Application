@@ -7,6 +7,7 @@ import { branchWhere, requireBranch } from '../common/branch-where.helper';
 import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
 import { lineTotalOf, storedPriceMultiplier } from '../transactions/area-unit.util';
 import { akhirHari, awalHari } from '../common/utils/tanggal.util';
+import { KATEGORI_PENJUALAN } from '../common/kategori-kas';
 
 export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
 
@@ -46,10 +47,10 @@ export class ReportsService {
     async getProfitReport(branchCtx: BranchContext, startDate?: string, endDate?: string) {
         const whereClause: any = { status: 'PAID', ...branchWhere(branchCtx) }; // TransactionStatus.PAID
         if (startDate && endDate) {
-            whereClause.createdAt = {
-                gte: awalHari(startDate),
-                lte: akhirHari(endDate)
-            };
+            // "Omzet terbayar" → menurut tanggal LUNAS (paidAt), sama dgn dasbor & KPI. Dulu tanggal
+            // nota dibuat: nota 30 Agu yang lunas 2 Sep masuk Agustus. Data lama tanpa paidAt → createdAt.
+            const rentang = { gte: awalHari(startDate), lte: akhirHari(endDate) };
+            whereClause.OR = [{ paidAt: rentang }, { paidAt: null, createdAt: rentang }];
         }
 
         const transactions = await this.prisma.transaction.findMany({
@@ -74,12 +75,14 @@ export class ReportsService {
 
         let totalRevenue = 0; // grandTotal or just subtotal after discount
         let totalHpp = 0;
+        let totalMarketplaceFee = 0; // potongan marketplace = biaya, mengurangi laba kotor
         const itemMap: Record<number, any> = {};
 
         for (const t of transactions) {
             // Net revenue from products (totalAmount - discount). Ignore tax in profit calculation.
             const netRevenue = Number(t.totalAmount) - Number(t.discount || 0);
             totalRevenue += netRevenue;
+            totalMarketplaceFee += Number((t as any).marketplaceFee) || 0;
 
             // Calculate HPP from items
             let trxHpp = 0;
@@ -145,7 +148,7 @@ export class ReportsService {
             totalHpp += trxHpp;
         }
 
-        const grossProfit = totalRevenue - totalHpp;
+        const grossProfit = totalRevenue - totalHpp - totalMarketplaceFee;
         const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
         // Calculate gross profit per item
@@ -186,6 +189,7 @@ export class ReportsService {
         return {
             totalRevenue,
             totalHpp,
+            totalMarketplaceFee,
             grossProfit,
             profitMargin: Number(profitMargin.toFixed(2)),
             transactionCount: transactions.length,
@@ -1110,6 +1114,7 @@ export class ReportsService {
                     createdAt: { gte: todayStart },
                     type: 'INCOME',
                     userId: null,
+                    category: { in: KATEGORI_PENJUALAN }, // modal pusat/pelunasan titipan bukan omzet
                     branchId: { in: branchIds },
                 },
                 _sum: { amount: true },
@@ -1119,6 +1124,7 @@ export class ReportsService {
             if (row.branchId != null) omzetMap.set(row.branchId, Number(row._sum.amount || 0));
         }
 
+        const jumlahCabangAktif = await (this.prisma as any).companyBranch.count({ where: { isActive: true } });
         const statuses = computeDailyTargets(
             branches.map((b) => ({
                 branchId: b.id,
@@ -1129,6 +1135,7 @@ export class ReportsService {
             })),
             pusatFixedTotal,
             daysInMonth,
+            jumlahCabangAktif,
         );
 
         return { today, daysInMonth, branches: statuses };
@@ -1607,8 +1614,15 @@ export class ReportsService {
         const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
         const pct = (c: number, p: number) => (p !== 0 ? round2(((c - p) / Math.abs(p)) * 100) : (c !== 0 ? 100 : 0));
 
+        // Rentang = satu bulan kalender penuh → pembanding = bulan kalender sebelumnya (laporan
+        // bulanan menyebutnya "bulan sebelumnya"). Dulu selalu panjang yang sama: Maret dibanding
+        // 29 Jan–28 Feb, September kehilangan 1 Agustus.
+        const sebulanPenuh = start.getDate() === 1 && start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()
+            && end.getDate() === new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
         const prevEnd = new Date(start.getTime() - 1);
-        const prevStart = new Date(prevEnd.getTime() - (end.getTime() - start.getTime()));
+        const prevStart = sebulanPenuh
+            ? new Date(start.getFullYear(), start.getMonth() - 1, 1)
+            : new Date(prevEnd.getTime() - (end.getTime() - start.getTime()));
         const cur = await this.financeTotals(bw, start, end, includeFixed);
         const prev = await this.financeTotals(bw, prevStart, prevEnd, includeFixed);
 
@@ -1652,7 +1666,8 @@ export class ReportsService {
         const num = (v: any) => Number(v || 0);
         const round2 = (n: number) => Math.round(n * 100) / 100;
 
-        const banks: any[] = await this.prisma.bankAccount.findMany({ select: { bankName: true, currentBalance: true, isActive: true } });
+        // Rekening cabang terpilih saja (dulu semua cabang, sementara selisih shift hanya cabang ini).
+        const banks: any[] = await this.prisma.bankAccount.findMany({ where: { ...bw } as any, select: { bankName: true, currentBalance: true, isActive: true } });
         const bankAccounts = banks.filter((b) => b.isActive !== false).map((b) => ({ name: b.bankName, balance: num(b.currentBalance) }));
         const totalBankBalance = bankAccounts.reduce((s, b) => s + b.balance, 0);
 

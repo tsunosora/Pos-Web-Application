@@ -211,10 +211,12 @@ export class TaskBoardService {
     this.assertManager(ctx);
     const existing = await this.getScheduleScoped(ctx, id);
     const piket = await this.piketFields(dto, existing);
+    // Staf/manajer cabang tidak boleh memindah jadwal ke cabang lain (DTO: "staff diabaikan").
+    const { branchId: _cabangKiriman, ...tanpaCabang } = dto as any;
     return this.db.taskSchedule.update({
       where: { id },
       data: {
-        ...dto,
+        ...(ctx.isOwner ? dto : tanpaCabang),
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
         ...piket,
@@ -415,8 +417,23 @@ export class TaskBoardService {
     userId: number,
   ) {
     const it = await this.getItemScoped(ctx, id, userId);
-    const data: any = { ...dto };
-    delete data.verified;
+    // Kolom yang boleh diubah: karyawan (tugasnya sendiri) hanya status/urutan/catatan; judul,
+    // prioritas, penerima & tenggat hanya pemberi tugas. Dulu seluruh body ditulis — karyawan bisa
+    // memundurkan tenggat, mengoper tugas ke rekan, atau mengisi completedAt/verifiedByOwnerAt.
+    const manajer = this.canAssign(ctx);
+    const data: any = {};
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.index !== undefined) data.index = dto.index;
+    if (dto.note !== undefined) data.note = dto.note;
+    for (const k of ['title', 'description', 'priority', 'assigneeId', 'dueDate'] as const) {
+      if (dto[k] === undefined) continue;
+      this.assertManager(ctx);
+      data[k] = dto[k];
+    }
+    if (dto.assigneeId != null && !ctx.isOwner && manajer) {
+      const u = await this.db.user.findUnique({ where: { id: dto.assigneeId }, select: { branchId: true } });
+      if (!u || (u.branchId != null && u.branchId !== it.branchId)) throw new ForbiddenException('Penerima tugas harus dari cabang tugas ini.');
+    }
     if (dto.imageUrls !== undefined) {
       // Hanya pemberi tugas (owner/manajer) boleh mengubah lampiran brief.
       this.assertManager(ctx);

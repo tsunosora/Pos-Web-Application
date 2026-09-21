@@ -13,6 +13,7 @@ import { getBackupGroups, exportBackup, previewBackupFile, restoreBackup,
     getRcloneStatus, saveRcloneSettings, triggerRcloneBackup, getRcloneProgress } from "@/lib/api";
 import type { RcloneProgress } from "@/lib/api/backup";
 import { usePagination, PaginationBar } from "@/components/ui/pagination";
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const ICON_MAP: Record<string, string> = {
     master: "🏷️", branches: "🏢", users: "👤", products: "📦", suppliers: "🚚",
@@ -23,6 +24,8 @@ const ICON_MAP: Record<string, string> = {
 };
 
 export default function BackupPage() {
+    // Unduh/pulihkan cadangan & tujuan rclone khusus owner (server menolak peran lain).
+    const { isOwner } = useCurrentUser();
     const { data: groups = [] } = useQuery({ queryKey: ["backup-groups"], queryFn: getBackupGroups });
 
     // ── Export state ────────────────────────────────────────────────────────
@@ -91,8 +94,8 @@ export default function BackupPage() {
             URL.revokeObjectURL(url);
             setExportSuccess(true);
             setTimeout(() => setExportSuccess(false), 4000);
-        } catch {
-            alert("Gagal mengekspor backup.");
+        } catch (e: any) {
+            alert(e?.response?.status === 403 ? "Mengunduh cadangan penuh hanya untuk Owner." : "Gagal mengekspor backup.");
         } finally {
             setIsExporting(false);
         }
@@ -253,6 +256,11 @@ export default function BackupPage() {
                 <div>
                     <h1 className="text-xl font-bold tracking-tight">Backup & Recovery</h1>
                     <p className="text-sm text-muted-foreground mt-0.5">Ekspor semua data & foto ke file ZIP, atau restore dari file backup ke sistem baru.</p>
+                    {!isOwner && (
+                        <p className="text-xs mt-2 px-3 py-2 rounded-lg bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                            Unduh cadangan, pulihkan, dan ubah tujuan rclone khusus Owner (cadangan memuat token & PIN). Anda tetap bisa melihat status dan menjalankan cadangan terjadwal.
+                        </p>
+                    )}
                 </div>
             </div>
 
