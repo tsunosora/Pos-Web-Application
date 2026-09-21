@@ -227,6 +227,20 @@ Modul ini sempat tidak memakai penjaga login — sisa dari versi awal aplikasi,
 bukan keputusan yang disengaja. Sejak 20 September 2026 seluruh endpointnya
 memakai `JwtAuthGuard` seperti modul lain.
 
+## Sesi login di perangkat bersama
+
+Sejak 22 September 2026:
+
+- Sesi yang habis membawa Anda ke halaman login lalu **kembali ke halaman
+  semula** setelah masuk. Tujuan kembali hanya boleh halaman di aplikasi ini.
+- Halaman publik (TV, opname, katalog, papan kerja) tidak dilempar ke halaman
+  login saat token habis.
+- Login dan logout membersihkan data sesi sebelumnya di browser: cache data,
+  keranjang, notifikasi, cabang aktif, dan cache offline produk/pelanggan/
+  pengaturan. Antrean nota offline yang belum terkirim tidak dihapus.
+- Salinan pengaturan yang disimpan untuk mode offline tidak memuat PIN, webhook
+  Discord, rahasia GitHub, dan tujuan rclone.
+
 ## Hal lain yang patut diperhatikan
 
 - **`/tv/leaderboard`** menampilkan omzet dan nama karyawan tanpa login,

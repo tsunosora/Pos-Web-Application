@@ -141,6 +141,19 @@ Owner bisa membuat kolom pelacak sendiri (`custom_product_metrics`) untuk
 produk atau varian tertentu — misalnya "berapa meter banner terjual per
 operator" — yang kemudian muncul sebagai kolom di [Leaderboard](leaderboard.md).
 
+## Menghapus produk atau varian
+
+Sejak 22 September 2026:
+
+- Produk yang variannya **sudah punya riwayat** (nota, SO, lead, pergerakan
+  stok, pembelian, opname, transfer, atau dipakai sebagai bahan BOM produk lain)
+  tidak dihapus melainkan **diarsipkan**: hilang dari daftar, riwayatnya utuh.
+- **Varian yang sudah punya riwayat tidak bisa dihapus** — tombolnya menolak
+  dengan pesan. Dulu menghapus varian ikut merusak baris nota lama.
+- Menghapus varian dari halaman *Edit Produk* hanya untuk Owner/Manajer/Admin,
+  ada konfirmasi sebelum varian yang sudah tersimpan dibuang dari form, dan bila
+  server menolak, varian tadi muncul lagi di form (tidak hilang diam-diam).
+
 ## Halaman terkait
 
 | Halaman | Untuk |

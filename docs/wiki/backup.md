@@ -243,6 +243,10 @@ cadangan di server tidak ditampilkan.
 
 ---
 
+Sejak 22 September 2026 progres cadangan tidak lagi macet di "sedang berjalan"
+bila database sempat tidak menjawab di awal proses. Dulu semua cadangan
+berikutnya, termasuk jadwal malam, ikut ditolak sampai server dijalankan ulang.
+
 ## Catatan Penting
 
 - **Backup rutin dianjurkan** — minimal seminggu sekali, atau sebelum setiap update sistem

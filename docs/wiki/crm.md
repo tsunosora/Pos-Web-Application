@@ -184,6 +184,17 @@ Klik tombol **"Convert"** di detail lead → 3 checkbox:
 - Lead status berubah ke CLOSED_WON, link ke customer + SO + invoice ter-record
 - SO dari convert tanpa nama desainer kini dibiarkan **kosong**, bukan "TBD" (sejak 22 September 2026 — dulu "TBD" ikut terhitung sebagai desainer di KPI)
 
+#### Aturan tambahan sejak 22 September 2026
+
+- Lead yang sudah tertaut nota **tidak bisa di-convert lagi**, jadi tidak ada
+  nota ganda dari satu lead.
+- Saat lead ditutup (Won, Lost, atau Invalid), follow-up yang masih terbuka
+  otomatis **dilewati** dan pengingat WA-nya berhenti.
+- **Hapus lead** hanya untuk Owner/Manajer/Admin (tombolnya tidak tampil untuk
+  staf lain). Lead yang sudah Won/ter-convert tidak bisa dihapus.
+- Order dari halaman publik memakai **harga katalog**, bukan harga yang dikirim
+  formulir. Order dianggap sama hanya bila nama, No. HP, dan nilainya sama.
+
 ### Alur B: Tautkan Lead ke SO Desainer (Jun 2026)
 
 Kasus umum: customer chat CS (jadi lead), lalu desainer **sudah keburu bikin SO** dari portal desainer. Kalau CS convert lead seperti biasa, hasilnya **nota dobel** (1 dari convert, 1 dari SO saat di-checkout di POS).
@@ -412,6 +423,15 @@ Task baru muncul (mungkin dari operator yang baru pickup pesanan lain). Kerjakan
 | **Backup** | Grup "CRM" di-include di backup v3.3+ |
 
 ---
+
+### Perbaikan hitungan KPI (22 September 2026)
+
+- **Juara mingguan** yang diumumkan tiap Senin memakai rentang **Senin–Minggu
+  minggu lalu** dan labelnya menyebut tanggalnya. Dulu memakai "minggu ini" yang
+  baru berjalan beberapa jam.
+- Output desain dari SO yang belum jadi nota hanya dihitung bila SO itu memang
+  **belum punya nota** dan No. HP-nya sama, sehingga satu pesanan tidak
+  terhitung dua kali.
 
 ## 📊 KPI yang Bisa Di-Evaluasi
 

@@ -103,6 +103,9 @@ Halaman menampilkan daftar semua supplier dalam bentuk tabel dengan kolom:
 
 ---
 
+Sejak 22 September 2026 supplier yang **sudah punya catatan pembelian** tidak
+bisa dihapus, supaya riwayat pembelian dan HPP tetap utuh.
+
 ## Menghubungkan Varian Produk ke Supplier
 
 Setiap supplier bisa memiliki banyak **item** — yaitu daftar varian produk yang dipasok beserta harga belinya.

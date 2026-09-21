@@ -25,6 +25,21 @@ Penanda ini berlaku baik di versi web/PWA maupun di aplikasi desktop, dan
 itulah satu-satunya hal yang berubah di layar — kasir tetap bisa melanjutkan
 transaksi.
 
+### Aturan antrean offline (sejak 22 September 2026)
+
+- Nota offline masuk ke **cabang tempat nota dibuat** (dulu ke cabang yang
+  sedang aktif saat sinkron), dan bila dibuat di hari lain (maksimal 7 hari)
+  memakai tanggal hari itu.
+- Pencatat nota adalah **akun yang login**, bukan data dari perangkat.
+- Satu nota tidak bisa tercatat dua kali meski terkirim bersamaan dari dua tab
+  atau saat koneksi tersambung ulang; hanya satu tab yang mengirim antrean.
+- Data offline yang **ditolak server** tampil sebagai tombol merah
+  *N data offline gagal terkirim* di pojok kanan bawah. Panelnya menyebut alasan
+  penolakan, dengan tombol *Coba kirim ulang* dan *Buang* (pakai konfirmasi).
+  Dulu yang tampil hanya "Menyinkronkan…" tanpa akhir.
+- Keluar (logout) memperingatkan bila masih ada antrean yang belum terkirim.
+  Antrean itu tidak ikut dihapus saat logout.
+
 ## Kenapa Ada Versi Desktop?
 
 Versi web/PWA butuh koneksi ke server. Bila internet cabang tidak stabil, kasir bisa berhenti total. Versi desktop membawa database + backend di dalam komputer sehingga:

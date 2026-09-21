@@ -144,6 +144,19 @@ kolom tersembunyi lain diabaikan. Penyetuju hanya melihat permintaan atas kas
 diproses **sekali** — klik ganda atau dua penyetuju bersamaan mendapat pesan
 *"Permintaan ini sudah diproses"*.
 
+### Entri yang tidak bisa dihapus
+
+Sejak 22 September 2026 entri yang dibuat **otomatis** oleh sistem — penjualan
+dan pelunasan nota, *Pengosongan Saldo*, *Modal Masuk*, penyelesaian antar
+cabang, *Biaya Platform* — serta entri yang **sudah masuk laporan tutup shift**
+tidak bisa dihapus, baik langsung maupun lewat permintaan hapus. Koreksinya lewat
+nota (edit/hapus nota) atau koreksi laporan shift. Setiap penghapusan kas yang
+diizinkan dicatat di log server beserta isi barisnya.
+
+Formulir entri manual hanya menerima kolom yang ada di layar (jenis, kategori,
+nominal, catatan, metode bayar, rekening, sumber platform, *tidak masuk shift*);
+cabang dan shift ditentukan server.
+
 ## Apa Itu Cashflow dan Kenapa Penting?
 
 **Cashflow** (arus kas) adalah gambaran nyata kesehatan keuangan bisnis Anda dari hari ke hari.

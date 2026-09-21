@@ -163,6 +163,12 @@ Field opsional tapi rekomended. Bisa input pakai 3 cara:
 
 Maksimal 10 gambar per SO. Auto-rename file paste jadi `pasted-<timestamp>.png`. Mime type otomatis dideteksi dari clipboard (image/png, image/jpeg, dll).
 
+Sejak 22 September 2026, bila unggah bukti gagal **SO tetap tersimpan** dan
+muncul pesan untuk mengunggah ulang. Di portal desainer, bila langkah setelah
+simpan (lead atau nota) gagal, SO tetap tersimpan dan halaman terbuka ke SO itu,
+jadi tidak perlu membuat ulang. Pelanggan lama hanya bisa ditautkan lewat
+pilihan pencarian (No. HP tersamar), bukan dengan mengisi ID pelanggan.
+
 ### Auto-Tag Branch
 
 Saat SO disubmit:

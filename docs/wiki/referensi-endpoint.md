@@ -432,7 +432,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | POST | `/crm/leads/:id/close-lost` | `closeLost` | `JwtAuthGuard` | — |
 | POST | `/crm/leads/:id/mark-invalid` | `markInvalid` | `JwtAuthGuard` | — |
 | POST | `/crm/leads/:id/link-so` | `linkToSalesOrder` | `JwtAuthGuard` | — |
-| DELETE | `/crm/leads/:id` | `remove` | `JwtAuthGuard` | — |
+| DELETE | `/crm/leads/:id` | `remove` | `ManagerGuard` | — |
 | POST | `/crm/leads/upload-image` | `` | `JwtAuthGuard` | — |
 
 ## KpiPublicController — `/crm/public`

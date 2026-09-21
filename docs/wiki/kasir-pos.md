@@ -258,6 +258,22 @@ ini.
 - Mengubah nota yang sudah jadi butuh **permintaan edit** yang disetujui
   Manajer — riwayatnya ada di `/transactions/edit-requests`.
 
+### Sejak 22 September 2026
+
+- Bila nota **gagal tersimpan** (stok, validasi, server), jendela pembayaran
+  terbuka lagi dengan keranjang utuh dan alasan kegagalannya. Dulu jendela
+  tertutup seolah berhasil.
+- Kiriman ulang karena koneksi putus di tengah checkout dikenali sebagai **nota
+  yang sama**, termasuk bila akhirnya terkirim lewat antrean offline.
+- Tombol tempat sampah saat memproses **SO** membatalkan mode SO sekaligus
+  (keranjang dan tautan SO dilepas), sehingga nota berikutnya tidak ikut
+  menutup SO tadi.
+- **Mengganti cabang** saat keranjang berisi meminta konfirmasi lalu
+  mengosongkan keranjang; pilihan rekening, rekening DP, dan cabang produksi
+  ikut direset.
+- Batas tanggal untuk nota mundur tanggal memakai tanggal lokal (dulu pukul
+  00.00–06.59 dianggap masih kemarin).
+
 ## Endpoint terkait
 
 | Metode | Jalur | Untuk |

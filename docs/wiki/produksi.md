@@ -310,6 +310,14 @@ dipotong disimpan di job, dan itulah yang dikembalikan utuh bila notanya dihapus
 
 ---
 
+## Hapus job & token papan (sejak 22 September 2026)
+
+- Job hanya bisa **dihapus** selagi masih *Antrian*, belum memakai bahan roll,
+  dan belum ada aktivitas. Selebihnya pakai *Batalkan* supaya jejaknya tetap ada.
+- Token papan kerja dari PIN pribadi berlaku untuk **cabang yang dipilih di
+  layar** (dulu untuk semua cabang). Menghapus foto bukti dari papan hanya bisa
+  untuk job cabang itu.
+
 ## FAQ Produksi
 
 **Q: Mengapa job tidak muncul di antrian padahal sudah ada transaksi?**

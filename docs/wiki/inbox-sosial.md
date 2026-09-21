@@ -187,6 +187,9 @@ Aturan penandaan hasil sinkron:
 - utas yang terakhir dibalas tim (dari PosPro **atau** langsung dari aplikasi
   Instagram/Facebook) dianggap sudah ditangani.
 
+Kanal (akun FB/IG) yang **sudah punya percakapan atau komentar** tidak bisa
+dihapus sejak 22 September 2026 — nonaktifkan saja supaya riwayatnya aman.
+
 ## Di ponsel
 
 <img src="./images/ins-18-ponsel.webp" alt="Tampilan ponsel: utas komentar dengan kartu postingan dan kotak balas" width="360">

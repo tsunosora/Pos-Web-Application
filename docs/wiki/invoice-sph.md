@@ -134,6 +134,10 @@ Klik **Simpan** — dokumen tersimpan dengan status **DRAFT**.
 
 ---
 
+Hanya dokumen berstatus **Draft, Dibatalkan, Ditolak, atau Kedaluwarsa** yang
+bisa dihapus (sejak 22 September 2026). Invoice yang sudah terkirim atau lunas
+dibatalkan saja lewat status.
+
 ## Cara Input Item (3 Mode)
 
 ### Mode 1 — Pilih dari Katalog Produk

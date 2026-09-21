@@ -86,6 +86,9 @@ toko lain dengan identitas sendiri.
   (sejak 22 September 2026); kolom lain diabaikan dan isian yang salah jenis
   ditolak. Tarif pajak harus 0–100%. Webhook Discord dan rahasia GitHub di
   `store_settings` hanya bisa diganti Owner — isian dari akun lain diabaikan.
+- **Rekening bank yang sudah dipakai** nota atau entri kas tidak bisa dihapus
+  (sejak 22 September 2026) — nonaktifkan saja. Nota juga hanya menerima rekening
+  milik cabang nota itu.
 - **Hapus cabang khusus Owner**, dan ditolak bila cabang masih punya transaksi,
   catatan kas, akun karyawan, atau stok. Nonaktifkan saja cabangnya supaya
   riwayatnya tetap utuh.

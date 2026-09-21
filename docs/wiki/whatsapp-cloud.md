@@ -37,6 +37,11 @@ riwayat tetap ada walau aplikasi WhatsApp di HP dibuka-tutup.
 - `WA_AUTO_CREATE_LEAD` menentukan apakah chat dari nomor baru langsung menjadi
   lead di [CRM](crm.md).
 
+Berpindah ke percakapan lain saat balasan atau lampiran masih terkirim tidak
+lagi mengosongkan draf percakapan yang baru dibuka atau memasukkan pesan ke
+percakapan yang salah (sejak 22 September 2026). Pengingat follow-up tidak
+dikirim untuk lead yang sudah ditutup.
+
 ## Pesan gagal terkirim dan alasannya
 
 ![Inbox WhatsApp: template yang gagal terkirim diberi tanda merah beserta alasannya dan kode error Meta](images/wa-9-gagal-kirim.webp)
@@ -229,6 +234,10 @@ Tiga lapis angka dalam satu halaman:
 Halaman **`/crm/whatsapp/analytics`** (Manajer+): jumlah percakapan, kecepatan
 balas CS, dan sebaran jam sibuk. Angka kecepatan balas inilah yang dipakai di
 [Leaderboard](leaderboard.md) kolom "Balas WA".
+
+Sejak 22 September 2026 grafik harian dihitung **per hari WIB**. Dulu per hari
+UTC: pesan pukul 00.00–06.59 masuk ke hari sebelumnya dan rentang "dari" baru
+dimulai pukul 07.00.
 
 ## Konfigurasi
 

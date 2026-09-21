@@ -122,6 +122,10 @@ Tugas hariannya dibuat otomatis oleh pekerjaan terjadwal **`05 0 * * *`**
 (00.05 tiap hari) ke tabel `task_items`. Kalau perlu segera, Manajer bisa
 memicunya manual lewat `POST /task-board/schedules/generate-now`.
 
+Menghapus jadwal (sejak 22 September 2026) hanya menghapus kartu yang **belum
+jatuh tempo dan belum selesai**. Kartu yang sudah lewat atau selesai tetap ada
+sebagai riwayat.
+
 ## Teguran otomatis
 
 Pekerjaan terjadwal **tiap 5 menit** memeriksa tugas yang lewat batas waktu dan

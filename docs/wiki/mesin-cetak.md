@@ -25,6 +25,9 @@ Harga HPP klik ini akan ditambahkan sebagai modal dari produk, secara bersamaan 
 
 ---
 
+Tarif klik yang **masih dipakai** produk atau varian tidak bisa dihapus (sejak
+22 September 2026). Lepaskan dulu dari produknya.
+
 ## 2. Antrian Cetak Paper
 
 Saat transaksi kasir menagihkan produk yang membutuhkan cetakan paper (mempunyai Click Rate aktif), sistem otomatis membuat job baru di **Antrian Cetak Paper**.

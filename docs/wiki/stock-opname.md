@@ -81,6 +81,10 @@ Jika ada lebih dari satu operator yang submit untuk sesi yang sama, setiap kolom
 
 ---
 
+Kolom **Konfirmasi** mengikuti hitungan penghitung terbaru selama belum Anda
+ubah sendiri (sejak 22 September 2026). Dulu angka pertama "membeku" meski
+penghitung mengirim ulang.
+
 ### Menyelesaikan Sesi
 
 ![Setelah selisih ditinjau, stok sistem diperbarui mengikuti hasil hitungan](images/opname-8-selesai.webp)
@@ -138,6 +142,10 @@ Buka link yang dibagikan admin di browser HP. Pastikan link belum kedaluwarsa.
 Ketik nama Anda di kolom yang tersedia (contoh: *"Budi Gudang"*). Nama ini akan dicatat di laporan opname untuk admin.
 
 Tekan **Mulai Menghitung**.
+
+Draf hitungan di perangkat disimpan **per nama penghitung** (sejak 22 September
+2026). Di tablet bersama, penghitung berikutnya tidak lagi mewarisi hitungan
+orang sebelumnya. Draf lama tanpa nama ditanyakan dulu sebelum dipakai.
 
 ### Langkah 3 — Hitung Fisik
 

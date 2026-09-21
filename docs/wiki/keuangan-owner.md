@@ -146,6 +146,12 @@ Sejak 22 September 2026:
   juga saat yang dilihat hanya satu cabang (dulu cabang itu menanggung seluruhnya).
   Omzet hari ini hanya pemasukan penjualan — modal pusat & pelunasan titipan tidak ikut.
 
+Sejak 22 September 2026 rentang bawaan halaman analisa (bila tanggal tidak
+dipilih) dimulai **tanggal 1 bulan ini menurut WIB**. Dulu tanggal 1 pukul 00.00
+WIB terbaca sebagai akhir bulan lalu, sehingga satu hari bulan lalu ikut
+terhitung. Temuan anomali (selisih kas shift, pengeluaran janggal) juga
+dikelompokkan per hari WIB.
+
 ### Tutup buku bulanan
 
 ![Tutup Buku Bulanan: pendapatan per kanal per pekan, pengeluaran per kategori, dan daftar piutang](images/tb-1-tutupbuku.webp)
