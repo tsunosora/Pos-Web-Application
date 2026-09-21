@@ -218,12 +218,58 @@ describe('SalesOrdersService — order marketplace (pembeli tanpa HP)', () => {
                 findUnique: jest.fn().mockResolvedValue({ id: 8, status: 'DRAFT', customerPhone: null, marketplace: null, branchName: null, items: [] }),
                 update: jest.fn().mockResolvedValue({ id: 8 }),
             },
+            $transaction: (cb: any) => cb(prisma),
         };
         const svc = new SalesOrdersService(prisma, {} as any);
         await svc.update(8, { customerName: 'Novi', marketplace: ' Shopee ', marketplaceOrderNo: ' 2409ABC ' });
         expect(prisma.salesOrder.update).toHaveBeenCalledWith(expect.objectContaining({
             data: expect.objectContaining({ customerName: 'Novi', marketplace: 'Shopee', marketplaceOrderNo: '2409ABC' }),
         }));
+    });
+});
+
+describe('SalesOrdersService.update — ganti item tidak boleh mengosongkan SO', () => {
+    function build(variants: { id: number }[] = [{ id: 5 }]) {
+        const prisma: any = {
+            salesOrder: {
+                findUnique: jest.fn().mockResolvedValue({ id: 9, status: 'SENT', customerPhone: '081333618055', branchName: null, items: [] }),
+                update: jest.fn().mockResolvedValue({ id: 9 }),
+            },
+            salesOrderItem: { deleteMany: jest.fn().mockResolvedValue({ count: 2 }) },
+            productVariant: {
+                findMany: jest.fn().mockImplementation(({ select }: any) =>
+                    Promise.resolve(select?.stock ? variants.map(v => ({ ...v, stock: 10, product: { trackStock: false } })) : variants)),
+            },
+            $transaction: jest.fn().mockImplementation((cb: any) => cb(prisma)),
+        };
+        return { prisma, svc: new SalesOrdersService(prisma, {} as any) };
+    }
+
+    it.each([
+        [{ productVariantId: 5, quantity: 0 }, /jumlah/],
+        [{ productVariantId: 5, quantity: 1.5 }, /jumlah/],
+        [{ productVariantId: 5, quantity: 1, widthCm: 0, heightCm: 100 }, /lebar/],
+        [{ productVariantId: 0, quantity: 1 }, /produk/],
+    ])('item tidak valid %j ditolak SEBELUM item lama dihapus', async (item, msg) => {
+        const { prisma, svc } = build();
+        await expect(svc.update(9, { items: [item as any] })).rejects.toThrow(msg);
+        expect(prisma.salesOrderItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('varian yang tidak ada ditolak, item lama tetap utuh', async () => {
+        const { prisma, svc } = build([]);
+        await expect(svc.update(9, { items: [{ productVariantId: 77, quantity: 1 }] })).rejects.toThrow(/tidak ditemukan/);
+        expect(prisma.salesOrderItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('item valid: hapus + buat ulang di dalam SATU transaksi', async () => {
+        const { prisma, svc } = build();
+        await svc.update(9, { items: [{ productVariantId: 5, quantity: 2 }] });
+        expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+        expect(prisma.salesOrderItem.deleteMany).toHaveBeenCalledWith({ where: { salesOrderId: 9 } });
+        expect(prisma.salesOrder.update.mock.calls[0][0].data.items.create).toEqual([
+            expect.objectContaining({ productVariantId: 5, quantity: 2 }),
+        ]);
     });
 });
 

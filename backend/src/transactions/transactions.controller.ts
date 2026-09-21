@@ -6,6 +6,7 @@ import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { requireBranch } from '../common/branch-where.helper';
 import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
+import { ManagerGuard } from '../auth/role-groups';
 
 @UseGuards(JwtAuthGuard)
 @Controller('transactions')
@@ -126,7 +127,10 @@ export class TransactionsController {
         return this.transactionsService.payOff(id, body, branchCtx);
     }
 
+    // Mengubah metode bayar memindah uang antar laci/rekening → hanya manajer (dulu semua staf:
+    // kasir bisa "memindah" tunai ke transfer sebelum tutup shift untuk menutup selisih kas).
     @Patch(':id/payment-method')
+    @UseGuards(ManagerGuard)
     updatePaymentMethod(@Param('id', ParseIntPipe) id: number, @Body() body: { paymentMethod: PaymentMethod; bankAccountId?: number }, @CurrentBranch() branchCtx: BranchContext) {
         return this.transactionsService.updatePaymentMethod(id, body, branchCtx);
     }

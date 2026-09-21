@@ -10,11 +10,12 @@ describe('ProductionService.startJob — Sub Order tidak potong bahan', () => {
         const tx: any = {
             productionJob: {
                 findUnique: jest.fn().mockResolvedValue(job),
+                updateMany: jest.fn().mockResolvedValue({ count: 1 }), // klaim status atomik
                 update: jest.fn().mockResolvedValue({ ...job, status: 'PROSES' }),
             },
             productVariant: {
                 findUnique: jest.fn().mockResolvedValue({ id: 5, stock: 100 }),
-                update: jest.fn().mockResolvedValue({}),
+                update: jest.fn().mockResolvedValue({ stock: 97 }),
             },
             branchStock: {
                 findUnique: jest.fn().mockResolvedValue({ stock: 100 }),
@@ -55,6 +56,71 @@ describe('ProductionService.startJob — Sub Order tidak potong bahan', () => {
 
         // Kontrol: stok terpotong (movement OUT tercatat)
         expect(tx.stockMovement.create).toHaveBeenCalled();
+    });
+
+    it('luas dihitung server dari item nota × pcs; rollLengthUsed = yang dipotong (dibulatkan ke atas)', async () => {
+        // 100×100 cm = 10.000 cm² per lembar × 3 pcs = 3 m²; klien kirim 1 m² (lupa pcs)
+        const tx = buildTx({ id: 3, status: 'ANTRIAN', isSubOrder: false, branchId: 1, transactionItem: { areaCm2: 10000, pcs: 3 } });
+        const svc = buildService(tx);
+
+        await svc.startJob(3, { usedWaste: false, rollVariantId: 5, rollAreaM2: 1 });
+
+        expect(tx.stockMovement.create.mock.calls[0][0].data.quantity).toBe(3);
+        expect(tx.productVariant.update.mock.calls[0][0].data).toEqual({ stock: { increment: -3 } }); // increment atomik
+        expect(tx.productionJob.update.mock.calls[0][0].data.rollLengthUsed).toBe(3);
+    });
+
+    it('sub-order: rollLengthUsed kosong (tak ada yang dipotong → tak ada yang dikembalikan)', async () => {
+        const tx = buildTx({ id: 4, status: 'ANTRIAN', isSubOrder: true, branchId: 1 });
+        await buildService(tx).startJob(4, { usedWaste: false, rollVariantId: 5, rollAreaM2: 3 });
+        expect(tx.productionJob.update.mock.calls[0][0].data.rollLengthUsed).toBeNull();
+    });
+
+    it('dua perangkat bersamaan: yang kalah klaim → 409, stok tidak dipotong', async () => {
+        const tx = buildTx({ id: 5, status: 'ANTRIAN', isSubOrder: false, branchId: 1 });
+        tx.productionJob.updateMany.mockResolvedValue({ count: 0 });
+        await expect(buildService(tx).startJob(5, { usedWaste: false, rollVariantId: 5, rollAreaM2: 3 }))
+            .rejects.toThrow('Job sudah diproses oleh perangkat lain');
+        expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('job batal tidak bisa dimulai', async () => {
+        const tx = buildTx({ id: 6, status: 'ANTRIAN', isSubOrder: false, branchId: 1, cancelledAt: new Date() });
+        await expect(buildService(tx).startJob(6, { usedWaste: false, rollVariantId: 5, rollAreaM2: 3 }))
+            .rejects.toThrow('Job sudah dibatalkan');
+        expect(tx.productionJob.updateMany).not.toHaveBeenCalled();
+    });
+});
+
+describe('ProductionService.startAssembly — BOM hanya utk produk AREA_BASED', () => {
+    function run(pricingMode: string) {
+        const job = {
+            id: 1, status: 'MENUNGGU_PASANG', branchId: 1, jobNumber: 'JOB-1',
+            transactionItem: { productVariant: { product: { pricingMode, ingredients: [{ rawMaterialVariantId: 9, quantity: 1, name: 'Rangka' }] } } },
+        };
+        const tx: any = {
+            productionJob: {
+                findUnique: jest.fn().mockResolvedValue(job),
+                updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+            },
+            productVariant: { update: jest.fn().mockResolvedValue({ stock: 5 }) },
+            branchStock: { upsert: jest.fn().mockResolvedValue({}) },
+            stockMovement: { create: jest.fn().mockResolvedValue({}) },
+        };
+        const svc = new ProductionService({ $transaction: (cb: any) => cb(tx) } as any, {} as any);
+        return { tx, done: svc.startAssembly(1) };
+    }
+
+    it('UNIT: BOM sudah dipotong saat checkout → tidak dipotong lagi', async () => {
+        const { tx, done } = run('UNIT');
+        await done;
+        expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('AREA_BASED: BOM rangka dipotong saat mulai pasang', async () => {
+        const { tx, done } = run('AREA_BASED');
+        await done;
+        expect(tx.stockMovement.create).toHaveBeenCalledTimes(1);
     });
 });
 
@@ -160,5 +226,63 @@ describe('ProductionService.getPipelineJobs — job aktif tak terpotong riwayat 
         const terminalCall = findMany.mock.calls.find(([arg]: any) => isTerminalQuery(arg.where))![0];
         expect(terminalCall.take).toBeLessThanOrEqual(300);
         expect(jobs.filter((j: any) => j.pipelineStage === 'SELESAI').length).toBeLessThanOrEqual(300);
+    });
+});
+
+/**
+ * After-sales FU dulu tak pernah terbuat: kode membaca transaction.customerId/userId yang
+ * tidak ada. Pelanggan kini dicari dari SO → lead yang closing ke nota → HP nota.
+ */
+describe('ProductionService.pickupJob — jadwal follow-up after-sales', () => {
+    function build(tx: any, opts: { leadCustomerId?: number; customersByPhone?: any[] } = {}) {
+        const prisma: any = {
+            productionJob: {
+                findUnique: jest.fn().mockResolvedValue({ id: 1, status: 'SELESAI', branchId: 2 }),
+                updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+                findMany: jest.fn().mockResolvedValue([{ id: 1, transactionId: 10, branchId: 2 }]),
+            },
+            transaction: { findMany: jest.fn().mockResolvedValue([tx]) },
+            lead: {
+                findMany: jest.fn().mockResolvedValue(opts.leadCustomerId ? [{ convertedTransactionId: 10, convertedCustomerId: opts.leadCustomerId }] : []),
+            },
+            customer: {
+                findMany: jest.fn().mockImplementation(({ where }: any) =>
+                    Promise.resolve(where.phone
+                        ? (opts.customersByPhone ?? [])
+                        : where.id.in.map((id: number) => ({ id, assignedCsId: 7 })))),
+            },
+        };
+        const followUps = { scheduleAfterSales: jest.fn().mockResolvedValue({}) };
+        return { prisma, followUps, svc: new ProductionService(prisma, followUps as any) };
+    }
+
+    it('pelanggan dari SO asal nota + CS pemegang pelanggan', async () => {
+        const { svc, followUps } = build({ id: 10, branchId: 3, customerPhone: null, salesOrder: { customerId: 55 } });
+        await svc.pickupJob(1);
+        expect(followUps.scheduleAfterSales).toHaveBeenCalledWith({
+            customerId: 55, branchId: 3, sourceRef: 'production-pickup:job-1', assignedToId: 7,
+        });
+    });
+
+    it('tanpa SO: pakai lead yang closing ke nota ini', async () => {
+        const { svc, followUps } = build({ id: 10, branchId: 3, customerPhone: '0812', salesOrder: null }, { leadCustomerId: 66 });
+        await svc.pickupJob(1);
+        expect(followUps.scheduleAfterSales.mock.calls[0][0].customerId).toBe(66);
+    });
+
+    it('tanpa SO/lead: cocokkan HP nota 08xx ke customers.phone 62xx', async () => {
+        const { svc, followUps, prisma } = build(
+            { id: 10, branchId: 3, customerPhone: '0812-3456-7890', salesOrder: null },
+            { customersByPhone: [{ id: 77, phone: '6281234567890' }] },
+        );
+        await svc.pickupJob(1);
+        expect(prisma.customer.findMany.mock.calls[0][0].where.phone.in).toEqual(['6281234567890']);
+        expect(followUps.scheduleAfterSales.mock.calls[0][0].customerId).toBe(77);
+    });
+
+    it('pelanggan tak ditemukan: dilewati tanpa galat', async () => {
+        const { svc, followUps } = build({ id: 10, branchId: 3, customerPhone: '0812-3456-7890', salesOrder: null });
+        await expect(svc.pickupJob(1)).resolves.toBeDefined();
+        expect(followUps.scheduleAfterSales).not.toHaveBeenCalled();
     });
 });

@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { UsersService, type UserActor } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -8,7 +8,19 @@ import { isManagerLevelRole } from '../auth/role-groups';
 
 // Hanya OWNER/SUPERADMIN/ADMIN yang boleh membuat/mengubah/menghapus user & role.
 // (RolesGuard mencocokkan case-insensitive, jadi cocok dengan role "Owner"/"Admin" di DB.)
+// Batas wewenang Admin (non-owner) ditegakkan di service: hanya cabangnya sendiri & tak
+// boleh menyentuh akun/peran owner.
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
+
+function actorOf(req: any): UserActor {
+  const u = req?.user ?? {};
+  const userId = Number(u.userId);
+  return {
+    userId: Number.isInteger(userId) && userId > 0 ? userId : null,
+    roleName: u.roleName ?? null,
+    branchId: typeof u.branchId === 'number' ? u.branchId : null,
+  };
+}
 
 @Controller('users')
 export class UsersController {
@@ -17,8 +29,8 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
+  create(@Body() createUserDto: CreateUserDto, @Req() req: any) {
+    return this.usersService.create(createUserDto, actorOf(req));
   }
 
   // Semua staf butuh daftar nama (pilih kasir di POS, penanggung jawab lead, dsb.),
@@ -43,8 +55,12 @@ export class UsersController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Patch(':id')
-  updateUser(@Param('id') id: string, @Body() data: { name?: string, roleId?: number, phone?: string, password?: string }) {
-    return this.usersService.updateUser(+id, data);
+  updateUser(
+    @Param('id') id: string,
+    @Body() data: { name?: string, roleId?: number | null, phone?: string, password?: string, branchId?: number | null },
+    @Req() req: any,
+  ) {
+    return this.usersService.updateUser(+id, data, actorOf(req));
   }
 
   // Tandai karyawan keluar (active:false) / aktifkan kembali (active:true).
@@ -57,35 +73,35 @@ export class UsersController {
     @Body() data: { active: boolean; note?: string },
     @Req() req: any,
   ) {
-    return this.usersService.setStatus(+id, data, req?.user?.userId ?? null);
+    return this.usersService.setStatus(+id, data, actorOf(req));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Delete(':id')
-  deleteUser(@Param('id') id: string) {
-    return this.usersService.deleteUser(+id);
+  deleteUser(@Param('id') id: string, @Req() req: any) {
+    return this.usersService.deleteUser(+id, actorOf(req));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Post('roles')
-  createRole(@Body() data: { name: string }) {
-    return this.usersService.createRole(data.name);
+  createRole(@Body() data: { name: string }, @Req() req: any) {
+    return this.usersService.createRole(data?.name, actorOf(req));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Patch('roles/:id')
-  updateRole(@Param('id') id: string, @Body() data: { name: string }) {
-    return this.usersService.updateRole(+id, data.name);
+  updateRole(@Param('id') id: string, @Body() data: { name: string }, @Req() req: any) {
+    return this.usersService.updateRole(+id, data?.name, actorOf(req));
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Delete('roles/:id')
-  deleteRole(@Param('id') id: string) {
-    return this.usersService.deleteRole(+id);
+  deleteRole(@Param('id') id: string, @Req() req: any) {
+    return this.usersService.deleteRole(+id, actorOf(req));
   }
 
   // Atur menu yang boleh dilihat role tsb. body: { hrefs: string[] | null }

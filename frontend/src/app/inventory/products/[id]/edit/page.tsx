@@ -917,8 +917,11 @@ export default function EditProductPage() {
                                                 <input type="number" min="0" inputMode="decimal"
                                                     step={pricingMode === 'AREA_BASED' ? '0.01' : '1'}
                                                     value={v.stock}
+                                                    readOnly={!!v.id}
+                                                    title={v.id ? 'Ubah stok lewat Inventori → Stok Cabang atau Stok Opname' : undefined}
                                                     onChange={e => updateVariant(index, 'stock', e.target.value)}
-                                                    className="w-full px-3 py-2.5 bg-background border border-border rounded-lg text-sm outline-none focus:border-primary" />
+                                                    className={`w-full px-3 py-2.5 border border-border rounded-lg text-sm outline-none focus:border-primary ${v.id ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-background'}`} />
+                                                {v.id && <p className="text-[10px] text-muted-foreground mt-0.5">Ubah lewat Stok Cabang</p>}
                                             </div>
                                         )}
                                         <div>

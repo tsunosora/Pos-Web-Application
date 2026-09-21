@@ -82,7 +82,26 @@ export class CompanyBranchesService {
             where: { branchId: id, status: { in: ['ANTRIAN', 'PROSES'] } },
         });
         if (activeWO > 0) throw new BadRequestException('Cabang masih memiliki work order aktif. Selesaikan terlebih dahulu.');
-        await (this.prisma as any).companyBranch.delete({ where: { id } });
+        // Cabang yang sudah punya riwayat tak boleh dihapus (FK SET NULL → nota/kas kehilangan cabangnya).
+        const db = this.prisma as any;
+        const [trx, kas, akun, stok] = await Promise.all([
+            db.transaction.count({ where: { OR: [{ branchId: id }, { productionBranchId: id }] } }),
+            db.cashflow.count({ where: { branchId: id } }),
+            db.user.count({ where: { branchId: id } }),
+            db.branchStock.count({ where: { branchId: id, stock: { not: 0 } } }),
+        ]);
+        const dipakai = [
+            trx && `${trx} transaksi`,
+            kas && `${kas} catatan kas`,
+            akun && `${akun} akun karyawan`,
+            stok && `${stok} stok barang`,
+        ].filter(Boolean);
+        if (dipakai.length) {
+            throw new BadRequestException(
+                `Cabang ini masih punya ${dipakai.join(', ')}. Jangan dihapus — nonaktifkan saja supaya riwayatnya tetap utuh.`,
+            );
+        }
+        await db.companyBranch.delete({ where: { id } });
         return { success: true };
     }
 }

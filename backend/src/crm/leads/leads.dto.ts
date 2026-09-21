@@ -65,7 +65,7 @@ export class ConvertLeadDto {
     createCustomer?: boolean;        // kalau true & customerId kosong → buat customer baru pakai data lead
     // Pilihan dokumen yang dibuat otomatis (boleh pilih lebih dari satu)
     createSalesOrderDraft?: boolean; // SPK: Sales Order production-bound (SO-...)
-    designerName?: string;           // designer untuk SO (atau pakai default 'TBD')
+    designerName?: string;           // designer untuk SO (kosong = belum ada desainer)
     createInvoiceDraft?: boolean;    // Invoice: nota tagihan (INV-...)
     invoiceType?: 'INVOICE' | 'QUOTATION'; // default INVOICE; kalau QUOTATION → nomor SPH-...
     notes?: string;                  // catatan ekstra (di-shared antara SO & Invoice)

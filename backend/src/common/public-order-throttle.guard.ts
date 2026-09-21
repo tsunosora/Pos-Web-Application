@@ -6,6 +6,7 @@ import {
     Injectable,
     Logger,
 } from '@nestjs/common';
+import { clientIp as ipAsli } from '../auth/pin-throttle.interceptor';
 
 /**
  * Rate limit in-memory untuk endpoint order publik (`POST /orders/public`).
@@ -57,7 +58,9 @@ export class PublicOrderThrottleGuard implements CanActivate {
             limMin = PublicOrderThrottleGuard.CUST_MIN;
             limHour = PublicOrderThrottleGuard.CUST_HOUR;
         } else {
-            const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+            // Di balik Cloudflare Tunnel soket selalu 127.0.0.1 → pakai IP asli (cf-connecting-ip),
+            // kalau tidak semua pemanggil langsung berbagi satu kuota & satu penyerang menghabiskannya.
+            const ip = ipAsli(req);
             key = 'ip:' + String(ip).slice(0, 64);
             limMin = PublicOrderThrottleGuard.IP_MIN;
             limHour = PublicOrderThrottleGuard.IP_HOUR;

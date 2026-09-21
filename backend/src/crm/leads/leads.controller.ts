@@ -101,7 +101,7 @@ export class LeadsController {
         @Body() data: CreateLeadDto,
         @Req() req: any,
     ) {
-        return this.leads.create(ctx, data, req?.user?.id);
+        return this.leads.create(ctx, data, req?.user?.userId);
     }
 
     @Patch(':id')
@@ -111,7 +111,7 @@ export class LeadsController {
         @Body() data: UpdateLeadDto,
         @Req() req: any,
     ) {
-        return this.leads.update(ctx, id, data, req?.user?.id);
+        return this.leads.update(ctx, id, data, req?.user?.userId);
     }
 
     @Post(':id/activities')
@@ -121,7 +121,7 @@ export class LeadsController {
         @Body() data: CreateActivityDto,
         @Req() req: any,
     ) {
-        return this.leads.addActivity(ctx, id, data, req?.user?.id);
+        return this.leads.addActivity(ctx, id, data, req?.user?.userId);
     }
 
     @Post(':id/convert')
@@ -131,7 +131,7 @@ export class LeadsController {
         @Body() data: ConvertLeadDto,
         @Req() req: any,
     ) {
-        return this.leads.convert(ctx, id, data, req?.user?.id);
+        return this.leads.convert(ctx, id, data, req?.user?.userId);
     }
 
     @Post(':id/close-lost')
@@ -141,7 +141,7 @@ export class LeadsController {
         @Body() data: CloseLostDto,
         @Req() req: any,
     ) {
-        return this.leads.closeLost(ctx, id, data, req?.user?.id);
+        return this.leads.closeLost(ctx, id, data, req?.user?.userId);
     }
 
     @Post(':id/mark-invalid')
@@ -151,7 +151,7 @@ export class LeadsController {
         @Body() body: { reason?: string },
         @Req() req: any,
     ) {
-        return this.leads.markInvalid(ctx, id, body.reason || '', req?.user?.id);
+        return this.leads.markInvalid(ctx, id, body.reason || '', req?.user?.userId);
     }
 
     /** Tautkan lead ke SO desainer yang sudah ada (Alur B — tanpa convert/nota baru). */

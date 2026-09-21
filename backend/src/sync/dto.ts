@@ -14,6 +14,7 @@ export interface EntitySpec {
   delegate: string; // nama delegate PrismaClient (this.prisma[delegate])
   hasUpdatedAt: boolean; // punya kolom updatedAt (untuk delta)? kalau tidak → selalu full
   branchField?: string; // kalau ter-scope cabang (mis. branchStocks.branchId)
+  omit?: string[]; // kolom rahasia — TIDAK PERNAH dikirim ke klien mana pun
 }
 
 export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
@@ -22,9 +23,21 @@ export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
   categories: { delegate: 'category', hasUpdatedAt: true },
   productionCategories: { delegate: 'productionCategory', hasUpdatedAt: true },
   companyBranches: { delegate: 'companyBranch', hasUpdatedAt: true },
-  storeSettings: { delegate: 'storeSettings', hasUpdatedAt: true },
-  branchSettings: { delegate: 'branchSettings', hasUpdatedAt: true },
-  users: { delegate: 'user', hasUpdatedAt: true }, // termasuk passwordHash → login offline
+  storeSettings: {
+    delegate: 'storeSettings',
+    hasUpdatedAt: true,
+    omit: [
+      'operatorPin',
+      'marketingPin',
+      'discordWebhookUrl',
+      'githubWebhookSecret',
+      'rcloneRemote',
+      'rcloneLastStatus',
+    ],
+  },
+  branchSettings: { delegate: 'branchSettings', hasUpdatedAt: true, omit: ['operatorPin'] },
+  // passwordHash tak pernah dikirim (web tak punya login offline).
+  users: { delegate: 'user', hasUpdatedAt: true, omit: ['passwordHash'] },
   bankAccounts: { delegate: 'bankAccount', hasUpdatedAt: true },
   products: { delegate: 'product', hasUpdatedAt: true },
   productVariants: { delegate: 'productVariant', hasUpdatedAt: true },
@@ -47,6 +60,21 @@ export const ENTITY_REGISTRY: Record<string, EntitySpec> = {
 };
 
 export const PULLABLE_ENTITIES = Object.keys(ENTITY_REGISTRY);
+
+// Klien JWT (web/PWA) hanya boleh menarik data referensi yang memang bisa dibaca staf.
+// Entitas lain (users, pengaturan, rekening, SO/lead, …) khusus perangkat ber-token.
+export const WEB_PULLABLE_ENTITIES = new Set<string>([
+  'units',
+  'categories',
+  'productionCategories',
+  'products',
+  'productVariants',
+  'variantPriceTiers',
+  'customers',
+  'branchStocks',
+  'suppliers',
+  'supplierItems',
+]);
 export type PullableEntity = string;
 
 // ---- PUSH: klien mengirim mutasi transaksional yang dibuat saat offline ----

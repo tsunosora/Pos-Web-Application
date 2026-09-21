@@ -8,6 +8,7 @@ import { randomBytes, randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { assertBranchAccess } from '../common/branch-where.helper';
+import { isOwnerLevelRole } from '../auth/role-groups';
 import { PrinterRelayRegistry, type AckResult, type RelayJob } from './printer-relay.registry';
 
 // Berapa lama kasir menunggu konfirmasi cetak dari agen sebelum dianggap gagal.
@@ -51,7 +52,8 @@ export class PrinterRelayService {
         return 'com';
     }
 
-    private shape(dev: any) {
+    // Token agen = kunci rahasia perangkat: hanya untuk owner (setup agen), bukan staf.
+    private shape(dev: any, withToken: boolean) {
         return {
             id: dev.id,
             branchId: dev.branchId,
@@ -60,7 +62,7 @@ export class PrinterRelayService {
             mode: dev.mode,
             target: dev.target ?? null,
             isActive: dev.isActive,
-            token: dev.token, // ditampilkan ke owner untuk setup agen
+            ...(withToken ? { token: dev.token } : {}),
             online: this.registry.isOnline(dev.branchId),
             lastSeenAt: dev.lastSeenAt ?? null,
         };
@@ -133,7 +135,8 @@ export class PrinterRelayService {
             where.branchId = ctx.branchId;
         }
         const rows = await this.devices.findMany({ where, orderBy: { id: 'asc' } });
-        return rows.map((d: any) => this.shape(d));
+        const withToken = ctx.isOwner && isOwnerLevelRole(ctx.roleName);
+        return rows.map((d: any) => this.shape(d, withToken));
     }
 
     async create(ctx: BranchContext, payload: CreateDevicePayload) {
@@ -154,7 +157,7 @@ export class PrinterRelayService {
                 target: payload.target?.trim() || null,
             },
         });
-        return this.shape(dev);
+        return this.shape(dev, true);
     }
 
     async update(ctx: BranchContext, id: number, payload: UpdateDevicePayload) {
@@ -173,7 +176,7 @@ export class PrinterRelayService {
             data.mode = this.modeFor(connection);
         }
         const updated = await this.devices.update({ where: { id }, data });
-        return this.shape(updated);
+        return this.shape(updated, true); // assertOwner di atas
     }
 
     async rotateToken(ctx: BranchContext, id: number) {
@@ -184,7 +187,7 @@ export class PrinterRelayService {
             where: { id },
             data: { token: randomBytes(24).toString('hex') },
         });
-        return this.shape(updated);
+        return this.shape(updated, true);
     }
 
     async remove(ctx: BranchContext, id: number) {

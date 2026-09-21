@@ -10,7 +10,7 @@ export interface PrinterDeviceDTO {
     mode: string; // com | rfcomm | ble
     target: string | null;
     isActive: boolean;
-    token: string; // hanya terlihat oleh Owner (untuk setup agen)
+    token?: string; // hanya dikirim server ke Owner (untuk setup agen)
     online: boolean;
     lastSeenAt: string | null;
 }

@@ -42,7 +42,7 @@ const agentCmd = (d: PrinterDeviceDTO) =>
 
 // Token = kredensial rahasia agen → jangan tampilkan penuh. Cukup awal+akhir
 // supaya owner bisa mencocokkan dengan baris TOKEN di .bat toko saat diagnosa 401.
-const maskToken = (t: string) => (t.length <= 12 ? t : `${t.slice(0, 6)}…${t.slice(-4)}`);
+const maskToken = (t?: string) => (!t ? '' : t.length <= 12 ? t : `${t.slice(0, 6)}…${t.slice(-4)}`);
 
 // Bangun start-agent.bat yang: cek Python, pasang pyserial, unduh agent.py, lalu
 // jalan — token/URL/target sudah terisi. Di komputer toko cukup dobel-klik.
@@ -504,8 +504,9 @@ export default function PrinterSettingsPage() {
                             </div>
                         )}
 
-                        {/* Token (mask) — untuk mencocokkan dengan baris TOKEN di .bat saat diagnosa "token ditolak" */}
-                        <div className="flex items-center gap-2 text-[11px] flex-wrap">
+                        {/* Token (mask) — untuk mencocokkan dengan baris TOKEN di .bat saat diagnosa "token ditolak".
+                            Server hanya mengirim token ke Owner. */}
+                        {d.token && <div className="flex items-center gap-2 text-[11px] flex-wrap">
                             <span className="text-muted-foreground">Token:</span>
                             <code className="font-mono bg-muted rounded px-2 py-0.5 border border-border">
                                 {maskToken(d.token)}
@@ -514,7 +515,7 @@ export default function PrinterSettingsPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="h-6 px-2"
-                                onClick={() => copy(d.token)}
+                                onClick={() => copy(d.token!)}
                                 title="Salin token penuh"
                             >
                                 <Copy className="w-3 h-3 mr-1" /> Salin
@@ -522,7 +523,7 @@ export default function PrinterSettingsPage() {
                             <span className="text-muted-foreground">
                                 (cocokkan dengan baris <code className="font-mono">TOKEN</code> di file .bat)
                             </span>
-                        </div>
+                        </div>}
 
                         {/* Cara pasang agen di komputer toko */}
                         <div className="rounded-lg bg-muted/50 border border-border p-3 space-y-2.5">

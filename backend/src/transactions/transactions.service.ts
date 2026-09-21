@@ -10,6 +10,11 @@ import { ProductsService } from '../products/products.service';
 import { buildCompositeClickBatch } from './composite-click.util';
 import { areaFactors, assertSaneArea, normalizeUnit, storedPriceMultiplier, storedUnit } from './area-unit.util';
 import { assertValidEditInput, assertValidTransactionInput, satuBaris } from './transaction-input.util';
+import { akhirHari, awalHari } from '../common/utils/tanggal.util';
+
+// Kategori kas otomatis dari PENJUALAN. Pemasukan otomatis lain (modal pusat, pelunasan titipan,
+// pemasukan tambahan saat tutup shift) juga tanpa userId — dulu ikut terhitung "Penjualan" di dasbor.
+const KATEGORI_PENJUALAN = ['Penjualan Lunas', 'Pembayaran DP', 'Pelunasan DP'];
 
 type EditItemData = {
     id?: number;           // unset = item baru
@@ -100,6 +105,50 @@ export class TransactionsService {
         }
     }
 
+    /**
+     * Kunci baris nota sampai transaksi DB selesai. Tanpa ini dua permintaan bersamaan
+     * (klik ganda "Lunasi", tambah DP + lunasi, edit + lunasi) sama-sama membaca angka
+     * lama dan mencatat pemasukan dua kali.
+     */
+    private async lockTransactionRow(tx: any, id: number) {
+        await tx.$queryRaw`SELECT id FROM transactions WHERE id = ${id} FOR UPDATE`;
+    }
+
+    /**
+     * Aturan potong stok SAAT CHECKOUT (cermin _createTransaction) — dipakai edit & hapus nota
+     * supaya yang dikembalikan / dipotong ulang persis sama dengan yang dulu dipotong:
+     *  - AREA: stok varian + BOM hanya bila !requiresProduction && trackStock (produk produksi
+     *    dipotong operator saat Mulai Job).
+     *  - UNIT: stok varian bila trackStock; BOM SELALU (juga bila trackStock=false).
+     *  - Sub order, item COMPOSITE & item custom (tanpa varian): tidak memotong apa pun.
+     */
+    private stockRulesOf(product: any, isSubOrder: boolean): { variant: boolean; bom: boolean } {
+        if (!product || isSubOrder) return { variant: false, bom: false };
+        const mode = product.pricingMode || 'UNIT';
+        const track = product.trackStock !== false;
+        if (mode === 'COMPOSITE') return { variant: false, bom: false };
+        if (mode === 'AREA_BASED') {
+            const ok = track && product.requiresProduction !== true;
+            return { variant: ok, bom: ok };
+        }
+        return { variant: track, bom: true };
+    }
+
+    /**
+     * Baris kas milik SATU nota. `note contains` saja tidak cukup: INV-…-100 juga cocok
+     * dengan INV-…-1000, jadi pastikan nomor nota tidak diikuti angka lain.
+     */
+    private async cashflowsOfInvoice(tx: any, invoiceNumber: string, where: Record<string, unknown>) {
+        const rows: any[] = await tx.cashflow.findMany({
+            where: { ...where, note: { contains: invoiceNumber } },
+            orderBy: [{ date: 'desc' }, { id: 'desc' }],
+        });
+        return rows.filter((r) => {
+            const i = String(r.note || '').indexOf(invoiceNumber);
+            return i >= 0 && !/[0-9]/.test(String(r.note).charAt(i + invoiceNumber.length));
+        });
+    }
+
     // Multi-cabang: ubah stok di BranchStock (delta bisa positif/negatif) DAN mirror ke
     // ProductVariant.stock sebagai cache agregat. Kalau branchId null → hanya update variant.stock (kompat lama).
     private async _adjustStock(
@@ -111,15 +160,11 @@ export class TransactionsService {
         // Bulatkan ke 2 desimal untuk konsistensi dengan kode lama.
         const rounded = Math.floor(delta * 100) / 100;
 
-        // Update cache global di ProductVariant.stock
-        const cur = await tx.productVariant.findUnique({
-            where: { id: variantId },
-            select: { stock: true },
-        });
-        const newGlobal = Math.floor((Number(cur?.stock ?? 0) + rounded) * 100) / 100;
+        // Update cache global di ProductVariant.stock — increment atomik. Dulu baca-lalu-tulis
+        // nilai absolut: dua penjualan bersamaan (walau beda cabang) → salah satu potongan hilang.
         await tx.productVariant.update({
             where: { id: variantId },
-            data: { stock: newGlobal },
+            data: { stock: { increment: rounded } },
         });
 
         // Mirror ke BranchStock (per cabang)
@@ -457,7 +502,9 @@ export class TransactionsService {
                 const priceTiers: any[] = (variant as any).priceTiers || [];
                 let resolvedPrice = Number(variant.price);
                 if (pricingMode === 'UNIT' && priceTiers.length > 0) {
-                    const matchedTier = priceTiers.find((t: any) =>
+                    // Tier paling spesifik (minQty terbesar yang cocok) — sama dengan layar POS. Dulu server
+                    // memilih yang terkecil: tier "min 10" & "min 50" tanpa batas atas → qty 60 layar Rp 7.000, nota Rp 8.000.
+                    const matchedTier = [...priceTiers].sort((a: any, b: any) => b.minQty - a.minQty).find((t: any) =>
                         item.quantity >= t.minQty && (t.maxQty === null || item.quantity <= t.maxQty)
                     );
                     if (matchedTier) resolvedPrice = Number(matchedTier.price);
@@ -910,22 +957,9 @@ export class TransactionsService {
                 }
             }
 
-            // Catat diskon sebagai pengeluaran agar laporan keuangan akurat
-            if (discountAmount > 0) {
-                await tx.cashflow.create({
-                    data: {
-                        type: CashflowType.EXPENSE,
-                        category: 'Diskon',
-                        amount: discountAmount,
-                        paymentMethod: data.paymentMethod,
-                        bankAccountId: data.bankAccountId || null,
-                        note: `Diskon Invoice ${invoiceNumber}${customerInfo}${branchInfo}`,
-                        branchName: effectiveBranchName,
-                        branchId: branchId,
-                        date: effectiveCashflowDate,
-                    } as any
-                });
-            }
+            // Diskon TIDAK dicatat sebagai pengeluaran: pemasukan di atas sudah bersih setelah
+            // diskon (grandTotal = subtotal − diskon + …). Dulu dicatat juga → terpotong dua kali:
+            // ekspektasi kas laci kurang sebesar diskon & laba bulanan turun.
 
             // Catat biaya sub-order (printing luar) sebagai pengeluaran saat nota dibuat.
             // subPrice = harga sub per m²/satuan (basis sama dgn priceAtTime), jadi biaya per item
@@ -1246,8 +1280,8 @@ export class TransactionsService {
         if (wanted.length) where.status = { in: wanted };
         if (startDate && endDate) {
             where.createdAt = {
-                gte: new Date(startDate),
-                lte: new Date(endDate + 'T23:59:59.999Z'),
+                gte: awalHari(startDate),
+                lte: akhirHari(endDate),
             };
         }
         if (search) {
@@ -1312,6 +1346,7 @@ export class TransactionsService {
     async addPartialPayment(id: number, data: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
         await this.assertTxBranchAccess(id, branchCtx);
         return this.prisma.$transaction(async (tx) => {
+            await this.lockTransactionRow(tx, id);
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
             if (transaction.status === TransactionStatus.PAID) throw new BadRequestException('Transaksi sudah lunas');
@@ -1321,9 +1356,11 @@ export class TransactionsService {
             const currentDP = Number(transaction.downPayment);
             const grandTotal = Number(transaction.grandTotal);
             const remaining = grandTotal - currentDP;
+            const amount = Number(data.amount);
 
-            if (data.amount <= 0) throw new BadRequestException('Nominal harus lebih dari 0');
-            if (data.amount > remaining) throw new BadRequestException('Nominal melebihi sisa tagihan');
+            if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Nominal harus lebih dari 0');
+            if (amount > remaining + 0.005) throw new BadRequestException('Nominal melebihi sisa tagihan');
+            data = { ...data, amount };
 
             const newDP = currentDP + data.amount;
             const willBePaid = newDP >= grandTotal;
@@ -1345,6 +1382,28 @@ export class TransactionsService {
             });
 
             if (willBePaid) {
+                // Biaya platform marketplace dicatat saat nota LUNAS (sama seperti jalur "Lunasi").
+                // Dulu jalur tambah-DP yang melunasi tidak mencatatnya → saldo bank terlihat lebih.
+                const storedFee = Number((transaction as any).marketplaceFee) || 0;
+                if (storedFee > 0) {
+                    const sudahAda = await this.cashflowsOfInvoice(tx, transaction.invoiceNumber, { type: CashflowType.EXPENSE, category: 'Biaya Platform' });
+                    if (!sudahAda.length) {
+                        const feeItems = Array.isArray((transaction as any).marketplaceFeeItems) ? (transaction as any).marketplaceFeeItems : null;
+                        await tx.cashflow.create({
+                            data: {
+                                type: CashflowType.EXPENSE,
+                                category: 'Biaya Platform',
+                                amount: storedFee,
+                                paymentMethod: data.paymentMethod,
+                                bankAccountId: data.bankAccountId || null,
+                                note: `Potongan marketplace Invoice ${transaction.invoiceNumber}${customerInfo}${branchInfoDP}${this.formatFeeDetail(feeItems)}`,
+                                branchName: (transaction as any).branchName || null,
+                                branchId: (transaction as any).branchId ?? null,
+                                date: new Date(),
+                            } as any
+                        });
+                    }
+                }
                 // Promosi ke PAID — generate SC number (per cabang, ikut cabang transaksi)
                 const now = new Date();
                 const cy = now.getFullYear();
@@ -1388,11 +1447,17 @@ export class TransactionsService {
     async payOff(id: number, data: { paymentMethod: PaymentMethod, bankAccountId?: number, checkoutCashierName?: string, paidAt?: string, marketplaceFee?: number, marketplaceFeeItems?: { name: string; amount: number }[] }, branchCtx?: BranchContext) {
         await this.assertTxBranchAccess(id, branchCtx);
         return this.prisma.$transaction(async (tx) => {
+            await this.lockTransactionRow(tx, id);
             const transaction = await tx.transaction.findUnique({ where: { id } });
             if (!transaction) throw new NotFoundException('Transaction not found');
             if (transaction.status === TransactionStatus.PAID) throw new BadRequestException('Transaksi sudah lunas');
             if (transaction.status !== TransactionStatus.PARTIAL && transaction.status !== TransactionStatus.PENDING)
                 throw new BadRequestException('Transaksi tidak dapat dilunasi');
+            const feeMasuk = data.marketplaceFeeItems?.length
+                ? data.marketplaceFeeItems.map((f) => Number(f.amount))
+                : data.marketplaceFee != null ? [Number(data.marketplaceFee)] : [];
+            if (feeMasuk.some((n) => !Number.isFinite(n) || n < 0)) throw new BadRequestException('Biaya platform tidak boleh negatif.');
+            if (feeMasuk.reduce((s, n) => s + n, 0) > Number(transaction.grandTotal)) throw new BadRequestException('Biaya platform melebihi total nota.');
 
             const remainingBalance = Number(transaction.grandTotal) - Number(transaction.downPayment);
 
@@ -1493,29 +1558,43 @@ export class TransactionsService {
 
     async updatePaymentMethod(id: number, data: { paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
         await this.assertTxBranchAccess(id, branchCtx);
+        if (!['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(data.paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal.');
+        const bankAccountId = data.paymentMethod === 'BANK_TRANSFER' ? Number(data.bankAccountId) || null : null;
         return this.prisma.$transaction(async (tx) => {
+            await this.lockTransactionRow(tx, id);
             const transaction = await tx.transaction.findUniqueOrThrow({ where: { id } });
+            if (transaction.status === TransactionStatus.PENDING) throw new BadRequestException('Nota belum dibayar — belum ada metode bayar untuk diubah.');
+            if (data.paymentMethod === 'BANK_TRANSFER') {
+                const bank = bankAccountId ? await tx.bankAccount.findUnique({ where: { id: bankAccountId } }) : null;
+                const txBranch = (transaction as any).branchId ?? null;
+                if (!bank || !(bank as any).isActive) throw new BadRequestException('Pilih rekening bank tujuan yang aktif.');
+                if ((bank as any).branchId != null && txBranch != null && (bank as any).branchId !== txBranch) throw new BadRequestException('Rekening bank milik cabang lain.');
+            }
+            const isPaid = transaction.status === TransactionStatus.PAID;
+            const lamaMetode = isPaid ? transaction.paymentMethod : ((transaction as any).dpPaymentMethod ?? transaction.paymentMethod);
+            const lamaBank = isPaid ? (transaction.bankAccountId ?? null) : ((transaction as any).dpBankAccountId ?? transaction.bankAccountId ?? null);
 
-            const updated = await tx.transaction.update({
+            // Hanya pembayaran TERAKHIR (yang metodenya ditampilkan) + biaya platformnya yang dipindah.
+            // Dulu SEMUA pemasukan nota ikut pindah — DP via BCA ikut jadi QRIS, saldo bank meleset.
+            const masuk = (await this.cashflowsOfInvoice(tx, transaction.invoiceNumber, { type: CashflowType.INCOME }))
+                .filter((c) => c.paymentMethod === lamaMetode && (c.bankAccountId ?? null) === lamaBank);
+            const terakhir = masuk[0];
+            const fee = (await this.cashflowsOfInvoice(tx, transaction.invoiceNumber, { type: CashflowType.EXPENSE, category: 'Biaya Platform' }))
+                .filter((c) => c.paymentMethod === lamaMetode && (c.bankAccountId ?? null) === lamaBank);
+            const ids = [terakhir?.id, ...fee.map((c) => c.id)].filter((x): x is number => x != null);
+            if (ids.length) {
+                await tx.cashflow.updateMany({
+                    where: { id: { in: ids } },
+                    data: { paymentMethod: data.paymentMethod, bankAccountId },
+                });
+            }
+
+            return tx.transaction.update({
                 where: { id },
-                data: {
-                    paymentMethod: data.paymentMethod,
-                    bankAccountId: data.bankAccountId ?? null,
-                }
+                data: isPaid
+                    ? { paymentMethod: data.paymentMethod, bankAccountId }
+                    : ({ dpPaymentMethod: data.paymentMethod, dpBankAccountId: bankAccountId, ...(transaction.paymentMethod === lamaMetode ? { paymentMethod: data.paymentMethod, bankAccountId } : {}) } as any),
             });
-
-            await tx.cashflow.updateMany({
-                where: {
-                    note: { contains: transaction.invoiceNumber },
-                    type: CashflowType.INCOME,
-                },
-                data: {
-                    paymentMethod: data.paymentMethod,
-                    bankAccountId: data.bankAccountId ?? null,
-                }
-            });
-
-            return updated;
         });
     }
 
@@ -1528,8 +1607,8 @@ export class TransactionsService {
         const whereClause: any = { status: TransactionStatus.PAID, ...bw };
         if (startDate && endDate) {
             whereClause.paidAt = {
-                gte: new Date(startDate),
-                lte: new Date(endDate + 'T23:59:59.999Z')
+                gte: awalHari(startDate),
+                lte: akhirHari(endDate)
             };
         }
         const transactions = await this.prisma.transaction.findMany({
@@ -1543,8 +1622,8 @@ export class TransactionsService {
         // Hitung prev-period untuk trend comparison
         let prevItemSales: Record<number, { qty: number, revenue: number }> = {};
         if (startDate && endDate) {
-            const start = new Date(startDate);
-            const end = new Date(endDate + 'T23:59:59.999Z');
+            const start = awalHari(startDate);
+            const end = akhirHari(endDate);
             const durationMs = end.getTime() - start.getTime();
             const prevEnd = new Date(start.getTime() - 1);
             const prevStart = new Date(prevEnd.getTime() - durationMs);
@@ -1657,11 +1736,11 @@ export class TransactionsService {
 
         // Pendapatan Kas (cash basis): sum cashflow auto-entry dalam rentang tanggal.
         // Berbeda dengan totalRevenue (accrual) — DP dan pelunasan dihitung di tanggal masing-masing.
-        const cfWhere: any = { type: CashflowType.INCOME, userId: null, ...bw };
+        const cfWhere: any = { type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw };
         if (startDate && endDate) {
             cfWhere.createdAt = {
-                gte: new Date(startDate),
-                lte: new Date(endDate + 'T23:59:59.999Z'),
+                gte: awalHari(startDate),
+                lte: akhirHari(endDate),
             };
         }
         const cfAgg = await this.prisma.cashflow.aggregate({
@@ -1695,7 +1774,7 @@ export class TransactionsService {
             start.setDate(start.getDate() - 6);
             start.setHours(0, 0, 0, 0);
             const cfs = await this.prisma.cashflow.findMany({
-                where: { createdAt: { gte: start }, type: CashflowType.INCOME, userId: null, ...bw },
+                where: { createdAt: { gte: start }, type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw },
                 select: { createdAt: true, amount: true }
             });
             for (let i = 6; i >= 0; i--) {
@@ -1717,7 +1796,7 @@ export class TransactionsService {
                 weekStart.setDate(weekStart.getDate() - 6);
                 weekStart.setHours(0, 0, 0, 0);
                 const result = await this.prisma.cashflow.aggregate({
-                    where: { createdAt: { gte: weekStart, lte: weekEnd }, type: CashflowType.INCOME, userId: null, ...bw },
+                    where: { createdAt: { gte: weekStart, lte: weekEnd }, type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw },
                     _sum: { amount: true }
                 });
                 const d = weekStart.getDate();
@@ -1732,7 +1811,7 @@ export class TransactionsService {
                 const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
                 const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
                 const result = await this.prisma.cashflow.aggregate({
-                    where: { createdAt: { gte: monthStart, lte: monthEnd }, type: CashflowType.INCOME, userId: null, ...bw },
+                    where: { createdAt: { gte: monthStart, lte: monthEnd }, type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw },
                     _sum: { amount: true }
                 });
                 data.push({ label: `${monthNames[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`, total: Number(result._sum.amount || 0) });
@@ -1744,7 +1823,7 @@ export class TransactionsService {
                 const yearStart = new Date(year, 0, 1);
                 const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
                 const result = await this.prisma.cashflow.aggregate({
-                    where: { createdAt: { gte: yearStart, lte: yearEnd }, type: CashflowType.INCOME, userId: null, ...bw },
+                    where: { createdAt: { gte: yearStart, lte: yearEnd }, type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw },
                     _sum: { amount: true }
                 });
                 data.push({ label: String(year), total: Number(result._sum.amount || 0) });
@@ -1812,11 +1891,11 @@ export class TransactionsService {
         ] = await Promise.all([
             // Sales card: sum cashflow auto-income hari ini (userId null = auto dari transaksi)
             this.prisma.cashflow.aggregate({
-                where: { createdAt: { gte: todayStart }, type: CashflowType.INCOME, userId: null, ...bw },
+                where: { createdAt: { gte: todayStart }, type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw },
                 _sum: { amount: true },
             }),
             this.prisma.cashflow.aggregate({
-                where: { createdAt: { gte: yesterdayStart, lt: todayStart }, type: CashflowType.INCOME, userId: null, ...bw },
+                where: { createdAt: { gte: yesterdayStart, lt: todayStart }, type: CashflowType.INCOME, userId: null, category: { in: KATEGORI_PENJUALAN }, ...bw },
                 _sum: { amount: true },
             }),
             // Tx count: hitung transaksi yang statusnya PAID dan dibayar (paidAt) hari ini
@@ -1852,6 +1931,7 @@ export class TransactionsService {
                 createdAt: { gte: sevenDaysAgo },
                 type: CashflowType.INCOME,
                 userId: null, // auto-created dari transaksi
+                category: { in: KATEGORI_PENJUALAN },
                 ...bw,
             },
             select: { createdAt: true, amount: true },
@@ -1949,6 +2029,7 @@ export class TransactionsService {
 
     private async applyTransactionEdit(tx: any, transactionId: number, editData: TransactionEditData, actorUserId: number | null = null): Promise<void> {
         assertValidEditInput(editData);
+        await this.lockTransactionRow(tx, transactionId);
         const transaction = await tx.transaction.findUniqueOrThrow({
             where: { id: transactionId },
             include: {
@@ -1995,53 +2076,55 @@ export class TransactionsService {
         for (const editItem of removeItems) {
             const txItem = transaction.items.find((i: any) => i.id === editItem.id);
             if (!txItem) continue;
-            const variant = txItem.productVariant;
-            const product = variant.product;
-            const pricingMode = product.pricingMode || 'UNIT';
-            const trackStock = product.trackStock !== false;
-            const variantIngredients: any[] = variant.variantIngredients || [];
-            const productIngredients: any[] = product.ingredients || [];
+            const variant = txItem.productVariant; // null = item custom
+            const product = variant?.product;
+            const pricingMode = product?.pricingMode || 'UNIT';
+            // Kembalikan persis yang dulu dipotong checkout (sub order/custom/composite/produksi: tidak ada).
+            const rules = this.stockRulesOf(product, Boolean((txItem as any).isSubOrder));
+            const variantIngredients: any[] = rules.bom ? (variant?.variantIngredients || []) : [];
+            const productIngredients: any[] = rules.bom ? (product?.ingredients || []) : [];
 
-            // Sub Order tak pernah memotong stok → saat dihapus jangan kembalikan stok.
-            if (trackStock && !(txItem as any).isSubOrder) {
+            if (rules.variant || rules.bom) {
                 if (pricingMode === 'AREA_BASED') {
                     // Luas total = luas per lembar × pcs — sama dengan yang dipotong saat nota dibuat.
                     const areaM2 = txItem.areaCm2 ? (Number(txItem.areaCm2) / 10000) * Math.max(1, Number(txItem.pcs) || 1) : 0;
                     if (areaM2 > 0) {
                         await this._adjustStock(tx, editTxBranchId, variant.id, areaM2);
-                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(areaM2 * 100), `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', areaM2, `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * areaM2;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
                 } else {
                     const qty = txItem.quantity;
                     if (qty > 0) {
-                        await this._adjustStock(tx, editTxBranchId, variant.id, qty);
-                        await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                        if (rules.variant) {
+                            await this._adjustStock(tx, editTxBranchId, variant.id, qty);
+                            await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                        }
                         for (const ing of productIngredients) {
                             if (ing.rawMaterialVariantId) {
                                 const ret = Number(ing.quantity) * qty;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                         for (const ing of variantIngredients) {
                             if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                                 const ret = Number(ing.quantity) * qty;
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -2063,9 +2146,10 @@ export class TransactionsService {
             if (!variant) throw new NotFoundException(`Variant ID ${editItem.newVariantId} tidak ditemukan`);
             const product = (variant as any).product;
             const pricingMode = product.pricingMode || 'UNIT';
-            const trackStock = product.trackStock !== false;
-            const variantIngredients: any[] = (variant as any).variantIngredients || [];
-            const productIngredients: any[] = product.ingredients || [];
+            // Sama dengan checkout: produk AREA produksi tidak dipotong di sini (dipotong saat Mulai Job).
+            const rules = this.stockRulesOf(product, false);
+            const variantIngredients: any[] = rules.bom ? ((variant as any).variantIngredients || []) : [];
+            const productIngredients: any[] = rules.bom ? (product.ingredients || []) : [];
 
             let lineTotal = 0;
             let unitResolvedPrice = 0; // per-unit price for UNIT mode (for priceAtTime storage)
@@ -2094,22 +2178,22 @@ export class TransactionsService {
 
                 // Stok dipotong untuk SEMUA lembar (luas × pcs), sama dengan nota baru.
                 const areaStokM2 = areaM2 * itemPcs;
-                if (trackStock) {
+                if (rules.variant) {
                     await this._assertBranchStock(tx, editTxBranchId, variant.id, areaStokM2, product.name);
                     await this._adjustStock(tx, editTxBranchId, variant.id, -areaStokM2);
-                    await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaStokM2 * 100), `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                    await this.logMovement(tx, variant.id, 'OUT', areaStokM2, `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     for (const ing of productIngredients) {
                         if (ing.rawMaterialVariantId) {
                             const needed = Number(ing.quantity) * areaStokM2;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', needed, `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const needed = Number(ing.quantity) * areaStokM2;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', needed, `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                 }
@@ -2118,29 +2202,31 @@ export class TransactionsService {
                 let resolvedPrice = Number(variant.price);
                 const priceTiers: any[] = (variant as any).priceTiers || [];
                 if (priceTiers.length > 0) {
-                    const matched = priceTiers.find((t: any) => qty >= t.minQty && (t.maxQty === null || qty <= t.maxQty));
+                    const matched = [...priceTiers].sort((a: any, b: any) => b.minQty - a.minQty).find((t: any) => qty >= t.minQty && (t.maxQty === null || qty <= t.maxQty));
                     if (matched) resolvedPrice = Number(matched.price);
                 }
                 if (editItem.priceOverride != null) resolvedPrice = editItem.priceOverride;
                 lineTotal = resolvedPrice * qty;
                 unitResolvedPrice = resolvedPrice; // capture per-unit price for priceAtTime storage
 
-                if (trackStock) {
-                    await this._assertBranchStock(tx, editTxBranchId, variant.id, qty, product.name);
-                    await this._adjustStock(tx, editTxBranchId, variant.id, -qty);
-                    await this.logMovement(tx, variant.id, 'OUT', qty, `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                if (rules.variant || rules.bom) {
+                    if (rules.variant) {
+                        await this._assertBranchStock(tx, editTxBranchId, variant.id, qty, product.name);
+                        await this._adjustStock(tx, editTxBranchId, variant.id, -qty);
+                        await this.logMovement(tx, variant.id, 'OUT', qty, `Tambah Item Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                    }
                     for (const ing of productIngredients) {
                         if (ing.rawMaterialVariantId) {
                             const needed = Number(ing.quantity) * qty;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', needed, `Tambah Item (BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                     for (const ing of variantIngredients) {
                         if (ing.rawMaterialVariantId && !ing.isServiceCost) {
                             const needed = Number(ing.quantity) * qty;
                             await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -needed);
-                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(needed * 100), `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                            await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', needed, `Tambah Item (varian BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                         }
                     }
                 }
@@ -2191,14 +2277,15 @@ export class TransactionsService {
             const txItem = updatedTransaction.items.find((i: any) => i.id === editItem.id);
             if (!txItem) throw new NotFoundException(`Item ID ${editItem.id} tidak ditemukan di transaksi ini`);
 
-            const variant = txItem.productVariant;
-            const product = variant.product;
-            const pricingMode = product.pricingMode || 'UNIT';
-            // Sub Order tak pernah memotong stok → koreksi qty/area tidak menyentuh stok.
+            const variant = txItem.productVariant; // null = item custom (tanpa stok)
+            const product = variant?.product;
+            const pricingMode = product?.pricingMode || 'UNIT';
+            // Sub order / custom / composite / AREA produksi tidak pernah memotong stok saat checkout
+            // → koreksi qty/ukuran juga tidak menyentuh stok (dulu banner produksi ditolak "stok tidak cukup").
             const itemIsSub = Boolean((txItem as any).isSubOrder);
-            const trackStock = product.trackStock !== false && !itemIsSub;
-            const variantIngredients: any[] = variant.variantIngredients || [];
-            const productIngredients: any[] = product.ingredients || [];
+            const rules = this.stockRulesOf(product, itemIsSub);
+            const variantIngredients: any[] = rules.bom ? (variant?.variantIngredients || []) : [];
+            const productIngredients: any[] = rules.bom ? (product?.ingredients || []) : [];
 
             if (pricingMode === 'AREA_BASED') {
                 const oldW = Number(txItem.widthCm);
@@ -2230,16 +2317,16 @@ export class TransactionsService {
                 // Selisih luas TOTAL (per lembar × pcs) — dulu pcs diabaikan, stok tidak ikut berubah saat pcs diedit.
                 const areaDelta = newAreaM2 * newPcs - oldAreaM2 * oldPcs;
 
-                if (trackStock && Math.abs(areaDelta) > 0.0001) {
+                if (rules.variant && Math.abs(areaDelta) > 0.0001) {
                     // delta positif = area bertambah → kurangi stok; delta negatif = area berkurang → kembalikan stok.
                     if (areaDelta > 0) {
                         await this._assertBranchStock(tx, editTxBranchId, variant.id, areaDelta, product.name);
                         await this._adjustStock(tx, editTxBranchId, variant.id, -areaDelta);
-                        await this.logMovement(tx, variant.id, 'OUT', Math.ceil(areaDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'OUT', areaDelta, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area bertambah)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     } else {
                         const returnM2 = Math.abs(areaDelta);
                         await this._adjustStock(tx, editTxBranchId, variant.id, returnM2);
-                        await this.logMovement(tx, variant.id, 'IN', Math.ceil(returnM2 * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                        await this.logMovement(tx, variant.id, 'IN', returnM2, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (area berkurang)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                     }
 
                     // Adjust product-level BOM (AREA_BASED)
@@ -2248,11 +2335,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * areaDelta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(ingDelta * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', ingDelta, `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -2263,11 +2350,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * areaDelta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(ingDelta * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', ingDelta, `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -2316,12 +2403,12 @@ export class TransactionsService {
                 if (newQty < 1) throw new BadRequestException(`Jumlah item minimal 1`);
                 const delta = newQty - txItem.quantity;
 
-                if (trackStock && delta !== 0) {
-                    if (delta > 0) {
+                if (delta !== 0 && (rules.variant || rules.bom)) {
+                    if (rules.variant && delta > 0) {
                         await this._assertBranchStock(tx, editTxBranchId, variant.id, delta, product.name);
                         await this._adjustStock(tx, editTxBranchId, variant.id, -delta);
                         await this.logMovement(tx, variant.id, 'OUT', delta, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty bertambah)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
-                    } else {
+                    } else if (rules.variant) {
                         const returnQty = Math.abs(delta);
                         await this._adjustStock(tx, editTxBranchId, variant.id, returnQty);
                         await this.logMovement(tx, variant.id, 'IN', returnQty, `Koreksi Edit Transaksi ${transaction.invoiceNumber} (qty berkurang)`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
@@ -2333,11 +2420,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * delta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', ingDelta, `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Koreksi Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -2348,11 +2435,11 @@ export class TransactionsService {
                             const ingDelta = Number(ing.quantity) * delta;
                             if (ingDelta > 0) {
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, -ingDelta);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', Math.ceil(Math.abs(ingDelta) * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'OUT', ingDelta, `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             } else if (ingDelta < 0) {
                                 const ret = Math.abs(ingDelta);
                                 await this._adjustStock(tx, editTxBranchId, ing.rawMaterialVariantId, ret);
-                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', Math.ceil(ret * 100), `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
+                                await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Koreksi (varian) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, editTxBranchId);
                             }
                         }
                     }
@@ -2413,6 +2500,12 @@ export class TransactionsService {
         const taxAmount = origTax > 0 && origBase > 0 ? Math.round(amountAfterDiscount * (origTax / origBase)) : 0;
         // Ongkir ikut dijumlahkan seperti saat nota dibuat (dulu hilang saat nota diedit).
         const newGrandTotal = amountAfterDiscount + taxAmount + (Number(transaction.shippingCost) || 0);
+        // Nota belum lunas tidak boleh bernilai di bawah uang yang sudah diterima — kelebihannya
+        // tidak tercatat di mana pun (dulu lolos, lalu "Lunasi" mencatat Rp 0).
+        const sudahDibayar = Number(transaction.downPayment) || 0;
+        if (transaction.status !== 'PAID' && newGrandTotal < sudahDibayar - 0.5) {
+            throw new BadRequestException(`Total baru Rp ${newGrandTotal.toLocaleString('id-ID')} lebih kecil dari uang yang sudah diterima (Rp ${sudahDibayar.toLocaleString('id-ID')}). Kurangi pembayaran dulu atau batalkan edit.`);
+        }
 
         await tx.transaction.update({
             where: { id: transactionId },
@@ -2430,12 +2523,21 @@ export class TransactionsService {
             }
         });
 
-        // Update cashflow if PAID
+        // Nota LUNAS: pemasukan dikoreksi sebesar SELISIH total, pada pembayaran terakhir.
+        // Dulu semua baris pemasukan (DP + pelunasan) ditimpa dengan total baru → nota DP yang
+        // diedit (bahkan hanya ganti nama) tercatat masuk dua kali lipat.
         if (transaction.status === 'PAID') {
-            await tx.cashflow.updateMany({
-                where: { note: { contains: transaction.invoiceNumber }, type: CashflowType.INCOME },
-                data: { amount: newGrandTotal }
-            });
+            let selisih = Math.round((newGrandTotal - Number(transaction.grandTotal)) * 100) / 100;
+            if (Math.abs(selisih) >= 0.01) {
+                const baris = await this.cashflowsOfInvoice(tx, transaction.invoiceNumber, { type: CashflowType.INCOME });
+                for (const cf of baris) {
+                    if (Math.abs(selisih) < 0.01) break;
+                    const lama = Number(cf.amount);
+                    const baru = Math.max(0, lama + selisih);
+                    selisih -= baru - lama;
+                    await tx.cashflow.update({ where: { id: cf.id }, data: { amount: baru } });
+                }
+            }
         }
     }
 
@@ -2508,11 +2610,13 @@ export class TransactionsService {
 
         if (approved) {
             await this.prisma.$transaction(async (tx) => {
-                await this.applyTransactionEdit(tx, req.transactionId, req.editData as TransactionEditData, req.requestedById ?? null);
-                await (tx as any).transactionEditRequest.update({
-                    where: { id: requestId },
+                // Klaim dulu: dua admin / klik ganda tidak boleh menerapkan edit dua kali.
+                const klaim = await (tx as any).transactionEditRequest.updateMany({
+                    where: { id: requestId, status: 'PENDING' },
                     data: { status: 'APPROVED', reviewedById: reviewerId, reviewNote: reviewNote || null }
                 });
+                if (klaim.count !== 1) throw new BadRequestException('Permintaan ini sudah diproses');
+                await this.applyTransactionEdit(tx, req.transactionId, req.editData as TransactionEditData, req.requestedById ?? null);
             });
             this.notificationsService.emit({
                 type: 'system',
@@ -2520,10 +2624,11 @@ export class TransactionsService {
                 message: `Perubahan transaksi telah diterapkan.${reviewNote ? ` Catatan: ${reviewNote}` : ''}`,
             });
         } else {
-            await (this.prisma as any).transactionEditRequest.update({
-                where: { id: requestId },
+            const klaim = await (this.prisma as any).transactionEditRequest.updateMany({
+                where: { id: requestId, status: 'PENDING' },
                 data: { status: 'REJECTED', reviewedById: reviewerId, reviewNote: reviewNote || null }
             });
+            if (klaim.count !== 1) throw new BadRequestException('Permintaan ini sudah diproses');
             this.notificationsService.emit({
                 type: 'system',
                 title: 'Permintaan Edit Ditolak',
@@ -2567,6 +2672,12 @@ export class TransactionsService {
                 } as any
             });
             if (!transaction) throw new NotFoundException('Transaksi tidak ditemukan');
+            // Titipan yang sudah dilunasi antar cabang: kas/stok pelunasan tercatat di dua cabang dan
+            // ikut terhapus (cascade) tanpa dibalik → saldo kedua cabang meleset. Tolak dulu.
+            const pelunasan: any[] = await tx.$queryRaw`SELECT COUNT(*) AS n FROM ledger_settlements ls JOIN inter_branch_ledger l ON l.id = ls.ledger_id WHERE l.transaction_id = ${id}`;
+            if (Number(pelunasan[0]?.n ?? 0) > 0) {
+                throw new BadRequestException('Titipan nota ini sudah dilunasi antar cabang, jadi nota tidak bisa dihapus. Catat koreksinya lewat menu Kas.');
+            }
 
             // Snapshot context untuk reason text — dipakai biar movement tetap informatif setelah transaksi dihapus.
             // Format: "Hapus Transaksi SO-XXX | Asita | Titipan BTL → PST"
@@ -2596,11 +2707,16 @@ export class TransactionsService {
             console.log(`[DELETE-TX] ${transaction.invoiceNumber} branchId=${txBranchId} items=${_items.length}`);
             for (const txItem of _items) {
                 const variant = txItem.productVariant;
+                // Item custom (tanpa varian) tidak pernah memotong stok — dulu di sini error dan
+                // nota berisi item custom tidak bisa dihapus.
+                if (!variant) continue;
                 const product = (variant as any).product;
                 const pricingMode = product.pricingMode || 'UNIT';
                 const trackStock = product.trackStock !== false;
-                const variantIngredients: any[] = (variant as any).variantIngredients || [];
-                const productIngredients: any[] = product.ingredients || [];
+                // Kembalikan persis yang dipotong checkout: sub order & COMPOSITE tidak memotong apa pun.
+                const rules = this.stockRulesOf(product, Boolean((txItem as any).isSubOrder));
+                const variantIngredients: any[] = rules.bom ? ((variant as any).variantIngredients || []) : [];
+                const productIngredients: any[] = rules.bom ? (product.ingredients || []) : [];
                 const requiresProduction = product.requiresProduction === true;
                 const jobInfo: any = (txItem as any).productionJob;
                 // eslint-disable-next-line no-console
@@ -2625,7 +2741,8 @@ export class TransactionsService {
                         // sudah dipotong di startAssembly — kembalikan.
                         if (job && (job.status === 'PASANG' || job.assemblyStartedAt || job.assemblyCompletedAt)) {
                             const restoreBranchId: number | null = (job as any).branchId ?? txBranchId;
-                            for (const ing of productIngredients) {
+                            // BOM pasang dipotong di startAssembly (bukan checkout) → pakai BOM produk langsung.
+                            for (const ing of (product.ingredients || [])) {
                                 if (ing.rawMaterialVariantId) {
                                     const ret = Number(ing.quantity);
                                     await this._adjustStock(tx, restoreBranchId, ing.rawMaterialVariantId, ret);
@@ -2636,7 +2753,7 @@ export class TransactionsService {
                         continue;
                     }
 
-                    if (!trackStock) continue;
+                    if (!rules.variant) continue;
 
                     // Bug fix: kalikan kembali dengan pcs × quantity (sama persis dengan yang dipotong saat create)
                     const pcs = Number((txItem as any).pcs ?? 1);
@@ -2672,8 +2789,8 @@ export class TransactionsService {
                         // eslint-disable-next-line no-console
                         console.log(`    → restore UNIT variant=${variant.id} +${qty} to branch=${txBranchId} (trackStock=${trackStock}, BOM item count=${productIngredients.length + variantIngredients.length})`);
 
-                        // Kembalikan stok produk induk HANYA kalau trackStock=true
-                        if (trackStock) {
+                        // Kembalikan stok produk induk HANYA kalau dulu dipotong (trackStock, bukan sub order/composite)
+                        if (rules.variant) {
                             await this._adjustStock(tx, txBranchId, variant.id, qty);
                             await this.logMovement(tx, variant.id, 'IN', qty, `Hapus Transaksi ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, txBranchId);
                         }
@@ -2701,10 +2818,9 @@ export class TransactionsService {
                 }
             }
 
-            // Hapus cashflow terkait (INCOME penjualan + EXPENSE diskon)
-            await tx.cashflow.deleteMany({
-                where: { note: { contains: transaction.invoiceNumber } }
-            });
+            // Hapus cashflow nota ini saja (INV-…-100 tidak boleh ikut menghapus kas INV-…-1000).
+            const kasNota = await this.cashflowsOfInvoice(tx, transaction.invoiceNumber, {});
+            if (kasNota.length) await tx.cashflow.deleteMany({ where: { id: { in: kasNota.map((c) => c.id) } } });
 
             // Hapus ProductionJob untuk semua item (FK tanpa onDelete Cascade)
             const itemIds = _items.map((i: any) => i.id);

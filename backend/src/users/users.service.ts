@@ -1,11 +1,40 @@
-import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { isOwnerLevelRole } from '../auth/role-groups';
 import * as bcrypt from 'bcrypt';
+
+/** Pelaku aksi (dari req.user) — dasar batas wewenang owner vs admin/manajer. */
+export interface UserActor {
+  userId: number | null;
+  roleName: string | null;
+  branchId: number | null;
+}
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) { }
+
+  /**
+   * Non-owner (admin/manajer) hanya boleh mengelola akun di cabangnya sendiri
+   * dan tak boleh menyentuh akun setingkat owner.
+   */
+  private assertCanManage(actor: UserActor, target: { branchId: number | null; roleName?: string | null }) {
+    if (isOwnerLevelRole(actor.roleName)) return;
+    if (isOwnerLevelRole(target.roleName)) {
+      throw new ForbiddenException('Akun owner hanya bisa diubah oleh owner.');
+    }
+    if (actor.branchId == null || target.branchId !== actor.branchId) {
+      throw new ForbiddenException('Anda hanya boleh mengelola akun di cabang Anda sendiri.');
+    }
+  }
+
+  /** Peran setingkat owner hanya boleh diberikan oleh owner. */
+  private assertCanAssignRole(actor: UserActor, roleName: string | null | undefined) {
+    if (isOwnerLevelRole(roleName) && !isOwnerLevelRole(actor.roleName)) {
+      throw new ForbiddenException('Hanya owner yang boleh memberi peran owner.');
+    }
+  }
 
   /** Parse kolom menuAccess (JSON string) → array href, atau null bila belum diatur. */
   private parseMenuAccess(raw: any): string[] | null {
@@ -18,7 +47,19 @@ export class UsersService {
     }
   }
 
-  async create(createUserDto: any) {
+  async create(createUserDto: any, actor: UserActor) {
+    // Multi-cabang: validasi branchId — kalau role bukan Owner/SuperAdmin, branchId wajib.
+    const roleId = createUserDto.roleId ? parseInt(createUserDto.roleId.toString()) : null;
+    let branchId: number | null = createUserDto.branchId
+      ? parseInt(createUserDto.branchId.toString())
+      : null;
+    const role = roleId ? await this.prisma.role.findUnique({ where: { id: roleId } }) : null;
+    if (roleId && !role) throw new BadRequestException('Role tidak ditemukan.');
+    this.assertCanAssignRole(actor, role?.name);
+    if (!isOwnerLevelRole(actor.roleName) && (actor.branchId == null || branchId !== actor.branchId)) {
+      throw new ForbiddenException('Anda hanya boleh membuat akun di cabang Anda sendiri.');
+    }
+
     // Cegah email duplikat dengan pesan jelas (409) alih-alih error Prisma mentah (500).
     const existing = await this.prisma.user.findUnique({
       where: { email: createUserDto.email },
@@ -30,14 +71,7 @@ export class UsersService {
     const salt = await bcrypt.genSalt();
     const passwordHash = await bcrypt.hash(createUserDto.password, salt);
 
-    // Multi-cabang: validasi branchId — kalau role bukan Owner/SuperAdmin, branchId wajib.
-    const roleId = createUserDto.roleId ? parseInt(createUserDto.roleId.toString()) : null;
-    let branchId: number | null = createUserDto.branchId
-      ? parseInt(createUserDto.branchId.toString())
-      : null;
-
     if (roleId) {
-      const role = await this.prisma.role.findUnique({ where: { id: roleId } });
       const roleName = role?.name?.toUpperCase() ?? '';
       const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
       if (!isOwner && branchId == null) {
@@ -121,22 +155,46 @@ export class UsersService {
     return { ...r, menuAccess: this.parseMenuAccess((r as any).menuAccess) };
   }
 
-  async updateUser(id: number, data: { name?: string, roleId?: number, phone?: string, password?: string, branchId?: number | null }) {
-    let updateData: any = {
-      name: data.name,
-      phone: data.phone,
-      roleId: data.roleId || null,
-    };
+  async updateUser(
+    id: number,
+    data: { name?: string, roleId?: number | null, phone?: string, password?: string, branchId?: number | null },
+    actor: UserActor,
+  ) {
+    const target = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, branchId: true, role: { select: { name: true } } },
+    });
+    if (!target) throw new BadRequestException('Pengguna tidak ditemukan.');
+    this.assertCanManage(actor, { branchId: target.branchId, roleName: target.role?.name });
+
+    // Hanya kolom yang DIKIRIM yang diubah — edit HP inline ({phone}) dulu ikut
+    // mengosongkan peran karena `roleId: data.roleId || null`.
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+
+    let newRole: { name: string } | null = null;
+    if (data.roleId !== undefined) {
+      const roleId = data.roleId ? parseInt(data.roleId.toString()) : null;
+      if (roleId) {
+        newRole = await this.prisma.role.findUnique({ where: { id: roleId } });
+        if (!newRole) throw new BadRequestException('Role tidak ditemukan.');
+      }
+      this.assertCanAssignRole(actor, newRole?.name);
+      updateData.roleId = roleId;
+    }
 
     // Multi-cabang: validasi & set branchId hanya kalau branchId dikirim secara eksplisit.
     // Kalau hanya roleId yang berubah (inline role-change), jangan sentuh branchId sama sekali.
     if (data.branchId !== undefined) {
-      const roleId = data.roleId != null ? parseInt(data.roleId.toString()) : null;
+      const roleId = data.roleId ? parseInt(data.roleId.toString()) : null;
       let branchId: number | null = data.branchId != null ? parseInt(data.branchId.toString()) : null;
+      if (!isOwnerLevelRole(actor.roleName) && branchId !== actor.branchId) {
+        throw new ForbiddenException('Tidak boleh memindahkan akun ke cabang lain.');
+      }
 
       if (roleId) {
-        const role = await this.prisma.role.findUnique({ where: { id: roleId } });
-        const roleName = role?.name?.toUpperCase() ?? '';
+        const roleName = newRole?.name?.toUpperCase() ?? '';
         const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
         if (!isOwner && branchId == null) {
           throw new BadRequestException('Cabang wajib dipilih untuk role non-Owner.');
@@ -230,13 +288,15 @@ export class UsersService {
   async setStatus(
     id: number,
     data: { active: boolean; note?: string | null },
-    actorUserId: number | null,
+    actor: UserActor,
   ) {
+    const actorUserId = actor.userId;
     const user = await this.prisma.user.findUnique({
       where: { id },
-      select: { id: true, name: true, isActive: true, role: { select: { name: true } } },
+      select: { id: true, name: true, isActive: true, branchId: true, role: { select: { name: true } } },
     });
     if (!user) throw new BadRequestException('Pengguna tidak ditemukan.');
+    this.assertCanManage(actor, { branchId: user.branchId ?? null, roleName: user.role?.name });
 
     const active = !!data.active;
     if (!active) {
@@ -289,7 +349,27 @@ export class UsersService {
    * buat). Akun yang sudah punya jejak kerja wajib pakai `setStatus` supaya
    * laporan & leaderboard bulan lalu tidak berubah.
    */
-  async deleteUser(id: number) {
+  async deleteUser(id: number, actor: UserActor) {
+    if (actor.userId != null && actor.userId === id) {
+      throw new BadRequestException('Tidak bisa menghapus akun Anda sendiri.');
+    }
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, isActive: true, branchId: true, role: { select: { name: true } } },
+    });
+    if (!user) throw new BadRequestException('Pengguna tidak ditemukan.');
+    this.assertCanManage(actor, { branchId: user.branchId ?? null, roleName: user.role?.name });
+    // Sama dengan setStatus: Owner aktif terakhir tak boleh hilang.
+    if (user.isActive !== false && UsersService.OWNER_ROLES.includes((user.role?.name ?? '').toUpperCase())) {
+      const otherOwners = await this.prisma.user.count({
+        where: { id: { not: id }, isActive: true, role: { name: { in: UsersService.OWNER_ROLES } } },
+      });
+      if (otherOwners === 0) {
+        throw new BadRequestException(
+          'Ini akun Owner aktif terakhir. Menghapusnya bisa mengunci semua orang dari pengaturan.',
+        );
+      }
+    }
     const history = await this.historySummary(id);
     if (history.length) {
       throw new BadRequestException(
@@ -301,20 +381,46 @@ export class UsersService {
     });
   }
 
-  async createRole(name: string) {
+  private cleanRoleName(name: unknown): string {
+    const n = String(name ?? '').trim();
+    if (!n) throw new BadRequestException('Nama role wajib diisi.');
+    if (n.length > 20) throw new BadRequestException('Nama role maksimal 20 karakter.');
+    return n;
+  }
+
+  async createRole(name: string, actor: UserActor) {
+    const n = this.cleanRoleName(name);
+    if (isOwnerLevelRole(n) && !isOwnerLevelRole(actor.roleName)) {
+      throw new ForbiddenException('Hanya owner yang boleh membuat role owner.');
+    }
     return this.prisma.role.create({
-      data: { name }
+      data: { name: n }
     });
   }
 
-  async updateRole(id: number, name: string) {
+  async updateRole(id: number, name: string, actor: UserActor) {
+    const n = this.cleanRoleName(name);
+    const role = await this.prisma.role.findUnique({ where: { id } });
+    if (!role) throw new BadRequestException('Role tidak ditemukan.');
+    if ((isOwnerLevelRole(role.name) || isOwnerLevelRole(n)) && !isOwnerLevelRole(actor.roleName)) {
+      throw new ForbiddenException('Hanya owner yang boleh mengubah role owner.');
+    }
     return this.prisma.role.update({
       where: { id },
-      data: { name }
+      data: { name: n }
     });
   }
 
-  async deleteRole(id: number) {
+  async deleteRole(id: number, actor: UserActor) {
+    const role = await this.prisma.role.findUnique({ where: { id } });
+    if (!role) throw new BadRequestException('Role tidak ditemukan.');
+    if (isOwnerLevelRole(role.name) && !isOwnerLevelRole(actor.roleName)) {
+      throw new ForbiddenException('Hanya owner yang boleh menghapus role owner.');
+    }
+    const dipakai = await this.prisma.user.count({ where: { roleId: id } });
+    if (dipakai > 0) {
+      throw new BadRequestException(`Role masih dipakai ${dipakai} akun. Pindahkan akunnya ke role lain dulu.`);
+    }
     return this.prisma.role.delete({
       where: { id }
     });

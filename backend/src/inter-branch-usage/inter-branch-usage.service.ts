@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { assertBranchAccess } from '../common/branch-where.helper';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 
@@ -73,7 +74,14 @@ export class InterBranchUsageService {
     ): Promise<InterBranchUsageReport> {
         // Resolve cabang produksi target (default = cabang aktif user kalau ada,
         // atau cabang pertama yang aktif kalau Owner mode "Semua Cabang")
+        // Tanggal masuk ke SQL → hanya format YYYY-MM-DD yang diterima (dulu ditempel mentah = SQL injection).
+        const TGL = /^\d{4}-\d{2}-\d{2}$/;
+        for (const [k, v] of [['startDate', params.startDate], ['endDate', params.endDate]] as const) {
+            if (v != null && !TGL.test(v)) throw new BadRequestException(`${k} harus berformat YYYY-MM-DD`);
+        }
         let productionBranchId: number | null = params.productionBranchId ?? ctx.branchId ?? null;
+        // Staf cabang hanya boleh melihat laporan cabangnya sendiri.
+        assertBranchAccess(ctx, params.productionBranchId ?? null);
         let productionBranchName: string | null = null;
 
         if (productionBranchId == null) {
@@ -109,14 +117,15 @@ export class InterBranchUsageService {
         }
 
         // Build date range filter
-        const dateClauses: string[] = [`sm.branch_id = ${productionBranchId}`, `sm.type = 'OUT'`];
+        const dateClauses: string[] = ['sm.branch_id = ?', `sm.type = 'OUT'`];
+        const dateArgs: any[] = [Number(productionBranchId)];
         if (params.startDate) {
-            const start = `${params.startDate} 00:00:00`;
-            dateClauses.push(`sm.created_at >= '${start}'`);
+            dateClauses.push('sm.created_at >= ?');
+            dateArgs.push(`${params.startDate} 00:00:00`);
         }
         if (params.endDate) {
-            const end = `${params.endDate} 23:59:59`;
-            dateClauses.push(`sm.created_at <= '${end}'`);
+            dateClauses.push('sm.created_at <= ?');
+            dateArgs.push(`${params.endDate} 23:59:59`);
         }
         const whereSql = dateClauses.join(' AND ');
 
@@ -132,6 +141,7 @@ export class InterBranchUsageService {
              WHERE ${whereSql}
              ORDER BY sm.created_at DESC
              LIMIT 5000`,
+            ...dateArgs,
         );
 
         if (!movements.length) {
@@ -165,7 +175,8 @@ export class InterBranchUsageService {
                         b.name AS branch_name, b.code AS branch_code
                  FROM transactions t
                  LEFT JOIN company_branches b ON b.id = t.branch_id
-                 WHERE t.invoice_number IN (${txInvoices.map(i => `'${i.replace(/'/g, "''")}'`).join(',')})`,
+                 WHERE t.invoice_number IN (${txInvoices.map(() => '?').join(',')})`,
+                ...txInvoices, // reference_id bisa diisi pengguna (POST /stock-movements) → wajib placeholder
             );
             for (const t of txs) txByInvoice.set(t.invoice_number, t);
         }
@@ -179,7 +190,8 @@ export class InterBranchUsageService {
                  FROM production_jobs pj
                  JOIN transactions t ON t.id = pj.transaction_id
                  LEFT JOIN company_branches b ON b.id = t.branch_id
-                 WHERE pj.job_number IN (${jobNumbers.map(j => `'${j.replace(/'/g, "''")}'`).join(',')})`,
+                 WHERE pj.job_number IN (${jobNumbers.map(() => '?').join(',')})`,
+                ...jobNumbers,
             );
             for (const j of jobs) txByJob.set(j.job_number, j);
         }
@@ -196,8 +208,8 @@ export class InterBranchUsageService {
                      SELECT spi2.product_variant_id, MAX(spi2.id) AS max_id
                      FROM stock_purchase_items spi2
                      JOIN stock_purchases sp2 ON sp2.id = spi2.purchase_id
-                     WHERE sp2.branch_id = ${productionBranchId}
-                       AND spi2.product_variant_id IN (${variantIds.join(',')})
+                     WHERE sp2.branch_id = ${Number(productionBranchId)}
+                       AND spi2.product_variant_id IN (${variantIds.map(Number).join(',')})
                        AND spi2.unit_price IS NOT NULL AND spi2.unit_price > 0
                      GROUP BY spi2.product_variant_id
                  ) latest ON latest.max_id = spi.id`,

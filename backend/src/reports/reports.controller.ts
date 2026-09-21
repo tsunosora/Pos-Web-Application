@@ -35,6 +35,11 @@ export class CloseShiftDto {
     expectedCash: number;
     expectedQris: number;
     expectedTransfer: number;
+    // Angka dasar dari server yang dipakai halaman (sebelum penyesuaian setor/tarik/pengeluaran).
+    // Server menghitung ulang dasar saat kirim & hanya memakai SELISIH penyesuaiannya.
+    baseExpectedCash?: number;
+    baseExpectedQris?: number;
+    baseExpectedTransfer?: number;
 
     expectedBankBalances?: Record<string, number>;
     actualBankBalances?: Record<string, number>;   // Saldo Laporan mBanking
@@ -312,6 +317,9 @@ export class ReportsController {
             expectedCash: Number(body.expectedCash),
             expectedQris: Number(body.expectedQris),
             expectedTransfer: Number(body.expectedTransfer),
+            baseExpectedCash: body.baseExpectedCash != null && body.baseExpectedCash !== '' ? Number(body.baseExpectedCash) : undefined,
+            baseExpectedQris: body.baseExpectedQris != null && body.baseExpectedQris !== '' ? Number(body.baseExpectedQris) : undefined,
+            baseExpectedTransfer: body.baseExpectedTransfer != null && body.baseExpectedTransfer !== '' ? Number(body.baseExpectedTransfer) : undefined,
             expectedBankBalances: body.expectedBankBalances ? JSON.parse(body.expectedBankBalances) : undefined,
             actualBankBalances: body.actualBankBalances ? JSON.parse(body.actualBankBalances) : undefined,
             realBankBalances: body.realBankBalances ? JSON.parse(body.realBankBalances) : undefined,

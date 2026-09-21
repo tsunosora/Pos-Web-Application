@@ -13,11 +13,27 @@ export class StockMovementsService {
         branchCtx: BranchContext,
     ) {
         const branchId = requireBranch(branchCtx);
+        // Validasi isi: dulu OUT −500 lolos cek stok lalu MENAMBAH stok 500 (dan IN negatif mengurangi tanpa cek).
+        const type = String(data?.type) as MovementType;
+        const quantity = Number(data?.quantity);
+        if (!['IN', 'OUT', 'ADJUST'].includes(type)) throw new BadRequestException('Jenis gerakan harus IN, OUT, atau ADJUST.');
+        if (!Number.isFinite(quantity) || quantity < 0 || (type !== 'ADJUST' && quantity === 0)) {
+            throw new BadRequestException(type === 'ADJUST' ? 'Stok hasil penyesuaian tidak boleh negatif.' : 'Jumlah harus lebih dari 0.');
+        }
+        if (quantity > 1_000_000) throw new BadRequestException('Jumlah terlalu besar.');
+        // Hanya kolom yang memang boleh diisi pengguna (dulu seluruh body di-spread ke baris pergerakan).
+        data = {
+            productVariantId: Number(data.productVariantId),
+            type,
+            quantity,
+            reason: typeof data.reason === 'string' ? data.reason.slice(0, 250) : undefined,
+        };
         return this.prisma.$transaction(async (tx) => {
             const variant = await tx.productVariant.findUnique({ where: { id: data.productVariantId } });
             if (!variant) throw new NotFoundException('Product variant not found');
 
-            // Ambil stok cabang (sumber kebenaran baru)
+            // Ambil stok cabang (sumber kebenaran baru) — dikunci agar penjualan bersamaan tidak tertimpa.
+            await tx.$queryRaw`SELECT id FROM branch_stocks WHERE branch_id = ${branchId} AND product_variant_id = ${data.productVariantId} FOR UPDATE`;
             const bs = await (tx as any).branchStock.findUnique({
                 where: { branchId_productVariantId: { branchId, productVariantId: data.productVariantId } },
                 select: { stock: true },

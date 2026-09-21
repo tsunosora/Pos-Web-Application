@@ -25,9 +25,11 @@ function isiInvoice(data: any) {
         const price = Number(it?.price);
         const description = String(it?.description ?? '').trim();
         if (!description) throw new BadRequestException(`Item ke-${i + 1}: deskripsi wajib diisi.`);
-        if (!Number.isInteger(quantity) || quantity < 1) throw new BadRequestException(`Item ke-${i + 1}: jumlah minimal 1 (bilangan bulat).`);
+        // Pecahan boleh (baris luas: 3 × 1,5 m = 4,5 m²) — dibulatkan 2 desimal seperti kolomnya.
+        if (!Number.isFinite(quantity) || quantity <= 0) throw new BadRequestException(`Item ke-${i + 1}: jumlah harus lebih dari 0.`);
+        if (quantity > 1_000_000) throw new BadRequestException(`Item ke-${i + 1}: jumlah terlalu besar.`);
         if (!Number.isFinite(price) || price < 0) throw new BadRequestException(`Item ke-${i + 1}: harga tidak boleh negatif.`);
-        return { description: description.slice(0, 255), unit: it?.unit ? String(it.unit).slice(0, 50) : null, quantity, price };
+        return { description: description.slice(0, 255), unit: it?.unit ? String(it.unit).slice(0, 50) : null, quantity: Math.round(quantity * 100) / 100, price };
     });
     const taxRate = Number(data?.taxRate ?? 0) || 0;
     const discount = Math.round(Number(data?.discount ?? 0) || 0);
@@ -106,11 +108,16 @@ export class InvoiceService implements OnModuleInit {
         return `${awal}${String(seq).padStart(3, '0')}`;
     }
 
+    /** quantity kolom Decimal → dikirim sebagai angka (bukan teks "4.50") ke halaman. */
+    private angkaItem(inv: any) {
+        return inv?.items ? { ...inv, items: inv.items.map((it: any) => ({ ...it, quantity: Number(it.quantity) })) } : inv;
+    }
+
     /** Simpan dengan nomor baru; ulangi bila nomor bentrok dengan permintaan bersamaan. */
     private async buatDenganNomor(type: InvoiceType, data: (nomor: string) => any) {
         for (let i = 0; i < 5; i++) {
             try {
-                return await this.model.create({ data: data(await this.nomorBaru(type)), include: { items: true } });
+                return this.angkaItem(await this.model.create({ data: data(await this.nomorBaru(type)), include: { items: true } }));
             } catch (e: any) {
                 if (e?.code === 'P2002' && i < 4) continue;
                 throw e;
@@ -133,11 +140,12 @@ export class InvoiceService implements OnModuleInit {
     async findAll(type?: InvoiceType, branchCtx?: BranchContext) {
         const where: any = { ...(branchCtx ? branchWhere(branchCtx) : {}) };
         if (type) where.type = type;
-        return this.model.findMany({
+        const rows = await this.model.findMany({
             where,
             orderBy: { date: 'desc' },
             include: { items: true },
         });
+        return rows.map((r: any) => this.angkaItem(r));
     }
 
     /** Ambil invoice + pastikan akses cabang (staff hanya cabangnya). */
@@ -149,7 +157,7 @@ export class InvoiceService implements OnModuleInit {
     }
 
     async findOne(id: number, branchCtx?: BranchContext) {
-        return this.getScoped(id, branchCtx);
+        return this.angkaItem(await this.getScoped(id, branchCtx));
     }
 
     async update(id: number, data: any, branchCtx?: BranchContext) {
@@ -172,7 +180,7 @@ export class InvoiceService implements OnModuleInit {
                     ...(data?.items !== undefined ? { items: { create: items } } : {}),
                 },
             });
-            return (tx as any).invoice.findUnique({ where: { id }, include: { items: true } });
+            return this.angkaItem(await (tx as any).invoice.findUnique({ where: { id }, include: { items: true } }));
         });
     }
 

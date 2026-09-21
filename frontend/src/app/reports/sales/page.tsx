@@ -855,12 +855,14 @@ export default function SalesReportPage() {
                                             <span className="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
                                                 {selectedTransaction.paymentMethod}
                                             </span>
+                                            {isManager && selectedTransaction.status !== 'PENDING' && (
                                             <button
                                                 onClick={() => setEditPayment({ method: selectedTransaction.paymentMethod, bankId: selectedTransaction.bankAccountId ? String(selectedTransaction.bankAccountId) : '' })}
                                                 className="p-1 text-muted-foreground hover:text-primary transition-colors rounded"
                                                 title="Edit metode pembayaran">
                                                 <Pencil className="w-3.5 h-3.5" />
                                             </button>
+                                            )}
                                         </div>
                                     )}
                                 </div>

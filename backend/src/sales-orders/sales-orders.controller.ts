@@ -101,9 +101,10 @@ export class SalesOrdersController {
         return this.service.create(body, ctx.branchId);
     }
 
+    // Aksi tulis ikut dicek cabangnya seperti GET detail (staf hanya SO cabangnya).
     @Patch(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateSalesOrderDto) {
-        return this.service.update(id, body);
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdateSalesOrderDto, @CurrentBranch() ctx: BranchContext) {
+        return this.service.update(id, body, ctx.branchId);
     }
 
     @Post(':id/proofs')
@@ -117,23 +118,31 @@ export class SalesOrdersController {
     async addProofs(
         @Param('id', ParseIntPipe) id: number,
         @UploadedFiles() files: Express.Multer.File[],
+        @CurrentBranch() ctx: BranchContext,
         @Body('captions') captionsRaw?: string | string[],
     ) {
+        try {
+            await this.service.findOne(id, ctx.branchId);
+        } catch (e) {
+            for (const f of files || []) try { fs.unlinkSync(f.path); } catch { /* sudah terhapus */ }
+            throw e;
+        }
         let captions: string[] | undefined;
         if (Array.isArray(captionsRaw)) captions = captionsRaw;
         else if (typeof captionsRaw === 'string') {
             try { captions = JSON.parse(captionsRaw); } catch { captions = [captionsRaw]; }
         }
         await compressImages((files || []).map(f => f.path));
-        return this.service.addProofs(id, files || [], captions);
+        return this.service.addProofs(id, files || [], captions, ctx.branchId);
     }
 
     @Delete(':id/proofs/:proofId')
     removeProof(
         @Param('id', ParseIntPipe) id: number,
         @Param('proofId', ParseIntPipe) proofId: number,
+        @CurrentBranch() ctx: BranchContext,
     ) {
-        return this.service.removeProof(id, proofId);
+        return this.service.removeProof(id, proofId, ctx.branchId);
     }
 
     // Route tetap "send-wa" untuk kompatibilitas frontend; isi kini kirim ke Discord #produksi
@@ -141,12 +150,13 @@ export class SalesOrdersController {
     sendWa(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { message?: string },
+        @CurrentBranch() ctx: BranchContext,
     ) {
-        return this.service.sendToDesignChannel(id, body?.message);
+        return this.service.sendToDesignChannel(id, body?.message, ctx.branchId);
     }
 
     @Post(':id/cancel')
-    cancel(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string }) {
-        return this.service.markCancelled(id, body?.reason || '');
+    cancel(@Param('id', ParseIntPipe) id: number, @Body() body: { reason?: string }, @CurrentBranch() ctx: BranchContext) {
+        return this.service.markCancelled(id, body?.reason || '', ctx.branchId);
     }
 }

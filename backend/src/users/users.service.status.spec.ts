@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { UsersService } from './users.service';
 
@@ -10,6 +10,9 @@ import { UsersService } from './users.service';
  */
 
 const COUNT_MODELS = UsersService.HISTORY_FK.map((h) => h.model);
+
+// Pelaku aksi: owner (id 9) kecuali disebut lain.
+const owner = (userId = 9) => ({ userId, roleName: 'Owner', branchId: null });
 
 function makeSvc(
   opts: {
@@ -57,7 +60,7 @@ describe('UsersService.setStatus — tandai karyawan keluar', () => {
     const res = await svc.setStatus(
       5,
       { active: false, note: 'Resign 18 Sep' },
-      9,
+      owner(),
     );
 
     const data = prisma.user.update.mock.calls[0][0].data;
@@ -81,7 +84,7 @@ describe('UsersService.setStatus — tandai karyawan keluar', () => {
       },
     });
 
-    await svc.setStatus(5, { active: true }, 9);
+    await svc.setStatus(5, { active: true }, owner());
 
     const data = prisma.user.update.mock.calls[0][0].data;
     expect(data.isActive).toBe(true);
@@ -95,7 +98,7 @@ describe('UsersService.setStatus — tandai karyawan keluar', () => {
 
   it('tidak boleh menandai akun sendiri keluar', async () => {
     const { svc, prisma } = makeSvc();
-    await expect(svc.setStatus(5, { active: false }, 5)).rejects.toThrow(
+    await expect(svc.setStatus(5, { active: false }, owner(5))).rejects.toThrow(
       BadRequestException,
     );
     expect(prisma.user.update).not.toHaveBeenCalled();
@@ -106,7 +109,7 @@ describe('UsersService.setStatus — tandai karyawan keluar', () => {
       user: { id: 5, name: 'Owner', isActive: true, role: { name: 'Owner' } },
       ownerCount: 0,
     });
-    await expect(svc.setStatus(5, { active: false }, 9)).rejects.toThrow(
+    await expect(svc.setStatus(5, { active: false }, owner())).rejects.toThrow(
       /Owner aktif terakhir/,
     );
     expect(prisma.user.update).not.toHaveBeenCalled();
@@ -122,7 +125,7 @@ describe('UsersService.setStatus — tandai karyawan keluar', () => {
       },
       ownerCount: 1,
     });
-    await svc.setStatus(5, { active: false }, 9);
+    await svc.setStatus(5, { active: false }, owner());
     expect(prisma.user.update).toHaveBeenCalled();
   });
 });
@@ -131,7 +134,7 @@ describe('UsersService.deleteUser — pengaman riwayat', () => {
   it('menolak hapus akun yang sudah punya jejak kerja & menyebut jumlahnya', async () => {
     const { svc, prisma } = makeSvc({ history: { lead: 12, cashflow: 3 } });
 
-    await expect(svc.deleteUser(5)).rejects.toThrow(
+    await expect(svc.deleteUser(5, owner())).rejects.toThrow(
       /12 lead CRM|3 catatan kas/,
     );
     expect(prisma.user.delete).not.toHaveBeenCalled();
@@ -139,8 +142,78 @@ describe('UsersService.deleteUser — pengaman riwayat', () => {
 
   it('akun yang belum pernah dipakai tetap boleh dihapus', async () => {
     const { svc, prisma } = makeSvc();
-    await svc.deleteUser(5);
+    await svc.deleteUser(5, owner());
     expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 5 } });
+  });
+
+  it('tidak boleh menghapus akun sendiri', async () => {
+    const { svc, prisma } = makeSvc();
+    await expect(svc.deleteUser(5, owner(5))).rejects.toThrow(BadRequestException);
+    expect(prisma.user.delete).not.toHaveBeenCalled();
+  });
+
+  it('tidak boleh menghapus Owner aktif terakhir', async () => {
+    const { svc, prisma } = makeSvc({
+      user: { id: 5, isActive: true, branchId: null, role: { name: 'Owner' } },
+      ownerCount: 0,
+    });
+    await expect(svc.deleteUser(5, owner())).rejects.toThrow(/Owner aktif terakhir/);
+    expect(prisma.user.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService — batas wewenang admin (non-owner)', () => {
+  const admin = { userId: 7, roleName: 'Admin', branchId: 1 };
+
+  it('edit HP saja tidak mengosongkan peran', async () => {
+    const { svc, prisma } = makeSvc({ user: { id: 5, branchId: 1, role: { name: 'KASIR' } } });
+    await svc.updateUser(5, { phone: '0812' }, admin);
+    expect(prisma.user.update.mock.calls[0][0].data).toEqual({ phone: '0812' });
+  });
+
+  it('admin tidak boleh mengubah akun owner', async () => {
+    const { svc, prisma } = makeSvc({ user: { id: 5, branchId: null, role: { name: 'Owner' } } });
+    await expect(svc.updateUser(5, { password: 'x1234567' }, admin)).rejects.toThrow(ForbiddenException);
+    await expect(svc.setStatus(5, { active: false }, admin)).rejects.toThrow(ForbiddenException);
+    await expect(svc.deleteUser(5, admin)).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('admin tidak boleh memberi peran owner', async () => {
+    const { svc, prisma } = makeSvc({ user: { id: 5, branchId: 1, role: { name: 'KASIR' } } });
+    prisma.role = { findUnique: jest.fn(() => Promise.resolve({ id: 1, name: 'Owner' })) };
+    await expect(svc.updateUser(5, { roleId: 1 }, admin)).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('admin hanya boleh mengelola akun cabangnya sendiri', async () => {
+    const { svc, prisma } = makeSvc({ user: { id: 5, branchId: 2, role: { name: 'KASIR' } } });
+    await expect(svc.updateUser(5, { phone: '0812' }, admin)).rejects.toThrow(ForbiddenException);
+    await expect(svc.deleteUser(5, admin)).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('admin tidak boleh memindahkan akun ke cabang lain', async () => {
+    const { svc, prisma } = makeSvc({ user: { id: 5, branchId: 1, role: { name: 'KASIR' } } });
+    await expect(svc.updateUser(5, { branchId: 2 }, admin)).rejects.toThrow(ForbiddenException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('role yang masih dipakai tidak bisa dihapus', async () => {
+    const { svc, prisma } = makeSvc({ ownerCount: 3 });
+    prisma.role = {
+      findUnique: jest.fn(() => Promise.resolve({ id: 4, name: 'Kasir' })),
+      delete: jest.fn(),
+    };
+    await expect(svc.deleteRole(4, owner())).rejects.toThrow(/masih dipakai 3 akun/);
+    expect(prisma.role.delete).not.toHaveBeenCalled();
+  });
+
+  it('admin tidak boleh mengganti nama role menjadi owner', async () => {
+    const { svc, prisma } = makeSvc();
+    prisma.role = { findUnique: jest.fn(() => Promise.resolve({ id: 4, name: 'Kasir' })), update: jest.fn() };
+    await expect(svc.updateRole(4, 'Owner', admin)).rejects.toThrow(ForbiddenException);
+    expect(prisma.role.update).not.toHaveBeenCalled();
   });
 });
 

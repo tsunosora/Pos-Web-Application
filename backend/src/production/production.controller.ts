@@ -1,10 +1,11 @@
-import { Controller, Delete, Get, Post, Body, Param, ParseIntPipe, Patch, Query, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, Param, ParseIntPipe, Patch, Query, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtService } from '@nestjs/jwt';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as fs from 'fs';
-import { BoardOrUserGuard, hidePhonesForBoard, signBoardToken } from '../auth/board-auth';
+import { BoardOrUserGuard, boardSessionOf, hidePhonesForBoard, signBoardToken } from '../auth/board-auth';
+import { ManagerGuard, roleCanOpenMenu } from '../auth/role-groups';
 import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 import { assertRealImage, discardUpload, safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
 import { ProductionService } from './production.service';
@@ -12,7 +13,8 @@ import { ClickCountingService } from '../click-counting/click-counting.service';
 import { compressImage } from '../common/utils/compress-image.util';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { CurrentBranch } from '../common/branch-context.decorator';
+import { CurrentBranch, isOwnerRole } from '../common/branch-context.decorator';
+import { assertBranchAccess } from '../common/branch-where.helper';
 
 // Folder upload foto counter (sama dengan yang dipakai click-counting admin)
 const METER_DIR = './public/uploads';
@@ -28,6 +30,35 @@ function fakeOperatorCtx(branchId: number): BranchContext {
         userBranchId: branchId,
         roleName: 'OPERATOR',
     };
+}
+
+/**
+ * Cabang untuk MENULIS meter/reject mesin — jangan percaya branchId kiriman body.
+ * - Papan kerja: cabang dari token PIN (req.board).
+ * - Akun login: wajib menu Klik Mesin Cetak (sama dgn /click-counting); staf dikunci ke
+ *   cabangnya (seperti @CurrentBranch), owner pakai cabang aktif (header) atau isian body.
+ * (@CurrentBranch tak bisa dipakai di sini: melempar galat untuk request papan kerja.)
+ */
+function meterWriteCtx(req: any, bodyBranchId?: number | string | null): BranchContext {
+    const board = boardSessionOf(req);
+    if (board) {
+        if (board.branchId == null) throw new BadRequestException('Sesi papan kerja tanpa cabang. Masukkan PIN cabang lagi.');
+        return fakeOperatorCtx(board.branchId);
+    }
+    const user = req?.user ?? {};
+    if (!roleCanOpenMenu(user.roleName, user.menuAccess, '/click-counting')) {
+        throw new ForbiddenException('Akses ditolak: peran Anda tidak diberi menu ini. Minta owner mengaturnya di Akses Menu Role.');
+    }
+    const userBranchId: number | null = typeof user.branchId === 'number' ? user.branchId : null;
+    if (!isOwnerRole(user.roleName)) {
+        if (userBranchId == null) throw new ForbiddenException('User staff belum ter-assign ke cabang manapun. Hubungi admin.');
+        return { branchId: userBranchId, isOwner: false, userBranchId, roleName: user.roleName ?? null };
+    }
+    const bid = Number(req?.headers?.['x-branch-id'] ?? bodyBranchId);
+    if (!Number.isInteger(bid) || bid <= 0) {
+        throw new BadRequestException('Aksi ini butuh cabang spesifik. Pilih cabang di topbar terlebih dahulu (bukan "Semua Cabang").');
+    }
+    return { branchId: bid, isOwner: true, userBranchId, roleName: user.roleName ?? null };
 }
 
 // Papan kerja /produksi dipakai tanpa akun login. Endpoint papan kerja dijaga
@@ -74,7 +105,7 @@ export class ProductionController {
 
     @UseGuards(JwtAuthGuard)
     @Patch('pipeline/jobs/:id')
-    updatePipelineStage(
+    async updatePipelineStage(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: {
             pipelineStage?: string;
@@ -86,7 +117,9 @@ export class ProductionController {
             proofImageUrl?: string | null;
         },
         @Req() req: any,
+        @CurrentBranch() ctx: BranchContext,
     ) {
+        assertBranchAccess(ctx, (await this.productionService.getJobMeta(id)).branchId);
         const actorName = req?.user?.name || req?.user?.email || 'Admin';
         return this.productionService.updatePipelineStage(id, body, { name: actorName, role: 'ADMIN' });
     }
@@ -122,21 +155,24 @@ export class ProductionController {
         return { url, proofId: proof.id };
     }
 
-    /** Hapus production job (beserta proofs — cascade). */
-    @UseGuards(JwtAuthGuard)
+    /** Hapus production job (beserta proofs — cascade). Setingkat manajer, cabangnya sendiri. */
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     @Delete('pipeline/jobs/:id')
-    async deleteJob(@Param('id', ParseIntPipe) id: number) {
+    async deleteJob(@Param('id', ParseIntPipe) id: number, @CurrentBranch() ctx: BranchContext) {
+        assertBranchAccess(ctx, (await this.productionService.getJobMeta(id)).branchId);
         return this.productionService.deleteJob(id);
     }
 
-    /** Tandai job batal / klien tidak jadi order (atau batalkan status batal). */
-    @UseGuards(JwtAuthGuard)
+    /** Tandai job batal / klien tidak jadi order (atau batalkan status batal). Setingkat manajer. */
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     @Patch('pipeline/jobs/:id/cancel')
     async cancelJob(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { cancel?: boolean; reason?: string },
         @Req() req: any,
+        @CurrentBranch() ctx: BranchContext,
     ) {
+        assertBranchAccess(ctx, (await this.productionService.getJobMeta(id)).branchId);
         const actorName = req?.user?.name || req?.user?.email || 'Admin';
         return this.productionService.setJobCancelled(id, body.cancel !== false, body.reason, { name: actorName });
     }
@@ -186,6 +222,11 @@ export class ProductionController {
         if (!body.operatorName?.trim()) {
             throw new BadRequestException('Nama operator wajib diisi');
         }
+        // PIN cabang A tidak boleh memindah job cabang B (id job berurutan).
+        const pinBranchId = Number(body.branchId);
+        if (!Number.isInteger(pinBranchId) || pinBranchId <= 0) throw new BadRequestException('branchId wajib diisi');
+        const job = await this.productionService.getJobMeta(id);
+        if (job.branchId !== pinBranchId) throw new ForbiddenException('Job ini milik cabang lain');
         const { pin: _p, branchId, operatorName, ...data } = body;
         // branchId = cabang PIN operator → dipakai atribusi leaderboard (bukan dibuang).
         return this.productionService.updatePipelineStage(id, data, { name: operatorName.trim(), role: 'OPERATOR', branchId: branchId ?? null });
@@ -212,6 +253,9 @@ export class ProductionController {
             if (!body.operatorName?.trim()) {
                 throw new BadRequestException('Nama operator wajib diisi');
             }
+            // Sama dgn ubah tahap: hanya job cabang PIN ini.
+            if (!bid) throw new BadRequestException('branchId wajib diisi');
+            if ((await this.productionService.getJobMeta(id)).branchId !== bid) throw new ForbiddenException('Job ini milik cabang lain');
         } catch (e) {
             discardUpload(file); // multer sudah menyimpan berkas sebelum PIN dicek
             throw e;
@@ -331,6 +375,7 @@ export class ProductionController {
     @Post('meter/reading')
     @UseGuards(BoardOrUserGuard)
     async upsertMeterReading(
+        @Req() req: any,
         @Body() body: {
             branchId: number;
             readingDate: string;
@@ -342,8 +387,7 @@ export class ProductionController {
             notes?: string;
         },
     ) {
-        if (!body?.branchId) throw new BadRequestException('branchId wajib diisi');
-        const ctx = fakeOperatorCtx(Number(body.branchId));
+        const ctx = meterWriteCtx(req, body?.branchId);
         const { branchId: _, ...payload } = body;
         return this.clickCounting.upsertMeterReading(payload, ctx);
     }
@@ -368,6 +412,7 @@ export class ProductionController {
     @Post('meter/reject')
     @UseGuards(BoardOrUserGuard)
     async createReject(
+        @Req() req: any,
         @Body() body: {
             branchId: number;
             rejectType: string;
@@ -380,8 +425,7 @@ export class ProductionController {
             date?: string;
         },
     ) {
-        if (!body?.branchId) throw new BadRequestException('branchId wajib diisi');
-        const ctx = fakeOperatorCtx(Number(body.branchId));
+        const ctx = meterWriteCtx(req, body?.branchId);
         const { branchId: _, ...payload } = body;
         return this.clickCounting.createReject(payload, ctx);
     }

@@ -297,6 +297,10 @@ export default function CloseShiftPage() {
         formData.append('expectedCash', String(adjustedExpectedCash));
         formData.append('expectedQris', String(shiftData.expectedQris || 0));
         formData.append('expectedTransfer', String(shiftData.expectedTransfer || 0));
+        // Dasar dari server — server menghitung ulang saat kirim (penjualan selama halaman terbuka ikut).
+        formData.append('baseExpectedCash', String(shiftData.expectedCash || 0));
+        formData.append('baseExpectedQris', String(shiftData.expectedQris || 0));
+        formData.append('baseExpectedTransfer', String(shiftData.expectedTransfer || 0));
 
         formData.append('actualCash', String(actualCash));
         formData.append('actualQris', String(actualQris));

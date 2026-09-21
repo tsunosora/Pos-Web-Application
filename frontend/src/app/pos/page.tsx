@@ -213,11 +213,13 @@ function POSPageContent() {
     const updateSubOrder = useCartStore((state) => state.updateSubOrder);
     const setQuantityDirect = useCartStore((state) => state.setQuantityDirect);
     const clearCart = useCartStore((state) => state.clearCart);
-    const _subtotal = useCartStore((state) => state.subtotal());
+    // Dibulatkan ke rupiah PERSIS seperti server (T-20): dulu layar & struk menampilkan
+    // "Rp 21.853,125" sementara nota tersimpan Rp 21.854 → kembalian/kas selisih.
+    const _subtotal = Math.round(useCartStore((state) => state.subtotal()));
     const taxRate = settings?.enableTax ? Number(settings.taxRate ?? 10) : 0;
-    const discountNum = Number(discount) || 0;
-    const taxAmount = (_subtotal - discountNum) * (taxRate / 100);
-    const shippingCostNum = Number(shippingCost) || 0;
+    const discountNum = Math.round(Number(discount) || 0);
+    const taxAmount = Math.round((_subtotal - discountNum) * (taxRate / 100));
+    const shippingCostNum = Math.round(Number(shippingCost) || 0);
     const marketplaceFeeNum = marketplaceFeeItems.reduce((s, f) => s + (Number(f.amount) || 0), 0);
     const grandTotal = _subtotal - discountNum + taxAmount + shippingCostNum;
 
@@ -289,6 +291,7 @@ function POSPageContent() {
         const seenUnitVariants = new Set<number>();
         const recovered: string[] = []; // item dari produk terarsip yang tetap dimasukkan
         const skipped: string[] = [];   // item yang benar-benar tak bisa dipulihkan
+        const dipotongStok: string[] = []; // qty di keranjang < qty SO karena stok kurang
         for (const it of soData.items) {
             let product = (products as any[]).find((p: any) =>
                 p.variants?.some((v: any) => v.id === it.productVariantId)
@@ -345,6 +348,9 @@ function POSPageContent() {
                 if (line) {
                     if (it.quantity && it.quantity > 1) {
                         useCartStore.getState().setQuantityDirect(line.lineId, Number(it.quantity));
+                        // Qty dibatasi stok → jangan diam-diam menagih lebih sedikit dari SO.
+                        const jadi = useCartStore.getState().items.find((x) => x.lineId === line.lineId)?.qty ?? 0;
+                        if (jadi < Number(it.quantity)) dipotongStok.push(`${product.name} (SO ${it.quantity}, stok ${jadi})`);
                     }
                     if (it.note) {
                         useCartStore.getState().updateNote(line.lineId, it.note);
@@ -367,6 +373,9 @@ function POSPageContent() {
         }
         setPrefilledSoId(fromSOId);
         // Notifikasi jujur: jangan selalu bilang "sukses" saat ada item yang di-skip.
+        if (dipotongStok.length) {
+            addNotification({ type: 'system', title: 'Qty SO dipotong stok', message: `SO ${soData.soNumber}: jumlah di keranjang lebih kecil dari SO karena stok kurang — ${dipotongStok.join(', ')}. Tambah stok atau pisahkan nota sebelum bayar.` });
+        }
         if (skipped.length) {
             addNotification({ type: 'system', title: 'Sebagian item tidak termuat', message: `SO ${soData.soNumber}: ${skipped.length} item tak bisa dimasukkan (data produk tidak lengkap). Tambahkan manual: ${skipped.join(', ')}` });
         } else if (recovered.length) {
@@ -1183,12 +1192,16 @@ function POSPageContent() {
                                                     <p className={`text-sm font-semibold ${item.customPrice != null ? 'text-amber-500' : 'text-primary'}`}>
                                                         Rp {item.price.toLocaleString('id-ID')}
                                                     </p>
+                                                    {/* Produk konfigurasi (composite) dihargai server dari pilihannya — harga manual
+                                                        tidak dikirim, jadi tombolnya disembunyikan (dulu layar & struk beda dgn nota). */}
+                                                    {item.compositeProductId == null && (
                                                     <button
                                                         onClick={() => setPriceEditState({ lineId: item.lineId, value: String(item.price) })}
                                                         className="p-0.5 text-muted-foreground hover:text-primary transition-colors"
                                                         title="Override harga">
                                                         <Pencil className="w-3 h-3" />
                                                     </button>
+                                                    )}
                                                     {item.customPrice != null && (
                                                         <button
                                                             onClick={() => updateCustomPrice(item.lineId, null)}
@@ -2203,7 +2216,7 @@ function POSPageContent() {
                                     <span>Subtotal</span><span>Rp {receipt.subtotal.toLocaleString('id-ID')}</span>
                                 </div>
                                 <div className="flex justify-between text-sm text-muted-foreground">
-                                    <span>Pajak (10%)</span><span>Rp {receipt.taxAmount.toLocaleString('id-ID')}</span>
+                                    <span>Pajak ({taxRate}%)</span><span>Rp {receipt.taxAmount.toLocaleString('id-ID')}</span>
                                 </div>
                                 <div className="flex justify-between font-bold text-base pt-1 border-t border-border">
                                     <span>TOTAL</span><span className="text-primary">Rp {receipt.grandTotal.toLocaleString('id-ID')}</span>

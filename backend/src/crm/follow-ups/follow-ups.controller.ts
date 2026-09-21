@@ -33,7 +33,7 @@ export class FollowUpsController {
 
     @Get('badge-count')
     badgeCount(@CurrentBranch() ctx: BranchContext, @Req() req: any, @Query('mine') mine?: string) {
-        const userId = mine === 'true' ? req?.user?.id : undefined;
+        const userId = mine === 'true' ? req?.user?.userId : undefined;
         return this.fu.badgeCount(ctx, userId);
     }
 
@@ -48,7 +48,7 @@ export class FollowUpsController {
         @Body() data: CreateFollowUpDto,
         @Req() req: any,
     ) {
-        return this.fu.create(ctx, data, req?.user?.id);
+        return this.fu.create(ctx, data, req?.user?.userId);
     }
 
     @Patch(':id/done')
@@ -58,12 +58,12 @@ export class FollowUpsController {
         @Body() body: { notes?: string },
         @Req() req: any,
     ) {
-        return this.fu.markDone(ctx, id, body?.notes, req?.user?.id);
+        return this.fu.markDone(ctx, id, body?.notes, req?.user?.userId);
     }
 
     @Patch(':id/skip')
     skip(@CurrentBranch() ctx: BranchContext, @Param('id', ParseIntPipe) id: number, @Req() req: any) {
-        return this.fu.skip(ctx, id, req?.user?.id);
+        return this.fu.skip(ctx, id, req?.user?.userId);
     }
 
     @Delete(':id')

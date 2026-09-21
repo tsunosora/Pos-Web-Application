@@ -18,6 +18,14 @@ function normalizePhone(raw: string | null | undefined): string | null {
 }
 
 /**
+ * Filter tanggal dari UI: 'YYYY-MM-DD' dibaca sebagai tengah malam WAKTU LOKAL.
+ * `new Date('2026-09-01')` = tengah malam UTC = 07.00 WIB → lead jam 00–07 hilang.
+ */
+function parseDateParam(s: string): Date {
+    return /^\d{4}-\d{2}-\d{2}$/.test(s.trim()) ? new Date(`${s.trim()}T00:00:00`) : new Date(s);
+}
+
+/**
  * Throttle notifikasi Discord untuk order website: maks 8 notif/menit.
  * Mencegah burst order (sah maupun jahil) membanjiri channel tim. Lead tetap
  * tersimpan; hanya notifikasinya yang ditahan saat melebihi ambang.
@@ -112,9 +120,9 @@ export class LeadsService {
         if (params.level) where.level = params.level as any;
         if (params.dateFrom || params.dateTo) {
             const createdAtFilter: Prisma.DateTimeFilter = {};
-            if (params.dateFrom) createdAtFilter.gte = new Date(params.dateFrom);
+            if (params.dateFrom) createdAtFilter.gte = parseDateParam(params.dateFrom);
             if (params.dateTo) {
-                const to = new Date(params.dateTo);
+                const to = parseDateParam(params.dateTo);
                 to.setHours(23, 59, 59, 999);
                 createdAtFilter.lte = to;
             }
@@ -178,9 +186,9 @@ export class LeadsService {
         if (params.dateFrom || params.dateTo) {
             // Semantik tanggal sama dgn list() supaya hasil export = yang tampil di halaman.
             const range: Prisma.DateTimeFilter = {};
-            if (params.dateFrom) range.gte = new Date(params.dateFrom);
+            if (params.dateFrom) range.gte = parseDateParam(params.dateFrom);
             if (params.dateTo) {
-                const to = new Date(params.dateTo);
+                const to = parseDateParam(params.dateTo);
                 to.setHours(23, 59, 59, 999);
                 range.lte = to;
             }
@@ -249,7 +257,7 @@ export class LeadsService {
             createdBy: { select: { id: true, name: true } },
             branch: { select: { id: true, name: true, code: true } },
             convertedCustomer: { select: { id: true, name: true, phone: true } },
-            convertedSO: { select: { id: true, soNumber: true } },
+            convertedSO: { select: { id: true, soNumber: true, status: true } }, // status: UI sembunyikan tombol convert bila SO masih aktif
             adLabel: { select: { id: true, name: true } },
             activities: {
                 orderBy: { createdAt: 'desc' },
@@ -928,6 +936,18 @@ export class LeadsService {
             throw new ForbiddenException('Lead ini sudah pernah di-convert. Hubungi owner untuk convert ulang.');
         }
 
+        // SO desainer yang tertaut & masih aktif (belum nota/batal) → pakai SO itu: jangan
+        // buat SO/nota baru dan jangan timpa tautannya. Nota dibuat dari SO itu di kasir
+        // (POS), lalu lead otomatis closing ke nota yang sama — tanpa nota dobel.
+        let activeLinkedSo: { id: number; soNumber: string; status: string } | null = null;
+        if ((lead as any).convertedSalesOrderId) {
+            const linked: any = await this.prisma.salesOrder.findUnique({
+                where: { id: (lead as any).convertedSalesOrderId },
+                select: { id: true, soNumber: true, status: true },
+            });
+            if (linked && linked.status !== 'CANCELLED' && linked.status !== 'INVOICED') activeLinkedSo = linked;
+        }
+
         // Resolve customer
         let customerId = data.customerId ?? null;
         if (!customerId && data.createCustomer) {
@@ -1000,7 +1020,7 @@ export class LeadsService {
         let transactionItemsCreated = 0;
         let transactionItemsSkipped = 0;
         let transactionError: string | null = null;
-        const wantProductionTx = data.createProductionTransaction !== false;
+        const wantProductionTx = data.createProductionTransaction !== false && !activeLinkedSo;
         // Semua item dikirim ke transaksi — custom item (tanpa productVariantId) ditangani
         // di transactions.service sebagai item custom tanpa stok.
         const txItems = wantProductionTx ? leadItems : [];
@@ -1180,15 +1200,19 @@ export class LeadsService {
             }
         } else if (wantProductionTx) {
             transactionItemsSkipped = leadItems.length;
+        } else if (activeLinkedSo && data.createProductionTransaction !== false) {
+            transactionItemsSkipped = leadItems.length;
+            transactionError = `Lead sudah tertaut ke SO ${activeLinkedSo.soNumber} yang masih aktif — nota dibuat dari SO itu di kasir, bukan dari convert.`;
         }
 
         // Resolve SO draft (opsional) — SPK production-bound
-        let salesOrderId: number | null = null;
+        let salesOrderId: number | null = activeLinkedSo?.id ?? null;
         let soItemsCreated = 0;
         let soItemsSkipped = 0;
         let soProofsCopied = 0;
-        if (data.createSalesOrderDraft) {
-            const designerName = (data.designerName || '').trim() || 'TBD';
+        if (data.createSalesOrderDraft && !activeLinkedSo) {
+            // Tanpa desainer → kosong (kolom wajib). Dulu 'TBD' → dihitung KPI sbg desainer "TBD".
+            const designerName = (data.designerName || '').trim();
             const soNumber = await this.generateSoNumber((lead as any).branchId ?? ctx.branchId ?? null);
             const so = await this.prisma.salesOrder.create({
                 data: {
@@ -1319,13 +1343,16 @@ export class LeadsService {
         // Update lead: link conversion. Tandai CLOSED_WON KECUALI markWon=false &
         // belum ada nota (alur "Buat Nota di Kasir": SO dulu, lead closing nanti
         // otomatis saat SO dibuatkan nota di POS — lihat transactions.service).
-        const willMarkWon = (data as any).markWon !== false || !!transactionId;
+        // SO desainer aktif dipakai → lead JANGAN ditutup di sini: hook nota di POS hanya
+        // menutup lead yang belum CLOSED_WON, dan di situlah nota (kredit CS) ditautkan.
+        const willMarkWon = !!transactionId || ((data as any).markWon !== false && !activeLinkedSo);
         const updated = await this.prisma.lead.update({
             where: { id: leadId },
             data: {
                 ...(willMarkWon ? { status: 'CLOSED_WON' as any, closedAt: new Date() } : {}),
                 convertedCustomerId: customerId,
-                convertedSalesOrderId: salesOrderId,
+                // Tautan SO lama tidak dihapus bila convert ini tak membuat SO baru.
+                ...(salesOrderId != null ? { convertedSalesOrderId: salesOrderId } : {}),
                 ...(transactionId ? { convertedTransactionId: transactionId } : {}),
             },
         });
@@ -1338,7 +1365,9 @@ export class LeadsService {
                 kind: 'CONVERTED',
                 text: [
                     `Lead converted → Customer #${customerId}`,
-                    salesOrderId ? ` + SPK (SO) draft #${salesOrderId}` : null,
+                    activeLinkedSo
+                        ? ` + pakai SO desainer ${activeLinkedSo.soNumber} (nota dibuat dari SO ini di kasir)`
+                        : salesOrderId ? ` + SPK (SO) draft #${salesOrderId}` : null,
                     invoiceNumber ? ` + ${invoiceNumber}` : null,
                     transactionId ? ` + Transaction #${transactionId} (PENDING → produksi)` : null,
                 ].filter(Boolean).join(''),
@@ -1369,6 +1398,7 @@ export class LeadsService {
             _convertResult: {
                 customerId,
                 salesOrderId,
+                salesOrderReused: !!activeLinkedSo,
                 soItemsCreated,
                 soItemsSkipped,
                 soProofsCopied,

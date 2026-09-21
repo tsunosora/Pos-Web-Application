@@ -1,6 +1,32 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import type { BranchContext } from '../common/branch-context.decorator';
+import { assertBranchAccess } from '../common/branch-where.helper';
+
+/**
+ * Kolom yang boleh diubah lewat permintaan — sama dengan yang ditampilkan ke penyetuju.
+ * Dulu seluruh payload diterapkan: kasir bisa menyelipkan excludeFromShift/type/branchId/
+ * shiftReportId yang tidak terlihat di layar persetujuan.
+ */
+function pilihIsiPermintaan(payload: Record<string, any> | null | undefined): Record<string, any> {
+    const p = payload ?? {};
+    const out: Record<string, any> = {};
+    if (p.category !== undefined) out.category = String(p.category).slice(0, 100);
+    if (p.note !== undefined) out.note = p.note == null ? null : String(p.note).slice(0, 1000);
+    if (p.platformSource !== undefined) out.platformSource = p.platformSource == null ? null : String(p.platformSource).slice(0, 50);
+    if (p.amount !== undefined) {
+        const n = Number(p.amount);
+        if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Nominal harus lebih dari 0');
+        out.amount = n;
+    }
+    if (p.paymentMethod !== undefined) {
+        if (!['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(p.paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal');
+        out.paymentMethod = p.paymentMethod;
+    }
+    if (p.bankAccountId !== undefined) out.bankAccountId = p.bankAccountId == null || p.bankAccountId === '' ? null : Number(p.bankAccountId);
+    return out;
+}
 
 @Injectable()
 export class CashflowRequestsService {
@@ -24,12 +50,21 @@ export class CashflowRequestsService {
         type: 'EDIT' | 'DELETE',
         payload?: Record<string, any> | null,
         requesterNote?: string,
+        branchCtx?: BranchContext,
     ) {
+        if (type !== 'EDIT' && type !== 'DELETE') throw new BadRequestException('Jenis permintaan harus EDIT atau DELETE');
         const cashflow = await (this.prisma as any).cashflow.findUnique({
-            where: { id: cashflowId },
+            where: { id: Number(cashflowId) },
             include: { user: { select: { name: true, email: true } } },
         });
         if (!cashflow) throw new NotFoundException('Cashflow entry tidak ditemukan');
+        if (branchCtx) assertBranchAccess(branchCtx, cashflow.branchId ?? null);
+        if (type === 'EDIT') {
+            payload = pilihIsiPermintaan(payload);
+            if (!Object.keys(payload).length) throw new BadRequestException('Tidak ada perubahan yang diminta');
+        } else {
+            payload = null;
+        }
         if (cashflow.userId === null) {
             throw new BadRequestException('Entry otomatis tidak dapat diedit/dihapus');
         }
@@ -66,9 +101,11 @@ export class CashflowRequestsService {
         return request;
     }
 
-    async findPending() {
+    async findPending(branchCtx?: BranchContext) {
+        // Staf cabang hanya melihat permintaan atas kas cabangnya.
+        const cabang = branchCtx && !branchCtx.isOwner ? { cashflow: { branchId: branchCtx.userBranchId ?? -1 } } : {};
         return (this.prisma as any).cashflowChangeRequest.findMany({
-            where: { status: 'PENDING' },
+            where: { status: 'PENDING', ...cabang },
             orderBy: { createdAt: 'asc' },
             include: {
                 requester: { select: { id: true, name: true, email: true } },
@@ -93,7 +130,7 @@ export class CashflowRequestsService {
         });
     }
 
-    async approve(requestId: number, reviewerId: number, reviewerRoleId: number | null, reviewerNote?: string) {
+    async approve(requestId: number, reviewerId: number, reviewerRoleId: number | null, reviewerNote?: string, branchCtx?: BranchContext) {
         if (!(await this.isManager(reviewerRoleId))) {
             throw new ForbiddenException('Hanya manajer atau admin yang dapat menyetujui');
         }
@@ -103,16 +140,13 @@ export class CashflowRequestsService {
         });
         if (!req) throw new NotFoundException('Permintaan tidak ditemukan');
         if (req.status !== 'PENDING') throw new BadRequestException('Permintaan ini sudah diproses');
+        const target = await (this.prisma as any).cashflow.findUnique({ where: { id: req.cashflowId }, select: { branchId: true } });
+        if (target && branchCtx) assertBranchAccess(branchCtx, target.branchId ?? null);
 
         await (this.prisma as any).$transaction(async (tx: any) => {
-            if (req.type === 'DELETE') {
-                await tx.cashflow.delete({ where: { id: req.cashflowId } });
-            } else {
-                const payload = req.payload as Record<string, any>;
-                await tx.cashflow.update({ where: { id: req.cashflowId }, data: payload });
-            }
-            await tx.cashflowChangeRequest.update({
-                where: { id: requestId },
+            // Klaim dulu (klik ganda / dua penyetuju tidak boleh menerapkan dua kali).
+            const klaim = await tx.cashflowChangeRequest.updateMany({
+                where: { id: requestId, status: 'PENDING' },
                 data: {
                     status: 'APPROVED',
                     reviewedBy: reviewerId,
@@ -120,6 +154,13 @@ export class CashflowRequestsService {
                     reviewedAt: new Date(),
                 },
             });
+            if (klaim.count !== 1) throw new BadRequestException('Permintaan ini sudah diproses');
+            if (req.type === 'DELETE') {
+                await tx.cashflow.delete({ where: { id: req.cashflowId } });
+            } else {
+                // Saring ulang: permintaan lama yang dibuat sebelum penyaringan tetap aman.
+                await tx.cashflow.update({ where: { id: req.cashflowId }, data: pilihIsiPermintaan(req.payload as Record<string, any>) });
+            }
         });
 
         this.notifications.emit({
@@ -131,7 +172,7 @@ export class CashflowRequestsService {
         return { success: true };
     }
 
-    async reject(requestId: number, reviewerId: number, reviewerRoleId: number | null, reviewerNote: string) {
+    async reject(requestId: number, reviewerId: number, reviewerRoleId: number | null, reviewerNote: string, branchCtx?: BranchContext) {
         if (!(await this.isManager(reviewerRoleId))) {
             throw new ForbiddenException('Hanya manajer atau admin yang dapat menolak');
         }
@@ -142,8 +183,10 @@ export class CashflowRequestsService {
         if (!req) throw new NotFoundException('Permintaan tidak ditemukan');
         if (req.status !== 'PENDING') throw new BadRequestException('Permintaan ini sudah diproses');
 
-        await (this.prisma as any).cashflowChangeRequest.update({
-            where: { id: requestId },
+        const target = await (this.prisma as any).cashflow.findUnique({ where: { id: req.cashflowId }, select: { branchId: true } });
+        if (target && branchCtx) assertBranchAccess(branchCtx, target.branchId ?? null);
+        const klaim = await (this.prisma as any).cashflowChangeRequest.updateMany({
+            where: { id: requestId, status: 'PENDING' },
             data: {
                 status: 'REJECTED',
                 reviewedBy: reviewerId,
@@ -151,6 +194,7 @@ export class CashflowRequestsService {
                 reviewedAt: new Date(),
             },
         });
+        if (klaim.count !== 1) throw new BadRequestException('Permintaan ini sudah diproses');
 
         this.notifications.emit({
             type: 'system',

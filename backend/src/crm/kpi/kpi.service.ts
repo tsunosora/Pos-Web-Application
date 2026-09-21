@@ -88,9 +88,11 @@ function resolvePeriod(p: KpiParams): { start: Date; end: Date } {
         start.setDate(1);
         start.setHours(0, 0, 0, 0);
     } else {
-        if (p.start) start = new Date(p.start);
+        // 'YYYY-MM-DD' = tengah malam LOKAL (new Date('2026-09-01') = 07.00 WIB).
+        const asLocal = (s: string) => (/^\d{4}-\d{2}-\d{2}$/.test(s.trim()) ? new Date(`${s.trim()}T00:00:00`) : new Date(s));
+        if (p.start) start = asLocal(p.start);
         if (p.end) {
-            const e = new Date(p.end);
+            const e = asLocal(p.end);
             e.setHours(23, 59, 59, 999);
             return { start, end: e };
         }
@@ -2138,7 +2140,8 @@ export class KpiService {
             const hasCs = csUser != null;
 
             const dName = (t.salesOrder?.designerName || '').trim();
-            const hasDesigner = !!dName;
+            // Kosong / 'TBD' (placeholder lama convert lead) = belum ada desainer.
+            const hasDesigner = !!dName && dName.toUpperCase() !== 'TBD';
             let dBranch: number | null = null;
             if (hasDesigner) {
                 dBranch = designerBranchByName.get(dName.toLowerCase()) ?? null;

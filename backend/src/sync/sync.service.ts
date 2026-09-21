@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TransactionsService } from '../transactions/transactions.service';
@@ -10,12 +10,19 @@ import { requireBranch } from '../common/branch-where.helper';
 import {
   ENTITY_REGISTRY,
   PULLABLE_ENTITIES,
+  WEB_PULLABLE_ENTITIES,
   type PullableEntity,
   type PullResult,
   type PushOp,
   type PushOpResult,
   type PushResult,
 } from './dto';
+
+/** Siapa pemanggil sync: perangkat ber-token (x-device-token) atau user JWT. */
+export interface SyncCaller {
+  isDevice: boolean;
+  userId: number | null; // user JWT; null untuk perangkat
+}
 
 @Injectable()
 export class SyncService {
@@ -37,16 +44,21 @@ export class SyncService {
    *   merekonsiliasi hapus lewat pull penuh berkala. Arsip (isActive=false) tetap
    *   terkirim sebagai perubahan biasa.
    */
-  async pull(branchCtx: BranchContext, since?: string, entitiesCsv?: string): Promise<PullResult> {
+  async pull(
+    branchCtx: BranchContext,
+    since?: string,
+    entitiesCsv?: string,
+    caller: SyncCaller = { isDevice: false, userId: null },
+  ): Promise<PullResult> {
     const serverTime = new Date().toISOString();
     const full = !since;
     const sinceDate = since ? new Date(since) : null;
     if (sinceDate && Number.isNaN(sinceDate.getTime())) {
       // Cursor tak valid → perlakukan sebagai pull penuh (aman).
-      return this.pull(branchCtx, undefined, entitiesCsv);
+      return this.pull(branchCtx, undefined, entitiesCsv, caller);
     }
 
-    const requested = this.resolveEntities(entitiesCsv);
+    const requested = this.resolveEntities(entitiesCsv, caller.isDevice);
     const updatedWhere = sinceDate ? { updatedAt: { gt: sinceDate } } : {};
     const changes: Record<string, unknown[]> = {};
 
@@ -57,11 +69,15 @@ export class SyncService {
     return { serverTime, full, changes };
   }
 
-  private resolveEntities(csv?: string): PullableEntity[] {
-    if (!csv) return [...PULLABLE_ENTITIES];
+  private resolveEntities(csv: string | undefined, isDevice: boolean): PullableEntity[] {
+    // JWT hanya dapat entitas referensi; sisanya dibuang diam-diam.
+    const allowed = isDevice ? PULLABLE_ENTITIES : PULLABLE_ENTITIES.filter((e) => WEB_PULLABLE_ENTITIES.has(e));
+    if (!csv) return [...allowed];
     const set = new Set(csv.split(',').map((s) => s.trim()));
-    const picked = PULLABLE_ENTITIES.filter((e) => set.has(e));
-    return picked.length ? picked : [...PULLABLE_ENTITIES];
+    const picked = allowed.filter((e) => set.has(e));
+    if (picked.length) return picked;
+    // Tak satu pun nama dikenal → perilaku lama (semua yang diizinkan).
+    return PULLABLE_ENTITIES.some((e) => set.has(e)) ? [] : [...allowed];
   }
 
   private async pullEntity(
@@ -84,7 +100,9 @@ export class SyncService {
     const delegate = (this.prisma as unknown as Record<string, { findMany: (a: unknown) => Promise<unknown[]> }>)[
       spec.delegate
     ];
-    return delegate.findMany({ where });
+    // Kolom rahasia (hash sandi, PIN, webhook, rclone) dibuang untuk SEMUA pemanggil.
+    const omit = spec.omit?.length ? Object.fromEntries(spec.omit.map((f) => [f, true])) : undefined;
+    return delegate.findMany(omit ? { where, omit } : { where });
   }
 
   /**
@@ -95,13 +113,17 @@ export class SyncService {
    * Error per-op tak menggagalkan op lain; op error TIDAK dicatat SyncedOp agar bisa
    * di-retry / ditinjau ulang oleh klien.
    */
-  async push(branchCtx: BranchContext, ops: PushOp[]): Promise<PushResult> {
+  async push(
+    branchCtx: BranchContext,
+    ops: PushOp[],
+    caller: SyncCaller = { isDevice: false, userId: null },
+  ): Promise<PushResult> {
     const branchId = requireBranch(branchCtx);
     const results: PushOpResult[] = [];
 
     for (const op of ops) {
       try {
-        results.push(await this.applyOp(op, branchId, branchCtx));
+        results.push(await this.applyOp(op, branchId, branchCtx, caller));
       } catch (e) {
         const message = e instanceof Error ? e.message : String(e);
         this.logger.warn(`push op gagal (${op.type}, clientId=${op.clientId}): ${message}`);
@@ -112,7 +134,12 @@ export class SyncService {
     return { serverTime: new Date().toISOString(), results };
   }
 
-  private async applyOp(op: PushOp, branchId: number, branchCtx: BranchContext): Promise<PushOpResult> {
+  private async applyOp(
+    op: PushOp,
+    branchId: number,
+    branchCtx: BranchContext,
+    caller: SyncCaller,
+  ): Promise<PushOpResult> {
     if (!op.clientId) throw new Error('clientId wajib ada');
 
     // Idempotensi: kalau clientId sudah pernah diterapkan → balas serverId lama.
@@ -133,7 +160,7 @@ export class SyncService {
         };
       }
       case 'cashflow.create': {
-        const cf = await this.createCashflow(op.payload, branchId);
+        const cf = await this.createCashflow(op.payload, branchId, caller);
         await this.recordOp(op.clientId, op.type, cf.id, branchId);
         return { clientId: op.clientId, status: 'applied', serverId: cf.id };
       }
@@ -152,6 +179,10 @@ export class SyncService {
         return { clientId: op.clientId, status: 'applied' };
       }
       case 'stockOpname.finish': {
+        // Set stok absolut tanpa sesi di pusat → hanya perangkat ber-token, bukan JWT.
+        if (!caller.isDevice) {
+          throw new Error('stockOpname.finish hanya diterima dari perangkat terdaftar');
+        }
         // Sesi opname lokal tak ada di pusat → terapkan koreksi stok langsung
         // (set absolut per varian + StockMovement ADJUST). Idempoten (set absolut).
         const items = op.payload?.confirmedItems ?? [];
@@ -169,7 +200,14 @@ export class SyncService {
     branchCtx: BranchContext,
     body: { name?: string; branchId?: number | null },
   ): Promise<{ deviceId: number; token: string; branchId: number | null }> {
-    const branchId = body.branchId !== undefined ? body.branchId : branchCtx.branchId;
+    const raw = body.branchId !== undefined ? body.branchId : branchCtx.branchId;
+    let branchId: number | null = null;
+    if (raw != null) {
+      branchId = Number(raw);
+      if (!Number.isInteger(branchId) || branchId <= 0) throw new BadRequestException('branchId tidak valid');
+      const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId }, select: { id: true } });
+      if (!branch) throw new BadRequestException('Cabang tidak ditemukan');
+    }
     const token = randomBytes(24).toString('hex'); // 48 hex
     const device = await this.prisma.device.create({
       data: { name: (body.name || 'Perangkat').slice(0, 120), branchId: branchId ?? null, token },
@@ -187,13 +225,22 @@ export class SyncService {
   }
 
   // Insert cashflow manual dari device offline (pola branch connect seperti CashflowService).
-  private async createCashflow(payload: any, branchId: number) {
-    const { bankAccountId, userId, ...rest } = payload ?? {};
+  // userId dari payload DIABAIKAN (bisa dipalsukan) — pencatat = user JWT, perangkat = kosong.
+  private async createCashflow(payload: any, branchId: number, caller: SyncCaller) {
+    const {
+      bankAccountId,
+      userId: _userId,
+      user: _user,
+      branch: _branch,
+      branchId: _branchId,
+      bankAccount: _bankAccount,
+      ...rest
+    } = payload ?? {};
     return this.prisma.cashflow.create({
       data: {
         ...rest,
         branch: { connect: { id: branchId } },
-        ...(userId ? { user: { connect: { id: userId } } } : {}),
+        ...(caller.userId ? { user: { connect: { id: caller.userId } } } : {}),
         ...(bankAccountId ? { bankAccount: { connect: { id: bankAccountId } } } : {}),
       } as any,
     });

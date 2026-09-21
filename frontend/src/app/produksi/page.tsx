@@ -804,7 +804,7 @@ export default function ProduksiPage() {
                                         return (
                                             <div className={`p-3 rounded-xl border text-sm space-y-1 ${sambung.needsSambung ? 'bg-orange-500/10 border-orange-500/20' : 'bg-muted/40 border-border'}`}>
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-muted-foreground">Luas cetak</span>
+                                                    <span className="text-muted-foreground">Luas cetak{Number(processModal.job?.transactionItem?.pcs) > 1 ? ` (${processModal.job.transactionItem.pcs} pcs)` : ''}</span>
                                                     <span className="font-bold text-lg">{areaM2.toFixed(2)} m² <span className="text-sm font-normal text-muted-foreground">({Math.round(areaM2 * 10000).toLocaleString('id-ID')} cm²)</span></span>
                                                 </div>
                                                 {selectedRollId && roll && (
@@ -872,7 +872,7 @@ export default function ProduksiPage() {
                                 {selectedJobs.map(j => (
                                     <div key={j.id} className="flex items-center justify-between">
                                         <span className="text-muted-foreground truncate pr-2">{j.transaction?.invoiceNumber} · {j.transactionItem?.productVariant?.product?.name}</span>
-                                        <span className="font-mono text-xs shrink-0">{getDimLabel(j)} = <span className="font-semibold">{getAreaM2(j).toFixed(2)} m²</span> <span className="text-muted-foreground">({Math.round(getAreaM2(j) * 10000).toLocaleString('id-ID')} cm²)</span></span>
+                                        <span className="font-mono text-xs shrink-0">{getDimLabel(j)}{Number(j.transactionItem?.pcs) > 1 ? ` ×${j.transactionItem.pcs}pcs` : ''} = <span className="font-semibold">{getAreaM2(j).toFixed(2)} m²</span> <span className="text-muted-foreground">({Math.round(getAreaM2(j) * 10000).toLocaleString('id-ID')} cm²)</span></span>
                                     </div>
                                 ))}
                                 <div className="border-t border-border pt-2 mt-2 flex justify-between font-bold">

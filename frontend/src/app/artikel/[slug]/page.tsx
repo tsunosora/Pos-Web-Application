@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const img = (u?: string | null) => (!u ? "" : /^https?:/.test(u) ? u : `${API}${u}`);
@@ -64,8 +65,8 @@ export default async function ArtikelDetailPage({ params }: { params: { slug: st
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={img(a.coverImage)} alt={a.title} className="mb-7 max-h-[420px] w-full rounded-2xl object-cover" />
                 )}
-                {/* Konten ditulis admin (tepercaya) */}
-                <div className="article-content" dangerouslySetInnerHTML={{ __html: a.content || "" }} />
+                {/* Disaring lagi saat render — juga melindungi artikel lama yang tersimpan sebelum penyaringan di server. */}
+                <div className="article-content" dangerouslySetInnerHTML={{ __html: sanitizeHtml(a.content) }} />
             </article>
         </main>
     );

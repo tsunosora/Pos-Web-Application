@@ -29,6 +29,7 @@ import { badgeToneClass } from "@/components/ui/status-badge";
 import { WorkOrderModal } from "@/components/produksi/WorkOrderModal";
 import dayjs from "dayjs";
 import { LabelChip } from "@/components/LabelChip";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import "dayjs/locale/id";
 dayjs.locale("id");
 
@@ -62,6 +63,7 @@ function getProofList(job: PipelineJob): { id?: number; filename: string }[] {
 
 export default function ProduksiPipelinePage() {
     const qc = useQueryClient();
+    const { isManager } = useCurrentUser(); // hapus / tandai batal job: setingkat manajer (server menolak selain itu)
     const [activeJobId, setActiveJobId] = useState<number | null>(null);
     const [jahitModal, setJahitModal] = useState<{ job: PipelineJob; targetStage: PipelineStage } | null>(null);
     const [returModal, setReturModal] = useState<{ job: PipelineJob } | null>(null);
@@ -470,8 +472,8 @@ export default function ProduksiPipelinePage() {
                             onUploadProof={handleUploadProof}
                             onOpenProofViewer={handleOpenProofViewer}
                             onOpenWO={handleOpenWO}
-                            onDeleteJob={handleDeleteJob}
-                            onCancelJob={handleOpenCancel}
+                            onDeleteJob={isManager ? handleDeleteJob : undefined}
+                            onCancelJob={isManager ? handleOpenCancel : undefined}
                             onToggleExpress={(jobId, val) => stageMut.mutate({ id: jobId, payload: { isExpress: val } })}
                             onUpdateDesigner={(jobId, name) => stageMut.mutate({ id: jobId, payload: { designerName: name } })}
                             uploading={uploadMut.isPending}
@@ -654,8 +656,8 @@ const Column = memo(function Column({
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onOpenWO: (job: PipelineJob) => void;
-    onDeleteJob: (jobId: number) => void;
-    onCancelJob: (job: PipelineJob) => void;
+    onDeleteJob?: (jobId: number) => void; // kosong = bukan manajer (tombol disembunyikan)
+    onCancelJob?: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
     onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
@@ -710,8 +712,8 @@ const KanbanCard = memo(function KanbanCard({
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onOpenWO: (job: PipelineJob) => void;
-    onDeleteJob: (jobId: number) => void;
-    onCancelJob: (job: PipelineJob) => void;
+    onDeleteJob?: (jobId: number) => void; // kosong = bukan manajer (tombol disembunyikan)
+    onCancelJob?: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
     onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
@@ -775,8 +777,8 @@ const KanbanCardInner = memo(function KanbanCardInner({
     onUploadProof: (jobId: number, files: FileList) => void;
     onOpenProofViewer: (job: PipelineJob) => void;
     onOpenWO: (job: PipelineJob) => void;
-    onDeleteJob: (jobId: number) => void;
-    onCancelJob: (job: PipelineJob) => void;
+    onDeleteJob?: (jobId: number) => void; // kosong = bukan manajer (tombol disembunyikan)
+    onCancelJob?: (job: PipelineJob) => void;
     onToggleExpress: (jobId: number, val: boolean) => void;
     onUpdateDesigner: (jobId: number, name: string | null) => void;
     uploading: boolean;
@@ -818,7 +820,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                         <>
                             <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); onDeleteJob(job.id); }}
+                                onClick={(e) => { e.stopPropagation(); onDeleteJob?.(job.id); }}
                                 onPointerDown={(e) => e.stopPropagation()}
                                 className="text-[9px] px-1.5 py-0.5 bg-red-600 text-white rounded font-semibold"
                             >Hapus</button>
@@ -829,9 +831,9 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 className="text-[9px] px-1.5 py-0.5 bg-muted text-foreground rounded"
                             >Batal</button>
                         </>
-                    ) : (
+                    ) : (onCancelJob || onDeleteJob) && (
                         <>
-                            <button
+                            {onCancelJob && <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); onCancelJob(job); }}
                                 onPointerDown={(e) => e.stopPropagation()}
@@ -839,8 +841,8 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 className="text-muted-foreground hover:text-amber-600 transition-colors"
                             >
                                 <Ban className="h-3 w-3" />
-                            </button>
-                            <button
+                            </button>}
+                            {onDeleteJob && <button
                                 type="button"
                                 onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
                                 onPointerDown={(e) => e.stopPropagation()}
@@ -848,7 +850,7 @@ const KanbanCardInner = memo(function KanbanCardInner({
                                 className="text-muted-foreground hover:text-red-500 transition-colors"
                             >
                                 <Trash2 className="h-3 w-3" />
-                            </button>
+                            </button>}
                         </>
                     )}
                     <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />

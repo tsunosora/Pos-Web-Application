@@ -1,6 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { FollowUpsService } from '../crm/follow-ups/follow-ups.service';
+import { toWaPhone } from '../common/utils/phone.util';
+
+const JOB_DIBATALKAN = 'Job sudah dibatalkan';
+const SUDAH_DIPROSES = 'Job sudah diproses oleh perangkat lain';
 
 @Injectable()
 export class ProductionService {
@@ -24,19 +28,61 @@ export class ProductionService {
             });
             const txIds = Array.from(new Set(jobs.map(j => j.transactionId).filter(Boolean)));
             if (txIds.length === 0) return;
+            // Nota tidak punya kolom customerId → pelanggan dicari berurutan: SO asal nota,
+            // lead yang closing ke nota ini, lalu nomor HP nota (customers.phone = 62xxx).
             const txs: any[] = await (this.prisma as any).transaction.findMany({
                 where: { id: { in: txIds } },
-                select: { id: true, customerId: true, branchId: true, userId: true },
+                select: { id: true, branchId: true, customerPhone: true, salesOrder: { select: { customerId: true } } },
             });
+            const leads: any[] = await (this.prisma as any).lead.findMany({
+                where: { convertedTransactionId: { in: txIds }, convertedCustomerId: { not: null } },
+                select: { convertedTransactionId: true, convertedCustomerId: true },
+            });
+            const leadCustomer = new Map<number, number>();
+            for (const l of leads) if (!leadCustomer.has(l.convertedTransactionId)) leadCustomer.set(l.convertedTransactionId, l.convertedCustomerId);
+
+            const customerByTx = new Map<number, number>();
+            const phoneByTx = new Map<number, string>();
+            for (const t of txs) {
+                const cid = t.salesOrder?.customerId ?? leadCustomer.get(t.id) ?? null;
+                if (cid) customerByTx.set(t.id, cid);
+                else {
+                    const wa = toWaPhone(t.customerPhone);
+                    if (wa) phoneByTx.set(t.id, wa);
+                }
+            }
+            const phones = Array.from(new Set(phoneByTx.values()));
+            if (phones.length) {
+                const byPhone: any[] = await (this.prisma as any).customer.findMany({
+                    where: { phone: { in: phones } },
+                    orderBy: { id: 'asc' },
+                    select: { id: true, phone: true },
+                });
+                const idByPhone = new Map<string, number>();
+                for (const c of byPhone) if (!idByPhone.has(c.phone)) idByPhone.set(c.phone, c.id);
+                for (const [txId, wa] of phoneByTx) {
+                    const cid = idByPhone.get(wa);
+                    if (cid) customerByTx.set(txId, cid);
+                }
+            }
+            const customerIds = Array.from(new Set(customerByTx.values()));
+            if (!customerIds.length) return; // pelanggan tak dikenal → lewati tanpa ribut
+            const customers: any[] = await (this.prisma as any).customer.findMany({
+                where: { id: { in: customerIds } },
+                select: { id: true, assignedCsId: true },
+            });
+            const csByCustomer = new Map<number, number | null>(customers.map(c => [c.id, c.assignedCsId ?? null]));
+
             const txMap = new Map(txs.map(t => [t.id, t]));
             for (const job of jobs) {
                 const tx = txMap.get(job.transactionId);
-                if (!tx?.customerId) continue;
+                const customerId = tx ? customerByTx.get(tx.id) : undefined;
+                if (!customerId || !csByCustomer.has(customerId)) continue;
                 await this.followUps.scheduleAfterSales({
-                    customerId: tx.customerId,
+                    customerId,
                     branchId: tx.branchId ?? job.branchId ?? null,
                     sourceRef: `production-pickup:job-${job.id}`,
-                    assignedToId: tx.userId ?? null,
+                    assignedToId: csByCustomer.get(customerId) ?? null,
                 });
             }
         } catch (err) {
@@ -54,15 +100,14 @@ export class ProductionService {
         delta: number,
     ) {
         const rounded = Math.floor(delta * 100) / 100;
-        const cur = await tx.productVariant.findUnique({
+        // Cache global: increment atomik. Dulu baca-lalu-tulis nilai absolut → dua potongan
+        // bersamaan (walau beda cabang) membuat salah satunya hilang.
+        const upd = await tx.productVariant.update({
             where: { id: variantId },
+            data: { stock: { increment: rounded } },
             select: { stock: true },
         });
-        const newGlobal = Math.floor((Number(cur?.stock ?? 0) + rounded) * 100) / 100;
-        await tx.productVariant.update({
-            where: { id: variantId },
-            data: { stock: newGlobal },
-        });
+        const newGlobal = Number(upd?.stock ?? 0);
         if (branchId != null) {
             await (tx as any).branchStock.upsert({
                 where: { branchId_productVariantId: { branchId, productVariantId: variantId } },
@@ -103,7 +148,7 @@ export class ProductionService {
     }
 
     async getJobs(status?: string, priority?: string, branchId?: number) {
-        const where: any = {};
+        const where: any = { cancelledAt: null }; // job batal tidak dikerjakan lagi
         if (status) where.status = status;
         if (priority) where.priority = priority;
         if (branchId) where.branchId = branchId;
@@ -189,15 +234,36 @@ export class ProductionService {
         operatorNote?: string;
     }) {
         return this.prisma.$transaction(async (tx) => {
-            const job = await (tx as any).productionJob.findUnique({ where: { id } });
+            const job = await (tx as any).productionJob.findUnique({
+                where: { id },
+                include: { transactionItem: { select: { areaCm2: true, pcs: true } } },
+            });
             if (!job) throw new NotFoundException('Job tidak ditemukan');
+            if (job.cancelledAt) throw new BadRequestException(JOB_DIBATALKAN);
             if (job.status !== 'ANTRIAN') throw new BadRequestException('Job tidak dalam status ANTRIAN');
+
+            // Klaim status secara atomik: dua perangkat menekan "Mulai" bersamaan → hanya
+            // satu yang lolos, jadi bahan tidak terpotong dua kali.
+            const claim = await (tx as any).productionJob.updateMany({
+                where: { id, status: 'ANTRIAN', cancelledAt: null },
+                data: { status: 'PROSES', startedAt: new Date() },
+            });
+            if (claim.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
+
+            // Luas bahan dihitung server dari item nota (luas per lembar × pcs); nilai
+            // kiriman klien hanya cadangan bila item tak punya luas (mis. data lama).
+            const ti = (job as any).transactionItem;
+            const itemAreaM2 = ti?.areaCm2 != null && Number(ti.areaCm2) > 0
+                ? (Number(ti.areaCm2) / 10000) * Math.max(1, Number(ti.pcs) || 1)
+                : 0;
+            const areaM2 = itemAreaM2 > 0 ? itemAreaM2 : Math.max(0, Number(data.rollAreaM2) || 0);
+            let deductedM2: number | null = null; // yang BENAR-BENAR dipotong → dikembalikan utuh saat nota dihapus
 
             // Sub Order: job disub ke printing luar → tidak potong bahan/tinta walau operator isi roll & area.
             const jobIsSub = (job as any).isSubOrder === true;
-            if (!data.usedWaste && !jobIsSub && data.rollVariantId && data.rollAreaM2) {
+            if (!data.usedWaste && !jobIsSub && data.rollVariantId && areaM2 > 0) {
                 const jobBranchId: number | null = (job as any).branchId ?? null;
-                const areaToDeduct = Math.ceil(data.rollAreaM2);
+                const areaToDeduct = Math.ceil(areaM2);
 
                 // Cek stok per cabang (kalau job punya branchId). Fallback ke global kalau job lama tanpa branchId.
                 if (jobBranchId != null) {
@@ -228,23 +294,22 @@ export class ProductionService {
                         productVariantId: data.rollVariantId,
                         type: 'OUT',
                         quantity: areaToDeduct,
-                        reason: `Produksi Job #${job.jobNumber} (${data.rollAreaM2.toFixed(2)}m²)`,
+                        reason: `Produksi Job #${job.jobNumber} (${areaM2.toFixed(2)}m²)`,
                         balanceAfter: newGlobal,
                         referenceId: job.jobNumber,
                         ...(jobBranchId != null ? { branchId: jobBranchId } : {}),
                     } as any,
                 });
+                deductedM2 = areaToDeduct;
             }
 
             return (tx as any).productionJob.update({
                 where: { id },
                 data: {
-                    status: 'PROSES',
                     rollVariantId: data.rollVariantId || null,
                     usedWaste: data.usedWaste,
-                    rollLengthUsed: data.rollAreaM2 || null, // field reused to store area m²
+                    rollLengthUsed: deductedM2, // field reused: m² yang dipotong (dibulatkan ke atas)
                     operatorNote: data.operatorNote || null,
-                    startedAt: new Date(),
                 },
                 include: this.jobInclude(),
             });
@@ -287,22 +352,25 @@ export class ProductionService {
             }
         });
         if (!job) throw new NotFoundException('Job tidak ditemukan');
+        if (job.cancelledAt) throw new BadRequestException(JOB_DIBATALKAN);
         if (job.status !== 'PROSES') throw new BadRequestException('Job belum dalam status PROSES');
 
         const hasAssemblyStage = job.transactionItem?.productVariant?.product?.hasAssemblyStage === true;
         const nextStatus = hasAssemblyStage ? 'MENUNGGU_PASANG' : 'SELESAI';
         const opName = operatorName?.trim();
 
-        const updated = await (this.prisma as any).productionJob.update({
-            where: { id },
+        // Klaim atomik: "Selesai" ganda (dua perangkat) tidak mencatat kredit operator dua kali.
+        const claim = await (this.prisma as any).productionJob.updateMany({
+            where: { id, status: 'PROSES', cancelledAt: null },
             data: {
                 status: nextStatus,
                 completedAt: new Date(),
                 ...(operatorNote ? { operatorNote } : {}),
                 ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}),
             },
-            include: this.jobInclude(),
         });
+        if (claim.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
+        const updated = await (this.prisma as any).productionJob.findUnique({ where: { id }, include: this.jobInclude() });
         // SELESAI = produksi tuntas (dihitung "selesai" + omzet); MENUNGGU_PASANG =
         // produksi cetak selesai tapi tunggu rakit → forward stage non-done.
         await this.logOperatorDone(id, nextStatus === 'SELESAI' ? 'SELESAI' : 'ANTRIAN_PRESS', opName, undefined, coOperatorNames, operatorBranchId ?? (job as any).branchId ?? null);
@@ -330,11 +398,21 @@ export class ProductionService {
                 }
             });
             if (!job) throw new NotFoundException('Job tidak ditemukan');
+            if (job.cancelledAt) throw new BadRequestException(JOB_DIBATALKAN);
             if (job.status !== 'MENUNGGU_PASANG') throw new BadRequestException('Job belum dalam status MENUNGGU_PASANG');
 
+            // Klaim atomik dulu: "Mulai Pasang" ganda tidak memotong BOM dua kali.
+            const claim = await (tx as any).productionJob.updateMany({
+                where: { id, status: 'MENUNGGU_PASANG', cancelledAt: null },
+                data: { status: 'PASANG', assemblyStartedAt: new Date(), ...(assemblyNote ? { assemblyNote } : {}) },
+            });
+            if (claim.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
+
             // Deduct BOM ingredients (assembly materials like rangka) — multi-cabang via BranchStock.
+            // Hanya produk AREA_BASED: BOM produk UNIT/COMPOSITE sudah dipotong × qty saat checkout.
             const jobBranchId: number | null = (job as any).branchId ?? null;
-            const ingredients = job.transactionItem?.productVariant?.product?.ingredients || [];
+            const product = job.transactionItem?.productVariant?.product;
+            const ingredients = product?.pricingMode === 'AREA_BASED' ? (product?.ingredients || []) : [];
             for (const ing of ingredients) {
                 if (ing.rawMaterialVariantId) {
                     const needed = Number(ing.quantity);
@@ -353,34 +431,28 @@ export class ProductionService {
                 }
             }
 
-            return (tx as any).productionJob.update({
-                where: { id },
-                data: {
-                    status: 'PASANG',
-                    assemblyStartedAt: new Date(),
-                    ...(assemblyNote ? { assemblyNote } : {})
-                },
-                include: this.jobInclude(),
-            });
+            return (tx as any).productionJob.findUnique({ where: { id }, include: this.jobInclude() });
         });
     }
 
     async completeAssembly(id: number, assemblyNote?: string, operatorName?: string, coOperatorNames?: string[], operatorBranchId?: number | null) {
         const job = await (this.prisma as any).productionJob.findUnique({ where: { id } });
         if (!job) throw new NotFoundException('Job tidak ditemukan');
+        if (job.cancelledAt) throw new BadRequestException(JOB_DIBATALKAN);
         if (job.status !== 'PASANG') throw new BadRequestException('Job belum dalam status PASANG');
 
         const opName = operatorName?.trim();
-        const updated = await (this.prisma as any).productionJob.update({
-            where: { id },
+        const claim = await (this.prisma as any).productionJob.updateMany({
+            where: { id, status: 'PASANG', cancelledAt: null },
             data: {
                 status: 'SELESAI',
                 assemblyCompletedAt: new Date(),
                 ...(assemblyNote ? { assemblyNote } : {}),
                 ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}),
             },
-            include: this.jobInclude(),
         });
+        if (claim.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
+        const updated = await (this.prisma as any).productionJob.findUnique({ where: { id }, include: this.jobInclude() });
         await this.logOperatorDone(id, 'SELESAI', opName, undefined, coOperatorNames, operatorBranchId ?? (job as any).branchId ?? null);
         return updated;
     }
@@ -390,11 +462,12 @@ export class ProductionService {
         if (!job) throw new NotFoundException('Job tidak ditemukan');
         if (job.status !== 'SELESAI') throw new BadRequestException('Job belum SELESAI');
 
-        const updated = await (this.prisma as any).productionJob.update({
-            where: { id },
+        const claim = await (this.prisma as any).productionJob.updateMany({
+            where: { id, status: 'SELESAI' },
             data: { status: 'DIAMBIL', pickedUpAt: new Date() },
-            include: this.jobInclude(),
         });
+        if (claim.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
+        const updated = await (this.prisma as any).productionJob.findUnique({ where: { id }, include: this.jobInclude() });
 
         // Schedule after-sales FU (idempotent + error-tolerant)
         await this._triggerAfterSales([id]);
@@ -468,12 +541,19 @@ export class ProductionService {
     }) {
         return this.prisma.$transaction(async (tx) => {
             const jobs = await (tx as any).productionJob.findMany({
-                where: { id: { in: data.jobIds }, status: 'ANTRIAN' },
+                where: { id: { in: data.jobIds } },
             });
-
-            if (jobs.length !== data.jobIds.length) {
+            if (jobs.some((j: any) => j.cancelledAt)) throw new BadRequestException(JOB_DIBATALKAN);
+            if (jobs.length !== data.jobIds.length || jobs.some((j: any) => j.status !== 'ANTRIAN')) {
                 throw new BadRequestException('Beberapa job tidak dalam status ANTRIAN atau tidak ditemukan');
             }
+
+            // Klaim atomik semua job sebelum memotong bahan (cegah batch/mulai ganda).
+            const claim = await (tx as any).productionJob.updateMany({
+                where: { id: { in: data.jobIds }, status: 'ANTRIAN', cancelledAt: null },
+                data: { status: 'PROSES', startedAt: new Date() },
+            });
+            if (claim.count !== jobs.length) throw new ConflictException(SUDAH_DIPROSES);
 
             const count = await (tx as any).productionBatch.count();
             const batchNumber = `BATCH-${String(count + 1).padStart(4, '0')}`;
@@ -535,7 +615,7 @@ export class ProductionService {
 
             await (tx as any).productionJob.updateMany({
                 where: { id: { in: data.jobIds } },
-                data: { status: 'PROSES', batchId: batch.id, startedAt: new Date() },
+                data: { batchId: batch.id },
             });
 
             // Store total area in batch rollLengthUsed field
@@ -553,15 +633,21 @@ export class ProductionService {
             const batch = await (tx as any).productionBatch.findUnique({ where: { id } });
             if (!batch) throw new NotFoundException('Batch tidak ditemukan');
             if (batch.status !== 'PROSES') throw new BadRequestException('Batch tidak dalam status PROSES');
+            const claim = await (tx as any).productionBatch.updateMany({
+                where: { id, status: 'PROSES' },
+                data: { status: 'SELESAI', completedAt: new Date() },
+            });
+            if (claim.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
 
             const opName = operatorName?.trim();
+            // Job yang dibatalkan di tengah batch tidak ikut diselesaikan / dikreditkan.
             const toComplete: any[] = await (tx as any).productionJob.findMany({
-                where: { batchId: id, status: 'PROSES' },
+                where: { batchId: id, status: 'PROSES', cancelledAt: null },
                 select: { id: true, branchId: true },
             });
 
             await (tx as any).productionJob.updateMany({
-                where: { batchId: id, status: 'PROSES' },
+                where: { id: { in: toComplete.map(j => j.id) }, status: 'PROSES' },
                 data: { status: 'SELESAI', completedAt: new Date(), ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}) },
             });
 
@@ -578,10 +664,7 @@ export class ProductionService {
                 });
             }
 
-            return (tx as any).productionBatch.update({
-                where: { id },
-                data: { status: 'SELESAI', completedAt: new Date() },
-            });
+            return (tx as any).productionBatch.findUnique({ where: { id } });
         });
     }
 
@@ -603,7 +686,7 @@ export class ProductionService {
     }
 
     async getStats(branchId?: number) {
-        const branchWhere = branchId ? { branchId } : {};
+        const branchWhere = { cancelledAt: null, ...(branchId ? { branchId } : {}) }; // job batal tidak dihitung
         const [antrian, proses, menungguPasang, pasang, selesai] = await Promise.all([
             (this.prisma as any).productionJob.count({ where: { status: 'ANTRIAN', ...branchWhere } }),
             (this.prisma as any).productionJob.count({ where: { status: 'PROSES', ...branchWhere } }),
@@ -773,6 +856,15 @@ export class ProductionService {
         return { ok: true };
     }
 
+    /** Cabang & status batal job — untuk cek akses cabang di controller. */
+    async getJobMeta(id: number): Promise<{ id: number; branchId: number | null; cancelledAt: Date | null }> {
+        const job = await (this.prisma as any).productionJob.findUnique({
+            where: { id }, select: { id: true, branchId: true, cancelledAt: true },
+        });
+        if (!job) throw new NotFoundException('Job tidak ditemukan');
+        return job;
+    }
+
     async deleteJob(id: number) {
         // ProductionJobProof di-cascade-delete otomatis (onDelete: Cascade di schema)
         await (this.prisma as any).productionJob.delete({ where: { id } });
@@ -813,8 +905,10 @@ export class ProductionService {
     ) {
         // Load existing untuk dapat fromStage di audit
         const existing = await (this.prisma as any).productionJob.findUnique({
-            where: { id }, select: { pipelineStage: true, branchId: true, shippedAt: true },
+            where: { id }, select: { pipelineStage: true, branchId: true, shippedAt: true, cancelledAt: true },
         });
+        if (!existing) throw new NotFoundException('Job tidak ditemukan');
+        if (data.pipelineStage !== undefined && existing.cancelledAt) throw new BadRequestException(JOB_DIBATALKAN);
         const updateData: any = {};
         if (data.pipelineStage !== undefined) {
             if (!ProductionService.PIPELINE_STAGES.includes(data.pipelineStage as any)) {

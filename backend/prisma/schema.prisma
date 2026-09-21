@@ -617,7 +617,7 @@ model InvoiceItem {
   invoiceId   Int     @map("invoice_id")
   description String  @db.VarChar(255)
   unit        String? @db.VarChar(50) // Satuan: pcs, m², lembar, set, dll
-  quantity    Int
+  quantity    Decimal @db.Decimal(12, 2) // pecahan untuk baris luas (3 × 1,5 m = 4,5 m²)
   price       Decimal @db.Decimal(15, 2)
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -2574,7 +2574,7 @@ model SocialMessage {
   channelId      Int             @map("channel_id")
   conversationId Int             @map("conversation_id")
   contactId      Int             @map("contact_id")
-  externalId     String?         @map("external_id") @db.VarChar(128) // mid (dedup)
+  externalId     String?         @map("external_id") @db.VarChar(255) // mid (dedup) — mid Instagram bisa > 128 karakter
   direction      SocialDirection
   type           String          @default("TEXT") @db.VarChar(20) // TEXT | IMAGE | ...
   body           String?         @db.Text

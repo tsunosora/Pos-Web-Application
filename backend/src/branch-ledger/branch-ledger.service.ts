@@ -304,14 +304,20 @@ export class BranchLedgerService {
             }
         }
 
-        const note = payload.notes ?? null;
-        const newSettled = Number(ledger.settled_amount) + amount;
-        const totalAmount = Number(ledger.total_amount);
-        const fullyPaid = newSettled + 0.01 >= totalAmount;
-        const newStatus = fullyPaid ? 'SETTLED' : 'PARTIAL';
+        const note = payload.notes ? String(payload.notes).slice(0, 500) : null;
 
         // Atomic transaction
         return this.prisma.$transaction(async (tx) => {
+            // Kunci baris ledger & hitung ulang sisa di DALAM transaksi: klik ganda / dua kasir
+            // dulu sama-sama lolos cek di atas → pelunasan & kas tercatat dua kali.
+            const kini: any[] = await tx.$queryRaw`SELECT total_amount, settled_amount, status FROM inter_branch_ledger WHERE id = ${safeId} FOR UPDATE`;
+            if (!kini.length) throw new NotFoundException('Ledger tidak ditemukan');
+            if (kini[0].status === 'SETTLED') throw new BadRequestException('Ledger sudah lunas');
+            if (kini[0].status === 'CANCELLED') throw new BadRequestException('Ledger sudah dibatalkan');
+            const sisaKini = Number(kini[0].total_amount) - Number(kini[0].settled_amount);
+            if (amount > sisaKini + 0.01) throw new BadRequestException(`Nominal (${amount}) melebihi sisa hutang (${sisaKini})`);
+            const newSettled = Number(kini[0].settled_amount) + amount;
+            const newStatus = newSettled + 0.01 >= Number(kini[0].total_amount) ? 'SETTLED' : 'PARTIAL';
             // 1) Cashflow EXPENSE di cabang A (pemesan/fromBranch)
             const expenseCf = await (tx as any).cashflow.create({
                 data: {
@@ -336,25 +342,14 @@ export class BranchLedgerService {
                 },
             });
 
-            // 3) Insert LedgerSettlement (raw — model mungkin belum ada di Prisma client)
-            await tx.$executeRawUnsafe(
-                `INSERT INTO ledger_settlements
+            // 3) Insert LedgerSettlement — catatan lewat parameter (dulu ditempel ke SQL; escape ''
+            //    bisa dibobol dengan backslash → SQL injection).
+            await tx.$executeRaw`INSERT INTO ledger_settlements
                   (ledger_id, settlement_type, amount, cashflow_payer_id, cashflow_payee_id, notes, created_by_id, created_at)
-                 VALUES
-                  (${safeId}, 'CASH', ${amount}, ${expenseCf.id}, ${incomeCf.id},
-                   ${note ? `'${note.replace(/'/g, "''")}'` : 'NULL'},
-                   ${ctx.userBranchId != null ? 'NULL' : 'NULL'},
-                   NOW())`,
-            );
+                 VALUES (${safeId}, 'CASH', ${amount}, ${expenseCf.id}, ${incomeCf.id}, ${note}, NULL, NOW())`;
 
             // 4) Update ledger
-            await tx.$executeRawUnsafe(
-                `UPDATE inter_branch_ledger
-                 SET settled_amount = ${newSettled},
-                     status = '${newStatus}',
-                     updated_at = NOW()
-                 WHERE id = ${safeId}`,
-            );
+            await tx.$executeRaw`UPDATE inter_branch_ledger SET settled_amount = ${newSettled}, status = ${newStatus}, updated_at = NOW() WHERE id = ${safeId}`;
 
             return { ok: true, settledAmount: newSettled, status: newStatus };
         });
@@ -399,8 +394,10 @@ export class BranchLedgerService {
         if (ledger.status === 'SETTLED') throw new BadRequestException('Ledger sudah lunas');
         if (ledger.status === 'CANCELLED') throw new BadRequestException('Ledger sudah dibatalkan');
 
-        if (!ctx.isOwner && ctx.branchId !== fromBranchId && ctx.branchId !== toBranchId) {
-            throw new ForbiddenException('Anda tidak punya akses untuk melunasi ledger ini');
+        // Bayar dengan bahan = stok cabang PEMESAN keluar → hanya cabang pemesan (atau owner).
+        // Dulu cabang penerima juga boleh: bisa menarik stok cabang lain tanpa persetujuannya.
+        if (!ctx.isOwner && ctx.branchId !== fromBranchId) {
+            throw new ForbiddenException('Hanya cabang pemesan yang boleh membayar titipan dengan kirim bahan');
         }
 
         // Load variant + HPP. Kalau variant.hpp = 0, fallback ke harga beli terakhir
@@ -455,14 +452,21 @@ export class BranchLedgerService {
             );
         }
 
-        const note = payload.notes ?? null;
-        const newSettled = Number(ledger.settled_amount) + value;
-        const totalAmount = Number(ledger.total_amount);
-        const fullyPaid = newSettled + 0.01 >= totalAmount;
-        const newStatus = fullyPaid ? 'SETTLED' : 'PARTIAL';
+        const note = payload.notes ? String(payload.notes).slice(0, 500) : null;
         const refId = `LEDGER-${safeId}`;
 
         return this.prisma.$transaction(async (tx) => {
+            const kini: any[] = await tx.$queryRaw`SELECT total_amount, settled_amount, status FROM inter_branch_ledger WHERE id = ${safeId} FOR UPDATE`;
+            if (!kini.length) throw new NotFoundException('Ledger tidak ditemukan');
+            if (kini[0].status === 'SETTLED') throw new BadRequestException('Ledger sudah lunas');
+            if (kini[0].status === 'CANCELLED') throw new BadRequestException('Ledger sudah dibatalkan');
+            const sisaKini = Number(kini[0].total_amount) - Number(kini[0].settled_amount);
+            if (value > sisaKini + 0.01) throw new BadRequestException(`Nilai kirim bahan (${value}) melebihi sisa hutang (${sisaKini}). Kurangi quantity.`);
+            const newSettled = Number(kini[0].settled_amount) + value;
+            const newStatus = newSettled + 0.01 >= Number(kini[0].total_amount) ? 'SETTLED' : 'PARTIAL';
+            // Stok asal dicek ulang dalam kunci (penjualan bersamaan bisa menghabiskannya).
+            const bsKini: any[] = await tx.$queryRaw`SELECT stock FROM branch_stocks WHERE branch_id = ${fromBranchId} AND product_variant_id = ${variantId} FOR UPDATE`;
+            if (Number(bsKini[0]?.stock ?? 0) < qty) throw new BadRequestException(`Stok ${variant.sku} di cabang pemesan tidak cukup. Tersedia: ${Number(bsKini[0]?.stock ?? 0)}, dibutuhkan: ${qty}`);
             // Kurangi stok cabang asal
             const updatedFrom = await (tx as any).branchStock.update({
                 where: { branchId_productVariantId: { branchId: fromBranchId, productVariantId: variantId } },
@@ -498,22 +502,11 @@ export class BranchLedgerService {
                 } as any,
             });
 
-            await tx.$executeRawUnsafe(
-                `INSERT INTO ledger_settlements
+            await tx.$executeRaw`INSERT INTO ledger_settlements
                   (ledger_id, settlement_type, amount, stock_movement_out_id, stock_movement_in_id, notes, created_at)
-                 VALUES
-                  (${safeId}, 'STOCK', ${value}, ${outMv.id}, ${inMv.id},
-                   ${note ? `'${note.replace(/'/g, "''")}'` : 'NULL'},
-                   NOW())`,
-            );
+                 VALUES (${safeId}, 'STOCK', ${value}, ${outMv.id}, ${inMv.id}, ${note}, NOW())`;
 
-            await tx.$executeRawUnsafe(
-                `UPDATE inter_branch_ledger
-                 SET settled_amount = ${newSettled},
-                     status = '${newStatus}',
-                     updated_at = NOW()
-                 WHERE id = ${safeId}`,
-            );
+            await tx.$executeRaw`UPDATE inter_branch_ledger SET settled_amount = ${newSettled}, status = ${newStatus}, updated_at = NOW() WHERE id = ${safeId}`;
 
             return {
                 ok: true,

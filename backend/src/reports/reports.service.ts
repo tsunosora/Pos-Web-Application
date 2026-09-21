@@ -6,6 +6,7 @@ import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
 import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
 import { lineTotalOf, storedPriceMultiplier } from '../transactions/area-unit.util';
+import { akhirHari, awalHari } from '../common/utils/tanggal.util';
 
 export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
 
@@ -46,8 +47,8 @@ export class ReportsService {
         const whereClause: any = { status: 'PAID', ...branchWhere(branchCtx) }; // TransactionStatus.PAID
         if (startDate && endDate) {
             whereClause.createdAt = {
-                gte: new Date(startDate),
-                lte: new Date(endDate + 'T23:59:59.999Z')
+                gte: awalHari(startDate),
+                lte: akhirHari(endDate)
             };
         }
 
@@ -298,7 +299,7 @@ export class ReportsService {
         };
     }
 
-    async calculateCurrentShiftExpectations(branchCtx?: BranchContext) {
+    async calculateCurrentShiftExpectations(branchCtx?: BranchContext, sampai?: Date) {
         const bw = branchCtx ? branchWhere(branchCtx) : {};
         const lastShift = await (this.prisma as any).shiftReport.findFirst({
             where: { ...bw },
@@ -316,7 +317,7 @@ export class ReportsService {
         // Filter berdasarkan shiftReportId = null (belum di-tag ke shift manapun)
         // dan excludeFromShift = false (cashflow retroaktif/lupa tidak ikut dihitung)
         const cashflows: any[] = await (this.prisma as any).cashflow.findMany({
-            where: { shiftReportId: null, excludeFromShift: false, ...bw },
+            where: { shiftReportId: null, excludeFromShift: false, ...bw, ...(sampai ? { OR: [{ createdAt: { lte: sampai } }, { createdAt: null }] } : {}) },
             include: { bankAccount: true },
         });
 
@@ -405,9 +406,6 @@ export class ReportsService {
     async closeShift(dto: CloseShiftDto, proofImages: string[], branchCtx: BranchContext) {
         const branchId = requireBranch(branchCtx);
         const bw = { branchId };
-        const cashDifference = dto.actualCash - dto.expectedCash;
-        const qrisDifference = dto.actualQris - dto.expectedQris;
-        const transferDifference = dto.actualTransfer - dto.expectedTransfer;
 
         const activeBanks: any[] = await this.prisma.bankAccount.findMany({
             where: { isActive: true, ...bw } as any,
@@ -425,9 +423,23 @@ export class ReportsService {
             expensesTotalCalc = total;
         }
 
-        // Hitung data shift SEBELUM menyimpan, agar lastShift.closedAt belum berubah
+        // Hitung data shift SEBELUM menyimpan, agar lastShift.closedAt belum berubah.
+        // `snap` = batas: kas yang tercatat setelah titik ini masuk shift BERIKUTNYA.
         const settings = await this.prisma.storeSettings.findFirst();
-        const expectedData = await this.calculateCurrentShiftExpectations(branchCtx);
+        const snap = new Date();
+        const expectedData = await this.calculateCurrentShiftExpectations(branchCtx, snap);
+
+        // Ekspektasi yang disimpan = hitungan SERVER saat kirim + penyesuaian yang diisi di halaman
+        // (setor/tarik/pengeluaran/kasbon). Dulu angka browser (dihitung saat halaman DIBUKA) disimpan
+        // mentah: penjualan selama halaman terbuka ikut ter-tag ke shift ini tapi tidak diharapkan.
+        const dariServer = (kirim: number, dasar: number | undefined, server: number) =>
+            dasar != null && Number.isFinite(dasar) && Number.isFinite(kirim) ? Math.round(server + (kirim - dasar)) : kirim;
+        const expectedCash = dariServer(dto.expectedCash, dto.baseExpectedCash, expectedData.expectedCash);
+        const expectedQris = dariServer(dto.expectedQris, dto.baseExpectedQris, expectedData.expectedQris);
+        const expectedTransfer = dariServer(dto.expectedTransfer, dto.baseExpectedTransfer, expectedData.expectedTransfer);
+        const cashDifference = dto.actualCash - expectedCash;
+        const qrisDifference = dto.actualQris - expectedQris;
+        const transferDifference = dto.actualTransfer - expectedTransfer;
 
         const shift: any = await (this.prisma as any).shiftReport.create({
             data: {
@@ -437,15 +449,15 @@ export class ReportsService {
                 openedAt: dto.openedAt,
                 closedAt: dto.closedAt,
 
-                expectedCash: dto.expectedCash,
+                expectedCash,
                 actualCash: dto.actualCash,
                 cashDifference,
 
-                expectedQris: dto.expectedQris,
+                expectedQris,
                 actualQris: dto.actualQris,
                 qrisDifference,
 
-                expectedTransfer: dto.expectedTransfer,
+                expectedTransfer,
                 actualTransfer: dto.actualTransfer,
                 transferDifference,
 
@@ -473,7 +485,7 @@ export class ReportsService {
         // ke shift ini — mencegah data shift ini bocor ke shift berikutnya
         // excludeFromShift = true → biarkan, tidak di-tag ke shift manapun
         await this.prisma.cashflow.updateMany({
-            where: { shiftReportId: null, excludeFromShift: false, ...bw } as any,
+            where: { shiftReportId: null, excludeFromShift: false, ...bw, OR: [{ createdAt: { lte: snap } }, { createdAt: null }] } as any,
             data: { shiftReportId: shiftId },
         });
 

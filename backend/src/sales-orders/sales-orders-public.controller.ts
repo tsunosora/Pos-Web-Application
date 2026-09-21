@@ -4,7 +4,7 @@
  */
 import {
     Controller, Post, Delete, Body, Param, ParseIntPipe, HttpCode,
-    UseInterceptors, UploadedFiles, BadRequestException,
+    UseInterceptors, UploadedFiles, BadRequestException, ForbiddenException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -15,6 +15,8 @@ import type { CreateSalesOrderPayload } from './sales-orders-public.types';
 import { compressImages } from '../common/utils/compress-image.util';
 import { assertRealImage, safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
 import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
+import { PrismaService } from '../prisma/prisma.service';
+import { maskPhone } from '../common/utils/phone.util';
 
 const PROOF_DIR = './public/uploads/so-proofs';
 try { fs.mkdirSync(PROOF_DIR, { recursive: true }); } catch { /* ignore */ }
@@ -35,6 +37,9 @@ async function verifyDesigner(designers: DesignersService, id: number, pin: stri
     return result;
 }
 
+const sameName = (a?: string | null, b?: string | null) =>
+    String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+
 // Semua endpoint di sini memverifikasi PIN desainer → dibatasi tebakan PIN (T-19).
 @UseInterceptors(PinThrottleInterceptor)
 @Controller('sales-orders/designer')
@@ -42,7 +47,46 @@ export class SalesOrdersPublicController {
     constructor(
         private readonly soService: SalesOrdersService,
         private readonly designersService: DesignersService,
+        private readonly prisma: PrismaService,
     ) {}
+
+    /**
+     * PIN hanya membuktikan SIAPA desainernya, bukan bahwa SO ini miliknya — id SO
+     * berurutan, jadi tanpa cek ini desainer bisa mengubah/membatalkan SO orang lain.
+     * `editable`: tolak juga SO yang sudah jadi nota / dibatalkan.
+     */
+    private async ownSo(id: number, designerName: string | undefined, editable = false) {
+        const so = await this.soService.findOne(id);
+        if (!String(designerName ?? '').trim() || !sameName(so.designerName, designerName)) {
+            throw new ForbiddenException('SO ini milik desainer lain');
+        }
+        if (editable && (so.status === 'INVOICED' || so.status === 'CANCELLED')) {
+            throw new BadRequestException('SO yang sudah jadi nota / dibatalkan tidak dapat diubah');
+        }
+        return so;
+    }
+
+    /**
+     * Customer dipilih dari pencarian portal → HP yang sampai di klien disamarkan
+     * (0812****789). Ganti dengan nomor asli dari customerId, asal samarannya cocok;
+     * alamat kosong ikut diisi dari data customer.
+     */
+    private async unmaskPickedCustomer<T extends Partial<CreateSalesOrderPayload>>(data: T): Promise<T> {
+        const phone = String(data.customerPhone ?? '').trim();
+        if (!phone.includes('*')) return data;
+        const id = Number(data.customerId);
+        const c = Number.isInteger(id) && id > 0
+            ? await this.prisma.customer.findUnique({ where: { id }, select: { phone: true, address: true } })
+            : null;
+        if (!c?.phone || maskPhone(c.phone) !== phone) {
+            throw new BadRequestException('Nomor HP customer tidak cocok. Pilih ulang customer atau ketik nomornya.');
+        }
+        return {
+            ...data,
+            customerPhone: c.phone,
+            customerAddress: String(data.customerAddress ?? '').trim() ? data.customerAddress : (c.address ?? null),
+        };
+    }
 
     /** Daftar SO milik desainer ini — POST supaya PIN bisa di body. Paginasi opsional. */
     @Post('my-list')
@@ -98,8 +142,9 @@ export class SalesOrdersPublicController {
     /** Buat SO baru */
     @Post()
     async create(@Body() body: { designerId: number; pin: string } & CreateSalesOrderPayload) {
-        const { designerId, pin, ...soData } = body;
+        const { designerId, pin, ...raw } = body;
         const designer = await verifyDesigner(this.designersService, Number(designerId), pin);
+        const soData = await this.unmaskPickedCustomer(raw);
         return this.soService.create({
             ...soData,
             designerName: designer.name!,       // gunakan nama yang terdaftar
@@ -116,7 +161,8 @@ export class SalesOrdersPublicController {
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { designerId: number; pin: string; targetLeadId?: number; forceNewLead?: boolean },
     ) {
-        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        const designer = await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        await this.ownSo(id, designer.name);
         return this.soService.createLeadFromSO(id, {
             targetLeadId: body.targetLeadId ? Number(body.targetLeadId) : undefined,
             forceNewLead: !!body.forceNewLead,
@@ -129,8 +175,15 @@ export class SalesOrdersPublicController {
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { designerId: number; pin: string } & Partial<CreateSalesOrderPayload>,
     ) {
-        const { designerId, pin, ...soData } = body;
-        await verifyDesigner(this.designersService, Number(designerId), pin);
+        // Pemilik, cabang & status SO bukan urusan form desainer → dibuang dari isian.
+        const { designerId, pin, designerName: _d, branchName: _b, status: _s, customerId, ...raw } = body as any;
+        const designer = await verifyDesigner(this.designersService, Number(designerId), pin);
+        await this.ownSo(id, designer.name, true);
+        // customerId hanya diterima bila terbukti lewat HP samaran customer yang dipilih
+        // (unmaskPickedCustomer mencocokkannya); selain itu dibuang.
+        const soData = String(raw.customerPhone ?? '').includes('*')
+            ? await this.unmaskPickedCustomer({ ...raw, customerId })
+            : raw;
         return this.soService.update(id, soData);
     }
 
@@ -151,7 +204,8 @@ export class SalesOrdersPublicController {
         @Body('captions') captionsRaw?: string,
     ) {
         try {
-            await verifyDesigner(this.designersService, Number(designerIdRaw), pin);
+            const designer = await verifyDesigner(this.designersService, Number(designerIdRaw), pin);
+            await this.ownSo(id, designer.name, true);
             for (const f of files || []) await assertRealImage(f.path);
         } catch (e) {
             for (const f of files || []) try { fs.unlinkSync(f.path); } catch { /* sudah terhapus */ }
@@ -172,7 +226,8 @@ export class SalesOrdersPublicController {
         @Param('proofId', ParseIntPipe) proofId: number,
         @Body() body: { designerId: number; pin: string },
     ) {
-        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        const designer = await verifyDesigner(this.designersService, Number(body?.designerId), body?.pin);
+        await this.ownSo(id, designer.name, true);
         return this.soService.removeProof(id, proofId);
     }
 
@@ -182,7 +237,8 @@ export class SalesOrdersPublicController {
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { designerId: number; pin: string; message?: string },
     ) {
-        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        const designer = await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        await this.ownSo(id, designer.name);
         return this.soService.sendToDesignChannel(id, body.message);
     }
 
@@ -192,7 +248,8 @@ export class SalesOrdersPublicController {
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { designerId: number; pin: string; reason?: string },
     ) {
-        await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        const designer = await verifyDesigner(this.designersService, Number(body.designerId), body.pin);
+        await this.ownSo(id, designer.name);
         return this.soService.markCancelled(id, body.reason || '');
     }
 }

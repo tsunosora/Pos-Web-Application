@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CashflowType, Prisma } from '@prisma/client';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch, assertBranchAccess } from '../common/branch-where.helper';
 import { lineTotalOf } from '../transactions/area-unit.util';
+import { akhirHari, awalHari } from '../common/utils/tanggal.util';
 
 /**
  * Kategori internal untuk pembayaran antar cabang (Buku Titipan).
@@ -26,12 +27,9 @@ function consolidatedExclusion(ctx: BranchContext): Prisma.CashflowWhereInput {
 function applyDateRange(where: Prisma.CashflowWhereInput, startDate?: string, endDate?: string) {
     if (!startDate && !endDate) return;
     where.date = {};
-    if (startDate) (where.date as any).gte = new Date(startDate);
-    if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        (where.date as any).lte = end;
-    }
+    // Awal & akhir hari WIB — dulu awal hari = 07:00 WIB, kas mundur-tanggal (00:00) tak pernah tampil.
+    if (startDate) (where.date as any).gte = awalHari(startDate);
+    if (endDate) (where.date as any).lte = akhirHari(endDate);
 }
 
 /**
@@ -64,7 +62,25 @@ export class CashflowService {
         branchCtx: BranchContext,
     ) {
         const branchId = requireBranch(branchCtx);
-        const { bankAccountId, ...rest } = data as any;
+        const { bankAccountId: bankRaw, ...raw } = data as any;
+        // Hanya kolom form Kas yang diterima. Dulu seluruh body di-spread: nominal negatif
+        // (diam-diam menurunkan ekspektasi kas laci), tanggal, shiftReport, dll. bisa diselipkan.
+        if (raw.type !== 'INCOME' && raw.type !== 'EXPENSE') throw new BadRequestException('Jenis kas harus INCOME atau EXPENSE.');
+        const amount = Number(raw.amount);
+        if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000_000) throw new BadRequestException('Nominal harus lebih dari 0.');
+        const paymentMethod = raw.paymentMethod ?? 'CASH';
+        if (!['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal.');
+        const bankAccountId = paymentMethod === 'BANK_TRANSFER' && bankRaw ? Number(bankRaw) : null;
+        const rest = {
+            type: raw.type,
+            category: String(raw.category ?? '').slice(0, 100) || 'Lainnya',
+            amount,
+            note: raw.note == null ? null : String(raw.note).slice(0, 1000),
+            platformSource: raw.platformSource == null ? null : String(raw.platformSource).slice(0, 50),
+            paymentMethod,
+            excludeFromShift: raw.excludeFromShift === true,
+            ...(raw.user ? { user: raw.user } : {}), // disisipkan controller (akun pencatat)
+        };
         return this.prisma.cashflow.create({
             data: {
                 ...rest,
@@ -236,7 +252,22 @@ export class CashflowService {
         const entry = await this.prisma.cashflow.findUnique({ where: { id } });
         if (!entry) throw new NotFoundException('Cashflow entry not found');
         assertBranchAccess(branchCtx, (entry as any).branchId ?? null);
-        return this.prisma.cashflow.update({ where: { id }, data: data as any });
+        // Hanya kolom form edit (dulu seluruh body diteruskan ke basis data).
+        const d: any = {};
+        if (data.category !== undefined) d.category = String(data.category).slice(0, 100);
+        if (data.note !== undefined) d.note = data.note == null ? null : String(data.note).slice(0, 1000);
+        if (data.platformSource !== undefined) d.platformSource = data.platformSource;
+        if (data.amount !== undefined) {
+            const n = Number(data.amount);
+            if (!Number.isFinite(n) || n <= 0) throw new BadRequestException('Nominal harus lebih dari 0.');
+            d.amount = n;
+        }
+        if (data.paymentMethod !== undefined) {
+            if (data.paymentMethod != null && !['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(data.paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal.');
+            d.paymentMethod = data.paymentMethod;
+        }
+        if (data.bankAccountId !== undefined) d.bankAccountId = data.bankAccountId == null ? null : Number(data.bankAccountId);
+        return this.prisma.cashflow.update({ where: { id }, data: d });
     }
 
     /**

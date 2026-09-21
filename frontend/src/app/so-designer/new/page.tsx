@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Trash2, Upload, Loader2, Save, Search, X, Send, UserPlus, Users, FileText, AlertTriangle } from "lucide-react";
 import { useDesignerSession } from "../useDesignerSession";
-import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, getPublicCustomers, designerLookupLeadsByPhone, designerListActiveCsLeads, designerListSOs, designerMyStats, type ActiveLeadPreview } from "@/lib/api/designers";
+import { designerCreateSO, designerUpdateSO, designerGetSO, designerUploadProofs, designerDeleteProof, designerSendWA, designerCreateLeadFromSO, searchPublicCustomers, designerLookupLeadsByPhone, designerListActiveCsLeads, designerListSOs, designerMyStats, type ActiveLeadPreview } from "@/lib/api/designers";
 import axios from "axios";
 import { MARKETPLACE_OPTIONS, MARKETPLACE_OTHER, cleanMarketplace } from "@/lib/marketplace";
 import { ProductPicker } from "../ProductPicker";
@@ -25,7 +25,7 @@ function proofUrl(filename: string) {
     return `${API_BASE}${rel.startsWith("/") ? rel : "/" + rel}`;
 }
 
-interface CustomerHint { id: number; name: string; phone: string | null; address: string | null; }
+interface CustomerHint { id: number; name: string; phone: string | null; } // phone = samaran (0812****789)
 
 interface DraftItem {
     key: string;
@@ -62,6 +62,7 @@ function DesignerNewSOContent() {
     const [customerAddress, setCustomerAddress] = useState("");
     const [customerSearch, setCustomerSearch] = useState("");
     const [customers, setCustomers] = useState<CustomerHint[]>([]);
+    const [pickedCustomer, setPickedCustomer] = useState<CustomerHint | null>(null); // customer terdaftar yg dipilih
     const [notes, setNotes] = useState("");
     const [label, setLabel] = useState(""); // nama event/pekerjaan — terpisah dari nama customer
     const [isMarketplace, setIsMarketplace] = useState(false); // pembeli marketplace: HP boleh kosong
@@ -93,24 +94,30 @@ function DesignerNewSOContent() {
     const [myStats, setMyStats] = useState<DesignerStats | null>(null);
     const [myStatsLoading, setMyStatsLoading] = useState(false);
 
-    // Load customers sekali saat komponen mount
-    useMemo(() => {
-        getPublicCustomers().then(setCustomers).catch(() => {});
+    // Cari customer terdaftar di server (≥3 huruf, debounce) — HP yang kembali disamarkan.
+    useEffect(() => {
+        const q = customerSearch.trim();
+        if (!session || q.length < 3) { setCustomers([]); return; }
+        let batal = false;
+        const t = setTimeout(() => {
+            searchPublicCustomers(session.id, session.pin, q)
+                .then(r => { if (!batal) setCustomers(r); })
+                .catch(() => { if (!batal) setCustomers([]); });
+        }, 350);
+        return () => { batal = true; clearTimeout(t); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [customerSearch, session?.id]);
 
-    const filteredCustomers = useMemo(() => {
-        const q = customerSearch.trim().toLowerCase();
-        if (!q) return [];
-        return customers.filter(c =>
-            c.name.toLowerCase().includes(q) || (c.phone || "").includes(q)
-        ).slice(0, 6);
-    }, [customers, customerSearch]);
+    const filteredCustomers = customerSearch.trim().length >= 3 ? customers : [];
+
+    // HP masih samaran dari customer terpilih → server yang mengisi nomor aslinya.
+    const phoneFromPick = !!pickedCustomer && customerPhone.includes("*") && customerPhone === (pickedCustomer.phone ?? "");
 
     function pickCustomer(c: CustomerHint) {
         setCustomerName(c.name);
         setCustomerPhone(c.phone ?? "");
-        setCustomerAddress(c.address ?? "");
+        setCustomerAddress(""); // alamat diisi server dari data customer
+        setPickedCustomer(c);
         setCustomerSearch("");
         setPickedLead(null); // ini customer terdaftar, bukan lead CS
     }
@@ -119,6 +126,7 @@ function DesignerNewSOContent() {
     function pickLead(l: ActiveLeadPreview) {
         setCustomerName(l.name || "");
         setCustomerPhone(l.phone || "");
+        setPickedCustomer(null);
         setPickedLead(l);
         setError(null);
     }
@@ -323,7 +331,7 @@ function DesignerNewSOContent() {
     useEffect(() => {
         if (!session) return;
         const digits = customerPhone.replace(/\D/g, "");
-        if (digits.length < 5) { setActiveLeads([]); setLeadsChecking(false); return; }
+        if (digits.length < 5 || customerPhone.includes("*")) { setActiveLeads([]); setLeadsChecking(false); return; }
         setLeadsChecking(true);
         const t = setTimeout(() => {
             designerLookupLeadsByPhone(session.id, session.pin, customerPhone)
@@ -344,14 +352,15 @@ function DesignerNewSOContent() {
         if (!customerName.trim()) { setError("Nama customer wajib diisi"); return; }
         if (isMarketplace) {
             if (!marketplaceValue) { setError("Pilih platform marketplace (atau isi nama platform pada Lainnya)."); return; }
-            if (customerPhone.trim() && !isValidCustomerPhone(customerPhone)) { setError("No. HP pembeli marketplace boleh dikosongkan, tetapi bila diisi harus nomor yang valid (min. 9 digit)."); return; }
-        } else if (!isValidCustomerPhone(customerPhone)) { setError("No. HP / WA wajib diisi (min. 9 digit). Pilih customer terdaftar atau isi nomornya — nama event/pekerjaan tulis di kolom Label, bukan di nama customer. Pembeli marketplace: centang Order dari marketplace."); return; }
+            if (customerPhone.trim() && !phoneFromPick && !isValidCustomerPhone(customerPhone)) { setError("No. HP pembeli marketplace boleh dikosongkan, tetapi bila diisi harus nomor yang valid (min. 9 digit)."); return; }
+        } else if (!phoneFromPick && !isValidCustomerPhone(customerPhone)) { setError("No. HP / WA wajib diisi (min. 9 digit). Pilih customer terdaftar atau isi nomornya — nama event/pekerjaan tulis di kolom Label, bukan di nama customer. Pembeli marketplace: centang Order dari marketplace."); return; }
         if (items.length === 0) { setError("Tambahkan minimal 1 item"); return; }
 
         const busy = mode === 'send' ? setSending : mode === 'lead' ? setLeading : setSaving;
         busy(true);
         try {
             const payload = {
+                customerId: phoneFromPick ? pickedCustomer!.id : undefined,
                 customerName: customerName.trim(),
                 customerPhone: customerPhone.trim() || null,
                 customerAddress: customerAddress.trim() || null,
@@ -466,7 +475,7 @@ function DesignerNewSOContent() {
                                 <input
                                     value={customerSearch}
                                     onChange={e => setCustomerSearch(e.target.value)}
-                                    placeholder="Ketik nama atau HP untuk cari..."
+                                    placeholder="Ketik min. 3 huruf nama atau nomor HP..."
                                     className="w-full pl-8 pr-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
                                 />
                                 {filteredCustomers.length > 0 && (
@@ -520,7 +529,7 @@ function DesignerNewSOContent() {
                             </div>
                         </Field>
                         <Field label={isMarketplace ? "No. HP / WA (opsional)" : "No. HP / WA *"}>
-                            <input value={customerPhone} onChange={e => { setCustomerPhone(e.target.value); setPickedLead(null); }}
+                            <input value={customerPhone} onChange={e => { setCustomerPhone(e.target.value); setPickedLead(null); setPickedCustomer(null); }}
                                 className="w-full px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors" placeholder="08xx..." />
                             {leadsChecking && !pickedLead && (
                                 <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
@@ -616,7 +625,7 @@ function DesignerNewSOContent() {
                                     <div className="grid grid-cols-2 gap-2 mt-2">
                                         {it.pricingMode !== "AREA_BASED" && (
                                             <Field label="Qty">
-                                                <input type="number" min={1} value={it.quantity}
+                                                <input type="number" min={1} step={1} value={it.quantity}
                                                     onChange={e => updateItem(it.key, { quantity: Number(e.target.value) })}
                                                     className="w-full px-2 py-1 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />
                                             </Field>

@@ -285,17 +285,26 @@ export class SocialInboxService {
             }
             throw new ConflictException(`Gagal kirim: ${msg}`);
         }
-        const msg = await this.prisma.socialMessage.create({
-            data: {
-                channelId: conv.channelId,
-                conversationId: conv.id,
-                contactId: conv.contactId,
-                externalId: messageId,
-                direction: SocialDirection.OUTBOUND,
-                type: 'TEXT',
-                body: text.trim(),
-                sentById: userId,
-            },
+        // Pesan SUDAH terkirim ke pelanggan. Kalau menyimpannya gagal, jangan balas "gagal
+        // kirim" — staf akan mengirim ulang dan pelanggan menerima pesan dobel.
+        const data = {
+            channelId: conv.channelId,
+            conversationId: conv.id,
+            contactId: conv.contactId,
+            externalId: messageId,
+            direction: SocialDirection.OUTBOUND,
+            type: 'TEXT',
+            body: text.trim(),
+            sentById: userId,
+        };
+        const msg = await this.prisma.socialMessage.create({ data }).catch(async (e) => {
+            // Sinkron DM sempat menyimpan pesan yang sama lebih dulu → pakai baris itu.
+            if (e?.code === 'P2002' && messageId) {
+                const ada = await this.prisma.socialMessage.findUnique({ where: { externalId: messageId } });
+                if (ada) return ada;
+            }
+            this.logger.error(`Balasan percakapan ${conv.id} terkirim tapi gagal disimpan (mid ${String(messageId).length} karakter): ${(e as Error).message}`);
+            return this.prisma.socialMessage.create({ data: { ...data, externalId: null } });
         });
         await this.prisma.socialConversation.update({ where: { id: conv.id }, data: { lastMessageAt: new Date() } });
         await this.prisma.socialConversation.updateMany({ where: { id: conv.id, assignedToId: null }, data: { assignedToId: userId } });

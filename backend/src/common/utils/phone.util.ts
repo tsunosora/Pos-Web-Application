@@ -43,6 +43,15 @@ export function toLeadKey(raw?: string | null): string | null {
     return wa ? wa.replace(/^62/, '') : null;
 }
 
+/** Samarkan nomor untuk portal tanpa login: 4 digit awal + **** + 3 digit akhir (0812****789). */
+export function maskPhone(phone?: string | null): string | null {
+    let d = String(phone ?? '').replace(/\D/g, '');
+    if (!d) return null;
+    if (d.startsWith('62')) d = '0' + d.slice(2);
+    if (d.length < 8) return '****';
+    return `${d.slice(0, 4)}****${d.slice(-3)}`;
+}
+
 /** Apakah dua nomor identik secara kanonik (untuk dedup). */
 export function samePhone(a?: string | null, b?: string | null): boolean {
     const ka = phoneKey(a);

@@ -1,17 +1,32 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
+import {
+    Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query,
+    UseInterceptors, HttpCode, BadRequestException,
+} from '@nestjs/common';
 import { CustomersService } from './customers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
+import { DesignersService } from '../designers/designers.service';
+import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 
-/** Endpoint publik — nama + HP saja (untuk portal desainer tanpa JWT) */
+/**
+ * Portal desainer (tanpa JWT): cari customer terdaftar. Wajib PIN desainer (dibatasi
+ * tebakan), minimal 3 huruf, maks 20 baris, HP disamarkan, tanpa alamat. Dulu GET
+ * terbuka mengembalikan SEMUA customer lengkap dengan HP & alamat.
+ */
+@UseInterceptors(PinThrottleInterceptor)
 @Controller('customers')
 export class CustomersPublicController {
-    constructor(private readonly customersService: CustomersService) {}
+    constructor(
+        private readonly customersService: CustomersService,
+        private readonly designersService: DesignersService,
+    ) {}
 
-    @Get('public')
-    listPublic() {
-        return this.customersService.findAll().then((list: any[]) =>
-            list.map(c => ({ id: c.id, name: c.name, phone: c.phone ?? null, address: c.address ?? null }))
-        );
+    @Post('public/search')
+    @HttpCode(200) // hanya baca
+    async searchPublic(@Body() body: { designerId: number; pin: string; q?: string }) {
+        const r = await this.designersService.verifyPin(Number(body?.designerId), body?.pin);
+        if (!r.valid) throw new BadRequestException('PIN desainer tidak valid');
+        return this.customersService.searchPublic(String(body?.q ?? ''));
     }
 }
 
@@ -50,6 +65,7 @@ export class CustomersController {
 
     /** Rapikan & gabungkan customer duplikat (normalisasi nomor + merge by nomor). */
     @Post('dedupe')
+    @UseGuards(ManagerGuard)
     dedupe() {
         return this.customersService.dedupe();
     }
@@ -84,6 +100,7 @@ export class CustomersController {
     }
 
     @Delete(':id')
+    @UseGuards(ManagerGuard)
     remove(@Param('id') id: string) {
         return this.customersService.remove(+id);
     }

@@ -33,7 +33,8 @@ function isAuthed(): boolean {
 /** Tarik perubahan referensi sejak cursor → tulis mirror → simpan cursor baru. */
 export async function pullNow(): Promise<void> {
   const since = await getMeta<string>(CURSOR_KEY);
-  const res = await pullSync(since ?? undefined);
+  // Minta hanya entitas yang disimpan di mirror lokal.
+  const res = await pullSync(since ?? undefined, 'products,productVariants,categories,customers,branchStocks');
   for (const [entity, rows] of Object.entries(res.changes)) {
     const store = ENTITY_STORE[entity];
     if (!store || !Array.isArray(rows)) continue;

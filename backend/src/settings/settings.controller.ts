@@ -1,7 +1,7 @@
 import { Controller, Get, Patch, Post, Body, Req, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ManagerGuard, isManagerLevelRole } from '../auth/role-groups';
+import { ManagerGuard, isManagerLevelRole, isOwnerLevelRole } from '../auth/role-groups';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -34,11 +34,12 @@ export class SettingsController {
     }
 
     // Mengubah pengaturan toko (nama toko di nota, pajak, mode harga, logo, QRIS)
-    // hanya setingkat manajer (T-45).
+    // hanya setingkat manajer (T-45). Kolom disaring di service; webhook & rahasia
+    // integrasi hanya owner.
     @Patch()
     @UseGuards(JwtAuthGuard, ManagerGuard)
-    updateSettings(@Body() data: any) {
-        return this.settingsService.updateSettings(data);
+    updateSettings(@Body() data: any, @Req() req: any) {
+        return this.settingsService.updateSettings(data, { isOwner: isOwnerLevelRole(req.user?.roleName) });
     }
 
     @Post('upload-qris')

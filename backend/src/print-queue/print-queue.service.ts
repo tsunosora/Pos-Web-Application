@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscordService } from '../discord/discord.service';
 
 export type PrintJobStatus = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL';
+
+const SUDAH_DIPROSES = 'Job sudah diproses oleh perangkat lain';
 
 @Injectable()
 export class PrintQueueService {
@@ -177,14 +179,21 @@ export class PrintQueueService {
         return job;
     }
 
+    /**
+     * Pindah status secara atomik: hanya lolos bila status di DB masih `from`.
+     * Dua perangkat menekan tombol yang sama bersamaan → yang kalah dapat 409,
+     * bukan menimpa operator / mengirim notifikasi dua kali.
+     */
+    private async claim(id: number, from: PrintJobStatus, data: Record<string, any>) {
+        const res = await (this.prisma as any).printJob.updateMany({ where: { id, status: from }, data });
+        if (res.count !== 1) throw new ConflictException(SUDAH_DIPROSES);
+        return (this.prisma as any).printJob.findUnique({ where: { id }, include: this.jobInclude() });
+    }
+
     async startJob(id: number, operatorName?: string) {
         const job = await this.getJob(id);
         if (job.status !== 'ANTRIAN') throw new BadRequestException('Job tidak dalam status ANTRIAN');
-        return (this.prisma as any).printJob.update({
-            where: { id },
-            data: { status: 'PROSES', startedAt: new Date(), operatorName: operatorName || job.operatorName },
-            include: this.jobInclude(),
-        });
+        return this.claim(id, 'ANTRIAN', { status: 'PROSES', startedAt: new Date(), operatorName: operatorName || job.operatorName });
     }
 
     async finishJob(id: number, operatorName?: string, coOperatorNames?: string[], operatorBranchId?: number | null) {
@@ -197,16 +206,12 @@ export class PrintQueueService {
                 .map(n => (n || '').trim())
                 .filter(n => n && n !== primary),
         ));
-        const updated = await (this.prisma as any).printJob.update({
-            where: { id },
-            data: {
-                status: 'SELESAI', finishedAt: new Date(),
-                operatorName: primary || job.operatorName,
-                coOperators: partners.length ? partners : [],
-                // cabang PIN operator cetak → atribusi leaderboard; fallback cabang job.
-                operatorBranchId: operatorBranchId ?? (job as any).branchId ?? null,
-            },
-            include: this.jobInclude(),
+        const updated = await this.claim(id, 'PROSES', {
+            status: 'SELESAI', finishedAt: new Date(),
+            operatorName: primary || job.operatorName,
+            coOperators: partners.length ? partners : [],
+            // cabang PIN operator cetak → atribusi leaderboard; fallback cabang job.
+            operatorBranchId: operatorBranchId ?? (job as any).branchId ?? null,
         });
         // Notifikasi Discord: pesanan selesai dicetak → siap diambil (channel #produksi)
         const tx = updated.transaction;
@@ -227,11 +232,7 @@ export class PrintQueueService {
     async pickupJob(id: number) {
         const job = await this.getJob(id);
         if (job.status !== 'SELESAI') throw new BadRequestException('Job belum selesai dicetak');
-        return (this.prisma as any).printJob.update({
-            where: { id },
-            data: { status: 'DIAMBIL', pickedUpAt: new Date() },
-            include: this.jobInclude(),
-        });
+        return this.claim(id, 'SELESAI', { status: 'DIAMBIL', pickedUpAt: new Date() });
     }
 
     /**

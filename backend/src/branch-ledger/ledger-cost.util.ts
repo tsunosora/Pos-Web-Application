@@ -55,6 +55,9 @@ export async function computeLedgerCost(
 
     let bahanCost = 0;
     const itemEffectiveQty = new Map<number, number>(); // tx_item_id → effectiveQty (dipakai juga utk BOM)
+    // Item yang HPP-nya belum memuat BOM varian. hpp_at_time di checkout = Σ harga bahan BOM varian
+    // bila varian punya BOM → langkah 3 dulu menjumlahkannya LAGI (hutang titipan membengkak).
+    const perluBomVarian = new Set<number>();
 
     for (const it of items) {
         const txItemId = Number(it.id);
@@ -69,6 +72,7 @@ export async function computeLedgerCost(
         // For UNIT: effectiveQty = qty
         const effectiveQty = isAreaBased ? areaM2 : qty;
         itemEffectiveQty.set(txItemId, effectiveQty);
+        if (hppAt <= 0 && variantHpp <= 0) perluBomVarian.add(txItemId);
         bahanCost += baseHpp * effectiveQty;
     }
 
@@ -100,6 +104,7 @@ export async function computeLedgerCost(
            AND vi.is_service_cost = 0`,
     );
     for (const b of variantBom) {
+        if (!perluBomVarian.has(Number(b.tx_item_id))) continue;
         const eff = itemEffectiveQty.get(Number(b.tx_item_id)) ?? 0;
         const ingQty = Number(b.ing_qty) || 0;
         const rawHpp = Number(b.raw_hpp) || 0;

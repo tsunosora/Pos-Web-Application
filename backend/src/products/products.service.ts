@@ -331,7 +331,10 @@ export class ProductsService {
                     let savedVariantId: number;
 
                     if (variantId) {
-                        await this.prisma.productVariant.update({ where: { id: variantId }, data: variantData });
+                        // Stok TIDAK ikut disimpan dari form produk: form menampilkan stok cabang aktif,
+                        // jadi menyimpannya menimpa stok total semua cabang. Stok diubah lewat Stok Cabang/Opname.
+                        const { stock: _stokForm, ...tanpaStok } = variantData;
+                        await this.prisma.productVariant.update({ where: { id: variantId }, data: tanpaStok });
                         savedVariantId = variantId;
                     } else {
                         const created = await this.prisma.productVariant.create({ data: { ...variantData, productId: id } });
@@ -535,7 +538,8 @@ export class ProductsService {
     }
 
     async updateVariant(variantId: number, variantData: any) {
-        const { priceTiers, variantIngredients, ...data } = variantData;
+        // stock dibuang: perubahan stok wajib lewat /branch-stock/adjust (per cabang + jejak pergerakan).
+        const { priceTiers, variantIngredients, stock: _stokForm, ...data } = variantData;
         const oldVariant = await this.prisma.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } });
         await this.prisma.productVariant.update({ where: { id: variantId }, data });
         if (priceTiers !== undefined) {

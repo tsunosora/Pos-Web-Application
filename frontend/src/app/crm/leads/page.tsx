@@ -1233,6 +1233,13 @@ function LeadDetailDrawer({
     const isLost    = lead2.status === "CLOSED_LOST";
     const isWon     = lead2.status === "CLOSED_WON";
     const isInvalid = lead2.status === "INVALID";
+    // SO desainer tertaut yang masih aktif (belum nota/batal) → nota dibuat dari SO itu di
+    // kasir; tombol convert disembunyikan supaya tidak ada SO/nota dobel. Tanpa status
+    // (server lama) → anggap aktif selama lead belum closing.
+    const linkedSoStatus = (lead2.convertedSO as { status?: string } | null | undefined)?.status;
+    const hasActiveSO = !!lead2.convertedSalesOrderId && (
+        linkedSoStatus ? linkedSoStatus !== "CANCELLED" && linkedSoStatus !== "INVOICED" : !isWon
+    );
 
     return (
         <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[200] flex justify-end" onClick={onClose}>
@@ -1545,6 +1552,10 @@ function LeadDetailDrawer({
                             isWon && !isOwner ? (
                                 <span className="px-3 py-2 bg-muted text-muted-foreground rounded-lg text-sm flex items-center gap-1 cursor-default" title="Sudah di-convert. Hanya owner yang bisa convert ulang.">
                                     <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Sudah Di-convert
+                                </span>
+                            ) : hasActiveSO ? (
+                                <span className="px-3 py-2 bg-muted text-muted-foreground rounded-lg text-sm flex items-center gap-1 cursor-default" title="Nota dibuat dari SO desainer yang tertaut — lead otomatis closing saat nota jadi.">
+                                    <Link2 className="h-4 w-4 text-indigo-500" /> Sudah ada SO desainer — buka dari kasir
                                 </span>
                             ) : (
                                 <>

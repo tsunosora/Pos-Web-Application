@@ -562,8 +562,38 @@ export class SalesOrdersService {
         }
     }
 
-    async update(id: number, data: UpdateSalesOrderDto) {
-        const existing = await this.findOne(id);
+    /**
+     * Validasi item SO sebelum menyentuh DB: qty bulat ≥ 1, varian ada, ukuran > 0 bila diisi.
+     * Dipanggil SEBELUM item lama dihapus supaya isian salah tidak mengosongkan SO.
+     */
+    private async assertValidItems(items: CreateSalesOrderDto['items']) {
+        if (!Array.isArray(items) || items.length === 0) {
+            throw new BadRequestException('Minimal 1 item harus diisi');
+        }
+        items.forEach((it, i) => {
+            const n = i + 1;
+            const qty = Number(it?.quantity);
+            if (!Number.isInteger(qty) || qty < 1) throw new BadRequestException(`Item #${n}: jumlah harus bilangan bulat minimal 1`);
+            const vid = Number(it?.productVariantId);
+            if (!Number.isInteger(vid) || vid <= 0) throw new BadRequestException(`Item #${n}: produk wajib dipilih`);
+            for (const [key, label] of [['widthCm', 'lebar'], ['heightCm', 'tinggi']] as const) {
+                const v = it[key];
+                if (v != null && !(Number(v) > 0)) throw new BadRequestException(`Item #${n}: ${label} harus lebih dari 0`);
+            }
+            if (it.pcs != null && !(Number.isInteger(Number(it.pcs)) && Number(it.pcs) >= 1)) {
+                throw new BadRequestException(`Item #${n}: pcs harus bilangan bulat minimal 1`);
+            }
+        });
+        const ids = Array.from(new Set(items.map((it) => Number(it.productVariantId))));
+        const found = await this.prisma.productVariant.findMany({ where: { id: { in: ids } }, select: { id: true } });
+        if (found.length !== ids.length) {
+            const ada = new Set(found.map((v) => v.id));
+            throw new BadRequestException(`Produk tidak ditemukan (id varian: ${ids.filter((x) => !ada.has(x)).join(', ')})`);
+        }
+    }
+
+    async update(id: number, data: UpdateSalesOrderDto, branchId?: number | null) {
+        const existing = await this.findOne(id, branchId);
         if (existing.status === 'INVOICED' || existing.status === 'CANCELLED') {
             throw new BadRequestException('SO yang sudah diinvoice / dibatalkan tidak dapat diubah');
         }
@@ -594,13 +624,15 @@ export class SalesOrdersService {
         // Ganti items selama SO belum di-invoice/dibatalkan (DRAFT atau SENT).
         // Guard INVOICED/CANCELLED sudah di atas. Ini supaya salah input bahan/qty
         // bisa diperbaiki tanpa bikin SO baru, meski sudah terkirim ke Discord.
+        // Validasi dulu, lalu hapus + buat ulang + update dalam SATU transaksi: dulu
+        // item lama dihapus di luar transaksi → isian gagal = SO tanpa item.
         if (data.items) {
+            await this.assertValidItems(data.items);
             await this.assertItemsInStock(data.items);
-            await (this.prisma as any).salesOrderItem.deleteMany({ where: { salesOrderId: id } });
             updateData.items = {
                 create: data.items.map((it) => ({
-                    productVariantId: it.productVariantId,
-                    quantity: it.quantity,
+                    productVariantId: Number(it.productVariantId),
+                    quantity: Number(it.quantity),
                     widthCm: it.widthCm ?? null,
                     heightCm: it.heightCm ?? null,
                     unitType: it.unitType ?? null,
@@ -611,15 +643,18 @@ export class SalesOrdersService {
             };
         }
 
-        return (this.prisma as any).salesOrder.update({
-            where: { id },
-            data: updateData,
-            include: this.soInclude(),
+        return this.prisma.$transaction(async (tx) => {
+            if (data.items) await (tx as any).salesOrderItem.deleteMany({ where: { salesOrderId: id } });
+            return (tx as any).salesOrder.update({
+                where: { id },
+                data: updateData,
+                include: this.soInclude(),
+            });
         });
     }
 
-    async addProofs(id: number, files: Express.Multer.File[], captions?: string[]) {
-        await this.findOne(id);
+    async addProofs(id: number, files: Express.Multer.File[], captions?: string[], branchId?: number | null) {
+        await this.findOne(id, branchId);
         if (!files || files.length === 0) throw new BadRequestException('Tidak ada file yang diupload');
         const created: any[] = [];
         for (let i = 0; i < files.length; i++) {
@@ -639,7 +674,8 @@ export class SalesOrdersService {
         return created;
     }
 
-    async removeProof(soId: number, proofId: number) {
+    async removeProof(soId: number, proofId: number, branchId?: number | null) {
+        if (branchId != null) await this.findOne(soId, branchId);
         const proof = await (this.prisma as any).salesOrderProof.findUnique({ where: { id: proofId } });
         if (!proof || proof.salesOrderId !== soId) throw new NotFoundException('Proof tidak ditemukan');
         // Hapus file fisik best-effort
@@ -1207,8 +1243,8 @@ export class SalesOrdersService {
     }
 
     /** Kirim Surat Order ke Discord channel #produksi cabang (pengganti grup WA desain). */
-    async sendToDesignChannel(id: number, customMessage?: string) {
-        const so = await this.findOne(id);
+    async sendToDesignChannel(id: number, customMessage?: string, scopeBranchId?: number | null) {
+        const so = await this.findOne(id, scopeBranchId);
         if (so.status === 'INVOICED' || so.status === 'CANCELLED') {
             throw new BadRequestException('SO yang sudah diinvoice / dibatalkan tidak dapat dikirim ulang');
         }
@@ -1236,8 +1272,8 @@ export class SalesOrdersService {
         });
     }
 
-    async markCancelled(id: number, reason: string) {
-        const so = await this.findOne(id);
+    async markCancelled(id: number, reason: string, branchId?: number | null) {
+        const so = await this.findOne(id, branchId);
         if (so.status === 'INVOICED') throw new BadRequestException('SO sudah diinvoice, tidak dapat dibatalkan');
         if (so.status === 'CANCELLED') throw new BadRequestException('SO sudah dibatalkan');
         return (this.prisma as any).salesOrder.update({

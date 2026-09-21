@@ -82,7 +82,11 @@ export default function CustomersPage() {
         mutationFn: ({ id, data }: { id: number; data: any }) => updateCustomer(id, data),
         onSuccess: () => { invalidate(); closeModal(); },
     });
-    const deleteMutation = useMutation({ mutationFn: deleteCustomer, onSuccess: () => { invalidate(); setDeletingId(null); } });
+    const deleteMutation = useMutation({
+        mutationFn: deleteCustomer,
+        onSuccess: () => { invalidate(); setDeletingId(null); },
+        onError: (e: any) => alert(`Gagal menghapus: ${e?.response?.data?.message || e?.message || e}`),
+    });
 
     const openModal = (customer?: any) => {
         setEditingId(customer?.id ?? null);

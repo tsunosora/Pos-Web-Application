@@ -56,6 +56,7 @@ export const designerCreateSO = async (
     designerId: number,
     pin: string,
     soData: {
+        customerId?: number; // customer terdaftar (HP samaran diganti nomor asli di server)
         customerName: string;
         customerPhone?: string | null;
         customerAddress?: string | null;
@@ -83,6 +84,7 @@ export const designerUpdateSO = async (
     designerId: number,
     pin: string,
     soData: {
+        customerId?: number;
         customerName?: string;
         customerPhone?: string | null;
         customerAddress?: string | null;
@@ -207,6 +209,10 @@ export interface DesignerStats {
 export const designerMyStats = async (designerId: number, pin: string): Promise<DesignerStats> =>
     (await axios.post(`${BASE}/sales-orders/designer/my-stats`, { designerId, pin })).data;
 
-/** Daftar customer terdaftar (public, nama+HP saja) */
-export const getPublicCustomers = async (): Promise<{ id: number; name: string; phone: string | null; address: string | null }[]> =>
-    (await axios.get(`${BASE}/customers/public`)).data;
+/** Cari customer terdaftar (wajib PIN, ≥3 huruf, maks 20) — HP disamarkan, tanpa alamat. */
+export const searchPublicCustomers = async (
+    designerId: number,
+    pin: string,
+    q: string,
+): Promise<{ id: number; name: string; phone: string | null }[]> =>
+    (await axios.post(`${BASE}/customers/public/search`, { designerId, pin, q })).data;

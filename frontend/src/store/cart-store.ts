@@ -249,7 +249,10 @@ export const useCartStore = create<CartState>((set, get) => ({
                 const resolvedPcs = Math.max(1, Math.round(Number(pcs) || 1));
                 const { areaM2, price: singlePrice } = computeAreaPrice(widthCm, heightCm, pricePerUnitM2, unitType);
                 const price = singlePrice * resolvedPcs;
-                return { ...i, unitType, widthCm, heightCm, areaM2, price, pcs: resolvedPcs, note: note ?? i.note };
+                // Harga manual berlaku untuk ukuran LAMA → dibuang. Dulu tertinggal: layar & struk memakai
+                // harga ukuran baru, server memakai harga manual lama (kas selisih).
+                const { customPrice: _hargaManualLama, ...tanpaHargaManual } = i;
+                return { ...tanpaHargaManual, unitType, widthCm, heightCm, areaM2, price, pcs: resolvedPcs, note: note ?? i.note };
             })
         }));
     },

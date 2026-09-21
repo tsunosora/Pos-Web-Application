@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { toWaPhone, phoneKey } from '../common/utils/phone.util';
+import { toWaPhone, phoneKey, maskPhone } from '../common/utils/phone.util';
 
 @Injectable()
 export class CustomersService {
@@ -91,6 +91,28 @@ export class CustomersService {
 
     async findAll() {
         return this.prisma.customer.findMany({ orderBy: { name: 'asc' } });
+    }
+
+    /**
+     * Cari customer untuk portal desainer (tanpa JWT, sudah lolos PIN): minimal 3 huruf,
+     * maks 20 baris, HP disamarkan, alamat tidak pernah dikirim.
+     */
+    async searchPublic(qRaw: string): Promise<{ id: number; name: string; phone: string | null }[]> {
+        const q = String(qRaw ?? '').trim().slice(0, 60);
+        if (q.length < 3) return [];
+        const or: any[] = [{ name: { contains: q } }];
+        // Cari per nomor hanya bila yang diketik memang nomor (≥ 6 digit).
+        const digits = q.replace(/\D/g, '');
+        if (digits.length >= 6 && !/[a-z]/i.test(q)) {
+            or.push({ phone: { contains: this.canonicalPhone(digits) } });
+        }
+        const rows = await this.prisma.customer.findMany({
+            where: { OR: or },
+            select: { id: true, name: true, phone: true },
+            orderBy: { name: 'asc' },
+            take: 20,
+        });
+        return rows.map((c) => ({ id: c.id, name: c.name, phone: maskPhone(c.phone) }));
     }
 
     /** Variasi format nomor untuk query transaksi yang mungkin belum dinormalkan. */
@@ -313,13 +335,17 @@ export class CustomersService {
     /**
      * Rapikan data: (1) seragamkan SEMUA nomor (customer + transaksi) ke 628xxx,
      * (2) gabungkan customer duplikat (nomor sama) jadi satu — simpan yang paling
-     * lengkap, repoint semua referensi (SO, lead, aktivitas, follow-up, referral),
-     * lalu hapus yang dobel. Riwayat transaksi TIDAK dihapus (tidak ber-FK ke customer).
+     * lengkap, repoint semua referensi (SO, lead, aktivitas, follow-up, referral,
+     * kontak WA/sosial, rating CS), lalu hapus yang dobel. Riwayat transaksi TIDAK
+     * dihapus (tidak ber-FK ke customer).
      */
     async dedupe() {
         // ── 1. Normalisasi nomor customer ──────────────────────────────────────
         const customers = await this.prisma.customer.findMany({
-            select: { id: true, name: true, phone: true, address: true, createdAt: true },
+            select: {
+                id: true, name: true, phone: true, address: true, createdAt: true,
+                assignedCsId: true, tags: true, leadSource: true, referrerCustomerId: true,
+            },
         });
         let customerPhonesFixed = 0;
         for (const c of customers) {
@@ -366,22 +392,41 @@ export class CustomersService {
                 if (sb !== sa) return sb - sa;
                 return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
             })[0];
-            const loserIds = group.filter(c => c.id !== keeper.id).map(c => c.id);
+            const losers = group.filter(c => c.id !== keeper.id);
+            const loserIds = losers.map(c => c.id);
 
-            // Repoint semua referensi ke keeper (LeadActivity Cascade → WAJIB di-repoint)
-            await this.prisma.salesOrder.updateMany({ where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } });
-            await (this.prisma as any).lead.updateMany({ where: { convertedCustomerId: { in: loserIds } }, data: { convertedCustomerId: keeper.id } });
-            await (this.prisma as any).leadActivity.updateMany({ where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } });
-            await (this.prisma as any).followUp.updateMany({ where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } });
-            await this.prisma.customer.updateMany({ where: { referrerCustomerId: { in: loserIds } }, data: { referrerCustomerId: keeper.id } });
-
-            // Lengkapi alamat keeper kalau kosong
-            if (!keeper.address) {
-                const addr = group.find(c => c.id !== keeper.id && c.address)?.address;
-                if (addr) await this.prisma.customer.update({ where: { id: keeper.id }, data: { address: addr } });
+            // Lengkapi kolom kosong keeper dari duplikat (alamat, CS, tag, sumber lead)
+            const kosong = (v: any) => v == null || v === '' || (Array.isArray(v) && v.length === 0);
+            const patch: any = {};
+            for (const f of ['address', 'assignedCsId', 'tags', 'leadSource']) {
+                if (!kosong(keeper[f])) continue;
+                const src = losers.find(c => !kosong(c[f]));
+                if (src) patch[f] = src[f];
+            }
+            // Keeper jangan jadi perujuk dirinya sendiri
+            if (keeper.referrerCustomerId != null && loserIds.includes(keeper.referrerCustomerId)) {
+                patch.referrerCustomerId = null;
             }
 
-            await this.prisma.customer.deleteMany({ where: { id: { in: loserIds } } });
+            // Satu grup = satu transaksi: gagal di tengah tidak meninggalkan data setengah pindah.
+            // Repoint semua referensi ke keeper (LeadActivity Cascade → WAJIB di-repoint)
+            await this.prisma.$transaction(async (tx) => {
+                const db = tx as any;
+                const pindah = { where: { customerId: { in: loserIds } }, data: { customerId: keeper.id } };
+                await db.salesOrder.updateMany(pindah);
+                await db.lead.updateMany({ where: { convertedCustomerId: { in: loserIds } }, data: { convertedCustomerId: keeper.id } });
+                await db.leadActivity.updateMany(pindah);
+                await db.followUp.updateMany(pindah);
+                await db.waContact.updateMany(pindah);
+                await db.socialContact.updateMany(pindah);
+                await db.csRatingResponse.updateMany(pindah);
+                await db.customer.updateMany({
+                    where: { referrerCustomerId: { in: loserIds }, id: { not: keeper.id } },
+                    data: { referrerCustomerId: keeper.id },
+                });
+                if (Object.keys(patch).length) await db.customer.update({ where: { id: keeper.id }, data: patch });
+                await db.customer.deleteMany({ where: { id: { in: loserIds } } });
+            }, { timeout: 30_000, maxWait: 10_000 }); // disk server kadang lambat (fsync)
             customersMerged += loserIds.length;
         }
 
@@ -429,7 +474,32 @@ export class CustomersService {
         };
     }
 
+    /** Hapus hanya customer tanpa riwayat CRM; yang tertaut → gabungkan saja. */
     async remove(id: number) {
+        const db = this.prisma as any;
+        const [leads, sos, wa, social, ratings, activities, followUps] = await Promise.all([
+            db.lead.count({ where: { convertedCustomerId: id } }),
+            db.salesOrder.count({ where: { customerId: id } }),
+            db.waContact.count({ where: { customerId: id } }),
+            db.socialContact.count({ where: { customerId: id } }),
+            db.csRatingResponse.count({ where: { customerId: id } }),
+            db.leadActivity.count({ where: { customerId: id } }),
+            db.followUp.count({ where: { customerId: id } }),
+        ]);
+        const tautan = [
+            leads && `${leads} lead`,
+            sos && `${sos} sales order`,
+            wa && `${wa} kontak WA`,
+            social && `${social} kontak sosial`,
+            ratings && `${ratings} rating`,
+            activities && `${activities} aktivitas CRM`,
+            followUps && `${followUps} follow-up`,
+        ].filter(Boolean);
+        if (tautan.length) {
+            throw new BadRequestException(
+                `Customer ini masih tertaut ke ${tautan.join(', ')}. Jangan dihapus — gabungkan saja lewat "Rapikan duplikat".`,
+            );
+        }
         return this.prisma.customer.delete({ where: { id } });
     }
 }

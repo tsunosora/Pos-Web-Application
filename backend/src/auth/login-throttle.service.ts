@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 
 /**
  * Proteksi brute-force untuk /auth/login: in-memory, tanpa dependency tambahan.
- * Setelah MAX_FAILS login gagal dari satu IP dalam WINDOW, IP itu dikunci
- * (ditolak 429) selama LOCK_MS. Login sukses langsung mereset hitungan.
+ * Setelah MAX_FAILS login gagal untuk satu kunci (`ip:…` atau `email:…`) dalam
+ * WINDOW, kunci itu dikunci (ditolak 429) selama LOCK_MS. Login sukses TIDAK
+ * mereset hitungan — habis sendiri sesuai jendela waktu.
  *
  * Konfigurasi via env (punya default aman):
  *   LOGIN_FAIL_WINDOW_MS  jendela hitung kegagalan (default 10 menit)
@@ -28,13 +29,13 @@ export class LoginThrottleService {
     }
 
     /** Catat satu kegagalan. Mengembalikan apakah IP kini terkunci + jumlah gagal. */
-    recordFailure(ip: string): { locked: boolean; fails: number } {
+    recordFailure(ip: string, max: number = this.MAX_FAILS): { locked: boolean; fails: number } {
         const now = Date.now();
         this.prune(now);
         const arr = (this.attempts.get(ip) ?? []).filter((t) => now - t < this.WINDOW);
         arr.push(now);
         this.attempts.set(ip, arr);
-        if (arr.length >= this.MAX_FAILS) {
+        if (arr.length >= max) {
             this.lockedUntil.set(ip, now + this.LOCK_MS);
             this.attempts.delete(ip);
             return { locked: true, fails: arr.length };
@@ -42,7 +43,7 @@ export class LoginThrottleService {
         return { locked: false, fails: arr.length };
     }
 
-    /** Reset setelah login sukses. */
+    /** Hapus hitungan satu kunci (tidak dipakai saat login sukses). */
     reset(ip: string): void {
         this.attempts.delete(ip);
         this.lockedUntil.delete(ip);

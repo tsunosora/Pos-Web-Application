@@ -114,6 +114,8 @@ export class BranchStockService {
         opts: { allowNegative?: boolean } = {},
     ) {
         if (qty <= 0) return;
+        // Kunci baris dulu: tanpa ini penjualan yang commit di antara baca & tulis tertimpa.
+        await tx.$queryRaw`SELECT id FROM branch_stocks WHERE branch_id = ${branchId} AND product_variant_id = ${productVariantId} FOR UPDATE`;
         const existing = await tx.branchStock.findUnique({
             where: { branchId_productVariantId: { branchId, productVariantId } },
         });
@@ -126,7 +128,7 @@ export class BranchStockService {
         if (existing) {
             return tx.branchStock.update({
                 where: { id: existing.id },
-                data: { stock: current - qty },
+                data: { stock: { decrement: qty } },
             });
         }
         return tx.branchStock.create({

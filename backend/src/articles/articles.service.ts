@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { sanitizeHtml } from '../common/utils/sanitize-html.util';
 
 export interface ArticleInput {
     title?: string;
@@ -61,7 +62,8 @@ export class ArticlesService {
                 title: data.title || 'Tanpa Judul',
                 slug,
                 excerpt: data.excerpt ?? null,
-                content: data.content ?? null,
+                // Dirender mentah di /artikel/[slug] → saring dulu (XSS tersimpan).
+                content: data.content != null ? sanitizeHtml(data.content) : null,
                 coverImage: data.coverImage ?? null,
                 status,
                 publishedAt: status === 'PUBLISHED' ? new Date() : null,
@@ -78,7 +80,7 @@ export class ArticlesService {
         if (data.title !== undefined) patch.title = data.title;
         if (data.slug !== undefined) patch.slug = await this.uniqueSlug(this.slugify(data.slug || data.title || cur.title), id);
         if (data.excerpt !== undefined) patch.excerpt = data.excerpt;
-        if (data.content !== undefined) patch.content = data.content;
+        if (data.content !== undefined) patch.content = data.content != null ? sanitizeHtml(data.content) : null;
         if (data.coverImage !== undefined) patch.coverImage = data.coverImage;
         if (data.authorName !== undefined) patch.authorName = data.authorName;
         if (data.seoTitle !== undefined) patch.seoTitle = data.seoTitle;

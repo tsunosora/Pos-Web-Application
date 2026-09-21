@@ -19,6 +19,12 @@ export class StockPurchasesService {
         if (!data.items || data.items.length === 0) {
             throw new BadRequestException('Minimal satu item pembelian diperlukan');
         }
+        // Jumlah negatif dulu lolos → "pembelian" diam-diam MENGURANGI stok tanpa cek.
+        for (const it of data.items) {
+            const q = Number(it?.quantity);
+            if (!Number.isFinite(q) || q <= 0 || q > 1_000_000) throw new BadRequestException('Jumlah pembelian tiap item harus lebih dari 0.');
+            if (it.unitPrice != null && (!Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) < 0)) throw new BadRequestException('Harga beli tidak boleh negatif.');
+        }
 
         const branchId = requireBranch(branchCtx);
 
@@ -51,12 +57,10 @@ export class StockPurchasesService {
                 });
                 if (!variant) throw new NotFoundException(`Varian ID ${item.productVariantId} tidak ditemukan`);
 
-                const newGlobalStock = Number(variant.stock) + item.quantity;
-
-                // Update agregat global (cache)
+                // Update agregat global (cache) — increment atomik, bukan baca-lalu-tulis.
                 await tx.productVariant.update({
                     where: { id: item.productVariantId },
-                    data: { stock: newGlobalStock },
+                    data: { stock: { increment: item.quantity } },
                 });
 
                 // Upsert BranchStock (sumber kebenaran per cabang)

@@ -159,14 +159,16 @@ export function getDimLabel(item: any): string {
     return `${w} × ${h} ${u === 'cm2' ? 'cm' : u}`; // cm2 = produk basis cm², ukuran dalam cm
 }
 
+/** Luas bahan total (m²) = luas per lembar × pcs — sama dengan yang dipotong server. */
 export function getAreaM2(item: any): number {
     const ti = item?.transactionItem;
     if (!ti) return 0;
-    if (ti.areaCm2) return Number(ti.areaCm2) / 10000;
+    const pcs = Math.max(1, Number(ti.pcs) || 1); // areaCm2 = luas SATU lembar
+    if (ti.areaCm2) return (Number(ti.areaCm2) / 10000) * pcs;
     // Fallback: hitung dari raw width × height berdasarkan unitType
     const dims = getDimsInCm(item);
     if (!dims) return 0;
-    return (dims.widthCm * dims.heightCm) / 10000;
+    return ((dims.widthCm * dims.heightCm) / 10000) * pcs;
 }
 
 /**
