@@ -25,8 +25,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         return {
             userId: payload.sub,
             email: payload.email,
-            role: user?.role?.id ?? payload.role,
-            roleName: user?.role?.name ?? payload.roleName ?? null,
+            // Peran SELALU dari DB. Dulu jatuh ke isi token bila peran dicabut → token lama tetap
+            // "Admin" sampai 1 hari & bisa dipakai memulihkan perannya sendiri.
+            role: user?.role?.id ?? null,
+            roleName: user?.role?.name ?? null,
             // Daftar menu yang diizinkan owner untuk peran ini (null = preset divisi).
             menuAccess: (user?.role as any)?.menuAccess ?? null,
             branchId: user?.branchId ?? null,

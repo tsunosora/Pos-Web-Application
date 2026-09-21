@@ -14,7 +14,9 @@ export class RolesGuard implements CanActivate {
     if (!required || required.length === 0) return true;
 
     const { user } = context.switchToHttp().getRequest();
-    const roleName = String(user?.roleName ?? '').toUpperCase();
+    const mentah = String(user?.roleName ?? '');
+    // Nama non-ASCII tak pernah cocok (huruf mirip bisa di-toUpperCase menjadi "SUPERADMIN").
+    const roleName = /^[\x20-\x7E]*$/.test(mentah) ? mentah.toUpperCase() : '';
     if (!required.map(r => r.toUpperCase()).includes(roleName)) {
       throw new ForbiddenException('Akses ditolak: butuh role admin.');
     }

@@ -220,7 +220,10 @@ export default function ShiftHistoryPage() {
                     {list.map((shift: any) => {
                         const isExpanded = expandedId === shift.id;
                         const hasMsgBackup = !!shift.whatsappMessage;
-                        const totalPenerimaan = Number(shift.actualCash) + Number(shift.actualQris) + Number(shift.actualTransfer);
+                        // Transfer tidak dihitung fisik saat tutup shift (actualTransfer selalu 0) → pakai angka
+                        // transfer sistem. Dulu total penerimaan melewatkan semua transfer bank.
+                        const transferShift = Number(shift.actualTransfer) > 0 ? Number(shift.actualTransfer) : Number(shift.expectedTransfer || 0);
+                        const totalPenerimaan = Number(shift.actualCash) + Number(shift.actualQris) + transferShift;
 
                         return (
                             <div key={shift.id} className="rounded-xl glass shadow-sm overflow-hidden">
@@ -306,7 +309,7 @@ export default function ShiftHistoryPage() {
                                             {[
                                                 { label: 'Tunai', value: Number(shift.actualCash) },
                                                 { label: 'QRIS', value: Number(shift.actualQris) },
-                                                { label: 'Transfer', value: Number(shift.actualTransfer) },
+                                                { label: 'Transfer', value: transferShift },
                                                 { label: 'Pengeluaran', value: Number(shift.expensesTotal), red: true },
                                             ].map(item => (
                                                 <div key={item.label} className="bg-background rounded-lg border border-border p-3">

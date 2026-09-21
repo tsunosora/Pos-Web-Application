@@ -1,4 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGuards, ForbiddenException } from '@nestjs/common';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ManagerGuard, OwnerGuard } from '../auth/role-groups';
 import { CompanyBranchesService } from './company-branches.service';
@@ -40,7 +42,16 @@ export class CompanyBranchesController {
             code?: string | null; notaHeader?: string | null; notaFooter?: string | null; logoUrl?: string | null;
             dailyTargetOverride?: number | null;
         },
-    ) { return this.service.update(id, body); }
+        @CurrentBranch() ctx: BranchContext,
+    ) {
+        // Manajer hanya cabangnya sendiri; menonaktifkan & mengganti kode (awalan nomor dokumen)
+        // khusus owner. Dulu manajer cabang A bisa menonaktifkan/mengganti kode cabang B.
+        if (!ctx.isOwner) {
+            if (id !== ctx.userBranchId) throw new ForbiddenException('Hanya boleh mengubah cabang sendiri.');
+            if (body?.isActive !== undefined || body?.code !== undefined) throw new ForbiddenException('Status aktif & kode cabang hanya diubah owner.');
+        }
+        return this.service.update(id, body);
+    }
 
     // Hapus cabang permanen: owner saja (manajer cukup menonaktifkan).
     @Delete(':id')

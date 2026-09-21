@@ -655,7 +655,8 @@ export class ReportsService {
                 cashierName: dto.adminName || undefined,
                 branchLabel: (settings as any)?.storeName || undefined,
                 branchId,
-                omzet: dto.actualCash + dto.actualQris + dto.actualTransfer,
+                // Transfer tak dihitung fisik (halaman mengirim 0) → angka transfer sistem shift ini.
+                omzet: dto.actualCash + dto.actualQris + (Number(dto.actualTransfer) > 0 ? dto.actualTransfer : expectedTransfer),
                 cash: dto.actualCash,
                 qris: dto.actualQris,
                 transfer: dto.actualTransfer,
@@ -708,6 +709,7 @@ export class ReportsService {
                     realBankBalances: true,
                     amendedAt: true,
                     amendNote: true,
+                    amendHistory: true, // riwayat koreksi (dulu tak ikut → tak pernah tampil)
                     createdAt: true,
                 },
             }),
@@ -1733,10 +1735,16 @@ export class ReportsService {
         // 29 Jan–28 Feb, September kehilangan 1 Agustus.
         const sebulanPenuh = start.getDate() === 1 && start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()
             && end.getDate() === new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
-        const prevEnd = new Date(start.getTime() - 1);
+        let prevEnd = new Date(start.getTime() - 1);
         const prevStart = sebulanPenuh
             ? new Date(start.getFullYear(), start.getMonth() - 1, 1)
             : new Date(prevEnd.getTime() - (end.getTime() - start.getTime()));
+        // Periode yang MASIH BERJALAN (bulan ini): bandingkan dengan jumlah hari yang sama di periode
+        // sebelumnya (1–22 Agu vs 1–22 Sep). Dulu dibanding sebulan penuh → "omzet turun tajam" palsu.
+        const kiniMs = Date.now();
+        if (end.getTime() > kiniMs && kiniMs > start.getTime()) {
+            prevEnd = new Date(Math.min(prevEnd.getTime(), prevStart.getTime() + (kiniMs - start.getTime())));
+        }
         const cur = await this.financeTotals(bw, start, end, includeFixed);
         const prev = await this.financeTotals(bw, prevStart, prevEnd, includeFixed);
 

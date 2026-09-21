@@ -1,14 +1,11 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { OwnerGuard } from '../auth/role-groups';
 import { MetaAdsService } from './meta-ads.service';
 
-// Data biaya iklan bersifat sensitif → owner/admin saja (samakan dgn endpoint token WA).
-const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
-
-@UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(...ADMIN_ROLES)
+// Data biaya iklan & label kampanye (memindah lead antar cabang) → owner saja, sama dengan
+// menu /owner/iklan yang ownerOnly (dulu Admin cabang juga bisa lewat API).
+@UseGuards(JwtAuthGuard, OwnerGuard)
 @Controller('meta-ads')
 export class MetaAdsController {
     constructor(private readonly ads: MetaAdsService) {}

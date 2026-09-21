@@ -72,7 +72,8 @@ export default function FollowUpsPage() {
     const items = list?.items ?? [];
     const todayEnd = dayjs().endOf("day");
 
-    const overdue = items.filter(f => f.status === "PENDING" && dayjs(f.dueDate).isBefore(todayEnd));
+    // Terlambat = jatuh tempo SEBELUM hari ini (dulu yang jatuh tempo hari ini ikut "Overdue").
+    const overdue = items.filter(f => f.status === "PENDING" && dayjs(f.dueDate).isBefore(dayjs().startOf("day")));
     const upcoming = items.filter(f => f.status === "PENDING" && dayjs(f.dueDate).isAfter(todayEnd));
     const done = items.filter(f => f.status !== "PENDING");
 
@@ -136,7 +137,7 @@ export default function FollowUpsPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     <StatCard label="Overdue" value={overdue.length} color="text-red-600" bg="bg-red-50 border-red-200" />
                     <StatCard label="Upcoming" value={upcoming.length} color="text-amber-600" bg="bg-amber-50 border-amber-200" />
-                    <StatCard label="Total Pending" value={items.length} color="text-accent-foreground" bg="bg-primary/10 border-primary/20" />
+                    <StatCard label="Total Pending" value={(list as any)?.total ?? items.length} color="text-accent-foreground" bg="bg-primary/10 border-primary/20" />
                 </div>
             )}
 

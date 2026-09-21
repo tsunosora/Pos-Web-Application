@@ -4,7 +4,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { isManagerLevelRole } from '../auth/role-groups';
+import { isManagerLevelRole, OwnerGuard } from '../auth/role-groups';
 
 // Hanya OWNER/SUPERADMIN/ADMIN yang boleh membuat/mengubah/menghapus user & role.
 // (RolesGuard mencocokkan case-insensitive, jadi cocok dengan role "Owner"/"Admin" di DB.)
@@ -41,7 +41,8 @@ export class UsersController {
     const users = await this.usersService.findAll();
     if (isManagerLevelRole(req.user?.roleName)) return users;
     return users.map((u: any) => ({
-      id: u.id, name: u.name, email: u.email, isActive: u.isActive, branchId: u.branchId,
+      // Email login (termasuk owner) tak perlu diketahui staf; hanya jadi label bila nama kosong.
+      id: u.id, name: u.name, email: u.name ? undefined : u.email, isActive: u.isActive, branchId: u.branchId,
       role: u.role ? { id: u.role.id, name: u.role.name } : null,
     }));
   }
@@ -106,8 +107,9 @@ export class UsersController {
 
   // Atur menu yang boleh dilihat role tsb. body: { hrefs: string[] | null }
   // (null = reset ke preset divisi bawaan).
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...ADMIN_ROLES)
+  // Khusus owner (halaman ini ownerOnly di menu): peran dipakai SEMUA cabang — dulu Admin satu
+  // cabang bisa membuka laporan laba/HPP untuk kasir seluruh cabang atau menutup menu semua staf.
+  @UseGuards(JwtAuthGuard, OwnerGuard)
   @Patch('roles/:id/menu-access')
   updateRoleMenuAccess(@Param('id') id: string, @Body() data: { hrefs: string[] | null }) {
     return this.usersService.updateRoleMenuAccess(+id, data?.hrefs ?? null);

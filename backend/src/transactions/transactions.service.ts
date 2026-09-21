@@ -1712,8 +1712,11 @@ export class TransactionsService {
             const start = awalHari(startDate);
             const end = akhirHari(endDate);
             const durationMs = end.getTime() - start.getTime();
-            const prevEnd = new Date(start.getTime() - 1);
-            const prevStart = new Date(prevEnd.getTime() - durationMs);
+            // Periode berjalan (mis. "Bulan Ini" s/d akhir bulan): bandingkan dengan BAGIAN yang sama
+            // dari periode sebelumnya (1–22 Agu vs 1–22 Sep), bukan sebulan penuh → tren tak lagi turun palsu.
+            const berjalanMs = Math.max(0, Math.min(end.getTime(), Date.now()) - start.getTime());
+            const prevStart = new Date(start.getTime() - 1 - durationMs);
+            const prevEnd = new Date(prevStart.getTime() + berjalanMs);
             const prevTransactions = await this.prisma.transaction.findMany({
                 where: {
                     status: TransactionStatus.PAID,
@@ -1742,13 +1745,47 @@ export class TransactionsService {
         const bankTransfersRevenue: Record<string, number> = {};
         const itemSales: Record<number, { variantId: number, name: string, variantName: string | null, sku: string, qty: number, revenue: number }> = {};
 
+        // Rincian metode & rekening dari BARIS KAS PENJUALAN tiap nota (DP, tambah DP, pelunasan) —
+        // sumber yang sama dengan buku kas. Dulu dari kolom nota: DP tunai + pelunasan transfer lewat
+        // "tambah DP" masuk seluruhnya ke Tunai, dan DP transfer tak pernah muncul per rekening.
+        const kasPerNota = new Map<string, { method: string; bankId: number | null; amount: number }[]>();
+        if (transactions.length) {
+            const invSet = new Set(transactions.map((t: any) => t.invoiceNumber));
+            const tertua = transactions.reduce((m: number, t: any) => Math.min(m, new Date(t.createdAt).getTime()), Date.now());
+            const kas = await this.prisma.cashflow.findMany({
+                where: { type: CashflowType.INCOME, category: { in: KATEGORI_PENJUALAN }, createdAt: { gte: new Date(tertua - 60_000) } },
+                select: { amount: true, paymentMethod: true, bankAccountId: true, note: true },
+            });
+            for (const cf of kas) {
+                const inv = /Invoice (\S+)/.exec(cf.note || '')?.[1];
+                if (!inv || !invSet.has(inv)) continue;
+                const arr = kasPerNota.get(inv) ?? [];
+                arr.push({ method: String(cf.paymentMethod || 'CASH'), bankId: cf.bankAccountId ?? null, amount: Number(cf.amount) });
+                kasPerNota.set(inv, arr);
+            }
+        }
+        const namaRekening = new Map<number, string>(
+            (await this.prisma.bankAccount.findMany({ select: { id: true, bankName: true } })).map((b) => [b.id, b.bankName]),
+        );
+
         for (const t of transactions) {
             const grandTotal = Number(t.grandTotal);
             const dpAmount = Number(t.downPayment);
             const dpMethod: string | null = (t as any).dpPaymentMethod || null;
             totalRevenue += grandTotal;
 
-            if (dpMethod && dpAmount > 0) {
+            const baris = kasPerNota.get((t as any).invoiceNumber);
+            const totalBaris = baris?.reduce((s, b) => s + b.amount, 0) ?? 0;
+            if (baris && baris.length && Math.abs(totalBaris - grandTotal) < 1) {
+                paymentMethodsCount[t.paymentMethod] = (paymentMethodsCount[t.paymentMethod] || 0) + 1;
+                for (const b of baris) {
+                    paymentMethodsRevenue[b.method] = (paymentMethodsRevenue[b.method] || 0) + b.amount;
+                    if (b.method === 'BANK_TRANSFER' && b.bankId != null) {
+                        const nm = namaRekening.get(b.bankId) ?? `Rekening #${b.bankId}`;
+                        bankTransfersRevenue[nm] = (bankTransfersRevenue[nm] || 0) + b.amount;
+                    }
+                }
+            } else if (dpMethod && dpAmount > 0) {
                 // Transaksi DP yang sudah lunas: split revenue antara DP method dan pelunasan method
                 const pelunasanAmount = grandTotal - dpAmount;
                 paymentMethodsCount[t.paymentMethod] = (paymentMethodsCount[t.paymentMethod] || 0) + 1;
@@ -1758,7 +1795,7 @@ export class TransactionsService {
                 // Bank transfer breakdown untuk DP
                 if (dpMethod === 'BANK_TRANSFER') {
                     const dpBankId: number | null = (t as any).dpBankAccountId || null;
-                    const dpBank = dpBankId ? (t as any).dpBankAccount?.bankName : null;
+                    const dpBank = dpBankId ? namaRekening.get(dpBankId) ?? null : null; // relasi dpBankAccount tak ada
                     if (dpBank) bankTransfersRevenue[dpBank] = (bankTransfersRevenue[dpBank] || 0) + dpAmount;
                 }
                 // Bank transfer breakdown untuk pelunasan
@@ -2058,10 +2095,12 @@ export class TransactionsService {
         const cashTrend = yesterdayCashIn === 0 ? 100 : ((todayCashIn - yesterdayCashIn) / yesterdayCashIn) * 100;
         const lowStockCount = await this.prisma.productVariant.count({ where: { stock: { lte: 10 }, product: { trackStock: true } } });
 
+        // Kemarin 0 → tak ada pembanding: tampilkan "—" (dulu selalu "+100.0%").
+        const teksTren = (t: number, dasar: number) => (dasar === 0 ? '—' : `${t > 0 ? '+' : ''}${t.toFixed(1)}%`);
         return {
-            sales: { value: todaySales, trend: `${salesTrend > 0 ? '+' : ''}${salesTrend.toFixed(1)}%`, trendUp: salesTrend >= 0 },
-            transactions: { value: todayTxCount, trend: `${txTrend > 0 ? '+' : ''}${txTrend.toFixed(1)}%`, trendUp: txTrend >= 0 },
-            cashflow: { value: todayCashIn, trend: `${cashTrend > 0 ? '+' : ''}${cashTrend.toFixed(1)}%`, trendUp: cashTrend >= 0 },
+            sales: { value: todaySales, trend: teksTren(salesTrend, yesterdaySales), trendUp: salesTrend >= 0 },
+            transactions: { value: todayTxCount, trend: teksTren(txTrend, yesterdayTxCount), trendUp: txTrend >= 0 },
+            cashflow: { value: todayCashIn, trend: teksTren(cashTrend, yesterdayCashIn), trendUp: cashTrend >= 0 },
             alerts: { count: lowStockCount, items: lowStockItems.map(item => ({ name: `${item.product.name} ${item.size ? `(${item.size})` : ''}`.trim(), stock: item.stock, limit: 10 })) },
             salesChart,
         };

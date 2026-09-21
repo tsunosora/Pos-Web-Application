@@ -72,8 +72,7 @@ export class UsersService {
     const passwordHash = await bcrypt.hash(createUserDto.password, salt);
 
     if (roleId) {
-      const roleName = role?.name?.toUpperCase() ?? '';
-      const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
+      const isOwner = isOwnerLevelRole(role?.name);
       if (!isOwner && branchId == null) {
         throw new BadRequestException('Cabang wajib dipilih untuk role non-Owner.');
       }
@@ -194,8 +193,7 @@ export class UsersService {
       }
 
       if (roleId) {
-        const roleName = newRole?.name?.toUpperCase() ?? '';
-        const isOwner = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'].includes(roleName);
+        const isOwner = isOwnerLevelRole(newRole?.name);
         if (!isOwner && branchId == null) {
           throw new BadRequestException('Cabang wajib dipilih untuk role non-Owner.');
         }
@@ -204,7 +202,12 @@ export class UsersService {
       updateData.branchId = branchId;
     }
 
-    if (data.password) {
+    if (data.password !== undefined && data.password !== null && data.password !== '') {
+      // Aturan yang sama dengan akun baru (dulu reset sandi bisa "1"; bukan teks → galat 500).
+      const pw = data.password as unknown;
+      if (typeof pw !== 'string' || pw.length < 8 || pw.length > 72 || !/(?=.*[A-Za-z])(?=.*\d)/.test(pw)) {
+        throw new BadRequestException('Password minimal 8 karakter dan mengandung huruf & angka.');
+      }
       const salt = await bcrypt.genSalt();
       updateData.passwordHash = await bcrypt.hash(data.password, salt);
     }
@@ -303,7 +306,7 @@ export class UsersService {
       if (actorUserId != null && actorUserId === id) {
         throw new BadRequestException('Tidak bisa menandai akun Anda sendiri keluar.');
       }
-      const isOwner = UsersService.OWNER_ROLES.includes((user.role?.name ?? '').toUpperCase());
+      const isOwner = isOwnerLevelRole(user.role?.name);
       if (isOwner) {
         const otherOwners = await this.prisma.user.count({
           where: {
@@ -360,7 +363,7 @@ export class UsersService {
     if (!user) throw new BadRequestException('Pengguna tidak ditemukan.');
     this.assertCanManage(actor, { branchId: user.branchId ?? null, roleName: user.role?.name });
     // Sama dengan setStatus: Owner aktif terakhir tak boleh hilang.
-    if (user.isActive !== false && UsersService.OWNER_ROLES.includes((user.role?.name ?? '').toUpperCase())) {
+    if (user.isActive !== false && isOwnerLevelRole(user.role?.name)) {
       const otherOwners = await this.prisma.user.count({
         where: { id: { not: id }, isActive: true, role: { name: { in: UsersService.OWNER_ROLES } } },
       });
@@ -376,6 +379,9 @@ export class UsersService {
         `Akun ini sudah punya riwayat (${history.join(', ')}). Menghapusnya akan mengosongkan data itu dari laporan. Pakai "Tandai keluar" — akunnya mati tapi riwayatnya utuh.`,
       );
     }
+    // PIN kerja tertaut ikut dimatikan & dilepas: Designer.userId tanpa FK — dulu PIN orang yang
+    // akunnya dihapus masih membuka /produksi & /cetak.
+    await (this.prisma as any).designer.updateMany({ where: { userId: id }, data: { isActive: false, userId: null } });
     return this.prisma.user.delete({
       where: { id }
     });
@@ -385,6 +391,9 @@ export class UsersService {
     const n = String(name ?? '').trim();
     if (!n) throw new BadRequestException('Nama role wajib diisi.');
     if (n.length > 20) throw new BadRequestException('Nama role maksimal 20 karakter.');
+    // Huruf, angka, spasi, titik, garis bawah/strip saja — nama berhuruf mirip ("ſuperadmin")
+    // dulu dianggap peran biasa saat dibuat tetapi owner saat dicek di tempat lain.
+    if (!/^[A-Za-z0-9 ._-]+$/.test(n)) throw new BadRequestException('Nama role hanya boleh huruf, angka, spasi, titik, - atau _.');
     return n;
   }
 

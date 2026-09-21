@@ -174,11 +174,16 @@ export class StockMovementsService {
             return { ...m, transaction: tx, deletedTxInvoice };
         });
 
+        // Ringkasan dari SELURUH baris yang cocok filter (daftar hanya memuat 1.000 terbaru) — dulu
+        // "Total Catatan" mentok 1.000 & Masuk/Keluar kurang di bulan sibuk.
+        const agregat = await this.prisma.stockMovement.groupBy({ by: ['type'], where, _sum: { quantity: true }, _count: { _all: true } });
+        const per = (t: string) => agregat.find((a: any) => a.type === t);
         const summary = {
-            totalIn:     movements.filter(m => m.type === 'IN').reduce((s, m) => s + Number(m.quantity), 0),
-            totalOut:    movements.filter(m => m.type === 'OUT').reduce((s, m) => s + Number(m.quantity), 0),
-            totalAdjust: movements.filter(m => m.type === 'ADJUST').length,
-            count:       movements.length,
+            totalIn:     Number(per('IN')?._sum?.quantity ?? 0),
+            totalOut:    Number(per('OUT')?._sum?.quantity ?? 0),
+            totalAdjust: Number(per('ADJUST')?._count?._all ?? 0),
+            count:       agregat.reduce((s: number, a: any) => s + Number(a._count?._all ?? 0), 0),
+            ditampilkan: movements.length, // baris di daftar (maks. 1.000)
         };
 
         return { movements: enriched, summary };

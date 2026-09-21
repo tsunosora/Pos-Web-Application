@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from '../whatsapp-cloud/cloud-api.service';
 
@@ -481,6 +481,8 @@ export class MetaAdsService {
      */
     async assignCampaignLabel(campaignId: string, labelId: number | null, adAccountId?: string): Promise<{ ok: true; updatedLeads: number }> {
         const cid = String(campaignId || '').trim();
+        // ID kampanye Meta selalu angka — dulu masuk mentah ke path Graph API (bisa membaca objek lain dgn token WA).
+        if (cid && !/^\d{1,30}$/.test(cid)) throw new BadRequestException('ID kampanye tidak valid.');
         if (!cid) throw new Error('campaignId wajib diisi');
 
         if (labelId == null) {
@@ -537,6 +539,8 @@ export class MetaAdsService {
     /** Set profit produk per campaign → patokan CPR = profit × 5%. profit null = hapus. */
     async setCampaignProfit(campaignId: string, profit: number | null, adAccountId?: string): Promise<{ ok: true }> {
         const cid = String(campaignId || '').trim();
+        // ID kampanye Meta selalu angka — dulu masuk mentah ke path Graph API (bisa membaca objek lain dgn token WA).
+        if (cid && !/^\d{1,30}$/.test(cid)) throw new BadRequestException('ID kampanye tidak valid.');
         if (!cid) throw new Error('campaignId wajib diisi');
         const val = profit != null && Number.isFinite(profit) && profit > 0 ? profit : null;
         const existing = await this.prisma.metaCampaignLabel.findUnique({ where: { campaignId: cid }, select: { adLabelId: true } });
@@ -565,6 +569,8 @@ export class MetaAdsService {
      */
     async adBreakdown(opts: { campaignId: string; since?: string; until?: string }): Promise<{ campaignId: string; since: string; until: string; ads: AdRow[] }> {
         const cid = String(opts.campaignId || '').trim();
+        // ID kampanye Meta selalu angka — dulu masuk mentah ke path Graph API (bisa membaca objek lain dgn token WA).
+        if (cid && !/^\d{1,30}$/.test(cid)) throw new BadRequestException('ID kampanye tidak valid.');
         const until = opts.until || this.ymd(new Date());
         const since = opts.since || this.ymd(new Date(Date.now() - 29 * 86_400_000));
         if (!cid) return { campaignId: cid, since, until, ads: [] };

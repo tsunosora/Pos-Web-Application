@@ -643,7 +643,7 @@ export class SalesOrdersService {
             };
         }
 
-        return this.prisma.$transaction(async (tx) => {
+        const hasil = await this.prisma.$transaction(async (tx) => {
             if (data.items) await (tx as any).salesOrderItem.deleteMany({ where: { salesOrderId: id } });
             return (tx as any).salesOrder.update({
                 where: { id },
@@ -651,6 +651,17 @@ export class SalesOrdersService {
                 include: this.soInclude(),
             });
         });
+        // SO yang SUDAH dikirim ke produksi lalu itemnya diubah: kirim ulang sebagai REVISI supaya
+        // produksi tidak mencetak versi lama (dulu diam-diam — produksi & kasir bisa berbeda).
+        if (existing.status === 'SENT' && data.items) {
+            (async () => {
+                const caption = this.buildCaption(hasil, '⚠️ REVISI — SO ini diubah setelah dikirim ke produksi. Abaikan versi sebelumnya.');
+                const imagePaths = (hasil.proofs || []).map((p: any) => p.filename);
+                const cabang = await this.resolveBranchId((hasil as any).branchName);
+                await this.discord.notifySuratOrder(caption, imagePaths, cabang);
+            })().catch(() => undefined);
+        }
+        return hasil;
     }
 
     async addProofs(id: number, files: Express.Multer.File[], captions?: string[], branchId?: number | null) {

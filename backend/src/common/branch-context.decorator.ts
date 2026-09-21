@@ -13,11 +13,13 @@ export interface BranchContext {
     roleName: string | null;
 }
 
+import { isOwnerLevelRole } from '../auth/role-groups';
 const OWNER_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
 
 export function isOwnerRole(roleName?: string | null): boolean {
     if (!roleName) return false;
-    return OWNER_ROLES.includes(roleName.toUpperCase());
+    // Satu aturan dengan role-groups (ASCII saja) — lihat isOwnerLevelRole.
+    return isOwnerLevelRole(roleName) || (/^[\x20-\x7E]*$/.test(roleName) && OWNER_ROLES.includes(roleName.toUpperCase()));
 }
 
 /**

@@ -69,7 +69,9 @@ export class CompanyBranchesService {
         if (data.isActive !== undefined) upd.isActive = data.isActive;
         if ('dailyTargetOverride' in data) {
             const v = (data as any).dailyTargetOverride;
-            upd.dailyTargetOverride = (v === null || v === '' || Number.isNaN(Number(v))) ? null : Number(v);
+            const n = Number(v);
+            if (v !== null && v !== '' && (!Number.isFinite(n) || n < 0)) throw new BadRequestException('Target harian harus angka ≥ 0.');
+            upd.dailyTargetOverride = (v === null || v === '') ? null : n;
         }
         return (this.prisma as any).companyBranch.update({ where: { id }, data: upd });
     }

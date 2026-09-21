@@ -9,6 +9,18 @@ const worksheetInclude = {
     productVariant: { include: { product: true } }
 };
 
+/** HPP & faktor skala wajib angka wajar — dulu nilai negatif/NaN dari body langsung disimpan (laba & bonus menggelembung). */
+function cekHpp(v: unknown, label = 'HPP'): number {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > 1e9) throw new BadRequestException(`${label} harus angka 0–1.000.000.000.`);
+    return n;
+}
+function cekSkala(v: unknown): number {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0 || n > 10000) throw new BadRequestException('Faktor skala harus angka > 0.');
+    return n;
+}
+
 @Injectable()
 export class HppService {
     constructor(private prisma: PrismaService) { }
@@ -154,6 +166,7 @@ export class HppService {
      * Caller passes the calculated hppPerUnit value (result from frontend calculator).
      */
     async applyToVariant(worksheetId: number, hppPerUnit: number) {
+        hppPerUnit = cekHpp(hppPerUnit);
         const worksheet = await this.findOne(worksheetId);
         if (!worksheet.productVariantId) {
             throw new BadRequestException('Worksheet ini belum ditautkan ke varian produk manapun.');
@@ -179,6 +192,8 @@ export class HppService {
     }
 
     async applyVariantsCustom(worksheetId: number, variants: { variantId: number; hppPerUnit: number; scaleFactor: number }[]) {
+        if (!Array.isArray(variants) || variants.length > 500) throw new BadRequestException('Daftar varian tidak valid.');
+        variants = variants.map((v) => ({ variantId: Number(v?.variantId), hppPerUnit: cekHpp(v?.hppPerUnit), scaleFactor: cekSkala(v?.scaleFactor) }));
         const sourceWs = await this.prisma.hppWorksheet.findUnique({
             where: { id: worksheetId },
             include: { variableCosts: true, fixedCosts: true }
@@ -310,6 +325,9 @@ export class HppService {
     }
 
     async applyToVariants(worksheetId: number, variantIds: number[], hppPerUnit: number) {
+        hppPerUnit = cekHpp(hppPerUnit);
+        if (!Array.isArray(variantIds) || variantIds.length > 500 || variantIds.some((x) => !Number.isInteger(Number(x)))) throw new BadRequestException('Daftar varian tidak valid.');
+        variantIds = variantIds.map(Number);
         if (!variantIds || variantIds.length === 0) {
             throw new BadRequestException('Pilih minimal satu varian.');
         }

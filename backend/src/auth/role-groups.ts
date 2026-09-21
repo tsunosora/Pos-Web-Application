@@ -11,7 +11,12 @@ import { Reflector } from '@nestjs/core';
  *   atau sebaliknya menu tersembunyi tapi endpoint-nya terbuka.
  * - Setingkat owner: owner/pemilik/superadmin.
  */
-const norm = (r?: string | null) => String(r ?? '').trim().toLowerCase();
+// Hanya nama ASCII yang bisa bermakna hak istimewa: huruf mirip (mis. "ſuperadmin", U+017F) dulu
+// lolos sebagai peran biasa di sini tetapi menjadi "SUPERADMIN" saat di-toUpperCase di tempat lain.
+const norm = (r?: string | null) => {
+    const s = String(r ?? '').trim();
+    return /^[\x20-\x7E]*$/.test(s) ? s.toLowerCase() : '';
+};
 const OWNER_NAMES = ['owner', 'pemilik', 'superadmin', 'super_admin', 'super admin'];
 
 export function isOwnerLevelRole(roleName?: string | null): boolean {
