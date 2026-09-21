@@ -45,6 +45,9 @@ export interface WaMessage {
     direction: WaDirection;
     type: WaMessageType;
     status: WaMessageStatus;
+    // Diisi webhook status Meta saat pengiriman gagal (mis. "131042").
+    errorCode?: string | null;
+    errorMessage?: string | null;
     body: string | null;
     templateName: string | null;
     mediaUrl: string | null;

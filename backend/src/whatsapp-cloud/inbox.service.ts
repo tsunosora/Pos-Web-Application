@@ -761,6 +761,10 @@ export class InboxService {
                 errorMessage: err?.title ?? err?.message ?? undefined,
             },
         });
+        // Dorong ke inbox (SSE) supaya centang/tanda gagal langsung berganti.
+        // Tanpa ini status baru terlihat saat polling cadangan 20 dtk — agen keburu
+        // pindah percakapan dan mengira pesan masih "jam" (menunggu).
+        this.waEvents.emitMessage(existing.conversationId);
         await this.logEvent('status', waMessageId, st);
     }
 

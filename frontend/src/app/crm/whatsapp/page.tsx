@@ -17,6 +17,7 @@ import {
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { extractVarIndices, buildTemplateComponents, fillTemplatePreview, varLabel } from "@/lib/wa-template";
+import { waErrorHint } from "@/lib/wa-error";
 
 const STATUS_TABS: Array<{ key: WaConversationStatus | "ALL"; label: string }> = [
     { key: "ALL", label: "Semua" },
@@ -155,12 +156,12 @@ function MediaAttachment({ m, onImageClick }: { m: WaMessage; onImageClick?: (id
     );
 }
 
-function MsgStatusTick({ status }: { status: WaMessage["status"] }) {
+function MsgStatusTick({ status, failTitle }: { status: WaMessage["status"]; failTitle?: string }) {
     if (status === "READ") return <CheckCheck className="w-3.5 h-3.5 text-sky-400" />;
     if (status === "DELIVERED") return <CheckCheck className="w-3.5 h-3.5 opacity-60" />;
     if (status === "SENT") return <Check className="w-3.5 h-3.5 opacity-60" />;
-    if (status === "FAILED") return <AlertCircle className="w-3.5 h-3.5 text-red-400" />;
-    return <Clock className="w-3 h-3 opacity-50" />;
+    if (status === "FAILED") return <span title={failTitle}><AlertCircle className="w-3.5 h-3.5 text-red-200" /></span>;
+    return <span title="Menunggu dikirim ke WhatsApp"><Clock className="w-3 h-3 opacity-50" /></span>;
 }
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
@@ -357,6 +358,8 @@ function MessageBubble({ m, onReply, onReact, onDelete, onImageClick }: {
     onImageClick: (id: number) => void;
 }) {
     const out = m.direction === "OUTBOUND";
+    const failed = out && m.status === "FAILED";
+    const failHint = failed ? waErrorHint(m.errorCode, m.errorMessage) : "";
     const reactions = m.reactionsJson || {};
     const reactionEmojis = [reactions.customer, reactions.agent].filter(Boolean) as string[];
     const canAct = !!m.waMessageId; // hanya pesan ber-ID WhatsApp yang bisa dibalas/direaksi
@@ -410,9 +413,20 @@ function MessageBubble({ m, onReply, onReact, onDelete, onImageClick }: {
                     )}
                     <div className={`flex items-center gap-1 justify-end mt-0.5 text-[10px] ${out ? "text-white/70" : "opacity-50"}`}>
                         {clockTime(m.createdAt)}
-                        {out && <MsgStatusTick status={m.status} />}
+                        {out && <MsgStatusTick status={m.status} failTitle={failed ? failHint : undefined} />}
                     </div>
                 </div>
+                {failed && (
+                    // Alasan gagal ditulis terang-terangan: ikon merah saja tidak memberi tahu
+                    // agen apa yang harus dilakukan (mis. 131042 = urusan pembayaran Meta).
+                    <div className="mt-1 flex items-start gap-1 text-[11px] leading-snug text-red-600 dark:text-red-400 max-w-full">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-px" />
+                        <span>
+                            <b>Gagal terkirim</b> — {failHint}
+                            {m.errorCode && <span className="opacity-60"> (kode {m.errorCode})</span>}
+                        </span>
+                    </div>
+                )}
                 {reactionEmojis.length > 0 && (
                     <div className={`absolute -bottom-2 ${out ? "right-2" : "left-2"} bg-card border border-border rounded-full px-1.5 py-0.5 text-xs shadow-sm`}>
                         {reactionEmojis.join(" ")}
