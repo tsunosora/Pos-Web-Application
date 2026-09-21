@@ -139,6 +139,20 @@ Kolom `roles.menu_access` menyimpan daftar menu yang boleh dilihat peran itu
 mencentang menu; kosong = pakai preset divisi bawaan. Ini cara membatasi,
 misalnya, agar kasir tidak melihat HPP dan laba.
 
+Sejak 21 September 2026 aturan ini **juga ditegakkan server**: endpoint laporan
+laba, riwayat shift, Kalkulator HPP, klik mesin, landing page, dan artikel
+menolak (HTTP 403) peran yang tidak diberi menunya. Pekerjaan yang merusak bila
+disalahgunakan — cadangan data, rekening bank, pengaturan toko & cabang, PIN
+kerja, hapus data induk — hanya untuk peran **setingkat manajer**. Rinciannya di
+[Model Akses & Keamanan](keamanan-akses.md#_2-pembatasan-peran-rolesguard).
+
+::: tip Admin = setingkat manajer
+Peran bernama persis **Admin** diperlakukan setingkat manajer (melihat semua menu
+dan lolos semua penjaga manajer). Kalau kasir/CS sebaiknya **tidak** bisa,
+misalnya, mengekspor database atau mereset saldo rekening, buat peran terpisah
+seperti *Kasir* atau *CS*, pindahkan akun mereka ke sana, lalu atur menunya.
+:::
+
 ## Karyawan keluar (resign)
 
 Menghapus akun karyawan yang keluar **bukan** pilihan yang baik: riwayat

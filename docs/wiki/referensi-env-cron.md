@@ -6,7 +6,7 @@
 
 ## Variabel lingkungan backend
 
-**45 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**49 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 | Variabel | Dipakai di |
@@ -21,6 +21,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `AI_NAME` | `backend/src/studio-ai/studio-ai.service.ts` |
 | `ALLOWED_ORIGINS` | `backend/src/main.ts` |
 | `BACKUP_DIR` | `backend/src/backup/rclone.service.ts` |
+| `BOARD_TOKEN_EXPIRES` | `backend/src/auth/board-auth.ts` |
 | `HR_API_KEY` | `backend/src/integrations/hr-summary.service.ts` |
 | `HR_SUMMARY_URL` | `backend/src/integrations/hr-summary.service.ts` |
 | `IG_APP_SECRET` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/meta-messaging/social-webhook.controller.ts` |
@@ -31,6 +32,9 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `LOGIN_LOCK_MS` | `backend/src/auth/login-throttle.service.ts` |
 | `META_AD_ACCOUNT_ID` | `backend/src/meta-ads/meta-ads.service.ts` |
 | `META_VERIFY_TOKEN` | `backend/src/meta-messaging/social-webhook.controller.ts` |
+| `PIN_FAIL_MAX` | `backend/src/auth/pin-throttle.interceptor.ts` |
+| `PIN_FAIL_WINDOW_MS` | `backend/src/auth/pin-throttle.interceptor.ts` |
+| `PIN_LOCK_MS` | `backend/src/auth/pin-throttle.interceptor.ts` |
 | `PORT` | `backend/src/main.ts` |
 | `POSPRO_BRANCH_ID` | `backend/src/local-sync/local-sync.service.ts` |
 | `POSPRO_CENTRAL_TOKEN` | `backend/src/local-sync/local-sync.service.ts` |
