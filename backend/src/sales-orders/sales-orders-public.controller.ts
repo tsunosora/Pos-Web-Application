@@ -3,53 +3,31 @@
  * Setiap request harus menyertakan { designerId, pin } untuk verifikasi.
  */
 import {
-    Controller, Get, Post, Delete, Body, Param, ParseIntPipe,
+    Controller, Post, Delete, Body, Param, ParseIntPipe, HttpCode,
     UseInterceptors, UploadedFiles, BadRequestException,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
 import * as fs from 'fs';
 import { SalesOrdersService } from './sales-orders.service';
 import { DesignersService } from '../designers/designers.service';
 import type { CreateSalesOrderPayload } from './sales-orders-public.types';
 import { compressImages } from '../common/utils/compress-image.util';
+import { assertRealImage, safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
+import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 
 const PROOF_DIR = './public/uploads/so-proofs';
 try { fs.mkdirSync(PROOF_DIR, { recursive: true }); } catch { /* ignore */ }
 
-function extFromMime(mime: string | null | undefined): string {
-    switch ((mime || '').toLowerCase()) {
-        case 'image/png': return '.png';
-        case 'image/jpeg': case 'image/jpg': return '.jpg';
-        case 'image/gif': return '.gif';
-        case 'image/webp': return '.webp';
-        case 'image/bmp': return '.bmp';
-        case 'image/svg+xml': return '.svg';
-        default: return '';
-    }
-}
-
+// Ekstensi ditentukan server dari tipe gambar (bukan nama asli kiriman), SVG ditolak:
+// endpoint ini tanpa login akun, jadi berkas tidak boleh bisa menjadi halaman web (T-18).
 const proofStorage = diskStorage({
     destination: PROOF_DIR,
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        let ext = extname(file.originalname || '').toLowerCase();
-        if (!ext) ext = extFromMime(file.mimetype);
-        if (!ext) ext = '.png';
-        cb(null, `so-proof-${uniqueSuffix}${ext}`);
+        cb(null, `so-proof-${uniqueSuffix}${safeImageExt(file.mimetype) ?? '.png'}`);
     },
 });
-
-const imageFilter = (req: any, file: any, cb: any) => {
-    if (typeof file.mimetype === 'string' && file.mimetype.startsWith('image/')) {
-        return cb(null, true);
-    }
-    if (file.originalname && file.originalname.toLowerCase().match(/\.(jpg|jpeg|jfif|png|gif|webp|bmp|svg)$/)) {
-        return cb(null, true);
-    }
-    return cb(new BadRequestException('Hanya file gambar'), false);
-};
 
 async function verifyDesigner(designers: DesignersService, id: number, pin: string) {
     const result = await designers.verifyPin(id, pin);
@@ -57,6 +35,8 @@ async function verifyDesigner(designers: DesignersService, id: number, pin: stri
     return result;
 }
 
+// Semua endpoint di sini memverifikasi PIN desainer → dibatasi tebakan PIN (T-19).
+@UseInterceptors(PinThrottleInterceptor)
 @Controller('sales-orders/designer')
 export class SalesOrdersPublicController {
     constructor(
@@ -83,9 +63,14 @@ export class SalesOrdersPublicController {
         return { name, ...(await this.soService.designerStats(name)) };
     }
 
-    /** Detail SO (hanya baca, tanpa PIN) */
-    @Get('detail/:id')
-    async detail(@Param('id', ParseIntPipe) id: number) {
+    /**
+     * Detail SO — wajib PIN desainer. Dulu GET tanpa PIN dan id-nya berurutan,
+     * sehingga nama + HP semua pelanggan bisa dipanen dengan perulangan (T-21).
+     */
+    @Post('detail/:id')
+    @HttpCode(200) // hanya baca
+    async detail(@Param('id', ParseIntPipe) id: number, @Body() body: { designerId: number; pin: string }) {
+        await verifyDesigner(this.designersService, Number(body?.designerId), body?.pin);
         return this.soService.findOne(id);
     }
 
@@ -154,7 +139,7 @@ export class SalesOrdersPublicController {
     @UseInterceptors(
         FilesInterceptor('files', 10, {
             storage: proofStorage,
-            fileFilter: imageFilter,
+            fileFilter: safeImageFilter,
             limits: { fileSize: 10 * 1024 * 1024 },
         }),
     )
@@ -165,7 +150,13 @@ export class SalesOrdersPublicController {
         @Body('pin') pin: string,
         @Body('captions') captionsRaw?: string,
     ) {
-        await verifyDesigner(this.designersService, Number(designerIdRaw), pin);
+        try {
+            await verifyDesigner(this.designersService, Number(designerIdRaw), pin);
+            for (const f of files || []) await assertRealImage(f.path);
+        } catch (e) {
+            for (const f of files || []) try { fs.unlinkSync(f.path); } catch { /* sudah terhapus */ }
+            throw e;
+        }
         let captions: string[] | undefined;
         if (captionsRaw) {
             try { captions = JSON.parse(captionsRaw); } catch { captions = [captionsRaw]; }

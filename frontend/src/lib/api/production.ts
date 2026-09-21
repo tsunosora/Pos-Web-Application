@@ -1,10 +1,22 @@
-// Production Queue — all endpoints use raw fetch (no JWT, public access)
+// Production Queue — raw fetch. Papan /produksi & /cetak tidak login akun: endpoint
+// papan kerja butuh token papan kerja (dari verifikasi PIN) ATAU token login akun.
+import { boardAuthHeaders, boardSessionExpired, isBoardPage, rememberBoardToken } from '@/lib/board-token';
+
 const API_BASE = () => {
     let v = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     // Auto-fix typo `https//api.x.com` (hilang titik dua) → `https://api.x.com`
     if (/^https?\/\//i.test(v)) v = v.replace(/^(https?)\/\//i, '$1://');
     return v;
 };
+
+/** fetch + header token; 401 di halaman papan kerja → kembali ke layar PIN. */
+async function boardFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    const res = await fetch(url, { ...init, headers: { ...boardAuthHeaders(), ...(init.headers as Record<string, string> | undefined) } });
+    if (res.status === 401 && typeof window !== 'undefined' && isBoardPage(window.location.pathname)) {
+        boardSessionExpired();
+    }
+    return res;
+}
 
 export interface PublicBranch { id: number; name: string; code: string | null; phone: string | null }
 
@@ -45,27 +57,29 @@ function qs(params: Record<string, string | number | undefined>): string {
 }
 
 export const verifyOperatorPin = async (pin: string, branchId?: number): Promise<{ valid: boolean; message?: string }> => {
-    const res = await fetch(`${API_BASE()}/production/pin/verify`, {
+    const res = await boardFetch(`${API_BASE()}/production/pin/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin, branchId }),
     });
-    return parseResponse<{ valid: boolean; message?: string }>(res, 'Verifikasi PIN');
+    const r = await parseResponse<{ valid: boolean; message?: string; boardToken?: string }>(res, 'Verifikasi PIN');
+    rememberBoardToken(r);
+    return r;
 };
 
 export const getProductionJobs = async (status?: string, branchId?: number): Promise<any[]> => {
     const url = `${API_BASE()}/production/jobs${qs({ status, branchId })}`;
-    const res = await fetch(url);
+    const res = await boardFetch(url);
     return parseResponse<any[]>(res, 'Memuat antrian produksi');
 };
 
 export const getProductionRolls = async (branchId?: number): Promise<any[]> => {
-    const res = await fetch(`${API_BASE()}/production/rolls${qs({ branchId })}`);
+    const res = await boardFetch(`${API_BASE()}/production/rolls${qs({ branchId })}`);
     return parseResponse<any[]>(res, 'Memuat daftar bahan roll');
 };
 
 export const getProductionStats = async (branchId?: number): Promise<{ antrian: number; proses: number; menungguPasang: number; pasang: number; selesai: number }> => {
-    const res = await fetch(`${API_BASE()}/production/stats${qs({ branchId })}`);
+    const res = await boardFetch(`${API_BASE()}/production/stats${qs({ branchId })}`);
     return parseResponse(res, 'Memuat statistik produksi');
 };
 
@@ -75,7 +89,7 @@ export const startProductionJob = async (id: number, data: {
     rollAreaM2?: number;
     operatorNote?: string;
 }): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/jobs/${id}/start`, {
+    const res = await boardFetch(`${API_BASE()}/production/jobs/${id}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -85,7 +99,7 @@ export const startProductionJob = async (id: number, data: {
 };
 
 export const completeProductionJob = async (id: number, operatorNote?: string, operatorName?: string, coOperatorNames?: string[], branchId?: number): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/jobs/${id}/complete`, {
+    const res = await boardFetch(`${API_BASE()}/production/jobs/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ operatorNote, operatorName, coOperatorNames, branchId }),
@@ -95,7 +109,7 @@ export const completeProductionJob = async (id: number, operatorNote?: string, o
 };
 
 export const pickupProductionJob = async (id: number): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/jobs/${id}/pickup`, {
+    const res = await boardFetch(`${API_BASE()}/production/jobs/${id}/pickup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
     });
@@ -109,7 +123,7 @@ export interface BulkPickupResult {
 }
 
 export const bulkPickupProductionJobs = async (ids: number[], branchId?: number): Promise<BulkPickupResult> => {
-    const res = await fetch(`${API_BASE()}/production/jobs/bulk-pickup`, {
+    const res = await boardFetch(`${API_BASE()}/production/jobs/bulk-pickup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids, branchId }),
@@ -141,7 +155,7 @@ export interface OperatorMeterReading {
 export const uploadOperatorMeterPhoto = async (file: File): Promise<string> => {
     const fd = new FormData();
     fd.append('image', file);
-    const res = await fetch(`${API_BASE()}/production/meter/upload-photo`, {
+    const res = await boardFetch(`${API_BASE()}/production/meter/upload-photo`, {
         method: 'POST',
         body: fd,
     });
@@ -163,7 +177,7 @@ export const upsertOperatorMeterReading = async (data: {
     photoUrl?: string;
     notes?: string;
 }): Promise<OperatorMeterReading> => {
-    const res = await fetch(`${API_BASE()}/production/meter/reading`, {
+    const res = await boardFetch(`${API_BASE()}/production/meter/reading`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -241,7 +255,7 @@ export const getOperatorMeterReadings = async (branchId: number, startDate?: str
     params.append('branchId', String(branchId));
     if (startDate) params.append('startDate', startDate);
     if (endDate) params.append('endDate', endDate);
-    const res = await fetch(`${API_BASE()}/production/meter/readings?${params.toString()}`);
+    const res = await boardFetch(`${API_BASE()}/production/meter/readings?${params.toString()}`);
     if (!res.ok) return [];
     const list = await res.json();
     return (list as OperatorMeterReading[]).map(r => ({ ...r, photoUrl: resolvePhotoUrl(r.photoUrl) }));
@@ -285,7 +299,7 @@ export const createOperatorMachineReject = async (data: {
     photoUrl?: string;
     date?: string;
 }): Promise<OperatorMachineReject> => {
-    const res = await fetch(`${API_BASE()}/production/meter/reject`, {
+    const res = await boardFetch(`${API_BASE()}/production/meter/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -299,14 +313,14 @@ export const getOperatorMachineRejects = async (branchId: number, month?: number
     params.append('branchId', String(branchId));
     if (month) params.append('month', String(month));
     if (year) params.append('year', String(year));
-    const res = await fetch(`${API_BASE()}/production/meter/rejects?${params.toString()}`);
+    const res = await boardFetch(`${API_BASE()}/production/meter/rejects?${params.toString()}`);
     if (!res.ok) return [];
     const list = await res.json();
     return (list as OperatorMachineReject[]).map(r => ({ ...r, photoUrl: resolvePhotoUrl(r.photoUrl) }));
 };
 
 export const startAssemblyJob = async (id: number, assemblyNote?: string): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/jobs/${id}/start-assembly`, {
+    const res = await boardFetch(`${API_BASE()}/production/jobs/${id}/start-assembly`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assemblyNote }),
@@ -316,7 +330,7 @@ export const startAssemblyJob = async (id: number, assemblyNote?: string): Promi
 };
 
 export const completeAssemblyJob = async (id: number, assemblyNote?: string, operatorName?: string, coOperatorNames?: string[], branchId?: number): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/jobs/${id}/complete-assembly`, {
+    const res = await boardFetch(`${API_BASE()}/production/jobs/${id}/complete-assembly`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assemblyNote, operatorName, coOperatorNames, branchId }),
@@ -331,7 +345,7 @@ export const createProductionBatch = async (data: {
     usedWaste: boolean;
     totalAreaM2?: number;
 }): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/batches`, {
+    const res = await boardFetch(`${API_BASE()}/production/batches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -341,7 +355,7 @@ export const createProductionBatch = async (data: {
 };
 
 export const completeProductionBatch = async (id: number, operatorName?: string, coOperatorNames?: string[], branchId?: number): Promise<any> => {
-    const res = await fetch(`${API_BASE()}/production/batches/${id}/complete`, {
+    const res = await boardFetch(`${API_BASE()}/production/batches/${id}/complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ operatorName, coOperatorNames, branchId }),
@@ -467,7 +481,7 @@ export const getPublicPipelineJobs = async (session: OperatorSession): Promise<P
         pin: session.pin,
         branchId: String(session.branchId),
     });
-    const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs?${params}`);
+    const res = await boardFetch(`${API_BASE()}/production/pipeline/public/jobs?${params}`);
     return parseResponse<PipelineJob[]>(res, 'Memuat pipeline produksi');
 };
 
@@ -484,7 +498,7 @@ export const updatePublicPipelineStage = async (
         coOperatorNames?: string[];
     },
 ): Promise<PipelineJob> => {
-    const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs/${id}`, {
+    const res = await boardFetch(`${API_BASE()}/production/pipeline/public/jobs/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -509,7 +523,7 @@ export const uploadPublicProofImage = async (
     form.append('branchId', String(session.branchId));
     form.append('operatorName', session.operatorName);
     if (designerName) form.append('designerName', designerName);
-    const res = await fetch(`${API_BASE()}/production/pipeline/public/jobs/${id}/proof-image`, {
+    const res = await boardFetch(`${API_BASE()}/production/pipeline/public/jobs/${id}/proof-image`, {
         method: 'POST',
         body: form,
     });
@@ -520,7 +534,7 @@ export const deletePublicProof = async (
     proofId: number,
     session: OperatorSession,
 ): Promise<{ ok: boolean }> => {
-    const res = await fetch(`${API_BASE()}/production/pipeline/public/proofs/${proofId}/delete`, {
+    const res = await boardFetch(`${API_BASE()}/production/pipeline/public/proofs/${proofId}/delete`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

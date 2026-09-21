@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 
 @UseGuards(JwtAuthGuard)
 @Controller('categories')
@@ -27,7 +28,9 @@ export class CategoriesController {
         return this.categoriesService.update(id, body);
     }
 
+    // Menghapus data induk: setingkat manajer (T-46).
     @Delete(':id')
+    @UseGuards(ManagerGuard)
     remove(@Param('id', ParseIntPipe) id: number) {
         return this.categoriesService.remove(id);
     }

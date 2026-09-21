@@ -51,9 +51,10 @@ export default function DesignerSODetailPage() {
     const [cancelling, setCancelling] = useState(false);
 
     async function reload() {
+        if (!session) return;
         setLoading(true);
         try {
-            setSo(await designerGetSO(Number(id)));
+            setSo(await designerGetSO(Number(id), session.id, session.pin));
         } catch {
             setError("Gagal memuat SO");
         } finally {
@@ -61,7 +62,7 @@ export default function DesignerSODetailPage() {
         }
     }
 
-    useEffect(() => { if (id) reload(); }, [id]);
+    useEffect(() => { if (id && session) reload(); }, [id, session]);
 
     const caption = useMemo(() => {
         if (!so) return "";

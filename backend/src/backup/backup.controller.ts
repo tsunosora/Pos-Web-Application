@@ -7,8 +7,11 @@ import type { Response } from 'express';
 import { BackupService, BackupGroupKey } from './backup.service';
 import { RcloneService } from './rclone.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard, OwnerGuard } from '../auth/role-groups';
 
-@UseGuards(JwtAuthGuard)
+// Cadangan berisi SELURUH data toko (pelanggan, transaksi, pengguna) → setingkat
+// manajer. Memulihkan (menimpa database) hanya owner (T-01).
+@UseGuards(JwtAuthGuard, ManagerGuard)
 @Controller('backup')
 export class BackupController {
     constructor(
@@ -57,6 +60,7 @@ export class BackupController {
     }
 
     @Post('restore')
+    @UseGuards(OwnerGuard)
     @UseInterceptors(FileInterceptor('file'))
     async restoreBackup(
         @UploadedFile() file: Express.Multer.File,

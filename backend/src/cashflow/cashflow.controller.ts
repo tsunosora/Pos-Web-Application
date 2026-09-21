@@ -2,6 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { CashflowService } from './cashflow.service';
 import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 
@@ -76,7 +77,10 @@ export class CashflowController {
         return this.cashflowService.getPlatformBreakdown(branchCtx, startDate, endDate);
     }
 
+    // Ubah/hapus entri langsung hanya setingkat manajer. Staf lain lewat
+    // "Ajukan perubahan" (/cashflow-requests) yang harus disetujui (T-13).
     @Patch(':id')
+    @UseGuards(ManagerGuard)
     update(
         @Param('id') id: string,
         @Body() data: {
@@ -93,6 +97,7 @@ export class CashflowController {
     }
 
     @Delete(':id')
+    @UseGuards(ManagerGuard)
     remove(@Param('id') id: string, @CurrentBranch() branchCtx: BranchContext) {
         return this.cashflowService.remove(+id, branchCtx);
     }

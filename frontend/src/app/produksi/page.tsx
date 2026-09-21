@@ -18,6 +18,7 @@ import {
 import { JobCard } from './JobCard';
 import { Footer } from '@/components/layout/Footer';
 import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
+import { BOARD_EXPIRED_EVENT, clearBoardToken, hasBoardAccess } from '@/lib/board-token';
 
 // ── component ─────────────────────────────────────────────────────────────────
 export default function ProduksiPage() {
@@ -80,7 +81,8 @@ export default function ProduksiPage() {
             console.error('[produksi] gagal memuat daftar cabang:', err);
             setBranches([]);
         });
-        const session = getStoredSession();
+        // Sesi lama tanpa token papan kerja (mis. sebelum pembaruan keamanan) → minta PIN lagi.
+        const session = hasBoardAccess() ? getStoredSession() : null;
         if (session) {
             setActiveBranchId(session.branchId);
             setActiveBranchName(session.branchName);
@@ -180,6 +182,7 @@ export default function ProduksiPage() {
     // Logout — clear session + reset state, kembali ke pin/branch picker
     const handleLogout = () => {
         clearSession();
+        clearBoardToken();
         setAuthed(false);
         setActiveBranchId(null);
         setActiveBranchName(null);
@@ -189,6 +192,13 @@ export default function ProduksiPage() {
         setSelectedOpId('');
         setPinInput('');
     };
+
+    // Server menolak token papan kerja (kedaluwarsa/dicabut) → kembali ke layar PIN.
+    useEffect(() => {
+        const onExpired = () => { handleLogout(); setPinError('Sesi berakhir. Masukkan PIN lagi.'); };
+        window.addEventListener(BOARD_EXPIRED_EVENT, onExpired);
+        return () => window.removeEventListener(BOARD_EXPIRED_EVENT, onExpired);
+    }, []);
 
     // ── filter jobs by tab + search ────────────────────────────────────────────
     const filteredJobs = jobs.filter(j => {

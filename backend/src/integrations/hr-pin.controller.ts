@@ -1,5 +1,6 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseInterceptors } from '@nestjs/common';
 import { HrSummaryService } from './hr-summary.service';
+import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 
 /**
  * Kartu "Absensi saya" untuk halaman kerja ber-PIN (/so-designer, /produksi,
@@ -7,6 +8,7 @@ import { HrSummaryService } from './hr-summary.service';
  * pengamannya PIN itu sendiri, diverifikasi di service (pola yang sama dengan
  * task-board/pin dan designers/public/verify).
  */
+@UseInterceptors(PinThrottleInterceptor)
 @Controller('hr/pin')
 export class HrPinController {
     constructor(private readonly service: HrSummaryService) { }

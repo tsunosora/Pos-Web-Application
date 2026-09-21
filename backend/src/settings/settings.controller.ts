@@ -1,12 +1,18 @@
-import { Controller, Get, Patch, Post, Body, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Body, Req, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard, isManagerLevelRole } from '../auth/role-groups';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { compressImage } from '../common/utils/compress-image.util';
 
 const randomHex = () => Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+
+// Kolom rahasia pengaturan toko: hanya untuk owner/admin/manajer. Staf lain tetap
+// perlu GET /settings (nama toko, pajak, tema, dll.), tapi tidak boleh membaca PIN
+// papan kerja, URL webhook, atau tujuan cadangan.
+const SECRET_FIELDS = ['operatorPin', 'marketingPin', 'discordWebhookUrl', 'githubWebhookSecret', 'rcloneRemote'] as const;
 
 @Controller('settings')
 export class SettingsController {
@@ -19,18 +25,24 @@ export class SettingsController {
 
     @Get()
     @UseGuards(JwtAuthGuard)
-    getSettings() {
-        return this.settingsService.getSettings();
+    async getSettings(@Req() req: any) {
+        const s: any = await this.settingsService.getSettings();
+        if (!s || isManagerLevelRole(req.user?.roleName)) return s;
+        const aman = { ...s };
+        for (const f of SECRET_FIELDS) if (f in aman) aman[f] = null;
+        return aman;
     }
 
+    // Mengubah pengaturan toko (nama toko di nota, pajak, mode harga, logo, QRIS)
+    // hanya setingkat manajer (T-45).
     @Patch()
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     updateSettings(@Body() data: any) {
         return this.settingsService.updateSettings(data);
     }
 
     @Post('upload-qris')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
@@ -45,7 +57,7 @@ export class SettingsController {
     }
 
     @Post('upload-logo')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
@@ -60,7 +72,7 @@ export class SettingsController {
     }
 
     @Post('upload-login-bg')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
@@ -74,7 +86,7 @@ export class SettingsController {
 
     /** Upload login logo (centerpiece di login page, replace animasi Voliko). */
     @Post('upload-login-logo')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',

@@ -18,6 +18,7 @@ import {
     type RejectCause, type CounterType, type RejectType,
 } from "@/lib/api";
 import dayjs from "dayjs";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
@@ -299,6 +300,7 @@ function DashboardTab({ month, year }: { month: number; year: number }) {
 // ─── Logs Tab ─────────────────────────────────────────────────────────────────
 
 function LogsTab({ month, year }: { month: number; year: number }) {
+    const { isManager } = useCurrentUser(); // hapus data & ubah tarif: setingkat manajer (server juga menolak)
     const qc = useQueryClient();
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState({ clickRateId: 0, quantity: 1, date: dayjs().format("YYYY-MM-DD") });
@@ -474,12 +476,12 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                                         <td className="px-4 py-3 text-right text-muted-foreground">{formatRp(Number(log.pricePerClick))}</td>
                                         <td className="px-4 py-3 text-right font-medium text-foreground">{formatRp(Number(log.totalCost))}</td>
                                         <td className="px-4 py-3 text-right">
-                                            <button
+                                            {isManager && <button
                                                 onClick={() => window.confirm("Hapus log ini?") && deleteMut.mutate(log.id)}
                                                 className="text-red-400 hover:text-red-600 p-1"
                                             >
                                                 <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            </button>}
                                         </td>
                                     </tr>
                                 );
@@ -505,7 +507,7 @@ function LogsTab({ month, year }: { month: number; year: number }) {
             )}
 
             {/* Rate Settings */}
-            <RateSettings rates={rates} />
+            {isManager && <RateSettings rates={rates} />}
         </div>
     );
 }
@@ -641,6 +643,7 @@ function RateSettings({ rates }: { rates: ClickRate[] }) {
 // ─── Rejects Tab ──────────────────────────────────────────────────────────────
 
 function RejectsTab({ month, year }: { month: number; year: number }) {
+    const { isManager } = useCurrentUser(); // hapus data & ubah tarif: setingkat manajer (server juga menolak)
     const qc = useQueryClient();
     const [showForm, setShowForm] = useState(false);
     const [form, setForm] = useState<{
@@ -920,12 +923,12 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
                                         )}
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                        <button
+                                        {isManager && <button
                                             onClick={() => window.confirm("Hapus data reject ini?") && deleteMut.mutate(r.id)}
                                             className="text-red-400 hover:text-red-600 p-1"
                                         >
                                             <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        </button>}
                                     </td>
                                 </tr>
                             ))}
@@ -955,6 +958,7 @@ function RejectsTab({ month, year }: { month: number; year: number }) {
 // ─── Rekonsiliasi Tab ─────────────────────────────────────────────────────────
 
 function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
+    const { isManager } = useCurrentUser(); // hapus data & ubah tarif: setingkat manajer (server juga menolak)
     const qc = useQueryClient();
 
     // Default range: awal-akhir bulan
@@ -1228,12 +1232,12 @@ function RekonsiliasiTab({ month, year }: { month: number; year: number }) {
                                                 >
                                                     Edit
                                                 </button>
-                                                <button
+                                                {isManager && <button
                                                     onClick={() => window.confirm("Hapus pembacaan ini?") && deleteMeterMut.mutate(r.id)}
                                                     className="text-red-400 hover:text-red-600 p-1"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
-                                                </button>
+                                                </button>}
                                             </div>
                                         </td>
                                     </tr>

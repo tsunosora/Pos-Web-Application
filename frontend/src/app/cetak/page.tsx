@@ -17,6 +17,7 @@ import { getPublicDesigners, verifyDesignerPin } from '@/lib/api/designers';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { CetakPiketCard, CetakAbsensiCard, CetakPiketIdentity, clearCetakPiketIdentity, readCetakPiketIdentity, hasCetakPiketIdentity, saveCetakPiketIdentity } from '@/components/tugas/PiketPinMounts';
 import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
+import { BOARD_EXPIRED_EVENT, clearBoardToken, hasBoardAccess } from '@/lib/board-token';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
 type RejectType = OperatorRejectType;
@@ -118,7 +119,8 @@ export default function CetakPage() {
             console.error('[cetak] gagal memuat daftar cabang:', err);
             setBranches([]);
         });
-        const session = readSession();
+        // Sesi lama tanpa token papan kerja (mis. sebelum pembaruan keamanan) → minta PIN lagi.
+        const session = hasBoardAccess() ? readSession() : null;
         if (session) {
             setActiveBranchId(session.branchId);
             setActiveBranchName(session.branchName);
@@ -209,6 +211,7 @@ export default function CetakPage() {
 
     const handleLogout = () => {
         localStorage.removeItem(PIN_KEY);
+        clearBoardToken();
         clearCetakPiketIdentity();
         setAuthed(false);
         setActiveBranchId(null);
@@ -216,6 +219,13 @@ export default function CetakPage() {
         setActiveBranchCode(null);
         setPinInput('');
     };
+
+    // Server menolak token papan kerja (kedaluwarsa/dicabut) → kembali ke layar PIN.
+    useEffect(() => {
+        const onExpired = () => { handleLogout(); setPinError('Sesi berakhir. Masukkan PIN lagi.'); };
+        window.addEventListener(BOARD_EXPIRED_EVENT, onExpired);
+        return () => window.removeEventListener(BOARD_EXPIRED_EVENT, onExpired);
+    }, []);
 
     /** Pilih nama operator — wajib PIN pribadi, sama seperti halaman /produksi. */
     const handlePilihOperator = (name: string) => {
@@ -244,8 +254,8 @@ export default function CetakPage() {
             localStorage.setItem(OP_KEY, pendingOp.name);
             setPendingOp(null);
             setOpPin('');
-        } catch {
-            setOpPinError('Gagal menghubungi server. Coba lagi.');
+        } catch (err) {
+            setOpPinError((err as Error)?.message || 'Gagal menghubungi server. Coba lagi.');
         } finally {
             setOpPinLoading(false);
         }

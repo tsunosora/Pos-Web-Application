@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { EmptyState } from '@/components/ui/responsive-table';
 import dayjs from 'dayjs';
 import { useBranchStore } from '@/store/branch-store';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 type AmendState = {
     actualCash: string;
@@ -47,6 +48,8 @@ export default function ShiftHistoryPage() {
     const queryClient = useQueryClient();
     const activeBranchId = useBranchStore((s) => s.activeBranchId);
     const [page, setPage] = useState(1);
+    // Koreksi laporan shift yang sudah ditutup hanya owner/admin/manajer (server juga menolak).
+    const { isManager } = useCurrentUser();
     const [expandedId, setExpandedId] = useState<number | null>(null);
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
@@ -261,14 +264,14 @@ export default function ShiftHistoryPage() {
                                                 Dikoreksi {dayjs(shift.amendedAt).format('DD/MM/YY')}
                                             </span>
                                         )}
-                                        <button
+                                        {isManager && <button
                                             onClick={() => openAmendModal(shift)}
                                             title="Koreksi laporan ini"
                                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-xs font-medium text-amber-700 dark:text-amber-400 transition-colors"
                                         >
                                             <Pencil className="w-3.5 h-3.5" />
                                             Koreksi
-                                        </button>
+                                        </button>}
                                         {hasMsgBackup && (
                                             <>
                                                 <button

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { WhatsappService } from './whatsapp.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 
 /**
  * Bot WhatsApp lama (sesi QR). Masih dipakai karena Cloud API resmi tidak bisa
@@ -10,7 +11,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
  * mengubah konfigurasi bot, jadi tidak boleh terbuka seperti sisa versi awal
  * aplikasi. Frontend memanggilnya lewat klien API yang sudah membawa token.
  */
-@UseGuards(JwtAuthGuard)
+// Controller WhatsApp lama (whatsapp-web.js): kirim/siaran/logout sesi toko.
+// Hanya dipakai halaman Pengaturan → setingkat manajer (T-29). Controller
+// WhatsApp Cloud memakai prefix yang sama tapi kelas terpisah — tidak terpengaruh.
+@UseGuards(JwtAuthGuard, ManagerGuard)
 @Controller('whatsapp')
 export class WhatsappController {
     constructor(private readonly whatsappService: WhatsappService) { }

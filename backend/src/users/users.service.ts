@@ -55,6 +55,11 @@ export class UsersService {
         roleId,
         branchId,
       },
+      // Jangan pernah kembalikan passwordHash (T-04) — sama dengan updateUser.
+      select: {
+        id: true, name: true, email: true, phone: true, role: true,
+        branchId: true, branch: { select: { id: true, name: true, code: true } }
+      }
     });
   }
 

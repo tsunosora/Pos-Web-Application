@@ -97,7 +97,11 @@ export default function InventoryPage() {
     // Produk yang sedang diganti kategorinya (modal cepat)
     const [categoryEditProduct, setCategoryEditProduct] = useState<any>(null);
     const [catalogProduct, setCatalogProduct] = useState<any>(null); // "Jadikan Katalog WA"
-    const { roleName } = useCurrentUser();
+    const { roleName, isManager, navAllowed } = useCurrentUser();
+    // Menghapus produk/kategori/unit hanya setingkat manajer (server juga menolak).
+    const canDeleteMaster = isManager;
+    // Kalkulator HPP hanya untuk peran yang diberi menunya (server juga menolak).
+    const canHpp = !navAllowed || navAllowed.has('/reports/hpp');
     // Sama dengan izin backend katalog WhatsApp (TEMPLATE_ROLES): Owner/Admin/Marketing.
     const canWaCatalog = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN', 'MARKETING'].includes(String(roleName || '').toUpperCase());
     const [wasteForm, setWasteForm] = useState({ quantity: '', panjang: '', lebar: '', wasteType: 'Gagal Cetak', notes: '', operatorName: '' });
@@ -492,12 +496,12 @@ export default function InventoryPage() {
             {selectedIds.size > 0 && (
                 <div className="flex items-center gap-3 px-4 py-2.5 bg-destructive/10 border border-destructive/20 rounded-xl mt-2">
                     <span className="text-sm font-medium text-destructive">{selectedIds.size} produk dipilih</span>
-                    <button
+                    {canDeleteMaster && <button
                         onClick={() => setShowBulkDeleteModal(true)}
                         className="flex items-center gap-1.5 text-sm font-semibold text-white bg-destructive px-3 py-1.5 rounded-lg hover:bg-destructive/90 transition-colors"
                     >
                         <Trash2 className="w-3.5 h-3.5" /> Hapus yang Dipilih
-                    </button>
+                    </button>}
                     <button
                         onClick={() => setSelectedIds(new Set())}
                         className="text-sm text-muted-foreground hover:text-foreground transition-colors"
@@ -810,9 +814,9 @@ export default function InventoryPage() {
                                                                         <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
                                                                             <Pencil className="h-3.5 w-3.5 shrink-0" /> Edit Produk
                                                                         </button>
-                                                                        <button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                                                                        {canHpp && (<button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
                                                                             <Calculator className="h-3.5 w-3.5 shrink-0" /> Kalkulator HPP
-                                                                        </button>
+                                                                        </button>)}
                                                                         <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                             <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Link Disalin!' : 'Salin Link'}
                                                                         </button>
@@ -821,10 +825,12 @@ export default function InventoryPage() {
                                                                                 <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
                                                                             </button>
                                                                         )}
+                                                                        {canDeleteMaster && (<>
                                                                         <div className="h-px bg-border/60 my-1" />
                                                                         <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
                                                                         </button>
+                                                                        </>)}
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -1030,9 +1036,9 @@ export default function InventoryPage() {
                                                                         <button onClick={() => { router.push(`/inventory/products/${product.id}/edit`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm hover:bg-muted transition-colors">
                                                                             <Pencil className="h-3.5 w-3.5 shrink-0" /> Edit Produk
                                                                         </button>
-                                                                        <button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                                                                        {canHpp && (<button onClick={() => { router.push(`/reports/hpp?editProductId=${product.id}`); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
                                                                             <Calculator className="h-3.5 w-3.5 shrink-0" /> Kalkulator HPP
-                                                                        </button>
+                                                                        </button>)}
                                                                         <button onClick={() => { handleShare(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors">
                                                                             <Share2 className="h-3.5 w-3.5 shrink-0" /> {shareToastId === product.id ? 'Link Disalin!' : 'Salin Link Produk'}
                                                                         </button>
@@ -1041,10 +1047,12 @@ export default function InventoryPage() {
                                                                                 <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
                                                                             </button>
                                                                         )}
+                                                                        {canDeleteMaster && (<>
                                                                         <div className="h-px bg-border/60 my-1" />
                                                                         <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                             <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus Produk
                                                                         </button>
+                                                                        </>)}
                                                                     </div>,
                                                                     document.body,
                                                                 )}
@@ -1178,10 +1186,12 @@ export default function InventoryPage() {
                                                                             <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
                                                                         </button>
                                                                     )}
+                                                                    {canDeleteMaster && (<>
                                                                     <div className="h-px bg-border/60 my-1" />
                                                                     <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
                                                                         <Trash2 className="h-3.5 w-3.5 shrink-0" /> Hapus
                                                                     </button>
+                                                                    </>)}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -1298,10 +1308,12 @@ export default function InventoryPage() {
                                                                         <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
                                                                     </button>
                                                                 )}
+                                                                {canDeleteMaster && (<>
                                                                 <div className="h-px bg-border/60 my-1" />
                                                                 <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10">
                                                                     <Trash2 className="h-3.5 w-3.5" /> Hapus
                                                                 </button>
+                                                                </>)}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1437,10 +1449,12 @@ export default function InventoryPage() {
                                                                         <ShoppingBag className="h-3.5 w-3.5 shrink-0" /> Jadikan Katalog WA
                                                                     </button>
                                                                 )}
+                                                                {canDeleteMaster && (<>
                                                                 <div className="h-px bg-border/60 my-1" />
                                                                 <button onClick={() => { setDeletingProductId(product.id); closeDropdown(); }} className="w-full flex items-center gap-2.5 px-3.5 py-2 text-sm text-destructive hover:bg-destructive/10">
                                                                     <Trash2 className="h-3.5 w-3.5" /> Hapus
                                                                 </button>
+                                                                </>)}
                                                             </div>
                                                         )}
                                                     </div>

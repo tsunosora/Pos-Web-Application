@@ -6,6 +6,7 @@ import { getCategories, createCategory, updateCategory, deleteCategory, getProdu
 import { Plus, Pencil, Trash2, Check, X, ChevronRight, FolderOpen, Folder, FolderPlus, FolderTree, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/responsive-table';
 import ProductionCategoryManager from './ProductionCategoryManager';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 interface Category {
     id: number;
@@ -37,6 +38,7 @@ function AddonBadge() {
  */
 export default function CategoryPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
     const queryClient = useQueryClient();
+    const { isManager } = useCurrentUser(); // hapus kategori: setingkat manajer (server juga menolak)
 
     const [newName, setNewName] = useState('');
     const [newParentId, setNewParentId] = useState<string>('');
@@ -251,7 +253,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                         <button onClick={() => { setAddSubFor(isAddingSub ? null : cat.id); setSubName(''); setExpandedIds(prev => new Set([...prev, cat.id])); }}
                                                             className={`${iconBtn} ${isAddingSub ? 'bg-primary/20 text-primary' : 'bg-primary/10 text-primary hover:bg-primary/20'}`} title="Tambah sub-kategori"><FolderPlus className="w-4 h-4" /></button>
                                                         <button onClick={() => startEdit(cat)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary`} title="Edit"><Pencil className="w-4 h-4" /></button>
-                                                        <button onClick={() => setDeletingId(cat.id)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive`} title="Hapus"><Trash2 className="w-4 h-4" /></button>
+                                                        {isManager && <button onClick={() => setDeletingId(cat.id)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive`} title="Hapus"><Trash2 className="w-4 h-4" /></button>}
                                                     </>
                                                 )}
                                             </div>
@@ -323,7 +325,7 @@ export default function CategoryPanel({ open, onClose }: { open: boolean; onClos
                                                                 ) : (
                                                                     <>
                                                                         <button onClick={() => startEdit(child)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary`} title="Edit"><Pencil className="w-4 h-4" /></button>
-                                                                        <button onClick={() => setDeletingId(child.id)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive`} title="Hapus"><Trash2 className="w-4 h-4" /></button>
+                                                                        {isManager && <button onClick={() => setDeletingId(child.id)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive`} title="Hapus"><Trash2 className="w-4 h-4" /></button>}
                                                                     </>
                                                                 )}
                                                             </div>

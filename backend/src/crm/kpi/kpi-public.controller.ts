@@ -3,9 +3,11 @@
  * Tim marketing memantau lead (sumber, status, pendapatan, produk yang diorder)
  * lintas cabang. PIN diverifikasi inline tiap request (tidak ada JWT guard).
  */
-import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, BadRequestException, UseInterceptors } from '@nestjs/common';
 import { KpiPeriod, KpiService } from './kpi.service';
+import { PinThrottleInterceptor } from '../../auth/pin-throttle.interceptor';
 
+@UseInterceptors(PinThrottleInterceptor)
 @Controller('crm/public')
 export class KpiPublicController {
     constructor(private readonly kpi: KpiService) {}

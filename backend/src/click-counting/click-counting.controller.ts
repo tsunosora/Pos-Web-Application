@@ -6,6 +6,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { ClickCountingService } from './click-counting.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard, Menu, MenuGuard } from '../auth/role-groups';
 import { compressImage } from '../common/utils/compress-image.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CurrentBranch } from '../common/branch-context.decorator';
@@ -14,6 +15,11 @@ import type { BranchContext } from '../common/branch-context.decorator';
 const execAsync = promisify(exec);
 const randomHex = () => Array(32).fill(null).map(() => Math.round(Math.random() * 16).toString(16)).join('');
 
+// Catatan klik = dasar biaya mesin yang dicocokkan dengan tagihan vendor (T-48).
+// - Semua endpoint: hanya peran yang diberi menu Klik Mesin Cetak (kecuali GET rates,
+//   dibaca halaman produk & kalkulator HPP).
+// - Menghapus catatan & mengubah tarif klik: setingkat manajer.
+@Menu('/click-counting')
 @UseGuards(JwtAuthGuard)
 @Controller('click-counting')
 export class ClickCountingController {
@@ -25,6 +31,7 @@ export class ClickCountingController {
   // ─── Upload Foto Counter / Reject ───────────────────────────────────────────
 
   @Post('upload-photo')
+  @UseGuards(MenuGuard)
   @UseInterceptors(FileInterceptor('image', {
     storage: diskStorage({
       destination: './public/uploads',
@@ -66,6 +73,7 @@ export class ClickCountingController {
   }
 
   @Post('rates')
+  @UseGuards(ManagerGuard)
   createRate(
     @Body() body: { name: string; paperSize: string; colorMode: string; sideMode: string; pricePerClick: number },
   ) {
@@ -73,11 +81,13 @@ export class ClickCountingController {
   }
 
   @Post('rates/seed')
+  @UseGuards(ManagerGuard)
   seedRates() {
     return this.service.seedRates();
   }
 
   @Put('rates/:id')
+  @UseGuards(ManagerGuard)
   updateRate(
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { name?: string; pricePerClick?: number; isActive?: boolean },
@@ -86,6 +96,7 @@ export class ClickCountingController {
   }
 
   @Delete('rates/:id')
+  @UseGuards(ManagerGuard)
   deleteRate(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteRate(id);
   }
@@ -93,6 +104,7 @@ export class ClickCountingController {
   // ─── Click Logs ─────────────────────────────────────────────────────────────
 
   @Get('logs')
+  @UseGuards(MenuGuard)
   getLogs(
     @CurrentBranch() branchCtx: BranchContext,
     @Query('month') month?: string,
@@ -102,6 +114,7 @@ export class ClickCountingController {
   }
 
   @Post('logs')
+  @UseGuards(MenuGuard)
   createLog(
     @Body() body: { clickRateId: number; quantity: number; date?: string; transactionItemId?: number },
     @CurrentBranch() branchCtx: BranchContext,
@@ -110,6 +123,7 @@ export class ClickCountingController {
   }
 
   @Delete('logs/:id')
+  @UseGuards(ManagerGuard)
   deleteLog(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteLog(id);
   }
@@ -117,6 +131,7 @@ export class ClickCountingController {
   // ─── Machine Rejects ────────────────────────────────────────────────────────
 
   @Get('rejects')
+  @UseGuards(MenuGuard)
   getRejects(
     @CurrentBranch() branchCtx: BranchContext,
     @Query('month') month?: string,
@@ -126,6 +141,7 @@ export class ClickCountingController {
   }
 
   @Post('rejects')
+  @UseGuards(MenuGuard)
   createReject(
     @Body()
     body: {
@@ -144,6 +160,7 @@ export class ClickCountingController {
   }
 
   @Delete('rejects/:id')
+  @UseGuards(ManagerGuard)
   deleteReject(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteReject(id);
   }
@@ -151,6 +168,7 @@ export class ClickCountingController {
   // ─── Meter Readings (harian) ────────────────────────────────────────────────
 
   @Get('meter')
+  @UseGuards(MenuGuard)
   getMeterReadings(
     @CurrentBranch() branchCtx: BranchContext,
     @Query('startDate') startDate?: string,
@@ -160,11 +178,13 @@ export class ClickCountingController {
   }
 
   @Get('meter/by-date')
+  @UseGuards(MenuGuard)
   getMeterByDate(@Query('date') date: string, @CurrentBranch() branchCtx: BranchContext) {
     return this.service.getMeterReadingByDate(date, branchCtx);
   }
 
   @Post('meter')
+  @UseGuards(MenuGuard)
   upsertMeterReading(
     @Body()
     body: {
@@ -182,6 +202,7 @@ export class ClickCountingController {
   }
 
   @Delete('meter/:id')
+  @UseGuards(ManagerGuard)
   deleteMeterReading(@Param('id', ParseIntPipe) id: number) {
     return this.service.deleteMeterReading(id);
   }
@@ -189,6 +210,7 @@ export class ClickCountingController {
   // ─── Vendor Bill (rekonsiliasi per range) ───────────────────────────────────
 
   @Get('vendor-bill')
+  @UseGuards(MenuGuard)
   getVendorBill(
     @Query('startDate') startDate: string,
     @Query('endDate') endDate: string,
@@ -200,6 +222,7 @@ export class ClickCountingController {
   // ─── Reconciliation (legacy — per bulan) & Dashboard ───────────────────────
 
   @Get('reconciliation')
+  @UseGuards(MenuGuard)
   getReconciliation(
     @Query('month', ParseIntPipe) month: number,
     @Query('year', ParseIntPipe) year: number,
@@ -209,6 +232,7 @@ export class ClickCountingController {
   }
 
   @Get('dashboard')
+  @UseGuards(MenuGuard)
   getDashboard(
     @Query('month', ParseIntPipe) month: number,
     @Query('year', ParseIntPipe) year: number,

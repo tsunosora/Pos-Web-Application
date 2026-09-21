@@ -7,17 +7,20 @@ import {
   ParseIntPipe,
   Post,
   Res,
+  UseInterceptors,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { TaskPiketService } from './task-piket.service';
 import { sendPiketPdf } from './piket-pdf.render';
 import { PinAckDto, PinAuthDto, PinCheckinDto } from './task-board.dto';
+import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 
 /**
  * Pop-up piket untuk halaman ber-PIN (/so-designer, /produksi, /cetak) — tanpa JWT.
  * Setiap request wajib { designerId, pin }; data selalu milik akun tugas yang
  * terhubung ke PIN itu (Pengaturan → Desainer), tidak pernah milik orang lain.
  */
+@UseInterceptors(PinThrottleInterceptor)
 @Controller('task-board/pin')
 export class TaskBoardPinController {
   constructor(private readonly piket: TaskPiketService) {}

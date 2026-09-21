@@ -1,8 +1,12 @@
 import { Controller, Delete, Get, Post, Body, Param, ParseIntPipe, Patch, Query, Req, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { JwtService } from '@nestjs/jwt';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import * as fs from 'fs';
+import { BoardOrUserGuard, hidePhonesForBoard, signBoardToken } from '../auth/board-auth';
+import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
+import { assertRealImage, discardUpload, safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
 import { ProductionService } from './production.service';
 import { ClickCountingService } from '../click-counting/click-counting.service';
 import { compressImage } from '../common/utils/compress-image.util';
@@ -26,29 +30,37 @@ function fakeOperatorCtx(branchId: number): BranchContext {
     };
 }
 
-// All endpoints are public (no JWT) — gated by operator PIN on client side
+// Papan kerja /produksi dipakai tanpa akun login. Endpoint papan kerja dijaga
+// BoardOrUserGuard: wajib token papan kerja (didapat setelah PIN benar di server)
+// ATAU token login akun. Dulu PIN hanya dicek di peramban, sehingga siapa pun di
+// internet bisa membaca data pelanggan & mengubah status job (T-17).
 @Controller('production')
 export class ProductionController {
     constructor(
         private readonly productionService: ProductionService,
         private readonly clickCounting: ClickCountingService,
+        private readonly jwt: JwtService,
     ) {}
 
     @Get('jobs')
-    getJobs(
+    @UseGuards(BoardOrUserGuard)
+    async getJobs(
+        @Req() req: any,
         @Query('status') status?: string,
         @Query('priority') priority?: string,
         @Query('branchId') branchId?: string,
     ) {
-        return this.productionService.getJobs(status, priority, branchId ? parseInt(branchId) : undefined);
+        return hidePhonesForBoard(req, await this.productionService.getJobs(status, priority, branchId ? parseInt(branchId) : undefined));
     }
 
     @Get('rolls')
+    @UseGuards(BoardOrUserGuard)
     getRolls(@Query('branchId') branchId?: string) {
         return this.productionService.getRolls(branchId ? parseInt(branchId) : undefined);
     }
 
     @Get('stats')
+    @UseGuards(BoardOrUserGuard)
     getStats(@Query('branchId') branchId?: string) {
         return this.productionService.getStats(branchId ? parseInt(branchId) : undefined);
     }
@@ -143,6 +155,7 @@ export class ProductionController {
     // audit log + lastUpdatedBy.
 
     @Get('pipeline/public/jobs')
+    @UseInterceptors(PinThrottleInterceptor)
     async getPublicPipelineJobs(
         @Query('pin') pin: string,
         @Query('branchId') branchId?: string,
@@ -153,6 +166,7 @@ export class ProductionController {
     }
 
     @Patch('pipeline/public/jobs/:id')
+    @UseInterceptors(PinThrottleInterceptor)
     async updatePublicPipelineStage(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: {
@@ -178,17 +192,12 @@ export class ProductionController {
     }
 
     @Post('pipeline/public/jobs/:id/proof-image')
-    @UseInterceptors(FileInterceptor('image', {
+    @UseInterceptors(PinThrottleInterceptor, FileInterceptor('image', {
         storage: diskStorage({
             destination: METER_DIR,
-            filename: (_req, file, cb) => cb(null, `proof_${randomHex()}${extname(file.originalname || '.jpg')}`),
+            filename: (_req, file, cb) => cb(null, `proof_${randomHex()}${safeImageExt(file.mimetype) ?? '.jpg'}`),
         }),
-        fileFilter: (_req, file, cb) => {
-            if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-                return cb(new BadRequestException('Hanya file gambar yang diperbolehkan'), false);
-            }
-            cb(null, true);
-        },
+        fileFilter: safeImageFilter,
         limits: { fileSize: 10 * 1024 * 1024 },
     }))
     async uploadPublicProofImage(
@@ -198,10 +207,16 @@ export class ProductionController {
     ) {
         if (!file) throw new BadRequestException('File foto wajib diisi');
         const bid = body.branchId ? parseInt(body.branchId) : undefined;
-        await this.productionService.verifyOperatorPinPublic(body.pin, bid);
-        if (!body.operatorName?.trim()) {
-            throw new BadRequestException('Nama operator wajib diisi');
+        try {
+            await this.productionService.verifyOperatorPinPublic(body.pin, bid);
+            if (!body.operatorName?.trim()) {
+                throw new BadRequestException('Nama operator wajib diisi');
+            }
+        } catch (e) {
+            discardUpload(file); // multer sudah menyimpan berkas sebelum PIN dicek
+            throw e;
         }
+        await assertRealImage(file.path);
         await compressImage(file.path);
         const url = `/uploads/${file.filename}`;
         const proof = await this.productionService.addProof(id, url, { name: body.operatorName.trim(), role: 'OPERATOR' }, body.designerName);
@@ -210,6 +225,7 @@ export class ProductionController {
     }
 
     @Patch('pipeline/public/proofs/:proofId/delete')
+    @UseInterceptors(PinThrottleInterceptor)
     async deletePublicProofImage(
         @Param('proofId', ParseIntPipe) proofId: number,
         @Body() body: { pin: string; branchId?: number; operatorName: string },
@@ -227,12 +243,17 @@ export class ProductionController {
         return this.productionService.getJobActivities(id);
     }
 
+    /** PIN cabang benar → ikut dapat token papan kerja untuk endpoint di bawah. */
     @Post('pin/verify')
-    verifyPin(@Body('pin') pin: string, @Body('branchId') branchId?: number) {
-        return this.productionService.verifyPin(pin, branchId);
+    @UseInterceptors(PinThrottleInterceptor)
+    async verifyPin(@Body('pin') pin: string, @Body('branchId') branchId?: number) {
+        const r = await this.productionService.verifyPin(pin, branchId);
+        if (!r.valid) return r;
+        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: branchId ?? null }) };
     }
 
     @Post('jobs/:id/start')
+    @UseGuards(BoardOrUserGuard)
     startJob(
         @Param('id', ParseIntPipe) id: number,
         @Body() data: { rollVariantId?: number; usedWaste: boolean; rollAreaM2?: number; operatorNote?: string },
@@ -241,31 +262,37 @@ export class ProductionController {
     }
 
     @Post('jobs/:id/complete')
+    @UseGuards(BoardOrUserGuard)
     completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
         return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/start-assembly')
+    @UseGuards(BoardOrUserGuard)
     startAssembly(@Param('id', ParseIntPipe) id: number, @Body('assemblyNote') assemblyNote?: string) {
         return this.productionService.startAssembly(id, assemblyNote);
     }
 
     @Post('jobs/:id/complete-assembly')
+    @UseGuards(BoardOrUserGuard)
     completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
         return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')
+    @UseGuards(BoardOrUserGuard)
     pickupJob(@Param('id', ParseIntPipe) id: number) {
         return this.productionService.pickupJob(id);
     }
 
     @Post('jobs/bulk-pickup')
+    @UseGuards(BoardOrUserGuard)
     bulkPickup(@Body() body: { ids: number[]; branchId?: number | null }) {
         return this.productionService.bulkPickup(body?.ids ?? [], body?.branchId);
     }
 
     @Post('batches')
+    @UseGuards(BoardOrUserGuard)
     createBatch(
         @Body() data: { jobIds: number[]; rollVariantId?: number; usedWaste: boolean; totalAreaM2?: number },
     ) {
@@ -273,37 +300,36 @@ export class ProductionController {
     }
 
     @Post('batches/:id/complete')
+    @UseGuards(BoardOrUserGuard)
     completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }) {
         return this.productionService.completeBatch(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     // ─── Meter Reading (Rekonsiliasi Operator) ───────────────────────────────
-    // Public endpoint untuk operator di /cetak — tidak butuh JWT, gated by PIN
-    // di sisi client. Reuse ClickCountingService dengan fake BranchContext.
+    // Endpoint untuk operator di /cetak (tanpa akun login) — dijaga token papan
+    // kerja. Reuse ClickCountingService dengan fake BranchContext.
 
-    /** Upload foto counter mesin — operator tidak perlu login */
+    /** Upload foto counter mesin — ekstensi ditentukan server dari tipe gambar (T-18). */
     @Post('meter/upload-photo')
+    @UseGuards(BoardOrUserGuard)
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: METER_DIR,
-            filename: (_req, file, cb) => cb(null, `meter_${randomHex()}${extname(file.originalname || '.jpg')}`),
+            filename: (_req, file, cb) => cb(null, `meter_${randomHex()}${safeImageExt(file.mimetype) ?? '.jpg'}`),
         }),
-        fileFilter: (_req, file, cb) => {
-            if (!file.mimetype || !file.mimetype.startsWith('image/')) {
-                return cb(new BadRequestException('Hanya file gambar yang diperbolehkan'), false);
-            }
-            cb(null, true);
-        },
+        fileFilter: safeImageFilter,
         limits: { fileSize: 10 * 1024 * 1024 },
     }))
     async uploadMeterPhoto(@UploadedFile() file: Express.Multer.File) {
         if (!file) throw new BadRequestException('File foto wajib diisi');
+        await assertRealImage(file.path);
         await compressImage(file.path);
         return { url: `/uploads/${file.filename}` };
     }
 
     /** Upsert pembacaan counter harian — terima branchId di body karena public */
     @Post('meter/reading')
+    @UseGuards(BoardOrUserGuard)
     async upsertMeterReading(
         @Body() body: {
             branchId: number;
@@ -324,6 +350,7 @@ export class ProductionController {
 
     /** List pembacaan counter (history) untuk operator review */
     @Get('meter/readings')
+    @UseGuards(BoardOrUserGuard)
     async getMeterReadings(
         @Query('branchId') branchIdParam: string,
         @Query('startDate') startDate?: string,
@@ -339,6 +366,7 @@ export class ProductionController {
 
     /** Catat reject mesin dari operator (public, gated by PIN di client) */
     @Post('meter/reject')
+    @UseGuards(BoardOrUserGuard)
     async createReject(
         @Body() body: {
             branchId: number;
@@ -360,6 +388,7 @@ export class ProductionController {
 
     /** List reject mesin bulan tertentu untuk operator review */
     @Get('meter/rejects')
+    @UseGuards(BoardOrUserGuard)
     async getRejects(
         @Query('branchId') branchIdParam: string,
         @Query('month') month?: string,

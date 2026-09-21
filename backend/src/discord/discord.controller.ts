@@ -1,10 +1,12 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 import {
     DiscordService, DiscordChannel, DISCORD_CHANNELS, DiscordConfigShape,
 } from './discord.service';
 
-@UseGuards(JwtAuthGuard)
+// URL webhook Discord = kunci kirim ke kanal toko → hanya setingkat manajer (T-49).
+@UseGuards(JwtAuthGuard, ManagerGuard)
 @Controller('discord')
 export class DiscordController {
     constructor(private readonly discord: DiscordService) {}

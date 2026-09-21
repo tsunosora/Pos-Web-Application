@@ -7,6 +7,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, Plus, Trash2, Save, Upload, Image as ImageIcon, FlaskConical, X, Ruler, Package, Link2, RefreshCw, Calculator, Pencil, MousePointerClick } from 'lucide-react';
 import { badgeToneClass } from '@/components/ui/status-badge';
 import Link from 'next/link';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -82,6 +83,9 @@ export default function EditProductPage() {
     const router = useRouter();
     const params = useParams();
     const productId = Number(params.id);
+    // HPP (modal) hanya untuk peran yang diberi menu Kalkulator HPP — server juga menolak.
+    const { navAllowed } = useCurrentUser();
+    const canHpp = !navAllowed || navAllowed.has('/reports/hpp');
     const queryClient = useQueryClient();
 
     const { data: categories } = useQuery({ queryKey: ['categories'], queryFn: getCategories });
@@ -98,6 +102,7 @@ export default function EditProductPage() {
     const { data: allHppWorksheets, refetch: refetchHpp } = useQuery({
         queryKey: ['hpp-all'],
         queryFn: () => getHppWorksheets(),
+        enabled: canHpp,
     });
 
     const hppByVariantId = useMemo<Record<number, any[]>>(() => {
@@ -1024,7 +1029,7 @@ export default function EditProductPage() {
                                     </div>
                                 )}
                                 {/* HPP Worksheet — only for saved variants */}
-                                {v.id && (
+                                {v.id && canHpp && (
                                     <div className="border-t border-border/50 pt-3">
                                         <button
                                             type="button"

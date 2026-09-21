@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 import { CompanyBranchesService } from './company-branches.service';
 
 @Controller('company-branches')
@@ -18,8 +19,9 @@ export class CompanyBranchesController {
     @UseGuards(JwtAuthGuard)
     findAllActive() { return this.service.findAllActive(); }
 
+    // Menambah/mengubah/menghapus cabang (nama cabang ada di nomor dokumen): setingkat manajer (T-45).
     @Post()
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     create(
         @Body() body: {
             name: string; address?: string; phone?: string;
@@ -30,7 +32,7 @@ export class CompanyBranchesController {
     }
 
     @Patch(':id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     update(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: {
@@ -41,6 +43,6 @@ export class CompanyBranchesController {
     ) { return this.service.update(id, body); }
 
     @Delete(':id')
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, ManagerGuard)
     remove(@Param('id', ParseIntPipe) id: number) { return this.service.remove(id); }
 }

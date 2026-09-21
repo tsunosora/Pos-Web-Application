@@ -273,8 +273,8 @@ function DesignerNewSOContent() {
 
     // Mode edit: muat SO yang ada lalu prefill form
     useEffect(() => {
-        if (!isEdit || !editId) return;
-        designerGetSO(Number(editId)).then((so: any) => {
+        if (!isEdit || !editId || !session) return;
+        designerGetSO(Number(editId), session.id, session.pin).then((so: any) => {
             if (!so) return;
             setCustomerName(so.customerName || "");
             setCustomerPhone(so.customerPhone || "");
@@ -316,7 +316,7 @@ function DesignerNewSOContent() {
                 };
             }));
         }).catch(() => setError("Gagal memuat SO untuk diedit"));
-    }, [isEdit, editId]);
+    }, [isEdit, editId, session]);
 
     // Cek lead aktif untuk nomor HP yang diketik (debounce) — supaya desainer tahu
     // customer ini sudah punya lead aktif (mis. dari CS) sebelum buat SO.

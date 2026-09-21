@@ -1,5 +1,6 @@
 import api from './client';
 import axios from 'axios';
+import { rememberBoardToken, withServerMessage } from '@/lib/board-token';
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
@@ -38,8 +39,16 @@ export const getPublicDesigners = async (): Promise<DesignerPublic[]> =>
     (await axios.get(`${BASE}/designers/public`)).data;
 
 /** Verifikasi PIN — return { valid, id, name } */
-export const verifyDesignerPin = async (id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> =>
-    (await axios.post(`${BASE}/designers/public/verify`, { id, pin })).data;
+/** PIN benar → server juga memberi token papan kerja (disimpan untuk /produksi & /cetak). */
+export const verifyDesignerPin = async (id: number, pin: string): Promise<{ valid: boolean; id?: number; name?: string; branchName?: string | null }> => {
+    try {
+        const r = (await axios.post(`${BASE}/designers/public/verify`, { id, pin })).data;
+        rememberBoardToken(r);
+        return r;
+    } catch (e) {
+        throw withServerMessage(e);
+    }
+};
 
 // ---- Public SO endpoints untuk desainer ----
 /** Buat SO baru (verifikasi PIN inline) */
@@ -134,9 +143,9 @@ export const designerCancelSO = async (soId: number, designerId: number, pin: st
 export const designerDeleteProof = async (soId: number, proofId: number, designerId: number, pin: string) =>
     (await axios.delete(`${BASE}/sales-orders/designer/${soId}/proofs/${proofId}`, { data: { designerId, pin } })).data;
 
-/** Detail SO (public, read only) */
-export const designerGetSO = async (soId: number) =>
-    (await axios.get(`${BASE}/sales-orders/designer/detail/${soId}`)).data;
+/** Detail SO (public, read only) — wajib PIN desainer. */
+export const designerGetSO = async (soId: number, designerId: number, pin: string) =>
+    (await axios.post(`${BASE}/sales-orders/designer/detail/${soId}`, { designerId, pin })).data;
 
 /** Preview lead aktif untuk satu nomor HP (cek apakah customer sudah punya lead). */
 export interface ActiveLeadPreview {

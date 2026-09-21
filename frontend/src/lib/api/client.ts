@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { getActiveBranchId } from '@/store/branch-store';
+import { boardSessionExpired, getBoardToken, isBoardPage } from '@/lib/board-token';
 
 // Di aplikasi desktop, main process menyuntik base URL API lewat preload
 // (window.electron.apiBaseUrl). Mode "100% offline" → backend LOKAL. Fallback ke
@@ -25,6 +26,9 @@ api.interceptors.request.use((config) => {
     if (token) {
         config.headers.set('Authorization', `Bearer ${token}`);
     }
+    // Papan kerja /cetak (tanpa login akun): kirim token papan kerja dari verifikasi PIN.
+    const boardToken = getBoardToken();
+    if (boardToken) config.headers.set('X-Board-Token', boardToken);
 
     // Multi-cabang: Owner/SuperAdmin kirim X-Branch-Id dari store (bisa null = Semua Cabang).
     // Staff: backend pakai branchId dari JWT, header ini diabaikan — tetap kirim untuk konsistensi.
@@ -59,6 +63,12 @@ api.interceptors.response.use(
                 // dari sini — kalau tidak, 401 background (SyncManager dll) melempar
                 // user ke /login POS.
                 if (window.location.pathname.startsWith('/desainer')) {
+                    return Promise.reject(error);
+                }
+                // Papan kerja (/cetak, /produksi) punya layar PIN sendiri: sesi PIN habis
+                // → kembali ke layar PIN, jangan lempar ke /login akun.
+                if (isBoardPage(window.location.pathname)) {
+                    boardSessionExpired();
                     return Promise.reject(error);
                 }
                 localStorage.removeItem('token');

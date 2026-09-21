@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 
 @UseGuards(JwtAuthGuard)
 @Controller('suppliers')
@@ -37,7 +38,9 @@ export class SuppliersController {
     return this.suppliersService.update(id, body);
   }
 
+  // Menghapus data induk: setingkat manajer (T-46).
   @Delete(':id')
+  @UseGuards(ManagerGuard)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.suppliersService.remove(id);
   }
@@ -53,6 +56,7 @@ export class SuppliersController {
   }
 
   @Delete('items/:itemId')
+  @UseGuards(ManagerGuard)
   removeItem(@Param('itemId', ParseIntPipe) itemId: number) {
     return this.suppliersService.removeItem(itemId);
   }

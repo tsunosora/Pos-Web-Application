@@ -1,7 +1,11 @@
 import { Body, Controller, Get, Post, Put, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Menu, MenuGuard } from '../auth/role-groups';
 import { LandingService, type LandingConfigPatch } from './landing.service';
 
+// Mengubah/menerbitkan halaman depan publik hanya untuk peran yang diberi menu
+// Landing Page (owner/admin/manajer selalu boleh) — T-47.
+@Menu('/landing-page')
 @Controller('landing')
 export class LandingController {
     constructor(private readonly landing: LandingService) {}
@@ -18,19 +22,19 @@ export class LandingController {
         return this.landing.getAdmin();
     }
 
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, MenuGuard)
     @Put()
     update(@Body() body: LandingConfigPatch) {
         return this.landing.update(body);
     }
 
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, MenuGuard)
     @Post('publish')
     publish() {
         return this.landing.publish();
     }
 
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(JwtAuthGuard, MenuGuard)
     @Post('unpublish')
     unpublish() {
         return this.landing.unpublish();

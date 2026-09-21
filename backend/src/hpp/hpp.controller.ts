@@ -1,11 +1,15 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ForbiddenException } from '@nestjs/common';
 import { HppService } from './hpp.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard, Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { ApplyVariantsBomDto } from './dto/apply-variants-bom.dto';
 
-@UseGuards(JwtAuthGuard)
+// HPP (modal produk) dipakai menghitung laba kotor, margin & bonus → hanya peran
+// yang diberi menu Kalkulator HPP (owner/admin/manajer selalu boleh) — T-38.
+@Menu('/reports/hpp')
+@UseGuards(JwtAuthGuard, MenuGuard)
 @Controller('hpp')
 export class HppController {
     constructor(private readonly hppService: HppService) { }
@@ -23,6 +27,7 @@ export class HppController {
 
     // Ringkasan rumus HPP tiap produk (owner-only). HARUS sebelum @Get(':id').
     @Get('overview')
+    @UseGuards(ManagerGuard)
     getOverview(
         @CurrentBranch() ctx: BranchContext,
         @Query('categoryId') categoryId?: string,

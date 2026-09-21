@@ -5,6 +5,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { compressImage } from '../common/utils/compress-image.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard, Menu, MenuGuard, OwnerGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 import type { FinanceTimeframe } from './reports.service';
@@ -48,6 +49,10 @@ export class CloseShiftDto {
     paymentExchanges?: PaymentExchangeItem[]; // Pertukaran antar metode (QRIS↔Tunai, titip transfer, dll)
 }
 
+// Izin per laporan (T-02, T-44):
+// - current-shift, staff-list, close-shift, finance/daily-target-status: semua staf (alur tutup shift & banner target).
+// - profit & shift-history: peran yang diberi menunya (Akses Menu Role).
+// - laporan keuangan owner, tutup buku, koreksi shift: setingkat manajer; pindah dana antar cabang: owner.
 @UseGuards(JwtAuthGuard)
 @Controller('reports')
 export class ReportsController {
@@ -59,6 +64,8 @@ export class ReportsController {
     }
 
     @Get('profit')
+    @Menu('/reports/profit')
+    @UseGuards(MenuGuard)
     async getProfitReport(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -68,6 +75,7 @@ export class ReportsController {
     }
 
     @Get('orders-by-hour')
+    @UseGuards(ManagerGuard)
     async getOrdersByHour(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -77,6 +85,7 @@ export class ReportsController {
     }
 
     @Get('closing')
+    @UseGuards(ManagerGuard)
     async getMonthlyClosing(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('year') year?: string,
@@ -91,6 +100,7 @@ export class ReportsController {
     // ==================== ANALISA KEUANGAN (owner-only) ====================
 
     @Get('finance/candles')
+    @UseGuards(ManagerGuard)
     async getFinanceCandles(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('timeframe') timeframe: FinanceTimeframe = 'day',
@@ -107,6 +117,7 @@ export class ReportsController {
     }
 
     @Get('finance/heatmap')
+    @UseGuards(ManagerGuard)
     async getFinanceHeatmap(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -120,6 +131,7 @@ export class ReportsController {
     }
 
     @Get('finance/journal')
+    @UseGuards(ManagerGuard)
     async getFinanceJournal(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -134,6 +146,7 @@ export class ReportsController {
     }
 
     @Get('finance/anomalies')
+    @UseGuards(ManagerGuard)
     async getFinanceAnomalies(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -147,6 +160,7 @@ export class ReportsController {
     }
 
     @Get('finance/expense-breakdown')
+    @UseGuards(ManagerGuard)
     async getFinanceExpenseBreakdown(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -161,6 +175,7 @@ export class ReportsController {
     }
 
     @Get('finance/comparison')
+    @UseGuards(ManagerGuard)
     async getFinanceComparison(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -175,6 +190,7 @@ export class ReportsController {
     }
 
     @Get('finance/reconciliation')
+    @UseGuards(ManagerGuard)
     async getFinanceReconciliation(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('startDate') startDate?: string,
@@ -188,6 +204,7 @@ export class ReportsController {
     }
 
     @Get('finance/consolidation')
+    @UseGuards(ManagerGuard)
     async getFinanceConsolidation(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('year') year?: string,
@@ -200,6 +217,7 @@ export class ReportsController {
     }
 
     @Get('finance/monthly-report')
+    @UseGuards(ManagerGuard)
     async getFinanceMonthlyReport(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('year') year?: string,
@@ -218,6 +236,7 @@ export class ReportsController {
     }
 
     @Post('finance/close-branch')
+    @UseGuards(OwnerGuard)
     async closeBranchBalance(
         @CurrentBranch() branchCtx: BranchContext,
         @Body() body: { year: number; month: number; branchId: number },
@@ -226,6 +245,7 @@ export class ReportsController {
     }
 
     @Post('finance/fund-branch')
+    @UseGuards(OwnerGuard)
     async fundBranchBalance(
         @CurrentBranch() branchCtx: BranchContext,
         @Body() body: { year: number; month: number; branchId: number; allocations: { bankAccountId: number; amount: number }[] },
@@ -234,6 +254,7 @@ export class ReportsController {
     }
 
     @Get('finance/central-treasury')
+    @UseGuards(ManagerGuard)
     async getCentralTreasury(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('year') year?: string,
@@ -246,6 +267,7 @@ export class ReportsController {
     }
 
     @Post('finance/central-expense')
+    @UseGuards(OwnerGuard)
     async addCentralExpense(
         @CurrentBranch() branchCtx: BranchContext,
         @Body() body: { category: string; amount: number; note?: string; date?: string },
@@ -313,6 +335,8 @@ export class ReportsController {
     }
 
     @Get('shift-history')
+    @Menu('/reports/shift-history')
+    @UseGuards(MenuGuard)
     async getShiftHistory(
         @CurrentBranch() branchCtx: BranchContext,
         @Query('page') page?: string,
@@ -322,11 +346,14 @@ export class ReportsController {
     }
 
     @Post('shift/:id/resend')
+    @Menu('/reports/shift-history')
+    @UseGuards(MenuGuard)
     async resendShiftReport(@Param('id', ParseIntPipe) id: number) {
         return this.reportsService.resendShiftReport(id);
     }
 
     @Patch('shift/:id/amend')
+    @UseGuards(ManagerGuard)
     async amendShiftReport(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: {

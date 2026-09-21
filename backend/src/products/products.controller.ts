@@ -8,6 +8,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard } from '../auth/role-groups';
 import { compressImage } from '../common/utils/compress-image.util';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
@@ -44,6 +45,7 @@ export class ProductsController {
     }
 
     @Delete('bulk')
+    @UseGuards(ManagerGuard)
     bulkRemove(@Body() payload: { ids: number[] }) {
         return this.productsService.bulkRemove(payload.ids);
     }
@@ -78,6 +80,7 @@ export class ProductsController {
     }
 
     @Delete(':id')
+    @UseGuards(ManagerGuard)
     remove(@Param('id', ParseIntPipe) id: number) {
         return this.productsService.remove(id);
     }
@@ -98,6 +101,7 @@ export class ProductsController {
     }
 
     @Delete('variants/:variantId')
+    @UseGuards(ManagerGuard)
     removeVariant(@Param('variantId', ParseIntPipe) variantId: number) {
         return this.productsService.removeVariant(variantId);
     }
@@ -172,6 +176,7 @@ export class ProductsController {
     }
 
     @Delete(':id/ingredients/:ingId')
+    @UseGuards(ManagerGuard)
     removeIngredient(@Param('ingId', ParseIntPipe) ingId: number) {
         return this.productsService.removeIngredient(ingId);
     }
@@ -192,6 +197,7 @@ export class ProductsController {
     }
 
     @Delete('variants/:variantId/price-tiers/:tierId')
+    @UseGuards(ManagerGuard)
     removePriceTier(@Param('tierId', ParseIntPipe) tierId: number) {
         return this.productsService.removePriceTier(tierId);
     }
@@ -212,6 +218,7 @@ export class ProductsController {
     }
 
     @Delete('variants/:variantId/variant-ingredients/:ingId')
+    @UseGuards(ManagerGuard)
     removeVariantIngredient(@Param('ingId', ParseIntPipe) ingId: number) {
         return this.productsService.removeVariantIngredient(ingId);
     }

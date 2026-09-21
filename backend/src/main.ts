@@ -43,6 +43,18 @@ async function bootstrap() {
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }));
 
+  // Berkas unggahan yang bisa menjadi halaman web (HTML/SVG/XML/JS) jangan pernah
+  // dibuka sebagai halaman dari domain toko: paksa unduh + sandbox tanpa skrip.
+  // <img src="…svg"> tetap tampil (header ini hanya berlaku saat dibuka langsung).
+  // Lapis kedua di belakang pemeriksaan tipe saat unggah (T-18).
+  app.use('/uploads', (req: any, res: any, next: any) => {
+    if (/\.(html?|xhtml|shtml|svgz?|xml|xsl|js|mjs)$/i.test(req.path)) {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    }
+    next();
+  });
+
   // Public read-only endpoints: allow any origin, no credentials needed
   app.use((req: any, res: any, next: any) => {
     const isPublic =

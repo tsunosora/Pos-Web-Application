@@ -4,6 +4,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { isManagerLevelRole } from '../auth/role-groups';
 
 // Hanya OWNER/SUPERADMIN/ADMIN yang boleh membuat/mengubah/menghapus user & role.
 // (RolesGuard mencocokkan case-insensitive, jadi cocok dengan role "Owner"/"Admin" di DB.)
@@ -20,10 +21,17 @@ export class UsersController {
     return this.usersService.create(createUserDto);
   }
 
+  // Semua staf butuh daftar nama (pilih kasir di POS, penanggung jawab lead, dsb.),
+  // tapi nomor HP & pengaturan peran hanya untuk setingkat manajer (T-03).
   @UseGuards(JwtAuthGuard)
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  async findAll(@Req() req: any) {
+    const users = await this.usersService.findAll();
+    if (isManagerLevelRole(req.user?.roleName)) return users;
+    return users.map((u: any) => ({
+      id: u.id, name: u.name, email: u.email, isActive: u.isActive, branchId: u.branchId,
+      role: u.role ? { id: u.role.id, name: u.role.name } : null,
+    }));
   }
 
   @UseGuards(JwtAuthGuard)

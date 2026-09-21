@@ -1,4 +1,5 @@
 import api from './client';
+import { rememberBoardToken, withServerMessage } from '@/lib/board-token';
 
 export type PrintJobStatus = 'ANTRIAN' | 'PROSES' | 'SELESAI' | 'DIAMBIL';
 
@@ -80,8 +81,16 @@ export const getPrintQueueStats = async (branchId?: number): Promise<PrintQueueS
     return (await api.get(`/print-queue/stats${qs}`)).data;
 };
 
-export const verifyPrintPin = async (pin: string, branchId?: number): Promise<{ valid: boolean; message?: string }> =>
-    (await api.post('/print-queue/pin/verify', { pin, branchId })).data;
+/** PIN cabang benar → server memberi token papan kerja (disimpan untuk /cetak). */
+export const verifyPrintPin = async (pin: string, branchId?: number): Promise<{ valid: boolean; message?: string }> => {
+    try {
+        const r = (await api.post('/print-queue/pin/verify', { pin, branchId })).data;
+        rememberBoardToken(r);
+        return r;
+    } catch (e) {
+        throw withServerMessage(e);
+    }
+};
 
 export const startPrintJob = async (id: number, operatorName?: string): Promise<PrintJob> =>
     (await api.post(`/print-queue/jobs/${id}/start`, { operatorName })).data;

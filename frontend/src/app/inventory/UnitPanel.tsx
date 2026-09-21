@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getUnits, createUnit, updateUnit, deleteUnit } from '@/lib/api';
 import { Plus, Pencil, Trash2, Check, X, Ruler, Loader2 } from 'lucide-react';
 import { EmptyState } from '@/components/ui/responsive-table';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
 /**
  * Panel slide-over untuk kelola unit pengukuran langsung dari halaman Manajemen Stok.
@@ -13,6 +14,7 @@ import { EmptyState } from '@/components/ui/responsive-table';
  */
 export default function UnitPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
     const queryClient = useQueryClient();
+    const { isManager } = useCurrentUser(); // hapus unit: setingkat manajer (server juga menolak)
     const [name, setName] = useState('');
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editingName, setEditingName] = useState('');
@@ -115,7 +117,7 @@ export default function UnitPanel({ open, onClose }: { open: boolean; onClose: (
                                             ) : (
                                                 <>
                                                     <button onClick={() => startEdit(unit)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary`} title="Edit"><Pencil className="w-4 h-4" /></button>
-                                                    <button onClick={() => setDeletingId(unit.id)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive`} title="Hapus"><Trash2 className="w-4 h-4" /></button>
+                                                    {isManager && <button onClick={() => setDeletingId(unit.id)} className={`${iconBtn} bg-muted text-muted-foreground hover:bg-destructive/10 hover:text-destructive`} title="Hapus"><Trash2 className="w-4 h-4" /></button>}
                                                 </>
                                             )}
                                         </div>

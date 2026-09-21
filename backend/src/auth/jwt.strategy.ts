@@ -27,6 +27,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             email: payload.email,
             role: user?.role?.id ?? payload.role,
             roleName: user?.role?.name ?? payload.roleName ?? null,
+            // Daftar menu yang diizinkan owner untuk peran ini (null = preset divisi).
+            menuAccess: (user?.role as any)?.menuAccess ?? null,
             branchId: user?.branchId ?? null,
         };
     }
