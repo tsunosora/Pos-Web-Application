@@ -37,6 +37,36 @@ riwayat tetap ada walau aplikasi WhatsApp di HP dibuka-tutup.
 - `WA_AUTO_CREATE_LEAD` menentukan apakah chat dari nomor baru langsung menjadi
   lead di [CRM](crm.md).
 
+## Pesan gagal terkirim dan alasannya
+
+![Inbox WhatsApp: template yang gagal terkirim diberi tanda merah beserta alasannya dan kode error Meta](images/wa-9-gagal-kirim.webp)
+
+Tanda di pojok gelembung pesan keluar mengikuti status dari Meta dan berganti
+**seketika** (tanpa menunggu muat ulang):
+
+| Tanda | Arti |
+|---|---|
+| 🕒 jam | masih menunggu Meta |
+| ✓ / ✓✓ | terkirim / sampai di HP pelanggan |
+| ✓✓ biru | sudah dibaca |
+| ⓘ merah + keterangan | **gagal** — alasannya ditulis di bawah gelembung |
+
+Keterangan gagal diterjemahkan dari kode error Meta (`frontend/src/lib/wa-error.ts`):
+
+| Kode | Artinya | Yang dilakukan |
+|---|---|---|
+| `131042` | masalah **pembayaran** akun WhatsApp Business | bereskan metode bayar di WhatsApp Manager; selama belum beres, **template** tidak terkirim (chat biasa dalam 24 jam tetap jalan) |
+| `131047` | sudah lewat 24 jam sejak pelanggan terakhir membalas | kirim **template** |
+| `131026` | nomor tidak bisa menerima pesan | cek nomor / pelanggan belum pakai WhatsApp |
+| `131049` | ditahan Meta: pelanggan terlalu banyak menerima pesan pemasaran | coba lain waktu |
+| `131056` | terlalu banyak pesan ke nomor yang sama dalam waktu singkat | tunggu sebentar |
+| `131031` | akun WhatsApp Business dikunci Meta | hubungi dukungan Meta |
+| `132000`–`132016` | isian template tidak cocok / template dijeda / dinonaktifkan | periksa template di WhatsApp Manager |
+
+Kode lain ditampilkan apa adanya dari pesan Meta. Status aslinya tersimpan di
+`wa_messages.status`, `error_code`, dan `error_message` — periksa di sana dulu
+sebelum menduga ada kerusakan aplikasi.
+
 ## Broadcast
 
 Halaman **`/crm/whatsapp/broadcast`**. Alurnya sengaja bertahap supaya tidak

@@ -4,8 +4,8 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-PosPro menyajikan **580 endpoint** dalam **74 controller**.
-Sebanyak **81 endpoint tanpa penjaga login** — itu memang disengaja untuk
+PosPro menyajikan **593 endpoint** dalam **75 controller**.
+Sebanyak **83 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
 
@@ -69,7 +69,8 @@ tetapi daftar ini juga berguna saat mengaudit akses.
 | `/sales-orders` | SalesOrdersController | 10 | `backend/src/sales-orders/sales-orders.controller.ts` |
 | `/sales-orders/designer` | SalesOrdersPublicController | 12 | `backend/src/sales-orders/sales-orders-public.controller.ts` |
 | `/settings` | SettingsController | 7 | `backend/src/settings/settings.controller.ts` |
-| `/social` | MetaMessagingController | 11 | `backend/src/meta-messaging/meta-messaging.controller.ts` |
+| `/social` | MetaMessagingController | 22 | `backend/src/meta-messaging/meta-messaging.controller.ts` |
+| `/social/data-deletion` | DataDeletionController | 2 | `backend/src/meta-messaging/data-deletion.controller.ts` |
 | `/social/webhook` | SocialWebhookController | 2 | `backend/src/meta-messaging/social-webhook.controller.ts` |
 | `/stock-movements` | StockMovementsController | 4 | `backend/src/stock-movements/stock-movements.controller.ts` |
 | `/stock-opname/public` | StockOpnamePublicController | 3 | `backend/src/stock-opname/stock-opname.controller.ts` |
@@ -883,9 +884,29 @@ Berkas: `backend/src/meta-messaging/meta-messaging.controller.ts`
 | POST | `/social/test-connection` | `testConnection` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | POST | `/social/pages-from-token` | `pagesFromToken` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | POST | `/social/detect-ig` | `detectIg` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
+| POST | `/social/channels/:id/subscribe` | `subscribe` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
+| GET | `/social/counts` | `counts` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
 | GET | `/social/conversations` | `listConversations` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
 | GET | `/social/conversations/:id/messages` | `getMessages` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
 | POST | `/social/conversations/:id/reply` | `reply` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| POST | `/social/contacts/:id/lead` | `contactLead` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| GET | `/social/comments` | `listComments` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| POST | `/social/comments/sync` | `syncComments` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| GET | `/social/comments/sync-status` | `syncStatus` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| GET | `/social/comments/:id` | `getThread` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| PATCH | `/social/comments/:id` | `updateThread` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| POST | `/social/comments/:id/reply` | `replyComment` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| POST | `/social/comments/:id/hide` | `hideComment` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+| POST | `/social/comments/:id/lead` | `commentLead` | `JwtAuthGuard, RolesGuard` | `...INBOX_ROLES` |
+
+## DataDeletionController — `/social/data-deletion`
+
+Berkas: `backend/src/meta-messaging/data-deletion.controller.ts`
+
+| Metode | Jalur | Handler | Penjaga | Peran |
+|---|---|---|---|---|
+| POST | `/social/data-deletion` | `request` | — _terbuka_ | — |
+| GET | `/social/data-deletion` | `status` | — _terbuka_ | — |
 
 ## SocialWebhookController — `/social/webhook`
 

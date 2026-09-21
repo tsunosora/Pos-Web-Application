@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-**102 halaman** di aplikasi. **57** di antaranya punya menu di sidebar;
+**104 halaman** di aplikasi. **57** di antaranya punya menu di sidebar;
 sisanya dibuka dari dalam halaman lain (detail, form), lewat PIN (papan kerja),
 atau memang halaman publik tanpa login.
 
@@ -40,6 +40,7 @@ atau memang halaman publik tanpa login.
 | `/crm/whatsapp/templates` | Template Meta | WhatsApp CRM | — | `frontend/src/app/crm/whatsapp/templates/page.tsx` |
 | `/customers` | Data Pelanggan | Pelanggan & Order | — | `frontend/src/app/customers/page.tsx` |
 | `/desainer` | Studio Desain | (tautan atas) | — | `frontend/src/app/desainer/page.tsx` |
+| `/hapus-data` | — | — | — | `frontend/src/app/hapus-data/page.tsx` |
 | `/help` | — | — | — | `frontend/src/app/help/page.tsx` |
 | `/inventory` | Manajemen Stok | Inventori & Stok | — | `frontend/src/app/inventory/page.tsx` |
 | `/inventory/categories` | — | — | — | `frontend/src/app/inventory/categories/page.tsx` |
@@ -50,6 +51,7 @@ atau memang halaman publik tanpa login.
 | `/inventory/transfer` | Transfer Stok Cabang | Inventori & Stok | — | `frontend/src/app/inventory/transfer/page.tsx` |
 | `/inventory/units` | — | — | — | `frontend/src/app/inventory/units/page.tsx` |
 | `/invoices` | Invoice & Penawaran | Pelanggan & Order | — | `frontend/src/app/invoices/page.tsx` |
+| `/kebijakan-privasi` | — | — | — | `frontend/src/app/kebijakan-privasi/page.tsx` |
 | `/landing` | — | — | — | `frontend/src/app/landing/page.tsx` |
 | `/landing-builder` | — | — | — | `frontend/src/app/landing-builder/page.tsx` |
 | `/landing-page` | Landing Page | Landing Page | — | `frontend/src/app/landing-page/page.tsx` |
@@ -124,11 +126,13 @@ papan kerja ber-PIN, atau halaman publik.
 - `/branch-orders/[id]` _(jalur dinamis)_
 - `/branch-orders/new`
 - `/cetak`
+- `/hapus-data`
 - `/help`
 - `/inventory/categories`
 - `/inventory/products/[id]/edit` _(jalur dinamis)_
 - `/inventory/products/new`
 - `/inventory/units`
+- `/kebijakan-privasi`
 - `/landing`
 - `/landing-builder`
 - `/login`

@@ -14,47 +14,49 @@ Yang membedakan PosPro dari kasir biasa adalah **ekosistemnya yang lengkap**: bu
 
 ## 🖼️ Halaman dengan alur bergambar
 
-36 halaman memuat **alur langkah demi langkah** — tiap langkah ada
+38 halaman memuat **alur langkah demi langkah** — tiap langkah ada
 tangkapan layarnya, diambil dari aplikasi yang benar-benar berjalan dengan data
 contoh (nama toko, pelanggan, dan karyawan disamarkan). Cocok dibaca sambil
 mencoba sendiri:
 
+- [💬 WhatsApp CRM (Cloud API)](whatsapp-cloud.md) — 16 gambar
+- [💰 Cashflow Bisnis](cashflow.md) — 14 gambar
+- [🔌 Menghubungkan WhatsApp, Instagram & Facebook (Meta)](hubungkan-meta.md) — 14 gambar
+- [🛒 Kasir POS](kasir-pos.md) — 14 gambar
+- [📈 Keuangan Owner](keuangan-owner.md) — 12 gambar
+- [📥 Inbox Sosial — DM & Komentar Instagram / Facebook](inbox-sosial.md) — 12 gambar
+- [Mesin Cetak & Antrian Paper](mesin-cetak.md) — 11 gambar
+- [🎯 CRM — Lead Pipeline, Follow-Up & Customer Relationship](crm.md) — 11 gambar
 - [🔄 Alur Bisnis PosPro — Panduan Lengkap Alur Penggunaan](alur-bisnis.md) — 11 gambar
-- [Mesin Cetak & Antrian Paper](mesin-cetak.md) — 10 gambar
-- [🖨️ Antrian Produksi](produksi.md) — 10 gambar
-- [🎯 CRM — Lead Pipeline, Follow-Up & Customer Relationship](crm.md) — 9 gambar
 - [💳 DP & Piutang](dp-piutang.md) — 9 gambar
-- [🖥️ Antarmuka & Fitur Kecil](antarmuka.md) — 8 gambar
-- [💰 Cashflow Bisnis](cashflow.md) — 8 gambar
-- [👥 Akun & PIN Karyawan](karyawan-akun-pin.md) — 8 gambar
+- [📦 Stok Masuk, Transfer & Mutasi](stok-masuk-transfer.md) — 9 gambar
+- [🖨️ Antrian Produksi](produksi.md) — 9 gambar
 - [🎨 Sales Order & Designer Portal](sales-orders.md) — 8 gambar
+- [👥 Akun & PIN Karyawan](karyawan-akun-pin.md) — 8 gambar
 - [📋 Stok Opname](stock-opname.md) — 8 gambar
-- [💬 WhatsApp CRM (Cloud API)](whatsapp-cloud.md) — 8 gambar
-- [🛒 Kasir POS](kasir-pos.md) — 7 gambar
+- [🖥️ Antarmuka & Fitur Kecil](antarmuka.md) — 8 gambar
+- [🔁 Titip Cetak Antar Cabang](titip-cetak.md) — 7 gambar
 - [🧹 Papan Tugas & Piket](papan-tugas-piket.md) — 7 gambar
 - [Artikel / Blog](artikel.md) — 6 gambar
-- [📄 Invoice Generator & Penawaran Harga (SPH)](invoice-sph.md) — 6 gambar
-- [📈 Keuangan Owner](keuangan-owner.md) — 6 gambar
+- [⚙️ Pengaturan](pengaturan.md) — 6 gambar
 - [⭐ Penilaian Pelayanan (Rating CS)](rating-cs.md) — 6 gambar
-- [🔁 Titip Cetak Antar Cabang](titip-cetak.md) — 6 gambar
-- [📅 Contoh Alur 1 Hari Kerja CS dengan PosPro CRM](contoh-alur-cs-harian.md) — 5 gambar
-- [🧮 Kalkulator HPP (Harga Pokok Penjualan)](hpp-calculator.md) — 5 gambar
+- [🌐 Halaman Publik](halaman-publik.md) — 6 gambar
+- [🏷️ Katalog Produk & Harga](katalog-produk.md) — 6 gambar
+- [📄 Invoice Generator & Penawaran Harga (SPH)](invoice-sph.md) — 6 gambar
 - [Landing Page Builder](landing.md) — 5 gambar
+- [📅 Contoh Alur 1 Hari Kerja CS dengan PosPro CRM](contoh-alur-cs-harian.md) — 5 gambar
 - [📊 Laporan Penjualan](laporan-penjualan.md) — 5 gambar
+- [📒 Buku Titipan Antar Cabang (Inter-Branch Ledger)](buku-titipan.md) — 5 gambar
+- [🔐 Model Akses & Keamanan](keamanan-akses.md) — 5 gambar
 - [🔒 Tutup Shift](tutup-shift.md) — 5 gambar
-- [📒 Buku Titipan Antar Cabang (Inter-Branch Ledger)](buku-titipan.md) — 4 gambar
-- [🌐 Halaman Publik](halaman-publik.md) — 4 gambar
-- [🏷️ Katalog Produk & Harga](katalog-produk.md) — 4 gambar
-- [🔐 Model Akses & Keamanan](keamanan-akses.md) — 4 gambar
-- [⚙️ Pengaturan](pengaturan.md) — 4 gambar
+- [🧮 Kalkulator HPP (Harga Pokok Penjualan)](hpp-calculator.md) — 5 gambar
 - [📣 Inbox Sosial & Iklan Meta](sosial-iklan.md) — 4 gambar
-- [💾 Backup & Restore Data](backup.md) — 3 gambar
-- [📊 Laporan Stok](laporan-stok.md) — 3 gambar
 - [🏆 Leaderboard & Metrik Produk Custom](leaderboard.md) — 3 gambar
 - [🏢 Mode Cabang (Multi-Tenant per Branch)](mode-cabang.md) — 3 gambar
-- [🖨️ Printer Relay Agent — Cetak Thermal untuk Cabang](printer-relay-agent.md) — 3 gambar
+- [💾 Backup & Restore Data](backup.md) — 3 gambar
+- [📊 Laporan Stok](laporan-stok.md) — 3 gambar
 - [📜 Riwayat Tutup Shift](riwayat-shift.md) — 3 gambar
-- [📦 Stok Masuk, Transfer & Mutasi](stok-masuk-transfer.md) — 3 gambar
+- [🖨️ Printer Relay Agent — Cetak Thermal untuk Cabang](printer-relay-agent.md) — 3 gambar
 
 ---
 
@@ -107,7 +109,9 @@ mencoba sendiri:
 | 37 | [👥 Akun & PIN Karyawan](karyawan-akun-pin.md) | Dua pintu masuk (login & PIN kerja), peran, akses menu per peran, penandaan karyawan keluar beserta pagar keamanannya |
 | 38 | [🗓️ Absensi & Portal HR](absensi-hr.md) | Integrasi RateMyStaff: kartu Sekilas HR (Owner/Manajer) & kartu Absensi saya di dashboard + tiga papan kerja ber-PIN |
 | 39 | [💬 WhatsApp CRM (Cloud API)](whatsapp-cloud.md) | Modul terbesar setelah kasir: inbox, broadcast bertahap, balasan otomatis, template Meta, reminder POS, QR chat, analitik |
-| 40 | [📣 Inbox Sosial & Iklan Meta](sosial-iklan.md) | DM Instagram/Facebook dalam satu inbox, plus biaya per lead yang sebenarnya dari Click-to-WhatsApp |
+| 40 | [📣 Inbox Sosial & Iklan Meta](sosial-iklan.md) | DM & komentar Instagram/Facebook dalam satu inbox, plus biaya per lead yang sebenarnya dari Click-to-WhatsApp |
+| 40a | [📥 Inbox Sosial — DM & Komentar](inbox-sosial.md) | Balas DM Instagram/Messenger dan komentar IG/FB dari satu tempat: balas publik atau lewat DM, sembunyikan spam, jadikan prospek, jendela balas 24 jam, sinkron otomatis |
+| 40b | [🔌 Menghubungkan Meta (WA/IG/FB)](hubungkan-meta.md) | Menyambungkan aplikasi Meta, Instagram, Halaman Facebook & token System User; kebijakan privasi, penerbitan aplikasi, pemecahan masalah, dan catatan menjadikan PosPro layanan untuk banyak bisnis |
 | 41 | [🎨 Studio Desain AI](studio-ai.md) | Perantara ke layanan AI: ide desain, teks promosi, pengisian rincian order, dan panduan aplikasi yang disertakan ke AI |
 | 42 | [⭐ Penilaian Pelayanan (Rating CS)](rating-cs.md) | Pelanggan menilai lewat tautan sekali pakai atau QR per cabang, tanpa login dan tanpa aplikasi |
 | 43 | [📈 Keuangan Owner](keuangan-owner.md) | Konsolidasi, anomali, rekonsiliasi, kas pusat & pendanaan cabang, tutup buku bulanan, biaya tetap, bonus, rekening bank |

@@ -6,7 +6,7 @@
 
 ## Variabel lingkungan backend
 
-**43 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**45 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 | Variabel | Dipakai di |
@@ -23,6 +23,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `BACKUP_DIR` | `backend/src/backup/rclone.service.ts` |
 | `HR_API_KEY` | `backend/src/integrations/hr-summary.service.ts` |
 | `HR_SUMMARY_URL` | `backend/src/integrations/hr-summary.service.ts` |
+| `IG_APP_SECRET` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/meta-messaging/social-webhook.controller.ts` |
 | `JWT_EXPIRES` | `backend/src/auth/auth.module.ts` |
 | `JWT_SECRET` | `backend/src/auth/jwt-secret.util.ts`, `backend/src/notifications/notifications.module.ts` |
 | `LOGIN_FAIL_MAX` | `backend/src/auth/login-throttle.service.ts` |
@@ -37,14 +38,15 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `POSPRO_DEVICE_NAME` | `backend/src/local-sync/local-sync.service.ts` |
 | `POSPRO_DEVICE_TOKEN_FILE` | `backend/src/local-sync/local-sync.service.ts` |
 | `POSPRO_LOCAL` | `backend/src/local-sync/local-sync.service.ts`, `backend/src/local-sync/push-capture.interceptor.ts` |
-| `PUBLIC_BASE_URL` | `backend/src/whatsapp-cloud/whatsapp-cloud.controller.ts` |
+| `PUBLIC_BASE_URL` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/whatsapp-cloud/whatsapp-cloud.controller.ts` |
+| `SOCIAL_AUTO_SYNC` | `backend/src/meta-messaging/social-comments.service.ts` |
 | `STAFF_KPI_ALLOW_REMOTE` | `backend/src/auth/api-key.guard.ts` |
 | `STAFF_KPI_API_KEY` | `backend/src/auth/api-key.guard.ts` |
 | `STOREFRONT_TOKEN` | `backend/src/common/public-order-throttle.guard.ts` |
 | `STUDIO_AI_CONFIG_PATH` | `backend/src/studio-ai/studio-ai.service.ts` |
 | `WA_ACCESS_TOKEN` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |
 | `WA_APP_ID` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |
-| `WA_APP_SECRET` | `backend/src/meta-messaging/social-webhook.controller.ts`, `backend/src/whatsapp-cloud/cloud-api.service.ts`, `backend/src/whatsapp-cloud/webhook.controller.ts` |
+| `WA_APP_SECRET` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/meta-messaging/social-webhook.controller.ts`, `backend/src/whatsapp-cloud/cloud-api.service.ts` _(+1)_ |
 | `WA_AUTO_CREATE_LEAD` | `backend/src/whatsapp-cloud/inbox.service.ts` |
 | `WA_BROADCAST_RATE_PER_SEC` | `backend/src/whatsapp-cloud/broadcast.service.ts` |
 | `WA_CLOUD_ENABLED` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |
@@ -62,14 +64,14 @@ Hanya yang berawalan `NEXT_PUBLIC_` yang sampai ke browser, dan nilainya
 
 | Variabel | Dipakai di |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | `frontend/src/app/api/logo/route.ts`, `frontend/src/app/artikel/[slug]/page.tsx`, `frontend/src/app/artikel/page.tsx` _(+51)_ |
+| `NEXT_PUBLIC_API_URL` | `frontend/src/app/api/logo/route.ts`, `frontend/src/app/artikel/[slug]/page.tsx`, `frontend/src/app/artikel/page.tsx` _(+52)_ |
 | `NEXT_PUBLIC_BRIDGE_URL` | `frontend/src/lib/thermal/print-thermal.ts` |
 | `NEXT_PUBLIC_LANDING_DOMAIN` | `frontend/src/middleware.ts` |
 | `NEXT_PUBLIC_SHARE_DOMAIN` | `frontend/src/app/inventory/page.tsx`, `frontend/src/middleware.ts` |
 
 ## Pekerjaan terjadwal
 
-**9 pekerjaan** berjalan sendiri di backend.
+**10 pekerjaan** berjalan sendiri di backend.
 Semua memakai zona waktu server kecuali disebut lain di jadwalnya.
 
 | Jenis | Jadwal | Fungsi | Berkas |
@@ -77,6 +79,7 @@ Semua memakai zona waktu server kecuali disebut lain di jadwalnya.
 | Cron | `CronExpression.EVERY_WEEK, { name: 'crm-repeat-order-weekly' }` | `scheduleRepeatOrders` | `backend/src/crm/follow-ups/follow-ups.cron.ts` |
 | Cron | `'0 8 * * 1', { name: 'discord-champion-weekly', timeZone: 'Asia/Jakarta' }` | `weeklyChampion` | `backend/src/crm/kpi/kpi.cron.ts` |
 | Interval | `30000` | `scheduled` | `backend/src/local-sync/local-sync.service.ts` |
+| Cron | `'30 */5 * * * *', { name: 'social-comments-auto-sync' }` | `autoSync` | `backend/src/meta-messaging/social-comments.service.ts` |
 | Cron | `'5 0 * * *', { name: 'task-board-generate-daily' }` | `generateDaily` | `backend/src/task-board/task-board.cron.ts` |
 | Cron | `'*/5 * * * *', { name: 'task-board-auto-warn' }` | `autoWarn` | `backend/src/task-board/task-board.cron.ts` |
 | Cron | `'0 * * * * *'` | `sweepScheduled` | `backend/src/whatsapp-cloud/broadcast.service.ts` |

@@ -17,8 +17,36 @@ terlihat dari luar.
 | `/nilai/cabang/[branchId]` | siapa pun (QR di meja kasir) | hanya menerima penilaian |
 | `/opname/[token]` | petugas opname di lapangan | token acak; hanya untuk sesi opname itu |
 | `/tv/leaderboard` | ditampilkan di TV toko | tanpa login supaya TV tidak perlu sesi; jangan diarahkan ke internet publik |
+| `/kebijakan-privasi` | pelanggan & peninjau Meta | publik; isi (nama, alamat, telepon toko) diambil dari Profil Toko — syarat menerbitkan aplikasi Meta |
+| `/hapus-data` | pelanggan yang ingin datanya dihapus | publik; tombol WhatsApp berisi "HAPUS DATA" |
+| `api…/social/data-deletion` | Meta (callback penghapusan data) | hanya menerima `signed_request` bertanda tangan App Secret; `GET ?kode=` menampilkan status |
 | `/login` | semua | halaman masuk |
 | `/help` | staf | panduan singkat di dalam aplikasi |
+
+## Kebijakan privasi & penghapusan data
+
+![Halaman Kebijakan Privasi publik, bahasa Indonesia dengan ringkasan bahasa Inggris](images/ins-16-kebijakan-privasi.webp)
+
+Dua halaman ini wajib ada sebelum aplikasi Meta (Instagram/Messenger) bisa
+diterbitkan — URL-nya diisi di **Pengaturan aplikasi → Dasar** (lihat
+[Menghubungkan Meta](hubungkan-meta.md#langkah-2-pengaturan-aplikasi-dasar)).
+Keduanya tanpa login dan tanpa menu aplikasi, dalam bahasa Indonesia plus ringkasan
+bahasa Inggris untuk peninjau Meta.
+
+![Halaman Penghapusan Data: cara meminta, data yang dihapus, data yang tetap disimpan](images/ins-17-hapus-data.webp)
+
+- Nama toko, alamat, dan nomor telepon/WhatsApp diambil dari **Profil Toko**
+  (`GET /settings/public`), jadi tiap bisnis yang memakai PosPro otomatis tampil
+  dengan identitasnya sendiri.
+- Isinya adalah janji resmi toko — mis. data dihapus **paling lambat 30 hari** dan
+  toko mengirim promo lewat WhatsApp. Sesuaikan teksnya di
+  `frontend/src/app/kebijakan-privasi/page.tsx` dan `frontend/src/app/hapus-data/page.tsx`
+  kalau kebijakan bisnis Anda berbeda.
+- Permintaan dari Meta masuk ke `POST /social/data-deletion`: tanda tangan
+  diperiksa, permintaan dicatat di `backend/storage/meta-data-deletion.jsonl`,
+  dikabarkan ke Discord, lalu Meta menerima kode konfirmasi. ID yang dikirim Meta
+  berlingkup aplikasi (tidak sama dengan ID kontak DM/komentar), jadi
+  penghapusannya diproses staf.
 
 ## Papan TV di toko
 

@@ -85,6 +85,8 @@ export default defineConfig({
           { text: '🎯 CRM — Lead & Follow-Up', link: '/crm' },
           { text: '💬 WhatsApp CRM (Cloud API)', link: '/whatsapp-cloud' },
           { text: '📣 Inbox Sosial & Iklan Meta', link: '/sosial-iklan' },
+          { text: '📥 Inbox Sosial (DM & Komentar)', link: '/inbox-sosial' },
+          { text: '🔌 Menghubungkan Meta', link: '/hubungkan-meta' },
           { text: '🎨 Studio Desain AI', link: '/studio-ai' },
           { text: '🏪 Landing Page Builder', link: '/landing' },
           { text: '📰 Artikel / Blog', link: '/artikel' },

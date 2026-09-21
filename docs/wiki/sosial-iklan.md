@@ -7,12 +7,12 @@ bukan hanya dengan "jangkauan" dan "tayangan".
 
 ### Inbox sosial
 
-![Inbox Sosial menggabungkan percakapan Instagram dan Messenger dalam satu daftar](images/sos-1-sosial.webp)
+![Inbox Sosial dengan enam tab: DM Messenger dan Instagram serta komentar Facebook dan Instagram](images/ins-01-tab.webp)
 
-Pesan Instagram dan Facebook Messenger masuk ke satu daftar yang sama, dengan
-penanda asal tiap percakapan dan jumlah pesan belum dibaca. Tab di atas
-menyaring **Semua / Messenger / Instagram**, sehingga CS tidak perlu berpindah
-aplikasi untuk membalas.
+DM Instagram dan Messenger **serta komentar** di postingan Instagram dan Halaman
+Facebook masuk ke satu halaman, dengan penanda asal dan angka belum dibaca per tab.
+Panduan lengkapnya — membalas publik atau lewat DM, menyembunyikan spam, menjadikan
+prospek, jendela balas 24 jam — ada di **[📥 Inbox Sosial](inbox-sosial.md)**.
 
 ### Iklan Meta
 
@@ -26,24 +26,19 @@ sekadar jumlah klik.
 
 ## Inbox Instagram & Facebook
 
-![DM Instagram dan Facebook dalam satu inbox](images/sosial-inbox.webp)
+![Utas komentar Instagram di Inbox Sosial: kartu postingan, komentar, balasan, dan panel prospek](images/ins-03-utas.webp)
 
-Halaman **`/crm/social`**. DM Instagram dan pesan Facebook masuk ke inbox yang
-sama polanya dengan WhatsApp: kanal (`social_channels`), kontak
-(`social_contacts`), percakapan (`social_conversations`), pesan
-(`social_messages`), dengan webhook `POST /social/webhook`.
+Halaman **`/crm/social`** — enam tab: Semua pesan, Messenger, Instagram, WhatsApp,
+Komentar Facebook, Komentar Instagram. Data masuk lewat webhook
+`POST /social/webhook` (field `messages`, `comments`, `feed`) dan sinkron otomatis
+tiap 5 menit. Tabelnya: `social_channels`, `social_contacts`,
+`social_conversations`, `social_messages`, `social_posts`, `social_comments`.
 
-Alat bantu saat menyambungkan akun:
-
-| Endpoint | Untuk |
+| Untuk | Halaman |
 |---|---|
-| `POST /social/pages-from-token` | menampilkan halaman Facebook yang bisa dipakai token itu |
-| `POST /social/detect-ig` | mencari akun Instagram bisnis yang menempel di halaman itu |
-| `POST /social/test-connection` | memastikan sambungan sebelum disimpan |
-| `GET /social/webhook-debug` | melihat kejadian webhook terakhir saat menelusuri masalah |
-
-Membalas dari PosPro lewat `POST /social/conversations/:id/reply`, jadi CS tidak
-perlu berpindah aplikasi dan riwayatnya tetap satu tempat.
+| Memakai inbox sehari-hari (CS/admin) | [📥 Inbox Sosial](inbox-sosial.md) |
+| Menghubungkan akun Instagram, Halaman Facebook, dan aplikasi Meta | [🔌 Menghubungkan Meta](hubungkan-meta.md) |
+| Daftar endpoint `/social/*` | [Endpoint API](referensi-endpoint.md) |
 
 ## Iklan Meta — biaya per lead yang sebenarnya
 

@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-**108 tabel**, **1538 kolom**, dan **38 himpunan nilai (enum)**.
+**110 tabel**, **1579 kolom**, dan **38 himpunan nilai (enum)**.
 Nama di kolom pertama adalah nama tabel di MySQL; nama model Prisma ditulis di judulnya.
 Keterangan diambil dari komentar di `backend/prisma/schema.prisma`, jadi kalau ada
 kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini.
@@ -55,7 +55,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `lead_images` | LeadImage | 7 | — |
 | `lead_items` | LeadItem | 14 | — |
 | `lead_source_options` | LeadSourceOption | 6 | Master data sumber lead "CUSTOM" (mis. "Shopee", "Brosur Pameran"). Dipakai bersama semua CS/cabang untuk menc |
-| `leads` | Lead | 46 | — |
+| `leads` | Lead | 47 | — |
 | `ledger_settlements` | LedgerSettlement | 12 | — |
 | `machine_rejects` | MachineReject | 13 | Log reject mesin (error, test print, kalibrasi) |
 | `marketing_spend` | MarketingSpend | 7 | Pengeluaran iklan marketing (diinput tim marketing di /marketing) — untuk benchmark ROAS/CPL/CAC per sumber. G |
@@ -77,10 +77,12 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `sales_order_proofs` | SalesOrderProof | 6 | — |
 | `sales_orders` | SalesOrder | 27 | — |
 | `shift_reports` | ShiftReport | 35 | — |
-| `social_channels` | SocialChannel | 14 | Channel sosial = 1 Page/akun IG. Untuk INSTAGRAM: igId = IG business id (rute webhook), pageId+accessToken Pag |
+| `social_channels` | SocialChannel | 16 | Channel sosial = 1 Page/akun IG. Untuk INSTAGRAM: igId = IG business id (rute webhook), pageId+accessToken Pag |
+| `social_comments` | SocialComment | 26 | Komentar postingan IG / Facebook Page. Satu baris = satu komentar. Komentar teratas (rootId null) sekaligus be |
 | `social_contacts` | SocialContact | 14 | Kontak sosial (PSID Messenger / IGSID Instagram) + tautan CRM. |
 | `social_conversations` | SocialConversation | 13 | — |
 | `social_messages` | SocialMessage | 15 | — |
+| `social_posts` | SocialPost | 11 | Postingan IG (media) / Facebook Page yang dikomentari. Info postingan diambil sekali dari Graph API saat komen |
 | `stock_movements` | StockMovement | 12 | — |
 | `stock_opname_items` | StockOpnameItem | 12 | — |
 | `stock_opname_sessions` | StockOpnameSession | 13 | — |
@@ -104,7 +106,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `transaction_items` | TransactionItem | 23 | — |
 | `transactions` | Transaction | 49 | — |
 | `units` | Unit | 5 | — |
-| `users` | User | 36 | — |
+| `users` | User | 37 | — |
 | `variant_ingredients` | VariantIngredient | 13 | — |
 | `variant_price_tiers` | VariantPriceTier | 9 | — |
 | `wa_auto_reply_rules` | WaAutoReplyRule | 9 | Aturan balasan otomatis rule-based (bukan AI). Dievaluasi saat pesan masuk; selalu dalam jendela 24 jam (pesan |
@@ -1068,6 +1070,7 @@ Indeks & kunci: `@@index([leadId])` · `@@index([productVariantId])`
 | `images` | `LeadImage[]` | _sama_ | — |
 | `waContacts` | `WaContact[]` | _sama_ | — |
 | `socialContacts` | `SocialContact[]` | _sama_ | — |
+| `socialComments` | `SocialComment[]` | _sama_ | — |
 
 Indeks & kunci: `@@index([status, followUpDate])` · `@@index([assignedToId, status])` · `@@index([branchId, status])` · `@@index([phoneNormalized])` · `@@index([designerName, status])` · `@@index([adId])` · `@@index([adLabelId])`
 
@@ -1591,8 +1594,47 @@ Indeks & kunci: `@@index([branchId])`
 | `conversations` | `SocialConversation[]` | _sama_ | — |
 | `messages` | `SocialMessage[]` | _sama_ | — |
 | `contacts` | `SocialContact[]` | _sama_ | — |
+| `posts` | `SocialPost[]` | _sama_ | — |
+| `comments` | `SocialComment[]` | _sama_ | — |
 
 Indeks & kunci: `@@index([platform])`
+
+### SocialComment — `social_comments`
+
+> Komentar postingan IG / Facebook Page. Satu baris = satu komentar. Komentar
+> teratas (rootId null) sekaligus berperan sebagai "utas" di inbox: kolom
+> isRead/needsReply/lastActivityAt/leadId hanya dirawat di baris akar.
+
+| Kolom | Tipe | Kolom MySQL | Keterangan |
+|---|---|---|---|
+| `id` | `Int` | _sama_ | — |
+| `channelId` | `Int` | `channel_id` | — |
+| `postId` | `Int` | `post_id` | — |
+| `rootId` | `Int?` | `root_id` | null = komentar teratas (utas) |
+| `externalId` | `String` | `external_id` | id komentar Meta (dedup) |
+| `authorExternalId` | `String?` | `author_external_id` | — |
+| `authorName` | `String?` | `author_name` | username IG / nama FB |
+| `direction` | `SocialDirection` | _sama_ | — |
+| `body` | `String?` | _sama_ | — |
+| `isHidden` | `Boolean` | `is_hidden` | — |
+| `isDeleted` | `Boolean` | `is_deleted` | — |
+| `privateReplyAt` | `DateTime?` | `private_reply_at` | sudah dibalas via DM (Meta: maks 1x per komentar) |
+| `sentById` | `Int?` | `sent_by_id` | user PosPro yang membalas (outbound) |
+| `commentedAt` | `DateTime` | `commented_at` | waktu komentar menurut Meta |
+| `isRead` | `Boolean` | `is_read` | ── khusus baris akar (utas) ── |
+| `needsReply` | `Boolean` | `needs_reply` | — |
+| `lastActivityAt` | `DateTime?` | `last_activity_at` | — |
+| `leadId` | `Int?` | `lead_id` | — |
+| `createdAt` | `DateTime` | `created_at` | — |
+| `updatedAt` | `DateTime` | `updated_at` | — |
+| `channel` | `SocialChannel` | _sama_ | — |
+| `post` | `SocialPost` | _sama_ | — |
+| `root` | `SocialComment?` | _sama_ | — |
+| `replies` | `SocialComment[]` | _sama_ | — |
+| `sentBy` | `User?` | _sama_ | — |
+| `lead` | `Lead?` | _sama_ | — |
+
+Indeks & kunci: `@@unique([channelId, externalId])` · `@@index([rootId, lastActivityAt])` · `@@index([channelId, rootId, isRead])`
 
 ### SocialContact — `social_contacts`
 
@@ -1658,6 +1700,27 @@ Indeks & kunci: `@@index([channelId, status])`
 | `sentBy` | `User?` | _sama_ | — |
 
 Indeks & kunci: `@@unique([externalId])` · `@@index([conversationId, id])`
+
+### SocialPost — `social_posts`
+
+> Postingan IG (media) / Facebook Page yang dikomentari. Info postingan diambil
+> sekali dari Graph API saat komentar pertama masuk (atau saat sinkron).
+
+| Kolom | Tipe | Kolom MySQL | Keterangan |
+|---|---|---|---|
+| `id` | `Int` | _sama_ | — |
+| `channelId` | `Int` | `channel_id` | — |
+| `externalId` | `String` | `external_id` | media id IG / post id FB |
+| `caption` | `String?` | _sama_ | — |
+| `permalink` | `String?` | _sama_ | — |
+| `mediaUrl` | `String?` | `media_url` | gambar/thumbnail (URL CDN Meta bisa kedaluwarsa) |
+| `postedAt` | `DateTime?` | `posted_at` | — |
+| `createdAt` | `DateTime` | `created_at` | — |
+| `updatedAt` | `DateTime` | `updated_at` | — |
+| `channel` | `SocialChannel` | _sama_ | — |
+| `comments` | `SocialComment[]` | _sama_ | — |
+
+Indeks & kunci: `@@unique([channelId, externalId])`
 
 ### StockMovement — `stock_movements`
 
@@ -2176,6 +2239,7 @@ Indeks & kunci: `@@index([branchId])` · `@@index([productionBranchId])`
 | `waMessagesSent` | `WaMessage[]` | _sama_ | — |
 | `socialConversations` | `SocialConversation[]` | _sama_ | — |
 | `socialMessagesSent` | `SocialMessage[]` | _sama_ | — |
+| `socialCommentsSent` | `SocialComment[]` | _sama_ | — |
 | `taskSchedulesAssigned` | `TaskSchedule[]` | _sama_ | Papan Tugas Karyawan |
 | `taskSchedulesCreated` | `TaskSchedule[]` | _sama_ | — |
 | `taskItemsAssigned` | `TaskItem[]` | _sama_ | — |
