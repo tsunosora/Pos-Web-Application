@@ -273,8 +273,8 @@ export class SocialCommentsService {
 
     @Cron('30 */5 * * * *', { name: 'social-comments-auto-sync' })
     async autoSync() {
-        // Penanda dipasang sebelum await pertama: ScheduleModule terdaftar ganda di
-        // aplikasi ini sehingga jadwal bisa terpicu dua kali di detik yang sama.
+        // Penanda dipasang sebelum await pertama supaya pemicu yang tumpang tindih
+        // (mis. sinkron sebelumnya belum selesai) tidak menjalankan sinkron kedua.
         if (process.env.SOCIAL_AUTO_SYNC === 'false' || this.autoBusy || this.running) return;
         this.autoBusy = true;
         try {

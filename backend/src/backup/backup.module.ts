@@ -1,12 +1,14 @@
 import { Module } from '@nestjs/common';
-import { ScheduleModule } from '@nestjs/schedule';
 import { BackupController } from './backup.controller';
 import { BackupService } from './backup.service';
 import { RcloneService } from './rclone.service';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({
-    imports: [PrismaModule, ScheduleModule.forRoot()],
+    // ScheduleModule.forRoot() cukup SEKALI di AppModule (global). Mendaftarkannya lagi di
+    // sini membuat penjadwal kedua → setiap @Cron/@Interval di aplikasi jalan dua kali.
+    // SchedulerRegistry untuk jadwal backup tetap tersedia dari modul global itu.
+    imports: [PrismaModule],
     controllers: [BackupController],
     providers: [BackupService, RcloneService],
     exports: [BackupService, RcloneService],
