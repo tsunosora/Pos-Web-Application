@@ -70,6 +70,11 @@ import { StudioAiModule } from './studio-ai/studio-ai.module';
   imports: [
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'public'), // Serve local uploads
+      // Backend tidak menyajikan SPA: matikan rute cadangan "index.html". Rute itu
+      // membalas 404 sendiri dengan alamat berkas server ("ENOENT … /home/…/public/
+      // index.html") dan melewati filter galat (T-50). Jalur tak dikenal kini jatuh
+      // ke 404 standar Nest.
+      renderPath: '/__tanpa-spa__',
     }),
     ScheduleModule.forRoot(),
     PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule, PrinterRelayModule, SyncModule, LocalSyncModule, WhatsappCloudModule, MetaMessagingModule, MetaAdsModule, CustomProductMetricsModule, TaskBoardModule, StudioAiModule, IntegrationsModule],
