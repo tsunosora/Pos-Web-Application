@@ -59,6 +59,14 @@ Semua shift yang pernah ditutup tersimpan di
 4. Rekapnya tersimpan di tabel `shift_reports` dan dikirim ke grup WhatsApp
    pemilik serta Discord bila kanalnya dikonfigurasi.
 
+Sejak 22 September 2026 angka *seharusnya ada* yang tersimpan **dihitung ulang
+server saat laporan dikirim**, lalu ditambah penyesuaian yang diisi di halaman
+(setor, tarik, pengeluaran, kasbon). Penjualan yang masuk selama halaman tutup
+shift terbuka jadi ikut diharapkan — dulu ikut tertandai ke shift ini tapi tidak
+ada di angka harapan, sehingga kas tampak LEBIH. Kas yang tercatat **setelah**
+laporan terkirim masuk ke shift berikutnya. Diskon nota juga tidak lagi
+mengurangi harapan kas laci, karena tidak dicatat lagi sebagai pengeluaran.
+
 Tanggal pada halaman ini **diambil dari perangkat kasir saat halaman dibuka**,
 bukan dari waktu build aplikasi — pernah terjadi tanggal "hari ini" terkunci di
 tanggal build sehingga shift tidak bisa ditutup.

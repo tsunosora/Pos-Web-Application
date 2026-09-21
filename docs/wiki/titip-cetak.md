@@ -260,6 +260,11 @@ Singkatnya:
 - **Hutang A → B** Rp 96rb (HPP 80rb + fee 16rb) → otomatis tercatat di `inter_branch_ledger`
 - A bayar B (tunai atau kirim bahan) → `LedgerSettlement` + cashflow pair
 
+Sejak 22 September 2026: bayar dengan kirim bahan hanya boleh dari cabang
+pemesan (atau Owner), pelunasan tidak bisa tercatat ganda walau tombolnya
+diklik dua kali, dan nota titipan yang sudah dilunasi tidak bisa dihapus —
+koreksinya lewat menu Kas.
+
 ---
 
 ## 🏷️ Badge Titipan di Berbagai Halaman

@@ -137,6 +137,13 @@ Pengeluaran **Rp 1.250.000 → Rp 1.150.000**. Permintaannya sendiri tersimpan
 sebagai riwayat berstatus disetujui, lengkap dengan siapa pengaju dan siapa
 penyetujunya.
 
+Sejak 22 September 2026 permintaan hanya menyimpan kolom yang terlihat di layar
+persetujuan (nominal, kategori, catatan, sumber platform, metode bayar, rekening);
+kolom tersembunyi lain diabaikan. Penyetuju hanya melihat permintaan atas kas
+**cabangnya sendiri** (Owner melihat semua), dan satu permintaan hanya bisa
+diproses **sekali** — klik ganda atau dua penyetuju bersamaan mendapat pesan
+*"Permintaan ini sudah diproses"*.
+
 ## Apa Itu Cashflow dan Kenapa Penting?
 
 **Cashflow** (arus kas) adalah gambaran nyata kesehatan keuangan bisnis Anda dari hari ke hari.
@@ -188,6 +195,10 @@ Di bagian paling atas, pilih rentang waktu yang ingin Anda lihat:
 | **Semua** | Seluruh riwayat tanpa batasan waktu |
 
 Semua kartu ringkasan dan chart akan otomatis menyesuaikan periode yang dipilih.
+
+Batas harinya memakai jam WIB (00.00–23.59) sejak 22 September 2026. Dulu awal
+hari jatuh pukul 07.00 WIB, sehingga kas bertanggal mundur (jam 00.00) tidak
+pernah tampil.
 
 ---
 
@@ -276,9 +287,15 @@ Untuk pengeluaran dan pemasukan yang tidak melalui kasir POS — misalnya bayar 
 | **Kategori** | Pilih dari daftar (lihat kategori di bawah) |
 | **Nominal** | Jumlah uang dalam Rupiah (contoh: `500000`) |
 | **Keterangan** | Deskripsi singkat (contoh: "Bayar tagihan listrik Februari") |
-| **Tanggal** | Default hari ini, bisa diubah ke tanggal lain |
+| **Tanggal** | Otomatis saat disimpan |
 
 3. Klik **Simpan**
+
+Sejak 22 September 2026 server hanya menerima kolom form ini (termasuk metode
+bayar, rekening, dan centang *Tidak masuk laporan shift*), dan **nominal wajib
+lebih dari 0** — juga saat mengedit. Dulu nominal minus bisa diselipkan dan
+diam-diam menurunkan harapan kas laci. Untuk koreksi, catat entri dengan tipe
+berlawanan, bukan nominal minus.
 
 ---
 

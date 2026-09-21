@@ -119,6 +119,9 @@ Klik **Simpan** — dokumen tersimpan dengan status **DRAFT**.
   Nomor yang diketik/dikirim dari luar diabaikan.
 - **Subtotal, PPN & total dihitung server** dari item (jumlah × harga), tarif PPN,
   dan diskon — bukan dari angka kiriman.
+- **Qty boleh pecahan** (dua desimal), jadi baris per luas seperti 3 × 1,5 m =
+  **4,5 m²** tersimpan apa adanya. Sebelumnya jumlah wajib bilangan bulat dan baris
+  seperti ini ditolak.
 - **Status mengikuti alur** tombol di layar:
   Invoice `DRAFT → SENT → PAID / CANCELLED`, SPH `DRAFT → SENT → ACCEPTED /
   REJECTED / EXPIRED`. Lompatan lain (mis. DRAFT langsung PAID, atau PAID kembali

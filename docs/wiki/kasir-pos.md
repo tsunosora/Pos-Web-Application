@@ -219,7 +219,11 @@ ini.
   ukuran 0, DP melebihi total. Nota tidak pernah bisa bernilai minus.
 - **Rupiah tanpa sen.** Harga per m² × luas bisa menghasilkan pecahan (33×47 cm
   @ Rp 5.500/m² = Rp 853,05); total nota dibulatkan ke Rp 853, begitu juga
-  ekspektasi kas di tutup shift.
+  ekspektasi kas di tutup shift. Sejak 22 September 2026 layar kasir dan struk
+  ikut membulatkan subtotal, diskon, pajak, dan ongkir ke rupiah penuh seperti
+  server (dulu layar bisa menampilkan sen yang tidak sama dengan nota tersimpan,
+  sehingga kembalian selisih), dan label pajak di struk menyebut tarif sebenarnya,
+  bukan selalu 10%.
 - **Klik dua kali / jaringan putus tidak membuat nota kembar.** Setiap keranjang
   membawa kunci unik; kalau respons hilang lalu kasir menekan *Proses* lagi, server
   mengembalikan nota yang sama.
@@ -228,6 +232,18 @@ ini.
 - **Harga manual tercatat.** Kalau harga item diubah dari harga normal, detail nota
   menampilkan *"Harga manual — normal Rp X · diubah (nama akun)"* supaya owner bisa
   meninjau potongan harga.
+- **Harga manual gugur saat ukuran diubah** (sejak 22 Sep 2026). Mengganti
+  lebar/tinggi/pcs item per m² membuang harga manualnya dan menghitung ulang harga
+  — dulu layar memakai harga ukuran baru, tapi nota tersimpan dengan harga manual
+  lama. Timpa lagi harganya bila memang perlu.
+- **Produk paket (komposit) tidak bisa ditimpa harganya** — tombol pensilnya
+  disembunyikan, karena server menghitung harganya dari pilihan komponen.
+- **Harga grosir memakai tingkat dengan minimal jumlah terbesar yang cocok**, sama
+  di layar dan di nota. Contoh tingkat "min 10" Rp 8.000 dan "min 50" Rp 7.000
+  tanpa batas atas: 60 pcs = Rp 7.000 (dulu layar Rp 7.000, nota Rp 8.000).
+- **Buat nota dari SO:** kalau jumlah di keranjang terpotong karena stok kurang,
+  muncul notifikasi *"Qty SO dipotong stok"* yang menyebut produknya. Tambah stok
+  atau pisahkan nota sebelum bayar — jangan sampai tertagih lebih sedikit dari SO.
 - **Nama pelanggan satu baris.** Baris baru di nama diratakan, sehingga tidak bisa
   menyisipkan baris palsu (mis. "LUNAS") ke invoice WhatsApp.
 - Mengubah nota yang sudah jadi butuh **permintaan edit** yang disetujui
@@ -242,7 +258,7 @@ ini.
 | GET | `/transactions/:id` | detail nota |
 | POST | `/transactions/:id/add-dp` | menambah pembayaran DP |
 | POST | `/transactions/:id/pay-off` | melunasi |
-| PATCH | `/transactions/:id/payment-method` | memperbaiki metode bayar |
+| PATCH | `/transactions/:id/payment-method` | memperbaiki metode bayar (setingkat manajer) |
 | GET | `/transactions/dashboard/metrics` | angka di dashboard |
 
 Daftar lengkap parameter dan penjaga aksesnya ada di

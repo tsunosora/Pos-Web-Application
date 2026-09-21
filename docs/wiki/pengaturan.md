@@ -80,3 +80,10 @@ toko lain dengan identitas sendiri.
 - Beberapa nilai di `store_settings` bersifat rahasia (PIN, webhook Discord,
   kunci webhook GitHub). Semuanya tersimpan di server dan tidak dikirim ke
   browser.
+- **Simpan pengaturan hanya menerima kolom yang ada di halaman Pengaturan**
+  (sejak 22 September 2026); kolom lain diabaikan dan isian yang salah jenis
+  ditolak. Tarif pajak harus 0–100%. Webhook Discord dan rahasia GitHub di
+  `store_settings` hanya bisa diganti Owner — isian dari akun lain diabaikan.
+- **Hapus cabang khusus Owner**, dan ditolak bila cabang masih punya transaksi,
+  catatan kas, akun karyawan, atau stok. Nonaktifkan saja cabangnya supaya
+  riwayatnya tetap utuh.

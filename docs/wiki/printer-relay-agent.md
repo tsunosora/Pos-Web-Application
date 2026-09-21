@@ -27,7 +27,7 @@ cetaknya ke printer fisik.
 1. **Python** terpasang di PC kasir — unduh dari <https://python.org>, centang **Add Python to PATH**.
 2. **`pyserial`** (untuk printer USB/COM): buka Command Prompt → `pip install pyserial`.
    (Helper `agent-hidden.bat` memasang ini otomatis bila belum ada.)
-3. **Token printer** — dari menu **Settings → Printer** di web app (token perangkat, **bukan** login user).
+3. **Token printer** — dari menu **Settings → Printer** di web app (token perangkat, **bukan** login user). Sejak 22 September 2026 token hanya tampil untuk akun **Owner**.
 4. Tahu **cara koneksi printer**:
    - **COM port** (USB / Bluetooth outgoing) → mis. `COM5` (cek di *Device Manager → Ports (COM & LPT)*, pakai port **Outgoing**).
    - **Antrean Windows** (printer USB yang muncul sebagai printer/queue Windows, tanpa COM) → pakai **nama persis** printer di *Windows Printers*.

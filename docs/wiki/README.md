@@ -220,7 +220,7 @@ Di modal checkout, tersedia dua kolom tambahan sebelum grand total:
 
 Formula grand total: **Subtotal − Diskon + Pajak + Ongkos Kirim**
 
-> Diskon yang diinput otomatis dicatat sebagai pengeluaran **"Diskon"** di Cashflow — sehingga laporan keuangan tetap akurat.
+> Diskon langsung mengurangi total nota, jadi pemasukan di Cashflow sudah bersih setelah diskon. Sejak 22 September 2026 diskon **tidak lagi** dicatat terpisah sebagai pengeluaran "Diskon" (dulu terpotong dua kali).
 
 **Langkah 4 — Pilih Metode Pembayaran**
 

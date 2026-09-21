@@ -83,6 +83,11 @@ belaka, tapi yang menjaga perhitungan modal tetap benar.
 Data tersimpan di `stock_purchases` + `stock_purchase_items`, dan daftar barang
 yang biasa dibeli dari tiap supplier ada di `supplier_items`.
 
+Sejak 22 September 2026 jumlah tiap item pembelian wajib lebih dari 0 dan harga
+beli tidak boleh minus — dulu jumlah minus lolos, sehingga "pembelian" diam-diam
+mengurangi stok. Penyesuaian stok manual di Manajemen Stok juga begitu: jumlah
+masuk/keluar wajib lebih dari 0, dan hasil koreksi tidak boleh minus.
+
 ## 2. Transfer antar cabang
 
 Halaman **`/inventory/transfer`** memindahkan bahan dari satu cabang ke cabang
@@ -91,7 +96,9 @@ stok penerima** dalam satu langkah, sehingga total stok perusahaan tidak berubah
 — berbeda dari pembelian (menambah) atau penjualan (mengurangi).
 
 Tabelnya `stock_transfers` + `stock_transfer_items`, dan stok per cabang
-disimpan di `branch_stocks`.
+disimpan di `branch_stocks`. Sejak 22 September 2026 stok cabang pengirim dikunci
+saat dipotong, jadi transfer dan penjualan yang terjadi bersamaan tidak lagi
+saling menimpa.
 
 > Jangan bingung dengan **[Titip Cetak](titip-cetak.md)** dan
 > **[Buku Titipan](buku-titipan.md)**. Transfer stok memindahkan *bahan*;
@@ -128,6 +135,13 @@ selisih stok saat [opname](stock-opname.md) punya penjelasan, bukan misteri.
 Setiap nota untuk produk bertanda `trackStock` memotong stok lewat resep
 bahannya. Kalau stok tidak cukup, nota **ditolak** dengan menyebut nama
 bahannya — ini disengaja, supaya tidak ada penjualan yang stoknya minus.
+
+Sejak 22 September 2026 **edit dan hapus nota** mengembalikan atau memotong stok
+persis mengikuti aturan saat checkout: item sub order, produk paket (komposit),
+dan item custom tidak menyentuh stok; banner produksi dipotong saat *Mulai Job*,
+jadi hanya potongan itu yang dikembalikan. Karena itu mengubah ukuran banner
+produksi di nota tidak lagi ditolak "stok tidak cukup", dan nota berisi item
+custom kini bisa dihapus (dulu gagal).
 
 ## Menyelaraskan dengan kenyataan
 

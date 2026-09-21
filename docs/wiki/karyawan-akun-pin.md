@@ -77,7 +77,9 @@ Sekali simpan, dua catatan terbentuk sekaligus: baris di `users` dan baris di
 **Login** dan **PIN**.
 
 Kolom Role di baris itu bisa diganti langsung tanpa membuka form — tersimpan
-otomatis begitu kursor pindah.
+otomatis begitu kursor pindah. Sejak 22 September 2026 mengubah **No. HP** saja
+tidak lagi ikut mengosongkan role orang itu; hanya kolom yang diubah yang
+tersimpan.
 
 ### 5. Tambah role bila jabatannya baru
 
@@ -88,6 +90,10 @@ ditambah sendiri, misalnya *Kurir* atau *Admin Gudang*. Perlu diingat: role
 yang namanya mengandung kata *Manajer*, *Supervisor*, atau *Kepala* otomatis
 ikut boleh menyetujui permintaan edit kas — penamaan di sini berdampak ke
 kewenangan.
+
+Nama role maksimal 20 karakter. Role yang **masih dipakai** akun tidak bisa
+dihapus — pindahkan dulu akunnya ke role lain. Role setingkat Owner hanya bisa
+dibuat, diubah, atau dihapus oleh Owner.
 
 ### 6. Batasi menu yang dilihat role itu
 
@@ -171,6 +177,14 @@ Pagar yang berlaku saat menghapus/menonaktifkan:
    pernah kehilangan pemilik.
 3. Sebelum penghapusan permanen, ditampilkan **ringkasan riwayat** orang itu
    (berapa nota, berapa pekerjaan, berapa tugas) agar keputusannya sadar.
+4. Sejak 22 September 2026 pagar 1 dan 2 juga berlaku untuk **hapus permanen**:
+   akun sendiri dan Owner aktif terakhir tidak bisa dihapus.
+
+**Batas wewenang Admin** (sejak 22 September 2026): Admin yang bukan Owner hanya
+bisa membuat, mengubah, menandai keluar, dan menghapus akun **di cabangnya
+sendiri**, tidak bisa memindahkan akun ke cabang lain, tidak bisa menyentuh akun
+Owner, dan tidak bisa memberi peran Owner — termasuk ke dirinya sendiri. Admin
+tanpa cabang tidak bisa mengelola akun sama sekali. Owner tidak dibatasi.
 
 ## Endpoint terkait
 

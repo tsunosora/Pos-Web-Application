@@ -127,11 +127,26 @@ shift hari ini.
   menjadi `PAID` dan uangnya masuk ke [Cashflow](cashflow.md) pada tanggal
   pelunasan, bukan tanggal nota.
 - **Perbaiki metode bayar** (`PATCH /transactions/:id/payment-method`) — untuk
-  kasus salah pilih tunai/transfer, tanpa perlu membatalkan nota.
+  kasus salah pilih tunai/transfer, tanpa perlu membatalkan nota. Sejak 22
+  September 2026 khusus setingkat manajer, dan yang dipindah hanya **pembayaran
+  terakhir** beserta biaya platformnya — DP yang dibayar dengan metode lain tetap
+  di tempatnya.
 
 Karena pelunasan dicatat pada tanggal terjadinya, **uang masuk hari ini dari
 nota bulan lalu tetap muncul di shift hari ini** — dan itu memang yang
 diinginkan saat menghitung uang fisik di akhir shift.
+
+Pagar tambahan sejak 22 September 2026:
+
+- **Tidak ada pemasukan ganda.** Lunasi, Tambah DP, dan edit nota dikunci per
+  nota; klik ganda atau dua kasir yang menekan bersamaan hanya tercatat sekali —
+  permintaan kedua ditolak (*"Transaksi sudah lunas"* / *"Nominal melebihi sisa
+  tagihan"*).
+- **Biaya platform ikut tercatat** saat nota marketplace menjadi lunas lewat
+  **Tambah DP**, sama seperti lewat Lunasi (dulu terlewat, sehingga saldo bank
+  terlihat lebih besar).
+- **Nota belum lunas tidak bisa diedit sampai totalnya di bawah uang yang sudah
+  diterima** — pesannya menyebut total baru dan uang yang sudah masuk.
 
 ## Kaitan dengan angka lain
 

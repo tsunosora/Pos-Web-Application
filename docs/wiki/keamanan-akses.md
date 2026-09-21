@@ -15,6 +15,13 @@ Peran pengguna dibaca dari database pada **setiap permintaan**, bukan dari isi
 token — jadi menurunkan peran seseorang langsung berlaku tanpa menunggu
 tokennya kedaluwarsa.
 
+**Pembatas login salah** (sejak 22 September 2026) memakai IP asli pengunjung
+dari Cloudflare, bukan header `X-Forwarded-For` yang bisa dipalsukan. Ada tiga
+hitungan dalam 10 menit: **akun + IP 8×** (hanya akun itu dari IP itu yang
+terkunci, jadi satu orang salah ketik tidak mengunci seisi toko), **per IP 30×**,
+dan **per email 20×**. Yang terkunci ditolak 15 menit dengan pesan *"Terlalu banyak
+percobaan login gagal"*. Login yang berhasil **tidak** mereset hitungan.
+
 ## 2. Pembatasan peran (RolesGuard)
 
 ### Wujudnya di layar
@@ -39,7 +46,7 @@ ada tiga tingkat penjaga (berkas `backend/src/auth/role-groups.ts`):
 | Penjaga | Siapa yang lolos | Dipakai untuk |
 |---|---|---|
 | `ManagerGuard` | **setingkat manajer**: Owner, Pemilik, Admin, dan peran yang namanya memuat *manajer/manager/supervisor/kepala* — sama persis dengan peran yang melihat semua menu | pengaturan toko & cabang, rekening bank, cadangan data, Discord, bot WhatsApp lama, identitas PIN, hapus data induk, ubah/hapus kas langsung, koreksi laporan shift |
-| `OwnerGuard` | Owner, Pemilik, Superadmin | memulihkan cadangan (menimpa database), memindah dana antar cabang |
+| `OwnerGuard` | Owner, Pemilik, Superadmin | memulihkan cadangan (menimpa database), memindah dana antar cabang; sejak 22 Sep 2026 juga hapus cabang & mendaftarkan perangkat desktop |
 | `MenuGuard` + `@Menu('/alamat-menu')` | setingkat manajer, **atau** peran yang diberi menu itu di Akses Menu Role | laporan laba kotor, riwayat shift, Kalkulator HPP, klik mesin, landing page, artikel |
 
 Nama peran dibuat bebas oleh owner, jadi dicocokkan per kata kunci (tidak peduli
@@ -48,7 +55,10 @@ manajer. Peran lain (Kasir, CS, Desainer, Operator, atau nama baru) mengikuti
 menu yang diizinkan owner; kalau owner belum mengatur, dipakai preset divisinya.
 
 Endpoint lama dengan `@Roles(...)` (manajemen akun, kartu HR, broadcast WhatsApp
-Cloud) tetap seperti semula.
+Cloud) tetap seperti semula. Sejak 22 September 2026 manajemen akun punya batas
+tambahan: Admin yang bukan Owner hanya mengelola akun **di cabangnya sendiri**,
+tidak bisa menyentuh akun Owner, dan tidak bisa memberi peran Owner — termasuk ke
+dirinya sendiri. Rinciannya di [Akun & PIN Karyawan](karyawan-akun-pin.md).
 
 ### Contoh: memberi kasir akses Laporan Laba Kotor
 
@@ -68,6 +78,7 @@ Beberapa data tetap dibaca semua staf tapi bagian rahasianya dikosongkan:
 | `GET /branch-settings/:id` | kop & kaki nota cabang | PIN papan kerja cabang |
 | `GET /users` | id, nama, email, peran | nomor HP, pengaturan menu peran |
 | `GET /designers` | nama, status | PIN diganti titik (untuk siapa pun, termasuk owner) |
+| `GET /printer-relay/devices` | nama, mode, status online | token agen printer — sejak 22 Sep 2026 **hanya Owner** yang melihatnya |
 
 Tombol yang pasti ditolak server juga disembunyikan untuk staf: *Hapus Produk*,
 *Kalkulator HPP* di menu produk, hapus kategori/unit, hapus catatan klik dan
@@ -144,6 +155,11 @@ pada hitungan klik mesin benar-benar orang yang mengerjakan.
 login. Namanya dipilih dari daftar, lalu dikunci PIN masing-masing. Setiap
 permintaan membawa PIN — termasuk membuka detail SO (dulu detail SO terbuka
 tanpa PIN dan nomornya berurutan, sehingga data pelanggan bisa dipanen).
+Sejak 22 September 2026 setiap aksi ber-PIN juga memeriksa **pemilik SO**, jadi
+desainer tidak bisa mengubah atau membatalkan SO desainer lain. Pencarian
+pelanggan di portal (dulu `GET /customers/public` terbuka tanpa login dan
+mengirim semua pelanggan lengkap dengan HP & alamat) kini wajib PIN, minimal 3
+huruf, maksimal 20 hasil, dan nomor HP disamarkan (`0812****789`).
 
 Pola ini disengaja: komputer produksi dan meja desain sering dipakai
 bergantian, dan memaksa login email di sana justru membuat orang berbagi satu
@@ -155,6 +171,12 @@ Halaman penilaian pelanggan, opname lapangan, landing page, artikel, dan webhook
 Meta harus bisa diakses tanpa akun. Yang menjaganya adalah **token acak panjang
 sekali pakai** (untuk tautan) dan **verifikasi tanda tangan/verify token** (untuk
 webhook).
+
+Sejak 22 September 2026 isi **artikel** disaring saat disimpan dan sekali lagi
+saat ditampilkan: hanya tag format dari editor yang dipertahankan, sedangkan
+skrip, `iframe`/sematan, dan atribut `on…` dibuang. Pembatas **order publik** juga
+memakai IP asli pengunjung — dulu semua pemanggil terbaca satu alamat, sehingga
+berbagi satu kuota.
 
 ---
 
@@ -186,7 +208,7 @@ lihat [Referensi Endpoint](referensi-endpoint.md).
 | `CompanyBranchesController` | 1/6 | daftar cabang untuk pemilih di halaman ber-PIN |
 | `AuthController` | 1/2 | endpoint login itu sendiri |
 | `HrPinController` | 1/1 | tukar PIN → tautan portal absensi |
-| `CustomersPublicController` | 1/1 | pencarian nama pelanggan untuk form publik |
+| `CustomersPublicController` | 1/1 | pencarian pelanggan portal desainer — wajib PIN, HP disamarkan (sejak 22 Sep 2026) |
 | `WebhookController` | 1/1 | webhook GitHub (diverifikasi `github_webhook_secret`) |
 | `AppController` | 1/1 | health check |
 
@@ -207,6 +229,22 @@ memakai `JwtAuthGuard` seperti modul lain.
   jaringan toko.
 - **Kunci integrasi** (`HR_API_KEY`, `STAFF_KPI_API_KEY`) dipakai untuk
   panggilan antar-server dan tidak pernah dikirim ke browser.
+- **Sinkron data (`/sync/pull`)** sejak 22 September 2026: akun login biasa hanya
+  bisa menarik data referensi (produk, varian, harga bertingkat, kategori, satuan,
+  pelanggan, stok cabang, supplier) — dulu setiap akun bisa menarik hash sandi &
+  PIN semua orang. Akun, pengaturan, rekening, SO & lead khusus **perangkat
+  terdaftar**, dan mendaftarkan perangkat kini **khusus Owner**. Perangkat menerima
+  hash sandi & PIN hanya untuk cabangnya (login offline); webhook & rclone tidak
+  pernah dikirim ke siapa pun.
+- **Inbox WhatsApp & DM Instagram/Facebook** sejak 22 September 2026 memeriksa
+  setiap percakapan yang dibuka: staf cabang hanya kanal cabangnya (atau kanal
+  tanpa cabang); desainer & operator hanya chat miliknya, yang belum ditangani,
+  atau pelanggan SO-nya. Dulu nomor percakapan cabang lain bisa dibuka langsung.
+- **Papan kerja** (/produksi, /cetak) sejak 22 September 2026 hanya menampilkan dan
+  menggerakkan job cabang token PIN-nya (staf: cabangnya). Owner tetap semua.
+- **Celah SQL injection** di Laporan Bahan Titipan (filter tanggal) dan catatan
+  pelunasan Buku Titipan ditutup 22 September 2026 — isian kini dikirim sebagai
+  parameter, dan tanggal laporan wajib berformat `YYYY-MM-DD`.
 - **Cabang** diambil dari header `X-Branch-Id` untuk akun Owner, sementara staf
   memakai cabang dari tokennya — header dari staf diabaikan, jadi tidak bisa
   dipakai untuk melihat cabang lain.

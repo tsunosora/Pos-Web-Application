@@ -259,6 +259,12 @@ Klik **Buka postingan** untuk melihat aslinya.
 **Balasan saya dari aplikasi Instagram terlihat di PosPro?** Ya. Balasan dari akun
 bisnis dikenali sebagai balasan tim, dan utasnya dianggap sudah ditangani.
 
+**Balasan muncul "gagal kirim" padahal sampai ke pelanggan?** Diperbaiki 22
+September 2026. Nomor pesan Instagram kadang lebih dari 128 karakter sehingga
+dulu gagal disimpan; sekarang muat. Kalau balasan sudah terkirim tapi gagal
+disimpan, PosPro tetap menampilkannya sebagai terkirim — jangan kirim ulang, supaya
+pelanggan tidak menerima pesan dobel.
+
 **Komentar/DM tidak muncul sama sekali?** Lihat
 [Pemecahan masalah](hubungkan-meta.md#pemecahan-masalah) di halaman penghubungan.
 

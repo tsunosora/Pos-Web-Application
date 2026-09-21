@@ -6,7 +6,7 @@
 
 ## Variabel lingkungan backend
 
-**51 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**52 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 | Variabel | Dipakai di |
@@ -23,6 +23,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `APP_TZ` | `backend/src/main.ts` |
 | `BACKUP_DIR` | `backend/src/backup/rclone.service.ts` |
 | `BOARD_TOKEN_EXPIRES` | `backend/src/auth/board-auth.ts` |
+| `CRM_REPEAT_ORDER_AUTO` | `backend/src/crm/follow-ups/follow-ups.cron.ts` |
 | `HR_API_KEY` | `backend/src/integrations/hr-summary.service.ts` |
 | `HR_SUMMARY_URL` | `backend/src/integrations/hr-summary.service.ts` |
 | `IG_APP_SECRET` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/meta-messaging/social-webhook.controller.ts` |
@@ -83,7 +84,7 @@ Semua memakai zona waktu server kecuali disebut lain di jadwalnya.
 
 | Jenis | Jadwal | Fungsi | Berkas |
 |---|---|---|---|
-| Cron | `CronExpression.EVERY_WEEK, { name: 'crm-repeat-order-weekly' }` | `scheduleRepeatOrders` | `backend/src/crm/follow-ups/follow-ups.cron.ts` |
+| Cron | `'0 8 * * 1', { name: 'crm-repeat-order-weekly', timeZone: 'Asia/Jakarta' }` | `scheduleRepeatOrders` | `backend/src/crm/follow-ups/follow-ups.cron.ts` |
 | Cron | `'0 8 * * 1', { name: 'discord-champion-weekly', timeZone: 'Asia/Jakarta' }` | `weeklyChampion` | `backend/src/crm/kpi/kpi.cron.ts` |
 | Interval | `30000` | `scheduled` | `backend/src/local-sync/local-sync.service.ts` |
 | Cron | `'30 */5 * * * *', { name: 'social-comments-auto-sync' }` | `autoSync` | `backend/src/meta-messaging/social-comments.service.ts` |

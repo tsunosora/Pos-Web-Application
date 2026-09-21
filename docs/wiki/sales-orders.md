@@ -116,6 +116,12 @@ Desainer atau Admin bisa bikin SO. Halaman:
 | **Items** | ✓ (≥1) | Produk yang di-order, qty, ukuran (kalau AREA_BASED), catatan |
 | **Screenshot Proof Final** | – | Bukti ACC customer (opsional, max 10 gambar) |
 
+**Cari customer di portal desainer** (sejak 22 September 2026): ketik minimal
+**3 huruf** nama atau nomor HP; hasilnya maksimal 20 dan nomor HP tampil
+disamarkan (`0812****789`). Setelah customer dipilih, nomor asli dan alamatnya
+diisi server saat SO disimpan — biarkan nomor samarannya. Kalau nomornya diketik
+ulang, isi nomor lengkap.
+
 ### Item per Baris
 
 Search produk → pilih dari catalog. Untuk produk **AREA_BASED**: muncul field Lebar × Tinggi × Pcs (kopi). Untuk **UNIT**: cuma Qty.
@@ -137,6 +143,11 @@ Lead Order bersifat idempoten: kalau SO ini sudah punya lead, tidak dibuat dobel
 ### Edit SO tanpa bikin ulang (Jun 2026)
 
 Salah input bahan, qty, nama, atau catatan? Buka detail SO → tombol **Edit** (muncul selama status DRAFT atau SENT, belum jadi nota). Form yang sama terbuka dengan data ter-prefill; ubah lalu **Simpan** atau **Simpan & Kirim** ulang. Item boleh diubah selama SO **belum di-invoice/dibatalkan**. Setelah jadi nota (INVOICED) atau dibatalkan, SO terkunci.
+
+Sejak 22 September 2026:
+- Lewat portal, desainer hanya bisa mengubah, membatalkan, mengirim ke Discord, dan menambah/menghapus bukti pada **SO miliknya sendiri** — SO desainer lain ditolak (*"SO ini milik desainer lain"*). SO yang sudah jadi nota atau dibatalkan juga menolak perubahan bukti.
+- Di sisi kantor, staf hanya bisa mengubah, membatalkan, dan mengirim SO cabangnya sendiri.
+- Ganti item disimpan dalam satu langkah: item yang tidak valid (jumlah 0 atau pecahan, ukuran 0, produk tidak ada) ditolak **sebelum** item lama dihapus, jadi SO tidak pernah tertinggal tanpa item.
 
 ### Catatan order tampil di nota (Jun 2026)
 
@@ -228,7 +239,7 @@ Saat customer datang bayar, kasir tinggal:
 1. Buka `/pos`
 2. Klik tombol **"Buat dari SO"** (atau scan QR di nota SO kalau ada)
 3. Pilih SO dari list (filter status SENT)
-4. Item-items SO otomatis ke-load ke cart POS
+4. Item-items SO otomatis ke-load ke cart POS (kalau jumlahnya terpotong karena stok kurang, muncul notifikasi *"Qty SO dipotong stok"* — lihat [Kasir POS](kasir-pos.md#batas-aturan-yang-berlaku))
 5. Adjust kalau perlu (mis. tambah item, ubah qty), pilih payment method
 6. Submit checkout
 7. Sistem auto-update SO: `status = INVOICED`, `transactionId = <new tx id>`, `invoicedAt = now()`

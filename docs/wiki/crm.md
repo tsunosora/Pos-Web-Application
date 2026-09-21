@@ -59,6 +59,12 @@ REPEAT_ORDER (auto weekly cek customer dormant)
 menggabungkan data pelanggan yang tercatat dua kali, dan datanya bisa diekspor
 Excel/PDF.
 
+Sejak 22 September 2026 *Rapikan duplikat* dan hapus pelanggan khusus setingkat
+manajer. *Rapikan duplikat* kini ikut memindahkan kontak WA/sosial dan rating CS
+ke data yang dipertahankan, dan pelanggan yang masih tertaut lead, SO, kontak,
+rating, atau follow-up tidak bisa dihapus — gabungkan saja lewat *Rapikan
+duplikat*.
+
 ### Template pesan siap pakai
 
 ![Message Templates dengan daftar placeholder dan template per kategori](images/tpl-1-template.webp)
@@ -165,6 +171,7 @@ Klik tombol **"Convert"** di detail lead → 3 checkbox:
 - Items dari lead masuk ke SO + Invoice (yang dari katalog → SO, semua → Invoice)
 - Gambar lead di-copy ke SO Proof Gambar (desainer langsung lihat referensi)
 - Lead status berubah ke CLOSED_WON, link ke customer + SO + invoice ter-record
+- SO dari convert tanpa nama desainer kini dibiarkan **kosong**, bukan "TBD" (sejak 22 September 2026 — dulu "TBD" ikut terhitung sebagai desainer di KPI)
 
 ### Alur B: Tautkan Lead ke SO Desainer (Jun 2026)
 
@@ -178,7 +185,7 @@ Solusinya tombol **🔗 Tautkan SO** di detail lead:
 
 Pengaman tambahan:
 - Modal **Convert** otomatis menampilkan **peringatan** kalau customer (nama/HP sama) punya SO aktif — saran pakai Tautkan SO, bukan convert.
-- Kalau lead sudah tertaut SO, peringatannya merah: convert akan bikin nota dobel.
+- Sejak 22 September 2026, lead yang tertaut SO desainer yang **masih aktif** (belum jadi nota/batal) tidak lagi menampilkan tombol Convert — diganti keterangan *"Sudah ada SO desainer — buka dari kasir"*. Kalau convert tetap terpanggil, server memakai SO itu: tidak membuat SO/nota baru, tautannya tidak ditimpa, dan lead baru closing saat nota dibuat di kasir.
 - Tautan bisa dilepas / diganti kapan saja selama lead belum closing.
 - Kotak "Tertaut ke Sales Order" di detail lead punya tombol **🧾 Buat Nota di POS** — buka POS dengan cart ter-prefill dari SO (`/pos?fromSO=<id>`), checkout → lead otomatis closing.
 
@@ -201,12 +208,14 @@ Pengaman tambahan:
 |---|---|---|
 | 🎯 **LEAD_FU** | CS set `followUpDate` saat input/edit lead | Sesuai tanggal yang di-set |
 | 📦 **AFTER_SALES** | Operator klik pickup job di `/produksi` | Auto +3 hari, jam 9 pagi |
-| 🔄 **REPEAT_ORDER** | Cron Senin pagi → customer 90-180 hari tidak order | Auto +1 hari |
+| 🔄 **REPEAT_ORDER** | Cron Senin 08.00 WIB → customer yang order terakhirnya 90–97 hari lalu. **Nonaktif** sampai Owner menyalakannya (lihat *Catatan Teknis* di bawah) | Auto +1 hari |
 | 💰 **PAYMENT_REMINDER** | (Placeholder Phase 2) | — |
 
 ### 2 Tab View
 - **👤 Tugas Saya** (default) — hanya task assigned ke user yang login
 - **🌐 Semua** — view owner/supervisor, lihat semua task lintas user/cabang
+
+Angka badge menu Follow-up hanya menghitung tugas milik akun yang login (sejak 22 September 2026 — dulu semua tugas ikut terhitung).
 
 ### 3 Tombol Aksi per Task
 - **✓ Selesai** → modal isi catatan singkat → task DONE + activity log
@@ -372,7 +381,7 @@ Task baru muncul (mungkin dari operator yang baru pickup pesanan lain). Kerjakan
 | Edit lead, ubah `followUpDate` | Update task existing (tidak duplikat) |
 | Hapus `followUpDate` | Task pending di-mark SKIPPED |
 | Operator klik pickup job | Auto-create FollowUp AFTER_SALES due +3 hari |
-| Cron Senin pagi | Auto-create FollowUp REPEAT_ORDER untuk customer 90-180 hari dormant |
+| Cron Senin 08.00 WIB (hanya bila `CRM_REPEAT_ORDER_AUTO=on`) | Auto-create FollowUp REPEAT_ORDER untuk customer yang order terakhirnya 90–97 hari lalu |
 | Convert lead | Create Customer + SPK + Invoice dengan items + images auto-copied |
 | Click "✓ Selesai" task | Activity log tercatat di lead/customer timeline |
 
@@ -416,7 +425,8 @@ Gunakan untuk:
 - **WhatsApp manual**: tidak pakai bot API untuk send. CS copy template + paste sendiri ke WA. Lebih aman (tidak rate-limited), tidak rusak kalau WA Web disconnect, dan customer dapat chat dari nomor pribadi CS (lebih personal).
 - **Phone dedup heuristic**: cek match last-8-digit (handle format +62/0/spasi/dash beda).
 - **Image storage**: gambar lead disimpan di `/public/uploads/lead_xxx.jpg`, di-include di backup v3.3+.
-- **Cron**: `@nestjs/schedule` weekly Senin 00:00 untuk REPEAT_ORDER nudge.
+- **Cron REPEAT_ORDER**: Senin 08.00 WIB, **nonaktif bawaan** — baru jalan bila env backend `CRM_REPEAT_ORDER_AUTO=on`. Customer dikenali lewat No. HP nota (nota tidak menyimpan id customer) dan dijadwalkan paling banyak sekali per jeda order; tugas diberikan ke CS pemegang customer. Tugas ini ikut dihitung di KPI kepatuhan follow-up CS, jadi menyalakannya adalah keputusan Owner. Sampai 22 September 2026 jadwal ini selalu gagal diam-diam dan belum pernah membuat tugas.
+- **Pencatat**: sejak 22 September 2026 lead, aktivitas, follow-up, serta tanda selesai/skip menyimpan akun yang melakukannya (dulu kosong).
 
 ---
 
@@ -438,8 +448,9 @@ Gunakan untuk:
 - Owner default lihat "Semua", staff lihat "Tugas Saya"
 
 ### "After-sales tidak auto-trigger setelah pickup"
-- Pastikan customer di transaction sudah ter-set (`Transaction.customerId`)
-- Cek customer punya `assignedCsId` (CS yang pegang) — kalau null, akan fallback ke kasir yang handle transaksi
+- Diperbaiki 22 September 2026: sebelumnya tugas after-sales tidak pernah terbuat karena kodenya membaca kolom customer yang tidak ada di nota.
+- Customer kini dicari berurutan: customer di SO asal nota → lead yang closing ke nota itu → No. HP nota yang cocok dengan data customer. Kalau tidak ketemu, pickup tetap jalan tanpa tugas.
+- Tugas diberikan ke CS pemegang customer (`assignedCsId`); kalau kosong, tugas tanpa penanggung jawab — cari di tab **Semua**.
 - Dedup window 7 hari — kalau pickup sebelumnya untuk customer sama < 7 hari lalu, skip (intentional)
 
 ---

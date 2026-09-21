@@ -344,7 +344,7 @@ Berkas: `backend/src/company-branches/company-branches.controller.ts`
 | GET | `/company-branches/active` | `findAllActive` | `JwtAuthGuard` | — |
 | POST | `/company-branches` | `create` | `JwtAuthGuard, ManagerGuard` | — |
 | PATCH | `/company-branches/:id` | `update` | `JwtAuthGuard, ManagerGuard` | — |
-| DELETE | `/company-branches/:id` | `remove` | `JwtAuthGuard, ManagerGuard` | — |
+| DELETE | `/company-branches/:id` | `remove` | `JwtAuthGuard, OwnerGuard` | — |
 
 ## CompetitorsController — `/competitors`
 
@@ -497,13 +497,13 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | GET | `/customers` | `findAll` | `JwtAuthGuard` | — |
 | GET | `/customers/with-stats` | `findAllWithStats` | `JwtAuthGuard` | — |
 | GET | `/customers/summary` | `summary` | `JwtAuthGuard` | — |
-| POST | `/customers/dedupe` | `dedupe` | `JwtAuthGuard` | — |
+| POST | `/customers/dedupe` | `dedupe` | `ManagerGuard` | — |
 | GET | `/customers/lookup` | `lookup` | `JwtAuthGuard` | — |
 | GET | `/customers/export-data` | `findAllForExport` | `JwtAuthGuard` | — |
 | GET | `/customers/:id/analytics` | `getAnalytics` | `JwtAuthGuard` | — |
 | GET | `/customers/:id/crm-timeline` | `getCrmTimeline` | `JwtAuthGuard` | — |
 | PATCH | `/customers/:id` | `update` | `JwtAuthGuard` | — |
-| DELETE | `/customers/:id` | `remove` | `JwtAuthGuard` | — |
+| DELETE | `/customers/:id` | `remove` | `ManagerGuard` | — |
 
 ## CustomersPublicController — `/customers`
 
@@ -511,7 +511,7 @@ Berkas: `backend/src/customers/customers.controller.ts`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| GET | `/customers/public` | `listPublic` | — _terbuka_ | — |
+| POST | `/customers/public/search` | `searchPublic` | — _terbuka_ | — |
 
 ## DesignersAdminController — `/designers`
 
@@ -705,8 +705,8 @@ Berkas: `backend/src/production/production.controller.ts`
 | GET | `/production/pipeline/jobs` | `getPipelineJobs` | `JwtAuthGuard` | — |
 | PATCH | `/production/pipeline/jobs/:id` | `updatePipelineStage` | `JwtAuthGuard` | — |
 | POST | `/production/pipeline/jobs/:id/proof-image` | `` | `JwtAuthGuard` | — |
-| DELETE | `/production/pipeline/jobs/:id` | `deleteJob` | `JwtAuthGuard` | — |
-| PATCH | `/production/pipeline/jobs/:id/cancel` | `cancelJob` | `JwtAuthGuard` | — |
+| DELETE | `/production/pipeline/jobs/:id` | `deleteJob` | `JwtAuthGuard, ManagerGuard` | — |
+| PATCH | `/production/pipeline/jobs/:id/cancel` | `cancelJob` | `JwtAuthGuard, ManagerGuard` | — |
 | PATCH | `/production/pipeline/proofs/:proofId/delete` | `deleteProofImage` | `JwtAuthGuard` | — |
 | GET | `/production/pipeline/public/jobs` | `getPublicPipelineJobs` | — _terbuka_ | — |
 | PATCH | `/production/pipeline/public/jobs/:id` | `updatePublicPipelineStage` | — _terbuka_ | — |
@@ -1027,7 +1027,7 @@ Berkas: `backend/src/sync/sync.controller.ts`
 |---|---|---|---|---|
 | GET | `/sync/pull` | `pull` | `SyncAuthGuard` | — |
 | POST | `/sync/push` | `push` | `SyncAuthGuard` | — |
-| POST | `/sync/register-device` | `registerDevice` | `JwtAuthGuard` | — |
+| POST | `/sync/register-device` | `registerDevice` | `JwtAuthGuard, OwnerGuard` | — |
 
 ## TaskBoardController — `/task-board`
 
@@ -1099,7 +1099,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | GET | `/transactions/:id` | `findOne` | `JwtAuthGuard` | — |
 | POST | `/transactions/:id/add-dp` | `addPartialPayment` | `JwtAuthGuard` | — |
 | POST | `/transactions/:id/pay-off` | `payOff` | `JwtAuthGuard` | — |
-| PATCH | `/transactions/:id/payment-method` | `updatePaymentMethod` | `JwtAuthGuard` | — |
+| PATCH | `/transactions/:id/payment-method` | `updatePaymentMethod` | `ManagerGuard` | — |
 | PATCH | `/transactions/:id` | `editTransactionDirect` | `JwtAuthGuard` | — |
 | POST | `/transactions/:id/edit-request` | `createEditRequest` | `JwtAuthGuard` | — |
 | DELETE | `/transactions/:id` | `deleteTransaction` | `JwtAuthGuard` | — |

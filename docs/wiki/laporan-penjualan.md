@@ -254,6 +254,26 @@ berlabel "m" padahal ukurannya cm. Dulu, sekali nota seperti itu diedit, totalny
 melonjak ×10.000 — atau ditolak "stok tidak cukup". Sekarang satuan dibaca dari
 luas yang benar-benar tersimpan, jadi label lama tidak bisa lagi merusak total.
 
+### Uang & tanggal (sejak 22 September 2026)
+
+- **Edit nota LUNAS** mengoreksi pemasukan hanya sebesar **selisih** total, pada
+  pembayaran terakhir. Dulu setiap baris pemasukan (DP dan pelunasan) ditimpa
+  total baru, sehingga nota ber-DP yang diedit — walau hanya ganti nama — tercatat
+  masuk dua kali.
+- **Ganti metode bayar** (ikon pensil di samping metode) khusus setingkat manajer
+  dan tidak muncul untuk nota yang belum dibayar. Yang dipindah hanya pembayaran
+  terakhir beserta biaya platformnya; DP lama tetap di metodenya. Pindah ke
+  transfer wajib memilih rekening aktif milik cabang nota.
+- **Filter tanggal memakai hari WIB** (00.00–23.59). Dulu rentangnya bergeser 7
+  jam, sehingga nota mundur-tanggal pukul 00.00 jatuh ke hari sebelumnya.
+- **Diskon tidak lagi dicatat sebagai pengeluaran terpisah.** Pemasukan nota sudah
+  bersih setelah diskon; mencatatnya lagi membuat diskon terpotong dua kali (laba
+  dan ekspektasi kas laci kurang sebesar diskon).
+- **Pendapatan Kas** di halaman ini, serta kartu **Penjualan Hari Ini** dan grafik
+  di Dashboard, hanya menjumlahkan pemasukan penjualan (*Penjualan Lunas,
+  Pembayaran DP, Pelunasan DP*). Pemasukan otomatis lain — modal dari pusat,
+  pelunasan titipan, pemasukan tambahan saat tutup shift — tidak lagi ikut.
+
 ---
 
 ## Export Data

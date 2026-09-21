@@ -299,9 +299,14 @@ Order EXPRESS juga bisa diatur dengan **Deadline** (tanggal & jam selesai). Job 
 | Pakai bahan roll baru | Stok varian roll berkurang sebesar `luas m²` (dibulatkan ke atas) | Saat klik **Mulai Cetak** |
 | Pakai sisa/waste | Tidak ada pemotongan stok | — |
 | Batch dengan bahan roll | Stok dipotong total luas gabungan semua job dalam batch | Saat klik **Buat Batch** |
-| Produk rakitan (BOM) | Stok komponen rakitan (rangka, frame, dll) dipotong | Saat klik **Mulai Pasang** |
+| Produk rakitan (BOM) | Stok komponen rakitan (rangka, frame, dll) dipotong — hanya untuk produk per m²; resep produk satuan sudah dipotong saat checkout | Saat klik **Mulai Pasang** |
 
 Setiap pemotongan tercatat di **Riwayat Stok** (`StockMovement`) dengan keterangan nomor job/batch.
+
+Sejak 22 September 2026 luas roll = **luas per lembar × pcs**, dihitung server
+dari item nota (dialog proses & gabung cetak menampilkan pcs-nya). Dulu pcs
+terlewat, sehingga banner 3 pcs hanya memotong satu lembar. Luas yang benar-benar
+dipotong disimpan di job, dan itulah yang dikembalikan utuh bila notanya dihapus.
 
 ---
 
@@ -317,7 +322,10 @@ Setiap pemotongan tercatat di **Riwayat Stok** (`StockMovement`) dengan keterang
 > Admin perlu mengubah PIN di Pengaturan → Umum, lalu beritahu operator PIN baru.
 
 **Q: Apakah bisa ada beberapa operator yang buka halaman produksi bersamaan?**
-> Ya — halaman ini real-time dan bisa dibuka di banyak perangkat sekaligus.
+> Ya — halaman ini real-time dan bisa dibuka di banyak perangkat sekaligus. Sejak 22 September 2026, kalau dua perangkat menekan tombol yang sama untuk job yang sama (Mulai, Selesai, Mulai Pasang, Diambil, Gabung Cetak), hanya satu yang tercatat; yang lain mendapat pesan *"Job sudah diproses oleh perangkat lain"* — bahan tidak terpotong dua kali dan kredit operator tidak ganda.
+
+**Q: Job yang sudah dibatalkan masih bisa dikerjakan?**
+> Tidak, sejak 22 September 2026. Job batal disembunyikan dari antrian dan hitungan, dan tombol Mulai/Selesai/Pasang menolaknya (*"Job sudah dibatalkan"*). Menandai batal dan menghapus job di Pipeline Produksi kini khusus setingkat manajer, untuk job cabangnya sendiri — tombolnya disembunyikan untuk staf. PIN cabang di papan juga hanya bisa memindah tahap job cabang itu.
 
 **Q: Stok komponen rakitan tidak terpotong saat cetak — apakah itu normal?**
 > Ya, itu disengaja. Stok bahan cetak (roll) dipotong saat Mulai Cetak. Stok komponen rakitan (rangka, dll) baru dipotong saat Mulai Pasang. Ini memastikan stok hanya berkurang ketika bahan benar-benar dipakai di tahapannya masing-masing.

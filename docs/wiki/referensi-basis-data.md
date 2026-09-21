@@ -858,7 +858,7 @@ Indeks & kunci: `@@index([fromBranchId, status])` · `@@index([toBranchId, statu
 | `invoiceId` | `Int` | `invoice_id` | — |
 | `description` | `String` | _sama_ | — |
 | `unit` | `String?` | _sama_ | Satuan: pcs, m², lembar, set, dll |
-| `quantity` | `Int` | _sama_ | — |
+| `quantity` | `Decimal` | _sama_ | pecahan untuk baris luas (3 × 1,5 m = 4,5 m²) |
 | `price` | `Decimal` | _sama_ | — |
 | `invoice` | `Invoice` | _sama_ | — |
 
@@ -1693,7 +1693,7 @@ Indeks & kunci: `@@index([channelId, status])`
 | `channelId` | `Int` | `channel_id` | — |
 | `conversationId` | `Int` | `conversation_id` | — |
 | `contactId` | `Int` | `contact_id` | — |
-| `externalId` | `String?` | `external_id` | mid (dedup) |
+| `externalId` | `String?` | `external_id` | mid (dedup) — mid Instagram bisa > 128 karakter |
 | `direction` | `SocialDirection` | _sama_ | — |
 | `type` | `String` | _sama_ | TEXT \| IMAGE \| ... |
 | `body` | `String?` | _sama_ | — |

@@ -56,7 +56,9 @@ visibilitas audit untuk pemilik, bukan hutang formal.
 Pilih cabang produksinya, pilih periode, lalu terlihat total order titipan,
 total bahan keluar (unit/m²), dan nilainya. Pada contoh di atas periodenya
 memang belum ada pemakaian bahan untuk titipan, sehingga daftarnya kosong —
-barisnya baru terisi begitu ada nota titip cetak ke cabang produksi.
+barisnya baru terisi begitu ada nota titip cetak ke cabang produksi. Sejak 22
+September 2026 staf hanya bisa membuka laporan cabangnya sendiri; Owner bebas
+memilih cabang.
 
 ## 🔄 Alur Lengkap
 
@@ -99,6 +101,8 @@ totalAmount = costAmount + serviceFee
 | `totalAmount` | **Rp 96.000** ← yang harus dibayar A ke B |
 
 > `titipanFeePercent` di-set per cabang (cabang pelaksana). Settings → Konfigurasi Cabang → pilih cabang → field "Fee Titipan Masuk (%)". Default 20%, set 0 kalau tidak mau pungut fee.
+
+> **HPP bahan tidak lagi terhitung dua kali** (sejak 22 September 2026). HPP saat checkout sudah memuat bahan resep (BOM) varian, jadi resep varian hanya ditambahkan bila varian belum punya HPP sama sekali — dulu selalu ditambahkan lagi, sehingga hutang titipan membengkak. Berlaku untuk titipan baru; nilai titipan lama tetap seperti tercatat.
 
 ---
 
@@ -162,6 +166,8 @@ Klik **Simpan Pembayaran** → atomic transaction:
 
 > Kategori `INTER_BRANCH_SETTLEMENT` **otomatis di-exclude** dari laporan konsolidasi Owner mode "Semua Cabang" supaya tidak double-count revenue.
 
+Sejak 22 September 2026 pelunasan (tunai maupun kirim bahan) **dikunci per titipan**: klik ganda atau dua kasir yang menyimpan bersamaan hanya tercatat sekali, karena sisa hutang dihitung ulang di dalam kunci dan nominal yang melebihi sisa ditolak.
+
 ---
 
 ## 📦 Settlement: Bayar dengan Kirim Bahan
@@ -185,7 +191,8 @@ Klik **Kirim Bahan & Lunasi** → atomic transaction:
 6. Update ledger: `settledAmount += value`, status
 
 **Validasi**:
-- Stok A harus cukup
+- Hanya **cabang pemesan** (yang berhutang) atau Owner yang boleh — sejak 22 September 2026; dulu cabang penerima juga bisa, sehingga bisa menarik stok cabang lain tanpa persetujuannya
+- Stok A harus cukup (dicek ulang saat disimpan)
 - Nilai (`HPP × qty`) harus ≤ outstanding hutang (kalau lebih, kurangi qty)
 - Variant HPP > 0 (kalau 0, ditolak)
 
@@ -257,9 +264,11 @@ Sistem auto-create ledger di 2 momen:
 |---|---|
 | Lihat ledger (list, summary, detail) | Owner (semua), Staff (cabang dia terlibat — sebagai from atau to) |
 | Settle dengan tunai | Sama dengan di atas |
-| Settle dengan kirim bahan | Sama dengan di atas |
+| Settle dengan kirim bahan | Owner, atau staf cabang **pemesan** saja (sejak 22 Sep 2026) |
 
 Backend cek via `BranchContext`. Staff cabang Bantul **tidak bisa** lihat/settle ledger antara Pusat ↔ Sewon (karena tidak terlibat).
+
+Nota titipan yang **sudah punya pelunasan** (tunai atau bahan) tidak bisa dihapus sejak 22 September 2026 — kas dan stok pelunasannya tercatat di dua cabang dan dulu ikut terhapus tanpa dibalik. Catat koreksinya lewat menu Kas.
 
 ---
 

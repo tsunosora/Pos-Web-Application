@@ -75,6 +75,11 @@ menempel.
 Nama tombolnya berganti mengikuti tahap: **Mulai Cetak** di Antrian,
 **Tandai Selesai** di Proses, **Konfirmasi Diambil** di Siap Diambil.
 
+Sejak 22 September 2026 perpindahan tahap ini tidak bisa terjadi dua kali: kalau
+dua perangkat menekan tombol yang sama bersamaan, hanya satu yang tercatat dan
+yang lain mendapat pesan *"Job sudah diproses oleh perangkat lain"* — nama
+operator tidak tertimpa dan notifikasi siap-diambil tidak terkirim dua kali.
+
 ### 6. Selesai — siap diambil
 
 ![Tab Siap Diambil berisi cetakan yang menunggu pelanggan](images/cetak-6-selesai.webp)
@@ -170,6 +175,8 @@ Sama dengan `/produksi`, job titipan paper print **disembunyikan** dari `/print-
 ### Click Counting Per Cabang
 
 `ClickLog` & `MeterReading` juga scoped per cabang. Tiap cabang catat klik mesin sendiri, ada laporan terpisah. Owner mode "Semua Cabang" tampilkan agregat untuk overview.
+
+Sejak 22 September 2026 catatan **meteran harian** dan **reject mesin** memakai cabang dari PIN/token papan kerja — atau, untuk akun login, cabang akunnya (Owner: cabang yang dipilih di topbar) — bukan cabang yang dikirim form. Jadi PIN cabang A tidak bisa mencatat meteran cabang B. Akun login butuh menu *Klik Mesin Cetak* untuk mencatatnya.
 
 ### Stok Bahan Paper Titipan
 

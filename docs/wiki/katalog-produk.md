@@ -62,6 +62,13 @@ Setelah tersimpan, produk langsung muncul di [Kasir POS](kasir-pos.md).
 > terlewat, tombol simpan **tidak melakukan apa-apa** dan pesannya mudah
 > terlewat — periksa kategori, satuan, dan harga varian lebih dulu.
 
+> **Stok tidak diubah dari form produk** (sejak 22 September 2026). Saat mengedit
+> produk, kolom **Stok** varian yang sudah ada terkunci (*"Ubah lewat Stok
+> Cabang"*) dan menyimpan form tidak menyentuh stok. Dulu form menampilkan stok
+> cabang aktif lalu menyimpannya sebagai stok total semua cabang. Ubah stok lewat
+> **Inventori → Stok Cabang** atau [Stok Opname](stock-opname.md); varian baru
+> tetap boleh diisi stok awalnya.
+
 ---
 
 ## Susunan datanya

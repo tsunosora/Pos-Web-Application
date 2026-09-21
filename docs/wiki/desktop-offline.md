@@ -95,7 +95,17 @@ Mode lokal aktif otomatis di app terpaket (`app.isPackaged`). Untuk dev, set `PO
 
 ### Cakupan sinkronisasi
 
-**Turun (pusat → desktop), delta tiap 30 dtk** — data referensi (server-authoritative, last-write-wins by id): roles, units, kategori, kategori produksi, cabang, pengaturan toko & per-cabang, user (+passwordHash utk login offline), rekening bank, produk, varian, harga bertingkat, pelanggan, **supplier + item supplier**, **SalesOrder + item & Lead + item** (alur desainer → SO → Lead → Nota), dan **stok per cabang** (nilai absolut, di-scope ke cabang device).
+**Turun (pusat → desktop), delta tiap 30 dtk** — data referensi (server-authoritative, last-write-wins by id): roles, units, kategori, kategori produksi, cabang, pengaturan toko & per-cabang (tanpa webhook & rclone), user (akun cabang perangkat + akun tanpa cabang, beserta hash sandi untuk login offline), rekening bank, produk, varian, harga bertingkat, pelanggan, **supplier + item supplier**, **SalesOrder + item & Lead + item** (alur desainer → SO → Lead → Nota), dan **stok per cabang** (nilai absolut, di-scope ke cabang device).
+
+::: warning Sejak 22 September 2026
+- **Mendaftarkan perangkat khusus Owner.** Hanya perangkat terdaftar (token
+  perangkat) yang menarik akun, pengaturan, rekening, SO & lead. Login biasa dari
+  browser hanya boleh menarik data referensi (produk, harga, pelanggan, stok).
+- Perangkat menerima **hash sandi & PIN papan kerja** (dibutuhkan login offline dan
+  papan kerja tanpa internet), tapi hanya akun cabangnya sendiri plus akun tanpa
+  cabang (Owner). Rahasia integrasi (webhook Discord/GitHub, rclone) tidak pernah
+  dikirim.
+:::
 
 #### Alur desainer: SO → Lead → Nota (offline)
 

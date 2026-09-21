@@ -82,6 +82,11 @@ ada blast yang tidak sengaja:
 Kecepatan kirim dibatasi `WA_BROADCAST_RATE_PER_SEC` supaya tidak dianggap spam
 oleh Meta.
 
+Sejak 22 September 2026 satu broadcast hanya punya **satu** proses kirim: jeda lalu
+lanjutkan cepat-cepat tidak lagi membuat sisa penerima menerima pesan dua kali.
+Bila server restart saat broadcast berjalan, statusnya menjadi **Dijeda** —
+lanjutkan sendiri dari daftar broadcast setelah memeriksa hasilnya.
+
 ### Langkah demi langkah
 
 #### 1. Daftar broadcast
@@ -182,6 +187,12 @@ Halaman **`/crm/whatsapp/reminders`** (Manajer+). Menghubungkan kejadian di
 kasir dengan pesan otomatis: pesanan siap diambil, DP jatuh tempo, ucapan
 terima kasih. Konfigurasinya di `wa_reminder_configs`, dan setiap pengiriman
 dicatat di `wa_reminder_logs` supaya tidak terkirim dua kali.
+
+Pengingat **follow-up / tagihan jatuh tempo** (bila diaktifkan) sejak 22 September
+2026: hanya follow-up yang jatuh tempo 7 hari terakhir, satu kali percobaan per
+follow-up (yang gagal tidak dikirim ulang tiap 15 menit), dan variabel ke-2 template
+berisi **tanggal jatuh tempo** — catatan internal follow-up tidak pernah dikirim ke
+pelanggan. Pakai `{{1}}` = nama pelanggan dan `{{2}}` = tanggal saat membuat template.
 
 ## QR Chat
 
