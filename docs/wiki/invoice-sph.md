@@ -138,6 +138,12 @@ Hanya dokumen berstatus **Draft, Dibatalkan, Ditolak, atau Kedaluwarsa** yang
 bisa dihapus (sejak 22 September 2026). Invoice yang sudah terkirim atau lunas
 dibatalkan saja lewat status.
 
+**PPN dihitung dari subtotal setelah diskon** (sejak 22 September 2026), sesuai
+urutan di cetakan: Subtotal, Diskon, PPN. Dulu PPN dihitung sebelum diskon
+sehingga klien tertagih PPN atas diskonnya. Tombol *Hapus* hanya tampil pada
+dokumen yang boleh dihapus, dan *Jadi Invoice* langsung membuka tab Invoice
+dengan nomor invoice barunya.
+
 ## Cara Input Item (3 Mode)
 
 ### Mode 1 — Pilih dari Katalog Produk

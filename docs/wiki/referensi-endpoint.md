@@ -235,7 +235,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | GET | `/branch-stock/list` | `list` | `JwtAuthGuard` | — |
 | GET | `/branch-stock/matrix` | `matrix` | `JwtAuthGuard` | — |
 | GET | `/branch-stock/variant/:variantId` | `getStock` | `JwtAuthGuard` | — |
-| POST | `/branch-stock/adjust` | `adjust` | `JwtAuthGuard` | — |
+| POST | `/branch-stock/adjust` | `adjust` | `ManagerGuard` | — |
 
 ## BranchWorkOrdersController — `/branch-work-orders`
 

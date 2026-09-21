@@ -318,6 +318,10 @@ dipotong disimpan di job, dan itulah yang dikembalikan utuh bila notanya dihapus
   layar** (dulu untuk semua cabang). Menghapus foto bukti dari papan hanya bisa
   untuk job cabang itu.
 
+Bahan pasang (rangka dan sejenisnya) dipotong **per pcs** saat *Mulai Pasang*
+(job 5 pcs = 5 set), dan dikembalikan bila itemnya dihapus lewat edit nota.
+Gabung cetak (batch) yang memotong roll harus berisi job **satu cabang**.
+
 ## FAQ Produksi
 
 **Q: Mengapa job tidak muncul di antrian padahal sudah ada transaksi?**

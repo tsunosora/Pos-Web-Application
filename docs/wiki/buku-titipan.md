@@ -60,6 +60,13 @@ barisnya baru terisi begitu ada nota titip cetak ke cabang produksi. Sejak 22
 September 2026 staf hanya bisa membuka laporan cabangnya sendiri; Owner bebas
 memilih cabang.
 
+Sejak 22 September 2026 waktu *diterima*, *siap diambil*, *diserahkan*, dan
+pencatatan hutang titipan disimpan dalam UTC seperti kolom lain, dan laporan
+bahan titipan memakai hari WIB. Dulu waktu-waktu ini tampil 7 jam lebih lambat
+(mis. 17.00 untuk 10.00) dan bahan yang dipakai pukul 00.00–07.00 WIB masuk ke
+hari sebelumnya. Catatan yang dibuat sebelum tanggal itu tetap tampil dengan
+selisih 7 jam.
+
 ## 🔄 Alur Lengkap
 
 ```

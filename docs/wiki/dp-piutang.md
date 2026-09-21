@@ -153,6 +153,14 @@ Pagar tambahan sejak 22 September 2026:
 - **Nota belum lunas tidak bisa diedit sampai totalnya di bawah uang yang sudah
   diterima** — pesannya menyebut total baru dan uang yang sudah masuk.
 
+### Sejak 22 September 2026
+
+- Pelunasan atau tambah DP yang **gagal** (mis. nota sudah dilunasi kasir lain)
+  menampilkan alasannya, dan daftar nota disegarkan. Dulu gagal tanpa pesan.
+- Pilihan rekening, struk tagihan, dan pesan WA hanya memuat **rekening aktif
+  milik cabang nota** (atau rekening bersama). Server juga menolak DP/pelunasan
+  ke rekening nonaktif atau milik cabang lain.
+
 ## Kaitan dengan angka lain
 
 Piutang ikut diperhitungkan sebagai "Cuan" di [Leaderboard](leaderboard.md)

@@ -85,6 +85,13 @@ Halaman **`/help`** memuat manual book bawaan aplikasi: alur sistem, setup
 pertama, dan penjelasan tiap fitur — tersedia langsung di dalam aplikasi,
 tanpa perlu membuka dokumentasi ini.
 
+## Pesan saat penyimpanan gagal
+
+Sejak 22 September 2026 setiap simpan, hapus, atau proses yang **ditolak
+server** memunculkan pesan alasannya (mis. "Pilih cabang di topbar", "Transaksi
+sudah lunas"). Dulu banyak tombol hanya berhenti berputar tanpa keterangan
+sehingga tidak jelas apakah data tersimpan.
+
 ## Hal kecil lain yang sering ditanya
 
 | Yang terlihat | Artinya |

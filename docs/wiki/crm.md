@@ -72,6 +72,13 @@ lunas sekali bayar terhitung Rp 0. Di analitik, pendapatan per produk memakai
 total baris (bukan harga satuan), dan riwayat belanja menampilkan nilai nota —
 nota belum lunas diberi keterangan *dibayar Rp …*.
 
+Rincian pelanggan, daftar pelanggan, dan ekspor kini menghitung **semua nota**
+pelanggan apa pun format nomornya di nota ("+62 812-3456-789", "0812…",
+"62812…") sejak 22 September 2026. Dulu hanya nota bernomor persis "62812…"
+yang terhitung, padahal ±separuh nota menyimpan format lain. Mengubah data
+pelanggan hanya menerima kolom formulir, dan nomor HP yang tidak valid ditolak
+(dulu nomor lama terhapus diam-diam).
+
 ### Template pesan siap pakai
 
 ![Message Templates dengan daftar placeholder dan template per kategori](images/tpl-1-template.webp)

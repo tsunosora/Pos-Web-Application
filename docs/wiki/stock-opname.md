@@ -109,6 +109,13 @@ cabang lain pada saat yang sama tidak tertimpa.
 
 ---
 
+#### Penjualan setelah dihitung tetap berlaku (sejak 22 September 2026)
+
+Saat sesi diselesaikan, stok diubah sebesar **selisih hitungan terhadap stok
+sistem saat barang itu dihitung**, bukan ditimpa angka hitungan. Contoh: dihitung
+20 (sistem 20), lalu terjual 5 sebelum *Selesai* → stok akhir 15. Dulu stok
+kembali ke 20 dan barang yang sudah terjual seolah muncul lagi.
+
 ### Membatalkan Sesi
 
 Jika opname perlu dibatalkan (misalnya salah tanggal atau ada kendala):

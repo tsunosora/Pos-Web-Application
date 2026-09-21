@@ -154,6 +154,14 @@ Sejak 22 September 2026:
   ada konfirmasi sebelum varian yang sudah tersimpan dibuang dari form, dan bila
   server menolak, varian tadi muncul lagi di form (tidak hilang diam-diam).
 
+## Stok awal produk baru
+
+Sejak 22 September 2026 stok yang diisi saat membuat produk atau menambah varian
+dicatat ke **cabang yang sedang aktif** (beserta jejak *Stok Awal*). Dalam mode
+*Semua Cabang* stok awal ditolak — pilih cabang dulu atau kosongkan stoknya lalu
+isi lewat Stok Cabang. Dulu stok awal hanya masuk total semua cabang: kasir
+cabang melihat 0, dan setelah staf menambah stok cabangnya, total menjadi dobel.
+
 ## Halaman terkait
 
 | Halaman | Untuk |

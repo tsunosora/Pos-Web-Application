@@ -154,6 +154,10 @@ hasil laporannya dibaca di **[Laporan Stok](laporan-stok.md)**.
 Untuk bahan yang dipakai cabang lain tapi miliknya cabang tertentu, rekapnya di
 **`/reports/inter-branch-usage`** — lihat [Buku Titipan](buku-titipan.md).
 
+Sejak 22 September 2026 kolom **Dari Cabang** untuk staf selalu terisi
+cabangnya, juga setelah halaman dimuat ulang (dulu kosong dan transfer tidak bisa
+dikirim).
+
 ## Halaman & tabel terkait
 
 | Halaman | Tabel utama |

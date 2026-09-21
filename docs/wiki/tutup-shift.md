@@ -78,6 +78,25 @@ Selain pengeluaran yang diketik di form, halaman ini menampilkan
 transfer) dalam mode hanya-baca. Tanpa itu, pemasukan terlihat berdiri sendiri
 tanpa pengeluaran tandingannya, dan angka kasnya seolah tidak cocok.
 
+## Aturan baru sejak 22 September 2026
+
+- **Kirim dua kali tidak membuat dua laporan.** Bila layar lambat lalu tombol
+  kirim ditekan lagi (atau dua perangkat mengirim bersamaan), kiriman dengan jam
+  tutup, kas fisik, dan kasir yang sama dalam 30 menit dianggap laporan yang
+  sama. Dulu terbentuk dua laporan dan semua pengeluaran/kasbon tercatat dobel
+  (terjadi 1 Juli 2026).
+- **Kolom saldo rekening mulai kosong.** Hanya rekening yang diisi yang
+  diperbarui. Bila ada rekening yang dilewati, muncul konfirmasi; saldo rekening
+  itu di sistem tidak diubah (dulu menjadi Rp 0).
+- **Selisih transfer tidak dicatat** karena halaman ini tidak menanyakan transfer
+  fisik (transfer dicocokkan lewat saldo per rekening). Dulu hampir semua shift
+  tercatat "kurang transfer" sebesar seluruh penjualan transfer.
+- **Nota mundur tanggal** tanpa centang *masuk shift hari ini* tidak ikut
+  ekspektasi kas shift yang sedang berjalan, sesuai keterangan di layar kasir.
+- Kas yang ditandai milik shift ini hanya yang **benar-benar dihitung** di
+  ekspektasi. Penjualan yang baru tersimpan saat laporan dikirim masuk ke shift
+  berikutnya.
+
 ## Setelah shift ditutup
 
 - Riwayatnya di **`/reports/shift-history`** — lihat [Riwayat Tutup Shift](riwayat-shift.md).
