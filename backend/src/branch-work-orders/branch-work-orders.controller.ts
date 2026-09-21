@@ -10,6 +10,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BranchWorkOrdersService } from './branch-work-orders.service';
 import type { CreateBranchWODto } from './branch-work-orders.service';
 import { compressImage } from '../common/utils/compress-image.util';
+import { safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
 
 const proofStorage = diskStorage({
     destination: (_req, _file, cb) => {
@@ -18,8 +19,7 @@ const proofStorage = diskStorage({
         cb(null, dir);
     },
     filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname);
-        cb(null, `branch-proof-${Date.now()}${ext}`);
+        cb(null, `branch-proof-${Date.now()}${safeImageExt(file.mimetype) ?? '.jpg'}`); // ekstensi dari tipe gambar, bukan nama kiriman
     },
 });
 
@@ -65,7 +65,7 @@ export class BranchWorkOrdersController {
     }
 
     @Post(':id/proof')
-    @UseInterceptors(FileInterceptor('file', { storage: proofStorage }))
+    @UseInterceptors(FileInterceptor('file', { storage: proofStorage, fileFilter: safeImageFilter, limits: { fileSize: 15 * 1024 * 1024, files: 1 } }))
     async uploadProof(
         @Param('id', ParseIntPipe) id: number,
         @UploadedFile() file: Express.Multer.File,

@@ -819,6 +819,13 @@ export default function WhatsappInboxPage() {
                     i === 0 ? payload.caption : undefined,
                     i === 0 ? payload.replyTo : undefined,
                 );
+                // Lampiran yang sudah terkirim langsung dikeluarkan dari daftar (dan caption/draf dari
+                // lampiran pertama) — dulu bila lampiran ke-3 gagal, "kirim ulang" mengirim 1–2 lagi.
+                if (payload.convId === selectedIdRef.current) {
+                    const terkirim = payload.files[i];
+                    setPendingFiles((daftar) => daftar.filter((f) => f !== terkirim));
+                    if (i === 0) { setDraft(""); setReplyingTo(null); }
+                }
             }
         },
         onSuccess: (_d, v) => {

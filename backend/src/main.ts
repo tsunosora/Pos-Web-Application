@@ -52,10 +52,15 @@ async function bootstrap() {
   // dibuka sebagai halaman dari domain toko: paksa unduh + sandbox tanpa skrip.
   // <img src="…svg"> tetap tampil (header ini hanya berlaku saat dibuka langsung).
   // Lapis kedua di belakang pemeriksaan tipe saat unggah (T-18).
+  // Daftar PUTIH ekstensi gambar pada path yang sudah di-decode: dulu daftar hitam pada path mentah
+  // (ekstensi lain seperti .xht, atau "%2E" yang di-decode server statis, lolos sebagai halaman).
   app.use('/uploads', (req: any, res: any, next: any) => {
-    if (/\.(html?|xhtml|shtml|svgz?|xml|xsl|js|mjs)$/i.test(req.path)) {
+    let p = String(req.path || '');
+    try { p = decodeURIComponent(p); } catch { /* biarkan mentah */ }
+    if (!/\.(png|jpe?g|jfif|webp|gif|heic|heif|avif|bmp|ico)$/i.test(p)) {
       res.setHeader('Content-Disposition', 'attachment');
       res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+      res.setHeader('X-Content-Type-Options', 'nosniff');
     }
     next();
   });

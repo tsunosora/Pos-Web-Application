@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { ManagerGuard } from '../../auth/role-groups';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
@@ -142,7 +143,9 @@ export class KpiController {
     }
 
     /** Kirim pengumuman juara leaderboard ke Discord (manual / dipanggil terjadwal). */
+    // Mengumumkan ke kanal Discord toko → setingkat manajer (dulu staf mana pun bisa memicu).
     @Post('discord-recap')
+    @UseGuards(ManagerGuard)
     discordRecap(
         @CurrentBranch() ctx: BranchContext,
         @Query('period') period?: string,

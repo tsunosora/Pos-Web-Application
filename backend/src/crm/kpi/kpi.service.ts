@@ -337,7 +337,7 @@ export class KpiService {
         if (!uname) return [];
 
         const leadTxIds: number[] = (await this.lead.findMany({
-            where: { ...branchScope, convertedTransactionId: { not: null } },
+            where: { convertedTransactionId: { not: null } } /* semua cabang: nota dari lead cabang lain bukan walk-in */,
             select: { convertedTransactionId: true },
         })).map((l: any) => Number(l.convertedTransactionId));
         const leadTxSet = new Set<number>(leadTxIds);
@@ -419,7 +419,7 @@ export class KpiService {
         const uname = (user?.name || '').trim().toLowerCase();
         if (uname) {
             const leadTxSet = new Set<number>((await this.lead.findMany({
-                where: { ...branchScope, convertedTransactionId: { not: null } },
+                where: { convertedTransactionId: { not: null } } /* semua cabang: nota dari lead cabang lain bukan walk-in */,
                 select: { convertedTransactionId: true },
             })).map((l: any) => Number(l.convertedTransactionId)));
             const wtxs: any[] = await this.tx.findMany({
@@ -599,7 +599,9 @@ export class KpiService {
         });
         // Rincian omzet/cuan memuat nota & No. HP pelanggan tanpa saring cabang → staf hanya boleh
         // membuka rincian akun cabangnya (dulu ?userId= akun cabang lain terbuka).
-        if (!ctx.isOwner && user?.branchId != null && user.branchId !== ctx.userBranchId) {
+        // Akun tanpa cabang (owner) juga tertutup bagi staf: dulu dilewati sehingga staf cabang 2
+        // membaca nota & No. HP pelanggan milik owner dari semua cabang.
+        if (!ctx.isOwner && opts.division === 'cs' && (!user || user.branchId == null || user.branchId !== ctx.userBranchId)) {
             throw new ForbiddenException('Rincian ini milik akun cabang lain.');
         }
         const person = {
@@ -840,7 +842,7 @@ export class KpiService {
             const rows: Array<KpiDetailRow & { _txId: number | null }> = jobs.map(j => {
                 const ti = j.transactionItem;
                 const tx = ti?.transaction;
-                const qty = Number(ti?.quantity) || (Number(ti?.pcs) || 1);
+                const qty = (Number(ti?.quantity) || 1) * (Number(ti?.pcs) || 1); // spanduk 9 pcs = 9, bukan 1
                 return {
                     kind: 'job' as const, refId: j.id,
                     invoiceNumber: tx?.invoiceNumber ?? null,
@@ -1603,12 +1605,14 @@ export class KpiService {
             },
             select: { jobId: true, actorName: true, toStage: true, actorWeight: true },
         });
-        // Activity tak punya branchId → kalau di-scope ke cabang, filter via job.
+        // Activity tak punya relasi job → selalu saring lewat job yang MASIH ADA & tidak dibatalkan
+        // (+ cabang bila di-scope). Dulu tanpa cabang (mode Semua Cabang/TV) job dari nota yang
+        // dihapus/dibatalkan tetap terhitung.
         let allowedJobIds: Set<number> | null = null;
-        if (branchScope && branchScope.branchId !== undefined) {
+        {
             const jobIds = Array.from(new Set(acts.map(a => a.jobId)));
             const jobs: any[] = jobIds.length === 0 ? [] : await (this.prisma as any).productionJob.findMany({
-                where: { id: { in: jobIds }, ...branchScope },
+                where: { id: { in: jobIds }, cancelledAt: null, ...(branchScope && branchScope.branchId !== undefined ? branchScope : {}) },
                 select: { id: true },
             });
             allowedJobIds = new Set(jobs.map(j => j.id));
@@ -1667,7 +1671,7 @@ export class KpiService {
                 prodJobInfo.set(j.id, {
                     omzet: ti ? lineOmzet(ti) : 0,
                     catId: catIdOf(ti),
-                    pcs: Number(ti?.quantity) || (Number(ti?.pcs) || 1),
+                    pcs: (Number(ti?.quantity) || 1) * (Number(ti?.pcs) || 1), // qty × pcs (item area: qty 1, pcs = kopi)
                     areaM2: areaM2Of(ti),
                     itemId: j.transactionItemId != null ? Number(j.transactionItemId) : null,
                 });
@@ -2721,7 +2725,7 @@ export class KpiService {
         // ── Kontribusi POS walk-in (non-lead) ──────────────────────────────
         // Set tx yang berasal dari lead (semua periode, scope cabang) → dikecualikan.
         const leadTxIds: number[] = (await this.lead.findMany({
-            where: { ...branchScope, convertedTransactionId: { not: null } },
+            where: { convertedTransactionId: { not: null } } /* semua cabang: nota dari lead cabang lain bukan walk-in */,
             select: { convertedTransactionId: true },
         })).map((l: any) => Number(l.convertedTransactionId));
         const leadTxSet = new Set<number>(leadTxIds);

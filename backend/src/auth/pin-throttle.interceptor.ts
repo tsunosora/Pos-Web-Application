@@ -26,6 +26,12 @@ const lockedUntil = new Map<string, number>();
 let lastPrune = 0;
 
 export function clientIp(req: any): string {
+    // Header proksi hanya dipercaya bila koneksi datang dari mesin ini (cloudflared/proksi lokal).
+    // Backend juga mendengar di LAN: dulu klien LAN bisa mengarang cf-connecting-ip tiap
+    // permintaan → pembatas tebakan PIN & batas penilaian CS tak pernah kena.
+    const asal = String(req?.socket?.remoteAddress || req?.connection?.remoteAddress || '');
+    const lokal = asal === '127.0.0.1' || asal === '::1' || asal === '::ffff:127.0.0.1';
+    if (!lokal) return asal || req?.ip || 'unknown';
     const cf = req?.headers?.['cf-connecting-ip'];
     if (typeof cf === 'string' && cf) return cf.trim();
     const xff = req?.headers?.['x-forwarded-for'];

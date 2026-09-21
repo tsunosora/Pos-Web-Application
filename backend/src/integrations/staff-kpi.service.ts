@@ -107,7 +107,7 @@ export class StaffKpiService {
             }),
             this.prisma.transaction.groupBy({
                 by: ['cashierName', 'checkoutCashierName'],
-                where: { status: 'PAID', createdAt: { gte: from, lte: to }, ...branchFilter },
+                where: { status: 'PAID', paidAt: { gte: from, lte: to }, ...branchFilter }, // hari lunas, bukan hari nota
                 _count: { _all: true },
                 _sum: { grandTotal: true },
             }),

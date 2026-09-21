@@ -1,4 +1,4 @@
-import { Controller, Post, Headers, Body, HttpCode } from '@nestjs/common';
+import { Controller, Post, Headers, Body, HttpCode, Req } from '@nestjs/common';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -16,6 +16,7 @@ export class WebhookController {
         @Headers('x-hub-signature-256') signature: string,
         @Headers('x-github-event') event: string,
         @Body() payload: any,
+        @Req() req: any,
     ) {
         const settings = await this.prisma.storeSettings.findFirst();
         const secret = (settings as any)?.githubWebhookSecret;
@@ -23,8 +24,10 @@ export class WebhookController {
         // Verifikasi signature jika secret sudah di-set
         if (secret) {
             if (!signature) return { ok: false };
+            // Tanda tangan GitHub dihitung atas body MENTAH — JSON.stringify ulang tak selalu sama
+            // (spasi/urutan), jadi kiriman asli bisa ditolak.
             const expected = 'sha256=' + createHmac('sha256', secret)
-                .update(JSON.stringify(payload))
+                .update(req?.rawBody ?? Buffer.from(JSON.stringify(payload)))
                 .digest('hex');
             try {
                 const sigBuf = Buffer.from(signature);

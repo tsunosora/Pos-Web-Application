@@ -4,6 +4,7 @@ import { ReportsService } from './reports.service';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { compressImage } from '../common/utils/compress-image.util';
+import { safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ManagerGuard, Menu, MenuGuard, OwnerGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
@@ -294,9 +295,12 @@ export class ReportsController {
                 destination: './uploads/proofs',
                 filename: (req, file, cb) => {
                     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                    cb(null, `${file.fieldname}-${uniqueSuffix}${extname(file.originalname)}`);
+                    cb(null, `${file.fieldname}-${uniqueSuffix}${safeImageExt(file.mimetype) ?? '.jpg'}`);
                 },
             }),
+            // Foto bukti saja, maks 15 MB/berkas (dulu tanpa batas — disk server lambat).
+            fileFilter: safeImageFilter,
+            limits: { fileSize: 15 * 1024 * 1024, files: 20 },
         }),
     )
     async closeShift(

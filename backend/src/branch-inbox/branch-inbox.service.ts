@@ -267,15 +267,17 @@ export class BranchInboxService {
         if (!tx) throw new NotFoundException('Titipan tidak ditemukan');
 
         const safeId = Number(id);
-        await this.prisma.$executeRawUnsafe(
+        // Hanya dari status sebelum siap: dulu klik ulang mengembalikan DISERAHKAN → SIAP_AMBIL dan
+        // memicu template "siap ambil" lagi.
+        const berubah = await this.prisma.$executeRawUnsafe(
             `UPDATE transactions
              SET handover_status = 'SIAP_AMBIL',
                  handover_ready_at = UTC_TIMESTAMP(3),
                  handover_ack_at = COALESCE(handover_ack_at, UTC_TIMESTAMP(3))
-             WHERE id = ${safeId}`,
+             WHERE id = ${safeId} AND (handover_status IS NULL OR handover_status NOT IN ('SIAP_AMBIL', 'DISERAHKAN'))`,
         );
-        // Reminder WhatsApp "pesanan siap ambil" (best-effort, tak blok respons).
-        void this.reminders.sendOrderReady(safeId).catch(() => undefined);
+        // Reminder WhatsApp "pesanan siap ambil" (best-effort, tak blok respons) — sekali saja.
+        if (berubah === 1) void this.reminders.sendOrderReady(safeId).catch(() => undefined);
         return { ok: true };
     }
 

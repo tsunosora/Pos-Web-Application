@@ -28,6 +28,12 @@ export class LoginThrottleService {
         return until > now ? Math.ceil((until - now) / 1000) : 0;
     }
 
+    /** Jumlah kegagalan kunci ini dalam jendela waktu (tanpa mencatat). */
+    failCount(key: string): number {
+        const now = Date.now();
+        return (this.attempts.get(key) ?? []).filter((t) => now - t < this.WINDOW).length;
+    }
+
     /** Catat satu kegagalan. Mengembalikan apakah IP kini terkunci + jumlah gagal. */
     recordFailure(ip: string, max: number = this.MAX_FAILS): { locked: boolean; fails: number } {
         const now = Date.now();

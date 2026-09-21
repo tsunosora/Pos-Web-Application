@@ -1254,6 +1254,10 @@ export class TransactionsService {
         }
     }
 
+    // Varian → waktu peringatan terakhir. Dulu SETIAP penjualan barang yang stoknya sudah di bawah
+    // ambang mengirim notifikasi + 2 pesan Discord lagi.
+    private readonly peringatanStok = new Map<number, number>();
+
     private async checkLowStock(variantIds: number[]) {
         const settings = await this.prisma.storeSettings.findFirst();
         if (!(settings as any)?.notifyLowStock) return;
@@ -1267,8 +1271,13 @@ export class TransactionsService {
             include: { product: true },
         });
 
+        const sekarang = Date.now();
         for (const variant of variants) {
-            if (variant.stock <= threshold) {
+            if (variant.stock > threshold) { this.peringatanStok.delete(variant.id); continue; }
+            const terakhir = this.peringatanStok.get(variant.id) ?? 0;
+            if (sekarang - terakhir < 12 * 3600_000) continue; // sudah diperingatkan ≤ 12 jam lalu
+            this.peringatanStok.set(variant.id, sekarang);
+            {
                 const name = variant.variantName
                     ? `${(variant as any).product?.name} - ${variant.variantName}`
                     : (variant as any).product?.name || 'Produk';

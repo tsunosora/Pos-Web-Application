@@ -4,8 +4,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ManagerGuard, isManagerLevelRole, isOwnerLevelRole } from '../auth/role-groups';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
 import { compressImage } from '../common/utils/compress-image.util';
+import { assertRealImage, safeImageExt, safeImageFilter } from '../common/utils/safe-image-upload.util';
 
 const randomHex = () => Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
 
@@ -51,10 +51,13 @@ export class SettingsController {
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
-            filename: (req, file, cb) => cb(null, `${randomHex()}${extname(file.originalname)}`),
-        })
+            filename: (req, file, cb) => cb(null, `${randomHex()}${safeImageExt(file.mimetype) ?? '.png'}`),
+        }),
+        fileFilter: safeImageFilter, // gambar saja (dulu SVG/HTML berlabel gambar ikut tersimpan)
+        limits: { fileSize: 10 * 1024 * 1024, files: 1 },
     }))
     async uploadQrisImage(@UploadedFile() file: Express.Multer.File) {
+        await assertRealImage(file.path);
         await compressImage(file.path);
         const fileUrl = `/uploads/${file.filename}`;
         await this.settingsService.updateQrisImage(fileUrl);
@@ -66,10 +69,13 @@ export class SettingsController {
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
-            filename: (req, file, cb) => cb(null, `${randomHex()}${extname(file.originalname)}`),
-        })
+            filename: (req, file, cb) => cb(null, `${randomHex()}${safeImageExt(file.mimetype) ?? '.png'}`),
+        }),
+        fileFilter: safeImageFilter, // gambar saja (dulu SVG/HTML berlabel gambar ikut tersimpan)
+        limits: { fileSize: 10 * 1024 * 1024, files: 1 },
     }))
     async uploadLogoImage(@UploadedFile() file: Express.Multer.File) {
+        await assertRealImage(file.path);
         await compressImage(file.path);
         const fileUrl = `/uploads/${file.filename}`;
         await this.settingsService.updateLogoImage(fileUrl);
@@ -81,10 +87,13 @@ export class SettingsController {
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
-            filename: (req, file, cb) => cb(null, `loginbg_${randomHex()}${extname(file.originalname)}`),
-        })
+            filename: (req, file, cb) => cb(null, `loginbg_${randomHex()}${safeImageExt(file.mimetype) ?? '.png'}`),
+        }),
+        fileFilter: safeImageFilter, // gambar saja (dulu SVG/HTML berlabel gambar ikut tersimpan)
+        limits: { fileSize: 10 * 1024 * 1024, files: 1 },
     }))
     async uploadLoginBgImage(@UploadedFile() file: Express.Multer.File) {
+        await assertRealImage(file.path);
         await compressImage(file.path);
         return { url: `/uploads/${file.filename}` };
     }
@@ -95,15 +104,15 @@ export class SettingsController {
     @UseInterceptors(FileInterceptor('image', {
         storage: diskStorage({
             destination: './public/uploads',
-            filename: (req, file, cb) => cb(null, `loginlogo_${randomHex()}${extname(file.originalname)}`),
-        })
+            filename: (req, file, cb) => cb(null, `loginlogo_${randomHex()}${safeImageExt(file.mimetype) ?? '.png'}`),
+        }),
+        fileFilter: safeImageFilter, // gambar saja (dulu SVG/HTML berlabel gambar ikut tersimpan)
+        limits: { fileSize: 10 * 1024 * 1024, files: 1 },
     }))
     async uploadLoginLogo(@UploadedFile() file: Express.Multer.File) {
-        // SVG tidak di-compress (vector preserved); raster image (jpg/png) di-compress
-        const ext = extname(file.originalname || '').toLowerCase();
-        if (ext !== '.svg') {
-            await compressImage(file.path);
-        }
+        // SVG tidak lagi diterima (bisa berisi skrip) — hanya gambar raster.
+        await assertRealImage(file.path);
+        await compressImage(file.path);
         const fileUrl = `/uploads/${file.filename}`;
         await this.settingsService.updateLoginLogo(fileUrl);
         return { url: fileUrl };

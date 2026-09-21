@@ -7,6 +7,18 @@ const OPT_OUT_WORDS = ['stop', 'berhenti', 'unsubscribe', 'unsub'];
 const OPT_IN_WORDS = ['mulai', 'start', 'langganan', 'subscribe'];
 const HUMAN_HANDLING_MS = 30 * 60 * 1000; // jgn auto-reply bila agen manusia baru membalas < 30 mnt
 
+/**
+ * Perintah berhenti/mulai: pesan PENDEK (≤ 3 kata) yang kata pertamanya kata kunci, tanpa tanda
+ * baca/emoji. Dulu hanya "stop" persis — "STOP.", "stop kak", "Berhenti ya 🙏", tombol
+ * "Stop promotions" tak tercatat padahal footer template menjanjikan "Balas STOP".
+ */
+export function perintahLangganan(body: string, kata: string[]): boolean {
+    const bersih = String(body || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').trim();
+    if (!bersih) return false;
+    const kataKata = bersih.split(/\s+/);
+    return kataKata.length <= 3 && kata.includes(kataKata[0]);
+}
+
 export interface AutoReplyContext {
     channel: { id: number; phoneNumberId: string };
     contact: { id: number; waId: string; optedOut: boolean };
@@ -90,7 +102,7 @@ export class AutoReplyService {
         const lower = text.toLowerCase();
 
         // 1) Opt-out
-        if (OPT_OUT_WORDS.includes(lower)) {
+        if (perintahLangganan(text, OPT_OUT_WORDS)) {
             if (!ctx.contact.optedOut) {
                 await this.prisma.waContact.update({
                     where: { id: ctx.contact.id },
@@ -101,7 +113,7 @@ export class AutoReplyService {
             return;
         }
         // 1b) Opt-in kembali
-        if (OPT_IN_WORDS.includes(lower)) {
+        if (perintahLangganan(text, OPT_IN_WORDS)) {
             if (ctx.contact.optedOut) {
                 await this.prisma.waContact.update({
                     where: { id: ctx.contact.id },
@@ -112,6 +124,25 @@ export class AutoReplyService {
             return;
         }
         if (ctx.contact.optedOut) return;
+
+        // 1c) Jangan membalas nomor kita sendiri (kanal lain) — dua kanal bisa saling balas tanpa akhir.
+        const nomorKanal = await this.prisma.waChannel.findMany({ select: { displayNumber: true, phoneNumberId: true } });
+        const pengirim = String(ctx.contact.waId || '').replace(/\D/g, '');
+        if (pengirim && nomorKanal.some((k) => String(k.displayNumber || '').replace(/\D/g, '').replace(/^0/, '62') === pengirim)) return;
+
+        // 1d) Paling banyak satu balasan otomatis per percakapan per jam (selain sapaan pertama):
+        // pelanggan yang mengirim 5 foto dulu menerima 5 balasan sama; bot lain bisa memicu balasan beruntun.
+        const botBaru = await this.prisma.waMessage.findFirst({
+            where: {
+                conversationId: ctx.conversationId,
+                direction: 'OUTBOUND',
+                sentById: null,
+                broadcastId: null,
+                createdAt: { gte: new Date(Date.now() - 60 * 60 * 1000) },
+            },
+            select: { id: true },
+        });
+        if (botBaru && !ctx.isNew) return;
 
         // 2) Jangan ganggu bila agen manusia sedang menangani.
         const recentHuman = await this.prisma.waMessage.findFirst({

@@ -107,12 +107,14 @@ export class StaffDailyService {
             // Ambil nota yang menyebut nama ini di salah satu kolom kasir; aturan
             // "kredit ke penutup transaksi" diterapkan setelahnya.
             this.prisma.transaction.findMany({
+                // Hari penjualan = hari LUNAS (paidAt), sama dengan omzet di KPI. Dulu tanggal nota:
+                // nota 30 Sep yang lunas 2 Okt tak pernah muncul di Oktober.
                 where: {
                     status: 'PAID',
-                    createdAt: { gte: start, lte: end },
+                    paidAt: { gte: start, lte: end },
                     OR: aliases.flatMap((n) => [{ cashierName: n }, { checkoutCashierName: n }]),
                 },
-                select: { createdAt: true, grandTotal: true, cashierName: true, checkoutCashierName: true },
+                select: { createdAt: true, paidAt: true, grandTotal: true, cashierName: true, checkoutCashierName: true },
             }),
             // Desainer: nilai order diambil dari nota yang lahir dari sales order itu.
             this.prisma.salesOrder.findMany({
@@ -125,8 +127,13 @@ export class StaffDailyService {
             }),
             // Operator: kartu produksi yang dia pindahkan. ProductionJobActivity hanya
             // menyimpan jobId (tanpa relasi Prisma), jadi nilainya diambil menyusul.
+            // Hanya langkah SELESAI kerja operator (sama dengan leaderboard). Dulu setiap aksi kartu
+            // (tiap pindah tahap, catatan QC, unggah bukti) menambah nilai job sekali lagi.
             this.prisma.productionJobActivity.findMany({
-                where: { actorName: { in: aliases }, createdAt: { gte: start, lte: end } },
+                where: {
+                    actorName: { in: aliases }, createdAt: { gte: start, lte: end },
+                    action: 'STAGE_CHANGE', actorRole: 'OPERATOR', toStage: { in: ['KIRIM', 'SELESAI'] },
+                },
                 select: { createdAt: true, actorWeight: true, jobId: true },
             }),
             // Task/piket dipetakan lewat id user (bukan nama), jadi selalu tepat orangnya.
@@ -207,8 +214,9 @@ export class StaffDailyService {
             if (!aliasKeys.has(credited)) continue;
             // Transaction.createdAt boleh null di skema; tanpa tanggal tak bisa
             // ditempatkan di hari mana pun.
-            if (!t.createdAt) continue;
-            const r = row(ymd(t.createdAt));
+            const tgl = t.paidAt ?? t.createdAt;
+            if (!tgl) continue;
+            const r = row(ymd(tgl));
             r.transactions += 1;
             r.omzet += Number(t.grandTotal);
         }
@@ -235,7 +243,14 @@ export class StaffDailyService {
             r.designServiceValue += value;
         }
 
+        // Satu job dihitung sekali per orang (bobot terbesar), pada hari langkah terakhirnya.
+        const perJob = new Map<number, { createdAt: Date; actorWeight: number | null; jobId: number }>();
         for (const a of activities) {
+            if (!jobValue.has(a.jobId)) continue; // job/nota sudah dihapus
+            const lama = perJob.get(a.jobId);
+            if (!lama || (a.actorWeight ?? 1) > (lama.actorWeight ?? 1) || ((a.actorWeight ?? 1) === (lama.actorWeight ?? 1) && a.createdAt > lama.createdAt)) perJob.set(a.jobId, a);
+        }
+        for (const a of perJob.values()) {
             const r = row(ymd(a.createdAt));
             const weight = a.actorWeight ?? 1;
             r.operatorJobs += weight;

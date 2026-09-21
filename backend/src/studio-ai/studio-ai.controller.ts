@@ -5,6 +5,11 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import { StudioAiService } from './studio-ai.service';
 
+// Batas masukan ke AI (kuota berbayar): dulu teks & riwayat tanpa batas (body JSON sampai 10 MB).
+const potong = (v: unknown, max: number) => String(v ?? '').slice(0, max);
+const riwayatAman = (h: unknown) =>
+  (Array.isArray(h) ? h : []).slice(-20).map((m: any) => ({ role: String(m?.role ?? ''), content: potong(m?.content, 4000) }));
+
 const OWNER_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
 
 /**
@@ -46,7 +51,7 @@ export class StudioAiController {
 
   @Post('ideas')
   ideas(@Body() body: { idea: string; modes: { id: string; label: string; desc?: string }[] }) {
-    return this.svc.ideas(body?.idea, body?.modes || []);
+    return this.svc.ideas(potong(body?.idea, 2000), (body?.modes || []).slice(0, 20));
   }
 
   @Post('fill')
@@ -58,7 +63,7 @@ export class StudioAiController {
       fields: { key: string; type: any; options?: string[]; core?: boolean; hint?: string }[];
     },
   ) {
-    return this.svc.fill(body?.idea, body?.modeLabel || '', body?.fields || []);
+    return this.svc.fill(potong(body?.idea, 2000), potong(body?.modeLabel, 200), (body?.fields || []).slice(0, 40));
   }
 
   /** Asisten chat scoped VolikoPrint (semua user login; HPP di-gate owner/admin). */
@@ -67,7 +72,7 @@ export class StudioAiController {
     @Body() body: { message: string; history?: { role: string; content: string }[] },
     @CurrentBranch() ctx: any,
   ) {
-    return this.svc.chatAssistant(body?.message, body?.history || [], ctx?.roleName ?? null);
+    return this.svc.chatAssistant(potong(body?.message, 4000), riwayatAman(body?.history), ctx?.roleName ?? null);
   }
 
   /**
@@ -91,8 +96,8 @@ export class StudioAiController {
     const sse = (event: string, data: any) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     try {
       const result = await this.svc.chatAssistantStream(
-        body?.message,
-        body?.history || [],
+        potong(body?.message, 4000),
+        riwayatAman(body?.history),
         ctx?.roleName ?? null,
         (delta) => sse('token', delta),
       );

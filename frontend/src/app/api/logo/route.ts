@@ -21,13 +21,20 @@ export async function GET() {
     const imageRes = await fetch(`${base}${logoImageUrl}`, { cache: 'no-store' });
     if (!imageRes.ok) return new NextResponse('Logo image not found', { status: 502 });
 
-    const contentType = imageRes.headers.get('content-type') || 'image/png';
+    // Hanya gambar raster. Rute ini berjalan di domain kasir: berkas SVG/HTML yang diunggah sebagai
+    // "logo" dulu tersaji di sini sebagai halaman (skrip bisa membaca token login).
+    const contentType = (imageRes.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    if (!['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(contentType)) {
+      return new NextResponse('Unsupported logo type', { status: 415 });
+    }
     const imageBuffer = await imageRes.arrayBuffer();
 
     return new NextResponse(imageBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
         'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
       },
     });

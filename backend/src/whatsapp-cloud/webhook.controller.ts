@@ -59,7 +59,8 @@ export class WhatsappWebhookController {
             this.logger.warn('WA_APP_SECRET belum diset — signature webhook TIDAK diverifikasi');
         }
 
-        // InboxService.ingestWebhook tidak pernah melempar (error di-log internal).
+        // Galat per pesan di-log internal; hanya galat DB SEMENTARA yang dilempar (503) supaya Meta
+        // mengirim ulang — pesan yang sudah tersimpan dilewati saat kiriman ulang.
         await this.inbox.ingestWebhook(body);
         return { ok: true };
     }

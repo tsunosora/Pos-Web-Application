@@ -51,10 +51,13 @@ export class MetaApiService {
 
     private async graph(base: string, method: 'GET' | 'POST', path: string, token: string, body?: unknown): Promise<any> {
         const sep = path.includes('?') ? '&' : '?';
+        // Batas waktu 15 dtk (sama dgn WA Cloud API). Tanpa batas, Graph yang lambat menahan jawaban
+        // webhook sampai lewat batas Meta (dikirim ulang / langganan dimatikan) & balasan DM menggantung.
         const res = await fetch(`${base}/${this.version}/${path}${sep}access_token=${encodeURIComponent(token)}`, {
             method,
             headers: { 'Content-Type': 'application/json' },
             body: body != null ? JSON.stringify(body) : undefined,
+            signal: AbortSignal.timeout(15_000),
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {

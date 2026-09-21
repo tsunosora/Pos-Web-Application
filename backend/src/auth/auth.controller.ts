@@ -32,9 +32,13 @@ export class AuthController {
     const pairKey = email ? `pair:${ip}|${email}` : null;
 
     // Brute-force lock: tolak lebih awal bila salah satu kunci sedang terkunci.
+    // Kunci per-email hanya menahan IP yang ikut gagal untuk email itu (≥3×). Dulu siapa pun yang
+    // tahu email bisa mengunci akun (mis. owner/kasir) dari mana saja — sandi benar pun ditolak.
+    const emailLock = emailKey ? this.loginThrottle.isLocked(emailKey) : 0;
+    const emailMenahan = emailLock > 0 && (!pairKey || this.loginThrottle.failCount(pairKey) >= 3);
     const lockSec = Math.max(
       this.loginThrottle.isLocked(ipKey),
-      emailKey ? this.loginThrottle.isLocked(emailKey) : 0,
+      emailMenahan ? emailLock : 0,
       pairKey ? this.loginThrottle.isLocked(pairKey) : 0,
     );
     if (lockSec > 0) {

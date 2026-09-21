@@ -129,6 +129,10 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
   ].filter(Boolean).join('\n');
 };
 
+// Semua teks bebas (nama pelanggan dari form order publik, nama item, alamat, dll.) di-escape:
+// HTML ini ditulis ke jendela di domain kasir — dulu nama berisi <script> berjalan saat faktur dicetak.
+const h = (v: unknown): string => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
+
 export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUNAS', bankAccounts?: any[]) => {
   const pm = snap.paymentMethod === 'BANK_TRANSFER' ? 'Transfer Bank' : snap.paymentMethod;
   const dateObj = snap.timestamp;
@@ -180,8 +184,8 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
 
     return `<tr style="border-bottom:1px solid #000;">
             <td style="padding:4px; text-align:right;">${i + 1}</td>
-            <td style="padding:4px;">${item.sku || '-'}</td>
-            <td style="padding:4px;">${item.name}${noteStr}</td>
+            <td style="padding:4px;">${h(item.sku || '-')}</td>
+            <td style="padding:4px;">${h(item.name)}${noteStr}</td>
             <td style="padding:4px; text-align:center;">${qtyStr}</td>
             <td style="padding:4px; text-align:center;">${dimStr}</td>
             <td style="padding:4px; text-align:center;">${unitTypeStr}</td>
@@ -192,7 +196,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
         </tr>`;
   }).join('');
 
-  const bankRows = (bankAccounts || []).map((b: any) => `${b.bankName} ${b.accountNumber} ${b.accountOwner}`).join(', ');
+  const bankRows = (bankAccounts || []).map((b: any) => `${h(b.bankName)} ${h(b.accountNumber)} ${h(b.accountOwner)}`).join(', ');
 
   // Footer: prioritas notaFooter (jika di-set per cabang / global). Kalau tidak, pakai default warning.
   const footerMessage = snap.notaFooter || 'Harap cek terlebih dahulu! Tidak menerima complain untuk barang yang sudah dibawa.';
@@ -201,7 +205,7 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
     ? bankRows
     : (snap.paymentMethod === 'QRIS' ? 'Pembayaran via QRIS' : 'Pembayaran secara TUNAI');
 
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Faktur Order - ${snap.storeName}</title>
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Faktur Order - ${h(snap.storeName)}</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { font-family: "Times New Roman", Times, serif; font-size:12px; color:#000; background:#fff; line-height:1.3; }
@@ -242,9 +246,9 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
       ? `<img src="${API_BASE}${snap.logoUrl}" alt="Logo" style="width:50px; height:50px; object-fit:contain; border-radius:8px; margin-right:10px; display:inline-block;" />`
       : `<div style="width:50px; height:50px; background:#eee; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:10px; font-weight:bold; font-family:sans-serif; color:#555;">LOGO</div>`}
       <div>
-        <div class="store-title">${snap.storeName}</div>
-        ${snap.branchLabel ? `<div style="font-size:11px; font-weight:bold; color:#444; margin-bottom:2px;">${snap.branchLabel}</div>` : ''}
-        <div class="store-address">${snap.storeAddress || 'Jl. Default Address, Kota'}<br>Tlp/Email : ${snap.storePhone || '-'}</div>
+        <div class="store-title">${h(snap.storeName)}</div>
+        ${snap.branchLabel ? `<div style="font-size:11px; font-weight:bold; color:#444; margin-bottom:2px;">${h(snap.branchLabel)}</div>` : ''}
+        <div class="store-address">${h(snap.storeAddress || 'Jl. Default Address, Kota')}<br>Tlp/Email : ${h(snap.storePhone || '-')}</div>
       </div>
     </div>
     <div class="faktur-title">
@@ -253,27 +257,27 @@ export const buildInvoiceHTML = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUN
     </div>
   </div>
   ${snap.notaHeader ? `<div style="text-align:center; font-size:11px; font-style:italic; padding:6px 0; border-bottom:1px dashed #000; margin-bottom:10px; white-space:pre-wrap;">${snap.notaHeader.replace(/</g, '&lt;')}</div>` : ''}
-  ${snap.productionBranchLabel ? `<div style="text-align:center; font-size:12px; font-weight:bold; color:#8a5a00; background:#fff7e6; border:1px dashed #d4a000; padding:5px 8px; border-radius:6px; margin-bottom:10px;">⚑ Dicetak &amp; diambil di: ${snap.productionBranchLabel}</div>` : ''}
+  ${snap.productionBranchLabel ? `<div style="text-align:center; font-size:12px; font-weight:bold; color:#8a5a00; background:#fff7e6; border:1px dashed #d4a000; padding:5px 8px; border-radius:6px; margin-bottom:10px;">⚑ Dicetak &amp; diambil di: ${h(snap.productionBranchLabel)}</div>` : ''}
 
   <div class="info-section">
     <div class="info-left">
       <strong>Kepada</strong><br>
-      ${snap.customerName || 'Pelanggan Umum'} ${snap.customerPhone ? '|| ' + snap.customerPhone : ''}<br>
+      ${h(snap.customerName || 'Pelanggan Umum')} ${snap.customerPhone ? '|| ' + h(snap.customerPhone) : ''}<br>
       ${snap.label ? `<span style="display:inline-block; max-width:100%; margin:2px 0; padding:1px 6px; border:1px solid #000; border-radius:8px; font-size:11px; font-weight:bold; white-space:normal; word-break:break-word;">${snap.label.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}</span><br>` : ''}
       ${snap.marketplace ? `<span style="display:inline-block; max-width:100%; margin:2px 0; padding:1px 6px; border:1px dashed #000; border-radius:8px; font-size:11px; white-space:normal; word-break:break-word;">Marketplace: ${snap.marketplace.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}${snap.marketplaceOrderNo ? ` · No. pesanan ${snap.marketplaceOrderNo.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' } as Record<string, string>)[ch])}` : ''}</span><br>` : ''}
-      ${snap.customerAddress || ''}
+      ${h(snap.customerAddress || '')}
     </div>
     <div class="info-right">
       <table style="width:60%; margin:0; border:none;">
-        <tr><td style="padding:2px 0;"><strong>No. Surat Order</strong></td><td style="padding:2px 0;">: ${receiptNo}</td></tr>
-        ${snap.checkoutNumber ? `<tr><td style="padding:2px 0;"><strong>No. Surat Checkout</strong></td><td style="padding:2px 0;">: ${snap.checkoutNumber}</td></tr>` : ''}
+        <tr><td style="padding:2px 0;"><strong>No. Surat Order</strong></td><td style="padding:2px 0;">: ${h(receiptNo)}</td></tr>
+        ${snap.checkoutNumber ? `<tr><td style="padding:2px 0;"><strong>No. Surat Checkout</strong></td><td style="padding:2px 0;">: ${h(snap.checkoutNumber)}</td></tr>` : ''}
         <tr><td style="padding:2px 0;">Tanggal Order</td><td style="padding:2px 0;">: ${dateFormatted} &nbsp;&nbsp; ${timeFormatted}</td></tr>
         ${snap.paidAt ? `<tr><td style="padding:2px 0;">Tanggal Checkout</td><td style="padding:2px 0;">: ${snap.paidAt.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })} &nbsp;&nbsp; ${snap.paidAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</td></tr>` : ''}
         <tr><td style="padding:2px 0;">Estimasi Selesai</td><td style="padding:2px 0;">: ${snap.dueDate ? new Date(snap.dueDate).toLocaleDateString('id-ID', { dateStyle: 'medium' }) : '-'}</td></tr>
       </table>
       <table style="width:50%; margin:0; border:none;">
-        <tr><td style="padding:2px 0;">Kasir Order</td><td style="padding:2px 0;">: ${snap.cashierName || snap.employeeName || '-'}</td></tr>
-        ${snap.checkoutCashierName ? `<tr><td style="padding:2px 0;">Kasir Checkout</td><td style="padding:2px 0;">: ${snap.checkoutCashierName}</td></tr>` : ''}
+        <tr><td style="padding:2px 0;">Kasir Order</td><td style="padding:2px 0;">: ${h(snap.cashierName || snap.employeeName || '-')}</td></tr>
+        ${snap.checkoutCashierName ? `<tr><td style="padding:2px 0;">Kasir Checkout</td><td style="padding:2px 0;">: ${h(snap.checkoutCashierName)}</td></tr>` : ''}
       </table>
     </div>
   </div>

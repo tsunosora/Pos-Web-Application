@@ -1,9 +1,14 @@
 import { AutoReplyService } from './auto-reply.service';
 
-function makePrisma(rules: any[] = [], recentHuman: any = null) {
+function makePrisma(rules: any[] = [], recentHuman: any = null, recentBot: any = null) {
     return {
         waContact: { update: jest.fn().mockResolvedValue({}) },
-        waMessage: { findFirst: jest.fn().mockResolvedValue(recentHuman), create: jest.fn().mockResolvedValue({}) },
+        waChannel: { findMany: jest.fn().mockResolvedValue([{ displayNumber: '0274 555 111', phoneNumberId: 'PN1' }]) },
+        // sentById null = cek balasan bot terakhir; selain itu = cek balasan agen manusia.
+        waMessage: {
+            findFirst: jest.fn().mockImplementation(({ where }: any) => Promise.resolve(where?.sentById === null ? recentBot : recentHuman)),
+            create: jest.fn().mockResolvedValue({}),
+        },
         waConversation: { update: jest.fn().mockResolvedValue({}) },
         waAutoReplyRule: { findMany: jest.fn().mockResolvedValue(rules) },
     };
@@ -88,5 +93,29 @@ describe('AutoReplyService.handleInbound', () => {
         await svc.handleInbound(ctx({ isNew: false }));
 
         expect(cloud.sendText).not.toHaveBeenCalled();
+    });
+
+    it('balasan bot < 1 jam di percakapan lama → tidak membalas lagi', async () => {
+        const prisma = makePrisma([{ trigger: 'DEFAULT', replyText: 'nanti dibalas' }], null, { id: 9 });
+        const cloud = { sendText: jest.fn() };
+        const svc = new AutoReplyService(prisma as any, cloud as any);
+        await svc.handleInbound(ctx({ isNew: false }));
+        expect(cloud.sendText).not.toHaveBeenCalled();
+    });
+
+    it('pengirim = nomor kanal kita sendiri → tidak membalas', async () => {
+        const prisma = makePrisma([{ trigger: 'DEFAULT', replyText: 'x' }]);
+        const cloud = { sendText: jest.fn() };
+        const svc = new AutoReplyService(prisma as any, cloud as any);
+        await svc.handleInbound(ctx({ contact: { id: 20, waId: '62274555111', optedOut: false } }));
+        expect(cloud.sendText).not.toHaveBeenCalled();
+    });
+
+    it('STOP dengan tanda baca / kata tambahan tetap berhenti berlangganan', async () => {
+        const prisma = makePrisma([]);
+        const cloud = { sendText: jest.fn().mockResolvedValue({ waMessageId: 'w1' }) };
+        const svc = new AutoReplyService(prisma as any, cloud as any);
+        await svc.handleInbound(ctx({ body: 'Stop ya kak 🙏' }));
+        expect(prisma.waContact.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ optedOut: true }) }));
     });
 });

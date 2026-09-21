@@ -8,6 +8,8 @@ function basePrisma(over: any = {}) {
             upsert: jest.fn().mockResolvedValue({}),
         },
         waReminderLog: {
+            create: jest.fn().mockResolvedValue({}), // reservasi SENDING sebelum kirim
+            updateMany: jest.fn().mockResolvedValue({ count: 1 }),
             findUnique: jest.fn().mockResolvedValue(null),
             upsert: jest.fn().mockResolvedValue({}),
         },
@@ -48,6 +50,17 @@ describe('RemindersService', () => {
         it('dedup: sudah SENT → tidak kirim lagi', async () => {
             const prisma = basePrisma();
             prisma.waReminderLog.findUnique.mockResolvedValue({ status: 'SENT' });
+            const cloud = { sendTemplate: jest.fn() };
+            const svc = new RemindersService(prisma as any, cloud as any);
+
+            await svc.sendOrderReady(1);
+            expect(cloud.sendTemplate).not.toHaveBeenCalled();
+        });
+
+        it('dua pemicu bersamaan: yang kalah reservasi tidak mengirim', async () => {
+            const prisma = basePrisma();
+            prisma.waReminderLog.create.mockRejectedValue(Object.assign(new Error('unik'), { code: 'P2002' }));
+            prisma.waReminderLog.updateMany.mockResolvedValue({ count: 0 }); // sedang dikirim proses lain
             const cloud = { sendTemplate: jest.fn() };
             const svc = new RemindersService(prisma as any, cloud as any);
 

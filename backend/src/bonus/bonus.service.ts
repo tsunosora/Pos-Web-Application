@@ -90,15 +90,18 @@ export class BonusService {
         const targets = new Map<string, any>(targetsRaw.map((t: any) => [t.role, t]));
         const adjs = new Map<string, any>(adjRaw.map((a: any) => [`${a.role}|${a.employeeName}`, a]));
 
-        // CS — omzet (nota lead closing + walk-in)
-        const csEmp = (report.leaderboard || []).map((r: any) => ({ name: r.name, actual: Number(r.wonValue || 0) + Number(r.walkinValue || 0) }));
+        // CS — omzet yang BENAR-BENAR diterima: nota LUNAS pada bulan pelunasannya (omzetShare).
+        // Dulu wonValue + walkinValue: nota "Bayar Nanti" terhitung penuh & lead Won tanpa nota memakai
+        // estimasi — bonus bisa cair tanpa uang masuk.
+        const csEmp = (report.leaderboard || []).map((r: any) => ({ name: r.name, actual: Number(r.omzetShare || 0) }));
         // Designer — DesignAcc
         const dzEmp = (designer.leaderboard || []).map((r: any) => ({ name: r.name, actual: Number(r.acc || 0) }));
         // Operator — NOTA cabang (per kasir yang memproses nota)
         const start = new Date(`${startYmd}T00:00:00`);
         const end = new Date(`${endYmd}T23:59:59`);
         const txs: any[] = await (this.prisma as any).transaction.findMany({
-            where: { branchId, createdAt: { gte: start, lte: end }, status: { not: 'FAILED' } },
+            // Nota LUNAS pada bulan pelunasannya (dulu nota belum dibayar ikut terhitung).
+            where: { branchId, status: 'PAID', paidAt: { gte: start, lte: end } },
             select: { cashierName: true },
         });
         const notaByOp = new Map<string, number>();
@@ -119,9 +122,12 @@ export class BonusService {
                     const forfeited = adj ? !!adj.forfeited : false;
                     const tPribadi = t ? Number(t.targetPribadi) : 0;
                     const personalAchieved = !!t && tPribadi > 0 && e.actual >= tPribadi;
-                    const bTim = (t && teamAchieved && !forfeited) ? Number(t.bonusTim) : 0;
+                    // Bonus tim & kualitas hanya bagi yang punya capaian bulan ini (dulu nama dgn capaian 0
+                    // — mis. hanya muncul karena nota bulan lalu — ikut menerima).
+                    const berkontribusi = e.actual > 0;
+                    const bTim = (t && teamAchieved && !forfeited && berkontribusi) ? Number(t.bonusTim) : 0;
                     const bPribadi = (t && personalAchieved && !forfeited) ? Number(t.bonusPribadi) : 0;
-                    const bKualitas = (t && qualityEligible && !forfeited) ? Number(t.bonusKualitas) : 0;
+                    const bKualitas = (t && qualityEligible && !forfeited && berkontribusi) ? Number(t.bonusKualitas) : 0;
                     return {
                         name: e.name, actual: e.actual, personalAchieved, qualityEligible, forfeited,
                         bonusTim: bTim, bonusPribadi: bPribadi, bonusKualitas: bKualitas,

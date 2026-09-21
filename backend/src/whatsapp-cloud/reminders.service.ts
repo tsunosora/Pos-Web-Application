@@ -88,6 +88,19 @@ export class RemindersService {
         const contact = await this.prisma.waContact.findUnique({ where: { waId } });
         if (contact?.optedOut) return log('SKIPPED', 'kontak opt-out', contact.id);
 
+        // RESERVASI sebelum kirim: dua pemicu bersamaan (klik ganda "siap ambil", endpoint manual,
+        // sapuan cron yang tumpang tindih) dulu sama-sama lolos cek → template berbayar terkirim dua kali.
+        try {
+            await this.prisma.waReminderLog.create({ data: { eventType, refId, status: 'SENDING' } });
+        } catch (e: any) {
+            if (e?.code !== 'P2002') throw e;
+            const ambil = await this.prisma.waReminderLog.updateMany({
+                where: { eventType, refId, status: { in: ['FAILED', 'SKIPPED'] } },
+                data: { status: 'SENDING' },
+            });
+            if (ambil.count !== 1) return; // sudah terkirim / sedang dikirim proses lain
+        }
+
         try {
             const { waMessageId } = await this.cloud.sendTemplate(
                 channel.phoneNumberId, waId, template.name, template.language, this.buildComponents(variables),
@@ -115,8 +128,21 @@ export class RemindersService {
     }
 
     /** Cron tiap 15 menit: kirim reminder untuk follow-up yang jatuh tempo. */
+    private menyapu = false;
+
     @Cron('0 */15 * * * *')
     async sweepFollowUps() {
+        // Satu sapuan pada satu waktu (Meta lambat → sapuan berikutnya bisa mulai sebelum yang lama selesai).
+        if (this.menyapu) return;
+        this.menyapu = true;
+        try {
+            await this.sapuFollowUps();
+        } finally {
+            this.menyapu = false;
+        }
+    }
+
+    private async sapuFollowUps() {
         // Hanya jatuh tempo 7 hari terakhir, terbaru dulu. Dulu 200 FU tertua tanpa kursor:
         // begitu 200 FU lama menumpuk, FU baru tak pernah dapat pengingat.
         const now = new Date();

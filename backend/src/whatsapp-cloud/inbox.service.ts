@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma, WaConversationStatus, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
@@ -71,6 +71,14 @@ const STATUS_MAP: Record<string, WaMessageStatus> = {
  * Materialisasi webhook Meta → domain WhatsApp CRM (Fase 3).
  * Idempoten: pesan di-dedup via WaMessage.waMessageId (unik).
  */
+/** Galat DB sementara (pool habis, koneksi putus, kunci/deadlock) — layak dicoba ulang. */
+export function galatSementara(e: unknown): boolean {
+    const kode = (e as any)?.code as string | undefined;
+    if (kode && ['P2024', 'P1001', 'P1002', 'P1008', 'P1017', 'P2034'].includes(kode)) return true;
+    const pesan = String((e as any)?.message ?? '');
+    return /Timed out fetching a new connection|Lock wait timeout|Deadlock found|Can't reach database|Connection (?:reset|closed)|ECONNRESET/i.test(pesan);
+}
+
 @Injectable()
 export class InboxService {
     private readonly logger = new Logger(InboxService.name);
@@ -240,6 +248,7 @@ export class InboxService {
     /** Titik masuk: iterasi entry/changes payload webhook. Tak pernah melempar
      *  (webhook wajib balas 200) — error di-log & disimpan di WaWebhookEvent. */
     async ingestWebhook(body: any): Promise<void> {
+        let adaGagalSementara = false;
         for (const entry of body?.entry ?? []) {
             for (const change of entry?.changes ?? []) {
                 const value = change?.value;
@@ -274,8 +283,12 @@ export class InboxService {
                             () => this.handleInbound(channel, value, msg),
                         );
                     } catch (e) {
-                        await this.logEvent('message', msg?.id, msg, (e as Error).message);
+                        await this.logEvent('message', msg?.id, msg, (e as Error).message).catch(() => {});
                         this.logger.error(`Gagal proses pesan masuk ${msg?.id}: ${(e as Error).message}`);
+                        // Galat sementara (pool DB habis, kunci/deadlock): minta Meta mengirim ulang —
+                        // dulu dijawab 200 sehingga ±300 pesan masuk Agustus 2026 hilang selamanya.
+                        // Kiriman ulang aman: pesan yang sudah tersimpan dilewati (waMessageId unik).
+                        if (galatSementara(e)) adaGagalSementara = true;
                     }
                 }
                 for (const st of value?.statuses ?? []) {
@@ -288,6 +301,7 @@ export class InboxService {
                 }
             }
         }
+        if (adaGagalSementara) throw new ServiceUnavailableException('Database sibuk — kirim ulang webhook');
     }
 
     /** Simpan log mentah event (audit + jejak error). */
@@ -1149,7 +1163,7 @@ export class InboxService {
             payloadJson: { type: kind, [kind]: { id: mediaId, mime_type: mime, filename } },
         });
         // Arsipkan berkas ke disk homelab (buffer sudah di tangan → langsung simpan).
-        await this.mediaStore.persistBuffer(saved.id, saved.createdAt, file.buffer, mime, filename);
+        if (saved?.id) await this.mediaStore.persistBuffer(saved.id, saved.createdAt, file.buffer, mime, filename);
         return saved;
     }
 
@@ -1360,8 +1374,10 @@ export class InboxService {
             replyToId?: number | null;
         },
     ) {
-        const msg = await this.prisma.waMessage.create({
-            data: {
+        // Dipanggil SETELAH Meta menerima pesan (sudah sampai ke pelanggan). Galat simpan di sini dulu
+        // menjadi 500 → layar "Gagal mengirim" → staf kirim ulang → pelanggan menerima dua kali.
+        // Sekarang: simpan diulang bila galat sementara; bila tetap gagal, dicatat di log & tetap sukses.
+        const data = {
                 channelId: conv.channelId,
                 conversationId: conv.id,
                 contactId: conv.contactId,
@@ -1375,21 +1391,36 @@ export class InboxService {
                 replyToId: m.replyToId ?? null,
                 ...(m.payloadJson !== undefined ? { payloadJson: m.payloadJson } : {}),
                 sentById: userId,
-            },
-        });
-        await this.prisma.waConversation.update({
-            where: { id: conv.id },
-            data: { lastMessageAt: new Date() },
-        });
-        // Auto-assign percakapan ke pengirim bila belum ada pemilik (atomik via where null).
-        await this.prisma.waConversation.updateMany({
-            where: { id: conv.id, assignedToId: null },
-            data: { assignedToId: userId },
-        });
+        };
+        let msg: any = null;
+        for (let coba = 1; coba <= 3 && !msg; coba++) {
+            try {
+                msg = await this.prisma.waMessage.create({ data });
+            } catch (e) {
+                if (coba === 3 || !galatSementara(e)) {
+                    this.logger.error(`Pesan ${m.waMessageId ?? '?'} TERKIRIM ke pelanggan tapi gagal disimpan: ${(e as Error).message}`);
+                    return { id: 0, ...data, createdAt: new Date() } as any;
+                }
+                await new Promise((r) => setTimeout(r, 1000 * coba));
+            }
+        }
+        try {
+            await this.prisma.waConversation.update({
+                where: { id: conv.id },
+                data: { lastMessageAt: new Date() },
+            });
+            // Auto-assign percakapan ke pengirim bila belum ada pemilik (atomik via where null).
+            await this.prisma.waConversation.updateMany({
+                where: { id: conv.id, assignedToId: null },
+                data: { assignedToId: userId },
+            });
+        } catch (e) {
+            this.logger.warn(`Pesan terkirim, gagal memperbarui percakapan ${conv.id}: ${(e as Error).message}`);
+        }
         // Push real-time (SSE) → agen lain yang membuka percakapan ini langsung lihat balasan.
         this.waEvents.emitMessage(conv.id);
         // Otomatisasi pipeline: balasan manusia → lead Baru maju ke Follow-up.
-        await this.advanceLeadOnReply(conv.contactId);
+        await this.advanceLeadOnReply(conv.contactId).catch((e) => this.logger.warn(`advanceLeadOnReply: ${(e as Error).message}`));
         return msg;
     }
 
