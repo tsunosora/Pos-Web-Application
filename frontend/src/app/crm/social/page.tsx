@@ -12,8 +12,8 @@ import {
     listSocialChannels, createSocialChannel, deleteSocialChannel, listPagesFromToken, testSocialConnection, getSocialWebhookDebug,
     getSocialCounts, createLeadFromSocialContact, subscribeSocialChannel,
     listSocialComments, getSocialCommentThread, replySocialComment, hideSocialComment, updateSocialCommentThread,
-    createLeadFromSocialComment, syncSocialComments,
-    PLATFORM_LABEL, type FbPage, type CommentFilter, type CommentSyncResult,
+    createLeadFromSocialComment, syncSocialComments, getSocialSyncStatus,
+    PLATFORM_LABEL, type FbPage, type CommentFilter, type CommentSyncResult, type CommentSyncStatus,
     type SocialPlatform, type SocialConversation, type SocialMessage, type SocialChannel, type CreateSocialChannelBody,
     type SocialComment, type SocialCommentThread,
 } from "@/lib/api/social";
@@ -101,12 +101,14 @@ export default function SocialInboxPage() {
         IG_COMMENTS: counts?.comments.INSTAGRAM ?? 0,
     };
 
+    const { data: syncStatus } = useQuery({ queryKey: ["social-sync-status"], queryFn: getSocialSyncStatus, refetchInterval: 60000 });
     const syncMut = useMutation({
         mutationFn: syncSocialComments,
         onSuccess: (r) => {
             setSyncResult(r);
             qc.invalidateQueries({ queryKey: ["social-comments"] });
             qc.invalidateQueries({ queryKey: ["social-counts"] });
+            qc.invalidateQueries({ queryKey: ["social-sync-status"] });
         },
         onError: (e: unknown) => alert(errMsg(e, "Gagal sinkron komentar")),
     });
@@ -130,7 +132,7 @@ export default function SocialInboxPage() {
                         title="Tarik komentar dari postingan terbaru (komentar sebelum webhook aktif)"
                         className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-muted/70 hover:bg-muted disabled:opacity-50">
                         <RefreshCw className={`w-4 h-4 ${syncMut.isPending ? "animate-spin" : ""}`} />
-                        <span className="hidden sm:inline">{syncMut.isPending ? "Menyinkronkan…" : "Sinkronkan komentar"}</span>
+                        {syncMut.isPending ? "Menyinkronkan…" : <>Sinkronkan<span className="hidden sm:inline"> komentar</span></>}
                     </button>
                     <button onClick={() => setShowChannels(true)} title="Kelola channel" className="p-2 rounded-lg hover:bg-muted">
                         <Settings className="w-4 h-4 opacity-70" />
@@ -166,7 +168,8 @@ export default function SocialInboxPage() {
 
             <div className="flex-1 min-h-0">
                 {tab === "FB_COMMENTS" || tab === "IG_COMMENTS" ? (
-                    <CommentsInbox key={tab} platform={tab === "IG_COMMENTS" ? "INSTAGRAM" : "MESSENGER"} onOpenDm={(p) => setTab(p)} />
+                    <CommentsInbox key={tab} platform={tab === "IG_COMMENTS" ? "INSTAGRAM" : "MESSENGER"} onOpenDm={(p) => setTab(p)}
+                        sync={{ run: () => syncMut.mutate(), pending: syncMut.isPending, status: syncStatus }} />
                 ) : (
                     <DmInbox key={tab} platform={tab === "ALL" ? undefined : tab} />
                 )}
@@ -338,7 +341,9 @@ const FILTERS: Array<{ key: CommentFilter; label: string }> = [
     { key: "hidden", label: "Disembunyikan" },
 ];
 
-function CommentsInbox({ platform, onOpenDm }: { platform: SocialPlatform; onOpenDm: (tab: SocialPlatform) => void }) {
+interface SyncControl { run: () => void; pending: boolean; status?: CommentSyncStatus }
+
+function CommentsInbox({ platform, onOpenDm, sync }: { platform: SocialPlatform; onOpenDm: (tab: SocialPlatform) => void; sync: SyncControl }) {
     const qc = useQueryClient();
     const [filter, setFilter] = useState<CommentFilter>("all");
     const [search, setSearch] = useState("");
@@ -454,6 +459,19 @@ function CommentsInbox({ platform, onOpenDm }: { platform: SocialPlatform; onOpe
                         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau isi komentar…"
                             className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-muted/60 text-sm outline-none" />
                     </div>
+                    <div className="flex items-center gap-2 text-[11px]">
+                        <span className="opacity-60 min-w-0 truncate" title="Komentar juga masuk seketika lewat webhook bila Meta sudah mengirimnya">
+                            {sync.status?.intervalMinutes ? `Otomatis tiap ${sync.status.intervalMinutes} menit` : "Sinkron otomatis mati"}
+                            {sync.status?.lastSyncAt ? ` · terakhir ${timeAgo(sync.status.lastSyncAt) === "baru" ? "barusan" : `${timeAgo(sync.status.lastSyncAt)} lalu`}` : ""}
+                        </span>
+                        <button onClick={sync.run} disabled={sync.pending}
+                            className="ml-auto shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/70 hover:bg-muted disabled:opacity-50">
+                            <RefreshCw className={`w-3.5 h-3.5 ${sync.pending ? "animate-spin" : ""}`} /> {sync.pending ? "Menyinkronkan…" : "Sinkronkan"}
+                        </button>
+                    </div>
+                    {sync.status?.results.filter((r) => r.platform === platform && r.error).map((r) => (
+                        <p key={r.channelId} className="text-[11px] text-red-600 dark:text-red-400 break-words">{r.label}: {r.error}</p>
+                    ))}
                     <div className="flex gap-1 flex-wrap">
                         {FILTERS.map((f) => (
                             <button key={f.key} onClick={() => setFilter(f.key)}

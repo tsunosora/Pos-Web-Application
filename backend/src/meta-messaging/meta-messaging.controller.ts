@@ -162,6 +162,15 @@ export class MetaMessagingController {
         return this.comments.syncAll(this.scope(req));
     }
 
+    /** Kapan sinkron terakhir (otomatis tiap 5 menit / tombol) & hasil per channel. */
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Roles(...INBOX_ROLES)
+    @Get('comments/sync-status')
+    async syncStatus(@Req() req: any) {
+        const scope = this.scope(req);
+        return this.comments.syncStatus(scope, await this.comments.channelIdsInScope(scope));
+    }
+
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...INBOX_ROLES)
     @Get('comments/:id')

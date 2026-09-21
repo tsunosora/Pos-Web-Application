@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { Prisma, SocialDirection, SocialPlatform } from '@prisma/client';
 import type { SocialChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,6 +18,15 @@ interface IncomingComment {
     at: Date;
     hidden?: boolean;
     postPermalink?: string | null;
+}
+
+export interface SyncChannelResult {
+    channelId: number;
+    label: string;
+    platform: SocialPlatform;
+    posts: number;
+    added: number;
+    error: string | null;
 }
 
 /** Siapa yang meminta: staf non-admin hanya boleh channel cabangnya (atau channel "semua cabang"). */
@@ -189,6 +199,8 @@ export class SocialCommentsService {
         if (!root.lastActivityAt || at >= root.lastActivityAt) {
             data.lastActivityAt = at;
             data.needsReply = !outbound;
+            // Sudah dibalas tim (dari PosPro atau langsung dari aplikasi IG/FB) = sudah ditangani.
+            if (outbound) data.isRead = true;
         }
         if (!outbound && live) data.isRead = false;
         if (Object.keys(data).length) await this.prisma.socialComment.update({ where: { id: rootId }, data });
@@ -246,41 +258,124 @@ export class SocialCommentsService {
         }
     }
 
-    // ─── Sinkron (ambil komentar yang sudah ada) ─────────────────────────────
+    // ─── Sinkron (ambil komentar lewat Graph API) ────────────────────────────
+    // Cadangan webhook: Meta baru mengirim webhook komentar bila aplikasi Live dan
+    // punya Advanced Access (lolos tinjauan). Sinkron berjalan otomatis tiap 5
+    // menit + bisa dipicu tombol "Sinkronkan".
+    private running: Promise<unknown> | null = null;
+    private lastSync: { at: Date; auto: boolean; results: SyncChannelResult[] } | null = null;
+    private lastAutoErrors = new Map<number, string>();
+    private autoBusy = false;
+
+    @Cron('30 */5 * * * *', { name: 'social-comments-auto-sync' })
+    async autoSync() {
+        // Penanda dipasang sebelum await pertama: ScheduleModule terdaftar ganda di
+        // aplikasi ini sehingga jadwal bisa terpicu dua kali di detik yang sama.
+        if (process.env.SOCIAL_AUTO_SYNC === 'false' || this.autoBusy || this.running) return;
+        this.autoBusy = true;
+        try {
+            await this.runAutoSync();
+        } finally {
+            this.autoBusy = false;
+        }
+    }
+
+    private async runAutoSync() {
+        const { results } = await this.syncAll({}, true);
+        // Catat error sekali saat berubah saja, supaya log tidak penuh tiap 5 menit.
+        for (const r of results) {
+            const prev = this.lastAutoErrors.get(r.channelId) ?? null;
+            if (r.error && r.error !== prev) this.logger.warn(`Sinkron otomatis ${r.label}: ${r.error}`);
+            if (!r.error && prev) this.logger.log(`Sinkron otomatis ${r.label} pulih`);
+            if (r.error) this.lastAutoErrors.set(r.channelId, r.error);
+            else this.lastAutoErrors.delete(r.channelId);
+            if (r.added) this.logger.log(`Sinkron otomatis ${r.label}: ${r.added} komentar baru`);
+        }
+    }
+
     /** Tarik komentar dari postingan terbaru semua channel aktif. Error per channel dilaporkan, tidak dilempar. */
-    async syncAll(scope: InboxScope) {
+    async syncAll(scope: InboxScope, auto = false): Promise<{ results: SyncChannelResult[] }> {
         const channels = await this.prisma.socialChannel.findMany({
             where: { isActive: true, ...this.channelScope(scope) },
             orderBy: { id: 'asc' },
         });
-        const results: Array<{ channelId: number; label: string; platform: SocialPlatform; posts: number; added: number; error: string | null }> = [];
-        for (const ch of channels) {
-            try {
-                const r = await this.syncChannel(ch);
-                results.push({ channelId: ch.id, label: ch.label, platform: ch.platform, ...r, error: null });
-            } catch (e) {
-                results.push({ channelId: ch.id, label: ch.label, platform: ch.platform, posts: 0, added: 0, error: this.permissionHint(ch.platform, (e as Error).message) });
+        // Satu sinkron dalam satu waktu (tombol ditekan saat sinkron otomatis jalan → antre).
+        const job = (this.running ?? Promise.resolve()).catch(() => undefined).then(async () => {
+            const results: SyncChannelResult[] = [];
+            for (const ch of channels) {
+                try {
+                    const r = await this.syncChannel(ch);
+                    results.push({ channelId: ch.id, label: ch.label, platform: ch.platform, ...r, error: null });
+                } catch (e) {
+                    results.push({ channelId: ch.id, label: ch.label, platform: ch.platform, posts: 0, added: 0, error: this.permissionHint(ch.platform, (e as Error).message) });
+                }
             }
+            if (!Object.keys(scope).length || !this.lastSync) this.lastSync = { at: new Date(), auto, results };
+            return results;
+        });
+        this.running = job;
+        try {
+            return { results: await job };
+        } finally {
+            if (this.running === job) this.running = null;
         }
-        return { results };
+    }
+
+    /** Waktu & hasil sinkron terakhir (untuk keterangan di layar). */
+    syncStatus(scope: InboxScope, allowedChannelIds: number[] | null) {
+        const results = (this.lastSync?.results ?? []).filter((r) => !allowedChannelIds || allowedChannelIds.includes(r.channelId));
+        return {
+            intervalMinutes: process.env.SOCIAL_AUTO_SYNC === 'false' ? null : 5,
+            lastSyncAt: this.lastSync?.at ?? null,
+            auto: this.lastSync?.auto ?? null,
+            results,
+            running: !!this.running,
+            scoped: !!scope.branchId,
+        };
+    }
+
+    async channelIdsInScope(scope: InboxScope): Promise<number[] | null> {
+        if (!scope.branchId) return null;
+        const rows = await this.prisma.socialChannel.findMany({ where: this.channelScope(scope), select: { id: true } });
+        return rows.map((r) => r.id);
     }
 
     private async syncChannel(channel: SocialChannel): Promise<{ posts: number; added: number }> {
         const accountId = channel.platform === 'INSTAGRAM' ? (channel.igId || channel.pageId) : channel.pageId;
         const posts = await this.meta.listRecentPosts(channel.platform, accountId, channel.accessToken, 15);
+        // Komentar baru yang masih segar (≤3 hari) ditandai belum dibaca; yang lebih
+        // lama cukup masuk "Perlu dibalas" supaya penarikan pertama tidak membanjiri angka.
+        const freshSince = Date.now() - 3 * 24 * 3600 * 1000;
         let added = 0;
         for (const p of posts) {
             if (!p.id) continue;
-            const key = { channelId_externalId: { channelId: channel.id, externalId: p.id } };
+            const stored = await this.prisma.socialPost.findUnique({ where: { channelId_externalId: { channelId: channel.id, externalId: p.id } } });
             const data = { caption: p.caption, permalink: p.permalink, mediaUrl: p.mediaUrl, postedAt: p.postedAt };
-            await this.prisma.socialPost.upsert({ where: key, update: data, create: { channelId: channel.id, externalId: p.id, ...data } });
+            // Tulis hanya bila berubah (URL gambar IG berganti tiap respons → segarkan tiap 12 jam).
+            if (!stored) {
+                await this.prisma.socialPost.create({ data: { channelId: channel.id, externalId: p.id, ...data } }).catch((e) => { if (!isUniqueViolation(e)) throw e; });
+            } else if (stored.caption !== p.caption || stored.permalink !== p.permalink || (!stored.mediaUrl && p.mediaUrl)
+                || (p.mediaUrl && Date.now() - stored.updatedAt.getTime() > 12 * 3600 * 1000)) {
+                await this.prisma.socialPost.update({ where: { id: stored.id }, data });
+            }
             if (p.commentsCount === 0) continue;
             const comments = await this.meta.listPostComments(channel.platform, p.id, channel.accessToken);
+            // Komentar yang sudah tercatat & tidak berubah dilewati tanpa kueri per komentar.
+            const known = new Map(
+                (await this.prisma.socialComment.findMany({
+                    where: { channelId: channel.id, post: { externalId: p.id } },
+                    select: { externalId: true, body: true, isHidden: true },
+                })).map((c) => [c.externalId, c]),
+            );
+            const unchanged = (g: GraphComment) => {
+                const k = known.get(g.id);
+                return !!k && (g.text == null || g.text === k.body) && g.hidden === k.isHidden;
+            };
             // Urut dari yang terlama supaya status "perlu dibalas" ditentukan aktivitas terakhir.
             for (const top of [...comments].sort((a, b) => a.at.getTime() - b.at.getTime())) {
-                if ((await this.upsertComment(channel, this.fromGraph(top, p.id, null), false)).created) added++;
+                if (!unchanged(top) && (await this.upsertComment(channel, this.fromGraph(top, p.id, null), top.at.getTime() >= freshSince)).created) added++;
                 for (const r of [...top.replies].sort((a, b) => a.at.getTime() - b.at.getTime())) {
-                    if ((await this.upsertComment(channel, this.fromGraph(r, p.id, top.id), false)).created) added++;
+                    if (!unchanged(r) && (await this.upsertComment(channel, this.fromGraph(r, p.id, top.id), r.at.getTime() >= freshSince)).created) added++;
                 }
             }
         }

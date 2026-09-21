@@ -146,3 +146,11 @@ export const updateSocialCommentThread = async (id: number, body: { isRead?: boo
 export const createLeadFromSocialComment = async (id: number): Promise<{ leadId: number; existed: boolean }> =>
     (await api.post(`/social/comments/${id}/lead`)).data;
 export const syncSocialComments = async (): Promise<CommentSyncResult> => (await api.post('/social/comments/sync')).data;
+export interface CommentSyncStatus {
+    intervalMinutes: number | null; // null = sinkron otomatis dimatikan
+    lastSyncAt: string | null;
+    auto: boolean | null;
+    results: CommentSyncResult['results'];
+    running: boolean;
+}
+export const getSocialSyncStatus = async (): Promise<CommentSyncStatus> => (await api.get('/social/comments/sync-status')).data;
