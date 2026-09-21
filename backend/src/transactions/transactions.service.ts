@@ -2567,9 +2567,11 @@ export class TransactionsService {
                 // Recreate production job if product requires production (old job may have been deleted or was missing)
                 if (product.requiresProduction) {
                     const existingJob = await tx.productionJob.findFirst({ where: { transactionItemId: txItem.id }, select: { id: true, status: true } });
-                    // Only recreate if job is missing or still in ANTRIAN (not started)
-                    if (!existingJob || existingJob.status === 'ANTRIAN') {
-                        await tx.productionJob.deleteMany({ where: { transactionItemId: txItem.id } });
+                    // Job yang SUDAH ADA dipertahankan (ukuran dibaca dari item nota): dulu setiap edit — bahkan
+                    // ganti nama pelanggan — menghapus & membuat ulang job ANTRIAN sehingga bukti desain, tahap
+                    // pipeline, desainer, status batal & kredit KPI hilang, dan job yang baru saja dimulai
+                    // operator bisa ikut terhapus (stok roll tak kembali).
+                    if (!existingJob) {
                         await this.createProductionJobForItem(
                             tx, transactionId, txItem.id,
                             transaction.productionPriority || 'NORMAL',
@@ -2577,6 +2579,8 @@ export class TransactionsService {
                             transaction.productionNotes || null,
                             itemIsSub,
                         );
+                    } else if (existingJob.status === 'ANTRIAN') {
+                        await tx.productionJob.updateMany({ where: { id: existingJob.id, status: 'ANTRIAN' }, data: { isSubOrder: itemIsSub } });
                     }
                 }
 
@@ -2638,11 +2642,26 @@ export class TransactionsService {
                     : {};
                 await tx.transactionItem.update({ where: { id: txItem.id }, data: { quantity: newQty, priceAtTime: resolvedPrice, ...jejakUnit } });
 
+                // Cetak kertas: qty berubah → klik tercatat & antrian /cetak ikut (satu tarif). Dulu tetap angka
+                // lama: nota diubah 100 → 300 lembar, papan cetak tetap "Qty: 100" & biaya klik 100.
+                if (newQty !== Number(txItem.quantity)) {
+                    const logKlik: any[] = await (tx as any).clickLog.findMany({ where: { transactionItemId: txItem.id, voidedAt: null } });
+                    if (logKlik.length === 1 && Number(txItem.quantity) > 0) {
+                        const lk = logKlik[0];
+                        const klikBaru = Math.max(1, Math.round((Number(lk.quantity) / Number(txItem.quantity)) * newQty));
+                        await (tx as any).clickLog.update({ where: { id: lk.id }, data: { quantity: klikBaru, totalCost: Number(lk.pricePerClick) * klikBaru } });
+                    }
+                    await (tx as any).printJob.updateMany({ where: { transactionItemId: txItem.id, status: { in: ['ANTRIAN', 'PROSES'] } }, data: { quantity: newQty } });
+                }
+
                 // Recreate production job for UNIT items if requires production
                 if (product.requiresProduction) {
                     const existingJob = await tx.productionJob.findFirst({ where: { transactionItemId: txItem.id }, select: { id: true, status: true } });
-                    if (!existingJob || existingJob.status === 'ANTRIAN') {
-                        await tx.productionJob.deleteMany({ where: { transactionItemId: txItem.id } });
+                    // Job yang SUDAH ADA dipertahankan (ukuran dibaca dari item nota): dulu setiap edit — bahkan
+                    // ganti nama pelanggan — menghapus & membuat ulang job ANTRIAN sehingga bukti desain, tahap
+                    // pipeline, desainer, status batal & kredit KPI hilang, dan job yang baru saja dimulai
+                    // operator bisa ikut terhapus (stok roll tak kembali).
+                    if (!existingJob) {
                         await this.createProductionJobForItem(
                             tx, transactionId, txItem.id,
                             transaction.productionPriority || 'NORMAL',
@@ -2650,6 +2669,8 @@ export class TransactionsService {
                             transaction.productionNotes || null,
                             itemIsSub,
                         );
+                    } else if (existingJob.status === 'ANTRIAN') {
+                        await tx.productionJob.updateMany({ where: { id: existingJob.id, status: 'ANTRIAN' }, data: { isSubOrder: itemIsSub } });
                     }
                 }
 

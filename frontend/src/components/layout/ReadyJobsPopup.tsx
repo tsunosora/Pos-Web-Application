@@ -81,6 +81,8 @@ export function ReadyJobsPopup({ onOpenModal }: Props) {
 
     const handleConfirmAll = async () => {
         if (submitting) return;
+        // Satu ketukan dulu langsung menandai SEMUA pesanan pelanggan sudah diambil (tanpa tanya).
+        if (!confirm(`Tandai ${newItems.length} pekerjaan sudah DIAMBIL pelanggan? Pastikan barangnya memang sudah diserahkan (dan dibayar).`)) return;
         setSubmitting(true);
         try {
             const prodIds = newItems.filter(j => j.source === 'production').map(j => j.id);

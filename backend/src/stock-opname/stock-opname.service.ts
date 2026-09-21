@@ -271,7 +271,7 @@ export class StockOpnameService {
         await this.verifyToken(token);
 
         const session = await this.prisma.stockOpnameSession.findUnique({ where: { id: token } });
-        const where: any = {};
+        const where: any = { isActive: true }; // produk arsip tak perlu dihitung
         if (session?.categoryId) where.categoryId = session.categoryId;
 
         const products = await this.prisma.product.findMany({
@@ -317,6 +317,18 @@ export class StockOpnameService {
             throw new BadRequestException('Nama operator wajib diisi');
         }
         if (!Array.isArray(dto.items) || dto.items.length === 0) throw new BadRequestException('Belum ada hasil hitung yang dikirim.');
+        if (dto.items.length > 3000) throw new BadRequestException('Terlalu banyak baris dalam satu kiriman.');
+        // Nama maks. 100 (kolom DB) & satu baris per varian (dulu nama panjang → 500, varian ganda → baris dobel).
+        dto = { ...dto, operatorName: dto.operatorName.trim().slice(0, 100) };
+        const perVarian = new Map<number, (typeof dto.items)[number]>();
+        for (const it of dto.items) {
+            const vid = Number(it?.productVariantId);
+            if (!Number.isInteger(vid) || vid <= 0) throw new BadRequestException('Varian tidak valid.');
+            perVarian.set(vid, { ...it, productVariantId: vid });
+        }
+        dto = { ...dto, items: [...perVarian.values()] };
+        const adaVarian = await this.prisma.productVariant.count({ where: { id: { in: [...perVarian.keys()] } } });
+        if (adaVarian !== perVarian.size) throw new BadRequestException('Ada barang yang tidak dikenal — muat ulang halaman hitung.');
         cekAngkaStok(dto.items.map((i) => i.actualStock), 'Hasil hitung');
 
         // Ambil stok sistem saat ini (per cabang sesi kalau ada)

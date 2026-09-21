@@ -182,8 +182,11 @@ function api_get(string $path) {
         // Tulis hanya bila berubah → hindari write tiap kunjungan.
         if ($json !== false && $json !== api_cache_read($path)) api_cache_write($path, $json);
         $result = $r['data'];
+    } elseif (($r['status'] ?? 0) === 404) {
+        // Data memang sudah tidak ada (mis. produk diarsipkan) → jangan tampilkan salinan lama.
+        $result = null;
     } else {
-        // PosPro tidak menjawab dengan benar → pakai cache terakhir bila ada.
+        // PosPro tidak menjawab dengan benar (down/timeout/5xx) → pakai cache terakhir bila ada.
         $cached = api_cache_read($path);
         if ($cached !== null) {
             $d = json_decode($cached, true);

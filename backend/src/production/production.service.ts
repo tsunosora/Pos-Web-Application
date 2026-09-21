@@ -127,6 +127,8 @@ export class ProductionService {
                     checkoutNumber: true,
                     customerName: true, label: true, // label pekerjaan/event (chip di kartu)
                     customerPhone: true,
+                    // Status bayar di detail kartu (dulu tak dipilih → selalu "Pembayaran —" & "Total Rp 0").
+                    status: true, grandTotal: true, downPayment: true, paymentMethod: true,
                     productionPriority: true,
                     productionDeadline: true,
                     productionNotes: true,
@@ -150,6 +152,11 @@ export class ProductionService {
     async getJobs(status?: string, priority?: string, branchId?: number) {
         const where: any = { cancelledAt: null }; // job batal tidak dikerjakan lagi
         if (status) where.status = status;
+        // Tab "Diambil" cukup 14 hari terakhir: dulu SELURUH riwayat (±2.200 job + relasi) ikut terkirim
+        // tiap 30 dtk ke setiap tablet papan produksi.
+        const riwayatSejak = new Date(Date.now() - 14 * 24 * 3600_000);
+        if (!status) where.OR = [{ status: { not: 'DIAMBIL' } }, { pickedUpAt: { gte: riwayatSejak } }, { pickedUpAt: null, status: 'DIAMBIL', updatedAt: { gte: riwayatSejak } }];
+        else if (status === 'DIAMBIL') where.OR = [{ pickedUpAt: { gte: riwayatSejak } }, { pickedUpAt: null, updatedAt: { gte: riwayatSejak } }];
         if (priority) where.priority = priority;
         if (branchId) where.branchId = branchId;
 
@@ -557,11 +564,20 @@ export class ProductionService {
         usedWaste: boolean;
         totalAreaM2?: number;  // total luas gabungan dalam m²
     }) {
+        // Daftar job wajib berisi (dulu [] lolos semua cek → batch kosong memotong roll dari stok total
+        // tanpa cabang) dan tanpa id ganda; job sub order tidak dicetak di sini.
+        const ids = Array.isArray(data?.jobIds) ? [...new Set(data.jobIds.map(Number))] : [];
+        if (!ids.length || ids.some((x) => !Number.isInteger(x) || x <= 0)) throw new BadRequestException('Pilih minimal satu job untuk digabung.');
+        data = { ...data, jobIds: ids };
+        if (data.totalAreaM2 != null && (!Number.isFinite(Number(data.totalAreaM2)) || Number(data.totalAreaM2) < 0 || Number(data.totalAreaM2) > 100000)) {
+            throw new BadRequestException('Luas gabungan tidak valid.');
+        }
         return this.prisma.$transaction(async (tx) => {
             const jobs = await (tx as any).productionJob.findMany({
                 where: { id: { in: data.jobIds } },
             });
             if (jobs.some((j: any) => j.cancelledAt)) throw new BadRequestException(JOB_DIBATALKAN);
+            if (jobs.some((j: any) => j.isSubOrder)) throw new BadRequestException('Job sub order (dicetak di luar) tidak bisa digabung.');
             if (jobs.length !== data.jobIds.length || jobs.some((j: any) => j.status !== 'ANTRIAN')) {
                 throw new BadRequestException('Beberapa job tidak dalam status ANTRIAN atau tidak ditemukan');
             }
@@ -667,13 +683,16 @@ export class ProductionService {
             // Job yang dibatalkan di tengah batch tidak ikut diselesaikan / dikreditkan.
             const toComplete: any[] = await (tx as any).productionJob.findMany({
                 where: { batchId: id, status: 'PROSES', cancelledAt: null },
-                select: { id: true, branchId: true },
+                select: { id: true, branchId: true, transactionItem: { select: { productVariant: { select: { product: { select: { hasAssemblyStage: true } } } } } } },
             });
-
-            await (tx as any).productionJob.updateMany({
-                where: { id: { in: toComplete.map(j => j.id) }, status: 'PROSES' },
-                data: { status: 'SELESAI', completedAt: new Date(), ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}) },
-            });
+            // Produk berperakitan (X-banner, standing, dll.) → MENUNGGU_PASANG seperti "Selesai" satuan.
+            // Dulu seluruh batch langsung SELESAI: tahap pasang terlewat & bahan rangka tak pernah dipotong.
+            const pasang = (j: any) => j.transactionItem?.productVariant?.product?.hasAssemblyStage === true;
+            const dataSelesai = { completedAt: new Date(), ...(opName ? { lastUpdatedBy: opName, lastUpdatedAt: new Date() } : {}) };
+            const idPasang = toComplete.filter(pasang).map(j => j.id);
+            const idLangsung = toComplete.filter(j => !pasang(j)).map(j => j.id);
+            if (idLangsung.length) await (tx as any).productionJob.updateMany({ where: { id: { in: idLangsung }, status: 'PROSES' }, data: { status: 'SELESAI', ...dataSelesai } });
+            if (idPasang.length) await (tx as any).productionJob.updateMany({ where: { id: { in: idPasang }, status: 'PROSES' }, data: { status: 'MENUNGGU_PASANG', ...dataSelesai } });
 
             // Attribusi tiap job ke operator (leaderboard membaca activity log).
             // Kerja sama: 1 baris kredit per operator per job, bobot 1/N (bagi rata).
@@ -684,7 +703,7 @@ export class ProductionService {
                 const all = Array.from(new Set([opName, ...partners]));
                 const weight = 1 / all.length;
                 await (tx as any).productionJobActivity.createMany({
-                    data: toComplete.flatMap(j => all.map(name => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: 'SELESAI', actorName: name, actorRole: 'OPERATOR', actorWeight: weight, branchId: operatorBranchId ?? j.branchId ?? null }))),
+                    data: toComplete.flatMap(j => all.map(name => ({ jobId: j.id, action: 'STAGE_CHANGE', toStage: pasang(j) ? 'ANTRIAN_PRESS' : 'SELESAI', actorName: name, actorRole: 'OPERATOR', actorWeight: weight, branchId: operatorBranchId ?? j.branchId ?? null }))),
                 });
             }
 

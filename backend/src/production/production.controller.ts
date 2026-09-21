@@ -206,7 +206,9 @@ export class ProductionController {
         @Query('pin') pin: string,
         @Query('branchId') branchId?: string,
     ) {
-        const bid = branchId ? parseInt(branchId) : undefined;
+        // Wajib satu cabang: tanpa branchId dulu mengembalikan pipeline SEMUA cabang.
+        const bid = Number(branchId);
+        if (!Number.isInteger(bid) || bid <= 0) throw new BadRequestException('Pilih cabang dulu.');
         await this.productionService.verifyOperatorPinPublic(pin, bid);
         return this.productionService.getPipelineJobs(bid);
     }
@@ -303,9 +305,13 @@ export class ProductionController {
     @Post('pin/verify')
     @UseInterceptors(PinThrottleInterceptor)
     async verifyPin(@Body('pin') pin: string, @Body('branchId') branchId?: number) {
-        const r = await this.productionService.verifyPin(pin, branchId);
+        // Papan kerja SELALU satu cabang. Tanpa cabang (mis. daftar cabang gagal dimuat) dulu terbit
+        // token "semua cabang" → operator melihat & memindah job cabang lain (stok cabang lain terpotong).
+        const bid = Number(branchId);
+        if (!Number.isInteger(bid) || bid <= 0) throw new BadRequestException('Pilih cabang dulu, lalu masukkan PIN.');
+        const r = await this.productionService.verifyPin(pin, bid);
         if (!r.valid) return r;
-        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: branchId ?? null }) };
+        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: bid }) };
     }
 
     @Post('jobs/:id/start')
@@ -323,7 +329,8 @@ export class ProductionController {
     @UseGuards(BoardOrUserGuard)
     async completeJob(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
         await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
-        return this.productionService.completeJob(id, body?.operatorNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
+        // Pelaku = nama dari PIN pribadi (token papan) bila ada — dulu nama bebas dari body (kredit bisa diberikan ke siapa saja).
+        return this.productionService.completeJob(id, body?.operatorNote, (boardSessionOf(req)?.name || body?.operatorName), body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/start-assembly')
@@ -337,7 +344,7 @@ export class ProductionController {
     @UseGuards(BoardOrUserGuard)
     async completeAssembly(@Param('id', ParseIntPipe) id: number, @Body() body: { assemblyNote?: string; operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
         await this.productionService.assertJobsInBranch({ jobIds: [id] }, cabangAksiJob(req));
-        return this.productionService.completeAssembly(id, body?.assemblyNote, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
+        return this.productionService.completeAssembly(id, body?.assemblyNote, (boardSessionOf(req)?.name || body?.operatorName), body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')
@@ -368,7 +375,7 @@ export class ProductionController {
     @UseGuards(BoardOrUserGuard)
     async completeBatch(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
         await this.productionService.assertJobsInBranch({ batchId: id }, cabangAksiJob(req));
-        return this.productionService.completeBatch(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
+        return this.productionService.completeBatch(id, (boardSessionOf(req)?.name || body?.operatorName), body?.coOperatorNames, body?.branchId ?? null);
     }
 
     // ─── Meter Reading (Rekonsiliasi Operator) ───────────────────────────────

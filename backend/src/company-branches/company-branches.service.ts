@@ -11,6 +11,15 @@ export class CompanyBranchesService {
         });
     }
 
+    /** Daftar publik (tanpa login): hanya identitas — dulu ikut target omzet harian tiap cabang. */
+    async findAllActivePublic(): Promise<{ id: number; name: string; code: string | null; phone: string | null }[]> {
+        return (this.prisma as any).companyBranch.findMany({
+            where: { isActive: true },
+            select: { id: true, name: true, code: true, phone: true },
+            orderBy: { name: 'asc' },
+        });
+    }
+
     async findAllActive(): Promise<{ id: number; name: string; code: string | null; phone: string | null; dailyTargetOverride: any }[]> {
         return (this.prisma as any).companyBranch.findMany({
             where: { isActive: true },

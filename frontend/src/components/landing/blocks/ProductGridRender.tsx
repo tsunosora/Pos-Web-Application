@@ -88,7 +88,8 @@ export function ProductGridRender({
 
     const gridCols =
         columns && columns !== "auto" ? `repeat(${columns}, 1fr)` : "repeat(auto-fill, minmax(210px, 1fr))";
-    const wa = (waNumber || storePhone || "").replace(/\D/g, "");
+    // Nomor lokal "08…" → "628…" (wa.me menolak awalan 0).
+    const wa = (waNumber || storePhone || "").replace(/\D/g, "").replace(/^0/, "62");
 
     return (
         <section style={{ padding: "40px 24px", maxWidth: 1140, margin: "0 auto", textAlign: "center" }}>

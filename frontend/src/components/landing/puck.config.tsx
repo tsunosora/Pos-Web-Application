@@ -433,7 +433,7 @@ export const config: Config = {
                             {address && <p style={{ color: "#334155", whiteSpace: "pre-wrap" }}>📍 {address}</p>}
                             {phone && <p style={{ color: "#334155" }}>📞 {phone}</p>}
                             {whatsapp && (
-                                <a href={`https://wa.me/${(whatsapp || "").replace(/\D/g, "")}`} style={{ display: "inline-block", marginTop: 8, background: "#25D366", color: "#fff", padding: "10px 18px", borderRadius: 999, fontWeight: 700, textDecoration: "none" }}>
+                                <a href={`https://wa.me/${(whatsapp || "").replace(/\D/g, "").replace(/^0/, "62")}`} style={{ display: "inline-block", marginTop: 8, background: "#25D366", color: "#fff", padding: "10px 18px", borderRadius: 999, fontWeight: 700, textDecoration: "none" }}>
                                     Chat WhatsApp
                                 </a>
                             )}

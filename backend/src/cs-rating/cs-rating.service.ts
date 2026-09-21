@@ -194,20 +194,25 @@ export class CsRatingService {
 
     /** Poling per cabang (untuk QR/link statis di meja kasir — walk-in). */
     async getBranchPoll(branchId: number) {
-        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
-        if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+        // Id bukan angka dulu jatuh ke DB → 500; cabang nonaktif tetap menerima penilaian.
+        if (!Number.isInteger(Number(branchId)) || Number(branchId) <= 0) throw new NotFoundException('Cabang tidak ditemukan');
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: Number(branchId) } });
+        if (!branch || (branch as any).isActive === false) throw new NotFoundException('Cabang tidak ditemukan');
         const cfg = await this.getActiveConfig(branchId);
         return { branchName: branch.name, question: cfg.question, thankYouText: cfg.thankYouText };
     }
 
     /** Daftar CS/karyawan cabang untuk dipilih pelanggan (walk-in). Owner dikecualikan. */
     async getBranchStaff(branchId: number) {
-        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
-        if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+        // Id bukan angka dulu jatuh ke DB → 500; cabang nonaktif tetap menerima penilaian.
+        if (!Number.isInteger(Number(branchId)) || Number(branchId) <= 0) throw new NotFoundException('Cabang tidak ditemukan');
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: Number(branchId) } });
+        if (!branch || (branch as any).isActive === false) throw new NotFoundException('Cabang tidak ditemukan');
         const users = await this.prisma.user.findMany({
             where: {
-                branchId,
+                branchId: Number(branchId),
                 name: { not: null },
+                isActive: true, // karyawan yang sudah keluar tidak ditampilkan / dinilai
                 role: { is: { name: { not: 'Owner' } } },
             },
             select: { id: true, name: true },
@@ -218,8 +223,10 @@ export class CsRatingService {
 
     /** Submit penilaian walk-in via QR cabang: buat + isi baris sekaligus (tanpa baris pending). */
     async submitBranch(branchId: number, dto: SubmitRatingDto, ip?: string) {
-        const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
-        if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
+        // Id bukan angka dulu jatuh ke DB → 500; cabang nonaktif tetap menerima penilaian.
+        if (!Number.isInteger(Number(branchId)) || Number(branchId) <= 0) throw new NotFoundException('Cabang tidak ditemukan');
+        const branch = await this.prisma.companyBranch.findUnique({ where: { id: Number(branchId) } });
+        if (!branch || (branch as any).isActive === false) throw new NotFoundException('Cabang tidak ditemukan');
 
         this.throttleIp(ip, branchId, dto.staffId ? Number(dto.staffId) : null);
 
@@ -237,7 +244,7 @@ export class CsRatingService {
         let assignedCsName: string | null = null;
         if (dto.staffId) {
             const staff = await this.prisma.user.findFirst({
-                where: { id: Number(dto.staffId), branchId },
+                where: { id: Number(dto.staffId), branchId: Number(branchId), isActive: true },
                 select: { id: true, name: true },
             });
             if (staff) {

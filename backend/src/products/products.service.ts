@@ -254,7 +254,8 @@ export class ProductsService {
             }
         });
         // Bahan baku tidak boleh diakses publik (mis. langsung via URL)
-        if (!product || (product as any).productType === 'RAW_MATERIAL') {
+        // Produk yang diarsipkan juga tidak tampil publik (dulu tautan /p/:id lama tetap bisa dipesan).
+        if (!product || (product as any).productType === 'RAW_MATERIAL' || (product as any).isActive === false) {
             throw new NotFoundException(`Product #${id} not found`);
         }
         return {
@@ -268,10 +269,25 @@ export class ProductsService {
      * Return produk (shape sama seperti findAll) + `soldQty`, urut terbanyak.
      * Publik (dipakai blok landing "Produk Unggulan").
      */
+    // Endpoint publik tanpa login (slider landing tiap kunjungan): hasil disimpan 10 menit. Dulu setiap
+    // permintaan memindai SELURUH baris nota sepanjang masa + memuat seluruh katalog.
+    private cacheTerlaris?: { at: number; limit: number; hasil: Promise<any[]> };
+
     async bestSellers(limit = 10) {
+        const lim = Math.min(20, Math.max(1, Math.floor(Number(limit) || 10)));
+        const c = this.cacheTerlaris;
+        if (c && c.limit === lim && Date.now() - c.at < 10 * 60_000) return c.hasil;
+        const hasil = this.hitungTerlaris(lim);
+        this.cacheTerlaris = { at: Date.now(), limit: lim, hasil };
+        hasil.catch(() => { this.cacheTerlaris = undefined; });
+        return hasil;
+    }
+
+    private async hitungTerlaris(limit: number) {
+        // 90 hari terakhir, nota lunas saja (dulu sepanjang masa termasuk nota belum dibayar/gagal).
         const groups: any[] = await (this.prisma as any).transactionItem.groupBy({
             by: ['productVariantId'],
-            where: { productVariantId: { not: null } },
+            where: { productVariantId: { not: null }, transaction: { status: 'PAID', createdAt: { gte: new Date(Date.now() - 90 * 24 * 3600_000) } } },
             _sum: { quantity: true },
         });
         if (!groups.length) return [];
@@ -305,11 +321,13 @@ export class ProductsService {
 
     /** Buang field sensitif (hpp/modal) dari varian untuk konsumsi publik. */
     private sanitizePublic(products: any[]): any[] {
-        return (products || []).map((p) => ({
+        // Publik: tanpa HPP, tanpa angka stok persis (cukup tersedia/habis), tanpa riwayat stok & resep
+        // bahan. Dulu daftar ini memuat stok total semua cabang + catatan stok awal → bisa dipantau pesaing.
+        return (products || []).map(({ ingredients: _bahan, ...p }: any) => ({
             ...p,
             variants: (p.variants || []).map((v: any) => {
-                const { hpp, aggregateStock, ...rest } = v;
-                return rest;
+                const { hpp, aggregateStock, movements: _gerak, stock, variantIngredients: _vb, ...rest } = v;
+                return { ...rest, stock: Number(stock) > 0 ? 1 : 0 };
             }),
         }));
     }

@@ -11,7 +11,7 @@ export class CompanyBranchesController {
 
     // PUBLIC — untuk branch picker di halaman /produksi & /cetak yang public + PIN gated
     @Get('public-active')
-    publicActive() { return this.service.findAllActive(); }
+    publicActive() { return this.service.findAllActivePublic(); }
 
     @Get()
     @UseGuards(JwtAuthGuard)

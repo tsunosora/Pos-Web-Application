@@ -121,6 +121,8 @@ export default function PublicProductPage() {
     const currentImage = displayImages[activeImageIdx] ?? null;
 
     const isAreaBased = product.pricingMode === 'AREA_BASED';
+    // Satuan harga produk ukuran: per cm² bila produk berbasis cm² (dulu selalu "/m²" → 10.000× lebih murah).
+    const satuanLuas = (product as any).areaUnit === 'CM2' ? 'cm²' : 'm²';
 
     const waLink = settings?.storePhone
         ? `https://wa.me/${settings.storePhone.replace(/[^0-9]/g, '').replace(/^0/, '62')}?text=${encodeURIComponent(`Halo, saya tertarik dengan produk *${product.name}*`)}`
@@ -195,7 +197,7 @@ export default function PublicProductPage() {
                             {isAreaBased && (
                                 <span className="inline-flex items-center gap-1 text-xs bg-muted text-foreground px-2 py-0.5 rounded-full">
                                     <Layers className="w-3 h-3" />
-                                    Harga per m²
+                                    Harga per {satuanLuas}
                                 </span>
                             )}
                         </div>
@@ -255,7 +257,8 @@ export default function PublicProductPage() {
                                         <p className="text-xs text-muted-foreground mb-3">SKU: {activeVariant.sku}</p>
 
                                         {/* Price tiers or base price */}
-                                        {activeVariant.priceTiers.length > 0 ? (
+                                        {/* Tier hanya berlaku untuk produk satuan (kasir mengabaikan tier produk ukuran). */}
+                                        {activeVariant.priceTiers.length > 0 && !isAreaBased ? (
                                             <div>
                                                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Harga Bertingkat</p>
                                                 <div className="overflow-x-auto">
@@ -274,7 +277,7 @@ export default function PublicProductPage() {
                                                                     <td className="py-1.5 text-muted-foreground tabular-nums">≥ {tier.minQty}{tier.maxQty ? ` – ${tier.maxQty}` : '+'}</td>
                                                                     <td className="py-1.5 text-right font-semibold text-foreground tabular-nums">
                                                                         {formatRupiah(Number(tier.price))}
-                                                                        {isAreaBased && <span className="text-xs font-normal text-muted-foreground">/m²</span>}
+                                                                        {isAreaBased && <span className="text-xs font-normal text-muted-foreground">/{satuanLuas}</span>}
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -285,7 +288,7 @@ export default function PublicProductPage() {
                                         ) : (
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-2xl font-bold text-foreground tabular-nums">{formatRupiah(Number(activeVariant.price))}</span>
-                                                {isAreaBased && <span className="text-sm text-muted-foreground">/m²</span>}
+                                                {isAreaBased && <span className="text-sm text-muted-foreground">/{satuanLuas}</span>}
                                                 {product.unit && !isAreaBased && <span className="text-sm text-muted-foreground">/{product.unit.name}</span>}
                                             </div>
                                         )}

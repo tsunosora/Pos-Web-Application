@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query, Req, UseGuards, UseInterceptors, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrintQueueService } from './print-queue.service';
 import type { PrintJobStatus } from './print-queue.service';
@@ -53,23 +53,27 @@ export class PrintQueueController {
     @Post('pin/verify')
     @UseInterceptors(PinThrottleInterceptor)
     async verifyPin(@Body('pin') pin: string, @Body('branchId') branchId?: number) {
-        const r = await this.svc.verifyPin(pin, branchId);
+        // Papan kerja SELALU satu cabang. Tanpa cabang (mis. daftar cabang gagal dimuat) dulu terbit
+        // token "semua cabang" → operator melihat & memindah job cabang lain (stok cabang lain terpotong).
+        const bid = Number(branchId);
+        if (!Number.isInteger(bid) || bid <= 0) throw new BadRequestException('Pilih cabang dulu, lalu masukkan PIN.');
+        const r = await this.svc.verifyPin(pin, bid);
         if (!r.valid) return r;
-        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: branchId ?? null }) };
+        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: bid }) };
     }
 
     @Post('jobs/:id/start')
     @UseGuards(BoardOrUserGuard)
     async start(@Param('id', ParseIntPipe) id: number, @Body('operatorName') operatorName: string | undefined, @Req() req: any) {
         await this.svc.assertJobsInBranch([id], cabangPapan(req));
-        return this.svc.startJob(id, operatorName);
+        return this.svc.startJob(id, boardSessionOf(req)?.name || operatorName); // nama dari PIN pribadi bila ada
     }
 
     @Post('jobs/:id/finish')
     @UseGuards(BoardOrUserGuard)
     async finish(@Param('id', ParseIntPipe) id: number, @Body() body: { operatorName?: string; coOperatorNames?: string[]; branchId?: number }, @Req() req: any) {
         await this.svc.assertJobsInBranch([id], cabangPapan(req));
-        return this.svc.finishJob(id, body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
+        return this.svc.finishJob(id, boardSessionOf(req)?.name || body?.operatorName, body?.coOperatorNames, body?.branchId ?? null);
     }
 
     @Post('jobs/:id/pickup')

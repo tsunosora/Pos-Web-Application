@@ -49,12 +49,14 @@ export class PublicOrderThrottleGuard implements CanActivate {
         let key: string;
         let limMin: number;
         let limHour: number;
+        let dariToko = false;
 
         const token = process.env.STOREFRONT_TOKEN;
         const sent = String(req.headers?.['x-storefront-token'] ?? '');
         const clientIp = req.headers?.['x-client-ip'];
         if (token && sent && sent === token && clientIp) {
             key = 'cust:' + String(clientIp).slice(0, 64);
+            dariToko = true;
             limMin = PublicOrderThrottleGuard.CUST_MIN;
             limHour = PublicOrderThrottleGuard.CUST_HOUR;
         } else {
@@ -80,7 +82,9 @@ export class PublicOrderThrottleGuard implements CanActivate {
         const arr = (this.hits.get(key) ?? []).filter((t) => now - t < HOUR);
         const inMin = arr.filter((t) => now - t < MIN).length;
         const inHour = arr.length;
-        const globalHour = this.global.filter((t) => now - t < HOUR).length;
+        // Pengaman global hanya untuk pemanggil TANPA token toko: dulu beberapa IP yang menembak API
+        // langsung menghabiskan kuota global & semua order asli dari website ditolak sampai 1 jam.
+        const globalHour = dariToko ? 0 : this.global.filter((t) => now - t < HOUR).length;
 
         if (inMin >= limMin || inHour >= limHour || globalHour >= PublicOrderThrottleGuard.GLOBAL_HOUR) {
             // Catat untuk monitor keamanan (deteksi abuse/flooding endpoint publik).
@@ -94,7 +98,7 @@ export class PublicOrderThrottleGuard implements CanActivate {
 
         arr.push(now);
         this.hits.set(key, arr);
-        this.global.push(now);
+        if (!dariToko) this.global.push(now);
         return true;
     }
 }

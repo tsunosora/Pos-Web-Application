@@ -1135,11 +1135,15 @@ export default function ProduksiPage() {
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-muted-foreground">Pembayaran</span>
-                                    <span className="text-sm font-medium capitalize">{(detailJob.transaction?.paymentMethod ?? '—').toLowerCase()}</span>
+                                    <span className={`text-sm font-medium ${detailJob.transaction?.status === 'PAID' ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {detailJob.transaction?.status === 'PAID'
+                                            ? `Lunas · ${(detailJob.transaction?.paymentMethod ?? '').toLowerCase().replace('_', ' ')}`
+                                            : `BELUM LUNAS · sisa Rp ${Math.max(0, Number(detailJob.transaction?.grandTotal ?? 0) - Number(detailJob.transaction?.downPayment ?? 0)).toLocaleString('id-ID')}`}
+                                    </span>
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm font-bold">Total Invoice</span>
-                                    <span className="text-sm font-bold text-primary">Rp {Number(detailJob.transaction?.total ?? 0).toLocaleString('id-ID')}</span>
+                                    <span className="text-sm font-bold text-primary">Rp {Number(detailJob.transaction?.grandTotal ?? 0).toLocaleString('id-ID')}</span>
                                 </div>
                             </div>
                         </div>

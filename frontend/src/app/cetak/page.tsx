@@ -275,11 +275,19 @@ export default function CetakPage() {
         return name;
     };
 
+    // Galat aksi papan (409 sudah diambil perangkat lain, 403 cabang lain, …) ditampilkan & daftar
+    // disegarkan — dulu diam: operator mengira "Selesai" berhasil padahal job tetap PROSES.
+    const gagalAksi = async (e: any) => {
+        alert(e?.response?.data?.message || e?.message || 'Aksi gagal — daftar dimuat ulang.');
+        await loadData().catch(() => undefined);
+    };
+
     const handleStart = async (job: PrintJob) => {
         const name = ensureOperator();
         if (!name) return;
         setBusyId(job.id);
         try { await startPrintJob(job.id, name); await loadData(); }
+        catch (e) { await gagalAksi(e); }
         finally { setBusyId(null); }
     };
     // Tandai selesai → buka modal kerja sama (opsi tambah rekan, poin dibagi 1/N).
@@ -294,12 +302,14 @@ export default function CetakPage() {
         setFinishModal(null);
         setBusyId(modal.job.id);
         try { await finishPrintJob(modal.job.id, name, coOperatorNames, activeBranchId ?? undefined); await loadData(); }
+        catch (e) { await gagalAksi(e); }
         finally { setBusyId(null); }
     };
     const handlePickup = async (job: PrintJob) => {
         if (!window.confirm(`Konfirmasi cetakan ${job.jobNumber} sudah diambil?`)) return;
         setBusyId(job.id);
         try { await pickupPrintJob(job.id); await loadData(); }
+        catch (e) { await gagalAksi(e); }
         finally { setBusyId(null); }
     };
 

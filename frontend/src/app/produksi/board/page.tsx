@@ -318,12 +318,19 @@ function BoardKanban({ session, onLogout }: { session: BoardSession; onLogout: (
         operatorName: session.operatorName,
     }), [session]);
 
+    // PIN tersimpan bisa usang (PIN cabang diganti admin): jangan diulang & berhenti polling — dulu tiap
+    // poll ×3 percobaan salah → 10 kegagalan dalam ±3 menit → IP toko dikunci untuk SEMUA layar PIN.
     const { data: jobs = [], isLoading, error } = useQuery({
         queryKey: ["produksi-board", session.branchId, session.pin],
         queryFn: () => getPublicPipelineJobs(opSession),
-        refetchInterval: isDragging ? false : 60_000,
+        refetchInterval: (q) => (isDragging || q.state.status === 'error' ? false : 60_000),
         refetchOnWindowFocus: false,
+        retry: false,
     });
+    useEffect(() => {
+        const pesan = String((error as any)?.message ?? '');
+        if (/PIN/i.test(pesan)) onLogout(); // PIN salah/berubah → kembali ke layar PIN
+    }, [error, onLogout]);
 
     // Daftar desainer untuk dropdown atribusi saat upload proof
     const { data: designers = [] } = useQuery({
