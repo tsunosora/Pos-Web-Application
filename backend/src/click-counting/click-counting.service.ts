@@ -288,6 +288,9 @@ export class ClickCountingService {
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       throw new BadRequestException('Tanggal tidak valid');
     }
+    // Meteran = mesin fisik satu cabang. Mode "Semua Cabang" dulu memasangkan meteran awal cabang A
+    // dengan meteran akhir cabang B → klik tagihan palsu.
+    if (branchCtx.branchId == null) throw new BadRequestException('Pilih cabang di topbar — tagihan vendor dihitung per mesin/cabang.');
 
     const bw = branchWhere(branchCtx);
 
@@ -377,6 +380,7 @@ export class ClickCountingService {
   async getReconciliation(month: number, year: number, branchCtx: BranchContext) {
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
+    if (branchCtx.branchId == null) throw new BadRequestException('Pilih cabang di topbar — rekonsiliasi dihitung per mesin/cabang.');
     const bw = branchWhere(branchCtx);
 
     const meterStart = await (this.prisma as any).meterReading.findFirst({

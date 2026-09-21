@@ -112,8 +112,15 @@ export class DiscordExceptionFilter implements ExceptionFilter {
             const where = `${req?.method || ''} ${req?.url || ''}`.trim();
             this.logger.error(`${where} → ${msg}`, err?.stack);
 
-            const key = `${where}|${msg}`.slice(0, 200);
+            // Kunci = pola rute (bukan URL mentah ber-id/ber-query) + kode galat: saat DB tumbang, tiap URL
+            // berbeda dulu mengirim pesan Discord sendiri & peta kunci tumbuh tanpa batas.
+            const pola = `${req?.method || ''} ${req?.route?.path || String(req?.url || '').split('?')[0].replace(/\/\d+/g, '/:id')}`;
+            const key = `${pola}|${err?.code || msg}`.slice(0, 200);
             const now = Date.now();
+            if (this.lastSent.size > 500) {
+                for (const [k, t] of this.lastSent) if (now - t > this.THROTTLE_MS) this.lastSent.delete(k);
+                if (this.lastSent.size > 500) this.lastSent.clear();
+            }
             const last = this.lastSent.get(key) || 0;
             if (now - last > this.THROTTLE_MS) {
                 this.lastSent.set(key, now);

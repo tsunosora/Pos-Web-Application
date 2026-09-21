@@ -1010,7 +1010,23 @@ export class KpiService {
      * leaderboard (CS/team/designer/operator/design-output) dalam SATU response
      * agar halaman TV cukup 1 request. branchId null = semua cabang.
      */
+    // Papan TV menyegarkan tiap 30 dtk & tiap layar menjalankan ±6 laporan berat. Hasil dibagi selama
+    // 30 dtk (juga permintaan yang sedang berjalan) supaya beberapa TV tak menghabiskan pool DB.
+    private cacheTv?: Map<string, { at: number; hasil: Promise<any> }>;
+
     async publicLeaderboard(params: KpiParams, branchId?: number | null) {
+        const cache = (this.cacheTv ??= new Map());
+        const kunci = JSON.stringify([params?.period ?? null, (params as any)?.start ?? null, (params as any)?.end ?? null, branchId ?? null]);
+        const ada = cache.get(kunci);
+        if (ada && Date.now() - ada.at < 30_000) return ada.hasil;
+        for (const [k, v] of cache) if (Date.now() - v.at >= 30_000) cache.delete(k);
+        const hasil = this.hitungPublicLeaderboard(params, branchId);
+        cache.set(kunci, { at: Date.now(), hasil });
+        hasil.catch(() => cache.delete(kunci)); // galat tidak disimpan
+        return hasil;
+    }
+
+    private async hitungPublicLeaderboard(params: KpiParams, branchId?: number | null) {
         const bid = branchId != null ? Number(branchId) : null;
         const ctx: any = { branchId: bid, isOwner: true };
         const [cs, designer, operator, team, designOutput, dailyTarget] = await Promise.all([

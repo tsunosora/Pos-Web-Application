@@ -870,7 +870,8 @@ export class SalesOrdersService {
             // customPrice tetap menang; tanpa customPrice, cocokkan qty ke tier varian
             if (it.customPrice == null && it.productVariant?.product?.pricingMode !== 'AREA_BASED') {
                 const tiers: any[] = it.productVariant?.priceTiers || [];
-                const hit = tiers.find((t: any) => qty >= t.minQty && (t.maxQty == null || qty <= t.maxQty));
+                // Tier dgn minimal terbesar yang cocok (sama dgn kasir & transactions.service).
+                const hit = [...tiers].sort((a: any, b: any) => Number(b.minQty) - Number(a.minQty)).find((t: any) => qty >= t.minQty && (t.maxQty == null || qty <= t.maxQty));
                 if (hit) price = Number(hit.price);
             }
             const pcs = Number(it.pcs) > 1 ? Number(it.pcs) : 1;

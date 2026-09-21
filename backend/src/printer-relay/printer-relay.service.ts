@@ -76,7 +76,14 @@ export class PrinterRelayService {
         return dev;
     }
 
+    // Terakhir ditulis ke DB per perangkat. Status online sudah dipantau di memori (registry);
+    // dulu setiap poll (±25 dtk per agen, siang-malam) = satu UPDATE + fsync di disk yang lambat.
+    private readonly terakhirDitulis = new Map<number, number>();
+
     async touchLastSeen(id: number): Promise<void> {
+        const kini = Date.now();
+        if (kini - (this.terakhirDitulis.get(id) ?? 0) < 5 * 60_000) return;
+        this.terakhirDitulis.set(id, kini);
         try {
             await this.devices.update({ where: { id }, data: { lastSeenAt: new Date() } });
         } catch {

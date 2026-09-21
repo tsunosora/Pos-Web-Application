@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from 'react';
+import { applyTierPrice } from '@/store/cart-store';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { editTransaction, submitEditRequest, deleteTransaction, EditItemPayload } from '@/lib/api/transactions';
 import { getProducts } from '@/lib/api/products';
@@ -28,6 +29,7 @@ type EditItem = {
     unitType: string;
     pricingMode: 'UNIT' | 'AREA_BASED';
     isNew?: boolean;
+    priceTiers?: { minQty: number; maxQty: number | null; price: number }[]; // item baru: tier harga (server memakainya)
     // Ukuran asli item lama — kalau tidak diubah, total baris dihitung dari luas TERSIMPAN (sama dgn server).
     orig?: { widthCm: number | null; heightCm: number | null; pcs: number };
 };
@@ -53,7 +55,11 @@ type Props = {
 const fmt = (val: number) => `Rp ${val.toLocaleString('id-ID')}`;
 
 function calcLineTotal(item: EditItem): number {
-    if (item.priceOverride !== null && item.priceOverride > 0) return item.priceOverride;
+    // Sama dgn server: item ukuran → harga custom = TOTAL baris; item satuan → harga custom = harga
+    // SATUAN (× qty). Dulu pratinjau item satuan menampilkan 70.000 padahal tersimpan 70.000 × 10.
+    if (item.priceOverride !== null && item.priceOverride > 0) {
+        return item.pricingMode === 'AREA_BASED' ? item.priceOverride : item.priceOverride * item.quantity;
+    }
     if (item.pricingMode === 'AREA_BASED') {
         const w = item.widthCm ?? 0;
         const h = item.heightCm ?? 1;
@@ -65,6 +71,8 @@ function calcLineTotal(item: EditItem): number {
         // Sama dgn backend (area-unit.util): cm & m per m², cm2 per cm², menit per menit.
         return priceMultiplier(normalizeUnit(item.unitType), w, h) * item.priceAtTime * pcs;
     }
+    // Item satuan BARU: server memilih harga tier sesuai qty — pratinjau ikut (dulu selalu harga dasar).
+    if (item.isNew && item.priceTiers?.length) return applyTierPrice(item.quantity, item.priceAtTime, item.priceTiers as any) * item.quantity;
     return item.priceAtTime * item.quantity;
 }
 
@@ -273,6 +281,7 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
             unitType: product.areaUnit === 'CM2' ? 'cm2' : 'cm',
             pricingMode: isAreaBased ? 'AREA_BASED' : 'UNIT',
             isNew: true,
+            priceTiers: isAreaBased ? undefined : (variant.priceTiers ?? []).map((t: any) => ({ minQty: Number(t.minQty), maxQty: t.maxQty == null ? null : Number(t.maxQty), price: Number(t.price) })),
         };
         setEditItems((prev) => [...prev, newItem]);
         setShowPicker(false);
@@ -423,7 +432,7 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
 
                                             {/* Price override */}
                                             <div className="flex items-center gap-2 pt-1 border-t border-border/50">
-                                                <label className="text-[10px] text-muted-foreground font-medium uppercase shrink-0 w-24">Harga Custom:</label>
+                                                <label className="text-[10px] text-muted-foreground font-medium uppercase shrink-0 w-24">{item.pricingMode === 'AREA_BASED' ? 'Total Custom:' : 'Harga Satuan Custom:'}</label>
                                                 <div className="flex-1 relative">
                                                     <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Rp</span>
                                                     <input

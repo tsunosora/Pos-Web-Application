@@ -51,7 +51,9 @@ export class SyncService {
     entitiesCsv?: string,
     caller: SyncCaller = { isDevice: false, userId: null },
   ): Promise<PullResult> {
-    const serverTime = new Date().toISOString();
+    // Kursor berikutnya mundur 2 menit: updatedAt dicap saat query dibuat, bukan saat commit — baris dari
+    // transaksi yang commit-nya lambat (disk lambat) dulu terlewat selamanya. Baris ganda aman (klien upsert).
+    const serverTime = new Date(Date.now() - 2 * 60_000).toISOString();
     const full = !since;
     const sinceDate = since ? new Date(since) : null;
     if (sinceDate && Number.isNaN(sinceDate.getTime())) {

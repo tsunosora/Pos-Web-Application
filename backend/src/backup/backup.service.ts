@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import * as fs from 'fs';
@@ -241,6 +241,7 @@ const WA_CONFIG_PATH = path.join(__dirname, '..', '..', '..', 'whatsapp_bot_conf
 
 @Injectable()
 export class BackupService {
+    private readonly logger = new Logger(BackupService.name);
     constructor(private prisma: PrismaService) {}
 
     /** Slug nama toko untuk penamaan file backup. */
@@ -284,10 +285,23 @@ export class BackupService {
             const part = await Promise.all(
                 chunk.map(async (table) => {
                     try {
-                        const rows = await (this.prisma as any)[table].findMany();
-                        return { table, rows };
-                    } catch {
-                        return { table, rows: [] };
+                        const delegate = (this.prisma as any)[table];
+                        if (!delegate?.findMany) {
+                            this.logger.warn(`Cadangan: model ${table} tidak ada — dilewati`);
+                            return { table, rows: [] };
+                        }
+                        // Dulu galat baca (pool DB habis saat disk lambat) diam-diam menjadi tabel KOSONG
+                        // dan cadangan tetap "Berhasil" — pulihkan akan melewatkan tabel itu. Sekarang
+                        // dicoba ulang, lalu seluruh cadangan GAGAL bila tetap tak terbaca.
+                        for (let coba = 1; ; coba++) {
+                            try {
+                                const rows = await delegate.findMany();
+                                return { table, rows };
+                            } catch (e) {
+                                if (coba >= 3) throw new Error(`Cadangan gagal: tabel ${table} tidak terbaca (${(e as Error).message?.slice(0, 120)})`);
+                                await new Promise((r) => setTimeout(r, 3000 * coba));
+                            }
+                        }
                     } finally {
                         dumped++;
                         onTableProgress?.(dumped, totalTables);

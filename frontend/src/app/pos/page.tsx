@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getProducts, getSettings, getBankAccounts, getCustomers, createCustomer, getUsers, createTransaction } from '@/lib/api';
 import { getBranchSettings } from '@/lib/api/settings';
 import { Search, ShoppingCart, Plus, Minus, Trash2, CheckCircle2, Ruler, X, RefreshCw, StickyNote, Printer, MessageCircle, Pencil, Check, CalendarClock, CalendarRange, Clock, Send, Building2 } from "lucide-react";
@@ -8,7 +8,7 @@ import dayjs from 'dayjs';
 import { cn } from "@/lib/utils";
 import { ProductImageFill } from "@/components/ui/ProductImageFill";
 import { useIncrementalRender } from "@/lib/useIncrementalRender";
-import { useCartStore, CartItem } from '@/store/cart-store';
+import { useCartStore, CartItem, computeAreaPrice } from '@/store/cart-store';
 import { CompositeModal } from './CompositeModal';
 import { useReadyJobs } from '@/hooks/useReadyJobs';
 import { useUIStore } from '@/store/ui-store';
@@ -72,7 +72,17 @@ const cartToReceiptItems = (items: CartItem[]): ReceiptItem[] =>
             sku: item.sku,
             qty: item.qty,
             price: isArea ? item.price : item.price * item.qty,
-            pricePerUnit: isArea ? item.pricePerUnit : item.price,
+            // Item ukuran berharga custom: tampilkan tarif efektif (total ÷ pengali ÷ pcs) supaya
+            // "luas × harga" di struk sama dengan totalnya (dulu tarif katalog).
+            pricePerUnit: isArea
+                ? (item.customPrice != null && item.widthCm
+                    ? (() => {
+                        const pengali = computeAreaPrice(item.widthCm!, item.heightCm ?? 1, 1, (item.unitType as any) || 'cm').price;
+                        const kali = pengali * Math.max(1, item.pcs || 1);
+                        return kali > 0 ? Math.round((item.price / kali) * 100) / 100 : item.pricePerUnit;
+                    })()
+                    : item.pricePerUnit)
+                : item.price,
             basePrice: item.pricePerUnit, // harga dasar utk badge "tier" di layar
             pricingMode: item.pricingMode,
             note: item.note,
@@ -258,6 +268,7 @@ function POSPageContent() {
         for (const ch of JSON.stringify(payload)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
         return `${checkoutKeyRef.current}:${(h >>> 0).toString(36)}`;
     };
+    const queryClientPos = useQueryClient();
     const transactionMutation = useMutation({
         mutationFn: (payload: Parameters<typeof createTransaction>[0]) => createTransaction(payload, kunciCheckout(payload)),
         // Nota GAGAL tersimpan harus terlihat — dulu diam saja: modal tertutup, pelanggan sudah
@@ -715,6 +726,22 @@ function POSPageContent() {
                     // Ambil nomor SO (invoice) & CO (checkout) hasil generate server → tampil di nota/thermal.
                     snap.orderNumber = data?.invoiceNumber || undefined;
                     snap.checkoutNumber = data?.checkoutNumber || undefined;
+                    // Server menghitung ulang harga dari katalog & pajak dari pengaturan TERBARU. Bila beda
+                    // dengan layar (harga diubah owner saat halaman kasir terbuka, pengaturan pajak belum
+                    // termuat, dll.), struk memakai angka TERSIMPAN & kasir diberi tahu jumlah yang benar —
+                    // dulu struk & uang yang ditagih memakai angka layar, laci kas selisih saat tutup shift.
+                    const totalServer = Number(data?.grandTotal);
+                    if (Number.isFinite(totalServer) && Math.abs(totalServer - snap.grandTotal) >= 1) {
+                        const layar = snap.grandTotal;
+                        snap.subtotal = Number(data?.totalAmount ?? snap.subtotal);
+                        snap.taxAmount = Number(data?.tax ?? snap.taxAmount);
+                        if (data?.discount != null) snap.discount = Number(data.discount);
+                        snap.grandTotal = totalServer;
+                        if (data?.downPayment != null) snap.downPayment = Number(data.downPayment);
+                        window.alert(`PERHATIAN: total nota tersimpan Rp ${totalServer.toLocaleString('id-ID')} (layar: Rp ${layar.toLocaleString('id-ID')}).\n\nHarga/pajak di server sudah berubah. Tagih sesuai total tersimpan; daftar produk dimuat ulang.`);
+                        queryClientPos.invalidateQueries({ queryKey: ['products'] });
+                        queryClientPos.invalidateQueries({ queryKey: ['settings'] });
+                    }
                     setCheckoutModalOpen(false);
                     clearCart();
                     // Auto-save customer baru berdasarkan nomor HP (unique key)

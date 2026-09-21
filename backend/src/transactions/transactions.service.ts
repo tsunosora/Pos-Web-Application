@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentMethod, TransactionStatus, CashflowType } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -38,6 +38,7 @@ type TransactionEditData = {
 
 @Injectable()
 export class TransactionsService {
+    private readonly logger = new Logger(TransactionsService.name);
     constructor(
         private prisma: PrismaService,
         private notificationsService: NotificationsService,
@@ -1000,8 +1001,10 @@ export class TransactionsService {
             for (const it of transactionItemsData) {
                 if (!it.isSubOrder || !it.subPrice) continue;
                 const sub = Number(it.subPrice) || 0;
+                // Pengali sama dgn harga jual & laporan HPP: produk per cm² → luas cm², lainnya → m².
+                // Dulu selalu /10000 → biaya sub produk per cm² tercatat 10.000× terlalu kecil.
                 const cost = (Number(it.areaCm2) || 0) > 0
-                    ? sub * (Number(it.areaCm2) / 10000) * (Number(it.pcs) || 1)
+                    ? sub * storedPriceMultiplier({ unitType: (it as any).unitType, areaCm2: it.areaCm2 }) * (Number(it.pcs) || 1)
                     : sub * (Number(it.quantity) || 1);
                 totalSubCost += cost;
                 if (it.subVendor) subVendors.add(it.subVendor);
@@ -1106,6 +1109,38 @@ export class TransactionsService {
      *   serviceFee = costAmount × (BranchSettings(toBranch).titipanFeePercent / 100, default 20)
      *   totalAmount = costAmount + serviceFee
      */
+    /**
+     * Setelah nota titip cetak DIEDIT: hitung ulang hutang titipan yang belum lunas (item/klik bisa
+     * bertambah atau berkurang). Dulu nilai ledger dibuat sekali saat checkout dan tak pernah berubah —
+     * cabang pemesan membayar untuk item yang sudah dihapus (atau kurang bayar untuk item tambahan).
+     */
+    private async _perbaruiTitipanLedger(txId: number): Promise<void> {
+        const rows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT l.id, l.status, l.settled_amount, l.total_amount, t.production_branch_id AS to_branch
+             FROM inter_branch_ledger l JOIN transactions t ON t.id = l.transaction_id
+             WHERE l.transaction_id = ${Number(txId)} LIMIT 1`,
+        );
+        if (!rows.length) return this._createTitipanLedger(txId); // edit menambah item klik → ledger baru
+        const l = rows[0];
+        if (!['PENDING', 'PARTIAL'].includes(String(l.status))) {
+            this.logger.warn(`Nota #${txId} diedit tetapi hutang titipan #${l.id} sudah ${l.status} — nilai tidak diubah.`);
+            return;
+        }
+        const settingsRows: any[] = await this.prisma.$queryRawUnsafe(
+            `SELECT titipan_fee_percent FROM branch_settings WHERE branch_id = ${Number(l.to_branch)} LIMIT 1`,
+        );
+        const feePercent = settingsRows.length && settingsRows[0].titipan_fee_percent != null ? Number(settingsRows[0].titipan_fee_percent) : 20;
+        const cost = await computeLedgerCost(this.prisma, txId, feePercent);
+        const costAmount = Math.round((cost.bahanCost + cost.klikCost) * 100) / 100;
+        const total = cost.hasClickCost ? Number(cost.totalAmount) : 0;
+        const dibayar = Number(l.settled_amount) || 0;
+        const status = total <= 0 && dibayar <= 0 ? 'CANCELLED' : dibayar >= total ? 'SETTLED' : dibayar > 0 ? 'PARTIAL' : 'PENDING';
+        await this.prisma.$executeRawUnsafe(
+            `UPDATE inter_branch_ledger SET cost_amount = ?, service_fee = ?, total_amount = ?, status = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
+            cost.hasClickCost ? costAmount : 0, cost.hasClickCost ? cost.serviceFee : 0, total, status, Number(l.id),
+        );
+    }
+
     private async _createTitipanLedger(txId: number): Promise<void> {
         // Cek existing (idempotent)
         const existing: any[] = await this.prisma.$queryRawUnsafe(
@@ -2223,7 +2258,7 @@ export class TransactionsService {
         for (const editItem of newItems) {
             const variant = await tx.productVariant.findUnique({
                 where: { id: editItem.newVariantId },
-                include: { product: { include: { ingredients: true } }, variantIngredients: true, priceTiers: { orderBy: { minQty: 'asc' } } }
+                include: { product: { include: { ingredients: true, clickRate: true } }, variantIngredients: true, priceTiers: { orderBy: { minQty: 'asc' } }, clickRate: true } as any,
             });
             if (!variant) throw new NotFoundException(`Variant ID ${editItem.newVariantId} tidak ditemukan`);
             const product = (variant as any).product;
@@ -2342,6 +2377,35 @@ export class TransactionsService {
                     transaction.productionDeadline || null,
                     transaction.productionNotes || null,
                 );
+            }
+
+            // Item cetak kertas (bertarif klik): catatan klik + antrian /cetak seperti saat checkout.
+            // Dulu item tambahan lewat edit tak muncul di papan cetak & kliknya tak tercatat
+            // (rekonsiliasi mesin & hutang titipan kurang).
+            const rate: any = (variant as any).clickRate ?? product.clickRate;
+            if (rate?.isActive && Number(rate.pricePerClick) > 0) {
+                const perUnit = Number((variant as any).clicksPerUnit ?? product.clicksPerUnit ?? 1) || 1;
+                const banyak = pricingMode === 'AREA_BASED' ? Math.max(1, editItem.pcs ?? 1) : qty;
+                const klik = Math.max(1, Math.round(banyak * perUnit));
+                const cabangProduksi = (transaction as any).productionBranchId ?? (transaction as any).branchId ?? null;
+                const kini = new Date();
+                await (tx as any).clickLog.create({
+                    data: {
+                        clickRateId: rate.id, transactionItemId: newTxItem.id, quantity: klik,
+                        pricePerClick: Number(rate.pricePerClick), totalCost: Number(rate.pricePerClick) * klik,
+                        date: kini, branchId: cabangProduksi,
+                    },
+                });
+                const prefix = `PRT-${ymdLokal(kini).replace(/-/g, '')}-`;
+                const terakhir = await (tx as any).printJob.findFirst({ where: { jobNumber: { startsWith: prefix } }, orderBy: { jobNumber: 'desc' }, select: { jobNumber: true } });
+                const n = terakhir?.jobNumber ? parseInt(terakhir.jobNumber.slice(prefix.length), 10) : 0;
+                await (tx as any).printJob.create({
+                    data: {
+                        jobNumber: `${prefix}${String((Number.isNaN(n) ? 0 : n) + 1).padStart(4, '0')}`,
+                        transactionId, transactionItemId: newTxItem.id, branchId: cabangProduksi,
+                        quantity: qty, status: 'ANTRIAN', notes: 'Ditambahkan lewat edit nota',
+                    },
+                });
             }
 
             newSubtotal += lineTotal;
@@ -2632,13 +2696,15 @@ export class TransactionsService {
         if (!isPending && !(await this.isAdminOrOwner(roleId))) {
             throw new ForbiddenException('Hanya Admin/Owner yang dapat mengedit transaksi yang sudah terbayar');
         }
-        return this.prisma.$transaction(async (tx) => {
+        const hasil = await this.prisma.$transaction(async (tx) => {
             await this.applyTransactionEdit(tx, id, editData, actorUserId);
             return tx.transaction.findUniqueOrThrow({
                 where: { id },
                 include: { items: { include: { productVariant: { include: { product: true } } } } }
             });
         });
+        await this._perbaruiTitipanLedger(id).catch((e) => this.logger.error(`Hitung ulang hutang titipan nota #${id} gagal: ${(e as Error).message}`));
+        return hasil;
     }
 
     async createEditRequest(transactionId: number, requestedById: number, reason: string, editData: TransactionEditData, branchCtx?: BranchContext) {
@@ -2707,6 +2773,7 @@ export class TransactionsService {
                 if (klaim.count !== 1) throw new BadRequestException('Permintaan ini sudah diproses');
                 await this.applyTransactionEdit(tx, req.transactionId, req.editData as TransactionEditData, req.requestedById ?? null);
             });
+            await this._perbaruiTitipanLedger(req.transactionId).catch((e) => this.logger.error(`Hitung ulang hutang titipan nota #${req.transactionId} gagal: ${(e as Error).message}`));
             this.notificationsService.emit({
                 type: 'system',
                 title: 'Permintaan Edit Disetujui',

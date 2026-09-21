@@ -1085,6 +1085,7 @@ export class LeadsService {
                         select: {
                             id: true, price: true,
                             priceTiers: { select: { minQty: true, maxQty: true, price: true } },
+                            product: { select: { pricingMode: true } },
                         },
                     })
                     : [];
@@ -1110,6 +1111,10 @@ export class LeadsService {
                             } else if (!it.productVariantId && isArea) {
                                 // Custom item (free-text) dengan dimensi: service akan × qty otomatis.
                                 customPrice = Math.round(areaM2 * uPrice);
+                            } else if (it.productVariantId && (tierVariantById.get(Number(it.productVariantId)) as any)?.product?.pricingMode === 'AREA_BASED') {
+                                // Produk ukuran TANPA ukuran: server menyimpan qty 1 & memakai customPrice sebagai
+                                // total baris → kalikan qty di sini (dulu 5 × 75rb tertagih 75rb).
+                                customPrice = Math.round(qty * uPrice);
                             } else {
                                 // UNIT item (catalog/custom): service akan × qty otomatis.
                                 customPrice = uPrice;
@@ -1281,20 +1286,42 @@ export class LeadsService {
             salesOrderId = so.id;
 
             // Include items dari lead → SalesOrderItem. WAJIB productVariantId.
+            // Harga lead = harga SATUAN (per m²/menit untuk item ukuran), sedangkan kasir memperlakukan
+            // customPrice item ukuran di SO sebagai TOTAL baris. Dulu harga per m² disalin mentah → nota
+            // spanduk 300×100 ×2 @25rb/m² tertagih Rp 25.000 (seharusnya 150.000). Sama dgn convert langsung:
+            // harga = katalog → tanpa custom (tier tetap berlaku); item ukuran → pcs = qty & total baris.
+            const hargaVarian = new Map<number, number>(
+                (await this.prisma.productVariant.findMany({
+                    where: { id: { in: leadItems.map((x: any) => Number(x.productVariantId)).filter(Boolean) } },
+                    select: { id: true, price: true },
+                })).map((v) => [v.id, Number(v.price)]),
+            );
             for (const it of leadItems) {
                 if (!it.productVariantId) {
                     soItemsSkipped++;
                     continue;
                 }
+                const w = Number(it.widthCm) || 0;
+                const h = Number(it.heightCm) || 0;
+                const isMenit = it.unitType === 'menit' && w > 0;
+                const isArea = isMenit || (w > 0 && h > 0);
+                const areaM2 = isMenit ? w : (isArea ? ((it.unitType === 'm' || it.unitType === 'cm2') ? (w * h) : (w * h) / 10000) : 0);
+                const qty = Number(it.quantity) || 1;
+                const uPrice = Number(it.unitPrice) || 0;
+                const samaKatalog = uPrice > 0 && hargaVarian.get(Number(it.productVariantId)) === uPrice;
+                const customPrice = !(uPrice > 0) || samaKatalog
+                    ? null
+                    : isArea ? Math.round(qty * areaM2 * uPrice) : uPrice;
                 await this.prisma.salesOrderItem.create({
                     data: {
                         salesOrderId: so.id,
                         productVariantId: it.productVariantId,
-                        quantity: it.quantity,
+                        quantity: isArea ? 1 : it.quantity,
+                        ...(isArea ? { pcs: qty } : {}),
                         widthCm: it.widthCm ?? null,
                         heightCm: it.heightCm ?? null,
                         unitType: it.unitType ?? null,
-                        customPrice: Number(it.unitPrice) || null,
+                        customPrice,
                         note: it.note ?? null,
                     },
                 });

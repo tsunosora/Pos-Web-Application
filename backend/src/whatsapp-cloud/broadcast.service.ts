@@ -293,12 +293,17 @@ export class BroadcastService implements OnModuleInit {
         this.berjalan.add(id);
         try {
             await this.prosesLoop(id);
+        } catch (e) {
+            // Loop mati di tengah (mis. DB tak menjawab): jangan biarkan RUNNING tanpa loop.
+            this.logger.error(`Broadcast ${id} berhenti: ${(e as Error).message}`);
+            await this.prisma.waBroadcast.updateMany({ where: { id, status: 'RUNNING' }, data: { status: 'PAUSED' } }).catch(() => undefined);
+            return;
         } finally {
             this.berjalan.delete(id);
         }
         // Dilanjutkan tepat saat loop ini berhenti? Jalankan lagi bila masih RUNNING & ada sisa.
         const cur = await this.prisma.waBroadcast.findUnique({ where: { id }, select: { status: true } });
-        if (cur?.status === 'RUNNING' && (await this.prisma.waBroadcastRecipient.count({ where: { broadcastId: id, status: 'PENDING' } })) > 0) {
+        if (cur?.status === 'RUNNING' && (await this.prisma.waBroadcastRecipient.count({ where: { broadcastId: id, status: 'PENDING', sentAt: null } })) > 0) {
             void this.process(id).catch((e) => this.logger.error(`Broadcast ${id} gagal: ${(e as Error).message}`));
         }
     }
@@ -316,11 +321,18 @@ export class BroadcastService implements OnModuleInit {
         for (;;) {
             const cur = await this.prisma.waBroadcast.findUnique({ where: { id }, select: { status: true } });
             if (!cur || cur.status !== 'RUNNING') break; // dipause/dibatalkan
+            // sentAt diisi SEBELUM kirim = reservasi. Baris PENDING ber-sentAt = sedang/terputus saat
+            // dikirim → tidak diambil lagi (dulu dilanjutkan = template berbayar terkirim dua kali).
             const r = await this.prisma.waBroadcastRecipient.findFirst({
-                where: { broadcastId: id, status: 'PENDING' },
+                where: { broadcastId: id, status: 'PENDING', sentAt: null },
                 orderBy: { id: 'asc' },
             });
             if (!r) break; // habis
+            const klaim = await this.prisma.waBroadcastRecipient.updateMany({
+                where: { id: r.id, status: 'PENDING', sentAt: null },
+                data: { sentAt: new Date() },
+            });
+            if (klaim.count !== 1) continue;
 
             const contact = await this.prisma.waContact.findUnique({
                 where: { id: r.contactId },
@@ -342,15 +354,25 @@ export class BroadcastService implements OnModuleInit {
                 const { waMessageId } = await this.cloud.sendTemplate(
                     b.channel.phoneNumberId, r.waId, b.template.name, b.template.language, components,
                 );
-                await this.prisma.waBroadcastRecipient.update({
-                    where: { id: r.id },
-                    data: { status: 'SENT', waMessageId, sentAt: new Date() },
-                });
+                // Sudah terkirim: catat SENT (diulang bila DB sesaat sibuk). Bila tetap gagal, baris tetap
+                // PENDING+sentAt → dianggap "tidak pasti", TIDAK dikirim ulang.
+                for (let coba = 1; coba <= 3; coba++) {
+                    try {
+                        await this.prisma.waBroadcastRecipient.update({
+                            where: { id: r.id },
+                            data: { status: 'SENT', waMessageId, sentAt: new Date() },
+                        });
+                        break;
+                    } catch (e) {
+                        if (coba === 3) this.logger.error(`Broadcast ${id}: penerima #${r.id} terkirim tapi status gagal dicatat: ${(e as Error).message}`);
+                        else await this.sleep(1000 * coba);
+                    }
+                }
             } catch (e) {
                 await this.prisma.waBroadcastRecipient.update({
                     where: { id: r.id },
                     data: { status: 'FAILED', errorMessage: (e as Error).message },
-                });
+                }).catch(() => undefined);
             }
             if (delayMs) await this.sleep(delayMs);
         }
@@ -358,6 +380,12 @@ export class BroadcastService implements OnModuleInit {
     }
 
     private async finalize(id: number) {
+        // Penerima yang terputus saat dikirim (PENDING+sentAt) → FAILED "tidak pasti" agar broadcast bisa selesai.
+        await this.prisma.waBroadcastRecipient.updateMany({
+            // Dipanggil di akhir loop (hanya satu loop per broadcast) → tak ada kiriman yang sedang berjalan.
+            where: { broadcastId: id, status: 'PENDING', sentAt: { not: null } },
+            data: { status: 'FAILED', errorMessage: 'Tidak pasti — server terputus saat mengirim; mungkin sudah diterima. Jangan kirim ulang.' },
+        }).catch(() => undefined);
         const [sentCount, failedCount, pending] = await Promise.all([
             this.prisma.waBroadcastRecipient.count({ where: { broadcastId: id, status: { in: ['SENT', 'DELIVERED', 'READ'] } } }),
             this.prisma.waBroadcastRecipient.count({ where: { broadcastId: id, status: 'FAILED' } }),

@@ -59,7 +59,7 @@ export class PrinterRelayRegistry {
      * Long-poll agen. Kalau ada job antri → langsung kembalikan. Kalau tidak →
      * tahan sampai ada job masuk atau timeout (kembalikan null).
      */
-    waitForJob(branchId: number, timeoutMs: number): Promise<RelayJob | null> {
+    waitForJob(branchId: number, timeoutMs: number, batal?: AbortSignal): Promise<RelayJob | null> {
         this.markSeen(branchId);
         const q = this.queues.get(branchId);
         if (q && q.length > 0) {
@@ -75,6 +75,13 @@ export class PrinterRelayRegistry {
                     resolve(null);
                 }, timeoutMs),
             };
+            // Agen memutus koneksi (menyerah & poll ulang): keluarkan penantinya. Dulu penanti "mati"
+            // tetap di depan antrean → job berikutnya diserahkan ke koneksi yang sudah putus (hilang).
+            batal?.addEventListener('abort', () => {
+                clearTimeout(waiter.timer);
+                this.removeWaiter(branchId, waiter);
+                resolve(null);
+            }, { once: true });
             const list = this.waiters.get(branchId) ?? [];
             list.push(waiter);
             this.waiters.set(branchId, list);

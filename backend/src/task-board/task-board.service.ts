@@ -315,7 +315,12 @@ export class TaskBoardService {
     let created = 0;
     for (const s of schedules) {
       if (s.shiftSlot) continue;
-      if (matchesOn(s, date)) created += await this.materializeSchedule(s, date);
+      // Satu jadwal gagal (mis. DB sesaat sibuk) tidak boleh menghentikan jadwal lain hari itu.
+      try {
+        if (matchesOn(s, date)) created += await this.materializeSchedule(s, date);
+      } catch (e) {
+        this.logger.error(`Jadwal #${s.id} gagal dibuatkan kartu: ${(e as Error).message}`);
+      }
     }
     this.logger.log(
       `generateDue(${periodKeyFor(date)}): ${created} kartu dari ${schedules.length} jadwal`,

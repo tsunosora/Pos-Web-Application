@@ -286,10 +286,11 @@ export class BranchLedgerService {
             );
         }
 
-        // Authorization: Owner bebas. Staff hanya boleh kalau branchId = fromBranch atau toBranch.
+        // Authorization: Owner bebas. Staf hanya cabang PEMBAYAR (sama dgn bayar pakai bahan) — dulu
+        // cabang penerima juga bisa, sehingga bisa mencatat pengeluaran kas di buku cabang lain.
         if (!ctx.isOwner) {
-            if (ctx.branchId !== fromBranchId && ctx.branchId !== toBranchId) {
-                throw new ForbiddenException('Anda tidak punya akses untuk melunasi ledger ini');
+            if (ctx.branchId !== fromBranchId) {
+                throw new ForbiddenException('Pelunasan tunai dicatat oleh cabang yang berhutang (atau owner).');
             }
         }
 

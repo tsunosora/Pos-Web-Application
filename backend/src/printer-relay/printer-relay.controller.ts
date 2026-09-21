@@ -10,6 +10,7 @@ import {
     Patch,
     Post,
     Query,
+    Res,
     UnauthorizedException,
     UseGuards,
 } from '@nestjs/common';
@@ -38,12 +39,14 @@ export class PrinterRelayController {
 
     /** Long-poll: agen menanyakan job. Ditahan sampai ada job atau ~25s. */
     @Get('poll')
-    async poll(@Headers('x-printer-token') token?: string) {
+    async poll(@Headers('x-printer-token') token: string | undefined, @Res({ passthrough: true }) res: any) {
         const dev = await this.service.deviceByToken(token);
         if (!dev) throw new UnauthorizedException('Token printer tidak valid.');
         this.registry.markSeen(dev.branchId);
-        await this.service.touchLastSeen(dev.id);
-        const job = await this.registry.waitForJob(dev.branchId, POLL_HOLD_MS);
+        void this.service.touchLastSeen(dev.id); // tak ditunggu — jangan tahan poll saat disk lambat
+        const putus = new AbortController();
+        res?.on?.('close', () => { if (!res.writableEnded) putus.abort(); });
+        const job = await this.registry.waitForJob(dev.branchId, POLL_HOLD_MS, putus.signal);
         return { job }; // { job: null } bila timeout — agen poll lagi
     }
 

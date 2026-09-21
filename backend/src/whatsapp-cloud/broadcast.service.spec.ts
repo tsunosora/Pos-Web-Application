@@ -92,6 +92,7 @@ describe('BroadcastService', () => {
                 },
                 waBroadcastRecipient: {
                     findFirst,
+                    updateMany: jest.fn().mockResolvedValue({ count: 1 }), // reservasi sentAt + penutupan "tidak pasti"
                     update: jest.fn().mockResolvedValue({}),
                     count: jest.fn().mockResolvedValueOnce(1).mockResolvedValueOnce(0).mockResolvedValueOnce(0),
                 },

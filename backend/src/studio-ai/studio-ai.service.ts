@@ -237,6 +237,8 @@ export class StudioAiService {
           ...(cfg.apiKey ? { Authorization: `Bearer ${cfg.apiKey}` } : {}),
         },
         body: JSON.stringify({ model: cfg.model, messages, temperature, stream: true }),
+        // Batas 2 menit untuk seluruh jawaban: host AI yang diam dulu menahan permintaan selamanya.
+        signal: AbortSignal.timeout(120_000),
       });
     } catch (e: any) {
       throw this.mapUpstreamError(e, cfg);

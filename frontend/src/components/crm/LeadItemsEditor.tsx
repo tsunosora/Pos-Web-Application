@@ -47,7 +47,9 @@ interface VariantOption {
 
 /** Harga satuan sesuai tier qty (mode UNIT, sama dengan POS/manajemen stok) — fallback harga dasar. */
 function tierPrice(qty: number, basePrice: number, tiers: PriceTier[]): number {
-    const hit = (tiers || []).find(t => qty >= t.minQty && (t.maxQty == null || qty <= t.maxQty));
+    // Tier dengan minimal TERBESAR yang cocok (sama dgn kasir & server) — dulu tier pertama yang cocok,
+    // sehingga "min 10" menang atas "min 50" untuk qty 60.
+    const hit = [...(tiers || [])].sort((a, b) => b.minQty - a.minQty).find(t => qty >= t.minQty && (t.maxQty == null || qty <= t.maxQty));
     return hit ? hit.price : basePrice;
 }
 

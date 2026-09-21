@@ -101,14 +101,26 @@ export class RemindersService {
             if (ambil.count !== 1) return; // sudah terkirim / sedang dikirim proses lain
         }
 
+        let waMessageId: string | null = null;
         try {
-            const { waMessageId } = await this.cloud.sendTemplate(
+            ({ waMessageId } = await this.cloud.sendTemplate(
                 channel.phoneNumberId, waId, template.name, template.language, this.buildComponents(variables),
-            );
-            await log('SENT', undefined, contact?.id ?? null, waMessageId);
+            ));
         } catch (e) {
-            await log('FAILED', (e as Error).message, contact?.id ?? null);
+            await log('FAILED', (e as Error).message, contact?.id ?? null).catch(() => undefined);
             this.logger.warn(`Reminder ${eventType}#${refId} gagal: ${(e as Error).message}`);
+            return;
+        }
+        // Terkirim: catat SENT (diulang bila DB sibuk). Bila tetap gagal, baris dibiarkan SENDING —
+        // dulu jatuh ke FAILED lalu bisa diklaim ulang & template berbayar terkirim lagi.
+        for (let coba = 1; coba <= 3; coba++) {
+            try {
+                await log('SENT', undefined, contact?.id ?? null, waMessageId);
+                return;
+            } catch (e) {
+                if (coba === 3) this.logger.error(`Reminder ${eventType}#${refId} TERKIRIM tapi gagal dicatat: ${(e as Error).message}`);
+                else await new Promise((r) => setTimeout(r, 1000 * coba));
+            }
         }
     }
 
@@ -173,7 +185,12 @@ export class RemindersService {
             const eventType: ReminderEvent = fu.type === 'PAYMENT_REMINDER' ? 'PAYMENT_DUE' : 'FOLLOWUP_DUE';
             // Variabel ke-2 = tanggal jatuh tempo, BUKAN catatan FU (catatan internal tim).
             const jatuhTempo = fu.dueDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-            await this.send(eventType, fu.id, phone, [name, jatuhTempo]);
+            try {
+                await this.send(eventType, fu.id, phone, [name, jatuhTempo]);
+            } catch (e) {
+                // Satu baris gagal (mis. DB sesaat sibuk) tidak menghentikan sapuan FU lainnya.
+                this.logger.warn(`Pengingat FU#${fu.id} dilewati: ${(e as Error).message}`);
+            }
         }
     }
 }
