@@ -89,6 +89,7 @@ model User {
   waMessagesSent        WaMessage[]              @relation("WaMessageSender")
   socialConversations   SocialConversation[]
   socialMessagesSent    SocialMessage[]          @relation("SocialMessageSentBy")
+  socialCommentsSent    SocialComment[]          @relation("SocialCommentSentBy")
   // Papan Tugas Karyawan
   taskSchedulesAssigned TaskSchedule[]           @relation("TaskScheduleAssignee")
   taskSchedulesCreated  TaskSchedule[]           @relation("TaskScheduleCreatedBy")
@@ -1963,6 +1964,7 @@ model Lead {
   images            LeadImage[]
   waContacts        WaContact[]
   socialContacts    SocialContact[]
+  socialComments    SocialComment[]
 
   @@index([status, followUpDate])
   @@index([assignedToId, status])
@@ -2508,6 +2510,8 @@ model SocialChannel {
   conversations SocialConversation[]
   messages      SocialMessage[]
   contacts      SocialContact[]
+  posts         SocialPost[]
+  comments      SocialComment[]
 
   @@index([platform])
   @@map("social_channels")
@@ -2576,6 +2580,65 @@ model SocialMessage {
   @@unique([externalId])
   @@index([conversationId, id])
   @@map("social_messages")
+}
+
+/// Postingan IG (media) / Facebook Page yang dikomentari. Info postingan diambil
+/// sekali dari Graph API saat komentar pertama masuk (atau saat sinkron).
+model SocialPost {
+  id         Int       @id @default(autoincrement())
+  channelId  Int       @map("channel_id")
+  externalId String    @map("external_id") @db.VarChar(128) // media id IG / post id FB
+  caption    String?   @db.Text
+  permalink  String?   @db.Text
+  mediaUrl   String?   @map("media_url") @db.Text // gambar/thumbnail (URL CDN Meta bisa kedaluwarsa)
+  postedAt   DateTime? @map("posted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  channel  SocialChannel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  comments SocialComment[]
+
+  @@unique([channelId, externalId])
+  @@map("social_posts")
+}
+
+/// Komentar postingan IG / Facebook Page. Satu baris = satu komentar. Komentar
+/// teratas (rootId null) sekaligus berperan sebagai "utas" di inbox: kolom
+/// isRead/needsReply/lastActivityAt/leadId hanya dirawat di baris akar.
+model SocialComment {
+  id               Int             @id @default(autoincrement())
+  channelId        Int             @map("channel_id")
+  postId           Int             @map("post_id")
+  rootId           Int?            @map("root_id") // null = komentar teratas (utas)
+  externalId       String          @map("external_id") @db.VarChar(128) // id komentar Meta (dedup)
+  authorExternalId String?         @map("author_external_id") @db.VarChar(64)
+  authorName       String?         @map("author_name") @db.VarChar(200) // username IG / nama FB
+  direction        SocialDirection
+  body             String?         @db.Text
+  isHidden         Boolean         @default(false) @map("is_hidden")
+  isDeleted        Boolean         @default(false) @map("is_deleted")
+  privateReplyAt   DateTime?       @map("private_reply_at") // sudah dibalas via DM (Meta: maks 1x per komentar)
+  sentById         Int?            @map("sent_by_id") // user PosPro yang membalas (outbound)
+  commentedAt      DateTime        @map("commented_at") // waktu komentar menurut Meta
+  // ── khusus baris akar (utas) ──
+  isRead           Boolean         @default(true) @map("is_read")
+  needsReply       Boolean         @default(false) @map("needs_reply")
+  lastActivityAt   DateTime?       @map("last_activity_at")
+  leadId           Int?            @map("lead_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  channel SocialChannel   @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  post    SocialPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  root    SocialComment?  @relation("SocialCommentThread", fields: [rootId], references: [id], onDelete: Cascade)
+  replies SocialComment[] @relation("SocialCommentThread")
+  sentBy  User?           @relation("SocialCommentSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  lead    Lead?           @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@unique([channelId, externalId])
+  @@index([rootId, lastActivityAt])
+  @@index([channelId, rootId, isRead])
+  @@map("social_comments")
 }
 
 /// QR "klik-untuk-chat" WhatsApp kustom per sumber (Walk-in, Brosur, dll).

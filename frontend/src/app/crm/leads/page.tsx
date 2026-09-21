@@ -152,6 +152,13 @@ export default function LeadsPage() {
     const [formOpen, setFormOpen] = useState(false);
     const [editingLead, setEditingLead] = useState<Lead | null>(null);
     const [detailId, setDetailId] = useState<number | null>(null);
+    // Buka detail langsung dari tautan ?leadId= (dipakai inbox WhatsApp & Inbox Sosial).
+    useEffect(() => {
+        const id = Number(new URLSearchParams(window.location.search).get("leadId"));
+        // URL baru terbaca setelah hidrasi, jadi state memang diisi dari effect.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (id > 0) setDetailId(id);
+    }, []);
     const [exportOpen, setExportOpen] = useState(false);
     const me = useCurrentUser();
     // Export massal data pelanggan: Owner/Admin/Manajer (sama dgn pembatasan di backend).

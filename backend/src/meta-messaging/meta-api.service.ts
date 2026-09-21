@@ -1,6 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { SocialPlatform } from '@prisma/client';
 
+export interface GraphPost {
+    id: string;
+    caption: string | null;
+    permalink: string | null;
+    mediaUrl: string | null;
+    postedAt: Date | null;
+    commentsCount: number | null; // null = tak diketahui
+}
+export interface GraphComment {
+    id: string;
+    text: string | null;
+    at: Date;
+    authorId: string | null;
+    authorName: string | null;
+    hidden: boolean;
+    replies: GraphComment[];
+}
+
 /**
  * Graph API untuk Messenger & Instagram.
  * - MESSENGER: graph.facebook.com, Page access token, POST /{pageId}/messages.
@@ -60,6 +78,106 @@ export class MetaApiService {
         } catch {
             return null;
         }
+    }
+
+    // ─── Komentar postingan ───────────────────────────────────────────────────
+    // Izin: IG = instagram_business_manage_comments; FB Page = pages_read_engagement,
+    // pages_read_user_content, pages_manage_engagement. Private reply butuh izin DM.
+
+    /** Balas komentar secara publik. IG: /{comment}/replies; FB: /{comment}/comments. */
+    async replyComment(platform: SocialPlatform, commentId: string, token: string, text: string): Promise<{ id: string | null }> {
+        const path = platform === 'INSTAGRAM' ? `${commentId}/replies` : `${commentId}/comments`;
+        const json = await this.graph(this.base(platform), 'POST', path, token, { message: text });
+        return { id: json?.id ? String(json.id) : null };
+    }
+
+    /** Sembunyikan / tampilkan lagi komentar. */
+    async setCommentHidden(platform: SocialPlatform, commentId: string, token: string, hidden: boolean): Promise<void> {
+        await this.graph(this.base(platform), 'POST', commentId, token, platform === 'INSTAGRAM' ? { hide: hidden } : { is_hidden: hidden });
+    }
+
+    /**
+     * Balas komentar lewat DM ("private reply"). `id` = igId / pageId.
+     * Aturan Meta: sekali per komentar, paling lama 7 hari setelah komentar dibuat.
+     */
+    async privateReply(platform: SocialPlatform, id: string, token: string, commentId: string, text: string): Promise<{ recipientId: string | null; messageId: string | null }> {
+        const json = await this.graph(this.base(platform), 'POST', `${id}/messages`, token, {
+            recipient: { comment_id: commentId },
+            message: { text },
+        });
+        return { recipientId: json?.recipient_id ? String(json.recipient_id) : null, messageId: json?.message_id ?? null };
+    }
+
+    /** Info satu postingan (caption, tautan, gambar). */
+    async getPost(platform: SocialPlatform, postId: string, token: string): Promise<GraphPost> {
+        const fields = platform === 'INSTAGRAM'
+            ? 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count'
+            : 'id,message,permalink_url,full_picture,created_time';
+        return this.toPost(platform, await this.graph(this.base(platform), 'GET', `${postId}?fields=${fields}`, token));
+    }
+
+    /** Postingan terbaru akun. `id` = igId / pageId. */
+    async listRecentPosts(platform: SocialPlatform, id: string, token: string, limit = 15): Promise<GraphPost[]> {
+        const path = platform === 'INSTAGRAM'
+            ? `${id}/media?fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,comments_count&limit=${limit}`
+            : `${id}/posts?fields=id,message,permalink_url,full_picture,created_time,comments.summary(true).limit(0)&limit=${limit}`;
+        const json = await this.graph(this.base(platform), 'GET', path, token);
+        return (json?.data ?? []).map((p: any) => this.toPost(platform, p));
+    }
+
+    /** Satu komentar (dipakai bila balasan masuk untuk komentar yang belum tercatat). */
+    async getComment(platform: SocialPlatform, commentId: string, token: string): Promise<GraphComment> {
+        const fields = platform === 'INSTAGRAM' ? 'id,text,timestamp,username,from,hidden' : 'id,message,created_time,from,is_hidden';
+        return this.toComment(platform, await this.graph(this.base(platform), 'GET', `${commentId}?fields=${fields}`, token));
+    }
+
+    /** Komentar teratas sebuah postingan beserta balasannya. */
+    async listPostComments(platform: SocialPlatform, postId: string, token: string): Promise<GraphComment[]> {
+        const path = platform === 'INSTAGRAM'
+            ? `${postId}/comments?fields=id,text,timestamp,username,from,hidden,replies{id,text,timestamp,username,from,hidden}&limit=50`
+            : `${postId}/comments?filter=toplevel&order=reverse_chronological&limit=50&fields=id,message,created_time,from,is_hidden,comments.limit(50){id,message,created_time,from,is_hidden}`;
+        const json = await this.graph(this.base(platform), 'GET', path, token);
+        return (json?.data ?? []).map((c: any) => this.toComment(platform, c));
+    }
+
+    /**
+     * Langganan webhook untuk akun ini (tanpa ini Meta tidak mengirim event walau
+     * webhook aplikasi sudah terverifikasi). IG Login: /me/subscribed_apps;
+     * FB Page: /{pageId}/subscribed_apps dengan Page token.
+     */
+    async subscribeApp(platform: SocialPlatform, id: string, token: string): Promise<string[]> {
+        const fields = platform === 'INSTAGRAM' ? 'comments,messages' : 'feed,messages';
+        const target = platform === 'INSTAGRAM' ? 'me' : id;
+        await this.graph(this.base(platform), 'POST', `${target}/subscribed_apps?subscribed_fields=${fields}`, token);
+        return fields.split(',');
+    }
+
+    private toPost(platform: SocialPlatform, p: any): GraphPost {
+        const ig = platform === 'INSTAGRAM';
+        const count = ig ? p?.comments_count : p?.comments?.summary?.total_count;
+        return {
+            id: String(p?.id ?? ''),
+            caption: (ig ? p?.caption : p?.message) ?? null,
+            permalink: (ig ? p?.permalink : p?.permalink_url) ?? null,
+            mediaUrl: (ig ? (p?.media_type === 'VIDEO' ? p?.thumbnail_url : p?.media_url) : p?.full_picture) ?? null,
+            postedAt: (ig ? p?.timestamp : p?.created_time) ? new Date(ig ? p.timestamp : p.created_time) : null,
+            commentsCount: typeof count === 'number' ? count : null,
+        };
+    }
+
+    private toComment(platform: SocialPlatform, c: any): GraphComment {
+        const ig = platform === 'INSTAGRAM';
+        const at = ig ? c?.timestamp : c?.created_time;
+        const replies = ig ? c?.replies?.data : c?.comments?.data;
+        return {
+            id: String(c?.id ?? ''),
+            text: (ig ? c?.text : c?.message) ?? null,
+            at: at ? new Date(at) : new Date(),
+            authorId: c?.from?.id ? String(c.from.id) : null,
+            authorName: (ig ? (c?.username || c?.from?.username) : c?.from?.name) ?? null,
+            hidden: !!(ig ? c?.hidden : c?.is_hidden),
+            replies: Array.isArray(replies) ? replies.map((r: any) => this.toComment(platform, r)) : [],
+        };
     }
 
     // ─── Jalur Facebook Page (Messenger / IG-via-Page) — helper opsional ──────

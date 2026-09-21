@@ -121,8 +121,8 @@ export class SocialInboxService {
     }
 
     // ─── Diagnostik webhook (apakah Meta menghubungi server kita?) ───────────
-    private lastWebhook: { at: string; object: string | null; entries: number; signatureOk: boolean | null } | null = null;
-    recordWebhookHit(info: { object: string | null; entries: number; signatureOk: boolean | null }) {
+    private lastWebhook: { at: string; object: string | null; entries: number; fields: string; signatureOk: boolean | null } | null = null;
+    recordWebhookHit(info: { object: string | null; entries: number; fields: string; signatureOk: boolean | null }) {
         this.lastWebhook = { at: new Date().toISOString(), ...info };
     }
     webhookDebug() {
@@ -211,7 +211,8 @@ export class SocialInboxService {
         const take = Math.min(Math.max(opts.take ?? 30, 1), 100);
         const where: any = {};
         if (opts.platform) where.channel = { platform: opts.platform };
-        if (opts.branchId) where.channel = { ...(where.channel || {}), branchId: opts.branchId };
+        // Channel tanpa cabang = milik semua cabang, jadi tetap tampil untuk staf cabang.
+        if (opts.branchId) where.channel = { ...(where.channel || {}), OR: [{ branchId: opts.branchId }, { branchId: null }] };
         if (opts.q) where.contact = { OR: [{ name: { contains: opts.q } }, { externalId: { contains: opts.q } }] };
         const rows = await this.prisma.socialConversation.findMany({
             where,

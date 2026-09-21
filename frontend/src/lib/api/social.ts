@@ -65,7 +65,7 @@ export const detectSocialInstagram = async (pageId: string, accessToken: string)
     (await api.post('/social/detect-ig', { pageId, accessToken })).data;
 
 // Diagnostik: webhook terakhir yang diterima server dari Meta.
-export interface SocialWebhookDebug { lastWebhook: { at: string; object: string | null; entries: number; signatureOk: boolean | null } | null }
+export interface SocialWebhookDebug { lastWebhook: { at: string; object: string | null; entries: number; fields?: string; signatureOk: boolean | null } | null }
 export const getSocialWebhookDebug = async (): Promise<SocialWebhookDebug> => (await api.get('/social/webhook-debug')).data;
 
 // Tes token + akses akun sebelum simpan.
@@ -83,3 +83,66 @@ export const getSocialMessages = async (id: number, params: { cursor?: number; t
     (await api.get(`/social/conversations/${id}/messages`, { params })).data;
 export const replySocial = async (id: number, text: string): Promise<SocialMessage> =>
     (await api.post(`/social/conversations/${id}/reply`, { text })).data;
+
+// ─── Penghitung tab & prospek ────────────────────────────────────────────────
+export interface SocialCounts {
+    dm: Record<SocialPlatform, number>;       // percakapan DM belum dibaca
+    comments: Record<SocialPlatform, number>; // utas komentar belum dibaca
+}
+export const getSocialCounts = async (): Promise<SocialCounts> => (await api.get('/social/counts')).data;
+export const createLeadFromSocialContact = async (contactId: number): Promise<{ leadId: number; existed: boolean }> =>
+    (await api.post(`/social/contacts/${contactId}/lead`)).data;
+export const subscribeSocialChannel = async (id: number): Promise<{ ok: boolean; fields: string[] }> =>
+    (await api.post(`/social/channels/${id}/subscribe`)).data;
+
+// ─── Komentar postingan IG / FB ──────────────────────────────────────────────
+export interface SocialPostLite {
+    id: number;
+    externalId: string;
+    caption: string | null;
+    permalink: string | null;
+    mediaUrl: string | null;
+    postedAt: string | null;
+}
+export interface SocialComment {
+    id: number;
+    rootId: number | null;
+    externalId: string;
+    authorExternalId: string | null;
+    authorName: string | null;
+    direction: 'INBOUND' | 'OUTBOUND';
+    body: string | null;
+    isHidden: boolean;
+    privateReplyAt: string | null;
+    commentedAt: string;
+    sentBy?: { id: number; name: string | null } | null;
+}
+/** Komentar teratas = utas. `replies` di daftar hanya berisi 1 balasan terakhir. */
+export interface SocialCommentThread extends SocialComment {
+    isRead: boolean;
+    needsReply: boolean;
+    lastActivityAt: string | null;
+    post: SocialPostLite;
+    channel: { id: number; label: string; platform: SocialPlatform; branchId: number | null };
+    lead: { id: number; name: string; status: string } | null;
+    replies: SocialComment[];
+    _count?: { replies: number };
+    otherThreadsOnPost?: number;
+}
+export type CommentFilter = 'all' | 'unread' | 'needs_reply' | 'hidden';
+export interface CommentSyncResult {
+    results: Array<{ channelId: number; label: string; platform: SocialPlatform; posts: number; added: number; error: string | null }>;
+}
+
+export const listSocialComments = async (params: { platform?: SocialPlatform; filter?: CommentFilter; q?: string; take?: number } = {}): Promise<Paged<SocialCommentThread>> =>
+    (await api.get('/social/comments', { params: { ...params, filter: params.filter === 'all' ? undefined : params.filter } })).data;
+export const getSocialCommentThread = async (id: number): Promise<SocialCommentThread> => (await api.get(`/social/comments/${id}`)).data;
+export const replySocialComment = async (id: number, body: { text: string; mode: 'public' | 'private'; targetId?: number }) =>
+    (await api.post(`/social/comments/${id}/reply`, body)).data;
+export const hideSocialComment = async (id: number, hidden: boolean): Promise<{ ok: boolean }> =>
+    (await api.post(`/social/comments/${id}/hide`, { hidden })).data;
+export const updateSocialCommentThread = async (id: number, body: { isRead?: boolean; needsReply?: boolean }): Promise<{ ok: boolean }> =>
+    (await api.patch(`/social/comments/${id}`, body)).data;
+export const createLeadFromSocialComment = async (id: number): Promise<{ leadId: number; existed: boolean }> =>
+    (await api.post(`/social/comments/${id}/lead`)).data;
+export const syncSocialComments = async (): Promise<CommentSyncResult> => (await api.post('/social/comments/sync')).data;
