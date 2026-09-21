@@ -322,6 +322,27 @@ Bahan pasang (rangka dan sejenisnya) dipotong **per pcs** saat *Mulai Pasang*
 (job 5 pcs = 5 set), dan dikembalikan bila itemnya dihapus lewat edit nota.
 Gabung cetak (batch) yang memotong roll harus berisi job **satu cabang**.
 
+## Perbaikan papan produksi & cetak (22 September 2026, putaran 9)
+
+- **Edit nota tidak lagi membuat ulang job produksi.** Dulu setiap edit — bahkan
+  hanya ganti nama pelanggan — menghapus lalu membuat ulang job yang masih
+  *Antrian*: bukti desain, tahap pipeline, desainer, status batal dan kredit
+  KPI ikut hilang.
+- **"Selesai Semua" pada gabung cetak** mengirim produk berperakitan ke *Menunggu
+  Pasang* (dulu langsung Selesai dan bahan rangka tak pernah dipotong). Gabung
+  cetak wajib berisi job (bukan sub order).
+- Detail kartu menampilkan **status bayar** nota (Lunas / BELUM LUNAS + sisa) dan
+  total yang benar; "Konfirmasi Semua Diambil" meminta konfirmasi dulu.
+- **PIN papan wajib memilih cabang**; tanpa cabang dulu terbit akses semua cabang.
+- **Kredit operator** memakai nama dari PIN pribadi (bukan nama yang dikirim
+  perangkat).
+- Papan pipeline yang PIN cabangnya sudah diganti otomatis kembali ke layar PIN
+  (dulu terus mencoba dan mengunci IP toko untuk semua layar PIN).
+- Daftar papan produksi memuat riwayat *Diambil* 14 hari terakhir saja (dulu
+  seluruh riwayat ±2.200 job terkirim tiap 30 detik ke setiap tablet).
+- Qty item cetak kertas yang diedit kini ikut mengubah antrian /cetak dan catatan
+  kliknya; aksi di /cetak yang gagal menampilkan alasannya.
+
 ## FAQ Produksi
 
 **Q: Mengapa job tidak muncul di antrian padahal sudah ada transaksi?**

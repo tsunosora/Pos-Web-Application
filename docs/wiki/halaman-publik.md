@@ -87,6 +87,27 @@ Alasannya praktis: di ruang produksi, satu perangkat dipakai bergantian
 sepanjang hari, dan mengetik email + sandi setiap kali tidak akan dilakukan.
 Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 
+## Pengetatan halaman publik (22 September 2026)
+
+- **Katalog publik** (`/products/public`) tidak lagi memuat angka stok persis
+  (hanya tersedia/habis), riwayat stok, maupun resep bahan. Produk yang
+  **diarsipkan** tidak tampil di `/p/:id`; website toko juga berhenti memakai
+  salinan lama untuk produk yang sudah tidak ada (perlu unggah ulang
+  `toko/lib.php` ke hosting).
+- **Produk terlaris** disimpan 10 menit dan dihitung dari nota lunas 90 hari
+  terakhir (dulu memindai seluruh nota setiap kunjungan).
+- Halaman produk memakai satuan yang benar (**/cm²** untuk produk per cm²) dan
+  tidak menampilkan harga bertingkat untuk produk ukuran (kasir tidak memakainya).
+- Batas order publik: permintaan dari website toko tidak ikut pengaman global,
+  sehingga serangan langsung ke API tidak memblokir order pelanggan asli.
+- Daftar cabang publik tidak lagi memuat target omzet harian.
+- QR penilaian CS tidak menampilkan karyawan yang sudah keluar; cabang nonaktif
+  tidak menerima penilaian.
+- Link opname: produk arsip tidak ikut dihitung; varian ganda/tak dikenal dan
+  nama terlalu panjang ditangani tanpa galat.
+- Tombol WhatsApp di landing mengubah nomor 08… menjadi 628… (dulu tautan tidak
+  valid).
+
 ## Yang sebaiknya tidak dibuka ke internet
 
 `/tv/leaderboard` menampilkan omzet dan nama karyawan. Halaman ini tanpa login
