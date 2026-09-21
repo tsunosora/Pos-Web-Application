@@ -151,6 +151,8 @@ export class SocialInboxService {
 
     // ─── Webhook ingest ──────────────────────────────────────────────────────
     /** Titik masuk webhook Messenger/Instagram. Tak pernah melempar. */
+    private readonly antrePengirim = new Map<string, Promise<unknown>>();
+
     async ingestWebhook(body: any): Promise<void> {
         const platform: SocialPlatform | null =
             body?.object === 'page' ? 'MESSENGER' : body?.object === 'instagram' ? 'INSTAGRAM' : null;
@@ -160,7 +162,13 @@ export class SocialInboxService {
             const channel = await this.resolveChannel(platform, entryId);
             for (const ev of entry?.messaging ?? []) {
                 try {
-                    await this.handleEvent(channel, platform, ev);
+                    // Berurutan per pengirim: dua pesan pertama yang datang bersamaan dulu sama-sama membuat
+                    // kontak → satu gagal (unik) & pesannya hilang, atau terbentuk dua percakapan.
+                    const kunci = `${platform}:${ev?.sender?.id ?? 'anon'}`;
+                    const sebelumnya = this.antrePengirim.get(kunci) ?? Promise.resolve();
+                    const kerja = sebelumnya.catch(() => undefined).then(() => this.handleEvent(channel, platform, ev));
+                    this.antrePengirim.set(kunci, kerja);
+                    try { await kerja; } finally { if (this.antrePengirim.get(kunci) === kerja) this.antrePengirim.delete(kunci); }
                 } catch (e) {
                     this.logger.error(`Gagal proses event ${platform}: ${(e as Error).message}`);
                 }
@@ -200,9 +208,15 @@ export class SocialInboxService {
         let contact = await this.prisma.socialContact.findUnique({ where: { channelId_externalId: { channelId: channel.id, externalId: senderId } } });
         if (!contact) {
             const name = await this.meta.getProfileName(platform, senderId, channel.accessToken);
-            contact = await this.prisma.socialContact.create({
-                data: { channelId: channel.id, platform, externalId: senderId, name },
-            });
+            try {
+                contact = await this.prisma.socialContact.create({
+                    data: { channelId: channel.id, platform, externalId: senderId, name },
+                });
+            } catch (e: any) {
+                if (e?.code !== 'P2002') throw e; // dibuat proses lain (mis. sinkron) → pakai yang ada
+                contact = await this.prisma.socialContact.findUnique({ where: { channelId_externalId: { channelId: channel.id, externalId: senderId } } });
+                if (!contact) throw e;
+            }
         }
 
         const openConv = await this.prisma.socialConversation.findFirst({

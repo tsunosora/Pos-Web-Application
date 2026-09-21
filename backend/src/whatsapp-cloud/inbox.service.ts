@@ -785,14 +785,15 @@ export class InboxService {
                 where: { waMessageId },
                 data: { status: mapped as any },
             });
-            await this.logEvent('status', waMessageId, st, upd.count ? undefined : 'pesan tak ditemukan utk status ini');
+            // Status sukses tak dicatat lagi (±3 baris per pesan, 71% isi tabel log & tak pernah dibaca);
+            // yang gagal tetap dicatat untuk jejak.
+            if (!upd.count) await this.logEvent('status', waMessageId, st, 'pesan tak ditemukan utk status ini');
             return;
         }
 
         // Jangan mundurkan status (read → delivered). Urutan: SENT<DELIVERED<READ.
         const rank: Record<string, number> = { QUEUED: 0, SENT: 1, DELIVERED: 2, READ: 3, FAILED: 1 };
         if (mapped !== 'FAILED' && rank[existing.status] >= rank[mapped]) {
-            await this.logEvent('status', waMessageId, st);
             return;
         }
 
@@ -809,7 +810,7 @@ export class InboxService {
         // Tanpa ini status baru terlihat saat polling cadangan 20 dtk — agen keburu
         // pindah percakapan dan mengira pesan masih "jam" (menunggu).
         this.waEvents.emitMessage(existing.conversationId);
-        await this.logEvent('status', waMessageId, st);
+        if (mapped === 'FAILED') await this.logEvent('status', waMessageId, st);
     }
 
     // ─── Query & aksi inbox (Fase 4) ─────────────────────────────────────────
