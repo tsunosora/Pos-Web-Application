@@ -13,6 +13,16 @@ export interface CreateSocialChannelInput {
     branchId?: number | null;
 }
 
+/**
+ * Pesan otomatis Meta saat ada komentar di postingan ("Facebook membuat obrolan ini
+ * karena X mengomentari postingan Anda…"). Meta mencatatnya seolah dikirim si
+ * pengomentar, padahal bukan tulisan pelanggan (pelanggan bahkan belum melihatnya)
+ * → disimpan bertipe SYSTEM dan tidak dihitung "belum dibaca" (komentarnya sudah
+ * dihitung di tab Komentar).
+ */
+const PLATFORM_NOTICE_RE = /^(Facebook|Instagram|Meta) (membuat obrolan ini|created this (chat|conversation))\b/i;
+export const isPlatformNotice = (text?: string | null) => !!text && PLATFORM_NOTICE_RE.test(text.trim());
+
 const CONTACT_SELECT = {
     id: true, externalId: true, name: true, platform: true, leadId: true, customerId: true,
     lead: { select: { id: true, name: true, status: true } },
@@ -171,7 +181,8 @@ export class SocialInboxService {
         }
 
         const att = Array.isArray(msg?.attachments) ? msg.attachments[0] : null;
-        const type = att ? (att.type || 'IMAGE').toUpperCase() : 'TEXT';
+        const notice = isPlatformNotice(msg?.text);
+        const type = notice ? 'SYSTEM' : att ? (att.type || 'IMAGE').toUpperCase() : 'TEXT';
         const body: string | null = msg?.text ?? (att ? `[${(att.type || 'lampiran')}]` : null);
         const mediaUrl: string | null = att?.payload?.url ?? null;
         const now = new Date();
@@ -190,8 +201,8 @@ export class SocialInboxService {
             orderBy: { createdAt: 'desc' },
         });
         const conv = openConv
-            ? await this.prisma.socialConversation.update({ where: { id: openConv.id }, data: { status: 'OPEN', lastMessageAt: now, unreadCount: { increment: 1 } } })
-            : await this.prisma.socialConversation.create({ data: { channelId: channel.id, contactId: contact.id, status: 'OPEN', lastMessageAt: now, unreadCount: 1 } });
+            ? await this.prisma.socialConversation.update({ where: { id: openConv.id }, data: { status: 'OPEN', lastMessageAt: now, ...(notice ? {} : { unreadCount: { increment: 1 } }) } })
+            : await this.prisma.socialConversation.create({ data: { channelId: channel.id, contactId: contact.id, status: 'OPEN', lastMessageAt: now, unreadCount: notice ? 0 : 1 } });
 
         await this.prisma.socialMessage.create({
             data: {
@@ -286,8 +297,17 @@ export class SocialInboxService {
     // lahir dari webhook (lastMessageAt = sekarang) tetap diambil sekali supaya
     // riwayat lamanya ikut masuk; setelah itu hanya bila ada aktivitas baru.
     private readonly syncedConvs = new Set<string>();
+    private noticesTagged = false;
 
     async syncDms(channel: SocialChannel): Promise<{ conversations: number; added: number }> {
+        if (!this.noticesTagged) {
+            // Pesan otomatis Meta yang tersimpan sebelum aturan SYSTEM ada.
+            await this.prisma.socialMessage.updateMany({
+                where: { type: { not: 'SYSTEM' }, OR: [{ body: { startsWith: 'Facebook membuat obrolan ini' } }, { body: { startsWith: 'Facebook created this' } }] },
+                data: { type: 'SYSTEM' },
+            });
+            this.noticesTagged = true;
+        }
         const ownIds = new Set([channel.igId, channel.pageId].filter(Boolean) as string[]);
         const accountId = channel.platform === 'INSTAGRAM' ? (channel.igId || channel.pageId) : channel.pageId;
         const convs = await this.meta.listConversations(channel.platform, accountId, channel.accessToken, 25);
@@ -308,7 +328,8 @@ export class SocialInboxService {
             const key = `${channel.id}:${c.id}`;
             if (this.syncedConvs.has(key) && conv?.lastMessageAt && c.updatedAt <= conv.lastMessageAt) continue; // tak ada yang baru
 
-            const msgs = await this.meta.listConversationMessages(channel.platform, c.id, channel.accessToken, 20);
+            // Satu id pesan dihitung sekali walau terkirim ganda dari API.
+            const msgs = [...new Map((await this.meta.listConversationMessages(channel.platform, c.id, channel.accessToken, 20)).map((m) => [m.id, m])).values()];
             this.syncedConvs.add(key);
             if (!msgs.length) continue;
             if (!contact) {
@@ -343,7 +364,7 @@ export class SocialInboxService {
                     contactId: contact!.id,
                     externalId: m.id,
                     direction: outbound(m) ? SocialDirection.OUTBOUND : SocialDirection.INBOUND,
-                    type: m.type,
+                    type: isPlatformNotice(m.text) ? 'SYSTEM' : m.type,
                     body: m.text ?? (m.type === 'UNSUPPORTED'
                         ? `[Pesan tidak didukung API — buka di ${channel.platform === 'INSTAGRAM' ? 'Instagram' : 'Messenger'}]`
                         : m.mediaUrl ? null : '[lampiran]'),
@@ -355,7 +376,7 @@ export class SocialInboxService {
             added += r.count;
             // Belum dibaca = pesan masuk baru & segar setelah balasan terakhir tim.
             const lastOut = msgs.filter(outbound).reduce((t, m) => (m.at > t ? m.at : t), new Date(0));
-            const unread = fresh.filter((m) => !outbound(m) && m.at > lastOut && m.at.getTime() >= freshSince).length;
+            const unread = fresh.filter((m) => !outbound(m) && !isPlatformNotice(m.text) && m.at > lastOut && m.at.getTime() >= freshSince).length;
             await this.prisma.socialConversation.update({
                 where: { id: conv.id },
                 data: {

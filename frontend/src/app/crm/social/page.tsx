@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X, ArrowLeft, ExternalLink,
-    RefreshCw, EyeOff, Eye, MailOpen, CheckCheck, Reply, UserPlus, Radio, KeyRound,
+    RefreshCw, EyeOff, Eye, MailOpen, CheckCheck, Reply, UserPlus, Radio, KeyRound, Info,
 } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
@@ -42,6 +42,18 @@ function tokenMismatch(platform: SocialPlatform, token: string): string | null {
     if (platform === "MESSENGER" && /^IG/.test(t)) return "Ini token Instagram (IG…). Ubah Platform menjadi Instagram, lalu tempel di kolom Access Token.";
     if (platform === "INSTAGRAM" && /^EAA/.test(t)) return "Ini token Facebook (EAA…). Untuk Instagram pakai token dari App Dashboard → Instagram → “Buat token akses” (berawalan IG…).";
     return null;
+}
+/**
+ * Pesan otomatis Meta ("Facebook membuat obrolan ini karena X mengomentari postingan
+ * Anda…") — bukan tulisan pelanggan. Pesan lama mungkin belum bertipe SYSTEM, jadi
+ * dikenali juga dari teksnya.
+ */
+const NOTICE_RE = /^(Facebook|Instagram|Meta) (membuat obrolan ini|created this (chat|conversation))\b/i;
+const isNotice = (m: SocialMessage) => m.type === "SYSTEM" || (!!m.body && NOTICE_RE.test(m.body.trim()));
+function splitNotice(body: string | null): { text: string; url: string | null } {
+    const b = body ?? "";
+    const url = b.match(/\((https?:\/\/[^\s)]+)\)\s*$/)?.[1] ?? null;
+    return { text: url ? b.slice(0, b.lastIndexOf("(" + url)).replace(/\s*(Lihat komentar|See comment|View comment)\s*$/i, "").trim() : b.trim(), url };
 }
 const PlatformIcon = ({ p, className }: { p: SocialPlatform; className?: string }) =>
     p === "INSTAGRAM" ? <Instagram className={className} /> : <Facebook className={className} />;
@@ -314,6 +326,24 @@ function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncCont
                         </header>
                         <div className="flex-1 overflow-y-auto p-4 space-y-2">
                             {messages.map((m: SocialMessage) => {
+                                if (isNotice(m)) {
+                                    const n = splitNotice(m.body);
+                                    return (
+                                        <div key={m.id} className="flex justify-center">
+                                            <div className="max-w-[85%] rounded-xl border border-border/60 bg-muted/40 px-3 py-2 text-[11px] text-center opacity-80">
+                                                <div className="flex items-center justify-center gap-1 font-medium">
+                                                    <Info className="w-3.5 h-3.5" /> Catatan sistem {PLATFORM_LABEL[selected.contact.platform]}
+                                                </div>
+                                                <p className="mt-0.5 whitespace-pre-wrap break-words">{n.text}</p>
+                                                {n.url && (
+                                                    <a href={n.url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary underline">
+                                                        Lihat komentar <ExternalLink className="w-3 h-3" />
+                                                    </a>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                }
                                 const out = m.direction === "OUTBOUND";
                                 return (
                                     <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
