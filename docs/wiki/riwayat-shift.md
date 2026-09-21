@@ -48,6 +48,11 @@ dengan daftar yang dikoreksi. Dulu angka ekspektasi dan entri kasnya tetap versi
 lama. Koreksi dan kirim ulang laporan hanya bisa untuk laporan **cabang
 sendiri** (Owner semua cabang).
 
+Sejak 22 September 2026 **total penerimaan** di riwayat dan ringkasan Discord
+memakai transfer sistem shift itu (halaman tutup shift tidak menghitung transfer
+fisik, jadi dulu semua transfer bank tak ikut dijumlah), dan **riwayat koreksi**
+kini benar-benar tampil.
+
 ## Apa itu Riwayat Tutup Shift?
 
 Halaman ini menyimpan **semua laporan tutup shift** yang pernah dikirim. Berbeda dengan halaman Tutup Shift (yang digunakan kasir untuk menutup shift aktif), halaman ini berfungsi sebagai **arsip** — berguna untuk:

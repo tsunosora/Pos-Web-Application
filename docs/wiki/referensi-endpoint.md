@@ -354,9 +354,9 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
 | GET | `/competitors` | `findAll` | `JwtAuthGuard` | — |
-| POST | `/competitors` | `create` | `JwtAuthGuard` | — |
-| PATCH | `/competitors/:id` | `update` | `JwtAuthGuard` | — |
-| DELETE | `/competitors/:id` | `remove` | `JwtAuthGuard` | — |
+| POST | `/competitors` | `create` | `ManagerGuard` | — |
+| PATCH | `/competitors/:id` | `update` | `ManagerGuard` | — |
+| DELETE | `/competitors/:id` | `remove` | `ManagerGuard` | — |
 
 ## CustomProductMetricsController — `/crm/custom-product-metrics`
 
@@ -640,19 +640,19 @@ Berkas: `backend/src/landing/landing.controller.ts`
 ## MetaAdsController — `/meta-ads`
 
 Berkas: `backend/src/meta-ads/meta-ads.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard, RolesGuard` · peran: `...ADMIN_ROLES`
+Penjaga tingkat kelas: `JwtAuthGuard, OwnerGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| GET | `/meta-ads/accounts` | `accounts` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| GET | `/meta-ads/overview` | `overview` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| POST | `/meta-ads/account` | `setAccount` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| GET | `/meta-ads/labels` | `labels` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| POST | `/meta-ads/labels` | `upsertLabel` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| POST | `/meta-ads/labels/delete` | `deleteLabel` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| POST | `/meta-ads/campaign-label` | `assignCampaignLabel` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| POST | `/meta-ads/campaign-profit` | `setCampaignProfit` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| GET | `/meta-ads/ads` | `adBreakdown` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
+| GET | `/meta-ads/accounts` | `accounts` | `JwtAuthGuard, OwnerGuard` | — |
+| GET | `/meta-ads/overview` | `overview` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/meta-ads/account` | `setAccount` | `JwtAuthGuard, OwnerGuard` | — |
+| GET | `/meta-ads/labels` | `labels` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/meta-ads/labels` | `upsertLabel` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/meta-ads/labels/delete` | `deleteLabel` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/meta-ads/campaign-label` | `assignCampaignLabel` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/meta-ads/campaign-profit` | `setCampaignProfit` | `JwtAuthGuard, OwnerGuard` | — |
+| GET | `/meta-ads/ads` | `adBreakdown` | `JwtAuthGuard, OwnerGuard` | — |
 
 ## PublicOrdersController — `/orders/public`
 
@@ -1132,7 +1132,7 @@ Berkas: `backend/src/users/users.controller.ts`
 | POST | `/users/roles` | `createRole` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | PATCH | `/users/roles/:id` | `updateRole` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | DELETE | `/users/roles/:id` | `deleteRole` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| PATCH | `/users/roles/:id/menu-access` | `updateRoleMenuAccess` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
+| PATCH | `/users/roles/:id/menu-access` | `updateRoleMenuAccess` | `JwtAuthGuard, OwnerGuard` | — |
 
 ## WebhookController — `/webhook`
 

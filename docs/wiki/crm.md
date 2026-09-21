@@ -233,6 +233,10 @@ Pengaman tambahan:
 
 > **Halaman paling sering dibuka CS dalam keseharian.** Anggap aja seperti "Inbox tugas" — semua reminder "wajib chat customer hari ini" terkumpul di sini.
 
+Sejak 22 September 2026 kartu **Overdue** hanya menghitung follow-up yang jatuh
+tempo **sebelum hari ini**, dan **Total Pending** memakai jumlah sebenarnya (dulu
+maksimal 200).
+
 ### 3 Section Visual Otomatis
 - 🔥 **Overdue** (merah) — tugas yang sudah lewat tanggal due. **Prioritas utama**.
 - 📅 **Akan Datang** (amber) — tugas hari ini & beberapa hari ke depan

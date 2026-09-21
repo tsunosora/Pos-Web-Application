@@ -92,6 +92,12 @@ toko lain dengan identitas sendiri.
 - **Pengaturan cabang**: tombol Simpan menunggu data cabang terpilih termuat —
   dulu saat berganti cabang, PIN/grup WA/kop nota cabang sebelumnya bisa
   tersimpan ke cabang baru (sejak 22 September 2026).
+- **Data cabang** (nama, alamat, target harian) hanya bisa diubah untuk cabang
+  sendiri oleh manajer; status aktif & kode cabang khusus Owner. Target harian
+  harus ≥ 0. Pengaturan cabang hanya menerima kolom formulir: PIN cabang 4–8
+  angka, fee titipan 0–100% (sejak 22 September 2026).
+- **Meta Ads** (biaya iklan & label kampanye) khusus Owner, sama dengan menunya;
+  data pesaing diubah setingkat manajer.
 - **Hapus cabang khusus Owner**, dan ditolak bila cabang masih punya transaksi,
   catatan kas, akun karyawan, atau stok. Nonaktifkan saja cabangnya supaya
   riwayatnya tetap utuh.

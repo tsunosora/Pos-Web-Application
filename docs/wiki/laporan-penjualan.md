@@ -50,6 +50,19 @@ Delapan pilihan periode — *Hari Ini, Kemarin, Minggu Ini, Bulan Ini, Bulan
 Lalu, Tahun Ini, Semua, Kustom*. Tombol **Excel** dan **PDF** di kanan atas
 mengunduh laporan periode yang sedang aktif.
 
+### Perbaikan angka (sejak 22 September 2026)
+
+- **Distribusi metode pembayaran & per rekening** dihitung dari baris kas
+  penjualan tiap nota (DP, tambah DP, pelunasan). Dulu DP tunai lalu pelunasan
+  transfer lewat "tambah DP" masuk seluruhnya ke Tunai, dan DP transfer tak
+  pernah muncul per rekening.
+- **Tren periode berjalan** (Bulan/Minggu/Tahun Ini) dibandingkan dengan bagian
+  yang sama dari periode sebelumnya (1–22 Agu vs 1–22 Sep), bukan sebulan penuh.
+  Laporan bulanan juga begitu untuk bulan yang masih berjalan.
+- Dasbor menampilkan "—" (bukan "+100%") bila kemarin tidak ada penjualan.
+- Laporan stok: ringkasan Masuk/Keluar/Total Catatan dari seluruh data periode,
+  bukan hanya 1.000 baris yang ditampilkan.
+
 ## Cara Mengakses
 
 Di sidebar kiri, klik menu **Laporan → Penjualan**, atau langsung buka `/reports/sales`.

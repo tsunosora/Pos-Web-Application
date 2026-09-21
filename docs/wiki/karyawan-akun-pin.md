@@ -165,6 +165,18 @@ misalnya, mengekspor database atau mereset saldo rekening, buat peran terpisah
 seperti *Kasir* atau *CS*, pindahkan akun mereka ke sana, lalu atur menunya.
 :::
 
+### Aturan peran & akun (sejak 22 September 2026)
+
+- Nama peran hanya boleh **huruf, angka, spasi, titik, - atau _** (tanpa huruf
+  khusus). Nama berhuruf mirip seperti "ſuperadmin" dulu dianggap peran biasa
+  saat dibuat tetapi dibaca sebagai owner di pemeriksaan lain.
+- **Akses Menu Role** hanya bisa diubah Owner (peran dipakai semua cabang).
+- Peran akun **selalu dibaca dari data terbaru**: mencabut peran langsung
+  berlaku, token lama tak lagi membawa peran sebelumnya.
+- Reset sandi memakai aturan yang sama dengan akun baru (≥ 8 karakter, huruf &
+  angka). Menghapus akun ikut menonaktifkan PIN kerja yang tertaut.
+- Daftar pengguna untuk staf tidak lagi memuat email login orang lain.
+
 ## Karyawan keluar (resign)
 
 Menghapus akun karyawan yang keluar **bukan** pilihan yang baik: riwayat
