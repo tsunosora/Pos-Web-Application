@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -460,49 +461,52 @@ export class BackupService {
         const result: Record<string, { success: number; skipped: number; error: string | null }> = {};
 
         // ── Restore database ──────────────────────────────────────────────
-        await this.prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 0`;
-
-        try {
-            for (const table of ordered) {
-                const rows: any[] = backupData[table] || [];
-                if (!rows.length) {
-                    result[table] = { success: 0, skipped: 0, error: null };
-                    continue;
-                }
-
-                result[table] = { success: 0, skipped: 0, error: null };
-
-                if (mode === 'overwrite') {
+        // Per tabel dalam SATU transaksi DB: FOREIGN_KEY_CHECKS diatur di koneksi yang sama
+        // (dulu di koneksi pool acak), dan bila insert gagal, penghapusan ikut dibatalkan —
+        // dulu mode "timpa" bisa meninggalkan tabel KOSONG (mis. cadangan versi lama yang
+        // kolomnya sudah berganti nama). Kolom yang tak dikenal skema sekarang dibuang.
+        for (const table of ordered) {
+            const rows: any[] = backupData[table] || [];
+            result[table] = { success: 0, skipped: 0, error: null };
+            if (!rows.length) continue;
+            const kolom = this.scalarFieldsOf(table);
+            const bersih = (r: any) => {
+                const c = this.cleanRow(r);
+                if (kolom) for (const k of Object.keys(c)) if (!kolom.has(k)) delete c[k];
+                return c;
+            };
+            try {
+                await this.prisma.$transaction(async (tx: any) => {
+                    await tx.$executeRaw`SET FOREIGN_KEY_CHECKS = 0`;
                     try {
-                        await (this.prisma as any)[table].deleteMany({});
-                        const cleaned = rows.map(r => this.cleanRow(r));
-                        await (this.prisma as any)[table].createMany({ data: cleaned, skipDuplicates: true });
-                        result[table].success = cleaned.length;
-                    } catch (e: any) {
-                        result[table].error = e.message?.substring(0, 200) ?? 'Unknown error';
-                    }
-                } else {
-                    let success = 0;
-                    let skipped = 0;
-                    for (const row of rows) {
-                        try {
-                            const cleaned = this.cleanRow(row);
-                            await (this.prisma as any)[table].upsert({
-                                where: { id: cleaned.id },
-                                create: cleaned,
-                                update: {},
-                            });
-                            success++;
-                        } catch {
-                            skipped++;
+                        if (mode === 'overwrite') {
+                            await tx[table].deleteMany({});
+                            const cleaned = rows.map(bersih);
+                            await tx[table].createMany({ data: cleaned, skipDuplicates: true });
+                            result[table].success = cleaned.length;
+                        } else {
+                            for (const row of rows) {
+                                const cleaned = bersih(row);
+                                // Baris yang sudah ada dilewati; baris bermasalah dicatat sebagai dilewati.
+                                const ada = cleaned.id != null ? await tx[table].findUnique({ where: { id: cleaned.id }, select: { id: true } }).catch(() => null) : null;
+                                if (ada) { result[table].skipped++; continue; }
+                                // MySQL: satu INSERT yang gagal tidak membatalkan transaksi → lanjut baris berikutnya.
+                                try {
+                                    await tx[table].create({ data: cleaned });
+                                    result[table].success++;
+                                } catch {
+                                    result[table].skipped++;
+                                }
+                            }
                         }
+                    } finally {
+                        await tx.$executeRaw`SET FOREIGN_KEY_CHECKS = 1`;
                     }
-                    result[table].success = success;
-                    result[table].skipped = skipped;
-                }
+                }, { timeout: 600_000, maxWait: 30_000 });
+            } catch (e: any) {
+                // Seluruh perubahan tabel ini dibatalkan (data lama tetap utuh).
+                result[table] = { success: 0, skipped: 0, error: `dibatalkan, data lama tetap — ${(e?.message ?? 'Unknown error').substring(0, 180)}` };
             }
-        } finally {
-            await this.prisma.$executeRaw`SET FOREIGN_KEY_CHECKS = 1`;
         }
 
         // ── Restore gambar dari ZIP ───────────────────────────────────────
@@ -561,6 +565,12 @@ export class BackupService {
             errors,
             detail: result,
         };
+    }
+
+    /** Nama kolom skalar model Prisma untuk sebuah delegate (mis. 'transactionItem'). */
+    private scalarFieldsOf(delegate: string): Set<string> | null {
+        const m = Prisma.dmmf.datamodel.models.find((x) => x.name.toLowerCase() === delegate.toLowerCase());
+        return m ? new Set(m.fields.filter((f) => f.kind !== 'object').map((f) => f.name)) : null;
     }
 
     // Bersihkan fields relasi nested sebelum insert.
