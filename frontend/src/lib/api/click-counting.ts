@@ -160,8 +160,9 @@ export const createClickLog = async (data: {
   transactionItemId?: number;
 }): Promise<ClickLog> => (await api.post('/click-counting/logs', data)).data;
 
-export const deleteClickLog = async (id: number): Promise<void> =>
-  (await api.delete(`/click-counting/logs/${id}`)).data;
+/** Membatalkan catatan klik (tercatat siapa & alasannya — tidak dihapus permanen). */
+export const deleteClickLog = async (id: number, reason?: string): Promise<void> =>
+  (await api.delete(`/click-counting/logs/${id}`, { data: { reason } })).data;
 
 // ─── Machine Rejects ─────────────────────────────────────────────────────────
 

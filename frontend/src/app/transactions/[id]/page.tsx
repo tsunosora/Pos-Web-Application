@@ -13,6 +13,8 @@ import {
 import dayjs from "dayjs";
 import { LabelChip } from "@/components/LabelChip";
 import { MarketplaceChip } from "@/components/MarketplaceChip";
+import { useStoreProfile } from "@/hooks/useStoreName";
+import { areaQtyLabel, lineTotalOf, sizeLabel, storedUnit } from "@/lib/area-unit";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -28,6 +30,8 @@ interface TransactionItem {
     unitType: string | null;
     note: string | null;
     clickType: string | null;
+    originalPrice?: number | string | null;   // harga normal sebelum diubah manual (T-32)
+    priceOverrideByName?: string | null;
     productVariant: {
         id: number;
         name: string;
@@ -105,15 +109,21 @@ function Receipt({ trx }: { trx: Transaction }) {
     const tax       = Number(trx.tax);
     const grandTotal = Number(trx.grandTotal);
     const dp        = Number(trx.downPayment);
-    const remaining = grandTotal - dp;
+    // Nota LUNAS: sisa selalu 0 — down_payment hanya menyimpan DP sebelum pelunasan (T-33).
+    const lunas     = trx.status === 'PAID';
+    const remaining = lunas ? 0 : Math.max(0, grandTotal - dp);
+    // Kop struk dari Pengaturan Cabang → Profil Toko (dulu nama & alamat satu toko tertanam di kode, T-34).
+    const toko = useStoreProfile();
+    const cabang = (trx as { branch?: { settings?: { storeName?: string | null; storeAddress?: string | null } | null } | null }).branch?.settings;
+    const namaToko = cabang?.storeName?.trim() || toko.name;
+    const alamatToko = cabang?.storeAddress?.trim() || toko.address;
 
     return (
         <div id="receipt" className="hidden print:block font-mono text-[11px] w-[72mm] mx-auto leading-snug">
             {/* Store header */}
             <div className="text-center mb-2">
-                <p className="font-bold text-[14px] tracking-wide">VOLIKO IMOGIRI</p>
-                <p className="text-[10px]">Digital Print & Percetakan</p>
-                <p className="text-[10px]">Imogiri, Bantul, Yogyakarta</p>
+                <p className="font-bold text-[14px] tracking-wide">{namaToko.toUpperCase()}</p>
+                {alamatToko && <p className="text-[10px]">{alamatToko}</p>}
             </div>
 
             <div className="border-t border-dashed border-black my-1" />
@@ -169,7 +179,8 @@ function Receipt({ trx }: { trx: Transaction }) {
             {/* Items */}
             {trx.items.map((item, idx) => {
                 const isArea = item.productVariant.product.pricingMode === "AREA_BASED";
-                const lineTotal = Number(item.priceAtTime) * item.quantity;
+                // Item area: harga per m²/cm² × luas × pcs (dulu harga × jumlah = hanya harga per m²).
+                const lineTotal = lineTotalOf(item);
                 const productName = item.productVariant.product.name;
                 const variantName = item.productVariant.name;
 
@@ -181,7 +192,7 @@ function Receipt({ trx }: { trx: Transaction }) {
                         )}
                         {isArea && item.widthCm && item.heightCm && (
                             <p className="text-[10px] pl-1">
-                                {Number(item.widthCm)} × {Number(item.heightCm)} {item.unitType || "cm"}
+                                {Number(item.widthCm)} × {Number(item.heightCm)} {sizeLabel(storedUnit(item))}
                                 {item.pcs && item.pcs > 1 ? ` × ${item.pcs} pcs` : ""}
                             </p>
                         )}
@@ -190,7 +201,7 @@ function Receipt({ trx }: { trx: Transaction }) {
                         )}
                         <div className="flex justify-between pl-1">
                             <span>
-                                {item.quantity} × {formatRp(Number(item.priceAtTime))}
+                                {isArea ? areaQtyLabel(item, formatRp) : `${item.quantity} × ${formatRp(Number(item.priceAtTime))}`}
                             </span>
                             <span className="font-semibold">{formatRp(lineTotal)}</span>
                         </div>
@@ -234,10 +245,19 @@ function Receipt({ trx }: { trx: Transaction }) {
                             <span>DP</span>
                             <span>- {formatRp(dp)}</span>
                         </div>
-                        <div className="flex justify-between font-bold">
-                            <span>SISA</span>
-                            <span>{formatRp(remaining)}</span>
-                        </div>
+                        {lunas ? (
+                            dp < grandTotal && (
+                                <div className="flex justify-between font-bold">
+                                    <span>PELUNASAN</span>
+                                    <span>{formatRp(grandTotal - dp)}</span>
+                                </div>
+                            )
+                        ) : (
+                            <div className="flex justify-between font-bold">
+                                <span>SISA</span>
+                                <span>{formatRp(remaining)}</span>
+                            </div>
+                        )}
                     </>
                 )}
                 <div className="flex justify-between">
@@ -330,7 +350,8 @@ export default function TransactionDetailPage() {
     const grandTotal      = Number(trx.grandTotal);
     const marketplaceFee  = Number(trx.marketplaceFee) || 0;
     const dp              = Number(trx.downPayment);
-    const remaining       = grandTotal - dp;
+    const lunas           = trx.status === 'PAID';
+    const remaining       = lunas ? 0 : Math.max(0, grandTotal - dp); // T-33
 
     return (
         <>
@@ -404,7 +425,7 @@ export default function TransactionDetailPage() {
                                 <tbody className="divide-y divide-border/60">
                                     {trx.items.map(item => {
                                         const isArea = item.productVariant.product.pricingMode === "AREA_BASED";
-                                        const lineTotal = Number(item.priceAtTime) * item.quantity;
+                                        const lineTotal = lineTotalOf(item); // area: harga × luas × pcs
                                         return (
                                             <tr key={item.id} className="hover:bg-accent transition-colors">
                                                 <td className="px-4 py-3">
@@ -412,7 +433,7 @@ export default function TransactionDetailPage() {
                                                     <p className="text-xs text-muted-foreground">{item.productVariant.name}</p>
                                                     {isArea && item.widthCm && item.heightCm && (
                                                         <p className="text-xs text-primary">
-                                                            {Number(item.widthCm).toLocaleString("id-ID")} × {Number(item.heightCm).toLocaleString("id-ID")} {item.unitType || "cm"}
+                                                            {Number(item.widthCm).toLocaleString("id-ID")} × {Number(item.heightCm).toLocaleString("id-ID")} {sizeLabel(storedUnit(item))}
                                                             {item.pcs && item.pcs > 1 ? ` × ${item.pcs} pcs` : ""}
                                                         </p>
                                                     )}
@@ -424,12 +445,15 @@ export default function TransactionDetailPage() {
                                                     {item.note && (
                                                         <p className="text-xs text-muted-foreground italic">"{item.note}"</p>
                                                     )}
+                                                    {item.originalPrice != null && (
+                                                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                                                            Harga manual — normal {formatRp(Number(item.originalPrice))}{isArea ? `/${item.unitType === 'cm2' ? 'cm²' : 'm²'}` : ''}
+                                                            {item.priceOverrideByName ? ` · diubah ${item.priceOverrideByName}` : ''}
+                                                        </p>
+                                                    )}
                                                 </td>
                                                 <td className="px-4 py-3 text-right text-foreground">
-                                                    {item.quantity}
-                                                    {item.unitType && (
-                                                        <span className="text-xs text-muted-foreground ml-1">{item.unitType}</span>
-                                                    )}
+                                                    {isArea ? areaQtyLabel(item, formatRp).split(' × ')[0] : item.quantity}
                                                 </td>
                                                 <td className="px-4 py-3 text-right text-muted-foreground">
                                                     {formatRp(Number(item.priceAtTime))}
@@ -586,10 +610,19 @@ export default function TransactionDetailPage() {
                                             <span>DP Diterima</span>
                                             <span>− {formatRp(dp)}</span>
                                         </div>
-                                        <div className={`flex justify-between font-semibold ${remaining > 0 ? "text-amber-600 dark:text-amber-300" : "text-emerald-600 dark:text-emerald-300"}`}>
-                                            <span>Sisa</span>
-                                            <span>{formatRp(remaining)}</span>
-                                        </div>
+                                        {lunas ? (
+                                            dp < grandTotal && (
+                                                <div className="flex justify-between font-semibold text-emerald-600 dark:text-emerald-300">
+                                                    <span>Pelunasan</span>
+                                                    <span>{formatRp(grandTotal - dp)}</span>
+                                                </div>
+                                            )
+                                        ) : (
+                                            <div className={`flex justify-between font-semibold ${remaining > 0 ? "text-amber-600 dark:text-amber-300" : "text-emerald-600 dark:text-emerald-300"}`}>
+                                                <span>Sisa</span>
+                                                <span>{formatRp(remaining)}</span>
+                                            </div>
+                                        )}
                                     </>
                                 )}
                             </div>

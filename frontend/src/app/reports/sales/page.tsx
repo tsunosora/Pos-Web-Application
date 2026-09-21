@@ -19,7 +19,7 @@ import dayjs from "dayjs";
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useBranchStore } from '@/store/branch-store';
 import EditTransactionModal from './EditTransactionModal';
-import { sizeLabel, storedPriceMultiplier, storedUnit } from '@/lib/area-unit';
+import { areaQtyLabel, lineTotalOf, sizeLabel, storedPriceMultiplier, storedUnit } from '@/lib/area-unit';
 
 type SalesPeriodKey = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'all' | 'custom';
 type ReportTab = 'ringkasan' | 'trend' | 'histori';
@@ -718,10 +718,13 @@ export default function SalesReportPage() {
                                                                         <span className="text-foreground/80">
                                                                             {item.productVariant?.product?.name}
                                                                             {item.productVariant?.variantName ? ` - ${item.productVariant.variantName}` : ''}
-                                                                            {item.widthCm && item.heightCm ? ` (${item.widthCm}×${item.heightCm} ${item.unitType || 'cm'})` : ''}
+                                                                            {item.widthCm && item.heightCm ? ` (${item.widthCm}×${item.heightCm} ${sizeLabel(storedUnit(item))})` : ''}
                                                                         </span>
                                                                         <span className="text-muted-foreground text-xs whitespace-nowrap ml-4">
-                                                                            {item.quantity} × Rp {Number(item.priceAtTime).toLocaleString('id-ID')} = <span className="font-semibold text-foreground">Rp {(item.quantity * Number(item.priceAtTime)).toLocaleString('id-ID')}</span>
+                                                                            {/* Item area: harga × luas × pcs (dulu harga per m² × 1) */}
+                                                                            {item.widthCm != null && Number(item.areaCm2) > 0
+                                                                                ? areaQtyLabel(item, (n) => `Rp ${n.toLocaleString('id-ID')}`)
+                                                                                : `${item.quantity} × Rp ${Number(item.priceAtTime).toLocaleString('id-ID')}`} = <span className="font-semibold text-foreground">Rp {Math.round(lineTotalOf(item)).toLocaleString('id-ID')}</span>
                                                                         </span>
                                                                     </div>
                                                                 ))}

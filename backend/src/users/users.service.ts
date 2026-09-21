@@ -188,6 +188,7 @@ export class UsersService {
     { model: 'waConversation', fields: ['assignedToId'], label: 'percakapan WhatsApp' },
     { model: 'socialConversation', fields: ['assignedToId'], label: 'percakapan medsos' },
     { model: 'socialMessage', fields: ['sentById'], label: 'pesan medsos' },
+    { model: 'socialComment', fields: ['sentById'], label: 'balasan komentar medsos' },
     { model: 'stockTransfer', fields: ['createdById'], label: 'transfer stok' },
     { model: 'taskItem', fields: ['assigneeId', 'completedById'], label: 'tugas karyawan' },
     { model: 'taskSchedule', fields: ['assigneeId', 'createdById'], label: 'jadwal tugas' },

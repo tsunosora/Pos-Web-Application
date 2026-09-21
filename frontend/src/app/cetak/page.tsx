@@ -18,6 +18,7 @@ import { KeyRound, Loader2 } from 'lucide-react';
 import { CetakPiketCard, CetakAbsensiCard, CetakPiketIdentity, clearCetakPiketIdentity, readCetakPiketIdentity, hasCetakPiketIdentity, saveCetakPiketIdentity } from '@/components/tugas/PiketPinMounts';
 import { KerjaSamaModal } from '@/components/produksi/KerjaSamaModal';
 import { BOARD_EXPIRED_EVENT, clearBoardToken, hasBoardAccess } from '@/lib/board-token';
+import { useStoreName } from '@/hooks/useStoreName';
 
 // Alias lokal supaya kode di bawah tetap ringkas.
 type RejectType = OperatorRejectType;
@@ -78,6 +79,7 @@ function StatusBadge({ s }: { s: 'PENDING' | 'PARTIAL' | 'PAID' | 'FAILED' }) {
 }
 
 export default function CetakPage() {
+    const storeName = useStoreName();
     const [authed, setAuthed] = useState(false);
     const [pinInput, setPinInput] = useState('');
     const [pinError, setPinError] = useState('');
@@ -363,7 +365,7 @@ export default function CetakPage() {
                     </p>
                 </form>
                 <div className="mt-6 text-center">
-                    <p className="text-sm font-semibold text-muted-foreground tracking-wide">Voliko Print</p>
+                    <p className="text-sm font-semibold text-muted-foreground tracking-wide">{storeName}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
                 </div>
             </div>
@@ -588,7 +590,7 @@ export default function CetakPage() {
 
             {/* Footer */}
             <footer className="mt-8 py-4 text-center">
-                <p className="text-sm font-semibold text-muted-foreground tracking-wide">Voliko Print</p>
+                <p className="text-sm font-semibold text-muted-foreground tracking-wide">{storeName}</p>
                 <p className="text-xs text-muted-foreground mt-0.5">&copy; 2026 Muhammad Faisal Abdul Hakim</p>
             </footer>
         </div>

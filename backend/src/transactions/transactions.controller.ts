@@ -1,10 +1,11 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGuards, Query, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, ParseIntPipe, UseGuards, UseInterceptors, Query, Request } from '@nestjs/common';
 import { TransactionsService } from './transactions.service';
 import { PaymentMethod } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { requireBranch } from '../common/branch-where.helper';
+import { IdempotencyInterceptor } from '../common/idempotency.interceptor';
 
 @UseGuards(JwtAuthGuard)
 @Controller('transactions')
@@ -12,6 +13,7 @@ export class TransactionsController {
     constructor(private readonly transactionsService: TransactionsService) { }
 
     @Post()
+    @UseInterceptors(IdempotencyInterceptor) // kiriman ulang dgn Idempotency-Key sama → nota yang sama (T-23)
     create(@Body() createTransactionDto: {
         items: { productVariantId?: number; quantity: number; widthCm?: number; heightCm?: number; unitType?: string; pcs?: number; note?: string; customPrice?: number; isSubOrder?: boolean; subPrice?: number; subVendor?: string; compositeProductId?: number; compositeOptions?: Record<string, any> }[];
         paymentMethod: PaymentMethod;
@@ -36,12 +38,12 @@ export class TransactionsController {
         salesOrderId?: number;     // jika transaksi dibuat dari SO
         branchName?: string;       // cabang sumber order (auto-inherit dari SO jika ada)
         productionBranchId?: number | null; // Titip cetak ke cabang lain (null = cetak di cabang transaksi)
-    }, @CurrentBranch() branchCtx: BranchContext) {
+    }, @CurrentBranch() branchCtx: BranchContext, @Request() req: any) {
         // Owner harus pilih cabang eksplisit sebelum membuat transaksi
         const branchId = requireBranch(branchCtx);
         // Validasi: kalau ada productionBranchId & berbeda, pastikan cabang tujuan valid & aktif.
         // Cek detail di service supaya bisa akses Prisma.
-        return this.transactionsService.create({ ...createTransactionDto, branchId });
+        return this.transactionsService.create({ ...createTransactionDto, branchId, actorUserId: req.user?.userId ?? null });
     }
 
     @Get()
@@ -152,7 +154,7 @@ export class TransactionsController {
         },
         @CurrentBranch() branchCtx: BranchContext,
     ) {
-        return this.transactionsService.editTransactionDirect(id, req.user.role, body, branchCtx);
+        return this.transactionsService.editTransactionDirect(id, req.user.role, body, branchCtx, req.user?.userId ?? null);
     }
 
     @Post(':id/edit-request')

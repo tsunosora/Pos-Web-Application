@@ -31,11 +31,14 @@ export const buildThermalReceiptBody = (
     })
     .join('');
 
-  const hasDp = snap.downPayment != null && snap.downPayment < snap.grandTotal;
-  const dpRows = hasDp
-    ? `<div class="row"><span>DP</span><span>${rp(snap.downPayment!)}</span></div>
-       <div class="row b"><span>Sisa</span><span>${rp(snap.grandTotal - snap.downPayment!)}</span></div>`
-    : '';
+  const hasDp = snap.downPayment != null && snap.downPayment > 0 && snap.downPayment < snap.grandTotal;
+  // Nota LUNAS: tampilkan DP + pelunasan, bukan "Sisa" (T-33).
+  const dpRows = !hasDp ? ''
+    : snap.status === 'PAID'
+      ? `<div class="row"><span>DP</span><span>${rp(snap.downPayment!)}</span></div>
+       <div class="row b"><span>Pelunasan</span><span>${rp(snap.grandTotal - snap.downPayment!)}</span></div>`
+      : `<div class="row"><span>DP</span><span>${rp(snap.downPayment!)}</span></div>
+       <div class="row b"><span>Sisa</span><span>${rp(snap.grandTotal - snap.downPayment!)}</span></div>`;
 
   const pm =
     snap.paymentMethod === 'BANK_TRANSFER'

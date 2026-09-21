@@ -458,6 +458,9 @@ model TransactionItem {
   unitType         String?   @map("unit_type") @db.VarChar(10) // 'm', 'cm', 'menit'
   note             String?   @db.Text
   clickType        String?   @map("click_type") @db.VarChar(50) // "A3+ WARNA", "A4 BW", dll
+  // === Jejak harga manual (T-32): harga normal sebelum diubah & siapa yang mengubah ===
+  originalPrice     Decimal? @map("original_price") @db.Decimal(15, 2) // basis sama dgn priceAtTime; null = harga normal
+  priceOverrideById Int?     @map("price_override_by_id") // users.id (tanpa FK — riwayat tetap walau akun dihapus)
   createdAt        DateTime? @default(now()) @map("created_at")
 
   transaction    Transaction     @relation(fields: [transactionId], references: [id], onDelete: Cascade)
@@ -598,6 +601,7 @@ model Invoice {
   signatoryName  String?       @map("signatory_name") @db.VarChar(120) // Nama penanda tangan
   signatoryPhone String?       @map("signatory_phone") @db.VarChar(50) // No. HP penanda tangan
   branchId       Int?          @map("branch_id") // Cabang pemilik invoice (multi-cabang). Null = warisan (di-backfill ke Pusat)
+  sourceQuotationId Int?       @unique @map("source_quotation_id") // invoice hasil konversi SPH ini (1 SPH → 1 invoice, T-42)
   createdAt      DateTime?     @default(now()) @map("created_at")
   updatedAt      DateTime?     @default(now()) @updatedAt @map("updated_at")
 
@@ -1466,6 +1470,10 @@ model ClickLog {
   totalCost         Decimal   @map("total_cost") @db.Decimal(15, 2)
   date              DateTime  @default(now())
   createdAt         DateTime? @default(now()) @map("created_at")
+  // Dibatalkan, bukan dihapus (T-48): catatan klik = dasar biaya mesin yang dicocokkan dgn tagihan vendor.
+  voidedAt          DateTime? @map("voided_at")
+  voidedById        Int?      @map("voided_by_id")
+  voidReason        String?   @map("void_reason") @db.VarChar(200)
 
   clickRate       ClickRate        @relation(fields: [clickRateId], references: [id])
   transactionItem TransactionItem? @relation(fields: [transactionItemId], references: [id])

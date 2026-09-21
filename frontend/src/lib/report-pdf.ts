@@ -60,7 +60,7 @@ function drawTrendChart(doc: jsPDF, months: { label: string; net: number }[], ox
 }
 
 /** Bangun & unduh PDF laporan keuangan bulanan owner (ringkasan → analisa → tren → tabel → anomali). */
-export function buildMonthlyReportPDF(d: FinanceMonthlyReport) {
+export function buildMonthlyReportPDF(d: FinanceMonthlyReport, storeName = "Toko") {
     const doc = new jsPDF("portrait");
     const Y = () => (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
 
@@ -68,7 +68,7 @@ export function buildMonthlyReportPDF(d: FinanceMonthlyReport) {
     doc.setFontSize(15); doc.setFont("helvetica", "bold");
     doc.text("LAPORAN KEUANGAN BULANAN", W / 2, 16, { align: "center" });
     doc.setFontSize(11); doc.setFont("helvetica", "normal");
-    doc.text(`Voliko Digital Printing${d.branchName ? " — " + d.branchName : " — Semua Cabang"}`, W / 2, 23, { align: "center" });
+    doc.text(`${storeName}${d.branchName ? " — " + d.branchName : " — Semua Cabang"}`, W / 2, 23, { align: "center" });
     doc.text(`${d.period.monthLabel} ${d.period.year}`, W / 2, 29, { align: "center" });
 
     // ── Ringkasan angka ──

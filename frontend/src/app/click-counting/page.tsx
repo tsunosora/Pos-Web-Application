@@ -327,7 +327,7 @@ function LogsTab({ month, year }: { month: number; year: number }) {
     });
 
     const deleteMut = useMutation({
-        mutationFn: deleteClickLog,
+        mutationFn: ({ id, reason }: { id: number; reason: string }) => deleteClickLog(id, reason),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["click-logs", month, year] });
             qc.invalidateQueries({ queryKey: ["click-dashboard", month, year] });
@@ -477,7 +477,11 @@ function LogsTab({ month, year }: { month: number; year: number }) {
                                         <td className="px-4 py-3 text-right font-medium text-foreground">{formatRp(Number(log.totalCost))}</td>
                                         <td className="px-4 py-3 text-right">
                                             {isManager && <button
-                                                onClick={() => window.confirm("Hapus log ini?") && deleteMut.mutate(log.id)}
+                                                onClick={() => {
+                                                    // Dibatalkan dengan alasan, tidak dihapus permanen (jejak rekonsiliasi vendor).
+                                                    const reason = window.prompt("Alasan membatalkan catatan klik ini?");
+                                                    if (reason && reason.trim()) deleteMut.mutate({ id: log.id, reason: reason.trim() });
+                                                }}
                                                 className="text-red-400 hover:text-red-600 p-1"
                                             >
                                                 <Trash2 className="w-4 h-4" />

@@ -3,6 +3,7 @@ import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import dayjs from 'dayjs';
+import { safeAoa, safeRows } from './spreadsheet-safe';
 
 /**
  * Export data array to Excel (XLSX) file.
@@ -11,7 +12,7 @@ import dayjs from 'dayjs';
  */
 export const exportToExcel = (data: any[], fileName: string) => {
     // 1. Create a new workbook and a new worksheet
-    const worksheet = XLSX.utils.json_to_sheet(data);
+    const worksheet = XLSX.utils.json_to_sheet(safeRows(data)); // cegah formula injection (T-25)
     const workbook = XLSX.utils.book_new();
 
     // 2. Append worksheet to workbook
@@ -59,8 +60,8 @@ export const exportSheetsToExcel = (
     const workbook = XLSX.utils.book_new();
     for (const s of sheets) {
         const worksheet = s.aoa
-            ? XLSX.utils.aoa_to_sheet(s.aoa)
-            : XLSX.utils.json_to_sheet(s.rows || []);
+            ? XLSX.utils.aoa_to_sheet(safeAoa(s.aoa))
+            : XLSX.utils.json_to_sheet(safeRows(s.rows || []));
         tidyWorksheet(worksheet);
         if (s.merges?.length) worksheet['!merges'] = s.merges;
         XLSX.utils.book_append_sheet(workbook, worksheet, (s.name || 'Sheet').slice(0, 31));

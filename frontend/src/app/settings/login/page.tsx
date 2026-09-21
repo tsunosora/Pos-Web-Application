@@ -71,7 +71,7 @@ export default function LoginAppearancePage() {
     };
 
     const removeLogo = async () => {
-        if (!confirm('Hapus logo login? Animasi Voliko default akan dipakai kembali.')) return;
+        if (!confirm('Hapus logo login? Animasi bawaan akan dipakai kembali.')) return;
         setLoginLogoUrl(null);
         await updateSettings({ loginLogoUrl: null });
         qc.invalidateQueries({ queryKey: ['settings'] });
@@ -129,7 +129,7 @@ export default function LoginAppearancePage() {
                     </h3>
                 </div>
                 <p className="text-xs text-muted-foreground -mt-2">
-                    Gambar yang muncul di tengah panel login. Support SVG, PNG, JPG. Kalau di-upload akan menggantikan animasi Voliko default.
+                    Gambar yang muncul di tengah panel login. Support SVG, PNG, JPG. Kalau di-upload akan menggantikan animasi bawaan.
                 </p>
 
                 <div className="flex items-start gap-4 flex-wrap">
@@ -151,7 +151,7 @@ export default function LoginAppearancePage() {
                     ) : (
                         <div className="w-40 h-40 border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center text-center text-muted-foreground text-xs p-2">
                             <ImageIcon className="h-8 w-8 mb-1" />
-                            <span>Animasi Voliko default</span>
+                            <span>Animasi bawaan</span>
                         </div>
                     )}
                     <div className="flex-1 min-w-0 space-y-2">

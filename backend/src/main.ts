@@ -1,3 +1,8 @@
+// Zona waktu toko HARUS diset sebelum Date apa pun dibuat: laporan menghitung batas hari
+// dengan new Date('YYYY-MM-DDT00:00:00') (waktu lokal proses). Di server/VM berzona UTC,
+// penjualan 00.00–07.00 WIB akan masuk ke hari sebelumnya tanpa pesan galat (T-27).
+process.env.TZ = process.env.TZ || process.env.APP_TZ || 'Asia/Jakarta';
+
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';

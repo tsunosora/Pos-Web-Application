@@ -7,7 +7,8 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { badgeToneClass } from "@/components/ui/status-badge";
 import { CalendarClock, Clock, ExternalLink, Trophy, UserCheck } from "lucide-react";
 
-const RATEMYSTAFF_URL = "https://absensi.volikoprint.com";
+// Alamat aplikasi HR milik tiap toko — dari env build, bukan tertanam di kode (T-34).
+const RATEMYSTAFF_URL = process.env.NEXT_PUBLIC_HR_APP_URL || "";
 const ROLE_OWNER = ["owner", "superadmin", "super_admin", "super admin", "pemilik"];
 
 /** Berapa nama yang ditampilkan — kartu ini sengaja dangkal, detail ada di RateMyStaff. */
@@ -76,14 +77,14 @@ export function HrSummaryCard() {
                     </span>
                 )}
             </h3>
-            <a
+            {RATEMYSTAFF_URL && <a
                 href={RATEMYSTAFF_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
             >
                 Buka RateMyStaff <ExternalLink className="h-3 w-3" />
-            </a>
+            </a>}
         </div>
     );
 

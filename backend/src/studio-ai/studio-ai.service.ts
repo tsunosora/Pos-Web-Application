@@ -64,7 +64,7 @@ export class StudioAiService {
     return {
       enabled: process.env.AI_ENABLED === 'true',
       chatEnabled: process.env.AI_CHAT_ENABLED !== 'false', // default ON saat AI aktif
-      aiName: process.env.AI_NAME || 'Asisten VolikoPrint',
+      aiName: process.env.AI_NAME || 'Asisten Toko',
       aiGreeting: process.env.AI_GREETING || 'Halo! Saya bantu seputar produk, harga, HPP, dan penggunaan aplikasi ini.',
       aiAvatar: process.env.AI_AVATAR || '',
       baseUrl: (process.env.AI_BASE_URL || 'http://localhost:20128/v1').replace(/\/$/, ''),
@@ -655,7 +655,7 @@ export class StudioAiService {
   }
 
   /**
-   * Asisten chat scoped VolikoPrint dengan barrier 2 tahap:
+   * Asisten chat scoped ke toko ini dengan barrier 2 tahap:
    * (1) klasifikasi on-topic → kalau bukan, tolak; (2) retrieval + jawab.
    */
   /**
@@ -676,9 +676,11 @@ export class StudioAiService {
     if (!cfg.chatEnabled) throw new ServiceUnavailableException('Chat asisten sedang dinonaktifkan oleh Owner.');
     const role = (roleName || '').toUpperCase();
     const canHpp = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'].includes(role);
+    // Nama toko dari Profil Toko — bukan tertanam di kode (T-34).
+    const toko = (await this.prisma.storeSettings.findFirst({ select: { storeName: true } }))?.storeName?.trim() || 'toko ini';
 
     // ── Barrier tahap 1: klasifikasi topik ──
-    const clsSystem = 'Kamu penjaga topik untuk asisten internal toko percetakan "VolikoPrint". Longgar tapi tegas. Jawab HANYA satu kata.';
+    const clsSystem = `Kamu penjaga topik untuk asisten internal toko percetakan "${toko}". Longgar tapi tegas. Jawab HANYA satu kata.`;
     const clsUser =
       `Pesan user: "${message.trim()}"\n\n` +
       `Jawab "YA" jika pesan ini MASIH masuk akal dibahas asisten toko percetakan: produk/harga/HPP/stok, rekomendasi produk, ` +
@@ -693,7 +695,7 @@ export class StudioAiService {
     if (!verdict.startsWith('YA')) {
       return {
         refused: true,
-        reply: 'Maaf, saya hanya membantu seputar VolikoPrint — produk, harga, HPP, perhitungan margin, dan penggunaan aplikasi ini. Silakan tanyakan hal terkait itu ya 🙏',
+        reply: `Maaf, saya hanya membantu seputar ${toko} — produk, harga, HPP, perhitungan margin, dan penggunaan aplikasi ini. Silakan tanyakan hal terkait itu ya 🙏`,
       };
     }
 
@@ -705,7 +707,7 @@ export class StudioAiService {
     ]);
     const guide = this.guideContext(message);
     const sys = [
-      `Kamu "${cfg.aiName}" — asisten internal toko percetakan VolikoPrint yang ramah, cerdas, dan enak diajak ngobrol. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot. Kalau ditanya namamu, sebut "${cfg.aiName}".`,
+      `Kamu "${cfg.aiName}" — asisten internal toko percetakan ${toko} yang ramah, cerdas, dan enak diajak ngobrol. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot. Kalau ditanya namamu, sebut "${cfg.aiName}".`,
       'Kamu BOLEH diajak berpikir & berdiskusi: menimbang pilihan, kasih rekomendasi beserta alasannya, bertanya balik kalau info kurang, dan memberi ide (promo, desain, cara jual, layanan pelanggan).',
       'Fokus: produk/harga/HPP/stok, rekomendasi produk, hitung harga/margin/diskon, ide untuk toko, dan cara pakai aplikasi ini. Kalau ada yang benar-benar keluar topik toko, tolak dengan halus & ramah lalu arahkan ke hal yang bisa kamu bantu.',
       'KEJUJURAN DATA:',

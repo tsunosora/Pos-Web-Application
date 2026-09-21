@@ -20,8 +20,8 @@ export const VALUE_SOURCES: Array<{ label: string; sample: string }> = [
     { label: "Jumlah (qty)", sample: "2" },
     { label: "Tanggal", sample: "8 Agustus 2026" },
     { label: "Diskon", sample: "20%" },
-    { label: "Nama toko", sample: "Voliko Printing" },
-    { label: "Link / URL", sample: "https://voliko.com/promo" },
+    { label: "Nama toko", sample: "Toko Anda" },
+    { label: "Link / URL", sample: "https://tokoanda.com/promo" },
 ];
 
 /** Jumlah variabel = indeks {{n}} tertinggi di body (Meta wajib berurutan 1..N). */

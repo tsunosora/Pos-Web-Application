@@ -127,11 +127,13 @@ export class TemplatesService {
 
     /** Seed default templates idempotent. */
     async seedDefaults() {
+        // Nama toko dari Profil Toko (T-34) — dulu template bawaan menyebut satu merek toko.
+        const toko = (await (this.prisma as any).storeSettings.findFirst({ select: { storeName: true } }))?.storeName?.trim() || 'kami';
         const defaults = [
             {
                 name: 'Greeting Lead Baru',
                 category: 'GREETING',
-                bodyTemplate: `Halo kak {{name}} 🙌\nTerima kasih sudah menghubungi VolikoPrint.\nBoleh dibantu untuk kebutuhan cetak/jersey apa kak?\n(Banner / Paper print / Jersey / Komunitas / Event / dll)`,
+                bodyTemplate: `Halo kak {{name}} 🙌\nTerima kasih sudah menghubungi ${toko}.\nBoleh dibantu untuk kebutuhan cetak/jersey apa kak?\n(Banner / Paper print / Jersey / Komunitas / Event / dll)`,
             },
             {
                 name: 'Follow Up Lead Hari ke-3',
@@ -151,7 +153,7 @@ export class TemplatesService {
             {
                 name: 'Repeat Order Nudge',
                 category: 'REPEAT_ORDER',
-                bodyTemplate: `Halo kak {{name}} 👋\nSudah {{monthsSinceLastOrder}} bulan ya sejak order terakhir di VolikoPrint.\nKalau ada agenda baru — turnamen, event, atau seragam — kami siap bantu dengan harga & timeline terbaik untuk customer langganan 🙏\nLangsung balas chat ini kalau ada yang mau dibahas ya kak 🙌`,
+                bodyTemplate: `Halo kak {{name}} 👋\nSudah {{monthsSinceLastOrder}} bulan ya sejak order terakhir di ${toko}.\nKalau ada agenda baru — turnamen, event, atau seragam — kami siap bantu dengan harga & timeline terbaik untuk customer langganan 🙏\nLangsung balas chat ini kalau ada yang mau dibahas ya kak 🙌`,
             },
         ];
 

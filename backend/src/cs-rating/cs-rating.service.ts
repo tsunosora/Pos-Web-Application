@@ -28,8 +28,9 @@ export interface SubmitRatingDto {
 }
 
 // Anti-spam QR walk-in: maksimal N submit per IP per cabang dalam WINDOW.
-const IP_WINDOW_MS = 5 * 60 * 1000;
-const IP_MAX = 20;
+const IP_WINDOW_MS = 10 * 60 * 1000;
+const IP_MAX = 5;
+const CS_WINDOW_MS = 10 * 60 * 1000;
 
 export interface UpdateConfigDto {
     branchId?: number | null;
@@ -51,18 +52,26 @@ export class CsRatingService {
     }
 
     /** Batasi flood submit walk-in dari satu IP ke satu cabang. Lempar 429 bila lewat batas. */
-    private throttleIp(ip: string | undefined, branchId: number) {
-        const key = `${ip || 'unknown'}|${branchId}`;
+    /**
+     * Batas penilaian lewat QR cabang (T-22). Nilai CS dipakai di leaderboard & bonus, jadi
+     * satu koneksi tidak boleh mengerek/menjatuhkan nilai seseorang berulang-ulang:
+     * - 1 penilaian per (koneksi, cabang, CS yang dipilih) per 10 menit;
+     * - maksimal IP_MAX penilaian per (koneksi, cabang) per IP_WINDOW_MS (Wi-Fi toko dipakai banyak pelanggan).
+     * `ip` = IP asli pelanggan (CF-Connecting-IP), bukan 127.0.0.1 dari tunnel.
+     */
+    private throttleIp(ip: string | undefined, branchId: number, staffId?: number | null) {
         const now = Date.now();
-        const recent = (this.ipHits.get(key) || []).filter((t) => now - t < IP_WINDOW_MS);
-        if (recent.length >= IP_MAX) {
-            throw new HttpException(
-                'Terlalu banyak penilaian dari koneksi ini. Coba lagi beberapa menit lagi.',
-                HttpStatus.TOO_MANY_REQUESTS,
-            );
-        }
-        recent.push(now);
-        this.ipHits.set(key, recent);
+        const cek = (key: string, max: number, windowMs: number, pesan: string) => {
+            const recent = (this.ipHits.get(key) || []).filter((t) => now - t < windowMs);
+            if (recent.length >= max) throw new HttpException(pesan, HttpStatus.TOO_MANY_REQUESTS);
+            return () => { recent.push(now); this.ipHits.set(key, recent); };
+        };
+        const catatCs = cek(`${ip || 'unknown'}|${branchId}|cs:${staffId ?? '-'}`, 1, CS_WINDOW_MS,
+            'Penilaian untuk CS ini sudah terkirim dari perangkat/koneksi ini. Terima kasih!');
+        const catat = cek(`${ip || 'unknown'}|${branchId}`, IP_MAX, IP_WINDOW_MS,
+            'Terlalu banyak penilaian dari koneksi ini. Coba lagi beberapa menit lagi.');
+        catatCs();
+        catat();
         // Prune sesekali agar map tidak menggelembung.
         if (this.ipHits.size > 5000) {
             for (const [k, v] of this.ipHits) {
@@ -212,7 +221,7 @@ export class CsRatingService {
         const branch = await this.prisma.companyBranch.findUnique({ where: { id: branchId } });
         if (!branch) throw new NotFoundException('Cabang tidak ditemukan');
 
-        this.throttleIp(ip, branchId);
+        this.throttleIp(ip, branchId, dto.staffId ? Number(dto.staffId) : null);
 
         const stars = Number(dto.stars);
         if (!Number.isInteger(stars) || stars < 1 || stars > 5) {

@@ -244,7 +244,12 @@ describe('buildPiketPdfHtml — kertas jadwal otomatis', () => {
 
 describe('TaskPiketService.piketPdf — dibuat ulang hanya bila isi berubah', () => {
   const make = () => {
-    const svc = new TaskPiketService({} as any, {} as any);
+    // Nama toko & cabang untuk kepala kertas diambil dari Profil Toko (T-34).
+    const prisma = {
+      storeSettings: { findFirst: jest.fn().mockResolvedValue({ storeName: 'Toko Uji' }) },
+      companyBranch: { findUnique: jest.fn().mockResolvedValue({ name: 'Pusat' }) },
+    };
+    const svc = new TaskPiketService(prisma as any, {} as any);
     let data: PiketPdfInput = input();
     jest
       .spyOn(svc, 'piketBoard')

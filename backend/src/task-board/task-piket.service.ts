@@ -126,11 +126,14 @@ export class TaskPiketService {
    * Dirender ulang hanya bila isi kertasnya berubah; selain itu diambil dari cache memori.
    */
   async piketPdf(branchId: number | null, now = new Date()): Promise<Buffer> {
-    const [board, signatures] = await Promise.all([
+    const [board, signatures, toko, cabang] = await Promise.all([
       this.piketBoard(branchId, now),
       this.piketSignatures(),
+      this.prisma.storeSettings.findFirst({ select: { storeName: true } }),
+      branchId ? this.prisma.companyBranch.findUnique({ where: { id: branchId }, select: { name: true } }) : null,
     ]);
     const html = buildPiketPdfHtml({
+      storeLabel: [toko?.storeName, cabang?.name].filter(Boolean).join(' · '),
       ...board,
       signatures,
       remindBeforeMin: REMIND_BEFORE_MIN,

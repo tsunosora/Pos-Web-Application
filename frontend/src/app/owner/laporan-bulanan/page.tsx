@@ -17,6 +17,7 @@ import api from "@/lib/api/client";
 import { getFinanceMonthlyReport, type FinanceMonthlyReport } from "@/lib/api/finance-analytics";
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { buildMonthlyReportPDF, buildMonthlyReportExcel } from "@/lib/report-pdf";
+import { useStoreName } from "@/hooks/useStoreName";
 
 dayjs.locale("id");
 const rp = (n: number) => "Rp " + Math.round(Number(n) || 0).toLocaleString("id-ID");
@@ -24,6 +25,7 @@ const num = (n: number) => Math.round(Number(n) || 0).toLocaleString("id-ID");
 const AXIS_TICK = { fontSize: 11, fill: "var(--muted-foreground)" };
 
 export default function LaporanBulananPage() {
+    const storeName = useStoreName();
     const { isOwner, currentUser } = useCurrentUser();
     const activeBranchId = useBranchStore((s) => s.activeBranchId);
     const setActiveBranchId = useBranchStore((s) => s.setActiveBranchId);
@@ -80,7 +82,7 @@ export default function LaporanBulananPage() {
                         className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-500/20 disabled:opacity-50">
                         <Download className="h-4 w-4" /> Excel
                     </button>
-                    <button onClick={() => data && buildMonthlyReportPDF(data)} disabled={!data}
+                    <button onClick={() => data && buildMonthlyReportPDF(data, storeName)} disabled={!data}
                         className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 disabled:opacity-50">
                         <FileText className="h-4 w-4" /> PDF
                     </button>

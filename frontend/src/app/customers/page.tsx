@@ -27,6 +27,7 @@ import dayjs from "dayjs";
 import "dayjs/locale/id";
 dayjs.locale("id");
 import { AnalyticsModal } from "./AnalyticsModal";
+import { safeRows } from '@/lib/spreadsheet-safe';
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
@@ -158,9 +159,9 @@ export default function CustomersPage() {
             // Build multi-sheet workbook
             const XLSX = await import("xlsx");
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "Ringkasan Pelanggan");
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeRows(summary)), "Ringkasan Pelanggan");
             if (productDetail.length > 0) {
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(productDetail), "Detail Produk");
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(safeRows(productDetail)), "Detail Produk");
             }
             const buf = XLSX.write(wb, { bookType: "xlsx", type: "array" });
             const { saveAs } = await import("file-saver");

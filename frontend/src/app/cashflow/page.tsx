@@ -25,6 +25,7 @@ import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, Legend
 } from "recharts";
+import { safeRows } from '@/lib/spreadsheet-safe';
 
 function payMethodLabel(m: string) { if (m === 'CASH') return <><Banknote className="h-3.5 w-3.5" /> Tunai</>; if (m === 'QRIS') return <><Smartphone className="h-3.5 w-3.5" /> QRIS</>; return <><Landmark className="h-3.5 w-3.5" /> Transfer</>; }
 
@@ -602,7 +603,7 @@ export default function CashflowPage() {
             'Sumber': e.userId ? 'Manual' : 'Otomatis (Transaksi)',
             'Oleh': e.user?.email ?? 'System',
         }));
-        const ws = XLSX.utils.json_to_sheet(rows);
+        const ws = XLSX.utils.json_to_sheet(safeRows(rows)); // cegah formula injection (T-25)
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Cashflow');
         const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });

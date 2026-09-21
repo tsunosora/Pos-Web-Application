@@ -935,7 +935,7 @@ function LeadFormModal({
                             placeholder={
                                 form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW"
                                     ? 'mis. "Shopee", "Brosur Pameran", "Event Kampus"...'
-                                    : 'mis. "IG @volikoprint - story balas" / "Referral kak Andi"'
+                                    : 'mis. "IG @tokoanda - story balas" / "Referral kak Andi"'
                             }
                         />
                         {form.source === "CUSTOM" && selectSourceValue === "CUSTOM_NEW" && (

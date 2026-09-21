@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, ParseIntPipe, Req, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
@@ -124,8 +124,8 @@ export class ClickCountingController {
 
   @Delete('logs/:id')
   @UseGuards(ManagerGuard)
-  deleteLog(@Param('id', ParseIntPipe) id: number) {
-    return this.service.deleteLog(id);
+  deleteLog(@Param('id', ParseIntPipe) id: number, @Req() req: any, @Body() body?: { reason?: string }) {
+    return this.service.deleteLog(id, req.user?.userId ?? null, body?.reason);
   }
 
   // ─── Machine Rejects ────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { BackupService, storeSlug } from './backup.service';
@@ -113,14 +113,20 @@ export class RcloneService implements OnModuleInit {
         const settings: any = await this.prisma.storeSettings.findFirst();
         if (!settings) return { success: false, message: 'Settings belum diinisialisasi.' };
 
+        // Hanya kolom yang DIKIRIM yang diubah — dulu kiriman sebagian (tanpa keepCount)
+        // diam-diam mengembalikan retensi ke 7 (T-06).
+        const ubah: Record<string, unknown> = {};
+        if (data.enabled !== undefined) ubah.rcloneEnabled = !!data.enabled;
+        if (data.remote !== undefined) ubah.rcloneRemote = data.remote?.trim() || null;
+        if (data.schedule !== undefined) ubah.rcloneSchedule = data.schedule || '0 2 * * *';
+        if (data.keepCount !== undefined) {
+            const k = Math.round(Number(data.keepCount));
+            if (!Number.isFinite(k) || k < 1 || k > 365) throw new BadRequestException('Jumlah cadangan yang disimpan harus 1–365.');
+            ubah.rcloneKeepCount = k;
+        }
         await this.prisma.storeSettings.update({
             where: { id: settings.id },
-            data: {
-                rcloneEnabled: data.enabled,
-                rcloneRemote: data.remote?.trim() || null,
-                rcloneSchedule: data.schedule || '0 2 * * *',
-                rcloneKeepCount: data.keepCount ?? 7,
-            } as any,
+            data: ubah as any,
         });
 
         await this.syncCronJob();
@@ -189,7 +195,7 @@ export class RcloneService implements OnModuleInit {
 
             // 3) Prune backup lokal lama.
             this.setProgress({ phase: 'Membersihkan backup lama…', percent: 98 });
-            this.pruneLocalBackups(keepCount);
+            this.pruneLocalBackups(keepCount, storeSlug(settings?.storeName));
 
             const statusMsg = remote
                 ? `Berhasil — upload ke ${remote} (${filename} + gambar inkremental)`
@@ -220,7 +226,7 @@ export class RcloneService implements OnModuleInit {
                 });
             }
             if (kept) {
-                this.pruneLocalBackups(keepCount); // tetap jaga jumlah berkas lokal
+                this.pruneLocalBackups(keepCount, storeSlug(settings?.storeName)); // tetap jaga jumlah berkas lokal
             } else if (localPath && fs.existsSync(localPath)) {
                 try { fs.unlinkSync(localPath); } catch {} // zip separuh — buang
             }
@@ -325,9 +331,16 @@ export class RcloneService implements OnModuleInit {
         }
     }
 
-    private pruneLocalBackups(keepCount: number) {
+    /**
+     * Hapus cadangan otomatis lama MILIK TOKO INI saja (T-07): kalau dua instansi
+     * (mis. produksi + demo) berbagi folder backups/, dulu yang satu bisa menghapus
+     * cadangan yang lain. Hanya pola berkas otomatis `pospro-backup-<slug>-YYYYMMDD_HHMM.zip`.
+     */
+    private pruneLocalBackups(keepCount: number, slug: string) {
         try {
-            const files = this.listLocalBackups();
+            // slug dari storeSlug() hanya huruf kecil, angka, dan tanda hubung — aman di RegExp.
+            const pola = new RegExp(`^pospro-backup-${slug}-\\d{8}_\\d{4}\\.zip$`);
+            const files = this.listLocalBackups().filter((f) => pola.test(f.name));
             files.slice(keepCount).forEach(f => {
                 fs.unlinkSync(path.join(BACKUP_DIR, f.name));
                 this.logger.log(`Pruned local backup: ${f.name}`);

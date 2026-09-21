@@ -5,7 +5,7 @@ import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchang
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch } from '../common/branch-where.helper';
 import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
-import { lineTotalOf } from '../transactions/area-unit.util';
+import { lineTotalOf, storedPriceMultiplier } from '../transactions/area-unit.util';
 
 export type FinanceTimeframe = 'day' | 'week' | 'month' | 'year';
 
@@ -97,7 +97,8 @@ export class ReportsService {
                     // supaya revenue/HPP per-item tidak undercount saat pcs > 1.
                     const pcs = Math.max(1, Number(item.pcs) || 1);
                     areaM2 = Number(item.areaCm2) / 10000 * pcs;
-                    itemHpp = hpp * areaM2;
+                    // HPP sebasis dengan harga: produk per cm² → HPP per cm² (pengali = area_cm2).
+                    itemHpp = hpp * storedPriceMultiplier(item) * pcs;
                     // Produk per cm²: priceAtTime per cm² → pakai pengali tersimpan (T-08).
                     itemRevenue = lineTotalOf(item);
                 } else {
@@ -378,22 +379,26 @@ export class ReportsService {
             systemBankBalances[bName] = startBalance + income - expense;
         }
 
-        const expectedCash = grossCash - cashExpenseTotal;
-        const expectedQris = grossQris;
-        const expectedTransfer = grossTransfer - (expensesTotal - cashExpenseTotal);
+        // Rupiah tanpa sen: nota lama per-m² bisa menyimpan pecahan (mis. 853,05). Ekspektasi
+        // kas dibulatkan supaya kasir tidak diminta menghitung "5 sen" di laci (T-20).
+        const rp = (n: number) => Math.round(n);
+        const rpMap = (m: Record<string, number>) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, rp(v)]));
+        const expectedCash = rp(grossCash - cashExpenseTotal);
+        const expectedQris = rp(grossQris);
+        const expectedTransfer = rp(grossTransfer - (expensesTotal - cashExpenseTotal));
 
         return {
             openedAt,
             expectedCash,
             expectedQris,
             expectedTransfer,
-            grossCash,
-            grossQris,
-            grossTransfer,
-            grossBankIncomes,
-            expensesTotal,
+            grossCash: rp(grossCash),
+            grossQris: rp(grossQris),
+            grossTransfer: rp(grossTransfer),
+            grossBankIncomes: rpMap(grossBankIncomes),
+            expensesTotal: rp(expensesTotal),
             shiftExpenses,
-            systemBankBalances,
+            systemBankBalances: rpMap(systemBankBalances),
         };
     }
 

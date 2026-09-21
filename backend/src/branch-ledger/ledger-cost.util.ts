@@ -44,7 +44,7 @@ export async function computeLedgerCost(
 
     // 1. Variant utama HPP per item
     const items: any[] = await prisma.$queryRawUnsafe(
-        `SELECT ti.id, ti.quantity, ti.hpp_at_time, ti.area_cm2,
+        `SELECT ti.id, ti.quantity, ti.hpp_at_time, ti.area_cm2, ti.pcs,
                 pv.id AS variant_id, pv.hpp AS variant_hpp,
                 p.pricing_mode
          FROM transaction_items ti
@@ -63,8 +63,9 @@ export async function computeLedgerCost(
         const variantHpp = Number(it.variant_hpp) || 0;
         const baseHpp = hppAt > 0 ? hppAt : variantHpp;
         const isAreaBased = it.pricing_mode === 'AREA_BASED';
-        const areaM2 = isAreaBased && it.area_cm2 ? Number(it.area_cm2) / 10000 : 0;
-        // For AREA_BASED: effectiveQty = total m² (areaCm2/10000); harga & BOM dihitung per m²
+        // Luas TOTAL = luas per lembar × pcs (dulu pcs terlewat → titipan beberapa lembar terhitung 1 lembar).
+        const areaM2 = isAreaBased && it.area_cm2 ? (Number(it.area_cm2) / 10000) * Math.max(1, Number(it.pcs) || 1) : 0;
+        // For AREA_BASED: effectiveQty = total m² (areaCm2/10000 × pcs); harga & BOM dihitung per m²
         // For UNIT: effectiveQty = qty
         const effectiveQty = isAreaBased ? areaM2 : qty;
         itemEffectiveQty.set(txItemId, effectiveQty);
@@ -111,7 +112,7 @@ export async function computeLedgerCost(
                 COALESCE(SUM(cl.quantity), 0) AS click_qty
          FROM click_logs cl
          JOIN transaction_items ti ON ti.id = cl.transaction_item_id
-         WHERE ti.transaction_id = ${safeId}`,
+         WHERE ti.transaction_id = ${safeId} AND cl.voided_at IS NULL`,
     );
     const klikCost = Number(clickAgg?.[0]?.total_click ?? 0);
     const clickQuantity = Number(clickAgg?.[0]?.click_qty ?? 0);

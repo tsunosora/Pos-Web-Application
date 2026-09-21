@@ -103,7 +103,7 @@ export class ClickCountingService {
       where.date = { gte: start, lte: end };
     }
     return (this.prisma as any).clickLog.findMany({
-      where,
+      where: { ...where, voidedAt: null }, // yang dibatalkan tidak ikut (T-48)
       include: {
         clickRate: true,
         transactionItem: {
@@ -138,9 +138,17 @@ export class ClickCountingService {
     });
   }
 
-  async deleteLog(id: number) {
-    await (this.prisma as any).clickLog.findUniqueOrThrow({ where: { id } });
-    return (this.prisma as any).clickLog.delete({ where: { id } });
+  /**
+   * "Hapus" catatan klik = DIBATALKAN dengan jejak siapa & alasannya (T-48), bukan dihapus
+   * keras — supaya rekonsiliasi dengan tagihan vendor tetap bisa diaudit.
+   */
+  async deleteLog(id: number, userId: number | null = null, reason?: string) {
+    const log = await (this.prisma as any).clickLog.findUniqueOrThrow({ where: { id } });
+    if (log.voidedAt) return log;
+    return (this.prisma as any).clickLog.update({
+      where: { id },
+      data: { voidedAt: new Date(), voidedById: userId, voidReason: (reason || '').trim().slice(0, 200) || null },
+    });
   }
 
   // ─── Machine Rejects ────────────────────────────────────────────────────────
@@ -375,7 +383,7 @@ export class ClickCountingService {
 
     const [clickLogs, machineRejects] = await Promise.all([
       (this.prisma as any).clickLog.findMany({
-        where: { date: { gte: start, lte: end }, ...bw },
+        where: { date: { gte: start, lte: end }, ...bw, voidedAt: null },
         include: { clickRate: true },
       }),
       (this.prisma as any).machineReject.findMany({
@@ -435,7 +443,7 @@ export class ClickCountingService {
 
     const [logs, rejects] = await Promise.all([
       (this.prisma as any).clickLog.findMany({
-        where: { date: { gte: start, lte: end }, ...bw },
+        where: { date: { gte: start, lte: end }, ...bw, voidedAt: null },
         include: { clickRate: true },
       }),
       (this.prisma as any).machineReject.findMany({

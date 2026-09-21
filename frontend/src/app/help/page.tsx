@@ -927,7 +927,7 @@ function SecWhatsApp() {
 
             <H3>Setup Grup Laporan</H3>
             <Steps steps={[
-                { title: "Tambahkan nomor bot ke grup WhatsApp", desc: "Contoh grup: 'Owner VOLIKO'." },
+                { title: "Tambahkan nomor bot ke grup WhatsApp", desc: "Contoh grup: 'Owner Toko'." },
                 { title: "Ketik !getgroupid di grup", desc: "Bot balas dengan ID grup (format angka panjang diakhiri @g.us)." },
                 { title: "Ketik !botadmin setreportgroup [ID_GRUP]", desc: "Bot siap mengirim laporan shift ke grup tersebut ✅." },
             ]} />

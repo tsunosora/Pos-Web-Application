@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Param, Body, Ip } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, Req } from '@nestjs/common';
+import { clientIp } from '../auth/pin-throttle.interceptor';
 import { CsRatingService } from './cs-rating.service';
 import type { SubmitRatingDto } from './cs-rating.service';
 
@@ -19,8 +20,8 @@ export class CsRatingPublicController {
     }
 
     @Post('branch/:branchId/submit')
-    branchSubmit(@Param('branchId') branchId: string, @Body() dto: SubmitRatingDto, @Ip() ip: string) {
-        return this.svc.submitBranch(Number(branchId), dto, ip);
+    branchSubmit(@Param('branchId') branchId: string, @Body() dto: SubmitRatingDto, @Req() req: any) {
+        return this.svc.submitBranch(Number(branchId), dto, clientIp(req)); // IP asli di belakang Cloudflare
     }
 
     @Get(':token')

@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import type { BranchContext } from './branch-context.decorator';
 
 /**
@@ -46,7 +46,9 @@ export function assertBranchAccess(
     if (ctx.isOwner) return;
     if (resourceBranchId == null) return; // data global (shared)
     if (resourceBranchId !== ctx.userBranchId) {
-        throw new BadRequestException(
+        // 403, bukan 400: ini penolakan akses, bukan salah isi (T-05) — supaya
+        // monitor keamanan bisa membedakannya dari galat validasi.
+        throw new ForbiddenException(
             'Anda tidak memiliki akses ke data cabang lain.',
         );
     }

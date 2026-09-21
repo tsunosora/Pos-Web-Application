@@ -58,6 +58,10 @@ export interface ReceiptSnapshot {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+/** Teks isian pelanggan/kasir jadi SATU baris: baris baru di nama pelanggan bisa menyusupkan
+ *  baris palsu ("*LUNAS — TIDAK PERLU BAYAR*") ke invoice WA yang terlihat resmi (T-26). */
+const satu = (v?: string | null) => String(v ?? '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+
 export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LUNAS', bankAccounts?: any[]) => {
   const pm = snap.paymentMethod === 'BANK_TRANSFER' ? 'Transfer Bank' : snap.paymentMethod;
   const dateStr = snap.timestamp.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
@@ -70,7 +74,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
   }
 
   const itemLines = snap.items.map(item => {
-    let line = `- ${item.name}`;
+    let line = `- ${satu(item.name)}`;
     if (item.pricingMode === 'AREA_BASED') {
       const u = item.unitType || 'cm';
       let dimStr = '';
@@ -83,7 +87,7 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     } else {
       line += `\n  Jml: ${item.qty} x Rp ${item.pricePerUnit.toLocaleString('id-ID')}`;
     }
-    if (item.note) line += `\n  Catatan: ${item.note}`;
+    if (item.note) line += `\n  Catatan: ${satu(item.note)}`;
     line += `\n  Subtotal: Rp ${item.price.toLocaleString('id-ID')}`;
     return line;
   }).join('\n');
@@ -95,13 +99,13 @@ export const buildWhatsAppText = (snap: ReceiptSnapshot, status: 'TAGIHAN' | 'LU
     snap.branchLabel ? `_${snap.branchLabel}_` : '',
     `*${title}*`,
     `Tanggal: ${dateStr}`,
-    snap.customerName ? `Pelanggan: ${snap.customerName}${snap.customerPhone ? ` (${snap.customerPhone})` : ''}` : '',
-    snap.label ? `Label: ${snap.label}` : '',
-    snap.marketplace ? `Marketplace: ${snap.marketplace}${snap.marketplaceOrderNo ? ` (No. pesanan ${snap.marketplaceOrderNo})` : ''}` : '',
-    snap.customerAddress ? `Alamat: ${snap.customerAddress}` : '',
+    snap.customerName ? `Pelanggan: ${satu(snap.customerName)}${snap.customerPhone ? ` (${satu(snap.customerPhone)})` : ''}` : '',
+    snap.label ? `Label: ${satu(snap.label)}` : '',
+    snap.marketplace ? `Marketplace: ${satu(snap.marketplace)}${snap.marketplaceOrderNo ? ` (No. pesanan ${satu(snap.marketplaceOrderNo)})` : ''}` : '',
+    snap.customerAddress ? `Alamat: ${satu(snap.customerAddress)}` : '',
     snap.notaHeader ? `\n${snap.notaHeader}` : '',
     snap.productionBranchLabel ? `*Dicetak & diambil di: ${snap.productionBranchLabel}*` : '',
-    snap.orderNotes ? `Catatan: ${snap.orderNotes}` : '',
+    snap.orderNotes ? `Catatan: ${satu(snap.orderNotes)}` : '',
     ``,
     itemLines,
     ``,

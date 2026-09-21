@@ -11,6 +11,7 @@ import { getMonthlyClosing, type MonthlyClosing } from "@/lib/api/reports";
 import { exportSheetsToExcel } from "@/lib/export";
 import { useBranchStore } from "@/store/branch-store";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useStoreName } from "@/hooks/useStoreName";
 
 const rp = (n: number) => "Rp " + Math.round(Number(n) || 0).toLocaleString("id-ID");
 const num = (n: number) => Math.round(Number(n) || 0).toLocaleString("id-ID");
@@ -82,7 +83,7 @@ function buildExcel(d: MonthlyClosing) {
 }
 
 // ── PDF (mirip format manual) ───────────────────────────────────────────────
-function buildPDF(d: MonthlyClosing) {
+function buildPDF(d: MonthlyClosing, storeName = "Toko") {
     const doc = new jsPDF("portrait");
     const wl = d.period.weekLabels.map(shortWeek);
     const colSum = (arr: { weeks: number[] }[], i: number) => arr.reduce((s, c) => s + (c.weeks[i] || 0), 0);
@@ -91,7 +92,7 @@ function buildPDF(d: MonthlyClosing) {
     doc.setFontSize(15); doc.setFont("helvetica", "bold");
     doc.text("LAPORAN TUTUP BUKU", W / 2, 16, { align: "center" });
     doc.setFontSize(11);
-    doc.text(`Voliko Digital Printing${d.branchName ? " — " + d.branchName : ""}`, W / 2, 23, { align: "center" });
+    doc.text(`${storeName}${d.branchName ? " — " + d.branchName : ""}`, W / 2, 23, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.text(`${d.period.monthLabel} ${d.period.year}`, W / 2, 29, { align: "center" });
 
@@ -183,6 +184,7 @@ function buildPDF(d: MonthlyClosing) {
 }
 
 export default function TutupBukuPage() {
+    const storeName = useStoreName();
     const { isManager } = useCurrentUser();
     const activeBranchId = useBranchStore(s => s.activeBranchId);
     const setActiveBranchId = useBranchStore(s => s.setActiveBranchId);
@@ -231,7 +233,7 @@ export default function TutupBukuPage() {
                         className="inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-3 py-2 rounded-lg text-sm font-medium hover:bg-emerald-500/20 disabled:opacity-50">
                         <Download className="h-4 w-4" /> Excel
                     </button>
-                    <button onClick={() => d && buildPDF(d)} disabled={!d}
+                    <button onClick={() => d && buildPDF(d, storeName)} disabled={!d}
                         className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 text-primary px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/20 disabled:opacity-50">
                         <FileText className="h-4 w-4" /> PDF
                     </button>
@@ -239,7 +241,7 @@ export default function TutupBukuPage() {
             </div>
 
             {activeBranchId == null && (
-                <p className="text-xs text-amber-600 dark:text-amber-300">Tip: pilih <strong>cabang spesifik</strong> agar tutup buku per cabang (seperti format Voliko). Mode Semua Cabang menggabungkan semuanya.</p>
+                <p className="text-xs text-amber-600 dark:text-amber-300">Tip: pilih <strong>cabang spesifik</strong> agar tutup buku per cabang (satu laporan per cabang). Mode Semua Cabang menggabungkan semuanya.</p>
             )}
 
             {closingQ.isLoading ? (

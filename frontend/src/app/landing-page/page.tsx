@@ -106,7 +106,7 @@ export default function LandingPageAdmin() {
                 <div className="p-5 space-y-4">
                     <div>
                         <label className="text-xs font-medium text-muted-foreground block mb-1.5">Judul Halaman (title)</label>
-                        <input value={form.seoTitle} onChange={e => setForm(s => ({ ...s, seoTitle: e.target.value }))} placeholder="VOLIKO IMOGIRI — Konveksi Jersey" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
+                        <input value={form.seoTitle} onChange={e => setForm(s => ({ ...s, seoTitle: e.target.value }))} placeholder="Nama Toko — Layanan Utama" className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-background" />
                     </div>
                     <div>
                         <label className="text-xs font-medium text-muted-foreground block mb-1.5">Deskripsi (meta description)</label>

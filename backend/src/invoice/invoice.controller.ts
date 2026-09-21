@@ -2,10 +2,14 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, Query,
 import { InvoiceService } from './invoice.service';
 import { InvoiceStatus, InvoiceType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ManagerGuard, Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 
-@UseGuards(JwtAuthGuard)
+// Invoice & penawaran: hanya peran yang diberi menunya (T-40). Nomor, status awal &
+// total dibuat server; perubahan status mengikuti alur (T-41); SPH → invoice sekali (T-42).
+@Menu('/invoices')
+@UseGuards(JwtAuthGuard, MenuGuard)
 @Controller('invoices')
 export class InvoiceController {
     constructor(private readonly invoiceService: InvoiceService) { }
@@ -40,6 +44,7 @@ export class InvoiceController {
     }
 
     @Patch(':id/type')
+    @UseGuards(ManagerGuard)
     updateType(
         @Param('id', ParseIntPipe) id: number,
         @Body('type') type: InvoiceType,

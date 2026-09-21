@@ -226,7 +226,7 @@ export const APP_GUIDE = `## Setup Pertama Kali
 - **Scan QR Code** — Status berubah menjadi TERHUBUNG SEDIA ✅.
 
 ### Setup Grup Laporan
-- **Tambahkan nomor bot ke grup WhatsApp** — Contoh grup: 'Owner VOLIKO'.
+- **Tambahkan nomor bot ke grup WhatsApp** — Contoh grup: 'Owner Toko'.
 - **Ketik !getgroupid di grup** — Bot balas dengan ID grup (format angka panjang diakhiri @g.us).
 - **Ketik !botadmin setreportgroup [ID_GRUP]** — Bot siap mengirim laporan shift ke grup tersebut ✅.
 

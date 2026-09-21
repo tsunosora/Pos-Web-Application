@@ -113,7 +113,7 @@ export function StudioAiSettings() {
                             type="text"
                             value={form.aiName}
                             onChange={(e) => setForm({ ...form, aiName: e.target.value })}
-                            placeholder="Asisten VolikoPrint"
+                            placeholder="mis. Asisten Toko"
                             className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
                         />
                         <span className="text-[11px] text-muted-foreground">Nama yang tampil di widget chat & dipakai AI saat memperkenalkan diri.</span>

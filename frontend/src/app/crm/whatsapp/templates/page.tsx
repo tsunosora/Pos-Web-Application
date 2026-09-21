@@ -12,6 +12,7 @@ import {
 import { StatusBadge, type BadgeTone } from "@/components/ui/status-badge";
 import { WhatsappGuideButton } from "@/components/whatsapp/WhatsappGuideButton";
 import { TemplateVariableBuilder, detectVarCount } from "@/components/whatsapp/TemplateVariableBuilder";
+import { useStoreName } from "@/hooks/useStoreName";
 
 const STATUS_TONE: Record<WaTemplateStatus, BadgeTone> = {
     DRAFT: "neutral", PENDING: "warning", APPROVED: "success", REJECTED: "danger", PAUSED: "info", DISABLED: "neutral",
@@ -20,7 +21,7 @@ const CATEGORIES = ["UTILITY", "MARKETING", "AUTHENTICATION"];
 const EMPTY: TemplateBody = { name: "", language: "id", category: "UTILITY", bodyText: "", headerText: "", footerText: "", variableSample: [] };
 
 // Draft template pembuka siap pakai (tinggal klik → isi form → Submit ke Meta).
-// Ganti "Voliko Print" dengan nama tokomu bila berbeda sebelum Submit.
+// __TOKO__ diganti nama toko dari Profil Toko saat ditampilkan/dipakai (T-34).
 const PRESETS: Array<{ key: string; title: string; desc: string; body: TemplateBody; samples: string[]; labels: string[] }> = [
     {
         key: "sapaan_pembuka",
@@ -29,7 +30,7 @@ const PRESETS: Array<{ key: string; title: string; desc: string; body: TemplateB
         body: {
             name: "sapaan_pembuka", language: "id", category: "MARKETING", headerText: "",
             bodyText:
-                "Halo, perkenalkan kami dari Voliko Print 🙏\n\n" +
+                "Halo, perkenalkan kami dari __TOKO__ 🙏\n\n" +
                 "Terima kasih atas ketertarikannya pada produk kami. Kami siap membantu kebutuhan cetak & desain Anda — mulai dari info produk, harga, hingga pemesanan.\n\n" +
                 "Silakan balas pesan ini, tim kami akan langsung melayani. 😊",
             footerText: "Balas STOP untuk berhenti menerima pesan.", variableSample: [],
@@ -44,7 +45,7 @@ const PRESETS: Array<{ key: string; title: string; desc: string; body: TemplateB
             name: "sapaan_pembuka_nama", language: "id", category: "MARKETING", headerText: "",
             bodyText:
                 "Halo {{1}} 👋\n\n" +
-                "Perkenalkan kami dari Voliko Print. Terima kasih atas ketertarikannya pada produk kami. Kami siap membantu kebutuhan cetak & desain Anda.\n\n" +
+                "Perkenalkan kami dari __TOKO__. Terima kasih atas ketertarikannya pada produk kami. Kami siap membantu kebutuhan cetak & desain Anda.\n\n" +
                 "Silakan balas pesan ini untuk info produk, harga, atau pemesanan ya. 😊",
             footerText: "Balas STOP untuk berhenti menerima pesan.", variableSample: ["Budi"],
         },
@@ -58,6 +59,8 @@ function errMsg(e: unknown, fb: string) {
 
 
 export default function WhatsappTemplatesPage() {
+    const storeName = useStoreName();
+    const denganToko = (t: string) => t.split('__TOKO__').join(storeName);
     const qc = useQueryClient();
     const [form, setForm] = useState<TemplateBody>(EMPTY);
     const [varSamples, setVarSamples] = useState<string[]>([]);
@@ -96,7 +99,7 @@ export default function WhatsappTemplatesPage() {
 
     // Isi form dari draft siap pakai lalu buka form untuk ditinjau/di-Submit.
     const applyPreset = (p: (typeof PRESETS)[number]) => {
-        setForm({ ...p.body });
+        setForm({ ...p.body, bodyText: denganToko(p.body.bodyText) });
         setVarSamples([...p.samples]);
         setVarLabels([...p.labels]);
         setShowForm(true);
@@ -144,7 +147,7 @@ export default function WhatsappTemplatesPage() {
                         <div key={p.key} className="rounded-xl border border-border bg-background/60 p-3 flex flex-col gap-1">
                             <div className="font-medium text-sm">{p.title}</div>
                             <div className="text-xs opacity-60">{p.desc}</div>
-                            <div className="text-xs opacity-70 mt-1 whitespace-pre-wrap max-h-16 overflow-hidden">{p.body.bodyText}</div>
+                            <div className="text-xs opacity-70 mt-1 whitespace-pre-wrap max-h-16 overflow-hidden">{denganToko(p.body.bodyText)}</div>
                             <button onClick={() => applyPreset(p)}
                                 className="mt-2 self-start text-xs px-2.5 py-1 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600">
                                 Pakai draft ini
@@ -152,7 +155,7 @@ export default function WhatsappTemplatesPage() {
                         </div>
                     ))}
                 </div>
-                <p className="text-[11px] opacity-50 mt-2">Ganti “Voliko Print” dengan nama tokomu bila berbeda sebelum Submit.</p>
+                <p className="text-[11px] opacity-50 mt-2">Nama toko diambil dari Profil Toko — periksa lagi sebelum Submit ke Meta.</p>
             </div>
 
             {showForm && (

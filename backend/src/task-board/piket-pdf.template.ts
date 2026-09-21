@@ -22,6 +22,8 @@ export interface PiketPdfTask {
 }
 
 export interface PiketPdfInput {
+  /** Label toko di kepala kertas, mis. "NAMA TOKO · CABANG" — dari Profil Toko (T-34). */
+  storeLabel?: string;
   dateKey: string;
   trialUntil: string | null;
   shiftTasks: PiketPdfTask[];
@@ -87,7 +89,6 @@ const BULAN_PENDEK = [
   'Des',
 ];
 
-const TOKO = 'VOLIKO DIGITAL PRINTING · PUSAT (IMOGIRI)';
 const JAM_BUKA = 'Buka Sen–Sab 08.30–20.50';
 const SEN_SAB = 'Sen–Sab';
 const SETIAP_HARI = 'setiap hari';
@@ -313,6 +314,7 @@ function rotationSub(ts: PiketPdfTask[]): string {
 }
 
 export function buildPiketPdfHtml(input: PiketPdfInput): string {
+  const TOKO = (input.storeLabel || 'TOKO').toUpperCase();
   const trial = input.trialUntil;
   const shiftTasks = input.shiftTasks ?? [];
   const shiftGroups = new Set(

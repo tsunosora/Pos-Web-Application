@@ -61,7 +61,28 @@ export class HppService {
         });
     }
 
+    /**
+     * Angka lembar HPP harus masuk akal (T-39): volume 0 menjadi pembagi biaya tetap,
+     * margin/harga/pemakaian negatif menghasilkan HPP & harga jual ngawur. Dicek SEBELUM
+     * apa pun dihapus/ditulis, supaya kiriman salah tidak menyisakan lembar setengah jadi.
+     */
+    private cekLembar(data: any) {
+        const n = (v: unknown) => Number(v);
+        if (!String(data?.productName ?? '').trim()) throw new BadRequestException('Nama produk wajib diisi.');
+        if (!Number.isFinite(n(data?.targetVolume)) || n(data.targetVolume) < 1) throw new BadRequestException('Target volume minimal 1.');
+        if (!Number.isFinite(n(data?.targetMargin)) || n(data.targetMargin) < 0 || n(data.targetMargin) > 1000) throw new BadRequestException('Target margin harus 0–1000%.');
+        if (!Array.isArray(data?.variableCosts) || !Array.isArray(data?.fixedCosts)) throw new BadRequestException('Daftar biaya variabel & biaya tetap wajib dikirim (boleh kosong).');
+        data.variableCosts.forEach((vc: any, i: number) => {
+            if (!Number.isFinite(n(vc?.usageAmount)) || n(vc.usageAmount) < 0) throw new BadRequestException(`Bahan ke-${i + 1}: pemakaian tidak boleh negatif.`);
+            if (vc?.customPrice != null && vc.customPrice !== '' && (!Number.isFinite(n(vc.customPrice)) || n(vc.customPrice) < 0)) throw new BadRequestException(`Bahan ke-${i + 1}: harga tidak boleh negatif.`);
+        });
+        data.fixedCosts.forEach((fc: any, i: number) => {
+            if (!Number.isFinite(n(fc?.amount)) || n(fc.amount) < 0) throw new BadRequestException(`Biaya tetap ke-${i + 1}: nominal tidak boleh negatif.`);
+        });
+    }
+
     async create(data: any) {
+        this.cekLembar(data);
         const prismaAny = this.prisma as any;
         return prismaAny.hppWorksheet.create({
             data: {
@@ -91,6 +112,7 @@ export class HppService {
     }
 
     async update(id: number, data: any) {
+        this.cekLembar(data);
         await this.prisma.hppVariableCost.deleteMany({ where: { worksheetId: id } });
         await this.prisma.hppFixedCost.deleteMany({ where: { worksheetId: id } });
 

@@ -1,7 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch, assertBranchAccess } from '../common/branch-where.helper';
+
+/**
+ * Hanya kolom ini yang boleh diisi dari klien (T-15). Dulu seluruh body disebar ke
+ * Prisma, sehingga `currentBalance: 999999999` ikut tersimpan — saldo dikarang dari
+ * luar. Saldo hanya berubah lewat transaksi/kas atau "Reset saldo".
+ */
+function pilihKolom(data: any, wajib: boolean) {
+    const out: { bankName?: string; accountNumber?: string; accountOwner?: string; isActive?: boolean } = {};
+    for (const k of ['bankName', 'accountNumber', 'accountOwner'] as const) {
+        if (data?.[k] === undefined) {
+            if (wajib) throw new BadRequestException('Nama bank, nomor rekening, dan nama pemilik wajib diisi.');
+            continue;
+        }
+        const v = String(data[k] ?? '').trim();
+        if (!v) throw new BadRequestException('Nama bank, nomor rekening, dan nama pemilik tidak boleh kosong.');
+        out[k] = v.slice(0, 100);
+    }
+    if (data?.isActive !== undefined) out.isActive = !!data.isActive;
+    return out;
+}
 
 @Injectable()
 export class BankAccountsService {
@@ -19,7 +39,7 @@ export class BankAccountsService {
         branchCtx: BranchContext,
     ) {
         const branchId = requireBranch(branchCtx);
-        return this.prisma.bankAccount.create({ data: { ...data, branchId } as any });
+        return this.prisma.bankAccount.create({ data: { ...pilihKolom(data, true), branchId } as any });
     }
 
     async update(
@@ -30,16 +50,18 @@ export class BankAccountsService {
         const existing = await this.prisma.bankAccount.findUnique({ where: { id } });
         if (!existing) throw new NotFoundException('Rekening tidak ditemukan');
         assertBranchAccess(branchCtx, (existing as any).branchId ?? null);
-        return this.prisma.bankAccount.update({ where: { id }, data });
+        return this.prisma.bankAccount.update({ where: { id }, data: pilihKolom(data, false) });
     }
 
     async resetBalance(id: number, newBalance: number, branchCtx: BranchContext) {
         const existing = await this.prisma.bankAccount.findUnique({ where: { id } });
         if (!existing) throw new NotFoundException('Rekening tidak ditemukan');
         assertBranchAccess(branchCtx, (existing as any).branchId ?? null);
+        const saldo = Number(newBalance);
+        if (!Number.isFinite(saldo)) throw new BadRequestException('Saldo baru harus berupa angka.');
         return this.prisma.bankAccount.update({
             where: { id },
-            data: { currentBalance: newBalance },
+            data: { currentBalance: saldo },
         });
     }
 

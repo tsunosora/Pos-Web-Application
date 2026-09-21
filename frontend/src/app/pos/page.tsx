@@ -12,7 +12,7 @@ import { useCartStore, CartItem } from '@/store/cart-store';
 import { CompositeModal } from './CompositeModal';
 import { useReadyJobs } from '@/hooks/useReadyJobs';
 import { useUIStore } from '@/store/ui-store';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { getSalesOrder } from '@/lib/api/sales-orders';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
@@ -230,8 +230,23 @@ function POSPageContent() {
     const subtotal = _subtotal;
     const addNotification = useNotificationStore(s => s.addNotification);
 
+    // Satu kunci idempotensi per keranjang: kalau respons hilang lalu kasir mengulang,
+    // server mengembalikan nota yang sama, bukan nota kembar (T-23). Dilepas setelah sukses.
+    const checkoutKeyRef = useRef<string | null>(null);
+    // Keranjang dikosongkan (batal/selesai) → percobaan berikutnya pakai kunci baru.
+    useEffect(() => { if (cart.length === 0) checkoutKeyRef.current = null; }, [cart.length]);
     const transactionMutation = useMutation({
-        mutationFn: createTransaction,
+        mutationFn: (payload: Parameters<typeof createTransaction>[0]) => {
+            if (!checkoutKeyRef.current) {
+                checkoutKeyRef.current = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                    ? crypto.randomUUID()
+                    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+            }
+            // Sidik isi kiriman ikut di kunci: keranjang yang diubah = permintaan baru.
+            let h = 2166136261;
+            for (const ch of JSON.stringify(payload)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+            return createTransaction(payload, `${checkoutKeyRef.current}:${(h >>> 0).toString(36)}`);
+        },
         onSuccess: (data) => {
             setCheckoutModalOpen(false);
             clearCart();
@@ -652,6 +667,7 @@ function POSPageContent() {
         } else {
             transactionMutation.mutate(payload, {
                 onSuccess: (data) => {
+                    checkoutKeyRef.current = null; // keranjang berikutnya = kunci baru
                     snap.transactionId = data?.id;
                     // Ambil nomor SO (invoice) & CO (checkout) hasil generate server → tampil di nota/thermal.
                     snap.orderNumber = data?.invoiceNumber || undefined;

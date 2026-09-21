@@ -35,18 +35,51 @@ export class DiscordExceptionFilter implements ExceptionFilter {
         }
     }
 
+    private mapPrismaError(e: unknown): { status: number; message: string; code: string } | null {
+        const err = e as any;
+        const nama = err?.constructor?.name || err?.name;
+        if (nama === 'PrismaClientValidationError') {
+            return { status: 400, code: 'VALIDATION', message: 'Data yang dikirim tidak valid (ada kolom yang tidak dikenal atau tipenya salah).' };
+        }
+        if (nama === 'PrismaClientKnownRequestError') {
+            switch (err.code) {
+                case 'P2002': return { status: 409, code: err.code, message: 'Data yang sama sudah ada (duplikat).' };
+                case 'P2025': return { status: 404, code: err.code, message: 'Data tidak ditemukan.' };
+                case 'P2003': return { status: 400, code: err.code, message: 'Data terkait tidak ditemukan, atau data ini masih dipakai data lain.' };
+                case 'P2000': return { status: 400, code: err.code, message: 'Isian terlalu panjang.' };
+                default: return null;
+            }
+        }
+        return null;
+    }
+
     catch(exception: unknown, host: ArgumentsHost) {
         const ctx = host.switchToHttp();
         const res = ctx.getResponse();
         const req = ctx.getRequest();
 
-        const status = exception instanceof HttpException
-            ? exception.getStatus()
-            : HttpStatus.INTERNAL_SERVER_ERROR;
+        // Galat Prisma karena kiriman klien (field tak dikenal, tipe salah, duplikat, data
+        // terkait tak ada) → 4xx dengan pesan yang bisa dibaca, bukan 500 (T-16).
+        const prisma = this.mapPrismaError(exception);
 
-        const payload = exception instanceof HttpException
-            ? exception.getResponse()
-            : { statusCode: status, message: 'Internal server error' };
+        let status = prisma?.status ?? (exception instanceof HttpException
+            ? exception.getStatus()
+            : HttpStatus.INTERNAL_SERVER_ERROR);
+
+        let payload: unknown = prisma
+            ? { statusCode: prisma.status, message: prisma.message }
+            : exception instanceof HttpException
+                ? exception.getResponse()
+                : { statusCode: status, message: 'Internal server error' };
+
+        // 404 dari penyaji berkas statis memuat alamat berkas di server
+        // ("ENOENT … /home/…/public/index.html") — jangan bocorkan (T-50).
+        if (status === 404) {
+            const m = typeof payload === 'string' ? payload : (payload as any)?.message;
+            if (typeof m === 'string' && /ENOENT|\/home\/|\\/.test(m)) payload = { statusCode: 404, message: 'Not Found' };
+        }
+        if (prisma) this.logger.warn(`${req?.method || ''} ${req?.url || ''} → ${prisma.status} ${prisma.code}: ${String((exception as any)?.message || '').split('\n').pop()}`);
+        status = Number(status);
 
         // Respons ke client (format standar Nest)
         try {

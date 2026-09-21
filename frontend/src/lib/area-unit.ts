@@ -48,3 +48,19 @@ export function storedPriceMultiplier(item: { unitType?: string | null; areaCm2?
 export function sizeLabel(unit: AreaUnit): string {
     return unit === 'm' ? 'm' : unit === 'menit' ? 'menit' : 'cm';
 }
+
+/** Total satu baris nota tersimpan — cermin lineTotalOf di server. */
+export function lineTotalOf(item: { priceAtTime?: unknown; quantity?: unknown; pcs?: unknown; areaCm2?: unknown; unitType?: string | null }): number {
+    const price = Number(item.priceAtTime) || 0;
+    const mult = storedPriceMultiplier(item);
+    if (mult > 0) return price * mult * Math.max(1, Number(item.pcs) || 1);
+    return price * (Number(item.quantity) || 1);
+}
+
+/** Keterangan jumlah × harga untuk item area: "1,54 m² × Rp 125.000/m²" (cm2 → cm²). */
+export function areaQtyLabel(item: { priceAtTime?: unknown; pcs?: unknown; areaCm2?: unknown; unitType?: string | null }, fmt: (n: number) => string): string {
+    const pcs = Math.max(1, Number(item.pcs) || 1);
+    const per = item.unitType === 'cm2' ? 'cm²' : item.unitType === 'menit' ? 'menit' : 'm²';
+    const luas = storedPriceMultiplier(item) * pcs;
+    return `${luas.toLocaleString('id-ID', { maximumFractionDigits: 4 })} ${per} × ${fmt(Number(item.priceAtTime) || 0)}/${per}`;
+}

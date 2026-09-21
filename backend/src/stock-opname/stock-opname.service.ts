@@ -3,6 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BranchContext } from '../common/branch-context.decorator';
 import { branchWhere, requireBranch, assertBranchAccess } from '../common/branch-where.helper';
 
+/** Angka stok hasil hitung: bilangan ≥ 0 dan masuk akal (T-36). */
+function cekAngkaStok(nilai: unknown[], label: string) {
+    for (const v of nilai) {
+        const n = Number(v);
+        if (!Number.isFinite(n)) throw new BadRequestException(`${label} harus berupa angka.`);
+        if (n < 0) throw new BadRequestException(`${label} tidak boleh negatif (dikirim: ${n}).`);
+        if (n > 1_000_000) throw new BadRequestException(`${label} ${n.toLocaleString('id-ID')} tidak masuk akal — periksa lagi (salah ketik atau nomor seri tertempel?).`);
+    }
+}
+
 @Injectable()
 export class StockOpnameService {
     constructor(private readonly prisma: PrismaService) {}
@@ -90,6 +100,7 @@ export class StockOpnameService {
         if (session.status !== 'ONGOING') {
             throw new BadRequestException('Sesi sudah ditutup atau dibatalkan');
         }
+        cekAngkaStok(confirmedItems.map((i) => i.confirmedStock), 'Stok konfirmasi');
 
         const sessionBranchId: number | null = (session as any).branchId ?? null;
 
@@ -163,6 +174,7 @@ export class StockOpnameService {
         confirmedItems: { productVariantId: number; confirmedStock: number }[],
         ref = 'offline',
     ) {
+        cekAngkaStok(confirmedItems.map((i) => i.confirmedStock), 'Stok konfirmasi');
         const variantIds = confirmedItems.map(i => i.productVariantId);
         const branchStocks = await (this.prisma as any).branchStock.findMany({
             where: { branchId, productVariantId: { in: variantIds } },
@@ -287,6 +299,8 @@ export class StockOpnameService {
         if (!dto.operatorName?.trim()) {
             throw new BadRequestException('Nama operator wajib diisi');
         }
+        if (!Array.isArray(dto.items) || dto.items.length === 0) throw new BadRequestException('Belum ada hasil hitung yang dikirim.');
+        cekAngkaStok(dto.items.map((i) => i.actualStock), 'Hasil hitung');
 
         // Ambil stok sistem saat ini (per cabang sesi kalau ada)
         const sessionRow = await this.prisma.stockOpnameSession.findUnique({ where: { id: token } });
@@ -308,9 +322,22 @@ export class StockOpnameService {
             stockMap = new Map<number, number>(variants.map(v => [v.id, Number(v.stock)]));
         }
 
-        // Hapus input sebelumnya dari operator yang sama di sesi ini (re-submit)
+        // Satu baris per (sesi, barang) — kiriman terakhir yang dipakai (T-37). Dulu tiga operator
+        // menghasilkan tiga baris untuk barang yang sama tanpa penanda mana yang final.
+        // Hitungan operator lain yang ditimpa dicatat di catatan baris baru supaya tetap tertelusur.
+        const operator = dto.operatorName.trim();
+        const ditimpa = await this.prisma.stockOpnameItem.findMany({
+            where: { sessionId: token, productVariantId: { in: variantIds }, NOT: { operatorName: operator } },
+            select: { productVariantId: true, operatorName: true, actualStock: true },
+        });
+        const catatanTimpa = new Map<number, string>();
+        for (const d of ditimpa) {
+            const lama = catatanTimpa.get(d.productVariantId);
+            const teks = `${d.operatorName}: ${d.actualStock}`;
+            catatanTimpa.set(d.productVariantId, lama ? `${lama}, ${teks}` : teks);
+        }
         await this.prisma.stockOpnameItem.deleteMany({
-            where: { sessionId: token, operatorName: dto.operatorName.trim() },
+            where: { sessionId: token, OR: [{ operatorName: operator }, { productVariantId: { in: variantIds } }] },
         });
 
         await (this.prisma as any).stockOpnameItem.createMany({
@@ -323,9 +350,15 @@ export class StockOpnameService {
                 } else if (item.estimationNotes) {
                     notes = item.estimationNotes;
                 }
+                // Angka jauh di atas stok sistem (salah ketik / nomor seri tertempel) → peringatan
+                // untuk manajer sebelum dikonfirmasi (T-36).
+                const peringatan: string[] = [];
+                if (rounded > Math.max(sysStock * 10, sysStock + 100)) peringatan.push(`⚠ Jauh di atas stok sistem (${sysStock}) — periksa lagi sebelum dikonfirmasi`);
+                if (catatanTimpa.has(item.productVariantId)) peringatan.push(`Menimpa hitungan ${catatanTimpa.get(item.productVariantId)}`);
+                if (peringatan.length) notes = [...peringatan, notes].filter(Boolean).join(' · ');
                 return {
                     sessionId: token,
-                    operatorName: dto.operatorName.trim(),
+                    operatorName: operator,
                     productVariantId: item.productVariantId,
                     systemStock: sysStock,
                     actualStock: rounded,

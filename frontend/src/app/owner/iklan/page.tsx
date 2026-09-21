@@ -165,7 +165,7 @@ export default function OwnerAdsPage() {
                     <p className="text-xs text-muted-foreground">Label memisahkan biaya & lead per cabang/perusahaan di dashboard. Tautkan ke cabang → lead dari iklan berlabel ini otomatis masuk cabang tsb.</p>
                     <div className="flex flex-wrap items-end gap-2">
                         <label className="text-xs font-medium text-muted-foreground">Nama Label
-                            <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="mis. Voliko Paris / Divisi Spanduk" className="mt-1 block rounded-lg border bg-background px-2 py-1.5 text-sm w-52" />
+                            <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="mis. Cabang Kota / Divisi Spanduk" className="mt-1 block rounded-lg border bg-background px-2 py-1.5 text-sm w-52" />
                         </label>
                         <label className="text-xs font-medium text-muted-foreground">Tautkan Cabang (opsional)
                             <select value={newLabelBranch} onChange={(e) => setNewLabelBranch(e.target.value)} className="mt-1 block rounded-lg border bg-background px-2 py-1.5 text-sm">
