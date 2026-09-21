@@ -28,7 +28,11 @@ export default function DPTransactionsPage() {
     const { data: bankAccounts } = useQuery({ queryKey: ['bank-accounts'], queryFn: getBankAccounts });
     const { data: users } = useQuery({ queryKey: ['users'], queryFn: getUsers });
     const { isManager } = useCurrentUser();
-    const { printReceipt, thermalModal } = useReceiptPrinter(settings, bankAccounts);
+    // Hanya rekening aktif; untuk nota tertentu hanya rekening cabang nota itu (atau rekening bersama).
+    // Dulu rekening nonaktif/cabang lain ikut ditawarkan & tercetak di tagihan.
+    const rekeningAktif = (bankAccounts ?? []).filter((b: any) => b.isActive !== false);
+    const rekeningNota = (trx: any) => rekeningAktif.filter((b: any) => b.branchId == null || trx?.branchId == null || b.branchId === trx.branchId);
+    const { printReceipt, thermalModal } = useReceiptPrinter(settings, rekeningAktif);
 
     const [selectedTrx, setSelectedTrx] = useState<any | null>(null);
     const [payMode, setPayMode] = useState<'PARTIAL' | 'FULL'>('FULL');  // PARTIAL=tambah DP, FULL=lunas
@@ -88,12 +92,18 @@ export default function DPTransactionsPage() {
         },
         onSuccess: (data: any) => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['transaction'] }); // halaman detail nota
             // Cetak nota pelunasan (LUNAS) ikut Format Nota Default. `data` (hasil
             // pelunasan server) tak berisi items → gabung dgn selectedTrx yg punya items.
             const paidTrx = selectedTrx ? { ...selectedTrx, ...data } : data;
             resetModal();
             printReceipt(mapTransactionToReceipt(paidTrx, settings), 'LUNAS');
-        }
+        },
+        // Dulu gagal diam-diam (mis. sudah dilunasi kasir lain) — kasir tak tahu uang tercatat atau tidak.
+        onError: (e: any) => {
+            alert(e?.response?.data?.message || 'Gagal memproses pelunasan — pembayaran BELUM tercatat.');
+            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        },
     });
 
     const addDPMutation = useMutation({
@@ -104,12 +114,17 @@ export default function DPTransactionsPage() {
         }),
         onSuccess: (data: any) => {
             queryClient.invalidateQueries({ queryKey: ['transactions'] });
+            queryClient.invalidateQueries({ queryKey: ['transaction'] }); // halaman detail nota
             // Kalau penambahan DP membuat transaksi jadi LUNAS, cetak nota pelunasan.
             const updatedTrx = selectedTrx ? { ...selectedTrx, ...data } : data;
             const becamePaid = data?.status === 'PAID';
             resetModal();
             if (becamePaid) printReceipt(mapTransactionToReceipt(updatedTrx, settings), 'LUNAS');
-        }
+        },
+        onError: (e: any) => {
+            alert(e?.response?.data?.message || 'Gagal menambah DP — pembayaran BELUM tercatat.');
+            queryClient.invalidateQueries({ queryKey: ['transactions'] });
+        },
     });
 
     const handlePayOff = (e: React.FormEvent) => {
@@ -274,10 +289,10 @@ export default function DPTransactionsPage() {
                                                     defaultFormat={settings?.receiptDefaultFormat}
                                                     snap={mapTransactionToReceipt(trx, settings)}
                                                     status="TAGIHAN"
-                                                    bankAccounts={bankAccounts}
+                                                    bankAccounts={rekeningNota(trx)}
                                                 />
                                                 <button
-                                                    onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)}
+                                                    onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', rekeningNota(trx))}
                                                     title="Kirim Struk WA"
                                                     className="p-1.5 bg-muted text-muted-foreground hover:bg-[#25D366]/10 hover:text-[#25D366] rounded-lg transition-colors outline-none"
                                                 >
@@ -374,10 +389,10 @@ export default function DPTransactionsPage() {
                                         defaultFormat={settings?.receiptDefaultFormat}
                                         snap={mapTransactionToReceipt(trx, settings)}
                                         status="TAGIHAN"
-                                        bankAccounts={bankAccounts}
+                                        bankAccounts={rekeningNota(trx)}
                                         className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary rounded-lg transition-colors"
                                     />
-                                    <button onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', bankAccounts)} title="Kirim WA" className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-[#25D366]/10 hover:text-[#25D366] rounded-lg transition-colors">
+                                    <button onClick={() => handleShareWA(mapTransactionToReceipt(trx, settings), 'TAGIHAN', rekeningNota(trx))} title="Kirim WA" className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-[#25D366]/10 hover:text-[#25D366] rounded-lg transition-colors">
                                         <MessageCircle className="w-4 h-4" />
                                     </button>
                                     <button onClick={() => setEditTrx(trx)} title={isManager ? 'Edit' : 'Ajukan Perubahan'} className="h-9 w-9 inline-flex items-center justify-center bg-muted text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600 rounded-lg transition-colors">
@@ -662,9 +677,9 @@ export default function DPTransactionsPage() {
                                     <div className="space-y-1.5 pt-1">
                                         <p className="text-xs font-semibold text-foreground">Pilih Rekening Tujuan</p>
                                         <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                                            {!bankAccounts?.length
+                                            {!rekeningNota(selectedTrx).length
                                                 ? <p className="text-xs text-muted-foreground text-center py-3 bg-muted/20 border border-dashed border-border rounded-lg">Belum ada rekening bank.</p>
-                                                : bankAccounts.map((bank: any) => (
+                                                : rekeningNota(selectedTrx).map((bank: any) => (
                                                     <label key={bank.id} className={`flex items-center gap-3 p-2.5 border rounded-xl cursor-pointer transition-all ${payoffBankId === String(bank.id) ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : 'border-border bg-background hover:bg-muted/30'}`}>
                                                         <input type="radio" name="bankSelectionDP" value={bank.id}
                                                             checked={payoffBankId === String(bank.id)}

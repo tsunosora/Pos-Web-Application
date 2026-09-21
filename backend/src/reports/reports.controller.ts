@@ -357,8 +357,8 @@ export class ReportsController {
     @Post('shift/:id/resend')
     @Menu('/reports/shift-history')
     @UseGuards(MenuGuard)
-    async resendShiftReport(@Param('id', ParseIntPipe) id: number) {
-        return this.reportsService.resendShiftReport(id);
+    async resendShiftReport(@Param('id', ParseIntPipe) id: number, @CurrentBranch() branchCtx: BranchContext) {
+        return this.reportsService.resendShiftReport(id, undefined, branchCtx);
     }
 
     @Patch('shift/:id/amend')
@@ -366,6 +366,7 @@ export class ReportsController {
     async amendShiftReport(
         @Param('id', ParseIntPipe) id: number,
         @Req() req: any,
+        @CurrentBranch() branchCtx: BranchContext,
         @Body() body: {
             actualCash?: number;
             actualQris?: number;
@@ -382,6 +383,6 @@ export class ReportsController {
         if (!body.amendNote || !body.amendNote.trim()) {
             throw new BadRequestException('Catatan alasan koreksi wajib diisi.');
         }
-        return this.reportsService.amendShiftReport(id, body, req.user?.userId ?? null);
+        return this.reportsService.amendShiftReport(id, body, req.user?.userId ?? null, branchCtx);
     }
 }

@@ -40,8 +40,32 @@ const variantInclude = {
 export class ProductsService {
     constructor(private prisma: PrismaService) { }
 
-    async create(data: any) {
+    /**
+     * Stok awal varian baru dicatat ke CABANG AKTIF (+ jejak IN). Dulu hanya masuk stok total:
+     * kasir cabang melihat 0 & checkout menolak, lalu staf menambah stok cabang → total dobel
+     * selamanya. Tanpa cabang (mode "Semua Cabang") stok awal ditolak.
+     */
+    private cekStokAwal(variants: any[] | undefined, branchId: number | null | undefined) {
+        if (branchId == null && (variants ?? []).some((v) => Number(v?.stock) > 0)) {
+            throw new BadRequestException('Stok awal dicatat per cabang — pilih cabang di topbar dulu, atau kosongkan stok lalu isi lewat Stok Cabang.');
+        }
+    }
+
+    private async catatStokAwal(variantId: number, qty: number, branchId: number | null | undefined) {
+        if (!(qty > 0) || branchId == null) return;
+        await (this.prisma as any).branchStock.upsert({
+            where: { branchId_productVariantId: { branchId, productVariantId: variantId } },
+            update: { stock: { increment: qty } },
+            create: { branchId, productVariantId: variantId, stock: qty },
+        });
+        await this.prisma.stockMovement.create({
+            data: { productVariantId: variantId, type: 'IN', quantity: qty, reason: 'Stok Awal', balanceAfter: qty, referenceId: 'initial-stock', branchId } as any,
+        });
+    }
+
+    async create(data: any, branchId?: number | null) {
         const { variants, ingredients, ...productData } = data;
+        this.cekStokAwal(variants, branchId);
 
         // Strip priceTiers & variantIngredients from variants before nested create
         const variantsToCreate = (variants || []).map((v: any) => {
@@ -67,6 +91,7 @@ export class ProductsService {
         for (let i = 0; i < (variants || []).length; i++) {
             const v = variants[i];
             const createdVariant = product.variants[i];
+            if (createdVariant) await this.catatStokAwal(createdVariant.id, Number(v?.stock) || 0, branchId);
             if (v.priceTiers?.length) {
                 await this.prisma.variantPriceTier.createMany({
                     data: v.priceTiers.map((t: any) => ({ ...t, variantId: createdVariant.id }))
@@ -297,9 +322,10 @@ export class ProductsService {
         return this.sanitizePublic(sellable);
     }
 
-    async update(id: number, data: any) {
+    async update(id: number, data: any, branchId?: number | null) {
         const existing = await this.findOne(id);
         const { variants, ingredients, deletedVariantIds, ...productData } = data;
+        this.cekStokAwal((variants ?? []).filter((v: any) => !v?.id), branchId);
 
         // Guard: aktivasi COMPOSITE hanya bila config + anchor variant tersedia.
         // compositeConfig TIDAK di-clear saat pricingMode dinonaktifkan (reversible).
@@ -348,6 +374,7 @@ export class ProductsService {
                     } else {
                         const created = await this.prisma.productVariant.create({ data: { ...variantData, productId: id } });
                         savedVariantId = created.id;
+                        await this.catatStokAwal(created.id, Number(variantData.stock) || 0, branchId);
                     }
 
                     // Replace price tiers if provided
@@ -397,7 +424,7 @@ export class ProductsService {
         return this.findOne(id);
     }
 
-    async bulkImport(payload: { products: any[] }) {
+    async bulkImport(payload: { products: any[] }, branchId?: number | null) {
         const results: { created: number; skipped: number; errors: { name: string; message: string }[] } = {
             created: 0,
             skipped: 0,
@@ -436,7 +463,7 @@ export class ProductsService {
                     requiresProduction: item.requiresProduction || false,
                     trackStock: true,
                     variants,
-                });
+                }, branchId);
 
                 // Create HPP worksheets if provided
                 for (const ws of (item.hppWorksheets || [])) {
@@ -545,9 +572,10 @@ export class ProductsService {
 
     // ── Variant management ──────────────────────────────────────────────────
 
-    async addVariant(productId: number, variantData: any) {
+    async addVariant(productId: number, variantData: any, branchId?: number | null) {
         await this.findOne(productId);
         const { priceTiers, variantIngredients, ...data } = variantData;
+        this.cekStokAwal([data], branchId);
         const variant = await this.prisma.productVariant.create({
             data: { ...data, productId },
             include: variantInclude
@@ -562,19 +590,8 @@ export class ProductsService {
                 data: variantIngredients.map((ing: any) => ({ ...ing, variantId: variant.id }))
             });
         }
-        // Catat stok awal jika > 0
-        if (Number(data.stock) > 0) {
-            await this.prisma.stockMovement.create({
-                data: {
-                    productVariantId: variant.id,
-                    type: 'IN',
-                    quantity: Number(data.stock),
-                    reason: 'Stok Awal',
-                    balanceAfter: Number(data.stock),
-                    referenceId: 'initial-stock',
-                } as any,
-            });
-        }
+        // Catat stok awal (cabang aktif) jika > 0
+        await this.catatStokAwal(variant.id, Number(data.stock) || 0, branchId);
         return this.prisma.productVariant.findUnique({ where: { id: variant.id }, include: variantInclude });
     }
 

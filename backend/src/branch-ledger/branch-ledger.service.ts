@@ -351,10 +351,10 @@ export class BranchLedgerService {
             //    bisa dibobol dengan backslash → SQL injection).
             await tx.$executeRaw`INSERT INTO ledger_settlements
                   (ledger_id, settlement_type, amount, cashflow_payer_id, cashflow_payee_id, notes, created_by_id, created_at)
-                 VALUES (${safeId}, 'CASH', ${amount}, ${expenseCf.id}, ${incomeCf.id}, ${note}, NULL, NOW())`;
+                 VALUES (${safeId}, 'CASH', ${amount}, ${expenseCf.id}, ${incomeCf.id}, ${note}, NULL, UTC_TIMESTAMP(3))`;
 
             // 4) Update ledger
-            await tx.$executeRaw`UPDATE inter_branch_ledger SET settled_amount = ${newSettled}, status = ${newStatus}, updated_at = NOW() WHERE id = ${safeId}`;
+            await tx.$executeRaw`UPDATE inter_branch_ledger SET settled_amount = ${newSettled}, status = ${newStatus}, updated_at = UTC_TIMESTAMP(3) WHERE id = ${safeId}`;
 
             return { ok: true, settledAmount: newSettled, status: newStatus };
         });
@@ -509,9 +509,9 @@ export class BranchLedgerService {
 
             await tx.$executeRaw`INSERT INTO ledger_settlements
                   (ledger_id, settlement_type, amount, stock_movement_out_id, stock_movement_in_id, notes, created_at)
-                 VALUES (${safeId}, 'STOCK', ${value}, ${outMv.id}, ${inMv.id}, ${note}, NOW())`;
+                 VALUES (${safeId}, 'STOCK', ${value}, ${outMv.id}, ${inMv.id}, ${note}, UTC_TIMESTAMP(3))`;
 
-            await tx.$executeRaw`UPDATE inter_branch_ledger SET settled_amount = ${newSettled}, status = ${newStatus}, updated_at = NOW() WHERE id = ${safeId}`;
+            await tx.$executeRaw`UPDATE inter_branch_ledger SET settled_amount = ${newSettled}, status = ${newStatus}, updated_at = UTC_TIMESTAMP(3) WHERE id = ${safeId}`;
 
             return {
                 ok: true,

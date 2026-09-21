@@ -244,14 +244,14 @@ export class BranchInboxService {
 
         const safeId = Number(id);
         const affected = await this.prisma.$executeRawUnsafe(
-            `UPDATE transactions SET handover_status = 'DIPROSES', handover_ack_at = NOW()
+            `UPDATE transactions SET handover_status = 'DIPROSES', handover_ack_at = UTC_TIMESTAMP(3)
              WHERE id = ${safeId} AND (handover_status IS NULL OR handover_status = 'BARU')`,
         );
         // Kalau tidak ada baris ter-update, paksa update tanpa kondisi (mungkin status sudah lain — biar idempotent)
         if (!affected) {
             await this.prisma.$executeRawUnsafe(
                 `UPDATE transactions SET handover_status = 'DIPROSES',
-                  handover_ack_at = COALESCE(handover_ack_at, NOW())
+                  handover_ack_at = COALESCE(handover_ack_at, UTC_TIMESTAMP(3))
                  WHERE id = ${safeId} AND handover_status NOT IN ('SIAP_AMBIL','DISERAHKAN')`,
             );
         }
@@ -270,8 +270,8 @@ export class BranchInboxService {
         await this.prisma.$executeRawUnsafe(
             `UPDATE transactions
              SET handover_status = 'SIAP_AMBIL',
-                 handover_ready_at = NOW(),
-                 handover_ack_at = COALESCE(handover_ack_at, NOW())
+                 handover_ready_at = UTC_TIMESTAMP(3),
+                 handover_ack_at = COALESCE(handover_ack_at, UTC_TIMESTAMP(3))
              WHERE id = ${safeId}`,
         );
         // Reminder WhatsApp "pesanan siap ambil" (best-effort, tak blok respons).
@@ -482,7 +482,7 @@ export class BranchInboxService {
         const safeId = Number(id);
         await this.prisma.$executeRawUnsafe(
             `UPDATE transactions
-             SET handover_status = 'DISERAHKAN', handover_done_at = COALESCE(handover_done_at, NOW())
+             SET handover_status = 'DISERAHKAN', handover_done_at = COALESCE(handover_done_at, UTC_TIMESTAMP(3))
              WHERE id = ${safeId}`,
         );
         await this.createLedgerEntry(safeId);
@@ -500,7 +500,7 @@ export class BranchInboxService {
         const safeId = Number(id);
         await this.prisma.$executeRawUnsafe(
             `UPDATE transactions
-             SET handover_status = 'DISERAHKAN', handover_done_at = NOW()
+             SET handover_status = 'DISERAHKAN', handover_done_at = UTC_TIMESTAMP(3)
              WHERE id = ${safeId}`,
         );
         await this.createLedgerEntry(safeId);
@@ -558,7 +558,7 @@ export class BranchInboxService {
                 `INSERT INTO inter_branch_ledger
                   (transaction_id, from_branch_id, to_branch_id, cost_amount, service_fee, total_amount, settled_amount, status, created_at, updated_at)
                  VALUES
-                  (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${cost.serviceFee}, ${cost.totalAmount}, 0, 'PENDING', NOW(), NOW())`,
+                  (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${cost.serviceFee}, ${cost.totalAmount}, 0, 'PENDING', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
             );
         } catch (err) {
             // eslint-disable-next-line no-console

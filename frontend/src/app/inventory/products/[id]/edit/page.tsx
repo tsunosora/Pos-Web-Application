@@ -93,11 +93,15 @@ export default function EditProductPage() {
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings });
     const { data: products } = useQuery({ queryKey: ['products'], queryFn: getProducts });
     const { data: clickRates = [] } = useQuery({ queryKey: ['click-rates'], queryFn: getClickRates });
-    const { data: product, isLoading } = useQuery({
+    // Form diisi dari data SEGAR: salinan cache (disimpan 24 jam) bisa sudah usang — dulu kategori/
+    // harga/HPP yang diubah di halaman lain kembali ke nilai lama saat produk ini disimpan.
+    const { data: product, isLoading: isLoadingQuery, isFetchedAfterMount } = useQuery({
         queryKey: ['product', productId],
         queryFn: () => getProduct(productId),
-        enabled: !!productId
+        enabled: !!productId,
+        refetchOnMount: 'always',
     });
+    const isLoading = isLoadingQuery || (!!product && !isFetchedAfterMount);
 
     const { data: allHppWorksheets, refetch: refetchHpp } = useQuery({
         queryKey: ['hpp-all'],
@@ -267,7 +271,7 @@ export default function EditProductPage() {
 
     // Pre-fill form when product data arrives
     useEffect(() => {
-        if (product && !initialized) {
+        if (product && isFetchedAfterMount && !initialized) {
             setProductForm({
                 name: product.name || '',
                 description: product.description || '',
@@ -340,7 +344,7 @@ export default function EditProductPage() {
 
             setInitialized(true);
         }
-    }, [product, initialized]);
+    }, [product, initialized, isFetchedAfterMount]);
 
     const mutation = useMutation({
         mutationFn: async () => {

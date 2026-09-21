@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getSettings, uploadQrisImage, getBankAccounts, createBankAccount, updateBankAccount, deleteBankAccount } from "@/lib/api";
 import { Loader2, UploadCloud, Plus, Settings2, Trash2, CreditCard } from "lucide-react";
 import Image from "next/image";
 
 export default function PaymentSettings() {
+    const queryClient = useQueryClient();
     const [qrisUrl, setQrisUrl] = useState<string | null>(null);
     const [banks, setBanks] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -59,9 +61,11 @@ export default function PaymentSettings() {
             setShowBankForm(false);
             setBankForm({ id: 0, bankName: '', accountNumber: '', accountOwner: '', isActive: true });
             loadData();
-        } catch (error) {
+            // Kasir & halaman DP memakai cache ['bank-accounts'] — dulu rekening baru/diubah baru terlihat lama kemudian.
+            queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
+        } catch (error: any) {
             console.error(error);
-            alert("Gagal menyimpan bank.");
+            alert(error?.response?.data?.message || "Gagal menyimpan bank.");
         }
     };
 
@@ -70,9 +74,11 @@ export default function PaymentSettings() {
         try {
             await deleteBankAccount(id);
             loadData();
-        } catch (error) {
+            queryClient.invalidateQueries({ queryKey: ['bank-accounts'] });
+        } catch (error: any) {
             console.error(error);
-            alert("Gagal menghapus rekening.");
+            // mis. rekening sudah dipakai nota/kas → server menyarankan menonaktifkan
+            alert(error?.response?.data?.message || "Gagal menghapus rekening.");
         }
     };
 

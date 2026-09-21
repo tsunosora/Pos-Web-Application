@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from '@/lib/api/client';
 import { ArrowRightLeft, Plus, Trash2, Search, History, Loader2, Package } from 'lucide-react';
@@ -68,6 +68,11 @@ export default function TransferStokPage() {
     });
 
     const [fromBranchId, setFromBranchId] = useState<number | ''>(isOwner ? '' : (userBranchId ?? ''));
+    // Data akun dimuat belakangan (cache/getMe) → staf yang membuka ulang halaman dulu terkunci
+    // dengan "Dari Cabang" kosong (pilihan dinonaktifkan untuk staf) dan tak bisa mengirim.
+    useEffect(() => {
+        if (!isOwner && userBranchId != null) setFromBranchId(userBranchId);
+    }, [isOwner, userBranchId]);
     const [toBranchId, setToBranchId] = useState<number | ''>('');
     const [notes, setNotes] = useState('');
     const [items, setItems] = useState<TransferItem[]>([]);

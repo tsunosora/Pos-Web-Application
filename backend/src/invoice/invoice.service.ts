@@ -35,8 +35,10 @@ function isiInvoice(data: any) {
     const discount = Math.round(Number(data?.discount ?? 0) || 0);
     if (taxRate < 0 || taxRate > 100) throw new BadRequestException('PPN harus 0–100%.');
     const subtotal = bersihItems.reduce((s: number, it: any) => s + it.quantity * it.price, 0);
-    const taxAmount = Math.round(subtotal * taxRate / 100);
-    if (discount < 0 || discount > subtotal + taxAmount) throw new BadRequestException('Diskon tidak boleh negatif atau melebihi total.');
+    if (discount < 0 || discount > subtotal) throw new BadRequestException('Diskon tidak boleh negatif atau melebihi subtotal.');
+    // PPN dari DPP = subtotal − diskon (urutan cetakan: Subtotal, Diskon, PPN). Dulu PPN dihitung dari
+    // subtotal sebelum diskon → klien tertagih PPN atas diskon.
+    const taxAmount = Math.round((subtotal - discount) * taxRate / 100);
     const tgl = (v: any) => (v ? new Date(v) : null);
     const teks = (v: any, max: number) => (v == null || v === '' ? null : String(v).slice(0, max));
     const clientName = String(data?.clientName ?? '').trim();

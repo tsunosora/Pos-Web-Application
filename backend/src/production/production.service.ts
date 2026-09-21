@@ -413,9 +413,11 @@ export class ProductionService {
             const jobBranchId: number | null = (job as any).branchId ?? null;
             const product = job.transactionItem?.productVariant?.product;
             const ingredients = product?.pricingMode === 'AREA_BASED' ? (product?.ingredients || []) : [];
+            // Bahan pasang (rangka dll.) per PCS: job 5 pcs = 5 set. Dulu selalu 1 set per job.
+            const jumlahPasang = Math.max(1, Number(job.transactionItem?.pcs ?? 1) || 1) * Math.max(1, Number(job.transactionItem?.quantity ?? 1) || 1);
             for (const ing of ingredients) {
                 if (ing.rawMaterialVariantId) {
-                    const needed = Number(ing.quantity);
+                    const needed = Number(ing.quantity) * jumlahPasang;
                     const newGlobal = await this._adjustStock(tx, jobBranchId, ing.rawMaterialVariantId, -needed);
                     await tx.stockMovement.create({
                         data: {
@@ -575,6 +577,11 @@ export class ProductionService {
             // Batch multi-cabang: asumsikan semua job dalam batch dari cabang yang sama.
             // Kalau beda-beda, fallback ke null (hanya update global cache) — tapi ini skenario langka.
             const batchBranchIds = Array.from(new Set(jobs.map((j: any) => j.branchId ?? null)));
+            // Satu roll fisik = satu cabang. Gabungan job lintas cabang dulu hanya memotong stok total
+            // (tak ada stok roll cabang yang berkurang) — tolak bila bahan roll dipotong.
+            if (batchBranchIds.length > 1 && !data.usedWaste && data.rollVariantId && data.totalAreaM2) {
+                throw new BadRequestException('Job dari cabang berbeda tidak bisa digabung dalam satu cetak — pisahkan per cabang.');
+            }
             const batchBranchId: number | null = batchBranchIds.length === 1 ? batchBranchIds[0] as any : null;
 
             if (!data.usedWaste && data.rollVariantId && data.totalAreaM2) {

@@ -164,13 +164,18 @@ export class SyncService {
     if (klaim !== 'baru') {
       return { clientId: op.clientId, status: 'duplicate', serverId: klaim.serverId ?? undefined };
     }
+    let hasil: PushOpResult;
     try {
-      return await this.kerjakanOp(op, branchId, branchCtx, caller);
+      hasil = await this.kerjakanOp(op, branchId, branchCtx, caller);
     } catch (e) {
-      // Gagal → lepas klaim supaya bisa dicoba lagi / ditinjau.
+      // Pekerjaan gagal (belum tersimpan) → lepas klaim supaya bisa dicoba lagi / ditinjau.
       await this.prisma.syncedOp.deleteMany({ where: { clientId: op.clientId, serverId: null } }).catch(() => {});
       throw e;
     }
+    // Pekerjaan SUDAH tersimpan. Gagal mencatat hasilnya jangan melepas klaim — dulu klaim
+    // dihapus lalu kiriman ulang menggandakan nota/stok (mis. pool DB habis saat disk lambat).
+    await this.recordOp(op.clientId, op.type, hasil.serverId ?? null, branchId);
+    return hasil;
   }
 
   /** 'baru' = klaim berhasil; selain itu baris lama (sudah/sedang diterapkan). Klaim macet > 10 menit dilepas. */
@@ -209,7 +214,6 @@ export class SyncService {
           branchId,
           actorUserId: caller.isDevice ? null : caller.userId ?? null,
         });
-        await this.recordOp(op.clientId, op.type, tx.id, branchId);
         return {
           clientId: op.clientId,
           status: 'applied',
@@ -219,21 +223,18 @@ export class SyncService {
       }
       case 'cashflow.create': {
         const cf = await this.createCashflow(op.payload, branchId, caller);
-        await this.recordOp(op.clientId, op.type, cf.id, branchId);
         return { clientId: op.clientId, status: 'applied', serverId: cf.id };
       }
       case 'stockPurchase.create': {
         // REUSE StockPurchasesService.create → stok +delta (BranchStock & agregat),
         // StockPurchaseItem, StockMovement IN. branchId dari device.
         const p = await this.stockPurchases.create(op.payload, branchCtx);
-        await this.recordOp(op.clientId, op.type, p?.id ?? null, branchId);
         return { clientId: op.clientId, status: 'applied', serverId: p?.id };
       }
       case 'stockTransfer.create': {
         // REUSE StockTransfersService.createTransfer → pindah stok antar cabang +
         // 2 StockMovement (OUT/IN). Hasilnya referenceId (bukan id numerik) → serverId null.
         await this.stockTransfers.createTransfer(op.payload, branchCtx);
-        await this.recordOp(op.clientId, op.type, null, branchId);
         return { clientId: op.clientId, status: 'applied' };
       }
       case 'stockOpname.finish': {
@@ -245,7 +246,6 @@ export class SyncService {
         // (set absolut per varian + StockMovement ADJUST). Idempoten (set absolut).
         const items = op.payload?.confirmedItems ?? [];
         await this.stockOpname.applyOfflineFinish(branchId, items, String(op.payload?.sessionId ?? 'offline'));
-        await this.recordOp(op.clientId, op.type, null, branchId);
         return { clientId: op.clientId, status: 'applied' };
       }
       default:
@@ -279,9 +279,21 @@ export class SyncService {
     serverId: number | null,
     branchId: number,
   ): Promise<void> {
-    // Klaim sudah dibuat di awal → isi hasilnya. Op tanpa id hasil tetap tercatat (serverId null
-    // tapi type diberi tanda selesai lewat createdAt lama tak dipakai lagi).
-    await this.prisma.syncedOp.updateMany({ where: { clientId }, data: { serverId, type, branchId } });
+    // Klaim sudah dibuat di awal → isi hasilnya. Diulang beberapa kali (DB bisa sesaat tak
+    // menjawab); bila tetap gagal hanya dicatat di log — klaimnya tetap ada, jadi kiriman
+    // ulang dijawab "duplicate", bukan diterapkan dua kali.
+    for (let coba = 1; coba <= 4; coba++) {
+      try {
+        await this.prisma.syncedOp.updateMany({ where: { clientId }, data: { serverId, type, branchId } });
+        return;
+      } catch (e) {
+        if (coba === 4) {
+          this.logger.error(`gagal mencatat hasil op ${clientId} (${type}, serverId=${serverId}): ${e instanceof Error ? e.message : e}`);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 2000 * coba));
+      }
+    }
   }
 
   /** occurredAt (ISO) → 'YYYY-MM-DD' WIB bila HARI LAIN dari hari ini, ≤ 7 hari lalu & tidak di masa depan. */

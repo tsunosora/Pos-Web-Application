@@ -155,7 +155,11 @@ export class CustomersService {
         const phoneVar = Array.from(new Set(customers.flatMap(c => this.phoneVariants(toWaPhone(c.phone)))));
         const noPhoneNames = customers.filter(c => !toWaPhone(c.phone)).map(c => c.name);
         const orClause: any[] = [];
+        // Selain bentuk "628…"/"08…", nota juga menyimpan "+62 812-3456-789" (±separuh nota): ambil
+        // kandidat lewat 3 digit terakhir lalu cocokkan phoneKey di bawah.
+        const ekor = Array.from(new Set(customers.map(c => (toWaPhone(c.phone) ?? '').slice(-3)).filter(e => e.length === 3)));
         if (phoneVar.length > 0) orClause.push({ customerPhone: { in: phoneVar } });
+        for (const e of ekor) orClause.push({ customerPhone: { endsWith: e } });
         if (noPhoneNames.length > 0) orClause.push({ customerName: { in: noPhoneNames }, customerPhone: null });
 
         const transactions = orClause.length > 0
@@ -206,8 +210,17 @@ export class CustomersService {
         const customer = await this.prisma.customer.findUnique({ where: { id } });
         if (!customer) throw new NotFoundException('Customer not found');
 
-        const where: any = { status: { in: ['PAID', 'PARTIAL'] } };
-        if (customer.phone) where.customerPhone = customer.phone;
+        let where: any = { status: { in: ['PAID', 'PARTIAL'] } };
+        const kunci = phoneKey(customer.phone);
+        if (kunci) {
+            // Nota menyimpan nomor apa adanya ("+62 812-3456-789", "0812…"): cocokkan lewat nomor
+            // yang dinormalkan. Dulu hanya yang persis "628…" → ±separuh nota tak terhitung.
+            const kandidat = await this.prisma.transaction.findMany({
+                where: { status: { in: ['PAID', 'PARTIAL'] }, customerPhone: { not: null } },
+                select: { id: true, customerPhone: true },
+            });
+            where = { id: { in: kandidat.filter((t) => phoneKey(t.customerPhone) === kunci).map((t) => t.id) } };
+        } else if (customer.phone) where.customerPhone = customer.phone;
         else where.customerName = customer.name;
 
         const transactions = await this.prisma.transaction.findMany({
@@ -270,7 +283,8 @@ export class CustomersService {
         const noPhoneNames = customers.filter(c => !c.phone).map(c => c.name);
 
         const orClause: any[] = [];
-        if (phones.length > 0) orClause.push({ customerPhone: { in: phones } });
+        // Semua nota bernomor (format nomor di nota beragam) → dicocokkan lewat nomor yang dinormalkan.
+        if (phones.length > 0) orClause.push({ customerPhone: { not: null } });
         if (noPhoneNames.length > 0) orClause.push({ customerName: { in: noPhoneNames }, customerPhone: null });
 
         const transactions = orClause.length > 0
@@ -281,11 +295,24 @@ export class CustomersService {
             })
             : [];
 
+        // Indeks sekali jalan (dulu tiap pelanggan menyaring seluruh nota).
+        const perKunci = new Map<string, typeof transactions>();
+        const perNomor = new Map<string, typeof transactions>();
+        const perNama = new Map<string, typeof transactions>();
+        const masuk = (m: Map<string, typeof transactions>, k: string, t: (typeof transactions)[number]) => { const a = m.get(k); if (a) a.push(t); else m.set(k, [t]); };
+        for (const t of transactions) {
+            if (t.customerPhone) {
+                const k = phoneKey(t.customerPhone);
+                if (k) masuk(perKunci, k, t);
+                masuk(perNomor, t.customerPhone, t);
+            } else if (t.customerName) masuk(perNama, t.customerName, t);
+        }
+
         return customers.map(c => {
-            const matching = transactions.filter(t =>
-                (c.phone && t.customerPhone === c.phone) ||
-                (!c.phone && t.customerName === c.name)
-            );
+            const kunciC = phoneKey(c.phone);
+            const matching = c.phone
+                ? (kunciC ? perKunci.get(kunciC) : perNomor.get(c.phone)) ?? []
+                : perNama.get(c.name) ?? [];
 
             const totalRevenue = matching.reduce((sum, t) => sum + nilaiNota(t), 0);
             const totalOrders = matching.length;
@@ -333,9 +360,23 @@ export class CustomersService {
         assignedCsId?: number | null;
         tags?: any;
     }) {
-        const patch: any = { ...data };
-        if (data.phone !== undefined) patch.phone = toWaPhone(data.phone); // seragamkan ke 628xxx
-        // assignedCsId & tags adalah field CRM yang baru — biarkan Prisma yang validate.
+        // Hanya kolom formulir — dulu isi body diteruskan mentah (referrer, leadSource, createdAt, id …).
+        const patch: any = {};
+        if (data.name !== undefined) {
+            const nama = String(data.name ?? '').trim();
+            if (!nama) throw new BadRequestException('Nama pelanggan wajib diisi.');
+            patch.name = nama.slice(0, 100);
+        }
+        if (data.address !== undefined) patch.address = data.address == null ? null : String(data.address);
+        if (data.assignedCsId !== undefined) patch.assignedCsId = data.assignedCsId == null ? null : Number(data.assignedCsId);
+        if (data.tags !== undefined) patch.tags = data.tags;
+        if (data.phone !== undefined) {
+            const mentah = String(data.phone ?? '').trim();
+            const hp = mentah ? toWaPhone(mentah) : null; // seragamkan ke 628xxx
+            // Nomor terisi tapi tak terbaca dulu diam-diam menghapus nomor tersimpan.
+            if (mentah && !hp) throw new BadRequestException('Nomor HP tidak valid.');
+            patch.phone = hp;
+        }
         return this.prisma.customer.update({ where: { id }, data: patch });
     }
 

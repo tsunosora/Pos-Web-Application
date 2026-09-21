@@ -34,14 +34,15 @@ const imageFilter = (req: any, file: any, cb: any) => {
 export class ProductsController {
     constructor(private readonly productsService: ProductsService) { }
 
+    // Stok awal varian baru dicatat ke cabang aktif (lihat ProductsService.cekStokAwal).
     @Post()
-    create(@Body() createProductDto: any) {
-        return this.productsService.create(createProductDto);
+    create(@Body() createProductDto: any, @CurrentBranch() branchCtx: BranchContext) {
+        return this.productsService.create(createProductDto, branchCtx.branchId ?? null);
     }
 
     @Post('bulk-import')
-    bulkImport(@Body() payload: any) {
-        return this.productsService.bulkImport(payload);
+    bulkImport(@Body() payload: any, @CurrentBranch() branchCtx: BranchContext) {
+        return this.productsService.bulkImport(payload, branchCtx.branchId ?? null);
     }
 
     @Delete('bulk')
@@ -75,12 +76,12 @@ export class ProductsController {
     }
 
     @Patch(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: any, @Req() req: any) {
+    update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: any, @Req() req: any, @CurrentBranch() branchCtx: BranchContext) {
         // Menghapus varian lewat form produk = setingkat manajer (sama dgn DELETE varian/produk).
         if (updateProductDto?.deletedVariantIds?.length && !isManagerLevelRole(req.user?.roleName)) {
             throw new ForbiddenException('Menghapus varian hanya untuk owner/manajer.');
         }
-        return this.productsService.update(id, updateProductDto);
+        return this.productsService.update(id, updateProductDto, branchCtx.branchId ?? null);
     }
 
     @Delete(':id')
@@ -92,8 +93,8 @@ export class ProductsController {
     // ── Variant endpoints ───────────────────────────────────────────────────
 
     @Post(':id/variants')
-    addVariant(@Param('id', ParseIntPipe) id: number, @Body() variantData: any) {
-        return this.productsService.addVariant(id, variantData);
+    addVariant(@Param('id', ParseIntPipe) id: number, @Body() variantData: any, @CurrentBranch() branchCtx: BranchContext) {
+        return this.productsService.addVariant(id, variantData, branchCtx.branchId ?? null);
     }
 
     @Patch('variants/:variantId')

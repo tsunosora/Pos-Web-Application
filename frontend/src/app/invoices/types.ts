@@ -65,7 +65,8 @@ export const QUOTATION_NEXT_STATUSES: Partial<Record<InvoiceStatus, InvoiceStatu
 
 export function calcTotals(items: InvoiceItem[], taxRate: number, discount: number) {
     const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
-    const taxAmount = Math.round(subtotal * taxRate / 100);
+    // PPN dari DPP (subtotal − diskon), sama dengan server.
+    const taxAmount = Math.round(Math.max(0, subtotal - discount) * taxRate / 100);
     const total = subtotal + taxAmount - discount;
     return { subtotal, taxAmount, total };
 }

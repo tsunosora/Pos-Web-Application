@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { assertBranchAccess } from '../common/branch-where.helper';
 import { PrismaService } from '../prisma/prisma.service';
+import { akhirHari, awalHari } from '../common/utils/tanggal.util';
 import type { BranchContext } from '../common/branch-context.decorator';
 
 export interface InterBranchUsageMovement {
@@ -121,11 +122,11 @@ export class InterBranchUsageService {
         const dateArgs: any[] = [Number(productionBranchId)];
         if (params.startDate) {
             dateClauses.push('sm.created_at >= ?');
-            dateArgs.push(`${params.startDate} 00:00:00`);
+            dateArgs.push(awalHari(params.startDate)); // awal hari WIB (kolom disimpan UTC)
         }
         if (params.endDate) {
             dateClauses.push('sm.created_at <= ?');
-            dateArgs.push(`${params.endDate} 23:59:59`);
+            dateArgs.push(akhirHari(params.endDate));
         }
         const whereSql = dateClauses.join(' AND ');
 

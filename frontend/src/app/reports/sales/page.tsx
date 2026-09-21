@@ -842,7 +842,7 @@ export default function SalesReportPage() {
                                                 <select value={editPayment.bankId} onChange={e => setEditPayment(p => p ? { ...p, bankId: e.target.value } : null)}
                                                     className="w-full text-xs border border-border rounded-lg px-2 py-1.5 bg-background">
                                                     <option value="">Pilih rekening bank...</option>
-                                                    {bankAccounts?.map((b: any) => (
+                                                    {bankAccounts?.filter((b: any) => b.isActive !== false && (b.branchId == null || selectedTransaction?.branchId == null || b.branchId === selectedTransaction.branchId)).map((b: any) => (
                                                         <option key={b.id} value={b.id}>{b.bankName} – {b.accountNumber} ({b.accountOwner})</option>
                                                     ))}
                                                 </select>

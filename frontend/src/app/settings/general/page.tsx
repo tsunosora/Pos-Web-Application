@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, uploadLogoImage } from '@/lib/api';
 import { Store, Phone, MapPin, Save, Loader2, Ruler, ToggleLeft, ToggleRight, UploadCloud, Percent, KeyRound } from 'lucide-react';
 import { PiketSignSettings } from '@/components/tugas/PiketSignSettings';
 
 export default function GeneralSettings() {
+    const queryClient = useQueryClient();
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [form, setForm] = useState({
@@ -48,6 +50,9 @@ export default function GeneralSettings() {
         setIsSaving(true);
         try {
             await updateSettings(form);
+            // Pajak, nama toko, dll. dipakai kasir dari cache ['settings'].
+            queryClient.invalidateQueries({ queryKey: ['settings'] });
+            queryClient.invalidateQueries({ queryKey: ['store-settings'] });
             alert("Pengaturan Toko Berhasil Disimpan!");
         } catch (error) {
             console.error(error);

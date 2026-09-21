@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DiscordService } from '../discord/discord.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
 import { BranchContext } from '../common/branch-context.decorator';
-import { branchWhere, requireBranch } from '../common/branch-where.helper';
+import { assertBranchAccess, branchWhere, requireBranch } from '../common/branch-where.helper';
 import { computeDailyTargets, DailyTargetStatus } from './daily-target.util';
 import { lineTotalOf, storedPriceMultiplier } from '../transactions/area-unit.util';
 import { akhirHari, awalHari, ymdLokal } from '../common/utils/tanggal.util';
@@ -30,6 +30,8 @@ const NON_OPERATIONAL_CATS = ['INTER_BRANCH_SETTLEMENT', 'PENGOSONGAN_SALDO', 'M
 @Injectable()
 export class ReportsService {
     private readonly logger = new Logger(ReportsService.name);
+    // Tutup shift per cabang dikerjakan berurutan (proses backend tunggal, pm2 fork).
+    private readonly antreTutupShift = new Map<number, Promise<unknown>>();
 
     constructor(
         private readonly prisma: PrismaService,
@@ -404,12 +406,44 @@ export class ReportsService {
             expensesTotal: rp(expensesTotal),
             shiftExpenses,
             systemBankBalances: rpMap(systemBankBalances),
+            // Hanya untuk tutup shift (panggilan internal ber-`sampai`): id kas yang DIHITUNG.
+            ...(sampai ? { cashflowIds: cashflows.map((c: any) => c.id as number) } : {}),
         };
     }
 
+    /**
+     * Kiriman tutup shift yang sama dua kali (layar "gagal" karena lambat lalu dikirim ulang, atau
+     * dua perangkat) dulu membuat DUA laporan & semua pengeluaran/kasbon tercatat dobel (1 Jul 2026:
+     * #128/#129, #130/#131). Sekarang dikerjakan berurutan per cabang, dan kiriman dengan jam tutup,
+     * kas fisik & kasir yang sama dalam 30 menit dianggap laporan yang sama.
+     */
     async closeShift(dto: CloseShiftDto, proofImages: string[], branchCtx: BranchContext) {
         const branchId = requireBranch(branchCtx);
+        const sebelumnya = this.antreTutupShift.get(branchId) ?? Promise.resolve();
+        const kerja = sebelumnya.catch(() => undefined).then(() => this.tutupShiftSekali(dto, proofImages, branchCtx, branchId));
+        this.antreTutupShift.set(branchId, kerja.catch(() => undefined));
+        return kerja;
+    }
+
+    private async tutupShiftSekali(dto: CloseShiftDto, proofImages: string[], branchCtx: BranchContext, branchId: number) {
         const bw = { branchId };
+        const closedAtKirim = dto.closedAt ? new Date(dto.closedAt as any) : null;
+        if (closedAtKirim && !Number.isNaN(closedAtKirim.getTime())) {
+            const kembar: any = await (this.prisma as any).shiftReport.findFirst({
+                where: {
+                    branchId,
+                    closedAt: closedAtKirim,
+                    actualCash: Number(dto.actualCash) || 0,
+                    adminName: dto.adminName || 'Kasir',
+                    createdAt: { gte: new Date(Date.now() - 30 * 60_000) },
+                },
+                orderBy: { id: 'desc' },
+            });
+            if (kembar) {
+                this.logger.warn(`Tutup shift ganda diabaikan (cabang ${branchId}, laporan #${kembar.id} sudah ada)`);
+                return { success: true, message: 'Shift ini sudah tersimpan sebelumnya.', data: kembar, duplicate: true };
+            }
+        }
 
         const activeBanks: any[] = await this.prisma.bankAccount.findMany({
             where: { isActive: true, ...bw } as any,
@@ -443,7 +477,9 @@ export class ReportsService {
         const expectedTransfer = dariServer(dto.expectedTransfer, dto.baseExpectedTransfer, expectedData.expectedTransfer);
         const cashDifference = dto.actualCash - expectedCash;
         const qrisDifference = dto.actualQris - expectedQris;
-        const transferDifference = dto.actualTransfer - expectedTransfer;
+        // Halaman tutup shift tidak menanyakan transfer fisik (dicocokkan lewat saldo per rekening) dan
+        // selalu mengirim 0 → dulu selisih transfer = −ekspektasi di 143 dari 146 shift.
+        const transferDifference = Number(dto.actualTransfer) > 0 ? dto.actualTransfer - expectedTransfer : 0;
 
         const shift: any = await (this.prisma as any).shiftReport.create({
             data: {
@@ -488,10 +524,15 @@ export class ReportsService {
         // Tag semua cashflow yang belum di-assign ke shift manapun (shiftReportId = null)
         // ke shift ini — mencegah data shift ini bocor ke shift berikutnya
         // excludeFromShift = true → biarkan, tidak di-tag ke shift manapun
-        await this.prisma.cashflow.updateMany({
-            where: { shiftReportId: null, excludeFromShift: false, ...bw, OR: [{ createdAt: { lte: snap } }, { createdAt: null }] } as any,
-            data: { shiftReportId: shiftId },
-        });
+        // Tag PERSIS kas yang dihitung di ekspektasi. Dulu disaring ulang per waktu: penjualan yang baru
+        // ter-commit di antara hitung & tag (disk lambat) ikut ter-tag tapi tak pernah diharapkan di shift mana pun.
+        const idDihitung: number[] = (expectedData as any).cashflowIds ?? [];
+        if (idDihitung.length) {
+            await this.prisma.cashflow.updateMany({
+                where: { id: { in: idDihitung }, shiftReportId: null } as any,
+                data: { shiftReportId: shiftId },
+            });
+        }
 
         // Buat Cashflow INCOME untuk pemasukan tambahan eksternal
         // → di-tag shiftReportId agar tidak masuk shift berikutnya
@@ -573,7 +614,8 @@ export class ReportsService {
         if (balancesToUpdate) {
             for (const bank of activeBanks) {
                 const actual = balancesToUpdate[bank.bankName];
-                if (actual !== undefined && actual !== null) {
+                // Kolom yang tidak diisi jangan menjadikan saldo rekening 0.
+                if (actual !== undefined && actual !== null && String(actual) !== '' && Number.isFinite(Number(actual))) {
                     await (this.prisma as any).bankAccount.update({
                         where: { id: bank.id },
                         data: { currentBalance: Number(actual) }
@@ -674,9 +716,10 @@ export class ReportsService {
         return { list, total, page, limit };
     }
 
-    async resendShiftReport(id: number, proofImages?: string[]) {
+    async resendShiftReport(id: number, proofImages?: string[], branchCtx?: BranchContext) {
         const shift: any = await (this.prisma as any).shiftReport.findUnique({ where: { id } });
-        if (!shift) throw new Error(`Shift report #${id} tidak ditemukan`);
+        if (!shift) throw new NotFoundException(`Laporan shift #${id} tidak ditemukan`);
+        if (branchCtx) assertBranchAccess(branchCtx, shift.branchId);
 
         const msg = shift.whatsappMessage;
         if (!msg) throw new Error(`Backup pesan laporan untuk shift #${id} belum tersedia`);
@@ -704,17 +747,18 @@ export class ReportsService {
         realBankBalances?: any;
         notes?: string;
         amendNote: string; // wajib — catatan alasan koreksi
-    }, actorUserId: number | null = null) {
+    }, actorUserId: number | null = null, branchCtx?: BranchContext) {
         const shift: any = await (this.prisma as any).shiftReport.findUnique({ where: { id } });
         if (!shift) throw new NotFoundException(`Laporan shift #${id} tidak ditemukan`);
+        // Manajer/Admin cabang lain tak boleh mengoreksi laporan cabang ini (id berurutan, mudah ditebak).
+        if (branchCtx) assertBranchAccess(branchCtx, shift.branchId);
 
         const actualCash = dto.actualCash !== undefined ? dto.actualCash : Number(shift.actualCash);
         const actualQris = dto.actualQris !== undefined ? dto.actualQris : Number(shift.actualQris);
         const actualTransfer = dto.actualTransfer !== undefined ? dto.actualTransfer : Number(shift.actualTransfer);
 
-        const cashDifference = actualCash - Number(shift.expectedCash);
         const qrisDifference = actualQris - Number(shift.expectedQris);
-        const transferDifference = actualTransfer - Number(shift.expectedTransfer);
+        const transferDifference = actualTransfer > 0 ? actualTransfer - Number(shift.expectedTransfer) : 0;
 
         // Rekalkulasi expensesTotal dari structuredExpenses jika diberikan
         let expensesTotal: number | undefined;
@@ -754,6 +798,24 @@ export class ReportsService {
             + origCashExp + origSetorKasTotal - origTarikTunaiTotal
             - origTukarTransfer + origKasbonToko - origExchangeCashEffect;
 
+        // Ekspektasi kas DIHITUNG ULANG dari penyesuaian yang sudah dikoreksi. Dulu tetap angka lama:
+        // pengeluaran kas yang lupa diisi lalu ditambahkan lewat koreksi tetap tampil "kurang".
+        const jumlah = (a: any[]) => (a || []).reduce((s: number, k: any) => s + Number(k?.amount || 0), 0);
+        const ubahKas = ['structuredExpenses', 'kasbon', 'setorKas', 'tarikTunai', 'tukarTransferKeCash', 'paymentExchanges'].some((k) => (dto as any)[k] !== undefined);
+        const newExchangeCashEffect = (finalPaymentExchanges || []).reduce((sum: number, ex: any) => {
+            if (ex.to === 'CASH') return sum + Number(ex.amount || 0);
+            if (ex.from === 'CASH') return sum - Number(ex.amount || 0);
+            return sum;
+        }, 0);
+        const expectedCash = ubahKas
+            ? Math.round(reconstructedGrossCash
+                - jumlah((finalStructuredExpenses as any)?.['CASH'] || [])
+                - jumlah(finalSetorKas) + jumlah(finalTarikTunai) + Number(finalTukarTransfer || 0)
+                - jumlah((finalKasbon || []).filter((k: any) => !k.source || k.source === 'Kas Toko'))
+                + newExchangeCashEffect)
+            : Number(shift.expectedCash);
+        const cashDifference = actualCash - expectedCash;
+
         // Bangun objek exp yang dibutuhkan formatWhatsappMessage dari data tersimpan
         const reconstructedExp = {
             grossCash: Math.max(0, reconstructedGrossCash),
@@ -764,7 +826,7 @@ export class ReportsService {
         };
 
         // Shift object dengan actual terbaru untuk dipakai formatWhatsappMessage
-        const shiftForMsg = { ...shift, actualCash, actualQris, actualTransfer };
+        const shiftForMsg = { ...shift, actualCash, actualQris, actualTransfer, expectedCash, cashDifference };
 
         // Generate ulang pesan WhatsApp dengan semua data yang sudah dikoreksi
         const settings = await this.prisma.storeSettings.findFirst();
@@ -792,12 +854,63 @@ export class ReportsService {
         });
         newWhatsappMessage += `\n\n⚠️ *LAPORAN DIKOREKSI*\nDikoreksi pada: ${amendedAtStr}\nAlasan: ${dto.amendNote}`;
 
-        const updated = await (this.prisma as any).shiftReport.update({
+        // Kas yang DIBUAT saat tutup shift (pengeluaran, kasbon kas toko, pemasukan tambahan) ikut
+        // disesuaikan dengan daftar koreksi — dulu tetap versi lama (laba rugi tak ikut berubah).
+        const byName = actorUserId
+            ? (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { name: true } }))?.name ?? null
+            : null;
+        const updated = await this.prisma.$transaction(async (db: any) => {
+        const tglKas = shift.closedAt ? new Date(shift.closedAt) : new Date();
+        const rekening: any[] = await db.bankAccount.findMany({ where: { isActive: true, branchId: shift.branchId } as any });
+        if (dto.structuredExpenses !== undefined) {
+            await db.cashflow.deleteMany({ where: { shiftReportId: id, type: 'EXPENSE', note: { startsWith: 'Pengeluaran shift ' } } });
+            for (const [method, items] of Object.entries(dto.structuredExpenses || {})) {
+                const isCash = method === 'CASH';
+                const isQris = method === 'QRIS';
+                const bank = (isCash || isQris) ? null : rekening.find((b: any) => b.bankName === method);
+                for (const item of (items as any[]) || []) {
+                    if (!item?.name || !(Number(item.amount) > 0)) continue;
+                    await db.cashflow.create({ data: {
+                        type: 'EXPENSE', category: item.name, amount: Number(item.amount),
+                        note: `Pengeluaran shift ${shift.shiftName || ''} — ${item.name}`,
+                        paymentMethod: isCash ? 'CASH' : isQris ? 'QRIS' : 'BANK_TRANSFER',
+                        bankAccountId: bank?.id || null, date: tglKas, shiftReportId: id, branchId: shift.branchId,
+                    } });
+                }
+            }
+        }
+        if (dto.kasbon !== undefined) {
+            await db.cashflow.deleteMany({ where: { shiftReportId: id, category: 'Kasbon Karyawan', note: { startsWith: 'Kasbon: ' } } });
+            for (const k of dto.kasbon || []) {
+                if (!k?.name || !(Number(k.amount) > 0)) continue;
+                if (k.source && k.source !== 'Kas Toko') continue;
+                await db.cashflow.create({ data: {
+                    type: 'EXPENSE', category: 'Kasbon Karyawan', amount: Number(k.amount),
+                    note: `Kasbon: ${k.name} — shift ${shift.shiftName || ''}`, paymentMethod: 'CASH',
+                    bankAccountId: null, date: tglKas, shiftReportId: id, branchId: shift.branchId,
+                } });
+            }
+        }
+        if (dto.additionalIncomes !== undefined) {
+            await db.cashflow.deleteMany({ where: { shiftReportId: id, category: 'Pemasukan Tambahan' } });
+            for (const income of dto.additionalIncomes || []) {
+                if (!income?.bankName || !(Number(income.amount) > 0)) continue;
+                const bank = rekening.find((b: any) => b.bankName === income.bankName);
+                if (!bank) continue;
+                await db.cashflow.create({ data: {
+                    type: 'INCOME', category: 'Pemasukan Tambahan', amount: Number(income.amount),
+                    note: income.description || 'Pemasukan Eksternal', paymentMethod: 'BANK_TRANSFER',
+                    bankAccountId: bank.id, date: tglKas, shiftReportId: id, branchId: shift.branchId,
+                } });
+            }
+        }
+        return db.shiftReport.update({
             where: { id },
             data: {
                 actualCash,
                 actualQris,
                 actualTransfer,
+                expectedCash,
                 cashDifference,
                 qrisDifference,
                 transferDifference,
@@ -822,19 +935,19 @@ export class ReportsService {
                     {
                         at: new Date().toISOString(),
                         byUserId: actorUserId,
-                        byName: actorUserId
-                            ? (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { name: true } }))?.name ?? null
-                            : null,
+                        byName,
                         note: dto.amendNote,
                         before: {
                             actualCash: Number(shift.actualCash), actualQris: Number(shift.actualQris), actualTransfer: Number(shift.actualTransfer),
+                            expectedCash: Number(shift.expectedCash),
                             cashDifference: Number(shift.cashDifference), expensesTotal: Number(shift.expensesTotal),
                         },
-                        after: { actualCash, actualQris, actualTransfer, cashDifference, expensesTotal: expensesTotal ?? Number(shift.expensesTotal) },
+                        after: { actualCash, actualQris, actualTransfer, expectedCash, cashDifference, expensesTotal: expensesTotal ?? Number(shift.expensesTotal) },
                     },
                 ],
             },
         });
+        }, { timeout: 60_000, maxWait: 10_000 });
 
         return { success: true, message: 'Laporan shift berhasil dikoreksi.', data: updated };
     }
@@ -1448,9 +1561,10 @@ export class ReportsService {
         // 1) Selisih kas shift
         const shifts: any[] = await this.prisma.shiftReport.findMany({
             where: { ...bw, closedAt: { gte: start, lte: end } } as any,
-            select: { id: true, closedAt: true, cashDifference: true, qrisDifference: true, transferDifference: true },
+            select: { id: true, closedAt: true, cashDifference: true, qrisDifference: true, transferDifference: true, actualTransfer: true },
         });
         for (const s of shifts) {
+            if (!(num(s.actualTransfer) > 0)) s.transferDifference = 0; // transfer tak ditanyakan saat tutup shift
             for (const [k, label] of [['cashDifference', 'Selisih kas'], ['qrisDifference', 'Selisih QRIS'], ['transferDifference', 'Selisih transfer']] as const) {
                 const diff = num(s[k]);
                 if (Math.abs(diff) > 0) anomalies.push({ date: s.closedAt ? iso(s.closedAt) : startDate, type: 'SHIFT_DIFF', severity: sev(Math.abs(diff), 50000, 200000), reason: `${label} Rp ${Math.abs(diff).toLocaleString('id-ID')} (${diff < 0 ? 'kurang' : 'lebih'})`, amount: diff, refId: s.id });
@@ -1673,10 +1787,11 @@ export class ReportsService {
 
         const shifts: any[] = await this.prisma.shiftReport.findMany({
             where: { ...bw, closedAt: { gte: start, lte: end } } as any,
-            select: { cashDifference: true, qrisDifference: true, transferDifference: true },
+            select: { cashDifference: true, qrisDifference: true, transferDifference: true, actualTransfer: true },
         });
         let netDifference = 0, absDifference = 0, shiftsWithDiff = 0;
         for (const s of shifts) {
+            if (!(num(s.actualTransfer) > 0)) s.transferDifference = 0; // transfer tak ditanyakan saat tutup shift
             const d = num(s.cashDifference) + num(s.qrisDifference) + num(s.transferDifference);
             netDifference += d;
             absDifference += Math.abs(num(s.cashDifference)) + Math.abs(num(s.qrisDifference)) + Math.abs(num(s.transferDifference));

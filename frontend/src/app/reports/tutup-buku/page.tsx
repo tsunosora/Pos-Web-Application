@@ -185,7 +185,7 @@ function buildPDF(d: MonthlyClosing, storeName = "Toko") {
 
 export default function TutupBukuPage() {
     const storeName = useStoreName();
-    const { isManager } = useCurrentUser();
+    const { isManager, isOwner } = useCurrentUser();
     const activeBranchId = useBranchStore(s => s.activeBranchId);
     const setActiveBranchId = useBranchStore(s => s.setActiveBranchId);
     const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
@@ -218,7 +218,9 @@ export default function TutupBukuPage() {
                     <span className="text-xs font-semibold text-muted-foreground">Bulan</span>
                     <input type="month" value={month} onChange={e => setMonth(e.target.value)} className="bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm text-foreground" />
                 </label>
-                {branches && branches.length > 0 && (
+                {/* Hanya owner yang bisa memilih cabang — server memakai cabang akun untuk peran lain,
+                    jadi pilihan "Semua Cabang" di sini dulu menyesatkan manajer cabang. */}
+                {isOwner && branches && branches.length > 0 && (
                     <label className="inline-flex items-center gap-1.5 text-sm">
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                         <select value={activeBranchId ?? "all"} onChange={e => setActiveBranchId(e.target.value === "all" ? null : Number(e.target.value))}
@@ -240,7 +242,7 @@ export default function TutupBukuPage() {
                 </div>
             </div>
 
-            {activeBranchId == null && (
+            {isOwner && activeBranchId == null && (
                 <p className="text-xs text-amber-600 dark:text-amber-300">Tip: pilih <strong>cabang spesifik</strong> agar tutup buku per cabang (satu laporan per cabang). Mode Semua Cabang menggabungkan semuanya.</p>
             )}
 

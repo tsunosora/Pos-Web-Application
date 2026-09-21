@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ParseIntPipe, Query, UseGuards, ForbiddenException } from '@nestjs/common';
+import { ManagerGuard } from '../auth/role-groups';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BranchStockService } from './branch-stock.service';
 import { CurrentBranch } from '../common/branch-context.decorator';
@@ -31,15 +32,17 @@ export class BranchStockController {
         return { branchId, productVariantId: variantId, stock };
     }
 
+    // Set stok ABSOLUT → setingkat manajer (tak dipakai layar mana pun; koreksi harian lewat Opname/Stok).
     @Post('adjust')
+    @UseGuards(ManagerGuard)
     adjust(
         @Body() body: { branchId: number; productVariantId: number; newStock: number; reason?: string },
         @CurrentBranch() ctx: BranchContext,
     ) {
         // Owner mode "Semua Cabang" tetap boleh adjust dengan branchId di body.
         // Staff: harus sesuai cabangnya sendiri.
-        if (!ctx.isOwner && body.branchId !== ctx.userBranchId) {
-            throw new Error('Tidak boleh adjust stok cabang lain.');
+        if (!ctx.isOwner && Number(body.branchId) !== ctx.userBranchId) {
+            throw new ForbiddenException('Tidak boleh adjust stok cabang lain.'); // dulu Error biasa → 500
         }
         return this.service.adjustStock(body.branchId, body.productVariantId, body.newStock, body.reason);
     }

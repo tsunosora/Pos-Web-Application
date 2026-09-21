@@ -447,7 +447,7 @@ export class LeadsService {
                         });
                     } else {
                         await this.prisma.$executeRawUnsafe(
-                            `UPDATE follow_ups SET status = 'SKIPPED', updated_at = NOW() WHERE id = ?`,
+                            `UPDATE follow_ups SET status = 'SKIPPED', updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
                             existing.id,
                         );
                     }
@@ -469,7 +469,7 @@ export class LeadsService {
                     });
                 } else {
                     await this.prisma.$executeRawUnsafe(
-                        `UPDATE follow_ups SET due_date = ?, assigned_to_id = ?, updated_at = NOW() WHERE id = ?`,
+                        `UPDATE follow_ups SET due_date = ?, assigned_to_id = ?, updated_at = UTC_TIMESTAMP(3) WHERE id = ?`,
                         params.followUpDate, params.assignedToId, existing.id,
                     );
                 }
@@ -494,7 +494,7 @@ export class LeadsService {
             } else {
                 await this.prisma.$executeRawUnsafe(
                     `INSERT INTO follow_ups (type, status, due_date, lead_id, assigned_to_id, branch_id, notes, source_ref, created_at, updated_at)
-                     VALUES ('LEAD_FU', 'PENDING', ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                     VALUES ('LEAD_FU', 'PENDING', ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
                     params.followUpDate, params.leadId, params.assignedToId,
                     params.branchId, notes, `lead-fudate:${params.leadId}`,
                 );

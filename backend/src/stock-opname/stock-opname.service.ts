@@ -127,10 +127,24 @@ export class StockOpnameService {
             select: { id: true, stock: true },
         });
         const globalMap = new Map(variants.map((v: any) => [v.id, Number(v.stock)]));
+        // Stok sistem SAAT DIHITUNG (dicatat ketika penghitung mengirim). Selisih opname = hitungan −
+        // stok saat itu; penjualan/pembelian SETELAH dihitung tetap berlaku. Dulu stok langsung
+        // ditimpa angka hitungan → barang yang terjual antara hitung & "Selesai" muncul lagi.
+        const hitungan: any[] = await db.stockOpnameItem.findMany({
+            where: { sessionId: id, productVariantId: { in: variantIds } },
+            select: { productVariantId: true, systemStock: true, submittedAt: true },
+            orderBy: { submittedAt: 'desc' },
+        });
+        const stokSaatHitung = new Map<number, number>();
+        for (const h of hitungan) if (!stokSaatHitung.has(h.productVariantId)) stokSaatHitung.set(h.productVariantId, Number(h.systemStock));
 
         for (const item of confirmedItems) {
             const currentBranchStock = sessionBranchId ? (bsMap.get(item.productVariantId) ?? 0) : (globalMap.get(item.productVariantId) ?? 0);
-            const diff = item.confirmedStock - currentBranchStock;
+            const dasar = stokSaatHitung.get(item.productVariantId);
+            const target = dasar != null
+                ? Math.max(0, currentBranchStock + (item.confirmedStock - dasar))
+                : item.confirmedStock;
+            const diff = target - currentBranchStock;
 
             // Update agregat global (cache) — increment atomik (dulu snapshot + selisih: penjualan
             // cabang lain selama proses tertimpa).
@@ -143,8 +157,8 @@ export class StockOpnameService {
             if (sessionBranchId != null) {
                 await db.branchStock.upsert({
                     where: { branchId_productVariantId: { branchId: sessionBranchId, productVariantId: item.productVariantId } },
-                    update: { stock: item.confirmedStock },
-                    create: { branchId: sessionBranchId, productVariantId: item.productVariantId, stock: item.confirmedStock },
+                    update: { stock: target },
+                    create: { branchId: sessionBranchId, productVariantId: item.productVariantId, stock: target },
                 });
             }
 
@@ -154,8 +168,8 @@ export class StockOpnameService {
                         productVariantId: item.productVariantId,
                         type: 'ADJUST',
                         quantity: Math.abs(diff),
-                        reason: `Stok Opname #${id.slice(0, 8)} — ${diff > 0 ? '+' : ''}${diff}`,
-                        balanceAfter: item.confirmedStock,
+                        reason: `Stok Opname #${id.slice(0, 8)} — ${diff > 0 ? '+' : ''}${diff}${dasar != null && target !== item.confirmedStock ? ` (hitungan ${item.confirmedStock}, stok saat dihitung ${dasar})` : ''}`,
+                        balanceAfter: target,
                         referenceId: `opname-${id.slice(0, 8)}`,
                         branchId: sessionBranchId,
                     } as any,

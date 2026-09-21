@@ -49,7 +49,10 @@ export default function InvoicesPage() {
     const updateMutation = useMutation({ mutationFn: ({ id, data }: { id: number; data: any }) => updateInvoice(id, data), onSuccess: () => { invalidate(); setFormMode(null); setEditDoc(null); } });
     const statusMutation = useMutation({ mutationFn: ({ id, status }: { id: number; status: string }) => updateInvoiceStatus(id, status), onSuccess: invalidate });
     const deleteMutation = useMutation({ mutationFn: deleteInvoice, onSuccess: () => { invalidate(); setDeleteId(null); } });
-    const convertMutation = useMutation({ mutationFn: convertQuotationToInvoice, onSuccess: () => { invalidate(); } });
+    // Setelah jadi invoice, pindah ke tab Invoice & sebut nomornya (dulu tak ada tanda apa pun → diklik ulang).
+    const convertMutation = useMutation({ mutationFn: convertQuotationToInvoice, onSuccess: (inv: any) => { invalidate(); setActiveTab("INVOICE"); alert(`Invoice ${inv?.number ?? inv?.invoiceNumber ?? ''} dibuat dari penawaran ini.`); } });
+    // Server hanya mengizinkan hapus dokumen yang belum berjalan.
+    const bisaDihapus = (status: string) => ["DRAFT", "CANCELLED", "REJECTED", "EXPIRED"].includes(status);
 
     const handleSave = (data: any) => {
         if (formMode === "edit" && editDoc) {
@@ -202,8 +205,8 @@ export default function InvoicesPage() {
                                     </button>
                                 ))}
                                 {activeTab === "QUOTATION" && doc.status === "ACCEPTED" && (
-                                    <button onClick={() => convertMutation.mutate(doc.id)}
-                                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 transition-colors">
+                                    <button onClick={() => convertMutation.mutate(doc.id)} disabled={convertMutation.isPending}
+                                        className="disabled:opacity-50 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 transition-colors">
                                         <FileText className="h-3.5 w-3.5" /> Jadi Invoice
                                     </button>
                                 )}
@@ -218,10 +221,12 @@ export default function InvoicesPage() {
                                             <Pencil className="h-4 w-4" />
                                         </button>
                                     )}
+                                    {bisaDihapus(doc.status) && (
                                     <button onClick={() => setDeleteId(doc.id)} title="Hapus"
                                         className="p-2 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors">
                                         <Trash2 className="h-4 w-4" />
                                     </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -289,7 +294,7 @@ export default function InvoicesPage() {
                                                     </button>
                                                 ))}
                                                 {activeTab === "QUOTATION" && doc.status === "ACCEPTED" && (
-                                                    <button onClick={() => convertMutation.mutate(doc.id)} title="Konversi ke Invoice"
+                                                    <button onClick={() => convertMutation.mutate(doc.id)} disabled={convertMutation.isPending} title="Konversi ke Invoice"
                                                         className="p-1.5 rounded hover:bg-primary/10 hover:text-primary transition-colors">
                                                         <FileText className="h-4 w-4" />
                                                     </button>
@@ -304,10 +309,12 @@ export default function InvoicesPage() {
                                                         <Pencil className="h-4 w-4" />
                                                     </button>
                                                 )}
+                                                {bisaDihapus(doc.status) && (
                                                 <button onClick={() => setDeleteId(doc.id)} title="Hapus"
                                                     className="p-1.5 rounded hover:bg-destructive/10 hover:text-destructive transition-colors">
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

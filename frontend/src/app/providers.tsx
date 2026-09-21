@@ -1,6 +1,6 @@
 "use client";
 
-import { QueryClient } from '@tanstack/react-query';
+import { MutationCache, QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import { openDB, IDBPDatabase } from 'idb';
@@ -50,6 +50,18 @@ const persister = createAsyncStoragePersister({
 
 export default function Providers({ children }: { children: React.ReactNode }) {
     const [queryClient] = useState(() => new QueryClient({
+        // Cadangan untuk mutasi TANPA onError sendiri: dulu banyak simpan/hapus gagal diam-diam
+        // (tombol kembali normal, modal tetap terbuka, tanpa alasan). 401 dilewati — interceptor
+        // sudah mengarahkan ke login. meta.senyap = mutasi latar yang memang boleh gagal diam.
+        mutationCache: new MutationCache({
+            onError: (error: any, _vars, _ctx, mutation) => {
+                if (mutation.options.onError || (mutation.meta as any)?.senyap) return;
+                const status = error?.response?.status;
+                if (status === 401 || typeof window === 'undefined') return;
+                const pesan = error?.response?.data?.message;
+                alert(Array.isArray(pesan) ? pesan.join('\n') : (pesan || error?.message || 'Gagal menyimpan. Coba lagi.'));
+            },
+        }),
         defaultOptions: {
             queries: {
                 staleTime: 60 * 1000,       // data fresh selama 1 menit

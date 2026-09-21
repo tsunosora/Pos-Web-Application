@@ -302,13 +302,7 @@ export class TransactionsService {
         assertValidTransactionInput(data);
         // Rekening tujuan (lunas / DP) harus milik cabang nota ini (atau rekening bersama) & aktif.
         for (const bid of [(data as any).bankAccountId, (data as any).dpBankAccountId]) {
-            if (!bid) continue;
-            const bank: any = await this.prisma.bankAccount.findUnique({ where: { id: Number(bid) } });
-            if (!bank || bank.isActive === false) throw new BadRequestException('Rekening bank tujuan tidak ditemukan / nonaktif.');
-            const cabangNota = (data as any).branchId ?? null;
-            if (bank.branchId != null && cabangNota != null && bank.branchId !== cabangNota) {
-                throw new BadRequestException('Rekening bank milik cabang lain — pilih rekening cabang ini.');
-            }
+            await this.cekRekeningNota(this.prisma, bid, (data as any).branchId ?? null);
         }
         const branchId = data.branchId ?? null;
         // Cabang yang mengeksekusi produksi (mesin cetak + stok bahan + antrian + click counter).
@@ -756,6 +750,10 @@ export class TransactionsService {
             const effectiveDate = data.transactionDate ? new Date(data.transactionDate + 'T00:00:00') : new Date();
             // effectiveCashflowDate = tanggal cashflow (bisa hari ini jika user minta masuk shift hari ini)
             const effectiveCashflowDate = data.cashflowDate ? new Date(data.cashflowDate + 'T00:00:00') : effectiveDate;
+            // Nota mundur tanggal TANPA centang "masuk shift hari ini": layar kasir menjanjikan
+            // "Pendapatan masuk ke tanggal tersebut" — jangan ikut ekspektasi kas shift yang sedang
+            // berjalan (uangnya sudah masuk laporan shift hari itu).
+            const diluarShift = !!data.transactionDate && !data.cashflowDate && data.transactionDate !== ymdLokal();
 
             // Invoice number sudah di-pre-generate di atas (preInvoiceNumber) supaya bisa di-tag
             // ke StockMovement.referenceId. Pakai variable yang sama di sini.
@@ -965,6 +963,7 @@ export class TransactionsService {
                         branchName: effectiveBranchName,
                         branchId: branchId,
                         date: effectiveCashflowDate,
+                        ...(diluarShift ? { excludeFromShift: true } : {}),
                     } as any
                 });
                 // Catat potongan marketplace sebagai expense (hanya saat lunas)
@@ -981,6 +980,7 @@ export class TransactionsService {
                             branchName: effectiveBranchName,
                             branchId: branchId,
                             date: effectiveCashflowDate,
+                            ...(diluarShift ? { excludeFromShift: true } : {}),
                         } as any
                     });
                 }
@@ -1019,6 +1019,7 @@ export class TransactionsService {
                         branchName: effectiveBranchName,
                         branchId: branchId,
                         date: effectiveCashflowDate,
+                        ...(diluarShift ? { excludeFromShift: true } : {}),
                     } as any
                 });
             }
@@ -1148,7 +1149,7 @@ export class TransactionsService {
             `INSERT INTO inter_branch_ledger
               (transaction_id, from_branch_id, to_branch_id, cost_amount, service_fee, total_amount, settled_amount, status, created_at, updated_at)
              VALUES
-              (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${cost.serviceFee}, ${cost.totalAmount}, 0, 'PENDING', NOW(), NOW())`,
+              (${txId}, ${fromBranchId}, ${toBranchId}, ${costAmount}, ${cost.serviceFee}, ${cost.totalAmount}, 0, 'PENDING', UTC_TIMESTAMP(3), UTC_TIMESTAMP(3))`,
         );
     }
 
@@ -1372,6 +1373,16 @@ export class TransactionsService {
         return transaction;
     }
 
+    /** Rekening tujuan pembayaran harus aktif & milik cabang nota (atau rekening bersama). */
+    private async cekRekeningNota(db: any, bid: unknown, cabangNota: number | null) {
+        if (!bid) return;
+        const bank: any = await db.bankAccount.findUnique({ where: { id: Number(bid) } });
+        if (!bank || bank.isActive === false) throw new BadRequestException('Rekening bank tujuan tidak ditemukan / nonaktif.');
+        if (bank.branchId != null && cabangNota != null && bank.branchId !== cabangNota) {
+            throw new BadRequestException('Rekening bank milik cabang lain — pilih rekening cabang ini.');
+        }
+    }
+
     async addPartialPayment(id: number, data: { amount: number; paymentMethod: PaymentMethod; bankAccountId?: number }, branchCtx?: BranchContext) {
         await this.assertTxBranchAccess(id, branchCtx);
         return this.ulangBilaBentrok(() => this.prisma.$transaction(async (tx) => {
@@ -1381,6 +1392,8 @@ export class TransactionsService {
             if (transaction.status === TransactionStatus.PAID) throw new BadRequestException('Transaksi sudah lunas');
             if (transaction.status !== TransactionStatus.PARTIAL && transaction.status !== TransactionStatus.PENDING)
                 throw new BadRequestException('Transaksi tidak dapat menerima pembayaran');
+            // Dulu DP/pelunasan menerima rekening nonaktif atau milik cabang lain (checkout sudah menolak).
+            await this.cekRekeningNota(tx, data.bankAccountId, (transaction as any).branchId ?? null);
 
             const currentDP = Number(transaction.downPayment);
             const grandTotal = Number(transaction.grandTotal);
@@ -1482,6 +1495,7 @@ export class TransactionsService {
             if (transaction.status === TransactionStatus.PAID) throw new BadRequestException('Transaksi sudah lunas');
             if (transaction.status !== TransactionStatus.PARTIAL && transaction.status !== TransactionStatus.PENDING)
                 throw new BadRequestException('Transaksi tidak dapat dilunasi');
+            await this.cekRekeningNota(tx, data.bankAccountId, (transaction as any).branchId ?? null);
             const feeMasuk = data.marketplaceFeeItems?.length
                 ? data.marketplaceFeeItems.map((f) => Number(f.amount))
                 : data.marketplaceFee != null ? [Number(data.marketplaceFee)] : [];
@@ -2169,6 +2183,24 @@ export class TransactionsService {
                 await this._adjustStock(tx, cabangRoll, jobLama.rollVariantId, Number(jobLama.rollLengthUsed));
                 await this.logMovement(tx, jobLama.rollVariantId, 'IN', Number(jobLama.rollLengthUsed), `Hapus Item (roll) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, cabangRoll);
             }
+            // Bahan pasang (rangka dll.) yang sudah dipotong saat "Mulai Pasang" dikembalikan juga
+            // (hapus nota sudah begitu; hapus item lewat edit dulu melewatkannya).
+            if (jobLama && (jobLama.status === 'PASANG' || jobLama.assemblyStartedAt || jobLama.assemblyCompletedAt) && txItem.productVariantId) {
+                const pv: any = await tx.productVariant.findUnique({
+                    where: { id: txItem.productVariantId },
+                    select: { product: { select: { pricingMode: true, ingredients: { select: { rawMaterialVariantId: true, quantity: true } } } } },
+                });
+                if (pv?.product?.pricingMode === 'AREA_BASED') {
+                    const cabangPasang: number | null = jobLama.branchId ?? editTxBranchId;
+                    const jumlahPasang = Math.max(1, Number((txItem as any).pcs ?? 1) || 1) * Math.max(1, Number(txItem.quantity ?? 1) || 1);
+                    for (const ing of pv.product.ingredients ?? []) {
+                        if (!ing.rawMaterialVariantId) continue;
+                        const ret = Number(ing.quantity) * jumlahPasang;
+                        await this._adjustStock(tx, cabangPasang, ing.rawMaterialVariantId, ret);
+                        await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Item (pasang BOM) Edit Transaksi ${transaction.invoiceNumber}`, `tx-${transaction.invoiceNumber}`, cabangPasang);
+                    }
+                }
+            }
             // Klik mesin item ini dibatalkan (bukan dibiarkan jadi biaya mesin tanpa nota).
             await tx.clickLog.updateMany({ where: { transactionItemId: txItem.id, voidedAt: null }, data: { voidedAt: new Date(), voidedById: actorUserId, voidReason: `Item dihapus dari nota ${transaction.invoiceNumber}` } });
             // Hapus ProductionJob dulu (FK constraint: productionJob.transactionItemId → transactionItem.id)
@@ -2790,9 +2822,10 @@ export class TransactionsService {
                         if (job && (job.status === 'PASANG' || job.assemblyStartedAt || job.assemblyCompletedAt)) {
                             const restoreBranchId: number | null = (job as any).branchId ?? txBranchId;
                             // BOM pasang dipotong di startAssembly (bukan checkout) → pakai BOM produk langsung.
+                            const jumlahPasang = Math.max(1, Number((txItem as any).pcs ?? 1) || 1) * Math.max(1, Number(txItem.quantity ?? 1) || 1);
                             for (const ing of (product.ingredients || [])) {
                                 if (ing.rawMaterialVariantId) {
-                                    const ret = Number(ing.quantity);
+                                    const ret = Number(ing.quantity) * jumlahPasang; // sama dgn yang dipotong saat Mulai Pasang
                                     await this._adjustStock(tx, restoreBranchId, ing.rawMaterialVariantId, ret);
                                     await this.logMovement(tx, ing.rawMaterialVariantId, 'IN', ret, `Hapus Transaksi (pasang BOM) ${transaction.invoiceNumber}${_delCtx}`, `tx-${transaction.invoiceNumber}`, restoreBranchId);
                                 }

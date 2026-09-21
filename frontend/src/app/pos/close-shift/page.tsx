@@ -105,12 +105,10 @@ export default function CloseShiftPage() {
     // Inisialisasi state saldo bank saat data shift dimuat
     useEffect(() => {
         if (shiftData?.systemBankBalances) {
-            const initialBanks: Record<string, number> = {};
-            Object.keys(shiftData.systemBankBalances).forEach(bank => {
-                initialBanks[bank] = 0;
-            });
-            setActualBankBalances(initialBanks);
-            setRealBankBalances({ ...initialBanks });
+            // Mulai KOSONG (bukan 0): hanya rekening yang benar-benar diisi kasir yang dikirim —
+            // dulu kolom yang dilewati terkirim 0 dan saldo rekening di sistem menjadi Rp 0.
+            setActualBankBalances({});
+            setRealBankBalances({});
 
             // Inisialisasi pengeluaran: QRIS + bank-bank + CASH
             const initExpenses: StructuredExpenses = { QRIS: [], CASH: [] };
@@ -272,6 +270,8 @@ export default function CloseShiftPage() {
         if (!shiftData) return;
         if (!adminName) { alert('Pilih nama kasir terlebih dahulu!'); return; }
         if (!reportDate || !closeTime) { alert('Isi tanggal dan jam tutup shift.'); return; }
+        const rekeningKosong = Object.keys(shiftData?.systemBankBalances ?? {}).filter((b) => realBankBalances[b] === undefined);
+        if (rekeningKosong.length && !confirm(`Saldo real ${rekeningKosong.join(', ')} belum diisi — saldo rekening itu di sistem tidak diubah. Lanjutkan?`)) return;
 
         // Build closedAt from selected date + close time — avoid wrong date if submitted late
         const closedAtDate = new Date(`${reportDate}T${closeTime}:00`);
@@ -1102,7 +1102,7 @@ export default function CloseShiftPage() {
                                                             type="number" min="0"
                                                             className="pl-9 text-right text-sm"
                                                             value={laporan || ''}
-                                                            onChange={(e) => setActualBankBalances(prev => ({ ...prev, [bankName]: Number(e.target.value) }))}
+                                                            onChange={(e) => setActualBankBalances(prev => { const n = { ...prev }; if (e.target.value === '') delete n[bankName]; else n[bankName] = Number(e.target.value); return n; })}
                                                             placeholder="0"
                                                         />
                                                     </div>
@@ -1117,7 +1117,7 @@ export default function CloseShiftPage() {
                                                             type="number" min="0"
                                                             className="pl-9 text-right text-sm font-bold"
                                                             value={real || ''}
-                                                            onChange={(e) => setRealBankBalances(prev => ({ ...prev, [bankName]: Number(e.target.value) }))}
+                                                            onChange={(e) => setRealBankBalances(prev => { const n = { ...prev }; if (e.target.value === '') delete n[bankName]; else n[bankName] = Number(e.target.value); return n; })}
                                                             placeholder="0"
                                                         />
                                                     </div>

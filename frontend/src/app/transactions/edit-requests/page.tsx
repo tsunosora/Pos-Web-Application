@@ -123,6 +123,14 @@ function RequestCard({ request, onRefresh }: { request: TransactionEditRequest; 
         onSuccess: () => {
             setReviewing(null);
             setReviewNote('');
+            // Persetujuan mengubah nota (total, sisa, stok, kas) — segarkan juga tampilan uang/stok.
+            for (const k of ['transaction-edit-requests', 'transactions', 'transaction', 'salesSummary', 'products', 'stock-movements', 'branch-stocks', 'cashflow', 'production-jobs', 'print-queue']) {
+                queryClient.invalidateQueries({ queryKey: [k] });
+            }
+        },
+        onError: (e: any) => {
+            // mis. sudah diproses admin lain
+            alert(e?.response?.data?.message || 'Gagal memproses permintaan.');
             queryClient.invalidateQueries({ queryKey: ['transaction-edit-requests'] });
         },
     });

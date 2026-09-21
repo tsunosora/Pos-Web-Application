@@ -424,7 +424,7 @@ function HppCalculatorContent() {
                 tierName: t.tierName || null,
                 minQty: parseInt(t.minQty),
                 maxQty: t.maxQty ? parseInt(t.maxQty) : null,
-                price: parseInt(t.price),
+                price: Number(t.price), // harga per m² bisa desimal (parseInt memotongnya)
             }));
 
     // Hitung biaya klik per baris varian
