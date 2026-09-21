@@ -39,7 +39,9 @@ export interface SocialConversation {
     assignedToId: number | null;
     assignedTo?: { id: number; name: string | null } | null;
     contact: SocialContactLite;
-    channel: { id: number; label: string; platform: SocialPlatform; branchId: number | null };
+    channel: { id: number; label: string; platform: SocialPlatform; branchId: number | null; pageId?: string };
+    /** Pesan terakhir pelanggan (bukan catatan sistem) — dasar jendela balas 24 jam Meta. */
+    lastInboundAt?: string | null;
 }
 export interface SocialMessage {
     id: number;

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     Send, Search, MessageSquare, Instagram, Facebook, Settings, Plus, Trash2, X, ArrowLeft, ExternalLink,
-    RefreshCw, EyeOff, Eye, MailOpen, CheckCheck, Reply, UserPlus, Radio, KeyRound, Info,
+    RefreshCw, EyeOff, Eye, MailOpen, CheckCheck, Reply, UserPlus, Radio, KeyRound, Info, Clock,
 } from "lucide-react";
 import {
     listSocialConversations, getSocialMessages, replySocial,
@@ -54,6 +54,29 @@ function splitNotice(body: string | null): { text: string; url: string | null } 
     const b = body ?? "";
     const url = b.match(/\((https?:\/\/[^\s)]+)\)\s*$/)?.[1] ?? null;
     return { text: url ? b.slice(0, b.lastIndexOf("(" + url)).replace(/\s*(Lihat komentar|See comment|View comment)\s*$/i, "").trim() : b.trim(), url };
+}
+/**
+ * Jendela balas Meta: DM hanya boleh dibalas lewat API dalam 24 jam sejak pesan
+ * terakhir pelanggan. `undefined` = belum diketahui (data lama di cache) → jangan blokir.
+ */
+const REPLY_WINDOW_MS = 24 * 3600 * 1000;
+function replyWindow(lastInboundAt: string | null | undefined): { known: boolean; open: boolean; leftMs: number; until: Date | null } {
+    if (lastInboundAt === undefined) return { known: false, open: true, leftMs: 0, until: null };
+    if (!lastInboundAt) return { known: true, open: false, leftMs: 0, until: null };
+    const until = new Date(new Date(lastInboundAt).getTime() + REPLY_WINDOW_MS);
+    const leftMs = until.getTime() - Date.now();
+    return { known: true, open: leftMs > 0, leftMs, until };
+}
+const fmtLeft = (ms: number) => {
+    const m = Math.max(1, Math.floor(ms / 60000));
+    return m < 60 ? `${m} menit` : `${Math.floor(m / 60)} jam`;
+};
+/** Buka percakapan di aplikasi Meta (jendela 24 jam tidak berlaku di sana). */
+function openInAppUrl(c: SocialConversation): string {
+    if (c.contact.platform === "INSTAGRAM") {
+        return c.contact.name && /^[A-Za-z0-9._]+$/.test(c.contact.name) ? `https://ig.me/m/${c.contact.name}` : "https://www.instagram.com/direct/inbox/";
+    }
+    return `https://business.facebook.com/latest/inbox/all${c.channel.pageId ? `?asset_id=${c.channel.pageId}` : ""}`;
 }
 const PlatformIcon = ({ p, className }: { p: SocialPlatform; className?: string }) =>
     p === "INSTAGRAM" ? <Instagram className={className} /> : <Facebook className={className} />;
@@ -231,6 +254,7 @@ function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncCont
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [draft, setDraft] = useState("");
+    const [sendError, setSendError] = useState<string | null>(null);
 
     const { data: convData, isLoading } = useQuery({
         queryKey: ["social-convos", platform ?? "ALL", search],
@@ -239,7 +263,7 @@ function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncCont
     });
     const conversations = useMemo(() => convData?.items ?? [], [convData]);
     const selected = useMemo(() => conversations.find((c) => c.id === selectedId) ?? null, [conversations, selectedId]);
-    const open = (id: number | null) => { setSelectedId(id); setDraft(""); };
+    const open = (id: number | null) => { setSelectedId(id); setDraft(""); setSendError(null); };
 
     const { data: msgData } = useQuery({
         queryKey: ["social-messages", selectedId],
@@ -260,10 +284,11 @@ function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncCont
         mutationFn: (text: string) => replySocial(selectedId as number, text),
         onSuccess: () => {
             setDraft("");
+            setSendError(null);
             qc.invalidateQueries({ queryKey: ["social-messages", selectedId] });
             qc.invalidateQueries({ queryKey: ["social-convos"] });
         },
-        onError: (e: unknown) => alert(errMsg(e, "Gagal mengirim")),
+        onError: (e: unknown) => setSendError(errMsg(e, "Gagal mengirim")),
     });
     const send = () => { if (draft.trim() && !replyMut.isPending) replyMut.mutate(draft.trim()); };
 
@@ -302,7 +327,18 @@ function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncCont
                                     <span className="text-[11px] opacity-60 truncate">{PLATFORM_LABEL[c.contact.platform]}{c.assignedTo?.name ? ` · ${c.assignedTo.name}` : ""}</span>
                                     {c.unreadCount > 0 && <span className="bg-pink-500 text-white text-[10px] rounded-full px-1.5 min-w-[18px] text-center shrink-0">{c.unreadCount}</span>}
                                 </div>
-                                {c.contact.lead && <span className="inline-block mt-1 text-[10px] rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5">Prospek</span>}
+                                {(() => {
+                                    const w = replyWindow(c.lastInboundAt);
+                                    if (!w.known && !c.contact.lead) return null;
+                                    return (
+                                        <div className="flex flex-wrap gap-1 mt-1">
+                                            {w.known && (w.open
+                                                ? <span className="text-[10px] rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5">bisa dibalas · sisa {fmtLeft(w.leftMs)}</span>
+                                                : <span className="text-[10px] rounded-full bg-muted px-1.5 opacity-70">lewat 24 jam</span>)}
+                                            {c.contact.lead && <span className="text-[10px] rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-1.5">Prospek</span>}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         </button>
                     ))}
@@ -369,17 +405,57 @@ function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncCont
                             })}
                             <div ref={bottomRef} />
                         </div>
-                        <form className="p-3 border-t border-border flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
-                            <textarea value={draft} onChange={(e) => setDraft(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
-                                rows={1} placeholder="Ketik balasan… (Enter kirim)"
-                                className="flex-1 resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none max-h-32" />
-                            <button type="submit" disabled={!draft.trim() || replyMut.isPending}
-                                className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 shrink-0">
-                                <Send className="w-4 h-4" />
-                            </button>
-                        </form>
-                        <p className="text-[11px] opacity-50 text-center pb-2">Catatan: balasan hanya sah dalam jendela 24 jam (aturan Meta).</p>
+                        {(() => {
+                            const w = replyWindow(selected.lastInboundAt);
+                            if (!w.open) {
+                                return (
+                                    <div className="p-3 border-t border-border">
+                                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm space-y-2">
+                                            <div className="flex gap-2">
+                                                <Clock className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                <p>
+                                                    <b>Jendela balas 24 jam sudah lewat.</b>{" "}
+                                                    {selected.lastInboundAt
+                                                        ? `Pesan terakhir pelanggan ${fmtTime(selected.lastInboundAt)}.`
+                                                        : "Pelanggan belum mengirim pesan di percakapan ini."}{" "}
+                                                    Meta hanya mengizinkan balasan lewat PosPro dalam 24 jam — balas langsung dari aplikasi.
+                                                </p>
+                                            </div>
+                                            <a href={openInAppUrl(selected)} target="_blank" rel="noopener noreferrer"
+                                                className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm">
+                                                {selected.contact.platform === "INSTAGRAM" ? "Buka di Instagram" : "Buka Inbox Messenger"} <ExternalLink className="w-3.5 h-3.5" />
+                                            </a>
+                                        </div>
+                                        <p className="text-[11px] opacity-50 text-center pt-1.5">Begitu pelanggan membalas, kolom ketik muncul lagi di sini.</p>
+                                    </div>
+                                );
+                            }
+                            return (
+                                <>
+                                    {sendError && (
+                                        <div className="mx-3 mt-2 rounded-lg bg-red-500/10 text-red-700 dark:text-red-300 text-xs px-3 py-2 flex gap-2">
+                                            <span className="flex-1 break-words">{sendError}</span>
+                                            <button onClick={() => setSendError(null)} aria-label="Tutup"><X className="w-3.5 h-3.5" /></button>
+                                        </div>
+                                    )}
+                                    <form className="p-3 border-t border-border flex items-end gap-2" onSubmit={(e) => { e.preventDefault(); send(); }}>
+                                        <textarea value={draft} onChange={(e) => { setDraft(e.target.value); if (sendError) setSendError(null); }}
+                                            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
+                                            rows={1} placeholder="Ketik balasan… (Enter kirim)"
+                                            className="flex-1 resize-none rounded-xl bg-muted/60 px-3 py-2 text-sm outline-none max-h-32" />
+                                        <button type="submit" disabled={!draft.trim() || replyMut.isPending}
+                                            className="rounded-xl bg-emerald-500 text-white p-2.5 disabled:opacity-40 hover:bg-emerald-600 shrink-0">
+                                            <Send className="w-4 h-4" />
+                                        </button>
+                                    </form>
+                                    <p className="text-[11px] opacity-50 text-center pb-2">
+                                        {w.known && w.until
+                                            ? `Bisa dibalas sampai ${fmtTime(w.until.toISOString())} (sisa ${fmtLeft(w.leftMs)}) — aturan 24 jam Meta.`
+                                            : "Catatan: balasan hanya sah dalam jendela 24 jam (aturan Meta)."}
+                                    </p>
+                                </>
+                            );
+                        })()}
                     </>
                 )}
             </section>

@@ -234,11 +234,21 @@ export class SocialInboxService {
             include: {
                 contact: { select: CONTACT_SELECT },
                 assignedTo: { select: { id: true, name: true } },
-                channel: { select: { id: true, label: true, platform: true, branchId: true } },
+                channel: { select: { id: true, label: true, platform: true, branchId: true, pageId: true } },
             },
         });
         const hasMore = rows.length > take;
-        const items = hasMore ? rows.slice(0, take) : rows;
+        const page = hasMore ? rows.slice(0, take) : rows;
+        // Pesan terakhir PELANGGAN (bukan catatan sistem) → jendela balas 24 jam Meta.
+        const last = page.length
+            ? await this.prisma.socialMessage.groupBy({
+                by: ['conversationId'],
+                where: { conversationId: { in: page.map((c) => c.id) }, direction: SocialDirection.INBOUND, type: { not: 'SYSTEM' } },
+                _max: { createdAt: true },
+            })
+            : [];
+        const lastIn = new Map(last.map((r) => [r.conversationId, r._max.createdAt]));
+        const items = page.map((c) => ({ ...c, lastInboundAt: lastIn.get(c.id) ?? null }));
         return { items, nextCursor: hasMore ? items[items.length - 1].id : null };
     }
 
@@ -268,7 +278,12 @@ export class SocialInboxService {
         try {
             ({ messageId } = await this.meta.sendText(conv.channel.platform, sendId, conv.channel.accessToken, conv.contact.externalId, text.trim()));
         } catch (e) {
-            throw new ConflictException(`Gagal kirim: ${(e as Error).message}`);
+            const msg = (e as Error).message;
+            if (/luar jendela|outside (of )?(the )?allowed window|24[- ]?(hour|jam)/i.test(msg)) {
+                const app = conv.channel.platform === 'INSTAGRAM' ? 'aplikasi Instagram' : 'Messenger / Meta Business Suite';
+                throw new ConflictException(`Jendela balas 24 jam sudah lewat — Meta hanya mengizinkan balasan lewat PosPro dalam 24 jam sejak pesan terakhir pelanggan. Balas langsung dari ${app}. (${msg})`);
+            }
+            throw new ConflictException(`Gagal kirim: ${msg}`);
         }
         const msg = await this.prisma.socialMessage.create({
             data: {
