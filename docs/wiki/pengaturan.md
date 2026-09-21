@@ -78,8 +78,10 @@ toko lain dengan identitas sendiri.
 - **Ambang stok menipis** memicu notifikasi; kalau kebanyakan pemberitahuan,
   yang perlu disetel adalah angka ini, bukan mematikan notifikasinya.
 - Beberapa nilai di `store_settings` bersifat rahasia (PIN, webhook Discord,
-  kunci webhook GitHub). Semuanya tersimpan di server dan tidak dikirim ke
-  browser.
+  kunci webhook GitHub, tujuan cadangan rclone). Staf biasa tidak menerimanya
+  sama sekali. Sejak 22 September 2026 **webhook Discord, rahasia GitHub, dan
+  tujuan rclone hanya terlihat oleh Owner** — bagi Admin/Manajer kolomnya kosong.
+  Admin/Manajer tetap melihat PIN papan kerja karena merekalah yang mengelolanya.
 - **Simpan pengaturan hanya menerima kolom yang ada di halaman Pengaturan**
   (sejak 22 September 2026); kolom lain diabaikan dan isian yang salah jenis
   ditolak. Tarif pajak harus 0–100%. Webhook Discord dan rahasia GitHub di

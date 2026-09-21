@@ -95,6 +95,12 @@ Nama role maksimal 20 karakter. Role yang **masih dipakai** akun tidak bisa
 dihapus — pindahkan dulu akunnya ke role lain. Role setingkat Owner hanya bisa
 dibuat, diubah, atau dihapus oleh Owner.
 
+Sejak 22 September 2026 **membuat role setingkat manajer** (bernama *Admin*, atau
+memuat *Manajer/Manager/Supervisor/Kepala*) juga khusus Owner, begitu pula
+**mengganti nama role yang memindah levelnya** antara staf dan manajer. Nama role
+menentukan akses semua akun pemakainya — dulu Admin bisa mengganti "Kasir" menjadi
+"Manajer" dan menaikkan seluruh akun kasir di semua cabang sekaligus.
+
 ### 6. Batasi menu yang dilihat role itu
 
 ![Halaman Akses Menu per Role: role Operator dengan menu produksi & cetak tercentang](images/akun-6-akses.webp)

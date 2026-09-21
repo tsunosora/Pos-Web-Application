@@ -21,6 +21,19 @@ toko dan alamat yang terlihat pada contoh struk di
 2. Pilih **metode koneksi** printer sesuai perangkat (lihat tabel di bawah).
 3. Klik cetak — struk otomatis dirender & dikirim ke printer.
 
+### Isi struk (sejak 22 September 2026)
+
+- **Item per m²/cm²** menulis luas total × harga per satuan luas, mis. *4,62 m² x
+  Rp 125.000* → Rp 577.500. Dulu tertulis "1 x Rp 125.000" sehingga baris tidak
+  bisa dicek pelanggan.
+- **Nota belum lunas** menampilkan baris **Sisa** — juga untuk Bayar Nanti tanpa
+  DP (sisa = total).
+- **Pajak** memakai tarif nota itu sendiri saat dicetak ulang, bukan setelan toko
+  hari ini; baris pajak di pesan WA hilang bila nota tanpa pajak.
+- **Item custom** (dari lead CRM) dan **produk paket** tampil dengan namanya
+  sendiri dan catatan pelanggan — dulu tertulis "undefined" atau rincian teknis,
+  dan halaman detail nota berisi item custom gagal dibuka.
+
 ### Metode koneksi printer
 
 | Metode | Kapan dipakai | Catatan |

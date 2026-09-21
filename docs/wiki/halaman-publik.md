@@ -66,6 +66,13 @@ cabang membuat satu layar bisa dipakai untuk pantauan harian maupun bulanan.
 Angkanya sama dengan [Leaderboard](leaderboard.md) di dashboard — bedanya
 halaman ini dirancang untuk dibaca dari jauh dan menyegarkan dirinya sendiri.
 
+Sejak 22 September 2026 omzet cabang di TV dan bar **Target Harian** hanya
+menjumlahkan pemasukan penjualan (*Penjualan Lunas, Pembayaran DP, Pelunasan
+DP*), sama dengan kartu Penjualan Hari Ini di dashboard — modal dari pusat dan
+pelunasan titipan tidak lagi terbaca sebagai omzet. Beban pusat dalam target
+harian dibagi rata ke semua cabang aktif, juga saat TV hanya menampilkan satu
+cabang.
+
 ## Halaman kerja ber-PIN
 
 Bukan publik, tapi juga bukan login biasa:

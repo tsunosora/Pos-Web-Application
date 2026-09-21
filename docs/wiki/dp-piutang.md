@@ -41,6 +41,11 @@ sebagai lunas, karena tombolnya sendiri yang berubah.
 Setelah disimpan, struknya langsung muncul untuk dicetak atau dikirim lewat
 WhatsApp. Nomor SO di struk inilah rujukan saat pelanggan datang melunasi.
 
+Sejak 22 September 2026 pesan tagihan WhatsApp menyebut **Sudah dibayar** (bila
+ada DP) dan **Sisa tagihan** di bawah TOTAL BAYAR — dulu hanya total, sehingga
+pelanggan ber-DP mengira harus membayar penuh. Struk 58 mm nota Bayar Nanti juga
+menampilkan baris **Sisa** sebesar total.
+
 ### 3. Nota pindah sendiri ke daftar piutang
 
 ![Daftar DP/Piutang dengan total tagihan belum lunas dan baris CV Harapan Baru sisa Rp 67.500](images/dp-3-daftar.webp)
@@ -153,3 +158,8 @@ Pagar tambahan sejak 22 September 2026:
 Piutang ikut diperhitungkan sebagai "Cuan" di [Leaderboard](leaderboard.md)
 (omzet + piutang), supaya CS yang menutup order besar berjangka tidak terlihat
 kalah dari CS yang melayani banyak order kecil tunai.
+
+Kartu **Piutang** di [Dashboard Owner](keuangan-owner.md) sejak 22 September
+2026 menjumlahkan sisa tagihan **semua** nota belum lunas (DP maupun Bayar Nanti)
+di cabang terpilih, saat ini — tidak ikut periode. Dulu hanya nota lead yang
+dibuat dalam periode itu, sehingga walk-in dan tagihan lama tidak terhitung.

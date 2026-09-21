@@ -25,7 +25,7 @@ Tiga tombol di bilah oranye membawa ke turunannya: *Analisa Keuangan*,
 | **Omzet (terbayar)** | uang dari transaksi lunas, beserta jumlah transaksinya |
 | **Laba Kotor** | omzet − HPP, lengkap dengan persentase margin |
 | **Estimasi Laba Bersih** | laba kotor − beban tetap |
-| **Piutang** | yang belum dibayar pelanggan |
+| **Piutang** | sisa tagihan **semua** nota belum lunas (DP & Bayar Nanti) di cabang terpilih, saat ini — tidak ikut periode |
 | **HPP (modal)** | harga pokok barang yang terjual |
 | **Beban Tetap / Bulan** | gaji, sewa, angsuran mesin — diisi sendiri di bawahnya |
 | **Biaya Operasional (kas)** | pengeluaran kas periode itu (informasi; tidak dikurangkan lagi) |
@@ -33,6 +33,17 @@ Tiga tombol di bilah oranye membawa ke turunannya: *Analisa Keuangan*,
 
 Pemilih periode (*Hari Ini / 7 Hari / Bulan Ini / Kustom*) dan pemilih cabang
 di kanan mengganti seluruh isi halaman.
+
+Sejak 22 September 2026:
+
+- **Omzet, Laba Kotor, dan Laba Bersih** dihitung menurut **tanggal lunas** nota
+  (nota lama tanpa tanggal lunas memakai tanggal nota) — nota 30 Agustus yang
+  lunas 2 September masuk September. Berlaku juga di `/reports/profit`.
+- **Laba Kotor** sudah **dikurangi potongan marketplace**, jadi kategori kas
+  *biaya platform* dan *pengosongan* (pindah saldo ke pusat) tidak lagi ikut
+  Biaya Operasional.
+- **Piutang** dulu hanya nota lead yang dibuat dalam periode; walk-in dan nota
+  lama tidak terhitung.
 
 ### Tren, jam ramai, dan laba per kategori
 
@@ -122,6 +133,18 @@ di `/reports/finance/*`:
 **Anomali** dan **rekonsiliasi** adalah yang paling berguna dalam praktik:
 keduanya menunjuk selisih yang perlu ditelusuri, bukan sekadar menampilkan
 angka besar.
+
+Sejak 22 September 2026:
+
+- **Perbandingan periode** untuk satu bulan kalender penuh memakai **bulan
+  kalender sebelumnya** (Maret dibanding 1–28/29 Februari). Dulu mundur sepanjang
+  hari yang sama (Maret dibanding 29 Januari–28 Februari). Laporan Bulanan ikut.
+- **Rekonsiliasi** hanya menjumlahkan rekening **cabang terpilih**, sama dengan
+  selisih shift-nya (dulu rekening semua cabang).
+- **Target harian**: bila tidak diisi manual, target = (beban tetap cabang + bagian
+  beban pusat) ÷ jumlah hari. Beban pusat kini dibagi rata ke **semua cabang aktif**,
+  juga saat yang dilihat hanya satu cabang (dulu cabang itu menanggung seluruhnya).
+  Omzet hari ini hanya pemasukan penjualan — modal pusat & pelunasan titipan tidak ikut.
 
 ### Tutup buku bulanan
 

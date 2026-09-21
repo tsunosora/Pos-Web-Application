@@ -136,11 +136,11 @@ Penjaga tingkat kelas: `JwtAuthGuard, ManagerGuard`
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
 | GET | `/backup/groups` | `getGroups` | `JwtAuthGuard, ManagerGuard` | — |
-| POST | `/backup/export` | `exportBackup` | `JwtAuthGuard, ManagerGuard` | — |
-| POST | `/backup/preview` | `previewBackup` | `JwtAuthGuard, ManagerGuard` | — |
+| POST | `/backup/export` | `exportBackup` | `OwnerGuard` | — |
+| POST | `/backup/preview` | `previewBackup` | `OwnerGuard` | — |
 | POST | `/backup/restore` | `restoreBackup` | `OwnerGuard` | — |
 | GET | `/backup/rclone/status` | `getRcloneStatus` | `JwtAuthGuard, ManagerGuard` | — |
-| POST | `/backup/rclone/settings` | `saveRcloneSettings` | `JwtAuthGuard, ManagerGuard` | — |
+| POST | `/backup/rclone/settings` | `saveRcloneSettings` | `OwnerGuard` | — |
 | POST | `/backup/rclone/trigger` | `triggerRcloneBackup` | `JwtAuthGuard, ManagerGuard` | — |
 | GET | `/backup/rclone/progress` | `getRcloneProgress` | `JwtAuthGuard, ManagerGuard` | — |
 
@@ -736,9 +736,9 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
 | GET | `/production-categories` | `findAll` | `JwtAuthGuard` | — |
-| POST | `/production-categories` | `create` | `JwtAuthGuard` | — |
-| PATCH | `/production-categories/:id` | `update` | `JwtAuthGuard` | — |
-| DELETE | `/production-categories/:id` | `remove` | `JwtAuthGuard` | — |
+| POST | `/production-categories` | `create` | `ManagerGuard` | — |
+| PATCH | `/production-categories/:id` | `update` | `ManagerGuard` | — |
+| DELETE | `/production-categories/:id` | `remove` | `ManagerGuard` | — |
 
 ## ProductsController — `/products`
 

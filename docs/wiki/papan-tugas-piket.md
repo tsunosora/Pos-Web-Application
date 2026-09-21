@@ -68,6 +68,13 @@ kebetulan sedang lewat.
 Selain piket rutin, papan tugas menampung pekerjaan lain yang perlu
 ditindaklanjuti seseorang.
 
+Sejak 22 September 2026 karyawan hanya bisa mengubah **status, urutan, dan
+catatan** tugasnya sendiri. Judul, keterangan, prioritas, penerima, dan tenggat
+hanya bisa diubah pemberi tugas (Owner/Manajer) — dulu karyawan bisa memundurkan
+tenggat atau mengoper tugas ke rekan. Manajer cabang hanya bisa memberikan tugas
+ke orang dari cabang tugas itu, dan jadwal hanya bisa dipindah ke cabang lain
+oleh Owner.
+
 ---
 
 

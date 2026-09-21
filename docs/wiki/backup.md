@@ -110,7 +110,7 @@ Endpoint `GET /backup/groups` mengembalikan daftar grup yang bisa dipilih. Versi
 >   - Kolom baru di `production_jobs`: `pipelineStage`, `proofImageUrl`, `penjahitName`, `jahitInDate`, `jahitEstimate`, `qcNote`, `shippedAt`, `returnedAt`, `returnReason`, `lastUpdatedBy`, `lastUpdatedAt`.
 >   - Kolom baru di `leads`: `deliveryDeadline`, `firstResponseAt`. Enum `LeadSource` tambah `REPEAT_ORDER`.
 >   - Kolom baru di `store_settings`: `loginLogoUrl`, `themeMode`, `themePrimaryColor`, `themeSecondaryColor`, `themeGradientDirection` (untuk branding login + tema app).
->   - Backup v3.4 bisa di-restore di sistem v3.3 dengan **skip silent** untuk 2 tabel baru. Kolom baru akan diabaikan oleh sistem lama.
+>   - Backup v3.4 bisa di-restore di sistem v3.3 dengan **skip silent** untuk 2 tabel baru. Kolom yang tidak dikenal sistem tujuan dibuang saat restore — dijamin sejak 22 September 2026; sebelumnya kolom seperti itu bisa menggagalkan pengisian satu tabel.
 >   - Backup v3.3 ke bawah bisa di-restore di sistem v3.4 — kolom baru null/default (`pipelineStage="DESIGN"`, dll).
 
 ---
@@ -130,10 +130,13 @@ Sebelum melakukan restore, Anda bisa **preview** isi file backup:
 
 > ⚠️ **Peringatan**: Restore adalah operasi yang **tidak bisa dibatalkan**. Selalu buat backup terbaru sebelum melakukan restore.
 
-> 🔐 **Siapa yang boleh** (sejak 21–22 September 2026): ekspor & setelan cadangan
-> otomatis hanya owner/admin/manajer; **restore hanya owner**. Setiap restore
-> dicatat di log server (`[AUDIT] backup_restore … user=… email=…`) dan dikirim ke
-> kanal Discord #backup — berkas, mode, dan tabel yang dipulihkan.
+> 🔐 **Siapa yang boleh** (sejak 22 September 2026): **mengunduh cadangan (Export),
+> Preview, Restore, dan menyimpan setelan rclone hanya Owner** — file cadangan
+> memuat token WA/Meta, PIN, dan hash sandi. Admin/Manajer tetap membuka halaman
+> ini, melihat status, dan menekan **Backup Sekarang**; halaman menampilkan
+> keterangan kuning untuk mereka. Setiap restore dicatat di log server
+> (`[AUDIT] backup_restore … user=… email=…`) dan dikirim ke kanal Discord #backup;
+> ekspor juga dicatat (`[AUDIT] backup_export`).
 
 ### Langkah-langkah Restore
 
@@ -151,6 +154,14 @@ Sebelum melakukan restore, Anda bisa **preview** isi file backup:
 | Record dengan ID yang sama sudah ada | Dilewati | Ditimpa dengan data backup |
 | Record baru (ID belum ada di DB) | Dimasukkan | Dimasukkan |
 | Cocok untuk | Menambah data ke DB yang sudah berisi | Mengembalikan DB ke kondisi snapshot backup |
+
+Sejak 22 September 2026 setiap tabel dipulihkan dalam **satu transaksi
+database**. Di mode Overwrite, kalau pengisian ulang gagal, penghapusannya ikut
+dibatalkan dan **data lama tetap utuh** — hasil restore menulis *"dibatalkan, data
+lama tetap — …"* untuk tabel itu. Dulu tabelnya bisa tertinggal kosong (mis. saat
+memulihkan cadangan versi lama yang kolomnya sudah berganti nama). Kolom yang
+tidak dikenal skema sekarang dibuang, dan mode Skip tetap melewati baris yang
+sudah ada atau rusak.
 
 ---
 
@@ -189,6 +200,9 @@ Buka **Pengaturan → Backup & Restore** → scroll ke bagian **Backup Otomatis 
 **Step 1 — Remote Destination**
 - Isi path tujuan rclone, contoh: `gdrive:Backups/PosPro` atau `s3:mybucket/pospro`
 - Format: `nama-remote:path/tujuan`
+- Sejak 22 September 2026 wajib **remote bernama** (nama dari `rclone.conf` di
+  server, lalu titik dua); remote inline (diawali `:`), opsi `--…`, dan koma
+  ditolak — dulu bisa dipakai mengirim cadangan ke server mana saja
 - Kosongkan jika hanya ingin backup lokal tanpa upload ke cloud
 
 **Step 2 — Jadwal Otomatis**
@@ -223,6 +237,9 @@ Klik tombol **Backup Sekarang** untuk menjalankan backup secara manual. Status b
 | Status terakhir | Berhasil / Gagal dengan keterangan |
 | Tanggal backup terakhir | Timestamp backup terakhir |
 | File backup lokal | Daftar file backup di server beserta ukurannya |
+
+Untuk akun selain Owner, tujuan rclone tampil sebagai *(diatur owner)* dan folder
+cadangan di server tidak ditampilkan.
 
 ---
 

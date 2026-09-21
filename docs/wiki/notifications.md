@@ -71,11 +71,17 @@ Endpoint: `GET /notifications/stream?token=<jwt>`
 ```typescript
 // notifications.controller.ts
 @Sse('stream')
-stream(@Query('token') token: string): Observable<MessageEvent> {
-    // verifikasi JWT manual
+@UseGuards(NotifSseAuthGuard) // token ?token= sah & akun aktif
+stream(): Observable<MessageEvent> {
     // return Observable dari NotificationsService
 }
 ```
+
+> **Akun nonaktif ditolak** (sejak 22 September 2026). `NotifSseAuthGuard`
+> (`notifications/sse-auth.guard.ts`) memeriksa tanda tangan token **dan** status
+> akun di database sebelum aliran dibuka. Dulu hanya tanda tangan token, sehingga
+> karyawan yang dinonaktifkan tetap menerima notifikasi sampai tokennya habis.
+> Stream inbox WhatsApp memakai pemeriksaan yang sama.
 
 Payload event SSE:
 ```json

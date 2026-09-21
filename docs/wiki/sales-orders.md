@@ -145,7 +145,7 @@ Lead Order bersifat idempoten: kalau SO ini sudah punya lead, tidak dibuat dobel
 Salah input bahan, qty, nama, atau catatan? Buka detail SO → tombol **Edit** (muncul selama status DRAFT atau SENT, belum jadi nota). Form yang sama terbuka dengan data ter-prefill; ubah lalu **Simpan** atau **Simpan & Kirim** ulang. Item boleh diubah selama SO **belum di-invoice/dibatalkan**. Setelah jadi nota (INVOICED) atau dibatalkan, SO terkunci.
 
 Sejak 22 September 2026:
-- Lewat portal, desainer hanya bisa mengubah, membatalkan, mengirim ke Discord, dan menambah/menghapus bukti pada **SO miliknya sendiri** — SO desainer lain ditolak (*"SO ini milik desainer lain"*). SO yang sudah jadi nota atau dibatalkan juga menolak perubahan bukti.
+- Lewat portal, desainer hanya bisa mengubah, membatalkan, mengirim ke Discord, dan menambah/menghapus bukti pada **SO miliknya sendiri** — SO desainer lain ditolak (*"SO ini milik desainer lain"*). SO yang sudah jadi nota atau dibatalkan juga menolak perubahan bukti. **Membuka detail SO** di portal (memuat No. HP & alamat lengkap pelanggan) juga hanya untuk SO miliknya.
 - Di sisi kantor, staf hanya bisa mengubah, membatalkan, dan mengirim SO cabangnya sendiri.
 - Ganti item disimpan dalam satu langkah: item yang tidak valid (jumlah 0 atau pecahan, ukuran 0, produk tidak ada) ditolak **sebelum** item lama dihapus, jadi SO tidak pernah tertinggal tanpa item.
 

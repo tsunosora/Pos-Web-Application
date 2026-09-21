@@ -13,7 +13,10 @@ Cara utama. Sandi disimpan sebagai hash bcrypt, dan setelah login klien memegang
 
 Peran pengguna dibaca dari database pada **setiap permintaan**, bukan dari isi
 token — jadi menurunkan peran seseorang langsung berlaku tanpa menunggu
-tokennya kedaluwarsa.
+tokennya kedaluwarsa. Sejak 22 September 2026 aliran langsung **notifikasi** dan
+**inbox WhatsApp** (yang tokennya lewat alamat) juga menolak akun nonaktif sebelum
+aliran dibuka — dulu karyawan yang dinonaktifkan tetap menerimanya sampai token
+habis.
 
 **Pembatas login salah** (sejak 22 September 2026) memakai IP asli pengunjung
 dari Cloudflare, bukan header `X-Forwarded-For` yang bisa dipalsukan. Ada tiga
@@ -46,7 +49,7 @@ ada tiga tingkat penjaga (berkas `backend/src/auth/role-groups.ts`):
 | Penjaga | Siapa yang lolos | Dipakai untuk |
 |---|---|---|
 | `ManagerGuard` | **setingkat manajer**: Owner, Pemilik, Admin, dan peran yang namanya memuat *manajer/manager/supervisor/kepala* — sama persis dengan peran yang melihat semua menu | pengaturan toko & cabang, rekening bank, cadangan data, Discord, bot WhatsApp lama, identitas PIN, hapus data induk, ubah/hapus kas langsung, koreksi laporan shift |
-| `OwnerGuard` | Owner, Pemilik, Superadmin | memulihkan cadangan (menimpa database), memindah dana antar cabang; sejak 22 Sep 2026 juga hapus cabang & mendaftarkan perangkat desktop |
+| `OwnerGuard` | Owner, Pemilik, Superadmin | memulihkan cadangan (menimpa database), memindah dana antar cabang; sejak 22 Sep 2026 juga hapus cabang, mendaftarkan perangkat desktop, mengunduh & mempratinjau cadangan, dan menyimpan setelan rclone |
 | `MenuGuard` + `@Menu('/alamat-menu')` | setingkat manajer, **atau** peran yang diberi menu itu di Akses Menu Role | laporan laba kotor, riwayat shift, Kalkulator HPP, klik mesin, landing page, artikel |
 
 Nama peran dibuat bebas oleh owner, jadi dicocokkan per kata kunci (tidak peduli
@@ -58,7 +61,9 @@ Endpoint lama dengan `@Roles(...)` (manajemen akun, kartu HR, broadcast WhatsApp
 Cloud) tetap seperti semula. Sejak 22 September 2026 manajemen akun punya batas
 tambahan: Admin yang bukan Owner hanya mengelola akun **di cabangnya sendiri**,
 tidak bisa menyentuh akun Owner, dan tidak bisa memberi peran Owner — termasuk ke
-dirinya sendiri. Rinciannya di [Akun & PIN Karyawan](karyawan-akun-pin.md).
+dirinya sendiri. Membuat peran setingkat manajer, atau mengganti nama peran
+sehingga levelnya berpindah (staf ↔ manajer), juga khusus Owner. Rinciannya di
+[Akun & PIN Karyawan](karyawan-akun-pin.md).
 
 ### Contoh: memberi kasir akses Laporan Laba Kotor
 
@@ -74,7 +79,7 @@ Beberapa data tetap dibaca semua staf tapi bagian rahasianya dikosongkan:
 
 | Endpoint | Tetap dikirim | Dikosongkan untuk staf |
 |---|---|---|
-| `GET /settings` | nama toko, pajak, tema | PIN papan kerja, PIN marketing, URL webhook Discord, rahasia GitHub, tujuan cadangan rclone |
+| `GET /settings` | nama toko, pajak, tema | PIN papan kerja, PIN marketing, URL webhook Discord, rahasia GitHub, tujuan cadangan rclone — sejak 22 Sep 2026 webhook, rahasia GitHub & rclone juga dikosongkan untuk Admin/Manajer (hanya Owner); PIN tetap terlihat oleh mereka |
 | `GET /branch-settings/:id` | kop & kaki nota cabang | PIN papan kerja cabang |
 | `GET /users` | id, nama, email, peran | nomor HP, pengaturan menu peran |
 | `GET /designers` | nama, status | PIN diganti titik (untuk siapa pun, termasuk owner) |

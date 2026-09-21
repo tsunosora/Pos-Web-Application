@@ -142,7 +142,11 @@ Plus filter status: `PENDING / PARTIAL / SETTLED / CANCELLED / Semua`.
 
 Klik tombol "Detail" → expand panel berisi:
 - Breakdown HPP, fee, total, sudah dibayar, sisa
-- **Daftar item** titipan: produk, qty, HPP per unit, subtotal
+- **Daftar item** titipan: produk, qty, HPP per unit, subtotal. Sejak 22
+  September 2026 item per m² menampilkan **luas total** (luas per lembar × pcs,
+  dalam m²) di kolom qty, dan subtotalnya = HPP × luas itu — sama dengan hitungan
+  total titipan. Dulu layar memakai qty (= 1), sehingga subtotal item tampak jauh
+  lebih kecil dari totalnya.
 - **Riwayat pembayaran** (LedgerSettlement): tanggal, tipe (Tunai/Stok), nominal
 
 ---

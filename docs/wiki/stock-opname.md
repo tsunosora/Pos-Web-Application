@@ -97,6 +97,12 @@ Setelah semua operator selesai menghitung:
 
 > **Catatan**: Jika kolom Konfirmasi tidak diubah, sistem menggunakan angka dari input operator terakhir.
 
+Sejak 22 September 2026 langkah ini berjalan dalam **satu transaksi**: klik ganda
+atau dua admin yang menekan bersamaan hanya menerapkan stok sekali — yang kedua
+mendapat pesan *"Sesi sudah ditutup atau dibatalkan"*. Stok cabang dikunci selama
+proses, dan stok total dikoreksi sebesar selisihnya saja, sehingga penjualan di
+cabang lain pada saat yang sama tidak tertimpa.
+
 ---
 
 ### Membatalkan Sesi
@@ -155,7 +161,7 @@ Setelah selesai menghitung semua produk:
 2. Tunggu konfirmasi **"Data Tersimpan!"**
 3. Selesai — admin akan menerima data Anda
 
-> Jika perlu menghitung ulang (misalnya ada kesalahan), cukup buka link yang sama dan submit ulang. Data lama dari nama Anda di sesi ini akan digantikan dengan data baru.
+> Jika perlu menghitung ulang (misalnya ada kesalahan), cukup buka link yang sama dan submit ulang. Sejak 22 September 2026 yang terkirim **hanya barang yang Anda isi** — barang yang tidak disentuh tidak ikut (dulu terkirim sebagai 0 dan menimpa hitungan rekan untuk rak lain). Kiriman ulang hanya mengganti barang yang dikirim kali itu; hitungan Anda untuk barang lain tetap tersimpan. Barang yang memang habis: ketik **0** atau tekan **−**.
 
 > **Satu angka per barang.** Kalau dua orang menghitung barang yang sama, kiriman
 > **terakhir** yang dipakai, dan hitungan orang sebelumnya dicatat di kolom catatan

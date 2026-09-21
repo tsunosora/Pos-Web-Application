@@ -25,6 +25,12 @@ besar berjangka tidak kalah dari CS yang melayani banyak order kecil tunai.
 Nilai kualitas diambil dari [Rating CS](rating-cs.md), dan pencapaian ini yang
 dipakai pada perhitungan bonus di [Dashboard Owner](keuangan-owner.md).
 
+Rincian angka (daftar nota di balik satu angka) memuat nama & No. HP pelanggan.
+Sejak 22 September 2026 rincian milik **akun cabang lain** hanya bisa dibuka
+Owner; akun lain mendapat pesan *"Rincian ini milik akun cabang lain"*. Nota yang
+dihapus juga tidak lagi menyisakan lead *CLOSED_WON* — estimasinya dulu tetap
+terhitung di bonus CS (lihat [CRM](crm.md#status-lead)).
+
 ## Cara Mengakses
 
 Buka menu **Leaderboard** di sidebar, atau langsung ke `/leaderboard`. Filter **periode** (Hari Ini / Minggu / Bulan / Kustom) dan **cabang** berlaku untuk semua divisi sekaligus.
@@ -67,7 +73,7 @@ Metrik yang sudah dibuat bisa **diedit**, **dinonaktifkan** (sementara disembuny
 |---|---|---|
 | **PCS** | Σ jumlah barang (qty × pcs) | `5 pcs` |
 | **QTY** | Σ baris quantity | `5 qty` |
-| **OMZET** | Σ harga × qty | `Rp …` |
+| **OMZET** | Σ total baris nota — item per m²/cm²: harga × luas × pcs (sejak 22 Sep 2026; dulu hanya harga per m²) | `Rp …` |
 | **NOTA** | Berapa nota mengandung produk itu | `5 nota` |
 
 ### Atribusi — Dihitung ke Siapa?

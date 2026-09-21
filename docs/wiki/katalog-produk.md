@@ -18,6 +18,9 @@ kasir.
    UV Roll, Laser Cut, DTF* — beserta **sumber hitungannya** (dari antrian
    produksi atau antrian cetak) dan **satuan tampilannya** (m² atau pcs).
    Inilah yang memecah angka operator di [Leaderboard](leaderboard.md).
+   Sejak 22 September 2026 menambah, mengubah, atau menghapus kategori produksi
+   khusus **setingkat manajer**, karena mengubahnya menggeser pengelompokan
+   angka operator.
 
 Satu centang yang mudah terlewat: **"Hitung sebagai produk (pcs) di laporan
 CRM"**. Matikan untuk kategori add-on (kerah, lengan, rib) supaya satu jersey

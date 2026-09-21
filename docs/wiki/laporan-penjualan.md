@@ -114,6 +114,8 @@ Tiga kartu besar di bagian atas menampilkan angka-angka kunci:
 
 Menampilkan 5 produk yang paling banyak terjual (berdasarkan jumlah unit) di periode tersebut, beserta total pendapatannya.
 
+Sejak 22 September 2026 item per m²/cm² dihitung **pcs**-nya dan pendapatannya **total baris** (harga × luas × pcs) — di sini maupun di Trend Produk. Dulu banner 2 pcs senilai Rp 150.000 tampil "1 pcs · Rp 25.000" (hanya harga per m²).
+
 ### Distribusi Metode Pembayaran
 
 Breakdown total pendapatan berdasarkan cara bayar pelanggan:
@@ -226,6 +228,12 @@ Klik **baris transaksi** (bukan ikon chevron) untuk membuka modal detail yang be
 - Info DP dan sisa tagihan (untuk transaksi PARTIAL)
 - Tombol **Cetak Struk**, **Bagikan via WA**, dan **Edit Transaksi**
 
+Sejak 22 September 2026 nota **Bayar Nanti** (belum dibayar sama sekali) dicetak
+dan dikirim WA sebagai **TAGIHAN**, bukan LUNAS, dan kotak DP/sisa tagihan ikut
+tampil. Subtotal & grand total di modal memakai **angka tersimpan di nota** (sama
+dengan baris daftar dan nota cetak), bukan dihitung ulang dari item. Setelah ganti
+metode bayar, edit, atau hapus nota, daftar dan ringkasan langsung diperbarui.
+
 ### Edit transaksi: aturan ukuran & satuan
 
 Berlaku sejak 21 September 2026 untuk item yang harganya dihitung per luas:
@@ -297,6 +305,12 @@ File `.xlsx` berisi kolom:
 | Total Bersih | Grand total yang dibayar pelanggan |
 | Metode Pembayaran | CASH / QRIS / BANK_TRANSFER |
 | Status | PAID / PARTIAL |
+
+Lembar **Ringkasan** di file yang sama sejak 22 September 2026 hanya menghitung
+nota **lunas** (baris *Belum lunas (tidak dihitung omzet)* menyebut sisanya), dan
+pendapatan per metode dipecah: DP masuk ke metode DP-nya, pelunasan ke metode
+pelunasannya. Dulu nota Bayar Nanti ikut dihitung — dan karena tersimpan CASH,
+masuk *Pendapatan Tunai*.
 
 ### Export PDF
 

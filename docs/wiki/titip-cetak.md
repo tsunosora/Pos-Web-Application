@@ -216,6 +216,11 @@ Setiap entry tampilkan:
   - **Tandai Siap Diambil** (kalau DIPROSES)
   - **Diserahkan** (kalau SIAP_AMBIL — opsional, biasanya kasir A yang konfirmasi)
 
+Sejak 22 September 2026 item per m² di Titipan Masuk ditulis dengan jumlah
+**pcs**-nya dan ukuran bersatuan asli (mis. *3× Banner (100×200 cm)*) — dulu
+selalu "1×". Titipan Keluar juga menampilkan satuan asli ukurannya, tidak lagi
+selalu "cm".
+
 ### Notifikasi Popup BARU
 
 Polling setiap **15 detik**. Saat ada titipan baru status BARU yang belum di-acknowledge, banner kuning floating muncul di pojok layar (semua halaman kecuali cetak/print preview). Klik banner → langsung redirect ke `/titipan-masuk`.

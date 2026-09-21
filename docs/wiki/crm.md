@@ -65,6 +65,13 @@ ke data yang dipertahankan, dan pelanggan yang masih tertaut lead, SO, kontak,
 rating, atau follow-up tidak bisa dihapus — gabungkan saja lewat *Rapikan
 duplikat*.
 
+**Total Pendapatan** pelanggan (kolom tabel, kartu atas, dan analitik per
+pelanggan) sejak 22 September 2026 = total nota **lunas** + uang yang sudah
+diterima dari nota DP. Dulu yang dijumlahkan hanya DP awal, sehingga nota yang
+lunas sekali bayar terhitung Rp 0. Di analitik, pendapatan per produk memakai
+total baris (bukan harga satuan), dan riwayat belanja menampilkan nilai nota —
+nota belum lunas diberi keterangan *dibayar Rp …*.
+
 ### Template pesan siap pakai
 
 ![Message Templates dengan daftar placeholder dan template per kategori](images/tpl-1-template.webp)
@@ -149,6 +156,10 @@ sebenarnya, bukan sisa pekerjaan administrasi.
 - 💬 **NEGOTIATION** — Sedang nego harga / desain
 - ✅ **CLOSED_WON** — Deal! Sudah di-convert ke customer + SPK/Invoice
 - ❌ **CLOSED_LOST** — Tidak jadi (alasan dicatat)
+
+Kalau nota yang menutup lead **dihapus**, sejak 22 September 2026 lead itu kembali
+ke **NEGOTIATION** dan tautan notanya dilepas. Dulu lead tetap CLOSED_WON menunjuk
+nota yang sudah tiada, dan estimasi nilainya masih terhitung di KPI/bonus CS.
 
 ### Tampilan: Card View vs Kanban View
 - **Card view** — grid kartu standar, cocok untuk scrolling daftar lengkap

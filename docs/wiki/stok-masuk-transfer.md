@@ -98,7 +98,9 @@ stok penerima** dalam satu langkah, sehingga total stok perusahaan tidak berubah
 Tabelnya `stock_transfers` + `stock_transfer_items`, dan stok per cabang
 disimpan di `branch_stocks`. Sejak 22 September 2026 stok cabang pengirim dikunci
 saat dipotong, jadi transfer dan penjualan yang terjadi bersamaan tidak lagi
-saling menimpa.
+saling menimpa. Transfer baru juga mencatat **akun yang membuatnya** (dulu
+selalu kosong), dan detail transfer hanya bisa dibuka staf bila cabangnya
+pengirim atau penerima — Owner tetap semua.
 
 > Jangan bingung dengan **[Titip Cetak](titip-cetak.md)** dan
 > **[Buku Titipan](buku-titipan.md)**. Transfer stok memindahkan *bahan*;

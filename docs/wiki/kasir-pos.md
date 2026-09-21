@@ -100,7 +100,9 @@ masuk.
 
 Struk memuat nomor SO, nama kasir, pelanggan, label pekerjaan, dan ukuran
 cetaknya. Bisa dicetak ke printer thermal, dijadikan PDF, atau dikirim lewat
-WhatsApp.
+WhatsApp. Sejak 22 September 2026 baris item per m² di struk menulis *luas ×
+harga per m²*, nota belum lunas menampilkan sisa tagihan, dan item custom/paket
+tampil dengan namanya — rinciannya di [Cetak Nota Thermal 58mm](nota-thermal-58mm.md#isi-struk-sejak-22-september-2026).
 
 ### 7. Pekerjaannya muncul sendiri di papan produksi
 
@@ -180,6 +182,13 @@ Nota **belum berubah**. Yang tercatat baru satu baris permintaan berstatus
 jumlahnya) dan **Riwayat**. Tiap kartu menyebut nomor nota, **siapa yang
 mengajukan**, waktunya, dan alasannya — lalu dua tombol: *Setujui* atau
 *Tolak*.
+
+Sejak 22 September 2026 daftar ini hanya memuat permintaan atas nota **cabang
+sendiri** (Owner melihat semua), dan kartunya memperlihatkan seluruh usulan:
+**item baru** (+) dan **item dihapus** (−), **harga manual** beserta harga
+sebelumnya, pcs, serta perubahan **nama/No. HP pelanggan**. Diskon hanya tampil
+bila memang berubah, dengan nilai diskon lama → baru (dulu yang dicoret total
+nota).
 
 ### 6. Persetujuan butuh dua klik
 
