@@ -1029,7 +1029,18 @@ export class KpiService {
             operator,               // { leaderboard, customMetricDefs? }
             team,                   // { leaderboard, totals }
             designOutput,           // { leaderboard }
-            dailyTarget,            // { today, daysInMonth, branches:[{branchName,dailyTarget,todayOmzet,pct,met,...}] } | null
+            // Hanya kolom yang ditampilkan TV. Endpoint ini cukup PIN & PIN tersimpan di TV toko —
+            // dulu ikut mengirim total beban tetap bulanan (gaji/sewa) per cabang.
+            dailyTarget: dailyTarget
+                ? {
+                    today: dailyTarget.today,
+                    daysInMonth: dailyTarget.daysInMonth,
+                    branches: (dailyTarget.branches || []).map((b: any) => ({
+                        branchId: b.branchId, branchName: b.branchName, dailyTarget: b.dailyTarget,
+                        todayOmzet: b.todayOmzet, pct: b.pct, met: b.met,
+                    })),
+                }
+                : null,
         };
     }
 
