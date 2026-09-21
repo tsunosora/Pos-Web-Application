@@ -71,3 +71,10 @@ Hero, Judul, Teks, Gambar, Tombol, Jarak (spacer), Galeri, Kontak & Peta (alamat
 
 ## Catatan
 Pengaturan SEO (judul/deskripsi/favicon) tersimpan di config; form pengaturannya menyusul. Konten yang dirender publik hanya versi yang sudah **Terbitkan**.
+
+**Versi sebelumnya (sejak 22 September 2026).** Setiap kali landing diterbitkan
+(atau isi tayangnya diubah), isi yang sedang tayang disimpan dulu. Kalau halaman
+depan tertimpa atau salah terbit, tekan **↩️ Versi sebelumnya** di `/landing-page`
+— isi lama kembali tayang, dan versi yang barusan jadi "sebelumnya" (tekan lagi
+untuk membatalkan). Mengubah & menerbitkan landing/artikel hanya untuk peran yang
+diberi menu Landing Page / Artikel.

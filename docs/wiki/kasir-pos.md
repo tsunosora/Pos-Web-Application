@@ -212,7 +212,24 @@ ini.
   (mis. 300×100 dengan satuan **m** = 30.000 m²) → *"… tidak masuk akal. Periksa
   satuannya (cm atau m)."* Nota tanpa satuan dianggap **cm**.
 - Marketplace: nota order marketplace boleh **tanpa nomor HP**, dan biaya
-  platformnya dicatat per kategori (`marketplaceFeeItems`).
+  platformnya dicatat per kategori (`marketplaceFeeItems`). Potongan marketplace
+  tidak boleh melebihi nilai nota.
+- **Angka yang tidak masuk akal ditolak** (sejak 22 Sep 2026), dengan pesan yang
+  menyebut angkanya: diskon melebihi subtotal, jumlah 0 / minus / pecahan,
+  ukuran 0, DP melebihi total. Nota tidak pernah bisa bernilai minus.
+- **Rupiah tanpa sen.** Harga per m² × luas bisa menghasilkan pecahan (33×47 cm
+  @ Rp 5.500/m² = Rp 853,05); total nota dibulatkan ke Rp 853, begitu juga
+  ekspektasi kas di tutup shift.
+- **Klik dua kali / jaringan putus tidak membuat nota kembar.** Setiap keranjang
+  membawa kunci unik; kalau respons hilang lalu kasir menekan *Proses* lagi, server
+  mengembalikan nota yang sama.
+- **Dua kasir menjual stok terakhir bersamaan** → hanya satu yang berhasil; yang
+  lain mendapat pesan stok tidak cukup (stok tidak pernah minus).
+- **Harga manual tercatat.** Kalau harga item diubah dari harga normal, detail nota
+  menampilkan *"Harga manual — normal Rp X · diubah (nama akun)"* supaya owner bisa
+  meninjau potongan harga.
+- **Nama pelanggan satu baris.** Baris baru di nama diratakan, sehingga tidak bisa
+  menyisipkan baris palsu (mis. "LUNAS") ke invoice WhatsApp.
 - Mengubah nota yang sudah jadi butuh **permintaan edit** yang disetujui
   Manajer — riwayatnya ada di `/transactions/edit-requests`.
 

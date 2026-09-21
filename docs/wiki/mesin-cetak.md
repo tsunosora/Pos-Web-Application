@@ -94,6 +94,15 @@ Tab terakhir inilah pembeda papan cetak: jumlah klik yang tercatat aplikasi
 dibandingkan dengan angka di meteran mesin. Selisihnya menunjukkan cetakan yang
 tidak masuk nota — entah karena lupa dicatat, tes cetak, atau gagal cetak.
 
+### Membatalkan catatan klik yang salah
+
+Catatan klik adalah dasar biaya mesin yang dicocokkan dengan tagihan vendor, jadi
+sejak 22 September 2026 catatan **tidak dihapus permanen**. Tombol hapus (hanya
+owner/admin/manajer) meminta **alasan**, lalu catatannya ditandai batal beserta
+siapa & kapan. Catatan batal tidak ikut di daftar, rekap, rekonsiliasi, maupun biaya
+titipan antar cabang — tapi barisnya tetap ada untuk ditelusuri. Tarif klik juga
+hanya bisa diubah setingkat manajer.
+
 ---
 
 ## Pantauan dari sisi kantor

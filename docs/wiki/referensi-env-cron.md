@@ -6,7 +6,7 @@
 
 ## Variabel lingkungan backend
 
-**49 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**51 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 | Variabel | Dipakai di |
@@ -20,6 +20,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `AI_MODEL` | `backend/src/studio-ai/studio-ai.service.ts` |
 | `AI_NAME` | `backend/src/studio-ai/studio-ai.service.ts` |
 | `ALLOWED_ORIGINS` | `backend/src/main.ts` |
+| `APP_TZ` | `backend/src/main.ts` |
 | `BACKUP_DIR` | `backend/src/backup/rclone.service.ts` |
 | `BOARD_TOKEN_EXPIRES` | `backend/src/auth/board-auth.ts` |
 | `HR_API_KEY` | `backend/src/integrations/hr-summary.service.ts` |
@@ -48,6 +49,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `STAFF_KPI_API_KEY` | `backend/src/auth/api-key.guard.ts` |
 | `STOREFRONT_TOKEN` | `backend/src/common/public-order-throttle.guard.ts` |
 | `STUDIO_AI_CONFIG_PATH` | `backend/src/studio-ai/studio-ai.service.ts` |
+| `TZ` | `backend/src/main.ts` |
 | `WA_ACCESS_TOKEN` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |
 | `WA_APP_ID` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |
 | `WA_APP_SECRET` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/meta-messaging/social-webhook.controller.ts`, `backend/src/whatsapp-cloud/cloud-api.service.ts` _(+1)_ |
@@ -70,6 +72,7 @@ Hanya yang berawalan `NEXT_PUBLIC_` yang sampai ke browser, dan nilainya
 |---|---|
 | `NEXT_PUBLIC_API_URL` | `frontend/src/app/api/logo/route.ts`, `frontend/src/app/artikel/[slug]/page.tsx`, `frontend/src/app/artikel/page.tsx` _(+52)_ |
 | `NEXT_PUBLIC_BRIDGE_URL` | `frontend/src/lib/thermal/print-thermal.ts` |
+| `NEXT_PUBLIC_HR_APP_URL` | `frontend/src/components/dashboard/HrSummaryCard.tsx` |
 | `NEXT_PUBLIC_LANDING_DOMAIN` | `frontend/src/middleware.ts` |
 | `NEXT_PUBLIC_SHARE_DOMAIN` | `frontend/src/app/inventory/page.tsx`, `frontend/src/middleware.ts` |
 

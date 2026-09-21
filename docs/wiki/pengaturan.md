@@ -40,6 +40,14 @@ Profil Toko memegang hal-hal yang muncul di mana-mana: logo nota, nama toko,
 telepon, alamat, dan saklar **Mode Pricing Berdasarkan Luas** — yang menentukan
 apakah produk boleh dihitung per m² seperti di percetakan.
 
+**Nama toko dipakai di seluruh aplikasi** (sejak 22 September 2026): footer, kop
+struk & detail nota (nama/alamat cabang bila diisi), header PDF laporan bulanan &
+tutup buku, papan `/cetak`, draft template WhatsApp, kertas jadwal piket, dan
+pengenalan asisten AI. Tidak ada lagi merek toko yang tertanam di kode, jadi
+pemasangan untuk toko lain cukup mengisi Profil Toko. Tautan kartu *Sekilas HR* ke
+aplikasi absensi diatur lewat env `NEXT_PUBLIC_HR_APP_URL` (kosong = tautan
+disembunyikan).
+
 ![Halaman pengaturan metode pembayaran](images/set-2-pembayaran.webp)
 
 Metode pembayaran yang dinyalakan di sini yang nanti muncul sebagai pilihan di

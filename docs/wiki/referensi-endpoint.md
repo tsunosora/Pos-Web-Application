@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-PosPro menyajikan **593 endpoint** dalam **75 controller**.
+PosPro menyajikan **594 endpoint** dalam **75 controller**.
 Sebanyak **60 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
@@ -58,7 +58,7 @@ Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 | `/hr/pin` | HrPinController | 1 | `backend/src/integrations/hr-pin.controller.ts` |
 | `/integrations` | StaffKpiController | 5 | `backend/src/integrations/staff-kpi.controller.ts` |
 | `/invoices` | InvoiceController | 8 | `backend/src/invoice/invoice.controller.ts` |
-| `/landing` | LandingController | 5 | `backend/src/landing/landing.controller.ts` |
+| `/landing` | LandingController | 6 | `backend/src/landing/landing.controller.ts` |
 | `/meta-ads` | MetaAdsController | 9 | `backend/src/meta-ads/meta-ads.controller.ts` |
 | `/orders/public` | PublicOrdersController | 1 | `backend/src/crm/leads/public-orders.controller.ts` |
 | `/print-queue` | PrintQueueController | 8 | `backend/src/print-queue/print-queue.controller.ts` |
@@ -611,18 +611,18 @@ Penjaga tingkat kelas: `ApiKeyGuard`
 ## InvoiceController — `/invoices`
 
 Berkas: `backend/src/invoice/invoice.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/invoices` | `create` | `JwtAuthGuard` | — |
-| GET | `/invoices` | `findAll` | `JwtAuthGuard` | — |
-| GET | `/invoices/:id` | `findOne` | `JwtAuthGuard` | — |
-| PATCH | `/invoices/:id` | `update` | `JwtAuthGuard` | — |
-| PATCH | `/invoices/:id/status` | `updateStatus` | `JwtAuthGuard` | — |
-| PATCH | `/invoices/:id/type` | `updateType` | `JwtAuthGuard` | — |
-| POST | `/invoices/:id/convert-to-invoice` | `convertToInvoice` | `JwtAuthGuard` | — |
-| DELETE | `/invoices/:id` | `remove` | `JwtAuthGuard` | — |
+| POST | `/invoices` | `create` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/invoices` | `findAll` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/invoices/:id` | `findOne` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/invoices/:id` | `update` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/invoices/:id/status` | `updateStatus` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/invoices/:id/type` | `updateType` | `ManagerGuard` | — |
+| POST | `/invoices/:id/convert-to-invoice` | `convertToInvoice` | `JwtAuthGuard, MenuGuard` | — |
+| DELETE | `/invoices/:id` | `remove` | `JwtAuthGuard, MenuGuard` | — |
 
 ## LandingController — `/landing`
 
@@ -635,6 +635,7 @@ Berkas: `backend/src/landing/landing.controller.ts`
 | PUT | `/landing` | `update` | `JwtAuthGuard, MenuGuard` | — |
 | POST | `/landing/publish` | `publish` | `JwtAuthGuard, MenuGuard` | — |
 | POST | `/landing/unpublish` | `unpublish` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/landing/restore-previous` | `restorePrevious` | `JwtAuthGuard, MenuGuard` | — |
 
 ## MetaAdsController — `/meta-ads`
 

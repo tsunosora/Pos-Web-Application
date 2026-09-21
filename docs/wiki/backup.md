@@ -130,6 +130,11 @@ Sebelum melakukan restore, Anda bisa **preview** isi file backup:
 
 > ⚠️ **Peringatan**: Restore adalah operasi yang **tidak bisa dibatalkan**. Selalu buat backup terbaru sebelum melakukan restore.
 
+> 🔐 **Siapa yang boleh** (sejak 21–22 September 2026): ekspor & setelan cadangan
+> otomatis hanya owner/admin/manajer; **restore hanya owner**. Setiap restore
+> dicatat di log server (`[AUDIT] backup_restore … user=… email=…`) dan dikirim ke
+> kanal Discord #backup — berkas, mode, dan tabel yang dipulihkan.
+
 ### Langkah-langkah Restore
 
 1. Di panel **Restore**, klik **Pilih File** dan unggah file ZIP backup

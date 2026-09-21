@@ -23,6 +23,11 @@ uang, dan pengeluaran bila ada. Tiga tombol di kanan tiap baris:
 
 ### 2. Koreksi yang jujur — data transaksi tidak ikut berubah
 
+> Sejak 22 September 2026 tombol **Koreksi** hanya untuk owner/admin/manajer, dan
+> setiap koreksi tercatat di **riwayat koreksi** kartu shift: kapan, oleh siapa,
+> alasannya, dan kas fisik lama → baru. Koreksi berikutnya tidak lagi menimpa
+> jejak koreksi sebelumnya.
+
 ![Dialog Koreksi Laporan Shift dengan ekspektasi tunai, saldo aktual, panduan koreksi, dan daftar pengeluaran](images/rs-2-koreksi.webp)
 
 Dialog koreksi menampilkan **Ekspektasi** (versi sistem) di atas **Saldo

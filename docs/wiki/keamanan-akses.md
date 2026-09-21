@@ -210,6 +210,14 @@ memakai `JwtAuthGuard` seperti modul lain.
 - **Cabang** diambil dari header `X-Branch-Id` untuk akun Owner, sementara staf
   memakai cabang dari tokennya — header dari staf diabaikan, jadi tidak bisa
   dipakai untuk melihat cabang lain.
+- **Halaman tidak ditemukan (404)** tidak lagi menyebut alamat berkas di server,
+  dan galat karena kiriman yang salah (kolom tak dikenal, duplikat) dijawab 4xx
+  dengan pesan yang bisa dibaca, bukan 500.
+- **Ekspor Excel** menetralkan sel yang diawali `=`, `+`, `-`, atau `@` (dengan awalan
+  `'`) supaya isian seperti `=HYPERLINK(...)` tidak dijalankan sebagai rumus. Nomor
+  HP `+62…` dan angka tetap utuh.
+- **Zona waktu** proses dikunci ke `Asia/Jakarta` (atau env `TZ`/`APP_TZ`), jadi batas
+  hari laporan tetap benar walau server berzona UTC.
 - **Repo ini publik.** Jangan pernah menaruh berkas `.env`, unggahan pelanggan,
   dokumen karyawan, atau daftar harga di dalamnya. Lihat
   [Setup Lokal](setup-lokal.md) untuk cara membuat data uji yang aman.

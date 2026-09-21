@@ -89,6 +89,10 @@ Mode **Lunas Penuh** meminta tiga hal yang sering terlupa di pembukuan manual:
 
 Tanggal boleh dikosongkan; artinya "sekarang".
 
+Setelah lunas, detail nota dan struknya menampilkan **DP** dan **Pelunasan** —
+bukan "Sisa". (Sebelum 22 September 2026 nota lunas masih menampilkan "Sisa Rp …"
+karena kolom DP hanya menyimpan uang muka sebelum pelunasan.)
+
 ### 7. Nota keluar dari daftar tagihan
 
 ![Daftar piutang setelah pelunasan: tinggal 26 nota, total Rp 71.873.925,95](images/dp-7-lunas.webp)

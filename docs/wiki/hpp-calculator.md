@@ -104,6 +104,11 @@ Setelah memilih atau membuat worksheet, isi bagian **Parameter Kalkulasi**:
 
 ### Terapkan HPP ke Varian Produk (kotak ungu)
 
+> HPP dipakai menghitung laba kotor, margin & bonus, jadi sejak 21–22 September 2026:
+> kalkulator ini hanya untuk peran yang diberi menu **Kalkulator HPP**; angka yang
+> tidak masuk akal ditolak (volume 0, margin/harga/pemakaian minus); dan setiap
+> penerapan HPP ke varian dicatat di log server (`[AUDIT] POST /hpp/… user=…`).
+
 Bagian ini memungkinkan penerapan HPP worksheet ke varian produk yang **sudah ada** di inventori secara langsung, tanpa perlu masuk ke halaman Multi-Varian:
 
 1. Pilih produk dari dropdown

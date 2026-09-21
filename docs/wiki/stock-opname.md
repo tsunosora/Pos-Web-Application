@@ -157,6 +157,12 @@ Setelah selesai menghitung semua produk:
 
 > Jika perlu menghitung ulang (misalnya ada kesalahan), cukup buka link yang sama dan submit ulang. Data lama dari nama Anda di sesi ini akan digantikan dengan data baru.
 
+> **Satu angka per barang.** Kalau dua orang menghitung barang yang sama, kiriman
+> **terakhir** yang dipakai, dan hitungan orang sebelumnya dicatat di kolom catatan
+> (*"Menimpa hitungan Budi: 470"*) supaya admin tetap bisa membandingkan.
+> Hasil hitung minus atau lebih dari 1.000.000 ditolak; angka yang jauh di atas stok
+> sistem diterima tapi ditandai *"⚠ Jauh di atas stok sistem — periksa lagi"*.
+
 ---
 
 ## FAQ Stok Opname

@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-**110 tabel**, **1579 kolom**, dan **38 himpunan nilai (enum)**.
+**110 tabel**, **1587 kolom**, dan **38 himpunan nilai (enum)**.
 Nama di kolom pertama adalah nama tabel di MySQL; nama model Prisma ditulis di judulnya.
 Keterangan diambil dari komentar di `backend/prisma/schema.prisma`, jadi kalau ada
 kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini.
@@ -29,7 +29,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `cashflows` | Cashflow | 21 | — |
 | `categories` | Category | 12 | — |
 | `central_treasury_entries` | CentralTreasuryEntry | 9 | Kas Pusat — dompet owner terpisah dari semua cabang. IN: setoran tutup buku tiap cabang. OUT: modal ke cabang  |
-| `click_logs` | ClickLog | 12 | Log klik per transaksi (dari POS atau manual) |
+| `click_logs` | ClickLog | 15 | Log klik per transaksi (dari POS atau manual) |
 | `click_rates` | ClickRate | 12 | Konfigurasi harga klik per jenis cetak |
 | `company_branches` | CompanyBranch | 46 | — |
 | `competitors` | Competitor | 9 | — |
@@ -48,9 +48,9 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `ingredients` | Ingredient | 10 | — |
 | `inter_branch_ledger` | InterBranchLedger | 16 | =========================== INTER-BRANCH LEDGER (Buku Titipan Antar Cabang) Saat transaksi titip cetak diserah |
 | `invoice_items` | InvoiceItem | 7 | — |
-| `invoices` | Invoice | 26 | — |
+| `invoices` | Invoice | 27 | — |
 | `jersey_work_orders` | JerseyWorkOrder | 30 | Work Order Jersey — surat perintah kerja produksi jersey custom. Diterbitkan setelah desain ACC (job pindah DE |
-| `landing_config` | LandingConfig | 9 | Landing page builder (singleton, id=1). data/draftData = struktur Puck (JSON). data = versi terpublikasi (dire |
+| `landing_config` | LandingConfig | 10 | Landing page builder (singleton, id=1). data/draftData = struktur Puck (JSON). data = versi terpublikasi (dire |
 | `lead_activities` | LeadActivity | 11 | — |
 | `lead_images` | LeadImage | 7 | — |
 | `lead_items` | LeadItem | 14 | — |
@@ -76,7 +76,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `sales_order_items` | SalesOrderItem | 13 | — |
 | `sales_order_proofs` | SalesOrderProof | 6 | — |
 | `sales_orders` | SalesOrder | 27 | — |
-| `shift_reports` | ShiftReport | 35 | — |
+| `shift_reports` | ShiftReport | 36 | — |
 | `social_channels` | SocialChannel | 16 | Channel sosial = 1 Page/akun IG. Untuk INSTAGRAM: igId = IG business id (rute webhook), pageId+accessToken Pag |
 | `social_comments` | SocialComment | 26 | Komentar postingan IG / Facebook Page. Satu baris = satu komentar. Komentar teratas (rootId null) sekaligus be |
 | `social_contacts` | SocialContact | 14 | Kontak sosial (PSID Messenger / IGSID Instagram) + tautan CRM. |
@@ -103,7 +103,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 | `task_shift_checkins` | TaskShiftCheckin | 7 | Pilihan shift harian karyawan untuk piket. 1 baris per user per tanggal. |
 | `task_warnings` | TaskWarning | 11 | Teguran tugas ke karyawan. Pop-up hanya tampil ke user penerima. |
 | `transaction_edit_requests` | TransactionEditRequest | 13 | — |
-| `transaction_items` | TransactionItem | 23 | — |
+| `transaction_items` | TransactionItem | 25 | — |
 | `transactions` | Transaction | 49 | — |
 | `units` | Unit | 5 | — |
 | `users` | User | 37 | — |
@@ -471,6 +471,9 @@ Indeks & kunci: `@@index([direction])` · `@@index([date])`
 | `totalCost` | `Decimal` | `total_cost` | — |
 | `date` | `DateTime` | _sama_ | — |
 | `createdAt` | `DateTime?` | `created_at` | — |
+| `voidedAt` | `DateTime?` | `voided_at` | Dibatalkan, bukan dihapus (T-48): catatan klik = dasar biaya mesin yang dicocokkan dgn tagihan vendor. |
+| `voidedById` | `Int?` | `voided_by_id` | — |
+| `voidReason` | `String?` | `void_reason` | — |
 | `clickRate` | `ClickRate` | _sama_ | — |
 | `transactionItem` | `TransactionItem?` | _sama_ | — |
 | `branch` | `CompanyBranch?` | _sama_ | — |
@@ -885,6 +888,7 @@ Indeks & kunci: `@@index([fromBranchId, status])` · `@@index([toBranchId, statu
 | `signatoryName` | `String?` | `signatory_name` | Nama penanda tangan |
 | `signatoryPhone` | `String?` | `signatory_phone` | No. HP penanda tangan |
 | `branchId` | `Int?` | `branch_id` | Cabang pemilik invoice (multi-cabang). Null = warisan (di-backfill ke Pusat) |
+| `sourceQuotationId` | `Int?` | `source_quotation_id` | invoice hasil konversi SPH ini (1 SPH → 1 invoice, T-42) |
 | `createdAt` | `DateTime?` | `created_at` | — |
 | `updatedAt` | `DateTime?` | `updated_at` | — |
 | `items` | `InvoiceItem[]` | _sama_ | — |
@@ -945,6 +949,7 @@ Indeks & kunci: `@@index([branchId])`
 | `id` | `Int` | _sama_ | — |
 | `data` | `Json?` | _sama_ | — |
 | `draftData` | `Json?` | _sama_ | — |
+| `previousData` | `Json?` | `previous_data` | isi tayang SEBELUM terbit terakhir — untuk "Kembalikan versi sebelumnya" (T-47) |
 | `published` | `Boolean` | _sama_ | — |
 | `customDomain` | `String?` | `custom_domain` | — |
 | `seoTitle` | `String?` | `seo_title` | — |
@@ -1563,6 +1568,7 @@ Indeks & kunci: `@@index([status])` · `@@index([customerId])`
 | `notes` | `String?` | _sama_ | — |
 | `amendedAt` | `DateTime?` | `amended_at` | diisi saat laporan dikoreksi |
 | `amendNote` | `String?` | `amend_note` | catatan alasan koreksi |
+| `amendHistory` | `Json?` | `amend_history` | riwayat koreksi: [{at, byUserId, byName, note, before, after}] (T-44) |
 | `proofImages` | `Json?` | `proof_images` | array of uploaded image paths |
 | `whatsappMessage` | `String?` | `whatsapp_message` | backup pesan WA untuk resend |
 | `paymentExchanges` | `Json?` | `payment_exchanges` | [{from, to, amount}] |
@@ -2131,6 +2137,8 @@ Indeks & kunci: `@@unique([kind, taskItemId]) // 1 teguran otomatis per kartu; M
 | `unitType` | `String?` | `unit_type` | 'm', 'cm', 'menit' |
 | `note` | `String?` | _sama_ | — |
 | `clickType` | `String?` | `click_type` | "A3+ WARNA", "A4 BW", dll |
+| `originalPrice` | `Decimal?` | `original_price` | basis sama dgn priceAtTime; null = harga normal |
+| `priceOverrideById` | `Int?` | `price_override_by_id` | users.id (tanpa FK — riwayat tetap walau akun dihapus) |
 | `createdAt` | `DateTime?` | `created_at` | — |
 | `transaction` | `Transaction` | _sama_ | — |
 | `productVariant` | `ProductVariant?` | _sama_ | — |

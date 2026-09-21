@@ -113,6 +113,22 @@ Isi kolom **Catatan/Notes** untuk informasi tambahan seperti:
 
 Klik **Simpan** — dokumen tersimpan dengan status **DRAFT**.
 
+### Aturan nomor, status & total (sejak 22 September 2026)
+
+- **Nomor dibuat server**, urut per hari: `INV-20260922-001`, `SPH-20260922-001`.
+  Nomor yang diketik/dikirim dari luar diabaikan.
+- **Subtotal, PPN & total dihitung server** dari item (jumlah × harga), tarif PPN,
+  dan diskon — bukan dari angka kiriman.
+- **Status mengikuti alur** tombol di layar:
+  Invoice `DRAFT → SENT → PAID / CANCELLED`, SPH `DRAFT → SENT → ACCEPTED /
+  REJECTED / EXPIRED`. Lompatan lain (mis. DRAFT langsung PAID, atau PAID kembali
+  ke DRAFT) ditolak — kecuali oleh **owner** untuk membetulkan salah klik.
+- Dokumen yang sudah final (PAID, CANCELLED, ACCEPTED, REJECTED, EXPIRED) tidak bisa
+  diubah isinya lagi.
+- **Satu SPH hanya bisa dijadikan satu invoice.** Menekan *Jadikan Invoice* kedua
+  kalinya memberi pesan *"SPH ini sudah menjadi invoice INV-…"*.
+- Halaman & datanya hanya untuk peran yang diberi menu **Invoice & Penawaran**.
+
 ---
 
 ## Cara Input Item (3 Mode)

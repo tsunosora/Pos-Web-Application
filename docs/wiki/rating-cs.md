@@ -36,6 +36,11 @@ Ucapan terima kasihnya bisa diganti sendiri oleh Owner (lihat langkah 6).
 Tautan undangan bersifat sekali pakai; setelah terkirim, membukanya lagi tidak
 bisa dipakai menilai dua kali.
 
+QR cabang (untuk pelanggan walk-in) dibatasi supaya nilai CS tidak bisa dikerek
+atau dijatuhkan berulang-ulang: dari satu koneksi, **satu penilaian per CS per 10
+menit** dan paling banyak 5 penilaian per 10 menit (Wi-Fi toko dipakai banyak
+pelanggan). Batas ini memakai IP asli pelanggan, bukan alamat server perantara.
+
 ### 4. Mengundang lewat pesanan yang sudah selesai
 
 ![Bagian Minta Penilaian CS di detail sales order dengan tombol WhatsApp dan tautan penilaian](images/rating-4-undangan.webp)

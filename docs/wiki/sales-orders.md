@@ -76,6 +76,10 @@ Begitu notanya tersimpan, SO berpindah status menjadi **Invoiced** dan nomor
 SO-nya ikut tercetak di struk — jadi pekerjaan di produksi selalu bisa
 ditelusuri kembali ke SO-nya.
 
+**Satu SO = satu nota.** Membuat nota kedua dari SO yang sama ditolak dengan
+pesan yang menyebut nomor nota pertamanya — juga bila dua kasir menekan *Buat Nota*
+bersamaan. Kalau nota pertamanya dihapus, SO itu boleh dijadikan nota lagi.
+
 ---
 
 ## 🔐 Login Desainer (Portal Khusus)
