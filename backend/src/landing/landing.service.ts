@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface LandingConfigPatch {
@@ -49,15 +49,31 @@ export class LandingService {
             'data', 'draftData', 'published', 'customDomain', 'seoTitle', 'seoDescription', 'faviconUrl',
         ];
         for (const k of keys) if (patch[k] !== undefined) data[k] = patch[k];
+        // Isi tayang ditimpa langsung → simpan yang lama dulu (T-47).
+        if (patch.data !== undefined && r.data != null) data.previousData = r.data;
         return this.model.update({ where: { id: r.id }, data });
     }
 
-    /** Publish: salin draftData → data, tandai published. */
+    /** Publish: salin draftData → data, tandai published. Isi tayang lama disimpan (T-47). */
     async publish() {
         const r = await this.row();
         return this.model.update({
             where: { id: r.id },
-            data: { data: r.draftData ?? r.data, published: true },
+            data: { data: r.draftData ?? r.data, published: true, ...(r.data != null ? { previousData: r.data } : {}) },
+        });
+    }
+
+    /**
+     * Kembalikan isi tayang ke versi sebelum terbit/ubah terakhir — sekali klik bila
+     * halaman depan tertimpa (T-47). Versi yang sedang tayang ditukar jadi "sebelumnya",
+     * jadi pemulihan bisa dibatalkan dengan menekan tombol yang sama sekali lagi.
+     */
+    async restorePrevious() {
+        const r = await this.row();
+        if (r.previousData == null) throw new BadRequestException('Belum ada versi sebelumnya yang tersimpan.');
+        return this.model.update({
+            where: { id: r.id },
+            data: { data: r.previousData, draftData: r.previousData, previousData: r.data ?? undefined },
         });
     }
 

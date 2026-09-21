@@ -39,4 +39,11 @@ export class LandingController {
     unpublish() {
         return this.landing.unpublish();
     }
+
+    /** Kembalikan halaman depan ke versi sebelum terbit/ubah terakhir (T-47). */
+    @UseGuards(JwtAuthGuard, MenuGuard)
+    @Post('restore-previous')
+    restorePrevious() {
+        return this.landing.restorePrevious();
+    }
 }

@@ -861,6 +861,7 @@ model LandingConfig {
   id             Int      @id @default(autoincrement())
   data           Json?
   draftData      Json?
+  previousData   Json?    @map("previous_data") // isi tayang SEBELUM terbit terakhir — untuk "Kembalikan versi sebelumnya" (T-47)
   published      Boolean  @default(false)
   customDomain   String?  @map("custom_domain") @db.VarChar(255)
   seoTitle       String?  @map("seo_title") @db.VarChar(200)
@@ -1350,6 +1351,7 @@ model ShiftReport {
   notes            String?   @db.Text
   amendedAt        DateTime? @map("amended_at") // diisi saat laporan dikoreksi
   amendNote        String?   @map("amend_note") @db.Text // catatan alasan koreksi
+  amendHistory     Json?     @map("amend_history") // riwayat koreksi: [{at, byUserId, byName, note, before, after}] (T-44)
   proofImages      Json?     @map("proof_images") // array of uploaded image paths
   whatsappMessage  String?   @map("whatsapp_message") @db.Text // backup pesan WA untuk resend
   paymentExchanges Json?     @map("payment_exchanges") // [{from, to, amount}]

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, UseInterceptors, UploadedFiles, Query, Param, ParseIntPipe, BadRequestException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, UseInterceptors, UploadedFiles, Query, Param, ParseIntPipe, BadRequestException, UseGuards, Req } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ReportsService } from './reports.service';
 import { diskStorage } from 'multer';
@@ -356,6 +356,7 @@ export class ReportsController {
     @UseGuards(ManagerGuard)
     async amendShiftReport(
         @Param('id', ParseIntPipe) id: number,
+        @Req() req: any,
         @Body() body: {
             actualCash?: number;
             actualQris?: number;
@@ -372,6 +373,6 @@ export class ReportsController {
         if (!body.amendNote || !body.amendNote.trim()) {
             throw new BadRequestException('Catatan alasan koreksi wajib diisi.');
         }
-        return this.reportsService.amendShiftReport(id, body);
+        return this.reportsService.amendShiftReport(id, body, req.user?.userId ?? null);
     }
 }

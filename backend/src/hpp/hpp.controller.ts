@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, ParseIntPipe, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, UseInterceptors, Query, ParseIntPipe, ForbiddenException } from '@nestjs/common';
 import { HppService } from './hpp.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AuditLogInterceptor } from '../common/audit-log.interceptor';
 import { ManagerGuard, Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
@@ -66,6 +67,7 @@ export class HppController {
     }
 
     @Post(':id/apply-to-variant')
+    @UseInterceptors(AuditLogInterceptor) // HPP mengubah laba & bonus → dicatat siapa (T-38)
     applyToVariant(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { hppPerUnit: number }
@@ -74,6 +76,7 @@ export class HppController {
     }
 
     @Post(':id/apply-variants-custom')
+    @UseInterceptors(AuditLogInterceptor) // HPP mengubah laba & bonus → dicatat siapa (T-38)
     applyVariantsCustom(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { variants: { variantId: number; hppPerUnit: number; scaleFactor: number }[] }
@@ -84,6 +87,7 @@ export class HppController {
     // Terapkan BOM eksplisit per varian (bahan bisa berbeda tiap varian).
     // worksheetId boleh 0 untuk apply langsung tanpa worksheet.
     @Post(':id/apply-variants-bom')
+    @UseInterceptors(AuditLogInterceptor) // HPP mengubah laba & bonus → dicatat siapa (T-38)
     applyVariantsBom(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: ApplyVariantsBomDto,
@@ -92,6 +96,7 @@ export class HppController {
     }
 
     @Post(':id/apply-to-variants')
+    @UseInterceptors(AuditLogInterceptor) // HPP mengubah laba & bonus → dicatat siapa (T-38)
     applyToVariants(
         @Param('id', ParseIntPipe) id: number,
         @Body() body: { variantIds: number[]; hppPerUnit: number }

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    getLandingAdmin, updateLanding, publishLanding, unpublishLanding,
+    getLandingAdmin, updateLanding, publishLanding, unpublishLanding, restorePreviousLanding,
     uploadWorkOrderImage, resolvePhotoUrl,
 } from '@/lib/api';
 import {
@@ -43,6 +43,17 @@ export default function LandingPageAdmin() {
         setBusy(true);
         try { await updateLanding(form); await publishLanding(); queryClient.invalidateQueries({ queryKey: ['landing-admin'] }); flash('🚀 Landing diterbitkan'); }
         catch (e: any) { flash('❌ ' + (e?.response?.data?.message || e?.message || e)); }
+        finally { setBusy(false); }
+    };
+    // Halaman depan tertimpa/salah terbit → kembalikan ke versi sebelumnya sekali klik (T-47).
+    const doRestorePrevious = async () => {
+        if (!window.confirm('Kembalikan halaman depan ke versi sebelum terbit terakhir? (Bisa dibatalkan dengan menekan tombol ini lagi.)')) return;
+        setBusy(true);
+        try { await restorePreviousLanding(); queryClient.invalidateQueries({ queryKey: ['landing-admin'] }); flash('↩️ Versi sebelumnya dikembalikan'); }
+        catch (e) {
+            const err = e as { response?: { data?: { message?: string } }; message?: string };
+            flash('❌ ' + (err?.response?.data?.message || err?.message || String(e)));
+        }
         finally { setBusy(false); }
     };
     const doUnpublish = async () => {
@@ -91,6 +102,10 @@ export default function LandingPageAdmin() {
                 <div className="flex items-center gap-2 flex-wrap">
                     <Link href="/landing-builder" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700"><LayoutTemplate className="w-4 h-4" /> Buka Editor</Link>
                     <a href="/landing" target="_blank" rel="noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted"><ExternalLink className="w-4 h-4" /> Lihat</a>
+                    {data?.previousData && (
+                        <button onClick={doRestorePrevious} disabled={busy} title="Kembalikan isi halaman depan ke versi sebelum terbit terakhir"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-border hover:bg-muted disabled:opacity-50">↩️ Versi sebelumnya</button>
+                    )}
                     {published
                         ? <button onClick={doUnpublish} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border border-amber-300 text-amber-700 hover:bg-amber-50 disabled:opacity-50"><EyeOff className="w-4 h-4" /> Sembunyikan</button>
                         : <button onClick={doPublish} disabled={busy} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"><Rocket className="w-4 h-4" /> Terbitkan</button>}

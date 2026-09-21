@@ -345,6 +345,18 @@ export default function ShiftHistoryPage() {
                                                 {shift.amendNote && (
                                                     <p className="text-sm text-amber-800 dark:text-amber-300">{shift.amendNote}</p>
                                                 )}
+                                                {/* Riwayat koreksi (T-44): siapa, kapan, angka lama → baru */}
+                                                {Array.isArray(shift.amendHistory) && shift.amendHistory.length > 0 && (
+                                                    <ul className="mt-2 space-y-1 text-xs text-amber-800 dark:text-amber-300">
+                                                        {shift.amendHistory.map((h: { at: string; byName?: string | null; note?: string; before?: { actualCash?: number }; after?: { actualCash?: number } }, i: number) => (
+                                                            <li key={i}>
+                                                                <span className="font-semibold">{dayjs(h.at).format('DD MMM YYYY HH:mm')}</span>
+                                                                {h.byName ? ` · ${h.byName}` : ''} — kas fisik Rp {Number(h.before?.actualCash ?? 0).toLocaleString('id-ID')} → Rp {Number(h.after?.actualCash ?? 0).toLocaleString('id-ID')}
+                                                                {h.note ? ` · "${h.note}"` : ''}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </div>
                                         )}
                                     </div>

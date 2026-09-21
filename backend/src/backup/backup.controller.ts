@@ -1,12 +1,13 @@
 import {
-    Controller, Post, Get, Body, Res, UseGuards,
-    UseInterceptors, UploadedFile, BadRequestException
+    Controller, Post, Get, Body, Res, Req, UseGuards,
+    UseInterceptors, UploadedFile, BadRequestException, Logger,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { BackupService, BackupGroupKey } from './backup.service';
 import { RcloneService } from './rclone.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { DiscordService } from '../discord/discord.service';
 import { ManagerGuard, OwnerGuard } from '../auth/role-groups';
 
 // Cadangan berisi SELURUH data toko (pelanggan, transaksi, pengguna) → setingkat
@@ -14,9 +15,12 @@ import { ManagerGuard, OwnerGuard } from '../auth/role-groups';
 @UseGuards(JwtAuthGuard, ManagerGuard)
 @Controller('backup')
 export class BackupController {
+    private readonly logger = new Logger('BackupAudit');
+
     constructor(
         private readonly backupService: BackupService,
         private readonly rcloneService: RcloneService,
+        private readonly discord: DiscordService,
     ) {}
 
     // ── Backup manual ────────────────────────────────────────────────────────
@@ -64,13 +68,29 @@ export class BackupController {
     @UseInterceptors(FileInterceptor('file'))
     async restoreBackup(
         @UploadedFile() file: Express.Multer.File,
+        @Req() req: any,
         @Body('mode') mode: 'skip' | 'overwrite' = 'skip',
         @Body('tables') tables?: string,
     ) {
         if (!file) throw new BadRequestException('File backup wajib diunggah.');
         const isZip = file.originalname.endsWith('.zip') || file.mimetype === 'application/zip';
         const selectedTables = tables ? tables.split(',').map(t => t.trim()).filter(Boolean) : undefined;
-        return this.backupService.importBackup(file.buffer, isZip, mode, selectedTables);
+        // Jejak audit (T-01): memulihkan backup bisa menimpa database — catat siapa & apa.
+        const siapa = `user=${req.user?.userId ?? '?'} email=${req.user?.email ?? '?'}`;
+        const apa = `berkas=${file.originalname} mode=${mode} tabel=${selectedTables?.join(',') || 'semua'}`;
+        this.logger.warn(`[AUDIT] backup_restore mulai ${siapa} ${apa}`);
+        const hasil = await this.backupService.importBackup(file.buffer, isZip, mode, selectedTables);
+        this.logger.warn(`[AUDIT] backup_restore selesai ${siapa}`);
+        this.discord.send('backup', {
+            title: '♻️ Backup dipulihkan',
+            description: `Database dipulihkan dari berkas cadangan oleh ${req.user?.email ?? 'akun tak dikenal'}.`,
+            fields: [
+                { name: 'Berkas', value: file.originalname.slice(0, 200) },
+                { name: 'Mode', value: mode === 'overwrite' ? 'Timpa data yang ada' : 'Lewati data yang sudah ada', inline: true },
+                { name: 'Tabel', value: (selectedTables?.join(', ') || 'semua').slice(0, 900), inline: true },
+            ],
+        }).catch(() => { /* notifikasi gagal tidak membatalkan pemulihan */ });
+        return hasil;
     }
 
     // ── Rclone ───────────────────────────────────────────────────────────────

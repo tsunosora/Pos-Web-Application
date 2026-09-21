@@ -1,4 +1,4 @@
-import { Injectable, Logger, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscordService } from '../discord/discord.service';
 import { CloseShiftDto, StructuredExpenses, AdditionalIncomeItem, PaymentExchangeItem } from './reports.controller';
@@ -688,9 +688,9 @@ export class ReportsService {
         realBankBalances?: any;
         notes?: string;
         amendNote: string; // wajib — catatan alasan koreksi
-    }) {
+    }, actorUserId: number | null = null) {
         const shift: any = await (this.prisma as any).shiftReport.findUnique({ where: { id } });
-        if (!shift) throw new Error(`Shift report #${id} tidak ditemukan`);
+        if (!shift) throw new NotFoundException(`Laporan shift #${id} tidak ditemukan`);
 
         const actualCash = dto.actualCash !== undefined ? dto.actualCash : Number(shift.actualCash);
         const actualQris = dto.actualQris !== undefined ? dto.actualQris : Number(shift.actualQris);
@@ -799,6 +799,24 @@ export class ReportsService {
                 ...(dto.notes !== undefined && { notes: dto.notes }),
                 amendedAt: new Date(),
                 amendNote: dto.amendNote,
+                // Riwayat koreksi (T-44): nilai lama → baru, oleh siapa, kapan, alasannya.
+                // Dulu koreksi menimpa angka & alasan sebelumnya tanpa jejak.
+                amendHistory: [
+                    ...(Array.isArray(shift.amendHistory) ? shift.amendHistory : []),
+                    {
+                        at: new Date().toISOString(),
+                        byUserId: actorUserId,
+                        byName: actorUserId
+                            ? (await this.prisma.user.findUnique({ where: { id: actorUserId }, select: { name: true } }))?.name ?? null
+                            : null,
+                        note: dto.amendNote,
+                        before: {
+                            actualCash: Number(shift.actualCash), actualQris: Number(shift.actualQris), actualTransfer: Number(shift.actualTransfer),
+                            cashDifference: Number(shift.cashDifference), expensesTotal: Number(shift.expensesTotal),
+                        },
+                        after: { actualCash, actualQris, actualTransfer, cashDifference, expensesTotal: expensesTotal ?? Number(shift.expensesTotal) },
+                    },
+                ],
             },
         });
 

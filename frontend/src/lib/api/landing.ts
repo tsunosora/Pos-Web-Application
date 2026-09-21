@@ -12,6 +12,7 @@ export interface LandingAdmin {
     id: number;
     data: PuckData | null;
     draftData: PuckData | null;
+    previousData?: PuckData | null; // isi tayang sebelum terbit/ubah terakhir (T-47)
     published: boolean;
     customDomain: string | null;
     seoTitle: string | null;
@@ -39,6 +40,10 @@ export const publishLanding = async (): Promise<LandingAdmin> =>
 
 export const unpublishLanding = async (): Promise<LandingAdmin> =>
     (await api.post('/landing/unpublish')).data;
+
+/** Kembalikan halaman depan ke versi sebelum terbit/ubah terakhir (bisa ditekan lagi untuk membatalkan). */
+export const restorePreviousLanding = async (): Promise<LandingAdmin> =>
+    (await api.post('/landing/restore-previous')).data;
 
 export const getLandingPublic = async (): Promise<LandingPublic> =>
     (await api.get('/landing/public')).data;
