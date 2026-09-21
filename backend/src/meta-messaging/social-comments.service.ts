@@ -4,6 +4,7 @@ import { Prisma, SocialDirection, SocialPlatform } from '@prisma/client';
 import type { SocialChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MetaApiService, type GraphComment } from './meta-api.service';
+import { SocialInboxService } from './social-inbox.service';
 import { LeadsService } from '../crm/leads/leads.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 
@@ -25,7 +26,9 @@ export interface SyncChannelResult {
     label: string;
     platform: SocialPlatform;
     posts: number;
-    added: number;
+    added: number; // komentar baru
+    dmConversations: number;
+    dmAdded: number; // pesan DM baru
     error: string | null;
 }
 
@@ -50,6 +53,7 @@ export class SocialCommentsService {
         private readonly prisma: PrismaService,
         private readonly meta: MetaApiService,
         private readonly leads: LeadsService,
+        private readonly inbox: SocialInboxService,
     ) {}
 
     // ─── Webhook ─────────────────────────────────────────────────────────────
@@ -289,7 +293,7 @@ export class SocialCommentsService {
             if (!r.error && prev) this.logger.log(`Sinkron otomatis ${r.label} pulih`);
             if (r.error) this.lastAutoErrors.set(r.channelId, r.error);
             else this.lastAutoErrors.delete(r.channelId);
-            if (r.added) this.logger.log(`Sinkron otomatis ${r.label}: ${r.added} komentar baru`);
+            if (r.added || r.dmAdded) this.logger.log(`Sinkron otomatis ${r.label}: ${r.added} komentar & ${r.dmAdded} pesan DM baru`);
         }
     }
 
@@ -303,12 +307,23 @@ export class SocialCommentsService {
         const job = (this.running ?? Promise.resolve()).catch(() => undefined).then(async () => {
             const results: SyncChannelResult[] = [];
             for (const ch of channels) {
+                // Komentar & DM disinkron terpisah: gagal satu tidak menggagalkan yang lain.
+                const r: SyncChannelResult = { channelId: ch.id, label: ch.label, platform: ch.platform, posts: 0, added: 0, dmConversations: 0, dmAdded: 0, error: null };
+                const errors: string[] = [];
                 try {
-                    const r = await this.syncChannel(ch);
-                    results.push({ channelId: ch.id, label: ch.label, platform: ch.platform, ...r, error: null });
+                    Object.assign(r, await this.syncChannel(ch));
                 } catch (e) {
-                    results.push({ channelId: ch.id, label: ch.label, platform: ch.platform, posts: 0, added: 0, error: this.permissionHint(ch.platform, (e as Error).message) });
+                    errors.push(`Komentar: ${this.permissionHint(ch.platform, (e as Error).message)}`);
                 }
+                try {
+                    const dm = await this.inbox.syncDms(ch);
+                    r.dmConversations = dm.conversations;
+                    r.dmAdded = dm.added;
+                } catch (e) {
+                    errors.push(`DM: ${this.permissionHint(ch.platform, (e as Error).message, 'dm')}`);
+                }
+                r.error = errors.length ? errors.join(' · ') : null;
+                results.push(r);
             }
             if (!Object.keys(scope).length || !this.lastSync) this.lastSync = { at: new Date(), auto, results };
             return results;
@@ -387,12 +402,16 @@ export class SocialCommentsService {
     }
 
     /** Pesan error Meta + petunjuk izin yang biasanya kurang. */
-    private permissionHint(platform: SocialPlatform, message: string) {
+    private permissionHint(platform: SocialPlatform, message: string, kind: 'comments' | 'dm' = 'comments') {
         if (!/permission|izin|scope|\(#10\)|\(#200\)|\(#190\)|OAuth|access token/i.test(message)) return message;
-        const perlu = platform === 'INSTAGRAM'
-            ? 'instagram_business_basic + instagram_business_manage_comments'
-            : 'pages_read_engagement + pages_read_user_content + pages_manage_engagement';
-        return `${message} — token perlu izin ${perlu}. Buat ulang token dengan izin itu lalu perbarui channel.`;
+        const perlu = kind === 'dm'
+            ? (platform === 'INSTAGRAM'
+                ? 'instagram_business_manage_messages (dan "Izinkan akses ke pesan" ON di aplikasi Instagram)'
+                : 'pages_messaging')
+            : (platform === 'INSTAGRAM'
+                ? 'instagram_business_basic + instagram_business_manage_comments'
+                : 'pages_read_engagement + pages_read_user_content + pages_manage_engagement');
+        return `${message} — token perlu izin ${perlu}. Buat ulang token dengan izin itu lalu tekan "Ganti token".`;
     }
 
     // ─── Inbox komentar ──────────────────────────────────────────────────────

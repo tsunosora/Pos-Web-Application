@@ -131,7 +131,8 @@ export interface SocialCommentThread extends SocialComment {
 }
 export type CommentFilter = 'all' | 'unread' | 'needs_reply' | 'hidden';
 export interface CommentSyncResult {
-    results: Array<{ channelId: number; label: string; platform: SocialPlatform; posts: number; added: number; error: string | null }>;
+    // added = komentar baru; dmAdded = pesan DM baru.
+    results: Array<{ channelId: number; label: string; platform: SocialPlatform; posts: number; added: number; dmConversations: number; dmAdded: number; error: string | null }>;
 }
 
 export const listSocialComments = async (params: { platform?: SocialPlatform; filter?: CommentFilter; q?: string; take?: number } = {}): Promise<Paged<SocialCommentThread>> =>

@@ -93,6 +93,30 @@ function LeadBlock({ lead, pending, onCreate }: { lead: { id: number; name: stri
 
 type Tab = "ALL" | "MESSENGER" | "INSTAGRAM" | "FB_COMMENTS" | "IG_COMMENTS";
 
+interface SyncControl { run: () => void; pending: boolean; status?: CommentSyncStatus }
+
+/** Keterangan sinkron otomatis + tombol Sinkronkan + error channel (di atas daftar DM & komentar). */
+function SyncBar({ sync, platform }: { sync: SyncControl; platform?: SocialPlatform }) {
+    const errors = (sync.status?.results ?? []).filter((r) => r.error && (!platform || r.platform === platform));
+    return (
+        <>
+            <div className="flex items-center gap-2 text-[11px]">
+                <span className="opacity-60 min-w-0 truncate" title="DM & komentar juga masuk seketika lewat webhook bila Meta mengirimnya">
+                    {sync.status?.intervalMinutes ? `Otomatis tiap ${sync.status.intervalMinutes} menit` : "Sinkron otomatis mati"}
+                    {sync.status?.lastSyncAt ? ` · terakhir ${timeAgo(sync.status.lastSyncAt) === "baru" ? "barusan" : `${timeAgo(sync.status.lastSyncAt)} lalu`}` : ""}
+                </span>
+                <button onClick={sync.run} disabled={sync.pending}
+                    className="ml-auto shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/70 hover:bg-muted disabled:opacity-50">
+                    <RefreshCw className={`w-3.5 h-3.5 ${sync.pending ? "animate-spin" : ""}`} /> {sync.pending ? "Menyinkronkan…" : "Sinkronkan"}
+                </button>
+            </div>
+            {errors.map((r) => (
+                <p key={r.channelId} className="text-[11px] text-red-600 dark:text-red-400 break-words">{r.label}: {r.error}</p>
+            ))}
+        </>
+    );
+}
+
 export default function SocialInboxPage() {
     const qc = useQueryClient();
     const [tab, setTab] = useState<Tab>("ALL");
@@ -114,6 +138,7 @@ export default function SocialInboxPage() {
         onSuccess: (r) => {
             setSyncResult(r);
             qc.invalidateQueries({ queryKey: ["social-comments"] });
+            qc.invalidateQueries({ queryKey: ["social-convos"] });
             qc.invalidateQueries({ queryKey: ["social-counts"] });
             qc.invalidateQueries({ queryKey: ["social-sync-status"] });
         },
@@ -136,10 +161,10 @@ export default function SocialInboxPage() {
                 <span className="text-xs opacity-60 hidden sm:inline">DM &amp; komentar Instagram / Facebook dalam satu tempat</span>
                 <div className="ml-auto flex items-center gap-1.5">
                     <button onClick={() => syncMut.mutate()} disabled={syncMut.isPending}
-                        title="Tarik komentar dari postingan terbaru (komentar sebelum webhook aktif)"
+                        title="Tarik komentar & DM terbaru dari Instagram/Facebook (juga berjalan otomatis tiap 5 menit)"
                         className="flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg bg-muted/70 hover:bg-muted disabled:opacity-50">
                         <RefreshCw className={`w-4 h-4 ${syncMut.isPending ? "animate-spin" : ""}`} />
-                        {syncMut.isPending ? "Menyinkronkan…" : <>Sinkronkan<span className="hidden sm:inline"> komentar</span></>}
+                        {syncMut.isPending ? "Menyinkronkan…" : <>Sinkronkan<span className="hidden sm:inline"> komentar &amp; DM</span></>}
                     </button>
                     <button onClick={() => setShowChannels(true)} title="Kelola channel" className="p-2 rounded-lg hover:bg-muted">
                         <Settings className="w-4 h-4 opacity-70" />
@@ -154,7 +179,7 @@ export default function SocialInboxPage() {
                         {syncResult.results.map((r) => (
                             <div key={r.channelId} className={r.error ? "text-red-600 dark:text-red-400" : ""}>
                                 <PlatformIcon p={r.platform} className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
-                                <b>{r.label}</b>: {r.error ? r.error : `${r.added} komentar baru dari ${r.posts} postingan terbaru`}
+                                <b>{r.label}</b>: {r.error ? r.error : `${r.added} komentar baru dari ${r.posts} postingan · ${r.dmAdded} pesan DM baru dari ${r.dmConversations} percakapan`}
                             </div>
                         ))}
                     </div>
@@ -178,7 +203,8 @@ export default function SocialInboxPage() {
                     <CommentsInbox key={tab} platform={tab === "IG_COMMENTS" ? "INSTAGRAM" : "MESSENGER"} onOpenDm={(p) => setTab(p)}
                         sync={{ run: () => syncMut.mutate(), pending: syncMut.isPending, status: syncStatus }} />
                 ) : (
-                    <DmInbox key={tab} platform={tab === "ALL" ? undefined : tab} />
+                    <DmInbox key={tab} platform={tab === "ALL" ? undefined : tab}
+                        sync={{ run: () => syncMut.mutate(), pending: syncMut.isPending, status: syncStatus }} />
                 )}
             </div>
 
@@ -188,7 +214,7 @@ export default function SocialInboxPage() {
 }
 
 // ─── DM (Messenger / Instagram) ──────────────────────────────────────────────
-function DmInbox({ platform }: { platform?: SocialPlatform }) {
+function DmInbox({ platform, sync }: { platform?: SocialPlatform; sync: SyncControl }) {
     const qc = useQueryClient();
     const [search, setSearch] = useState("");
     const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -238,7 +264,8 @@ function DmInbox({ platform }: { platform?: SocialPlatform }) {
     return (
         <div className="flex h-full gap-3">
             <aside className={`w-full md:w-80 lg:w-96 shrink-0 flex-col rounded-2xl border border-border bg-card/60 overflow-hidden ${selectedId ? "hidden md:flex" : "flex"}`}>
-                <div className="p-3 border-b border-border">
+                <div className="p-3 border-b border-border space-y-2">
+                    <SyncBar sync={sync} platform={platform} />
                     <div className="relative">
                         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 opacity-50" />
                         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama…"
@@ -247,7 +274,9 @@ function DmInbox({ platform }: { platform?: SocialPlatform }) {
                 </div>
                 <div className="flex-1 overflow-y-auto">
                     {isLoading && <p className="text-sm opacity-60 p-3">Memuat…</p>}
-                    {!isLoading && conversations.length === 0 && <p className="text-sm opacity-60 p-3">Belum ada percakapan.</p>}
+                    {!isLoading && conversations.length === 0 && (
+                        <p className="text-sm opacity-60 p-3">Belum ada percakapan. DM baru masuk otomatis; tekan “Sinkronkan” untuk menarik percakapan yang sudah ada.</p>
+                    )}
                     {conversations.map((c) => (
                         <button key={c.id} onClick={() => open(c.id)}
                             className={`w-full text-left px-3 py-2.5 border-b border-border/50 hover:bg-muted/40 flex gap-3 ${selectedId === c.id ? "bg-muted/60" : ""}`}>
@@ -289,7 +318,13 @@ function DmInbox({ platform }: { platform?: SocialPlatform }) {
                                 return (
                                     <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
                                         <div className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${out ? "bg-emerald-500 text-white" : "bg-muted"}`}>
-                                            {m.mediaUrl && m.type !== "TEXT" && (
+                                            {m.mediaUrl && m.type === "VIDEO" && (
+                                                <video src={m.mediaUrl} controls className="rounded-lg max-w-full max-h-60 mb-1" />
+                                            )}
+                                            {m.mediaUrl && m.type === "FILE" && (
+                                                <a href={m.mediaUrl} target="_blank" rel="noopener noreferrer" className="underline block mb-1">Buka lampiran</a>
+                                            )}
+                                            {m.mediaUrl && m.type !== "TEXT" && m.type !== "VIDEO" && m.type !== "FILE" && (
                                                 // eslint-disable-next-line @next/next/no-img-element
                                                 <img src={m.mediaUrl} alt="lampiran" className="rounded-lg max-w-full max-h-60 mb-1 object-contain" />
                                             )}
@@ -348,7 +383,6 @@ const FILTERS: Array<{ key: CommentFilter; label: string }> = [
     { key: "hidden", label: "Disembunyikan" },
 ];
 
-interface SyncControl { run: () => void; pending: boolean; status?: CommentSyncStatus }
 
 function CommentsInbox({ platform, onOpenDm, sync }: { platform: SocialPlatform; onOpenDm: (tab: SocialPlatform) => void; sync: SyncControl }) {
     const qc = useQueryClient();
@@ -466,19 +500,7 @@ function CommentsInbox({ platform, onOpenDm, sync }: { platform: SocialPlatform;
                         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau isi komentar…"
                             className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-muted/60 text-sm outline-none" />
                     </div>
-                    <div className="flex items-center gap-2 text-[11px]">
-                        <span className="opacity-60 min-w-0 truncate" title="Komentar juga masuk seketika lewat webhook bila Meta sudah mengirimnya">
-                            {sync.status?.intervalMinutes ? `Otomatis tiap ${sync.status.intervalMinutes} menit` : "Sinkron otomatis mati"}
-                            {sync.status?.lastSyncAt ? ` · terakhir ${timeAgo(sync.status.lastSyncAt) === "baru" ? "barusan" : `${timeAgo(sync.status.lastSyncAt)} lalu`}` : ""}
-                        </span>
-                        <button onClick={sync.run} disabled={sync.pending}
-                            className="ml-auto shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/70 hover:bg-muted disabled:opacity-50">
-                            <RefreshCw className={`w-3.5 h-3.5 ${sync.pending ? "animate-spin" : ""}`} /> {sync.pending ? "Menyinkronkan…" : "Sinkronkan"}
-                        </button>
-                    </div>
-                    {sync.status?.results.filter((r) => r.platform === platform && r.error).map((r) => (
-                        <p key={r.channelId} className="text-[11px] text-red-600 dark:text-red-400 break-words">{r.label}: {r.error}</p>
-                    ))}
+                    <SyncBar sync={sync} platform={platform} />
                     <div className="flex gap-1 flex-wrap">
                         {FILTERS.map((f) => (
                             <button key={f.key} onClick={() => setFilter(f.key)}

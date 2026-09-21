@@ -9,6 +9,19 @@ export interface GraphPost {
     postedAt: Date | null;
     commentsCount: number | null; // null = tak diketahui
 }
+export interface GraphConversation {
+    id: string;
+    updatedAt: Date;
+    participants: Array<{ id: string; name: string | null }>;
+}
+export interface GraphMessage {
+    id: string;
+    at: Date;
+    fromId: string | null;
+    text: string | null;
+    type: string; // TEXT | IMAGE | VIDEO | FILE | UNSUPPORTED
+    mediaUrl: string | null;
+}
 export interface GraphComment {
     id: string;
     text: string | null;
@@ -150,6 +163,41 @@ export class MetaApiService {
         const target = platform === 'INSTAGRAM' ? 'me' : id;
         await this.graph(this.base(platform), 'POST', `${target}/subscribed_apps?subscribed_fields=${fields}`, token);
         return fields.split(',');
+    }
+
+    // ─── Percakapan DM (untuk sinkron; webhook tetap jalur utama) ─────────────
+    /** Percakapan terbaru akun. `id` = igId / pageId. Urut dari yang terakhir aktif. */
+    async listConversations(platform: SocialPlatform, id: string, token: string, limit = 25): Promise<GraphConversation[]> {
+        const path = platform === 'INSTAGRAM'
+            ? `${id}/conversations?platform=instagram&fields=id,updated_time,participants&limit=${limit}`
+            : `${id}/conversations?platform=messenger&fields=id,updated_time,participants&limit=${limit}`;
+        const json = await this.graph(this.base(platform), 'GET', path, token);
+        return (json?.data ?? []).map((c: any) => ({
+            id: String(c.id),
+            updatedAt: c.updated_time ? new Date(c.updated_time) : new Date(0),
+            participants: (c.participants?.data ?? []).map((p: any) => ({ id: String(p.id), name: p.username || p.name || null })),
+        }));
+    }
+
+    /** Pesan terbaru sebuah percakapan (terbaru dulu). */
+    async listConversationMessages(platform: SocialPlatform, conversationId: string, token: string, limit = 20): Promise<GraphMessage[]> {
+        const fields = platform === 'INSTAGRAM'
+            ? 'id,created_time,from,message,attachments,is_unsupported'
+            : 'id,created_time,from,message,attachments{mime_type,image_data,video_data,file_url}';
+        const json = await this.graph(this.base(platform), 'GET', `${conversationId}/messages?fields=${fields}&limit=${limit}`, token);
+        return (json?.data ?? []).map((m: any) => {
+            const att = m.attachments?.data?.[0] ?? null;
+            const url = att?.image_data?.url || att?.video_data?.url || att?.file_url || att?.url || null;
+            const type = att ? (att.image_data ? 'IMAGE' : att.video_data ? 'VIDEO' : 'FILE') : m.is_unsupported ? 'UNSUPPORTED' : 'TEXT';
+            return {
+                id: String(m.id),
+                at: m.created_time ? new Date(m.created_time) : new Date(),
+                fromId: m.from?.id ? String(m.from.id) : null,
+                text: m.message || null,
+                type,
+                mediaUrl: url,
+            };
+        });
     }
 
     private toPost(platform: SocialPlatform, p: any): GraphPost {
