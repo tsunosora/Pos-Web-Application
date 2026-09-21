@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { editTransaction, submitEditRequest, deleteTransaction, EditItemPayload } from '@/lib/api/transactions';
 import { getProducts } from '@/lib/api/products';
-import { normalizeUnit, priceMultiplier, storedUnit } from '@/lib/area-unit';
+import { normalizeUnit, priceMultiplier, storedPriceMultiplier, storedUnit } from '@/lib/area-unit';
 import { X, Save, Send, AlertTriangle, Plus, Trash2, Search, PackagePlus, ChevronDown, ChevronUp } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -28,7 +28,17 @@ type EditItem = {
     unitType: string;
     pricingMode: 'UNIT' | 'AREA_BASED';
     isNew?: boolean;
+    // Ukuran asli item lama — kalau tidak diubah, total baris dihitung dari luas TERSIMPAN (sama dgn server).
+    orig?: { widthCm: number | null; heightCm: number | null; pcs: number };
 };
+
+/** Nilai satu baris menurut data tersimpan — cermin storedLine di server (T-08). */
+type StoredRow = { widthCm?: unknown; areaCm2?: unknown; unitType?: string | null; priceAtTime?: unknown; quantity?: unknown; pcs?: unknown };
+function storedLine(it: StoredRow): number {
+    if (it.widthCm === null || it.widthCm === undefined) return Number(it.priceAtTime) * (Number(it.quantity) || 0);
+    const mult = storedPriceMultiplier(it);
+    return mult > 0 ? Number(it.priceAtTime) * mult * Math.max(1, Number(it.pcs) || 1) : Number(it.priceAtTime);
+}
 
 type Props = {
     transaction: any;
@@ -48,6 +58,10 @@ function calcLineTotal(item: EditItem): number {
         const w = item.widthCm ?? 0;
         const h = item.heightCm ?? 1;
         const pcs = Math.max(1, item.pcs || 1);
+        // Item lama yang ukuran & pcs-nya tidak diubah: pakai luas tersimpan persis.
+        if (item.orig && item.areaCm2 && w === item.orig.widthCm && h === (item.orig.heightCm ?? 1) && pcs === item.orig.pcs) {
+            return storedPriceMultiplier({ unitType: item.unitType, areaCm2: item.areaCm2 }) * item.priceAtTime * pcs;
+        }
         // Sama dgn backend (area-unit.util): cm & m per m², cm2 per cm², menit per menit.
         return priceMultiplier(normalizeUnit(item.unitType), w, h) * item.priceAtTime * pcs;
     }
@@ -85,6 +99,11 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
             pricingMode: item.widthCm !== null ? 'AREA_BASED' : 'UNIT',
             remove: false,
             isNew: false,
+            orig: {
+                widthCm: item.widthCm !== null ? Number(item.widthCm) : null,
+                heightCm: item.heightCm !== null ? Number(item.heightCm) : null,
+                pcs: Math.max(1, Number(item.pcs) || 1),
+            },
         }))
     );
 
@@ -262,8 +281,17 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
 
     // ── Totals ──────────────────────────────────────────────────────────────
     const activeItems = editItems.filter((i) => !i.remove);
-    const subtotal = activeItems.reduce((sum, item) => sum + calcLineTotal(item), 0);
-    const grandTotal = Math.max(0, subtotal - discount);
+    // Aturan total sama dengan server (T-08): selisih nota lama dipertahankan (kecuali semua
+    // item lama dihapus), pajak memakai tarif nota ini sendiri, ongkir ikut dijumlahkan.
+    const legacyDelta = Number(transaction.totalAmount) - (transaction.items || []).reduce((s: number, it: StoredRow) => s + storedLine(it), 0);
+    const semuaItemLamaDihapus = editItems.filter((i) => !i.isNew).length > 0 && editItems.filter((i) => !i.isNew).every((i) => i.remove);
+    const selisihLama = Math.abs(legacyDelta) >= 0.01 && !semuaItemLamaDihapus ? legacyDelta : 0;
+    const subtotal = activeItems.reduce((sum, item) => sum + calcLineTotal(item), 0) + selisihLama;
+    const origBase = Number(transaction.totalAmount) - Number(transaction.discount || 0);
+    const origTax = Number(transaction.tax) || 0;
+    const taxAmount = origTax > 0 && origBase > 0 ? (subtotal - discount) * (origTax / origBase) : 0;
+    const shippingCost = Number(transaction.shippingCost) || 0;
+    const grandTotal = Math.max(0, subtotal - discount + taxAmount + shippingCost);
 
     // ── Render ──────────────────────────────────────────────────────────────
     return (
@@ -441,6 +469,11 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
                                     <span className="text-muted-foreground">Subtotal</span>
                                     <span className="font-medium">{fmt(subtotal)}</span>
                                 </div>
+                                {selisihLama !== 0 && (
+                                    <div className="flex justify-between items-start gap-3 text-xs text-amber-700 dark:text-amber-400">
+                                        <span>Termasuk selisih nota lama {fmt(selisihLama)} — total tersimpan tidak sama dengan jumlah barisnya (nota versi lama), jadi dipertahankan apa adanya.</span>
+                                    </div>
+                                )}
 
                                 {/* Discount */}
                                 <div>
@@ -451,6 +484,19 @@ export default function EditTransactionModal({ transaction, isManager, onClose, 
                                         className="mt-1.5 w-full px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                                     />
                                 </div>
+
+                                {taxAmount > 0 && (
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Pajak</span>
+                                        <span className="font-medium">{fmt(taxAmount)}</span>
+                                    </div>
+                                )}
+                                {shippingCost > 0 && (
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-muted-foreground">Ongkos kirim</span>
+                                        <span className="font-medium">{fmt(shippingCost)}</span>
+                                    </div>
+                                )}
 
                                 {/* Grand Total */}
                                 <div className="flex justify-between items-center pt-1 border-t border-border text-sm font-semibold">

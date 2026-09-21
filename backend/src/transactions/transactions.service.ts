@@ -1916,9 +1916,17 @@ export class TransactionsService {
             throw new BadRequestException('Hanya transaksi PAID, PARTIAL, atau PENDING yang dapat diedit');
         }
 
-        const settings = await tx.storeSettings.findFirst();
-        const enableTax = settings?.enableTax ?? true;
-        const taxRate = settings?.taxRate ? Number(settings.taxRate) : 10;
+        // Nilai satu baris menurut data tersimpan (dipakai utk item yang tidak berubah).
+        const storedLine = (it: any): number => {
+            if (it.widthCm === null) return Number(it.priceAtTime) * it.quantity;
+            const mult = storedPriceMultiplier(it);
+            return mult > 0 ? Number(it.priceAtTime) * mult * Math.max(1, Number(it.pcs) || 1) : Number(it.priceAtTime);
+        };
+        // Selisih nota lama = subtotal tersimpan − jumlah barisnya. Nota versi lama (pembulatan,
+        // bug "item tambahan terhitung dua kali", dll.) bisa punya selisih ini; di produksi ada 53.
+        // Dipertahankan supaya edit HANYA mengubah bagian yang memang diedit — dulu mengedit nama
+        // pelanggan saja bisa mengubah Rp 50.000 jadi Rp 5 (T-08). Dibuang bila semua item lama dihapus.
+        const legacyDelta = Number(transaction.totalAmount) - transaction.items.reduce((s: number, it: any) => s + storedLine(it), 0);
 
         // Multi-cabang: stok dipotong/restore di cabang PELAKSANA (productionBranchId) kalau titip cetak,
         // atau di cabang transaksi sendiri (branchId) kalau bukan titipan. WAJIB konsisten dengan
@@ -2133,15 +2141,29 @@ export class TransactionsService {
             const productIngredients: any[] = product.ingredients || [];
 
             if (pricingMode === 'AREA_BASED') {
-                const newW = editItem.widthCm ?? Number(txItem.widthCm);
-                const newH = editItem.heightCm ?? Number(txItem.heightCm ?? 1);
+                const oldW = Number(txItem.widthCm);
+                const oldH = Number(txItem.heightCm ?? 1);
+                const oldPcs = Math.max(1, Number(txItem.pcs) || 1);
+                const newW = editItem.widthCm ?? oldW;
+                const newH = editItem.heightCm ?? oldH;
                 // Satuan item lama TIDAK ikut diedit: selalu satuan tersimpan yang disimpulkan
                 // dari datanya. Label lama bisa salah ('m' padahal isinya cm) dan modal edit
                 // mengirim label itu balik → dulu total meledak ×10.000 (T-08). Kalau satuannya
                 // memang salah, hapus item lalu tambah ulang.
                 const unitType = storedUnit(txItem);
-                const { priceMultiplier: newPriceMultiplier, areaM2: newAreaM2 } = areaFactors(unitType, newW, newH);
-                assertSaneArea(unitType, newW, newH, newAreaM2, product.name);
+                const newPcs = Math.max(1, editItem.pcs ?? oldPcs);
+                // Ukuran & pcs tidak berubah → pakai luas & pengali TERSIMPAN persis (data lama bisa
+                // sedikit berbeda dari ukuran×ukuran), jadi baris ini tidak bergeser sepeser pun.
+                const unchanged = Math.abs(newW - oldW) < 1e-9 && Math.abs(newH - oldH) < 1e-9 && newPcs === oldPcs;
+                let newPriceMultiplier: number;
+                let newAreaM2: number;
+                if (unchanged) {
+                    newPriceMultiplier = storedPriceMultiplier(txItem);
+                    newAreaM2 = (Number(txItem.areaCm2) || 0) / 10000;
+                } else {
+                    ({ priceMultiplier: newPriceMultiplier, areaM2: newAreaM2 } = areaFactors(unitType, newW, newH));
+                    assertSaneArea(unitType, newW, newH, newAreaM2, product.name);
+                }
 
                 const newAreaCm2 = newAreaM2 * 10000;
                 const oldAreaM2 = txItem.areaCm2 ? Number(txItem.areaCm2) / 10000 : 0;
@@ -2190,7 +2212,6 @@ export class TransactionsService {
                     }
                 }
 
-                const newPcs = Math.max(1, editItem.pcs ?? (Number(txItem.pcs) || 1));
                 // Harga satuan = harga SAAT NOTA DIBUAT (priceAtTime), bukan harga katalog hari ini —
                 // sama dengan item UNIT. Dulu harga katalog dipakai, sehingga mengedit nama pelanggan
                 // saja bisa mengubah total bila harga/tier/harga nego berbeda.
@@ -2303,20 +2324,22 @@ export class TransactionsService {
             // Item baru sudah dijumlah saat dibuat — dulu terhitung DUA KALI (tambah item
             // Rp 5.500 lewat edit → total naik Rp 11.000).
             if (removedIds.has(existingItem.id) || editedIds.has(existingItem.id) || addedIds.has(existingItem.id)) continue;
-            if (existingItem.widthCm !== null) {
-                // AREA_BASED: total = priceAtTime × pengali tersimpan × pcs (per cm² → area_cm2, lainnya → m²).
-                const mult = storedPriceMultiplier(existingItem);
-                const existingPcs = Math.max(1, Number(existingItem.pcs) || 1);
-                newSubtotal += mult > 0 ? Number(existingItem.priceAtTime) * mult * existingPcs : Number(existingItem.priceAtTime);
-            } else {
-                newSubtotal += Number(existingItem.priceAtTime) * existingItem.quantity;
-            }
+            // AREA_BASED: priceAtTime × pengali tersimpan × pcs (per cm² → area_cm2, lainnya → m²).
+            newSubtotal += storedLine(existingItem);
         }
+
+        const semuaItemLamaDihapus = transaction.items.length > 0 && transaction.items.every((it: any) => removedIds.has(it.id));
+        if (Math.abs(legacyDelta) >= 0.01 && !semuaItemLamaDihapus) newSubtotal += legacyDelta;
 
         const discountAmount = editData.discount !== undefined ? editData.discount : Number(transaction.discount);
         const amountAfterDiscount = newSubtotal - discountAmount;
-        const taxAmount = enableTax ? amountAfterDiscount * (taxRate / 100) : 0;
-        const newGrandTotal = amountAfterDiscount + taxAmount;
+        // Pajak mengikuti tarif nota ini sendiri (saat dibuat), bukan setelan toko hari ini:
+        // nota tanpa pajak tetap tanpa pajak walau pajak baru diaktifkan.
+        const origBase = Number(transaction.totalAmount) - Number(transaction.discount);
+        const origTax = Number(transaction.tax) || 0;
+        const taxAmount = origTax > 0 && origBase > 0 ? amountAfterDiscount * (origTax / origBase) : 0;
+        // Ongkir ikut dijumlahkan seperti saat nota dibuat (dulu hilang saat nota diedit).
+        const newGrandTotal = amountAfterDiscount + taxAmount + (Number(transaction.shippingCost) || 0);
 
         await tx.transaction.update({
             where: { id: transactionId },

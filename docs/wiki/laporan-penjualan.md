@@ -235,11 +235,19 @@ Berlaku sejak 21 September 2026 untuk item yang harganya dihitung per luas:
 | Nama pelanggan, label, diskon, jumlah item lain | Total item area **tidak berubah sepeser pun**. |
 | Lebar / tinggi / jumlah pcs | Dihitung ulang dengan **harga saat nota dibuat** (termasuk harga nego), bukan harga katalog hari ini. |
 | Satuan item lama | **Terkunci.** Kalau satuannya memang salah, hapus item itu lalu tambah ulang dengan satuan yang benar. |
-| Tambah produk baru | Satuan mengikuti produknya (cm, atau cm² untuk produk per cm²); boleh diganti sebelum disimpan. |
+| Tambah produk baru | Satuan mengikuti produknya (cm, atau cm² untuk produk per cm²); boleh diganti sebelum disimpan. Nilainya dijumlah **sekali** (dulu terhitung dua kali). |
+| Ongkos kirim & pajak | Ongkir tetap ikut di total (dulu hilang saat nota diedit). Pajak memakai tarif nota itu sendiri, bukan setelan toko hari ini. |
+| Nota lama yang totalnya ≠ jumlah barisnya | Selisihnya **dipertahankan** dan ditampilkan di ringkasan ("Termasuk selisih nota lama …"). Selisih dibuang hanya bila semua item lama dihapus. |
 
 **Contoh.** Nota banner 114×135 cm @ Rp 125.000/m² = Rp 192.375. Admin hanya
 membetulkan nama pelanggan → total tetap Rp 192.375. Admin mengubah lebar jadi
 228 cm → baris itu jadi Rp 384.750 (luas ×2, harga per m² tetap).
+
+**Nota lama dengan selisih.** Per 21 September 2026 ada 53 nota (hampir semua
+April–Juli 2026, versi aplikasi lama) yang subtotal tersimpannya tidak sama dengan
+jumlah barisnya — sebagian karena pembulatan lama, sebagian karena bug "item tambahan
+terhitung dua kali". Mengeditnya tidak lagi mengubah totalnya diam-diam; kalau
+memang perlu dikoreksi, owner memutuskannya secara sadar (mis. mengubah diskon).
 
 **Kenapa satuan dikunci.** Nota lama (Agustus–September 2026) ada yang tersimpan
 berlabel "m" padahal ukurannya cm. Dulu, sekali nota seperti itu diedit, totalnya
