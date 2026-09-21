@@ -114,6 +114,12 @@ export class PrinterRelayRegistry {
         return new Promise((resolve) => {
             const timer = setTimeout(() => {
                 this.acks.delete(jobId);
+                // Kasir sudah diberi tahu gagal → buang dari antrean. Dulu job tertinggal & baru
+                // tercetak saat agen hidup lagi (struk basi berjam-jam kemudian, bisa dobel).
+                for (const [bid, q] of this.queues) {
+                    const i = q.findIndex((j) => j.jobId === jobId);
+                    if (i >= 0) { q.splice(i, 1); if (q.length === 0) this.queues.delete(bid); }
+                }
                 resolve({ ok: false, error: 'Timeout: agen printer tidak merespons.' });
             }, timeoutMs);
             this.acks.set(jobId, { resolve, timer });

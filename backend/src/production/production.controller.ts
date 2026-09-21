@@ -416,11 +416,13 @@ export class ProductionController {
     @Get('meter/readings')
     @UseGuards(BoardOrUserGuard)
     async getMeterReadings(
+        @Req() req: any,
         @Query('branchId') branchIdParam: string,
         @Query('startDate') startDate?: string,
         @Query('endDate') endDate?: string,
     ) {
-        const branchId = Number(branchIdParam);
+        // Papan/staf: cabangnya sendiri (dulu ?branchId= cabang lain ikut terbaca).
+        const branchId = cabangAksiJob(req) ?? Number(branchIdParam);
         if (!branchId || Number.isNaN(branchId)) {
             throw new BadRequestException('branchId wajib diisi');
         }
@@ -454,11 +456,12 @@ export class ProductionController {
     @Get('meter/rejects')
     @UseGuards(BoardOrUserGuard)
     async getRejects(
+        @Req() req: any,
         @Query('branchId') branchIdParam: string,
         @Query('month') month?: string,
         @Query('year') year?: string,
     ) {
-        const branchId = Number(branchIdParam);
+        const branchId = cabangAksiJob(req) ?? Number(branchIdParam);
         if (!branchId || Number.isNaN(branchId)) {
             throw new BadRequestException('branchId wajib diisi');
         }
