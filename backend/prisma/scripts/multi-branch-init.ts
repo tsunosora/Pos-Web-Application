@@ -1,7 +1,7 @@
 /**
  * Multi-Branch Foundation Init Script (PR1)
  *
- * Jalankan SEKALI setelah `prisma db push` untuk schema PR1:
+ * Jalankan SEKALI setelah skema terpasang (`npx prisma migrate deploy`):
  *   npx ts-node backend/prisma/scripts/multi-branch-init.ts
  *
  * Yang dilakukan:

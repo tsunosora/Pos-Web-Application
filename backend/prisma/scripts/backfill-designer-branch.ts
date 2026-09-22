@@ -5,7 +5,7 @@
  * Desainer tanpa branchName (= Pusat) dibiarkan branchId null. Matching:
  *   exact name → exact code → partial contains (dua arah), case-insensitive.
  *
- * Run sekali (SETELAH `npx prisma db push` + `npx prisma generate`):
+ * Run sekali (SETELAH `npx prisma migrate deploy` + `npx prisma generate`):
  *   cd backend && npx ts-node prisma/scripts/backfill-designer-branch.ts
  */
 import { PrismaClient } from '@prisma/client';

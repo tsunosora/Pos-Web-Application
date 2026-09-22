@@ -385,9 +385,12 @@ PORT=3001
 
 ```bash
 npm install
-npx prisma db push
+npx prisma migrate deploy   # buat semua tabel dari backend/prisma/migrations
 npm run start:dev
 ```
+
+> Skema database diubah lewat migrasi, bukan `prisma db push`. Cara menambah
+> kolom/tabel baru: [Migrasi Database](docs/wiki/migrasi-database.md).
 > ✅ Backend berjalan di: **http://localhost:3001**
 
 ### Langkah 3 — Setup Frontend

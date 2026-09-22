@@ -90,6 +90,7 @@ mencoba sendiri:
 | 18 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, auto-backup via Rclone, dan restore |
 | 19 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | 20 | [🚀 Panduan Deployment](deployment.md) | Setup di home server / VPS dengan Cloudflare Tunnel |
+| 20a | [🗄️ Migrasi Database](migrasi-database.md) | **Skema diubah lewat migrasi, bukan `db push`** — baseline sekali-jalan untuk database lama, cara membuat migrasi baru, aturan yang tidak boleh dilanggar, dan kalau migrasi gagal |
 | 21 | [🏢 Mode Cabang (Multi-Tenant)](mode-cabang.md) | **Multi-cabang** — kelola banyak toko dalam satu sistem, stok/kas/shift terpisah, owner switcher |
 | 22 | [🔁 Titip Cetak Antar Cabang](titip-cetak.md) | **Titip cetak** — kasir cabang A bikin nota, dicetak di cabang B (toggle prominent di POS) |
 | 23 | [📒 Buku Titipan Antar Cabang](buku-titipan.md) | **Buku Titipan** — auto-catat hutang/piutang antar cabang dari titip cetak, settle tunai/stok |
@@ -709,6 +710,7 @@ Dokumentasi lengkap untuk fitur-fitur bisnis tingkat lanjut:
 | [💾 Backup & Restore](backup.md) | Backup database ke ZIP, auto-backup via Rclone, restore |
 | [🧮 Kalkulator HPP](hpp-calculator.md) | Worksheet biaya produksi, multi-varian, biaya tambah, simpan sebagai produk |
 | [🚀 Panduan Deployment Cloudflare](deployment.md) | Setup produksi di Home Server (MySQL, PM2, Cloudflare Tunnel) |
+| [🗄️ Migrasi Database](migrasi-database.md) | Prisma Migrate: baseline database lama, membuat & menerapkan migrasi baru |
 | [🏢 Mode Cabang Multi-Tenant](mode-cabang.md) | Setup cabang baru, role Owner vs Staff, BranchStock, transfer stok antar cabang, WA per cabang |
 | [🔁 Titip Cetak Antar Cabang](titip-cetak.md) | Toggle prominent di POS, routing job ke cabang pelaksana, badge titipan, notif popup |
 | [📒 Buku Titipan Antar Cabang](buku-titipan.md) | Auto-ledger hutang-piutang inter-branch, settle dengan tunai (2 cashflow) atau kirim stok |

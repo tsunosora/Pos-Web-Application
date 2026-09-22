@@ -176,7 +176,7 @@ comprehensive-pos-web-application/
 > Selalu gunakan `variant.price` — ini adalah harga pokok per satuan meter persegi (m²).
 
 ### 2. Bypass Compile TypeScript (Prisma)
-> Jika usai mengubah schema `prisma` dan melakukan push (`npx prisma db push`), TypeScript terkadang masih memprotes tipe dari Prisma Client lama yang membandel (misal field baru dianggap tidak ada). Typecast `(this.prisma as any).modelName` jika build TS gagal akibat *stale client generated*.
+> Jika usai mengubah schema `prisma` dan membuat migrasi (`npx prisma migrate dev --name <nama>` — bukan lagi `db push`, lihat `docs/wiki/migrasi-database.md`), TypeScript terkadang masih memprotes tipe dari Prisma Client lama yang membandel (misal field baru dianggap tidak ada). Typecast `(this.prisma as any).modelName` jika build TS gagal akibat *stale client generated*.
 
 ### 3. Frontend Interceptor Request Auth
 > Interceptor Axios di `lib/api.ts` bersifat sinkron. Ini krusial agar React/Next JS Client Component yang merender `useQuery` pertama kali tidak kehabisan nafas gara-gara delay localstorage get token yang diasynchrone-kan.

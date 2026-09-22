@@ -33,22 +33,55 @@ export function localJwtSecret(stateDir: string): string {
   }
 }
 
-/** Jalankan `prisma db push` ke DB lokal via Electron-as-Node (tanpa npx). */
-export function pushSchema(backendDir: string, databaseUrl: string): void {
+/**
+ * Terapkan migrasi Prisma (`backend/prisma/migrations`) ke DB lokal via
+ * Electron-as-Node (tanpa npx). Dulu `prisma db push`; sekarang `migrate deploy`
+ * supaya skema tiap perangkat sama persis dengan server pusat dan tercatat
+ * versinya di tabel `_prisma_migrations`. Lihat docs/wiki/migrasi-database.md.
+ */
+export function migrateSchema(backendDir: string, databaseUrl: string): void {
   const prismaEntry = path.join(backendDir, "node_modules", "prisma", "build", "index.js");
   if (!fs.existsSync(prismaEntry)) {
     throw new Error(`Prisma CLI tak ditemukan: ${prismaEntry}`);
   }
-  log.info("[backend] prisma db push → DB lokal");
-  const r = spawnSync(process.execPath, [prismaEntry, "db", "push", "--skip-generate"], {
-    cwd: backendDir,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", DATABASE_URL: databaseUrl },
-    encoding: "utf8",
-  });
-  if (r.status !== 0) {
-    throw new Error(`prisma db push gagal: ${r.stderr || r.stdout}`);
+  const prisma = (...args: string[]) => {
+    const r = spawnSync(process.execPath, [prismaEntry, ...args], {
+      cwd: backendDir,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", DATABASE_URL: databaseUrl },
+      encoding: "utf8",
+    });
+    return { ok: r.status === 0, out: `${r.stdout ?? ""}\n${r.stderr ?? ""}` };
+  };
+
+  log.info("[backend] prisma migrate deploy → DB lokal");
+  let r = prisma("migrate", "deploy");
+
+  // P3005 = DB lokal dibuat versi lama aplikasi (era `db push`), tabelnya ada
+  // tapi riwayat migrasinya belum. Transisi SEKALI: samakan skema dengan cara
+  // lama (`db push` TANPA --accept-data-loss, jadi perubahan yang membuang data
+  // tetap ditolak), lalu tandai semua migrasi yang ikut di paket ini sebagai
+  // sudah jalan. Setelah itu perangkat ini murni memakai `migrate deploy`.
+  if (!r.ok && r.out.includes("P3005")) {
+    log.warn("[backend] DB lokal belum punya riwayat migrasi — transisi sekali dari db push");
+    const push = prisma("db", "push", "--skip-generate");
+    if (!push.ok) throw new Error(`Transisi skema (db push) gagal: ${push.out}`);
+    const dirMigrasi = path.join(backendDir, "prisma", "migrations");
+    const daftar = fs
+      .readdirSync(dirMigrasi, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && fs.existsSync(path.join(dirMigrasi, d.name, "migration.sql")))
+      .map((d) => d.name)
+      .sort();
+    for (const nama of daftar) {
+      const res = prisma("migrate", "resolve", "--applied", nama);
+      if (!res.ok) throw new Error(`Gagal menandai migrasi ${nama}: ${res.out}`);
+    }
+    r = prisma("migrate", "deploy");
   }
-  log.info("[backend] schema tersinkron");
+
+  if (!r.ok) {
+    throw new Error(`prisma migrate deploy gagal: ${r.out}`);
+  }
+  log.info("[backend] skema DB lokal sudah versi terbaru");
 }
 
 export interface StartBackendOptions {

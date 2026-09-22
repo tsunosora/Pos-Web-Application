@@ -111,6 +111,7 @@ export default defineConfig({
           { text: '🤖 Notifikasi Discord', link: '/discord' },
           { text: '💾 Backup & Restore', link: '/backup' },
           { text: '🚀 Panduan Deployment', link: '/deployment' },
+          { text: '🗄️ Migrasi Database', link: '/migrasi-database' },
           { text: '🖥️ Aplikasi Desktop Offline', link: '/desktop-offline' },
           { text: '💻 Setup Pengembangan Lokal', link: '/setup-lokal' },
           { text: '🌐 Halaman Publik', link: '/halaman-publik' },

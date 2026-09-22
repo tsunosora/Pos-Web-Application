@@ -5,7 +5,7 @@ import log from "electron-log";
 import { autoUpdater } from "electron-updater";
 import { startNext, NextHandle } from "./next-server";
 import { startMaria, MariaHandle } from "./mariadb";
-import { startBackend, pushSchema, localJwtSecret, BackendHandle } from "./backend-server";
+import { startBackend, migrateSchema, localJwtSecret, BackendHandle } from "./backend-server";
 import { autoBackup, backupDb } from "./db-backup";
 import { getPrinterConfig, setPrinterConfig } from "./printer-config";
 import { printEscpos, listPrinters } from "./printing";
@@ -119,7 +119,7 @@ async function bootLocalStack(): Promise<string> {
   // Auto-backup sebelum migrasi (jaga-jaga migrasi gagal / rusak).
   autoBackup({ binDir: mariaBin, port: maria.port, backupsDir, stamp: stamp(), keep: 7 });
 
-  pushSchema(backendDir(), databaseUrl); // first run: buat skema; upgrade: sinkron
+  migrateSchema(backendDir(), databaseUrl); // first run: buat skema; upgrade: jalankan migrasi baru
   const jwtSecret = localJwtSecret(stateDir);
   backend = await startBackend({ backendDir: backendDir(), databaseUrl, jwtSecret });
 

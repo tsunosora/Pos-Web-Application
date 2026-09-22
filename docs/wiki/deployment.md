@@ -93,10 +93,34 @@ npx prisma generate
 npx prisma migrate deploy
 ```
 
-*(Opsional)* Jika ini server baru dan tabel masih kosong, jalankan _seeding_ data awal:
+`migrate deploy` menjalankan isi folder `backend/prisma/migrations` secara urut
+dan mencatatnya di tabel `_prisma_migrations`. User MySQL dari Langkah 1 sudah
+cukup haknya — perintah ini tidak butuh database bayangan (_shadow database_).
+
+> **Database ini sudah berisi tabel dari instalasi lama** (dibuat dengan
+> `prisma db push`)? `migrate deploy` akan menolak dengan error **P3005** dan tidak
+> mengubah apa pun. Itu disengaja: ikuti langkah sekali-jalan di
+> [Migrasi Database](migrasi-database.md), baru lanjut.
+
+**Server baru, database kosong:** buat akun Owner pertama dan cabang "Pusat".
+Sandi diketik tanpa tampil di layar dan tidak tersimpan di riwayat shell:
+
 ```bash
-npx prisma db seed
+read -rp "Nama owner: " OWNER_NAME
+read -rp "Email owner: " OWNER_EMAIL
+read -rsp "Sandi owner (min. 8 karakter): " OWNER_PASSWORD; echo
+OWNER_NAME="$OWNER_NAME" OWNER_EMAIL="$OWNER_EMAIL" OWNER_PASSWORD="$OWNER_PASSWORD" \
+  npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/scripts/bootstrap-owner.ts
+unset OWNER_PASSWORD
+npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/scripts/multi-branch-init.ts
 ```
+
+Nama toko, alamat, dan logo diisi setelah login lewat **Pengaturan**.
+
+> `npx prisma db seed` **tidak** dipakai: belum ada perintah seed yang
+> dikonfigurasi, jadi perintah itu selesai tanpa melakukan apa-apa.
+> `prisma/seed.ts` hanya contoh produk "Cetak HVS" dan tidak aman dijalankan dua
+> kali.
 
 **(PENTING):** _Build_ aplikasi NestJS ke versi produksi dan jalankan menggunakan PM2:
 

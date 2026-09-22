@@ -82,7 +82,7 @@ export class InvoiceService implements OnModuleInit {
             const res = await this.model.updateMany({ where: { branchId: null }, data: { branchId: pusatId } });
             this.logger.log(`Backfill invoice: ${res.count} invoice lama di-assign ke cabang Pusat (id=${pusatId}).`);
         } catch (e: any) {
-            // Kemungkinan kolom belum ada (db push belum dijalankan) — aman, skip.
+            // Kemungkinan kolom belum ada (migrasi belum dijalankan) — aman, skip.
             this.logger.warn(`Backfill invoice dilewati: ${e?.message || e}`);
         }
     }

@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Deploy POS Web Application di server (homelab). Jalankan dari folder project:
 #   bash deploy.sh
-# Melakukan: git pull -> backend (prisma db push + generate + build) ->
+# Melakukan: git pull -> backend (prisma migrate deploy + generate + build) ->
 # frontend (stop -> build bersih -> start) -> restart pm2 -> cek kesehatan.
 #
 # PERHATIAN: frontend MATI selama build frontend (beberapa menit). Jalankan saat
 # toko sepi. Ini disengaja — alasannya ada di langkah [3/5].
 #
 # Catatan:
-# - Aman untuk perubahan schema yang menambah tabel/kolom (mis. printer_devices).
+# - Skema database diubah HANYA lewat folder backend/prisma/migrations
+#   (`prisma migrate deploy`), bukan lagi `prisma db push`. Panduan lengkap:
+#   docs/wiki/migrasi-database.md
+# - Sebelum deploy yang membawa migrasi baru, ambil backup database dulu.
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
@@ -34,7 +37,17 @@ git pull origin main
 echo "==> [2/5] Backend: dependencies + prisma + build"
 cd "$ROOT/backend"
 npm install --no-audit --no-fund
-npx prisma db push
+# Terapkan migrasi yang belum jalan. Kalau gagal, deploy berhenti DI SINI —
+# sebelum frontend dihentikan dan sebelum backend di-restart — jadi versi lama
+# tetap melayani kasir.
+if ! npx prisma migrate deploy; then
+  echo "!! prisma migrate deploy GAGAL. Deploy dibatalkan; frontend & backend lama tetap jalan."
+  echo "!! Error P3005 = database ini belum di-baseline (masih peninggalan db push)."
+  echo "!!   Ikuti langkah sekali-jalan di docs/wiki/migrasi-database.md, lalu deploy ulang."
+  echo "!! Error lain (mis. P3009/P3018) = ada migrasi yang gagal di tengah jalan."
+  echo "!!   JANGAN diulang membabi buta — baca bagian 'Kalau migrasi gagal' di dokumen yang sama."
+  exit 1
+fi
 npx prisma generate
 npm run build
 

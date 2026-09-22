@@ -91,6 +91,15 @@ const SAMAR: Record<string, Record<string, Aturan>> = {
     },
 };
 
+/**
+ * Riwayat migrasi Prisma ikut apa adanya: isinya cuma nama migrasi, checksum,
+ * dan waktu — tidak ada data toko. Tanpa ini database laptop punya tabel
+ * lengkap tapi riwayatnya kosong, lalu `prisma migrate dev` menganggapnya
+ * melenceng dan minta reset. Tabelnya baru ada setelah produksi di-baseline
+ * (lihat docs/wiki/migrasi-database.md), jadi diperlakukan opsional.
+ */
+const RIWAYAT_MIGRASI = '_prisma_migrations';
+
 let HASH_DEV = '';
 
 const TIPE_ANGKA = new Set(['int', 'bigint', 'smallint', 'mediumint', 'tinyint', 'decimal', 'float', 'double', 'bit', 'year']);
@@ -175,6 +184,13 @@ async function main() {
         '-- ==== DATA MASTER ====',
         mysqldump(k, ['--no-create-info', '--complete-insert'], MASTER),
         '',
+        ...(semua.includes(RIWAYAT_MIGRASI)
+            ? [
+                '-- ==== RIWAYAT MIGRASI PRISMA ====',
+                mysqldump(k, ['--no-create-info', '--complete-insert'], [RIWAYAT_MIGRASI]),
+                '',
+            ]
+            : []),
         '-- ==== DATA SAMAR ====',
     ];
 
@@ -255,12 +271,13 @@ async function main() {
     const keluar = path.join(tujuan, `pospro-dev-seed-${stamp}.sql.gz`);
     fs.writeFileSync(keluar, zlib.gzipSync(Buffer.from(sql, 'utf8'), { level: 9 }));
 
-    const kosong = semua.filter((t) => !MASTER.includes(t) && !(t in SAMAR));
+    const kosong = semua.filter((t) => !MASTER.includes(t) && !(t in SAMAR) && t !== RIWAYAT_MIGRASI);
     console.log('Seed pengembangan dibuat.');
     console.log(`  berkas      : ${keluar} (${(fs.statSync(keluar).size / 1024 / 1024).toFixed(2)} MB)`);
     console.log(`  struktur    : ${semua.length} tabel`);
     console.log(`  data master : ${MASTER.length} tabel`);
     console.log(`  disamarkan  : ${Object.keys(SAMAR).length} tabel`);
+    console.log(`  riwayat migrasi: ${semua.includes(RIWAYAT_MIGRASI) ? 'ikut' : 'BELUM ADA — produksi belum di-baseline'}`);
     console.log(ringkas.join('\n'));
     console.log(`  kosong      : ${kosong.length} tabel (transaksi, chat, HPP, gaji, token — sengaja tidak dibawa)`);
     console.log(`  nama staf disensor: ${disensor} kemunculan`);

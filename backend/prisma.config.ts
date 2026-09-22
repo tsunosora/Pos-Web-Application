@@ -12,5 +12,10 @@ export default defineConfig({
   engine: "classic",
   datasource: {
     url: env("DATABASE_URL"),
+    // Opsional, cuma dipakai `prisma migrate dev` (laptop). Isi kalau user MySQL
+    // dev tidak boleh CREATE/DROP DATABASE — lihat docs/wiki/migrasi-database.md.
+    ...(process.env.SHADOW_DATABASE_URL
+      ? { shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL }
+      : {}),
   },
 });

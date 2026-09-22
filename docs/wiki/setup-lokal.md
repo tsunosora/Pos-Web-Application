@@ -43,8 +43,14 @@ git clone git@github.com:tsunosora/Pos-Web-Application.git pospro && cd pospro
 ## 3. Siapkan database
 
 ```bash
-sudo mysql -e "CREATE DATABASE pospro_dev CHARACTER SET utf8mb4; CREATE USER 'pospro_dev'@'localhost' IDENTIFIED BY 'dev12345'; GRANT ALL ON pospro_dev.* TO 'pospro_dev'@'localhost';"
+sudo mysql -e "CREATE DATABASE pospro_dev CHARACTER SET utf8mb4; CREATE DATABASE pospro_dev_shadow CHARACTER SET utf8mb4; CREATE USER 'pospro_dev'@'localhost' IDENTIFIED BY 'dev12345'; GRANT ALL ON pospro_dev.* TO 'pospro_dev'@'localhost'; GRANT ALL ON pospro_dev_shadow.* TO 'pospro_dev'@'localhost';"
 ```
+
+`pospro_dev_shadow` itu database bantu untuk `npx prisma migrate dev`: Prisma
+memutar ulang semua migrasi di sana untuk mencari selisih, lalu mengosongkannya.
+Isinya tidak pernah dipakai aplikasi. Tanpa database ini, Prisma mencoba membuat
+database sementara sendiri dan gagal karena user `pospro_dev` tidak punya hak
+`CREATE DATABASE` (dan memang tidak perlu punya).
 
 ## 4. Masukkan data seed
 
@@ -62,6 +68,23 @@ Isi seed: struktur **seluruh 108 tabel**, ditambah katalog (178 produk, 750
 varian, harga jual, kategori, satuan, cabang, jadwal piket) dan akun yang sudah
 disamarkan. **Tidak ada** transaksi, chat, HPP, gaji, token, atau data pelanggan
 sungguhan di dalamnya.
+
+Seed yang dibuat setelah produksi di-baseline ikut membawa riwayat migrasi
+(tabel `_prisma_migrations`). Seed yang lebih tua belum — cek dengan:
+
+```bash
+cd backend && npx prisma migrate status
+```
+
+Kalau hasilnya bilang `0_init` belum diterapkan padahal tabelnya sudah ada,
+tandai sekali (struktur dari seed memang sudah sama dengan `0_init`):
+
+```bash
+npx prisma migrate resolve --applied 0_init
+```
+
+Lalu jalankan `npx prisma migrate deploy` untuk migrasi yang lebih baru dari
+seed-nya. Detailnya di [Migrasi Database](migrasi-database.md).
 
 ### Akun untuk masuk
 
@@ -87,6 +110,7 @@ PIN untuk halaman kerja:
 
 ```ini
 DATABASE_URL="mysql://pospro_dev:dev12345@localhost:3306/pospro_dev"
+SHADOW_DATABASE_URL="mysql://pospro_dev:dev12345@localhost:3306/pospro_dev_shadow"
 JWT_SECRET="rahasia-lokal-apa-saja"
 PORT=3001
 ALLOWED_ORIGINS="http://localhost:3002"
@@ -168,5 +192,8 @@ kapan saja hari Minggu):
 cd /home/homelab/pos/pospro && git pull && ./deploy.sh
 ```
 
-Perubahan skema database dijalankan di laptop lebih dulu (`npx prisma db push`
-ke `pospro_dev`), diperiksa hasilnya, baru diterapkan ke produksi.
+Perubahan skema database dibuat di laptop sebagai migrasi
+(`npx prisma migrate dev --name <nama>` ke `pospro_dev`), folder migrasinya
+ikut di-commit, lalu `deploy.sh` menerapkannya di server lewat
+`npx prisma migrate deploy`. **Jangan pakai `npx prisma db push` lagi** — alasan
+dan langkah lengkapnya di [Migrasi Database](migrasi-database.md).
