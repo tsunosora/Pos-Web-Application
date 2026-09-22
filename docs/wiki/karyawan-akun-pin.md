@@ -105,12 +105,19 @@ menentukan akses semua akun pemakainya — dulu Admin bisa mengganti "Kasir" men
 
 ![Halaman Akses Menu per Role: role Operator dengan menu produksi & cetak tercentang](images/akun-6-akses.webp)
 
-Di **`/owner/akses-menu`**, pilih role di kiri lalu centang menu yang boleh
+Di **Pengaturan → Tim & Cabang → Akses Menu Role** (`/settings/akses-menu`), pilih role di kiri lalu centang menu yang boleh
 dilihat. Role *Operator* pada contoh masih memakai **preset** bawaan: menu
 produksi & cetak menyala, sementara laba kotor, cashflow, dan CRM padam.
 
 Owner dan Manajer/Admin selalu melihat semua menu — keduanya sengaja tidak bisa
 dibatasi supaya sistem tidak pernah terkunci dari pemiliknya sendiri.
+Karena itu, bila yang dipilih di kiri adalah *Owner*, *Manajer*, atau *Admin* (label **Semua**),
+daftar centang tidak muncul — pilih peran berlabel **Preset**/**Kustom** (mis. *Operator*,
+*Designer*). Untuk membatasi staf yang kini ber-peran Admin, pindahkan dulu akunnya ke peran
+yang bukan setingkat manajer (mis. *Kasir*/*CS*) di **Karyawan (Akun & PIN)** — ingat, ia lalu
+kehilangan hak manajer (menyetujui permintaan kas/edit nota, mengedit nota lunas, dll.).
+Halaman ini pindah dari kelompok "Analisa & Kalkulator" ke Pengaturan pada 22 September 2026;
+alamat lama `/owner/akses-menu` otomatis diarahkan ke sini.
 
 ### 7. Saat karyawan keluar, tutup dua pintunya sekaligus
 
@@ -147,7 +154,7 @@ kantor**.
 ## Akses menu per peran
 
 Kolom `roles.menu_access` menyimpan daftar menu yang boleh dilihat peran itu
-(JSON berisi href). Owner mengaturnya di **`/owner/akses-menu`** dengan
+(JSON berisi href). Owner mengaturnya di **Pengaturan → Tim & Cabang → Akses Menu Role** (`/settings/akses-menu`) dengan
 mencentang menu; kosong = pakai preset divisi bawaan. Ini cara membatasi,
 misalnya, agar kasir tidak melihat HPP dan laba.
 

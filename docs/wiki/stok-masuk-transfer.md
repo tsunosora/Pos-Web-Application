@@ -158,6 +158,16 @@ Sejak 22 September 2026 kolom **Dari Cabang** untuk staf selalu terisi
 cabangnya, juga setelah halaman dimuat ulang (dulu kosong dan transfer tidak bisa
 dikirim).
 
+## Perbaikan 22 September 2026 (putaran 10)
+
+- Jumlah transfer & pembelian harus **bilangan bulat** (stok disimpan per satuan utuh). Dulu
+  transfer 1,5 berakhir galat dan pembelian 2,5 dibulatkan diam-diam jadi 3 (0,4 jadi 0).
+- Menambah/mengubah pemasok & harga beli, serta melihat riwayat pembelian, hanya untuk peran
+  yang punya menu Stok. Matriks stok semua cabang khusus owner.
+- Menulis produk, harga, varian, bahan & harga bertingkat hanya untuk peran bermenu Stok
+  (dulu cukup login). Kategori: mengubah "hitung pcs" & kategori produksi (memengaruhi KPI
+  operator) khusus setingkat manajer; kategori maksimal dua tingkat.
+
 ## Halaman & tabel terkait
 
 | Halaman | Tabel utama |

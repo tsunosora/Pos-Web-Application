@@ -21,7 +21,7 @@ dan sebagian hanya untuk Owner/Manajer.
 | `/settings/backup` | [Backup & Restore](backup.md), jadwal, jumlah arsip yang disimpan | `store_settings` |
 | `/settings/login` | tampilan halaman login | `store_settings` |
 | `/settings/designers` | PIN kerja (kini digabung ke `/settings/users`) | `designers` |
-| `/owner/akses-menu` | menu apa yang boleh dilihat tiap peran | `roles.menu_access` |
+| `/settings/akses-menu` | menu apa yang boleh dilihat tiap peran | `roles.menu_access` |
 | `/owner/hpp-produk` | rumus HPP per produk | `hpp_worksheets` |
 
 ## Peta halaman pengaturan

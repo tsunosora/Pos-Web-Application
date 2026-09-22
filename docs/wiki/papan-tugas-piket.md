@@ -168,6 +168,28 @@ masing-masing — tanpa perlu login email. Lihat
 dari data — bukan diketik ulang tiap bulan. Tanda tangan penanggung jawab
 disimpan di pengaturan (`piket_signatures`) dan ikut tercetak.
 
+## Perbaikan 22 September 2026 (putaran 10)
+
+- Tombol **aktif/nonaktif jadwal** kini berfungsi (dulu selalu ditolak diam-diam).
+- Daftar jadwal, grup, dan ringkasan beban tugas hanya untuk owner/manajer.
+- Manajer cabang hanya bisa memberi tugas, jadwal, giliran, dan grup kepada karyawan cabangnya
+  sendiri. ID karyawan/grup yang tidak ada → pesan jelas (bukan galat).
+- **Pilih shift:** hanya shift yang memang dijadwalkan (atau LIBUR). Mengganti pilihan menghapus
+  kartu shift lain yang **belum lewat batas** saja — kartu yang sudah terlambat tetap tercatat
+  (dulu memilih LIBUR malam hari menghapus tugas yang terlewat).
+- Giliran yang jatuh ke karyawan nonaktif tidak lagi membuat kartu untuk akun mati (tercatat di
+  log; owner perlu merapikan daftar giliran).
+- Papan hanya memuat kartu **Selesai** 30 hari terakhir. Pop-up pengingat ikut segar setelah tugas
+  diselesaikan di papan.
+- Halaman ber-PIN berhenti menanyakan status piket bila PIN ditolak — dulu tiap menit dihitung
+  tebakan salah sampai IP toko terkunci 10 menit di semua halaman ber-PIN.
+- Unggahan lampiran tugas oleh non-manajer dihapus (dulu berkasnya tertinggal).
+- **Hari LIBUR (aturan owner 22 Sep 2026):** bagi karyawan yang **tinggal di toko** (yang punya
+  tugas piket di luar shift: rapikan tempat tidur, giliran dapur/toilet), tugas pada hari mereka
+  memilih LIBUR **tidak dihitung terlewat** — di rekap bulanan, Pantau Piket, maupun teguran
+  otomatis. Untuk karyawan yang tidak tinggal, LIBUR/izin hanya meniadakan checklist shift; tugas
+  lain yang jatuh tempo hari itu tetap dihitung.
+
 ## Endpoint terkait
 
 Versi login ada di `/task-board/*`, versi PIN di `/task-board/pin/*`

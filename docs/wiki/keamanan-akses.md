@@ -37,7 +37,7 @@ Akun berperan **Kasir** pada contoh di atas hanya melihat lima kelompok menu
 sementara akun Owner melihat dua belas termasuk Dashboard Owner, Inventori,
 Produksi & Cetak, WhatsApp CRM, Landing Page, dan Analisa & Kalkulator.
 
-Daftar menu tiap peran diatur di **`/owner/akses-menu`** — lihat
+Daftar menu tiap peran diatur di **Pengaturan → Tim & Cabang → Akses Menu Role** (`/settings/akses-menu`) — lihat
 [Akun & PIN Karyawan](karyawan-akun-pin.md).
 
 
@@ -67,7 +67,7 @@ sehingga levelnya berpindah (staf ↔ manajer), juga khusus Owner. Rinciannya di
 
 ### Contoh: memberi kasir akses Laporan Laba Kotor
 
-1. Owner membuka **Akses Menu Role** (`/owner/akses-menu`), pilih peran *Kasir*.
+1. Owner membuka **Pengaturan → Tim & Cabang → Akses Menu Role** (`/settings/akses-menu`), pilih peran *Kasir*.
 2. Centang **Laporan Laba Kotor**, simpan.
 3. Kasir langsung bisa membuka laporannya — tanpa logout, karena peran dibaca
    ulang di setiap permintaan. Menghapus centangnya menutup akses itu lagi,
@@ -264,6 +264,31 @@ Sejak 22 September 2026:
 - Webhook GitHub memverifikasi tanda tangan atas body mentah. **Disarankan owner
   mengisi rahasia webhook GitHub** (Pengaturan → Integrasi) — selama kosong,
   pemberitahuan commit diterima tanpa verifikasi.
+
+## Pengetatan 22 September 2026 (putaran 10)
+
+- **Celah kritis ditutup (dipasang 09.37 saat toko buka, atas izin owner).** Beberapa endpoint
+  (Batch, Satuan, dan lainnya) meneruskan isi permintaan utuh ke basis data. Akun login mana pun
+  bisa menyelipkan "tulisan bersarang" dan menjadikan dirinya **Owner**, mengganti sandi rekan,
+  atau mengarsipkan semua produk. Kini:
+  - kolom Batch & Satuan disaring satu per satu;
+  - **pengaman global** menolak (400 "Format permintaan tidak dikenal.") setiap body yang memuat
+    kunci operator basis data (`connect`, `create`, `update`, `upsert`, `delete`, `set`, …) berisi
+    objek. Webhook Meta/GitHub dikecualikan. Penolakan tercatat di log dengan awalan
+    `[SECURITY] body berisi operator Prisma`.
+  Tidak ada jejak celah ini pernah dipakai (tabel batch kosong, akun Owner tidak berubah).
+- **Menu = hak akses di server** untuk: Kas & permintaan ubah kas (`/cashflow`), tulis produk,
+  harga, varian & pemasok (`/inventory`), template pesan (`/crm/templates`), order cabang
+  (`/branch-orders`), dan daftar kanal WA (`/crm/whatsapp`). Dulu cukup login.
+- **Sesi papan kerja ber-PIN** gugur bila karyawan dinonaktifkan atau PIN (pribadi maupun PIN
+  operator cabang) diganti — paling lambat 30 detik. Dulu berlaku 24 jam.
+- **Webhook Discord** hanya menerima alamat `https://discord.com/api/webhooks/…`. Admin cabang
+  hanya boleh mengubah webhook cabangnya sendiri; webhook global, daftar notifikasi & tombol
+  aktif khusus owner.
+- **Katalog WA:** ID produk harus angka & milik katalog kanal itu. Dulu ID berisi `%2F` bisa
+  menghapus template WA, katalog, atau iklan lewat token toko.
+- Persetujuan edit nota, pratinjau template, dan follow-up memeriksa cabang lead/nota.
+- PIN dibandingkan dalam waktu tetap (tidak bisa ditebak dari selisih waktu jawaban).
 
 ## Hal lain yang patut diperhatikan
 

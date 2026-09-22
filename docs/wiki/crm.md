@@ -479,6 +479,25 @@ Gunakan untuk:
 
 ---
 
+## Perbaikan 22 September 2026 (putaran 10)
+
+- **Menutup lead** hanya lewat alurnya: Konversi, Tandai Lost (dengan alasan), atau Invalid.
+  Menyeret kartu Kanban ke kolom Closing/Lost kini membuka detail lead. Lead yang sudah menjadi
+  nota tidak bisa dibuka kembali (omzet nota itu dulu hilang dari papan peringkat CS).
+- Mengedit lead tidak lagi "menghidupkan" follow-up yang sudah selesai (dulu tanggal lama dikirim
+  ulang → follow-up PENDING bertanggal lampau, pengingat WA terkirim lagi, KPI kepatuhan turun).
+  Mengosongkan tanggal follow-up/tenggat di form edit kini tersimpan.
+- Satu Sales Order hanya boleh tertaut ke satu lead (dulu lead ganda WA + IG menggandakan
+  omzet & closing). Konversi lead serentak dari dua tab ditolak (dulu nota/DP/stok dobel).
+- Item lead divalidasi sebelum item lama dihapus (dulu satu varian terhapus membuat semua item
+  lead hilang).
+- Pratinjau template & follow-up tidak bisa memakai lead cabang lain. Menulis template hanya
+  pemegang menu Template Pesan.
+- Tautan `?leadId=` ke lead yang tak ditemukan kini menutup laci dengan pesan (dulu spinner
+  layar penuh tanpa henti).
+- Daftar kanal WA terbuka untuk semua pemakai Inbox WA; peran "Manajer" setara Admin di
+  katalog & template WA.
+
 ## 🆘 Troubleshooting
 
 ### "Saya set tanggal FU di lead tapi tidak muncul di /crm/follow-ups"

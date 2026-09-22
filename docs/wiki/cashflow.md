@@ -370,6 +370,21 @@ File berisi kolom: Tanggal, Tipe, Kategori, Keterangan, Nominal. Siap dibuka di 
 
 ---
 
+
+## Perbaikan 22 September 2026 (putaran 10)
+
+- Halaman & endpoint Kas hanya untuk peran yang punya menu Kas (kasir & setingkat manajer).
+  Dulu akun desainer/operator bisa mencatat pengeluaran lewat API → ekspektasi kas laci berubah.
+- **Kas otomatis** (dari nota, tutup buku, titipan, biaya sub/printing luar): nominal, metode,
+  rekening & kategori tidak bisa diubah — ubah lewat asalnya. Catatan boleh diubah asal tetap
+  memuat "Invoice …". **Kas yang sudah masuk tutup shift**: nominal/metode/rekening dikunci
+  (catat entri koreksi). Berlaku juga untuk permintaan ubah & persetujuannya.
+- Form ubah memakai rekening asli entri (dulu dicocokkan per nama bank → dua rekening "BCA"
+  membuat entri pindah rekening diam-diam). Rekening harus ada & milik cabang entri.
+- Layar persetujuan menampilkan perubahan metode, rekening, dan platform yang diusulkan.
+- "Supervisor"/"Kepala Toko" kini bisa menyetujui permintaan (dulu melihat panel tapi ditolak).
+- Kas manual yang menyebut nomor nota tidak lagi ikut terhapus/terkoreksi bersama nota itu.
+
 ## Pertanyaan Umum
 
 **Q: Kenapa ada entri cashflow yang tidak bisa saya hapus?**

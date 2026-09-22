@@ -272,6 +272,15 @@ koreksinya lewat menu Kas.
 
 ---
 
+### Perbaikan 22 September 2026 (putaran 10)
+
+- **Diserahkan / Konfirmasi Sudah Diambil** hanya dari status *Siap Ambil*. Dulu API menerima
+  status apa pun (termasuk BARU) — titipan hilang dari tab "Baru Masuk" cabang pelaksana dan
+  hutang tercatat untuk pekerjaan yang belum dibuat. Klik ganda tetap dianggap berhasil.
+- Laporan **Pemakaian Bahan Antar Cabang** kini mengurangkan bahan yang kembali (qty nota
+  diturunkan / gulungan dikembalikan). Dulu nota 10 → diedit 4 tetap terhitung 10. Periode ramai
+  tidak lagi terpotong diam-diam; ekspor CSV aman dari rumus & kolom total berisi total varian.
+
 ## 🏷️ Badge Titipan di Berbagai Halaman
 
 Konsistensi visual badge `⚑ Titipan BTL → PST` (amber) atau `🏢 PST` (sky biasa) ada di:

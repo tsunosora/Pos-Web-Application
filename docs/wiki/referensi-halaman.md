@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-**104 halaman** di aplikasi. **57** di antaranya punya menu di sidebar;
+**105 halaman** di aplikasi. **56** di antaranya punya menu di sidebar;
 sisanya dibuka dari dalam halaman lain (detail, form), lewat PIN (papan kerja),
 atau memang halaman publik tanpa login.
 
@@ -63,7 +63,7 @@ atau memang halaman publik tanpa login.
 | `/nilai/cabang/[branchId]` | — | — | — | `frontend/src/app/nilai/cabang/[branchId]/page.tsx` |
 | `/opname/[token]` | — | — | — | `frontend/src/app/opname/[token]/page.tsx` |
 | `/owner` | Dashboard Owner | (tautan atas) | Owner | `frontend/src/app/owner/page.tsx` |
-| `/owner/akses-menu` | Akses Menu Role | Analisa & Kalkulator | Owner | `frontend/src/app/owner/akses-menu/page.tsx` |
+| `/owner/akses-menu` | — | — | — | `frontend/src/app/owner/akses-menu/page.tsx` |
 | `/owner/analisa-keuangan` | — | — | — | `frontend/src/app/owner/analisa-keuangan/page.tsx` |
 | `/owner/hpp-produk` | Rumus HPP per Produk | Analisa & Kalkulator | Owner | `frontend/src/app/owner/hpp-produk/page.tsx` |
 | `/owner/iklan` | Iklan Meta | WhatsApp CRM | Owner | `frontend/src/app/owner/iklan/page.tsx` |
@@ -86,6 +86,7 @@ atau memang halaman publik tanpa login.
 | `/sales-orders/[id]` | — | — | — | `frontend/src/app/sales-orders/[id]/page.tsx` |
 | `/sales-orders/new` | — | — | — | `frontend/src/app/sales-orders/new/page.tsx` |
 | `/settings` | — | — | — | `frontend/src/app/settings/page.tsx` |
+| `/settings/akses-menu` | — | — | — | `frontend/src/app/settings/akses-menu/page.tsx` |
 | `/settings/backup` | — | — | — | `frontend/src/app/settings/backup/page.tsx` |
 | `/settings/bank-accounts` | — | — | — | `frontend/src/app/settings/bank-accounts/page.tsx` |
 | `/settings/branch-config` | — | — | — | `frontend/src/app/settings/branch-config/page.tsx` |
@@ -140,6 +141,7 @@ papan kerja ber-PIN, atau halaman publik.
 - `/nilai/[token]` _(jalur dinamis)_
 - `/nilai/cabang/[branchId]` _(jalur dinamis)_
 - `/opname/[token]` _(jalur dinamis)_
+- `/owner/akses-menu`
 - `/owner/analisa-keuangan`
 - `/owner/laporan-bulanan`
 - `/p/[id]` _(jalur dinamis)_
@@ -148,6 +150,7 @@ papan kerja ber-PIN, atau halaman publik.
 - `/sales-orders/[id]` _(jalur dinamis)_
 - `/sales-orders/new`
 - `/settings`
+- `/settings/akses-menu`
 - `/settings/backup`
 - `/settings/bank-accounts`
 - `/settings/branch-config`

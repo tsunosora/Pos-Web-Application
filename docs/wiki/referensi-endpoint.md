@@ -233,24 +233,24 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
 | GET | `/branch-stock/list` | `list` | `JwtAuthGuard` | — |
-| GET | `/branch-stock/matrix` | `matrix` | `JwtAuthGuard` | — |
+| GET | `/branch-stock/matrix` | `matrix` | `OwnerGuard` | — |
 | GET | `/branch-stock/variant/:variantId` | `getStock` | `JwtAuthGuard` | — |
 | POST | `/branch-stock/adjust` | `adjust` | `ManagerGuard` | — |
 
 ## BranchWorkOrdersController — `/branch-work-orders`
 
 Berkas: `backend/src/branch-work-orders/branch-work-orders.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| GET | `/branch-work-orders/summary` | `getSummary` | `JwtAuthGuard` | — |
-| GET | `/branch-work-orders` | `list` | `JwtAuthGuard` | — |
-| GET | `/branch-work-orders/:id` | `findOne` | `JwtAuthGuard` | — |
-| POST | `/branch-work-orders` | `create` | `JwtAuthGuard` | — |
-| POST | `/branch-work-orders/:id/proof` | `uploadProof` | `JwtAuthGuard` | — |
-| PATCH | `/branch-work-orders/:id/status` | `updateStatus` | `JwtAuthGuard` | — |
-| PATCH | `/branch-work-orders/:id/items/:itemId/toggle` | `toggleItemDone` | `JwtAuthGuard` | — |
+| GET | `/branch-work-orders/summary` | `getSummary` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/branch-work-orders` | `list` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/branch-work-orders/:id` | `findOne` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/branch-work-orders` | `create` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/branch-work-orders/:id/proof` | `uploadProof` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/branch-work-orders/:id/status` | `updateStatus` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/branch-work-orders/:id/items/:itemId/toggle` | `toggleItemDone` | `JwtAuthGuard, MenuGuard` | — |
 
 ## BranchesController — `/branches`
 
@@ -260,38 +260,38 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
 | GET | `/branches` | `findAll` | `JwtAuthGuard` | — |
-| POST | `/branches` | `create` | `JwtAuthGuard` | — |
-| PATCH | `/branches/:id` | `update` | `JwtAuthGuard` | — |
-| DELETE | `/branches/:id` | `remove` | `JwtAuthGuard` | — |
+| POST | `/branches` | `create` | `ManagerGuard` | — |
+| PATCH | `/branches/:id` | `update` | `ManagerGuard` | — |
+| DELETE | `/branches/:id` | `remove` | `ManagerGuard` | — |
 
 ## CashflowController — `/cashflow`
 
 Berkas: `backend/src/cashflow/cashflow.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/cashflow` | `create` | `JwtAuthGuard` | — |
-| GET | `/cashflow` | `findAll` | `JwtAuthGuard` | — |
-| GET | `/cashflow/monthly-trend` | `getMonthlyTrend` | `JwtAuthGuard` | — |
-| GET | `/cashflow/bank-accounts-summary` | `getBankAccountsSummary` | `JwtAuthGuard` | — |
-| GET | `/cashflow/category-breakdown` | `getCategoryBreakdown` | `JwtAuthGuard` | — |
-| GET | `/cashflow/platform-breakdown` | `getPlatformBreakdown` | `JwtAuthGuard` | — |
+| POST | `/cashflow` | `create` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow` | `findAll` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow/monthly-trend` | `getMonthlyTrend` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow/bank-accounts-summary` | `getBankAccountsSummary` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow/category-breakdown` | `getCategoryBreakdown` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow/platform-breakdown` | `getPlatformBreakdown` | `JwtAuthGuard, MenuGuard` | — |
 | PATCH | `/cashflow/:id` | `update` | `ManagerGuard` | — |
 | DELETE | `/cashflow/:id` | `remove` | `ManagerGuard` | — |
 
 ## CashflowRequestsController — `/cashflow-requests`
 
 Berkas: `backend/src/cashflow-requests/cashflow-requests.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/cashflow-requests` | `create` | `JwtAuthGuard` | — |
-| GET | `/cashflow-requests/pending` | `getPending` | `JwtAuthGuard` | — |
-| GET | `/cashflow-requests/mine` | `getMine` | `JwtAuthGuard` | — |
-| PATCH | `/cashflow-requests/:id/approve` | `approve` | `JwtAuthGuard` | — |
-| PATCH | `/cashflow-requests/:id/reject` | `reject` | `JwtAuthGuard` | — |
+| POST | `/cashflow-requests` | `create` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow-requests/pending` | `getPending` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/cashflow-requests/mine` | `getMine` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/cashflow-requests/:id/approve` | `approve` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/cashflow-requests/:id/reject` | `reject` | `JwtAuthGuard, MenuGuard` | — |
 
 ## CategoriesController — `/categories`
 
@@ -300,10 +300,10 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/categories` | `create` | `JwtAuthGuard` | — |
+| POST | `/categories` | `create` | `MenuGuard` | — |
 | GET | `/categories` | `findAll` | `JwtAuthGuard` | — |
 | GET | `/categories/:id` | `findOne` | `JwtAuthGuard` | — |
-| PATCH | `/categories/:id` | `update` | `JwtAuthGuard` | — |
+| PATCH | `/categories/:id` | `update` | `MenuGuard` | — |
 | DELETE | `/categories/:id` | `remove` | `ManagerGuard` | — |
 
 ## ClickCountingController — `/click-counting`
@@ -456,11 +456,11 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 |---|---|---|---|---|
 | GET | `/crm/templates` | `list` | `JwtAuthGuard` | — |
 | GET | `/crm/templates/:id` | `detail` | `JwtAuthGuard` | — |
-| POST | `/crm/templates` | `create` | `JwtAuthGuard` | — |
-| PATCH | `/crm/templates/:id` | `update` | `JwtAuthGuard` | — |
-| DELETE | `/crm/templates/:id` | `remove` | `JwtAuthGuard` | — |
+| POST | `/crm/templates` | `create` | `MenuGuard` | — |
+| PATCH | `/crm/templates/:id` | `update` | `MenuGuard` | — |
+| DELETE | `/crm/templates/:id` | `remove` | `MenuGuard` | — |
 | GET | `/crm/templates/:id/render` | `render` | `JwtAuthGuard` | — |
-| POST | `/crm/templates/seed-defaults` | `seed` | `JwtAuthGuard` | — |
+| POST | `/crm/templates/seed-defaults` | `seed` | `MenuGuard` | — |
 
 ## CsRatingController — `/cs-rating`
 
@@ -472,7 +472,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | POST | `/cs-rating/invite` | `invite` | `JwtAuthGuard` | — |
 | GET | `/cs-rating/summary` | `summary` | `JwtAuthGuard` | — |
 | GET | `/cs-rating/config` | `config` | `JwtAuthGuard` | — |
-| PATCH | `/cs-rating/config` | `upsertConfig` | `JwtAuthGuard` | — |
+| PATCH | `/cs-rating/config` | `upsertConfig` | `ManagerGuard` | — |
 
 ## CsRatingPublicController — `/cs-rating/public`
 
@@ -743,35 +743,35 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 ## ProductsController — `/products`
 
 Berkas: `backend/src/products/products.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/products` | `create` | `JwtAuthGuard` | — |
-| POST | `/products/bulk-import` | `bulkImport` | `JwtAuthGuard` | — |
+| POST | `/products` | `create` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/products/bulk-import` | `bulkImport` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/products/bulk` | `bulkRemove` | `ManagerGuard` | — |
-| GET | `/products` | `findAll` | `JwtAuthGuard` | — |
-| GET | `/products/:id` | `findOne` | `JwtAuthGuard` | — |
-| GET | `/products/:id/composite/options` | `getCompositeOptions` | `JwtAuthGuard` | — |
-| POST | `/products/:id/composite/compute` | `computeComposite` | `JwtAuthGuard` | — |
-| PATCH | `/products/:id` | `update` | `JwtAuthGuard` | — |
+| GET | `/products` | `findAll` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/products/:id` | `findOne` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/products/:id/composite/options` | `getCompositeOptions` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/products/:id/composite/compute` | `computeComposite` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/products/:id` | `update` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/products/:id` | `remove` | `ManagerGuard` | — |
-| POST | `/products/:id/variants` | `addVariant` | `JwtAuthGuard` | — |
-| PATCH | `/products/variants/:variantId` | `updateVariant` | `JwtAuthGuard` | — |
+| POST | `/products/:id/variants` | `addVariant` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/products/variants/:variantId` | `updateVariant` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/products/variants/:variantId` | `removeVariant` | `ManagerGuard` | — |
-| POST | `/products/:id/upload-image` | `` | `JwtAuthGuard` | — |
-| POST | `/products/:id/upload-images` | `` | `JwtAuthGuard` | — |
-| POST | `/products/variants/:variantId/upload-image` | `` | `JwtAuthGuard` | — |
-| POST | `/products/:id/ingredients` | `addIngredient` | `JwtAuthGuard` | — |
-| PATCH | `/products/:id/ingredients/:ingId` | `updateIngredient` | `JwtAuthGuard` | — |
+| POST | `/products/:id/upload-image` | `` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/products/:id/upload-images` | `` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/products/variants/:variantId/upload-image` | `` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/products/:id/ingredients` | `addIngredient` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/products/:id/ingredients/:ingId` | `updateIngredient` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/products/:id/ingredients/:ingId` | `removeIngredient` | `ManagerGuard` | — |
-| GET | `/products/variants/:variantId/price-tiers` | `getPriceTiers` | `JwtAuthGuard` | — |
-| PUT | `/products/variants/:variantId/price-tiers` | `replacePriceTiers` | `JwtAuthGuard` | — |
+| GET | `/products/variants/:variantId/price-tiers` | `getPriceTiers` | `JwtAuthGuard, MenuGuard` | — |
+| PUT | `/products/variants/:variantId/price-tiers` | `replacePriceTiers` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/products/variants/:variantId/price-tiers/:tierId` | `removePriceTier` | `ManagerGuard` | — |
-| GET | `/products/variants/:variantId/variant-ingredients` | `getVariantIngredients` | `JwtAuthGuard` | — |
-| PUT | `/products/variants/:variantId/variant-ingredients` | `replaceVariantIngredients` | `JwtAuthGuard` | — |
+| GET | `/products/variants/:variantId/variant-ingredients` | `getVariantIngredients` | `JwtAuthGuard, MenuGuard` | — |
+| PUT | `/products/variants/:variantId/variant-ingredients` | `replaceVariantIngredients` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/products/variants/:variantId/variant-ingredients/:ingId` | `removeVariantIngredient` | `ManagerGuard` | — |
-| GET | `/products/variants/:variantId/stock-history` | `getVariantStockHistory` | `JwtAuthGuard` | — |
+| GET | `/products/variants/:variantId/stock-history` | `getVariantStockHistory` | `JwtAuthGuard, MenuGuard` | — |
 
 ## ProductsPublicController — `/products/public`
 
@@ -946,15 +946,15 @@ Berkas: `backend/src/stock-opname/stock-opname.controller.ts`
 ## StockOpnameAdminController — `/stock-opname/sessions`
 
 Berkas: `backend/src/stock-opname/stock-opname.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| POST | `/stock-opname/sessions` | `start` | `JwtAuthGuard` | — |
-| GET | `/stock-opname/sessions` | `list` | `JwtAuthGuard` | — |
-| GET | `/stock-opname/sessions/:id` | `detail` | `JwtAuthGuard` | — |
-| PATCH | `/stock-opname/sessions/:id/cancel` | `cancel` | `JwtAuthGuard` | — |
-| POST | `/stock-opname/sessions/:id/finish` | `finish` | `JwtAuthGuard` | — |
+| POST | `/stock-opname/sessions` | `start` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/stock-opname/sessions` | `list` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/stock-opname/sessions/:id` | `detail` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/stock-opname/sessions/:id/cancel` | `cancel` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/stock-opname/sessions/:id/finish` | `finish` | `JwtAuthGuard, MenuGuard` | — |
 
 ## StockPurchasesController — `/stock-purchases`
 
@@ -964,7 +964,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
 | POST | `/stock-purchases` | `create` | `MenuGuard` | — |
-| GET | `/stock-purchases` | `findAll` | `JwtAuthGuard` | — |
+| GET | `/stock-purchases` | `findAll` | `MenuGuard` | — |
 
 ## StockTransferController — `/stock-transfers`
 
@@ -1006,17 +1006,17 @@ Penjaga tingkat kelas: `JwtAuthGuard, RolesGuard`
 ## SuppliersController — `/suppliers`
 
 Berkas: `backend/src/suppliers/suppliers.controller.ts`
-Penjaga tingkat kelas: `JwtAuthGuard`
+Penjaga tingkat kelas: `JwtAuthGuard, MenuGuard`
 
 | Metode | Jalur | Handler | Penjaga | Peran |
 |---|---|---|---|---|
-| GET | `/suppliers` | `findAll` | `JwtAuthGuard` | — |
-| GET | `/suppliers/:id` | `findOne` | `JwtAuthGuard` | — |
-| POST | `/suppliers` | `create` | `JwtAuthGuard` | — |
-| PATCH | `/suppliers/:id` | `update` | `JwtAuthGuard` | — |
+| GET | `/suppliers` | `findAll` | `JwtAuthGuard, MenuGuard` | — |
+| GET | `/suppliers/:id` | `findOne` | `JwtAuthGuard, MenuGuard` | — |
+| POST | `/suppliers` | `create` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/suppliers/:id` | `update` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/suppliers/:id` | `remove` | `ManagerGuard` | — |
-| POST | `/suppliers/:id/items` | `addItem` | `JwtAuthGuard` | — |
-| PATCH | `/suppliers/items/:itemId` | `updateItem` | `JwtAuthGuard` | — |
+| POST | `/suppliers/:id/items` | `addItem` | `JwtAuthGuard, MenuGuard` | — |
+| PATCH | `/suppliers/items/:itemId` | `updateItem` | `JwtAuthGuard, MenuGuard` | — |
 | DELETE | `/suppliers/items/:itemId` | `removeItem` | `ManagerGuard` | — |
 
 ## SyncController — `/sync`
@@ -1171,7 +1171,7 @@ Berkas: `backend/src/whatsapp-cloud/whatsapp-cloud.controller.ts`
 | GET | `/whatsapp/access-token` | `getAccessToken` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | GET | `/whatsapp/access-token/debug` | `debugAccessToken` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | POST | `/whatsapp/access-token` | `setAccessToken` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
-| GET | `/whatsapp/channels` | `listChannels` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
+| GET | `/whatsapp/channels` | `listChannels` | `JwtAuthGuard, MenuGuard` | — |
 | POST | `/whatsapp/channels` | `createChannel` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | PATCH | `/whatsapp/channels/:id` | `updateChannel` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |
 | DELETE | `/whatsapp/channels/:id` | `deleteChannel` | `JwtAuthGuard, RolesGuard` | `...ADMIN_ROLES` |

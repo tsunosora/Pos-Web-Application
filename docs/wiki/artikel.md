@@ -60,6 +60,12 @@ Facebook sudah tampil rapi tanpa diatur lagi.
 - **Blok di landing**: tambahkan blok **"Daftar Artikel"** di Landing Builder untuk menampilkan kartu artikel terbaru (atur jumlah, kolom, tautan "Lihat semua").
 - Hanya artikel berstatus **Terbit** yang tampil ke publik.
 
+### Perbaikan 22 September 2026
+
+Halaman artikel publik `/artikel/<slug>` sempat selalu **404** sejak pembaruan Next.js 16
+(parameter halaman kini berupa Promise). Sudah diperbaiki; tautan dari daftar artikel di landing
+kembali terbuka.
+
 ## Domain
 Halaman `/artikel` juga otomatis tersedia di domain custom landing (lihat [Landing Page](landing.md)).
 
