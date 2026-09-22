@@ -1,4 +1,5 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import { samaAman } from '../common/utils/sama-aman';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -144,7 +145,7 @@ export class HrSummaryService {
             where: { id },
             select: { id: true, pin: true, isActive: true, userId: true },
         });
-        if (!d || !d.isActive || d.pin !== pin) throw new UnauthorizedException('PIN salah.');
+        if (!d || !d.isActive || !samaAman(d.pin, pin)) throw new UnauthorizedException('PIN salah.');
 
         // Belum ditautkan ke akun login → tidak ada portal yang bisa ditunjuk.
         if (!d.userId) return { found: false };

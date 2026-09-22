@@ -110,8 +110,10 @@ export default function DiscordSettingsPage() {
             await updateDiscordConfig({ webhooks: form.webhooks, branchConfigs: form.branchConfigs });
             const res = await testDiscordChannel(channel, scope === 'global' ? null : scope);
             setTestResult(r => ({ ...r, [channel]: (res.ok ? '✅ ' : '❌ ') + res.message }));
-        } catch {
-            setTestResult(r => ({ ...r, [channel]: '❌ Gagal menghubungi server.' }));
+        } catch (e: any) {
+            // Alasan dari server (mis. URL bukan webhook Discord / bukan cabang Anda) lebih berguna.
+            const m = e?.response?.data?.message;
+            setTestResult(r => ({ ...r, [channel]: '❌ ' + (Array.isArray(m) ? m.join(', ') : m || 'Gagal menghubungi server.') }));
         } finally {
             setTesting(null);
         }

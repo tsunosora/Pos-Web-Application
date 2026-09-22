@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ManagerGuard } from '../auth/role-groups';
+import { CurrentBranch } from '../common/branch-context.decorator';
+import type { BranchContext } from '../common/branch-context.decorator';
 import {
     DiscordService, DiscordChannel, DISCORD_CHANNELS, DiscordConfigShape,
 } from './discord.service';
@@ -17,8 +19,8 @@ export class DiscordController {
     }
 
     @Patch('config')
-    update(@Body() body: Partial<DiscordConfigShape>) {
-        return this.discord.updateConfig(body);
+    update(@Body() body: Partial<DiscordConfigShape>, @CurrentBranch() ctx: BranchContext) {
+        return this.discord.updateConfig(body, { isOwner: ctx.isOwner, branchId: ctx.userBranchId });
     }
 
     /** Kirim pesan test ke salah satu channel (branchId opsional di body — null = global). */

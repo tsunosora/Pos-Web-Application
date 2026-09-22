@@ -26,11 +26,51 @@ export function pilihKolomKasManual(data: any) {
     };
 }
 
+const KATEGORI_OTOMATIS = [...KATEGORI_PENJUALAN, 'PENGOSONGAN_SALDO', 'MODAL_MASUK', 'INTER_BRANCH_SETTLEMENT', 'Biaya Platform', 'Biaya Sub / Printing Luar'];
+
 export function alasanKasTakBisaDihapus(cf: any): string | null {
-    const otomatis = [...KATEGORI_PENJUALAN, 'PENGOSONGAN_SALDO', 'MODAL_MASUK', 'INTER_BRANCH_SETTLEMENT', 'Biaya Platform'];
+    const otomatis = KATEGORI_OTOMATIS;
     if (cf.userId == null && otomatis.includes(String(cf.category))) return 'Kas ini dibuat otomatis (nota / tutup buku / titipan) — ubah lewat asalnya, bukan dihapus.';
     if (cf.shiftReportId != null) return 'Kas ini sudah masuk laporan shift yang ditutup — catat entri koreksi (kebalikannya) alih-alih menghapus.';
     return null;
+}
+
+/**
+ * Perubahan yang ditolak pada kas otomatis / kas shift yang sudah ditutup. Dulu "Ubah" melewati
+ * semua pengaman hapus: catatan kas nota bisa diganti (saat nota dihapus kasnya tak ketemu →
+ * pemasukan yatim), nominal kas yang sudah direkonsiliasi di tutup shift bisa diubah.
+ * Hanya kolom yang BENAR-BENAR berubah yang dinilai (form mengirim ulang semua kolom).
+ */
+export function alasanKasTakBisaDiubah(cf: any, d: Record<string, any>): string | null {
+    const uangBerubah =
+        (d.amount !== undefined && Math.abs(Number(d.amount) - Number(cf.amount)) >= 0.005) ||
+        (d.paymentMethod !== undefined && (d.paymentMethod ?? null) !== (cf.paymentMethod ?? null)) ||
+        (d.bankAccountId !== undefined && (d.bankAccountId ?? null) !== (cf.bankAccountId ?? null));
+    if (cf.userId == null && KATEGORI_OTOMATIS.includes(String(cf.category))) {
+        if (uangBerubah || (d.category !== undefined && d.category !== cf.category)) {
+            return 'Kas ini dibuat otomatis (nota / tutup buku / titipan) — nominal, metode, rekening & kategori diubah lewat asalnya. Yang boleh diubah hanya catatan.';
+        }
+        const nota = /Invoice (\S+)/.exec(String(cf.note ?? ''))?.[1];
+        if (nota && d.note !== undefined && !String(d.note ?? '').includes(nota)) {
+            return `Catatan kas otomatis harus tetap memuat "Invoice ${nota}" — dipakai untuk menautkan kas ke notanya.`;
+        }
+    }
+    if (cf.shiftReportId != null && uangBerubah) {
+        return 'Kas ini sudah masuk laporan shift yang ditutup — nominal, metode & rekening tidak bisa diubah. Catat entri koreksi.';
+    }
+    return null;
+}
+
+/**
+ * Rekening kas harus ada & boleh dipakai cabang entri (rekening tanpa cabang = bersama).
+ * Dulu tidak dicek: ID asal → 500, kasir cabang 2 bisa menempelkan rekening cabang 1.
+ */
+export async function cekRekeningKas(prisma: any, bankAccountId: number | null | undefined, branchId: number | null | undefined) {
+    if (bankAccountId == null) return;
+    if (!Number.isInteger(Number(bankAccountId)) || Number(bankAccountId) <= 0) throw new BadRequestException('Rekening tidak valid.');
+    const r = await prisma.bankAccount.findUnique({ where: { id: Number(bankAccountId) }, select: { branchId: true } });
+    if (!r) throw new BadRequestException('Rekening tidak ditemukan.');
+    if (r.branchId != null && branchId != null && r.branchId !== branchId) throw new BadRequestException('Rekening itu milik cabang lain.');
 }
 import { PrismaService } from '../prisma/prisma.service';
 import { CashflowType, Prisma } from '@prisma/client';
@@ -96,6 +136,7 @@ export class CashflowService {
     ) {
         const branchId = requireBranch(branchCtx);
         const { bankAccountId, ...kolom } = pilihKolomKasManual(data);
+        await cekRekeningKas(this.prisma, bankAccountId, branchId);
         const rest = {
             ...kolom,
             ...((data as any).user ? { user: (data as any).user } : {}), // disisipkan controller (akun pencatat)
@@ -285,7 +326,10 @@ export class CashflowService {
             if (data.paymentMethod != null && !['CASH', 'QRIS', 'BANK_TRANSFER'].includes(String(data.paymentMethod))) throw new BadRequestException('Metode bayar tidak dikenal.');
             d.paymentMethod = data.paymentMethod;
         }
-        if (data.bankAccountId !== undefined) d.bankAccountId = data.bankAccountId == null ? null : Number(data.bankAccountId);
+        if (data.bankAccountId !== undefined) d.bankAccountId = data.bankAccountId == null || (data.bankAccountId as any) === '' ? null : Number(data.bankAccountId);
+        const alasan = alasanKasTakBisaDiubah(entry, d);
+        if (alasan) throw new BadRequestException(alasan);
+        if (d.bankAccountId != null && d.bankAccountId !== (entry as any).bankAccountId) await cekRekeningKas(this.prisma, d.bankAccountId, (entry as any).branchId);
         return this.prisma.cashflow.update({ where: { id }, data: d });
     }
 

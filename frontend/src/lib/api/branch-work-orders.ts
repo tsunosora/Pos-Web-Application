@@ -15,7 +15,8 @@ export interface BranchWOItem {
     isDone: boolean;
     productVariant: {
         id: number;
-        name: string;
+        name?: string;
+        variantName?: string | null;
         product: { id: number; name: string; pricingMode: string };
     };
 }

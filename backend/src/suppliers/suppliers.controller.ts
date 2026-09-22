@@ -11,9 +11,11 @@ import {
 } from '@nestjs/common';
 import { SuppliersService } from './suppliers.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ManagerGuard } from '../auth/role-groups';
+import { ManagerGuard, Menu, MenuGuard } from '../auth/role-groups';
 
-@UseGuards(JwtAuthGuard)
+// Pemasok & harga beli = menu Stok (dulu cukup login: peran apa pun bisa mengubah harga beli).
+@UseGuards(JwtAuthGuard, MenuGuard)
+@Menu('/inventory')
 @Controller('suppliers')
 export class SuppliersController {
   constructor(private readonly suppliersService: SuppliersService) {}

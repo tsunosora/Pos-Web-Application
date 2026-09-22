@@ -65,6 +65,10 @@ export class StockTransferService {
             if (!it.productVariantId || !it.quantity || it.quantity <= 0) {
                 throw new BadRequestException('Item tidak valid (variant & quantity > 0 wajib).');
             }
+            // Stok cabang disimpan per satuan utuh: 1,5 dulu lolos lalu gagal 500 di basis data.
+            if (!Number.isInteger(Number(it.quantity))) {
+                throw new BadRequestException('Jumlah transfer harus bilangan bulat (stok disimpan per satuan utuh).');
+            }
             const variant = await (this.prisma as any).productVariant.findUnique({
                 where: { id: it.productVariantId },
                 select: { id: true, sku: true, variantName: true, product: { select: { name: true, trackStock: true } } },

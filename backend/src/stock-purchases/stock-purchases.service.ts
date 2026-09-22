@@ -23,6 +23,7 @@ export class StockPurchasesService {
         for (const it of data.items) {
             const q = Number(it?.quantity);
             if (!Number.isFinite(q) || q <= 0 || q > 1_000_000) throw new BadRequestException('Jumlah pembelian tiap item harus lebih dari 0.');
+            if (!Number.isInteger(q)) throw new BadRequestException('Jumlah pembelian harus bilangan bulat (stok disimpan per satuan utuh).');
             if (it.unitPrice != null && (!Number.isFinite(Number(it.unitPrice)) || Number(it.unitPrice) < 0)) throw new BadRequestException('Harga beli tidak boleh negatif.');
         }
 

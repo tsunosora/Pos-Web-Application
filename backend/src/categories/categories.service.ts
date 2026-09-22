@@ -1,11 +1,26 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+
+const TOLAK_KPI = 'Pengaturan hitung pcs & kategori produksi memengaruhi KPI operator — hanya owner/manajer yang boleh mengubahnya.';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) {
+  /** Kategori hanya dua tingkat: halaman Kategori hanya menampilkan induk → anak (cucu/lingkaran hilang dari layar). */
+  private async cekInduk(id: number | null, parentId: number | null | undefined) {
+    if (parentId == null) return;
+    const induk = await (this.prisma as any).category.findUnique({ where: { id: Number(parentId) }, select: { id: true, parentId: true } });
+    if (!induk) throw new BadRequestException('Kategori induk tidak ditemukan.');
+    if (induk.parentId != null) throw new BadRequestException('Kategori induk harus kategori utama (maksimal dua tingkat).');
+    if (id != null && (await (this.prisma as any).category.count({ where: { parentId: id } })) > 0) {
+      throw new BadRequestException('Kategori ini punya sub-kategori — tidak bisa dijadikan sub-kategori.');
+    }
+  }
+
+  async create(data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }, bolehKpi = true) {
+    if (!bolehKpi && (data.productionCategoryId != null || data.countsAsPcs === false)) throw new ForbiddenException(TOLAK_KPI);
+    await this.cekInduk(null, data.parentId);
     // Cek nama duplikat dalam parent yang sama
     const existing = await (this.prisma as any).category.findFirst({
       where: { name: data.name, parentId: data.parentId ?? null },
@@ -50,8 +65,13 @@ export class CategoriesService {
     return category;
   }
 
-  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) {
-    await this.findOne(id);
+  async update(id: number, data: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }, bolehKpi = true) {
+    const lama = await this.findOne(id);
+    if (!bolehKpi && (
+      (data.countsAsPcs !== undefined && !!data.countsAsPcs !== !!lama.countsAsPcs) ||
+      (data.productionCategoryId !== undefined && (data.productionCategoryId ?? null) !== (lama.productionCategoryId ?? null))
+    )) throw new ForbiddenException(TOLAK_KPI);
+    if ((data.parentId ?? null) !== (lama.parentId ?? null)) await this.cekInduk(id, data.parentId);
 
     // Cegah circular reference
     if (data.parentId != null && data.parentId === id) {

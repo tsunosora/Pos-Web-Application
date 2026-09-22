@@ -141,10 +141,22 @@ export class CatalogService {
     }
 
     /** Set Catalog ID manual pada channel (lewati auto-deteksi WABA yang bisa kena #100). */
+    /**
+     * ID produk katalog dari URL harus angka & memang milik katalog kanal ini. Dulu diteruskan
+     * mentah ke Graph (`DELETE /{id}`) dengan token toko: `%2F`/`%3F` di URL bisa menghapus
+     * template WA, katalog, atau iklan.
+     */
+    private async cekProdukKatalog(channelId: number, productId: string) {
+        if (!/^\d{1,30}$/.test(String(productId ?? ''))) throw new BadRequestException('ID produk katalog tidak valid.');
+        const rows = await this.list(channelId);
+        if (!rows.some((r: any) => String(r.id) === String(productId))) throw new NotFoundException('Produk tidak ada di katalog kanal ini.');
+    }
+
     async setChannelCatalogId(channelId: number, catalogId: string | null | undefined) {
         const channel = await this.prisma.waChannel.findUnique({ where: { id: channelId } });
         if (!channel) throw new NotFoundException('Channel tidak ditemukan');
         const val = (catalogId || '').trim() || null;
+        if (val && !/^\d{1,30}$/.test(val)) throw new BadRequestException('ID katalog harus berupa angka (lihat Commerce Manager).');
         await this.prisma.waChannel.update({ where: { id: channelId }, data: { catalogId: val } });
         return { catalogId: val };
     }
@@ -201,7 +213,7 @@ export class CatalogService {
     }
 
     async update(channelId: number, productId: string, input: CatalogProductInput) {
-        await this.resolveCatalogId(channelId); // validasi channel + katalog ada
+        await this.cekProdukKatalog(channelId, productId); // validasi channel, katalog & kepemilikan produk
         const payload: Record<string, unknown> = {};
         if (input.name !== undefined) payload.name = input.name.trim();
         if (input.description !== undefined) payload.description = input.description?.trim() || undefined;
@@ -263,7 +275,8 @@ export class CatalogService {
         return { productId, dryRun: false, results };
     }
 
-    async remove(_channelId: number, productId: string) {
+    async remove(channelId: number, productId: string) {
+        await this.cekProdukKatalog(channelId, productId);
         return this.safeMeta(() => this.cloud.deleteCatalogProduct(productId), 'Gagal menghapus produk katalog');
     }
 }

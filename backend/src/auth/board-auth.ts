@@ -1,7 +1,9 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '@nestjs/passport';
+import { createHmac } from 'crypto';
 import { getJwtSecret } from './jwt-secret.util';
+import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Token papan kerja (/produksi, /cetak): perangkat di lantai produksi tidak login
@@ -20,9 +22,14 @@ export interface BoardSession {
 const BOARD_TTL = process.env.BOARD_TOKEN_EXPIRES || '24h'; // sama dgn umur sesi PIN di frontend
 const boardSecret = () => `${getJwtSecret()}:papan-kerja`;
 
-export function signBoardToken(jwt: JwtService, s: Partial<BoardSession>): string {
+/** Sidik PIN (HMAC, dipotong) — token ikut gugur bila PIN diganti. */
+export function sidikPin(pin: string | null | undefined): string {
+    return createHmac('sha256', boardSecret()).update(String(pin ?? '')).digest('base64url').slice(0, 12);
+}
+
+export function signBoardToken(jwt: JwtService, s: Partial<BoardSession>, pin?: string | null): string {
     return jwt.sign(
-        { typ: 'board', bid: s.branchId ?? null, did: s.designerId ?? null, nm: s.name ?? null },
+        { typ: 'board', bid: s.branchId ?? null, did: s.designerId ?? null, nm: s.name ?? null, ...(pin != null ? { pv: sidikPin(pin) } : {}) },
         { secret: boardSecret(), expiresIn: BOARD_TTL as any },
     );
 }
@@ -42,8 +49,34 @@ const UserJwtGuard = AuthGuard('jwt');
 @Injectable()
 export class BoardOrUserGuard implements CanActivate {
     private readonly userGuard = new UserJwtGuard();
+    private readonly cekCache = new Map<string, { ok: boolean; at: number }>();
 
-    constructor(private readonly jwt: JwtService) {}
+    constructor(private readonly jwt: JwtService, private readonly prisma: PrismaService) {}
+
+    /**
+     * Token masih sah? Karyawan dinonaktifkan / PIN (karyawan atau PIN operator cabang) diganti →
+     * token lama gugur. Dulu tetap berlaku 24 jam: tablet karyawan yang keluar masih bisa
+     * memulai/menyelesaikan job atas namanya. Hasil disimpan 30 detik agar tidak membebani DB.
+     */
+    private async masihBerlaku(p: any): Promise<boolean> {
+        const kunci = `${p.did ?? ''}|${p.bid ?? ''}|${p.pv ?? ''}`;
+        const c = this.cekCache.get(kunci);
+        if (c && Date.now() - c.at < 30_000) return c.ok;
+        let ok = true;
+        const db: any = this.prisma;
+        if (p.did != null) {
+            const d = await db.designer.findUnique({ where: { id: Number(p.did) }, select: { isActive: true, pin: true } });
+            ok = !!d?.isActive && (!p.pv || sidikPin(d.pin) === p.pv);
+        } else if (p.pv) {
+            const bs = p.bid != null ? await db.branchSettings.findUnique({ where: { branchId: Number(p.bid) }, select: { operatorPin: true } }) : null;
+            let pin = bs?.operatorPin ?? null;
+            if (!pin) pin = (await db.storeSettings.findFirst({ select: { operatorPin: true } }))?.operatorPin ?? null;
+            ok = !!pin && sidikPin(pin) === p.pv;
+        }
+        if (this.cekCache.size > 500) this.cekCache.clear();
+        this.cekCache.set(kunci, { ok, at: Date.now() });
+        return ok;
+    }
 
     async canActivate(ctx: ExecutionContext): Promise<boolean> {
         const req = ctx.switchToHttp().getRequest();
@@ -51,7 +84,7 @@ export class BoardOrUserGuard implements CanActivate {
         if (typeof raw === 'string' && raw) {
             try {
                 const p: any = this.jwt.verify(raw, { secret: boardSecret() });
-                if (p?.typ === 'board') {
+                if (p?.typ === 'board' && (await this.masihBerlaku(p))) {
                     const sesi: BoardSession = { branchId: p.bid ?? null, designerId: p.did ?? null, name: p.nm ?? null };
                     req.board = sesi;
                     return true;

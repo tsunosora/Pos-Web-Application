@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException, Logger } from '@nestjs/common';
+import { samaAman } from '../common/utils/sama-aman';
 import { PrismaService } from '../prisma/prisma.service';
 import { FollowUpsService } from '../crm/follow-ups/follow-ups.service';
 import { toWaPhone } from '../common/utils/phone.util';
@@ -725,7 +726,7 @@ export class ProductionService {
         if (!pin_) {
             return { valid: false, message: 'PIN operator belum dikonfigurasi. Hubungi admin.' };
         }
-        return { valid: pin_ === pin };
+        return { valid: samaAman(pin_, pin) };
     }
 
     async getStats(branchId?: number) {

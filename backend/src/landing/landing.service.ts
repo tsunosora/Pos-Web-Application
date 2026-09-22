@@ -11,6 +11,9 @@ export interface LandingConfigPatch {
     faviconUrl?: string | null;
 }
 
+/** Isi landing sama? (JSON dari kolom Json Prisma) */
+const samaIsi = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 @Injectable()
 export class LandingService {
     constructor(private readonly prisma: PrismaService) {}
@@ -49,17 +52,21 @@ export class LandingService {
             'data', 'draftData', 'published', 'customDomain', 'seoTitle', 'seoDescription', 'faviconUrl',
         ];
         for (const k of keys) if (patch[k] !== undefined) data[k] = patch[k];
-        // Isi tayang ditimpa langsung → simpan yang lama dulu (T-47).
-        if (patch.data !== undefined && r.data != null) data.previousData = r.data;
+        // Isi tayang ditimpa langsung → simpan yang lama dulu (T-47) — hanya bila isinya memang berubah.
+        if (patch.data !== undefined && r.data != null && !samaIsi(patch.data, r.data)) data.previousData = r.data;
         return this.model.update({ where: { id: r.id }, data });
     }
 
     /** Publish: salin draftData → data, tandai published. Isi tayang lama disimpan (T-47). */
     async publish() {
         const r = await this.row();
+        const baru = r.draftData ?? r.data;
+        // Terbit ulang tanpa perubahan tidak boleh menimpa cadangan: dulu "Terbitkan" dua kali
+        // membuat versi sebelumnya = versi rusak, sehingga "Kembalikan" tak menolong (T-47).
+        const berubah = r.data != null && !samaIsi(baru, r.data);
         return this.model.update({
             where: { id: r.id },
-            data: { data: r.draftData ?? r.data, published: true, ...(r.data != null ? { previousData: r.data } : {}) },
+            data: { data: baru, published: true, ...(berubah ? { previousData: r.data } : {}) },
         });
     }
 

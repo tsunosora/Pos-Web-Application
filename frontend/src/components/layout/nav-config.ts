@@ -3,7 +3,7 @@ import {
     Calculator, Banknote, Users, Store, ClipboardList, Printer, Truck, ClipboardEdit,
     TrendingDown, MousePointerClick, FileSignature, Building2, ArrowLeftRight, History,
     Inbox, BookOpen, Sparkles, MessageSquare, Workflow, Trophy, Award, Crown,
-    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock, Palette, QrCode, Zap, ShoppingBag, Instagram, Lock,
+    MessageCircle, Settings, Megaphone, Bot, BellRing, CalendarClock, Palette, QrCode, Zap, ShoppingBag, Instagram,
     ClipboardCheck,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -117,7 +117,7 @@ export const SECTIONS: NavSection[] = [
             { name: "Peta Cuan Lokasi", href: "/maps", icon: MapPin },
             { name: "Kalkulator HPP", href: "/reports/hpp", icon: Calculator },
             { name: "Rumus HPP per Produk", href: "/owner/hpp-produk", icon: Calculator, ownerOnly: true },
-            { name: "Akses Menu Role", href: "/owner/akses-menu", icon: Lock, ownerOnly: true },
+            // "Akses Menu Role" pindah ke Pengaturan → Tim & Cabang (/settings/akses-menu).
         ],
     },
     {

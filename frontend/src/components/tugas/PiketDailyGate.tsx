@@ -279,6 +279,11 @@ export function PiketDailyGate() {
 type PinState = PinPiketState & { receivedAt: number };
 
 /** Data + aksi piket untuk pengguna PIN — dipakai pop-up & kartu "Piket hari ini" (cache sama). */
+const pinDitolak = (e: unknown) => {
+    const s = (e as { response?: { status?: number } } | null)?.response?.status;
+    return s === 401 || s === 429;
+};
+
 function usePinPiket(designerId: number, pin: string) {
     const qc = useQueryClient();
     const key = ["piket-pin-state", designerId];
@@ -288,8 +293,11 @@ function usePinPiket(designerId: number, pin: string) {
         queryFn: async (): Promise<PinState> => ({ ...(await getPinPiketState(designerId, pin)), receivedAt: Date.now() }),
         staleTime: 0,
         refetchOnMount: "always",
-        refetchInterval: 60_000,
-        refetchOnWindowFocus: true,
+        // PIN ditolak (diganti/nonaktif → 401) atau diblokir (429): berhenti bertanya. Dulu tetap
+        // ditanya tiap menit; tiap tolakan dihitung tebakan salah → ±9 menit kemudian IP toko
+        // terkunci 10 menit di SEMUA halaman ber-PIN.
+        refetchInterval: (query) => (pinDitolak(query.state.error) ? false : 60_000),
+        refetchOnWindowFocus: (query) => !pinDitolak(query.state.error),
         retry: false,
     });
     const refresh = () => { void qc.invalidateQueries({ queryKey: ["piket-pin-state", designerId] }); };

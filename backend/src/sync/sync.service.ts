@@ -6,7 +6,8 @@ import { StockPurchasesService } from '../stock-purchases/stock-purchases.servic
 import { StockTransfersService } from '../stock-transfers/stock-transfers.service';
 import { StockOpnameService } from '../stock-opname/stock-opname.service';
 import type { BranchContext } from '../common/branch-context.decorator';
-import { pilihKolomKasManual } from '../cashflow/cashflow.service';
+import { cekRekeningKas, pilihKolomKasManual } from '../cashflow/cashflow.service';
+import { roleCanOpenMenu } from '../auth/role-groups';
 import { requireBranch } from '../common/branch-where.helper';
 import {
   ENTITY_REGISTRY,
@@ -23,6 +24,8 @@ import {
 export interface SyncCaller {
   isDevice: boolean;
   userId: number | null; // user JWT; null untuk perangkat
+  roleName?: string | null; // user JWT (untuk cek menu)
+  menuAccess?: unknown;
 }
 
 @Injectable()
@@ -204,6 +207,17 @@ export class SyncService {
     branchCtx: BranchContext,
     caller: SyncCaller,
   ): Promise<PushOpResult> {
+    // Akun login (outbox browser) hanya boleh mengirim nota & kas — kas tetap wajib punya menu Kas.
+    // Dulu token login biasa bisa menjalankan pembelian/transfer stok & kas lewat jalur ini,
+    // melewati pemeriksaan menu di endpoint aslinya. Operasi stok hanya dari perangkat terdaftar.
+    if (!caller.isDevice) {
+      if (op.type !== 'transaction.create' && op.type !== 'cashflow.create') {
+        throw new Error(`${op.type} hanya diterima dari perangkat terdaftar`);
+      }
+      if (op.type === 'cashflow.create' && !roleCanOpenMenu(caller.roleName, caller.menuAccess, '/cashflow')) {
+        throw new Error('Peran Anda tidak diberi menu Kas — catatan kas offline ditolak.');
+      }
+    }
     switch (op.type) {
       case 'transaction.create': {
         // Pencatat = akun login (bukan isi payload yang bisa dipalsukan). Waktu jual offline:
@@ -313,6 +327,7 @@ export class SyncService {
   private async createCashflow(payload: any, branchId: number, caller: SyncCaller) {
     // Kolom sama dengan form Kas online (nominal > 0, tanpa tanggal/shift/relasi sisipan).
     const { bankAccountId, ...rest } = pilihKolomKasManual(payload);
+    await cekRekeningKas(this.prisma, bankAccountId, branchId); // rekening harus ada & milik cabang ini
     return this.prisma.cashflow.create({
       data: {
         ...rest,

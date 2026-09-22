@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { samaAman } from '../common/utils/sama-aman';
 import { PrismaService } from '../prisma/prisma.service';
 import { matchBranchId } from '../common/branch-name.util';
 
@@ -51,7 +52,7 @@ export class DesignersService {
         if (!designer || !designer.isActive) {
             return { valid: false };
         }
-        if (designer.pin !== pin) {
+        if (!samaAman(designer.pin, pin)) {
             return { valid: false };
         }
         return { valid: true, id: designer.id, name: designer.name, branchName: designer.branchName ?? null, branchId: designer.branchId ?? null };

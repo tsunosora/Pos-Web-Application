@@ -360,6 +360,40 @@ export class TaskPiketService {
     return ctx.branchId != null ? { branchId: ctx.branchId } : {};
   }
 
+  /**
+   * Karyawan yang TINGGAL di toko = yang punya tugas piket di luar shift (jadwal berulang tanpa
+   * shift lewat grup / penerima langsung / giliran, mis. "Rapikan tempat tidur" & giliran dapur).
+   * Aturan owner (22 Sep 2026): pada hari mereka memilih LIBUR, tugas itu TIDAK dihitung terlewat
+   * (rekap, pantau, teguran otomatis). Karyawan yang tidak tinggal hanya punya tugas shift — kartu
+   * shift-nya sudah tidak dibuat saat memilih LIBUR, dan tugas lain tetap dihitung.
+   */
+  private async penghuniToko(): Promise<Set<number>> {
+    const rows = await this.db.taskSchedule.findMany({
+      where: { isActive: true, shiftSlot: null, frequency: { not: 'ONCE' } },
+      select: { assigneeId: true, groupId: true, rotationUserIds: true },
+    });
+    const ids = new Set<number>();
+    const grup = new Set<number>();
+    for (const r of rows) {
+      if (r.assigneeId) ids.add(r.assigneeId);
+      for (const u of parseRotation(r.rotationUserIds)) ids.add(u);
+      if (r.groupId) grup.add(r.groupId);
+    }
+    if (grup.size) {
+      const anggota = await this.db.taskGroupMember.findMany({ where: { groupId: { in: [...grup] } }, select: { userId: true } });
+      for (const a of anggota) ids.add(a.userId);
+    }
+    return ids;
+  }
+
+  /** Kunci `userId|YYYY-MM-DD` hari LIBUR yang dikecualikan (hanya karyawan yang tinggal). */
+  private async kunciLibur(checkins: { userId: number; dateKey: string; shift?: string }[]): Promise<Set<string>> {
+    const libur = checkins.filter((c) => c.shift === undefined || c.shift === 'LIBUR');
+    if (!libur.length) return new Set();
+    const tinggal = await this.penghuniToko();
+    return new Set(libur.filter((c) => tinggal.has(c.userId)).map((c) => `${c.userId}|${c.dateKey}`));
+  }
+
   /** Jadwal khusus-shift yang berlaku pada `date` beserta penerimanya. */
   private async shiftSchedulesOn(
     date: Date,
@@ -449,6 +483,10 @@ export class TaskPiketService {
       throw new BadRequestException(
         'Tidak ada jadwal piket shift untuk kamu hari ini.',
       );
+    // Shift yang dipilih harus salah satu shift jadwalnya (atau LIBUR). Dulu shift lain
+    // diterima → tercatat masuk kerja tanpa satu pun kartu piket.
+    if (shift !== 'LIBUR' && !mine.some((s) => s.sched.shiftSlot === shift))
+      throw new BadRequestException(`Kamu tidak dijadwalkan piket shift ${shift} hari ini.`);
 
     const user = await this.db.user.findUnique({
       where: { id: userId },
@@ -463,7 +501,8 @@ export class TaskPiketService {
     });
 
     // Ganti pilihan (salah pilih / ternyata libur) → kartu shift LAIN hari ini
-    // yang belum disentuh (TODO) dihapus. Yang sudah dikerjakan tetap.
+    // yang belum disentuh (TODO) & BELUM lewat batas dihapus. Yang sudah dikerjakan atau
+    // sudah terlambat tetap (dulu memilih LIBUR malam hari menghapus kartu yang terlewat).
     const otherShiftIds = (
       await this.db.taskSchedule.findMany({
         where: { shiftSlot: { not: null } },
@@ -480,6 +519,7 @@ export class TaskPiketService {
           periodKey: dateKey,
           status: 'TODO',
           scheduleId: { in: otherShiftIds },
+          OR: [{ dueDate: null }, { dueDate: { gt: now } }],
         },
       });
       removed = r.count;
@@ -717,7 +757,7 @@ export class TaskPiketService {
     const picks = selectAutoWarnItems(items, now, {
       trialUntil: trial,
       warnedItemIds: new Set(warned.map((w: any) => w.taskItemId)),
-      liburKeys: new Set(libur.map((l: any) => `${l.userId}|${l.dateKey}`)),
+      liburKeys: await this.kunciLibur(libur),
     });
     let created = 0;
     for (const it of picks) {
@@ -812,6 +852,7 @@ export class TaskPiketService {
         .filter((w: any) => w.kind === 'AUTO' && w.taskItemId != null)
         .map((w: any) => w.taskItemId),
     );
+    const libur = await this.kunciLibur(checkins);
 
     const rows = users
       // Peserta yang hanya "diharapkan" (belum punya data) harus dari cabang yang dipantau.
@@ -841,7 +882,8 @@ export class TaskPiketService {
                 !!due &&
                 !!i.completedAt &&
                 new Date(i.completedAt) > due,
-              overdue: !done && !!due && due < now,
+              // Hari LIBUR (karyawan yang tinggal): tidak dihitung terlambat.
+              overdue: !done && !!due && due < now && !libur.has(`${u.id}|${dateKey}`),
               warned: warnedItemIds.has(i.id),
             };
           });
@@ -963,16 +1005,15 @@ export class TaskPiketService {
         });
       return acc.get(id);
     };
-    // Hari-hari masa uji coba tidak dihitung.
+    // Hari-hari masa uji coba tidak dihitung; begitu juga tugas pada hari LIBUR karyawan yang
+    // tinggal di toko (aturan owner 22 Sep 2026 — dulu terhitung "terlewat" padahal tak ditegur).
     const trial = await this.trialUntil();
     const inTrial = (k?: string | null) => !!k && isTrialDay(k, trial);
+    const libur = await this.kunciLibur(checkins);
     for (const i of items) {
-      if (
-        inTrial(
-          i.periodKey ?? (i.dueDate ? periodKeyFor(new Date(i.dueDate)) : null),
-        )
-      )
-        continue;
+      const hariItem = i.periodKey ?? (i.dueDate ? periodKeyFor(new Date(i.dueDate)) : null);
+      if (inTrial(hariItem)) continue;
+      if (hariItem && libur.has(`${i.assigneeId}|${hariItem}`)) continue;
       const r = row(i.assigneeId);
       r.total++;
       const due = i.dueDate ? new Date(i.dueDate) : null;

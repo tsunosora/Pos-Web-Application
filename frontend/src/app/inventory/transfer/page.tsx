@@ -289,7 +289,7 @@ export default function TransferStokPage() {
                                                 <input
                                                     type="number"
                                                     min={1}
-                                                    step="0.01"
+                                                    step={1}
                                                     value={it.quantity}
                                                     onChange={e => updateQty(it.productVariantId, Number(e.target.value))}
                                                     className="w-24 rounded border border-border bg-background px-2 py-1 text-right text-sm"

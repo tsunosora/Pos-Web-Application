@@ -108,13 +108,15 @@ export class TransactionsController {
         @Param('requestId', ParseIntPipe) requestId: number,
         @Request() req: any,
         @Body() body: { approved: boolean; reviewNote?: string },
+        @CurrentBranch() branchCtx: BranchContext,
     ) {
         return this.transactionsService.reviewEditRequest(
             requestId,
             req.user.userId,
             req.user.role,
-            body.approved,
-            body.reviewNote,
+            body?.approved === true,
+            body?.reviewNote,
+            branchCtx,
         );
     }
 

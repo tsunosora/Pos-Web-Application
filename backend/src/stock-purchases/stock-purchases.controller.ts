@@ -19,6 +19,8 @@ export class StockPurchasesController {
     }
 
     @Get()
+    @Menu('/inventory')
+    @UseGuards(MenuGuard)
     findAll(@CurrentBranch() branchCtx: BranchContext) {
         return this.stockPurchasesService.findAll(branchCtx);
     }

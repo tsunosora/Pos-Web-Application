@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { computeLedgerCost } from '../branch-ledger/ledger-cost.util';
@@ -482,13 +482,25 @@ export class BranchInboxService {
         if (!tx) throw new NotFoundException('Titipan tidak ditemukan di outbox cabang ini');
 
         const safeId = Number(id);
-        await this.prisma.$executeRawUnsafe(
+        const n = await this.prisma.$executeRawUnsafe(
             `UPDATE transactions
              SET handover_status = 'DISERAHKAN', handover_done_at = COALESCE(handover_done_at, UTC_TIMESTAMP(3))
-             WHERE id = ${safeId}`,
+             WHERE id = ${safeId} AND handover_status = 'SIAP_AMBIL'`,
         );
+        if (!n) await this.tolakSerahTerima(safeId);
         await this.createLedgerEntry(safeId);
         return { ok: true };
+    }
+
+    /**
+     * Serah-terima hanya dari "Siap Ambil". Dulu status apa pun (termasuk BARU) langsung jadi
+     * DISERAHKAN & hutang titipan tercatat untuk pekerjaan yang belum dibuat. Klik ganda
+     * (sudah DISERAHKAN) tetap dianggap berhasil.
+     */
+    private async tolakSerahTerima(txId: number): Promise<void> {
+        const r: any[] = await this.prisma.$queryRawUnsafe(`SELECT handover_status AS s FROM transactions WHERE id = ${txId}`);
+        if (r[0]?.s === 'DISERAHKAN') return;
+        throw new BadRequestException('Titipan belum ditandai siap diambil oleh cabang pelaksana.');
     }
 
     async markHandover(ctx: BranchContext, id: number) {
@@ -500,11 +512,12 @@ export class BranchInboxService {
         if (!tx) throw new NotFoundException('Titipan tidak ditemukan');
 
         const safeId = Number(id);
-        await this.prisma.$executeRawUnsafe(
+        const n = await this.prisma.$executeRawUnsafe(
             `UPDATE transactions
              SET handover_status = 'DISERAHKAN', handover_done_at = UTC_TIMESTAMP(3)
-             WHERE id = ${safeId}`,
+             WHERE id = ${safeId} AND handover_status = 'SIAP_AMBIL'`,
         );
+        if (!n) await this.tolakSerahTerima(safeId);
         await this.createLedgerEntry(safeId);
         return { ok: true };
     }

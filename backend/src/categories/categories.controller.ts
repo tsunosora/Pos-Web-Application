@@ -1,16 +1,20 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe, UseGuards, Req } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ManagerGuard } from '../auth/role-groups';
+import { ManagerGuard, Menu, MenuGuard, isManagerLevelRole } from '../auth/role-groups';
 
 @UseGuards(JwtAuthGuard)
 @Controller('categories')
 export class CategoriesController {
     constructor(private readonly categoriesService: CategoriesService) { }
 
+    // Menulis kategori = menu Stok; kolom yang menggeser KPI operator (hitung pcs, kategori produksi)
+    // hanya setingkat manajer — sama alasannya dengan CRUD kategori produksi (T-46).
     @Post()
-    create(@Body() body: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) {
-        return this.categoriesService.create(body);
+    @UseGuards(MenuGuard)
+    @Menu('/inventory')
+    create(@Body() body: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }, @Req() req: any) {
+        return this.categoriesService.create(body, isManagerLevelRole(req.user?.roleName));
     }
 
     @Get()
@@ -24,8 +28,10 @@ export class CategoriesController {
     }
 
     @Patch(':id')
-    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }) {
-        return this.categoriesService.update(id, body);
+    @UseGuards(MenuGuard)
+    @Menu('/inventory')
+    update(@Param('id', ParseIntPipe) id: number, @Body() body: { name: string; parentId?: number | null; countsAsPcs?: boolean; productionCategoryId?: number | null }, @Req() req: any) {
+        return this.categoriesService.update(id, body, isManagerLevelRole(req.user?.roleName));
     }
 
     // Menghapus data induk: setingkat manajer (T-46).

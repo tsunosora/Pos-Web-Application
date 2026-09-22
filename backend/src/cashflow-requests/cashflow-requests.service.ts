@@ -2,7 +2,8 @@ import { Injectable, Logger, NotFoundException, ForbiddenException, BadRequestEx
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { BranchContext } from '../common/branch-context.decorator';
-import { alasanKasTakBisaDihapus } from '../cashflow/cashflow.service';
+import { alasanKasTakBisaDihapus, alasanKasTakBisaDiubah, cekRekeningKas } from '../cashflow/cashflow.service';
+import { isManagerLevelRole } from '../auth/role-groups';
 import { assertBranchAccess } from '../common/branch-where.helper';
 
 /**
@@ -38,13 +39,12 @@ export class CashflowRequestsService {
         private notifications: NotificationsService,
     ) { }
 
+    // Satu aturan dengan ManagerGuard & menu (dulu "Supervisor"/"Kepala Toko" melihat panel
+    // persetujuan tapi selalu ditolak 403 saat menyetujui).
     private async isManager(roleId: number | null): Promise<boolean> {
         if (!roleId) return false;
         const role = await (this.prisma as any).role.findUnique({ where: { id: roleId } });
-        if (!role) return false;
-        const name = role.name.toLowerCase();
-        return name === 'admin' || name === 'owner' || name === 'pemilik'
-            || name.includes('manajer') || name.includes('manager');
+        return !!role && isManagerLevelRole(role.name);
     }
 
     async createRequest(
@@ -69,6 +69,9 @@ export class CashflowRequestsService {
         if (type === 'EDIT') {
             payload = pilihIsiPermintaan(payload);
             if (!Object.keys(payload).length) throw new BadRequestException('Tidak ada perubahan yang diminta');
+            const alasan = alasanKasTakBisaDiubah(cashflow, payload);
+            if (alasan) throw new BadRequestException(alasan);
+            if (payload.bankAccountId != null && payload.bankAccountId !== cashflow.bankAccountId) await cekRekeningKas(this.prisma, payload.bankAccountId, cashflow.branchId);
         } else {
             payload = null;
         }
@@ -111,7 +114,7 @@ export class CashflowRequestsService {
     async findPending(branchCtx?: BranchContext) {
         // Staf cabang hanya melihat permintaan atas kas cabangnya.
         const cabang = branchCtx && !branchCtx.isOwner ? { cashflow: { branchId: branchCtx.userBranchId ?? -1 } } : {};
-        return (this.prisma as any).cashflowChangeRequest.findMany({
+        const rows: any[] = await (this.prisma as any).cashflowChangeRequest.findMany({
             where: { status: 'PENDING', ...cabang },
             orderBy: { createdAt: 'asc' },
             include: {
@@ -120,10 +123,20 @@ export class CashflowRequestsService {
                     select: {
                         id: true, type: true, category: true, amount: true,
                         note: true, date: true, platformSource: true, paymentMethod: true,
+                        bankAccountId: true, bankAccount: { select: { bankName: true, accountNumber: true } },
                     },
                 },
             },
         });
+        // Nama rekening usulan untuk layar persetujuan (dulu perubahan rekening tidak terlihat
+        // penyetuju, padahal ikut diterapkan).
+        const ids = [...new Set(rows.map((r) => Number(r.payload?.bankAccountId)).filter((x) => Number.isInteger(x) && x > 0))];
+        const nama = new Map<number, string>();
+        if (ids.length) {
+            const bank: any[] = await (this.prisma as any).bankAccount.findMany({ where: { id: { in: ids } }, select: { id: true, bankName: true, accountNumber: true } });
+            for (const b of bank) nama.set(b.id, `${b.bankName} ${b.accountNumber ?? ''}`.trim());
+        }
+        return rows.map((r) => ({ ...r, usulanRekening: r.payload?.bankAccountId != null ? (nama.get(Number(r.payload.bankAccountId)) ?? `#${r.payload.bankAccountId}`) : null }));
     }
 
     async findByRequester(requesterId: number) {
@@ -171,7 +184,11 @@ export class CashflowRequestsService {
                 await tx.cashflow.delete({ where: { id: req.cashflowId } });
             } else {
                 // Saring ulang: permintaan lama yang dibuat sebelum penyaringan tetap aman.
-                await tx.cashflow.update({ where: { id: req.cashflowId }, data: pilihIsiPermintaan(req.payload as Record<string, any>) });
+                const isi = pilihIsiPermintaan(req.payload as Record<string, any>);
+                const kas = await tx.cashflow.findUnique({ where: { id: req.cashflowId } });
+                const alasan = kas ? alasanKasTakBisaDiubah(kas, isi) : null;
+                if (alasan) throw new BadRequestException(alasan); // mis. shift-nya keburu ditutup
+                await tx.cashflow.update({ where: { id: req.cashflowId }, data: isi });
             }
         });
 

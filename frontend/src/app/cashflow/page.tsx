@@ -42,6 +42,7 @@ type CashflowEntry = {
     user?: { email: string; name?: string } | null;
     paymentMethod?: string | null;
     bankAccount?: { bankName: string; accountNumber: string } | null;
+    bankAccountId?: number | null;
     order?: CashflowOrder | null;
 };
 
@@ -80,6 +81,12 @@ const fmtShort = (n: number) => {
 };
 
 // --- Edit Modal ---
+/** Rekening awal form: ID rekening entri; cadangan nama bank hanya bila ID tak ada di respons lama. */
+function rekeningAwal(entry: { bankAccountId?: number | null; bankAccount?: { bankName: string } | null }, bankAccounts: { id: number; bankName: string }[]): number | '' {
+    if (entry.bankAccountId != null) return entry.bankAccountId;
+    return entry.bankAccount ? (bankAccounts.find(b => b.bankName === entry.bankAccount?.bankName)?.id ?? '') : '';
+}
+
 function EditModal({ entry, bankAccounts, onClose, onSave, isPending }: {
     entry: CashflowEntry;
     bankAccounts: { id: number; bankName: string; accountNumber: string }[];
@@ -93,9 +100,9 @@ function EditModal({ entry, bankAccounts, onClose, onSave, isPending }: {
     const [platformSource, setPlatformSource] = useState(entry.platformSource ?? 'POS (Offline)');
     const [customPlatform, setCustomPlatform] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<string>(entry.paymentMethod ?? 'CASH');
-    const [bankAccountId, setBankAccountId] = useState<number | ''>(entry.bankAccount
-        ? (bankAccounts.find(b => b.bankName === entry.bankAccount?.bankName)?.id ?? '')
-        : '');
+    // Rekening asli entri (per ID). Dulu dicocokkan per nama bank → dua rekening "BCA" membuat
+    // entri diam-diam pindah ke BCA pertama saat hanya catatannya yang diubah.
+    const [bankAccountId, setBankAccountId] = useState<number | ''>(rekeningAwal(entry, bankAccounts));
     const categories = entry.type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -192,9 +199,7 @@ function SubmitRequestModal({ entry, type, bankAccounts, onClose, onSubmit, isPe
     const [platformSource, setPlatformSource] = useState(entry.platformSource ?? 'POS (Offline)');
     const [customPlatform, setCustomPlatform] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<string>(entry.paymentMethod ?? 'CASH');
-    const [bankAccountId, setBankAccountId] = useState<number | ''>(
-        entry.bankAccount ? (bankAccounts.find(b => b.bankName === entry.bankAccount?.bankName)?.id ?? '') : ''
-    );
+    const [bankAccountId, setBankAccountId] = useState<number | ''>(rekeningAwal(entry, bankAccounts));
     const [requesterNote, setRequesterNote] = useState('');
     const categories = entry.type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 
@@ -351,8 +356,14 @@ function ReviewModal({ request, note, setNote, onClose, onApprove, onReject, isA
                             {payload.note !== undefined && payload.note !== cf.note && (
                                 <p className="text-sm"><span className="text-muted-foreground">Catatan:</span> {payload.note || '-'}</p>
                             )}
-                            {payload.paymentMethod && (
-                                <p className="text-sm"><span className="text-muted-foreground">Metode:</span> {payload.paymentMethod}</p>
+                            {payload.paymentMethod && payload.paymentMethod !== cf.paymentMethod && (
+                                <p className="text-sm"><span className="text-muted-foreground">Metode:</span> <span className="line-through text-muted-foreground">{cf.paymentMethod ?? '-'}</span> → <span className="font-medium">{payload.paymentMethod}</span></p>
+                            )}
+                            {payload.bankAccountId !== undefined && (payload.bankAccountId ?? null) !== (cf.bankAccountId ?? null) && (
+                                <p className="text-sm"><span className="text-muted-foreground">Rekening:</span> <span className="line-through text-muted-foreground">{cf.bankAccount ? `${cf.bankAccount.bankName} ${cf.bankAccount.accountNumber ?? ''}` : '-'}</span> → <span className="font-medium">{request.usulanRekening ?? '-'}</span></p>
+                            )}
+                            {payload.platformSource !== undefined && (payload.platformSource ?? null) !== (cf.platformSource ?? null) && (
+                                <p className="text-sm"><span className="text-muted-foreground">Platform:</span> <span className="line-through text-muted-foreground">{cf.platformSource ?? '-'}</span> → <span className="font-medium">{payload.platformSource ?? '-'}</span></p>
                             )}
                         </div>
                     )}

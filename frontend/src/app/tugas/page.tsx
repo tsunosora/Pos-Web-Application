@@ -39,7 +39,11 @@ export default function TugasPage() {
         enabled: currentUser !== undefined,
     });
 
-    const invalidate = () => qc.invalidateQueries({ queryKey: ["task-items"] });
+    // Pop-up pengingat & kartu piket hari ini ikut disegarkan (dulu tetap menampilkan tugas
+    // yang sudah diselesaikan di papan sampai 5 menit).
+    const invalidate = () => {
+        for (const k of ["task-items", "piket-upcoming", "piket-today", "piket-my-day"]) void qc.invalidateQueries({ queryKey: [k] });
+    };
 
     const moveMut = useMutation({
         mutationFn: ({ id, status, index }: { id: number; status: TaskStatus; index: number }) =>

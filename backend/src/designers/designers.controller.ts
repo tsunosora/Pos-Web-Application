@@ -35,7 +35,7 @@ export class DesignersPublicController {
             const b = await this.prisma.companyBranch.findFirst({ where: { id: dipilih, isActive: true }, select: { id: true } });
             if (b) branchId = b.id;
         }
-        const boardToken = signBoardToken(this.jwt, { designerId: r.id, name: r.name, branchId });
+        const boardToken = signBoardToken(this.jwt, { designerId: r.id, name: r.name, branchId }, body.pin);
         const { branchId: _b, ...publik } = r;
         return { ...publik, boardToken };
     }

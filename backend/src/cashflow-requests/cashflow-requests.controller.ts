@@ -1,10 +1,12 @@
 import { Controller, Get, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { CashflowRequestsService } from './cashflow-requests.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, MenuGuard)
+@Menu('/cashflow')
 @Controller('cashflow-requests')
 export class CashflowRequestsController {
     constructor(private readonly service: CashflowRequestsService) { }

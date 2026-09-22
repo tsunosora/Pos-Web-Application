@@ -24,6 +24,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { compressImage } from '../common/utils/compress-image.util';
+import { assertRealImage, discardUpload } from '../common/utils/safe-image-upload.util';
 import { TaskBoardService } from './task-board.service';
 
 // Penyimpanan lampiran gambar tugas — sama pola dengan upload produk.
@@ -217,12 +218,21 @@ export class TaskBoardController {
     @CurrentBranch() ctx: BranchContext,
     @UploadedFiles() files: Express.Multer.File[],
   ) {
-    if (!this.svc.canAssign(ctx))
+    if (!this.svc.canAssign(ctx)) {
+      // Berkas sudah terlanjur ditulis multer → hapus (dulu tertinggal & tersaji publik).
+      (files || []).forEach((f) => discardUpload(f));
       throw new ForbiddenException(
         'Hanya owner/manajer yang boleh melampirkan gambar tugas.',
       );
+    }
     if (!files || files.length === 0)
       throw new BadRequestException('Tidak ada berkas gambar.');
+    try {
+      for (const f of files) await assertRealImage(f.path);
+    } catch (e) {
+      files.forEach((f) => discardUpload(f));
+      throw e;
+    }
     await Promise.all(files.map((f) => compressImage(f.path)));
     return { urls: files.map((f) => `/uploads/${f.filename}`) };
   }

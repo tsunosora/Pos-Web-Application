@@ -22,8 +22,10 @@ function fmtDate(s?: string | null) {
     try { return new Date(s).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }); } catch { return ""; }
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
-    const a = await getArticle(params.slug);
+// Next 16: `params` berupa Promise (dulu dibaca langsung → slug undefined → semua artikel 404).
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+    const { slug } = await params;
+    const a = await getArticle(slug);
     if (!a) return { title: "Artikel" };
     return {
         title: a.seoTitle || a.title,
@@ -32,8 +34,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     };
 }
 
-export default async function ArtikelDetailPage({ params }: { params: { slug: string } }) {
-    const a = await getArticle(params.slug);
+export default async function ArtikelDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+    const { slug } = await params;
+    const a = await getArticle(slug);
     if (!a) notFound();
 
     return (

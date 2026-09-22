@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { PrismaService } from '../prisma/prisma.service';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { assertCompositeReady, resolveCompositeQuote } from './composite.util';
+import { kolomBahan, kolomBahanVarian, kolomProduk, kolomTier, kolomVarian } from './kolom-produk';
 
 /**
  * Override variant.stock dengan stok cabang aktif (BranchStock).
@@ -64,20 +65,17 @@ export class ProductsService {
     }
 
     async create(data: any, branchId?: number | null) {
-        const { variants, ingredients, ...productData } = data;
+        const { variants, ingredients, ...productData } = data ?? {};
         this.cekStokAwal(variants, branchId);
 
-        // Strip priceTiers & variantIngredients from variants before nested create
-        const variantsToCreate = (variants || []).map((v: any) => {
-            const { priceTiers, variantIngredients, ...variantData } = v;
-            return variantData;
-        });
+        // Hanya kolom formulir (lihat kolom-produk.ts); priceTiers & variantIngredients dibuat terpisah.
+        const variantsToCreate = (Array.isArray(variants) ? variants : []).map((v: any) => kolomVarian(v));
 
         const product = await this.prisma.product.create({
             data: {
-                ...productData,
+                ...kolomProduk(productData),
                 variants: { create: variantsToCreate },
-                ingredients: { create: ingredients || [] }
+                ingredients: { create: (Array.isArray(ingredients) ? ingredients : []).map(kolomBahan) }
             },
             include: {
                 category: { include: { parent: { select: { id: true, name: true } } } } as any,
@@ -94,12 +92,12 @@ export class ProductsService {
             if (createdVariant) await this.catatStokAwal(createdVariant.id, Number(v?.stock) || 0, branchId);
             if (v.priceTiers?.length) {
                 await this.prisma.variantPriceTier.createMany({
-                    data: v.priceTiers.map((t: any) => ({ ...t, variantId: createdVariant.id }))
+                    data: v.priceTiers.map((t: any) => ({ ...kolomTier(t), variantId: createdVariant.id }))
                 });
             }
             if (v.variantIngredients?.length) {
                 await this.prisma.variantIngredient.createMany({
-                    data: v.variantIngredients.map((ing: any) => ({ ...ing, variantId: createdVariant.id }))
+                    data: v.variantIngredients.map((ing: any) => ({ ...kolomBahanVarian(ing), variantId: createdVariant.id }))
                 });
             }
         }
@@ -369,7 +367,7 @@ export class ProductsService {
             }
         }
         try {
-            await this.prisma.product.update({ where: { id }, data: productData });
+            await this.prisma.product.update({ where: { id }, data: kolomProduk(productData) });
 
             // Hapus varian yang dihapus dari frontend
             if (deletedVariantIds?.length) {
@@ -386,11 +384,12 @@ export class ProductsService {
                     if (variantId) {
                         // Stok TIDAK ikut disimpan dari form produk: form menampilkan stok cabang aktif,
                         // jadi menyimpannya menimpa stok total semua cabang. Stok diubah lewat Stok Cabang/Opname.
-                        const { stock: _stokForm, ...tanpaStok } = variantData;
-                        await this.prisma.productVariant.update({ where: { id: variantId }, data: tanpaStok });
-                        savedVariantId = variantId;
+                        // Hanya varian milik produk ini (dulu ID varian produk lain pun ikut diubah).
+                        const r = await this.prisma.productVariant.updateMany({ where: { id: Number(variantId), productId: id }, data: kolomVarian(variantData, false) });
+                        if (r.count !== 1) throw new BadRequestException(`Varian #${variantId} bukan milik produk ini.`);
+                        savedVariantId = Number(variantId);
                     } else {
-                        const created = await this.prisma.productVariant.create({ data: { ...variantData, productId: id } });
+                        const created = await this.prisma.productVariant.create({ data: { ...kolomVarian(variantData), productId: id } });
                         savedVariantId = created.id;
                         await this.catatStokAwal(created.id, Number(variantData.stock) || 0, branchId);
                     }
@@ -400,10 +399,7 @@ export class ProductsService {
                         await this.prisma.variantPriceTier.deleteMany({ where: { variantId: savedVariantId } });
                         if (priceTiers.length > 0) {
                             await this.prisma.variantPriceTier.createMany({
-                                data: priceTiers.map((t: any) => {
-                                    const { id: _id, variantId: _vid, ...tierData } = t;
-                                    return { ...tierData, variantId: savedVariantId };
-                                })
+                                data: priceTiers.map((t: any) => ({ ...kolomTier(t), variantId: savedVariantId }))
                             });
                         }
                     }
@@ -413,10 +409,7 @@ export class ProductsService {
                         await this.prisma.variantIngredient.deleteMany({ where: { variantId: savedVariantId } });
                         if (variantIngredients.length > 0) {
                             await this.prisma.variantIngredient.createMany({
-                                data: variantIngredients.map((ing: any) => {
-                                    const { id: _id, variantId: _vid, rawMaterialVariant: _rm, ...ingData } = ing;
-                                    return { ...ingData, variantId: savedVariantId };
-                                })
+                                data: variantIngredients.map((ing: any) => ({ ...kolomBahanVarian(ing), variantId: savedVariantId }))
                             });
                         }
                     }
@@ -427,7 +420,7 @@ export class ProductsService {
                 await this.prisma.ingredient.deleteMany({ where: { productId: id } });
                 if (ingredients.length > 0) {
                     await this.prisma.ingredient.createMany({
-                        data: ingredients.map((ing: any) => ({ ...ing, productId: id }))
+                        data: ingredients.map((ing: any) => ({ ...kolomBahan(ing), productId: id }))
                     });
                 }
             }
@@ -592,15 +585,15 @@ export class ProductsService {
 
     async addVariant(productId: number, variantData: any, branchId?: number | null) {
         await this.findOne(productId);
-        const { priceTiers, variantIngredients, ...data } = variantData;
+        const { priceTiers, variantIngredients, ...data } = variantData ?? {};
         this.cekStokAwal([data], branchId);
         const variant = await this.prisma.productVariant.create({
-            data: { ...data, productId },
+            data: { ...kolomVarian(data), productId },
             include: variantInclude
         });
         if (priceTiers?.length) {
             await this.prisma.variantPriceTier.createMany({
-                data: priceTiers.map((t: any) => ({ ...t, variantId: variant.id }))
+                data: priceTiers.map((t: any) => ({ ...kolomTier(t), variantId: variant.id }))
             });
         }
         if (variantIngredients?.length) {
@@ -615,7 +608,8 @@ export class ProductsService {
 
     async updateVariant(variantId: number, variantData: any) {
         // stock dibuang: perubahan stok wajib lewat /branch-stock/adjust (per cabang + jejak pergerakan).
-        const { priceTiers, variantIngredients, stock: _stokForm, ...data } = variantData;
+        const { priceTiers, variantIngredients, stock: _stokForm, ...rest } = variantData ?? {};
+        const data: any = kolomVarian(rest, false);
         const oldVariant = await this.prisma.productVariant.findUnique({ where: { id: variantId }, select: { stock: true } });
         await this.prisma.productVariant.update({ where: { id: variantId }, data });
         if (priceTiers !== undefined) {
@@ -656,11 +650,17 @@ export class ProductsService {
 
     async addIngredient(productId: number, ingredientData: any) {
         await this.findOne(productId);
-        return this.prisma.ingredient.create({ data: { ...ingredientData, productId } });
+        return this.prisma.ingredient.create({ data: { ...kolomBahan(ingredientData), productId } });
     }
 
-    async updateIngredient(ingredientId: number, data: any) {
-        return this.prisma.ingredient.update({ where: { id: ingredientId }, data });
+    async updateIngredient(ingredientId: number, data: any, productId?: number) {
+        // Bahan hanya milik produk di alamat (dulu productId kiriman memindah bahan ke produk lain).
+        if (productId != null) {
+            const r = await this.prisma.ingredient.updateMany({ where: { id: ingredientId, productId }, data: kolomBahan(data) });
+            if (r.count !== 1) throw new NotFoundException('Bahan tidak ditemukan pada produk ini.');
+            return this.prisma.ingredient.findUnique({ where: { id: ingredientId } });
+        }
+        return this.prisma.ingredient.update({ where: { id: ingredientId }, data: kolomBahan(data) });
     }
 
     async removeIngredient(ingredientId: number) {
@@ -680,10 +680,7 @@ export class ProductsService {
         await this.prisma.variantPriceTier.deleteMany({ where: { variantId } });
         if (tiers.length > 0) {
             await this.prisma.variantPriceTier.createMany({
-                data: tiers.map((t: any) => {
-                    const { id: _id, variantId: _vid, ...tierData } = t;
-                    return { ...tierData, variantId };
-                })
+                data: tiers.map((t: any) => ({ ...kolomTier(t), variantId }))
             });
         }
         return this.getPriceTiers(variantId);
@@ -707,10 +704,7 @@ export class ProductsService {
         await this.prisma.variantIngredient.deleteMany({ where: { variantId } });
         if (ingredients.length > 0) {
             await this.prisma.variantIngredient.createMany({
-                data: ingredients.map((ing: any) => {
-                    const { id: _id, variantId: _vid, rawMaterialVariant: _rm, ...ingData } = ing;
-                    return { ...ingData, variantId };
-                })
+                data: ingredients.map((ing: any) => ({ ...kolomBahanVarian(ing), variantId }))
             });
         }
         return this.getVariantIngredients(variantId);

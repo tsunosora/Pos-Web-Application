@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import type { BranchContext } from '../../common/branch-context.decorator';
+import { assertBranchAccess } from '../../common/branch-where.helper';
 
 export type TemplateCategory =
     | 'GREETING' | 'FU_LEAD' | 'PROGRESS_UPDATE' | 'AFTER_SALES' | 'REPEAT_ORDER' | 'CUSTOM';
@@ -65,9 +67,9 @@ export class TemplatesService {
     }
 
     /** Render template dengan placeholder dari context. Tidak throw kalau placeholder kosong — sisakan blank. */
-    async render(id: number, ctx: RenderContext): Promise<{ template: any; rendered: string; placeholders: Record<string, string> }> {
+    async render(id: number, ctx: RenderContext, branchCtx?: BranchContext): Promise<{ template: any; rendered: string; placeholders: Record<string, string> }> {
         const tpl = await this.detail(id);
-        const placeholders = await this.resolvePlaceholders(ctx);
+        const placeholders = await this.resolvePlaceholders(ctx, branchCtx);
         let rendered = tpl.bodyTemplate;
         for (const [key, value] of Object.entries(placeholders)) {
             const re = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi');
@@ -76,7 +78,7 @@ export class TemplatesService {
         return { template: tpl, rendered, placeholders };
     }
 
-    private async resolvePlaceholders(ctx: RenderContext): Promise<Record<string, string>> {
+    private async resolvePlaceholders(ctx: RenderContext, branchCtx?: BranchContext): Promise<Record<string, string>> {
         const ph: Record<string, string> = {
             // default fallback supaya placeholder tidak crash
             name: '',
@@ -90,6 +92,8 @@ export class TemplatesService {
 
         if (ctx.leadId) {
             const lead = await this.prisma.lead.findUnique({ where: { id: ctx.leadId } });
+            // Lead cabang lain tidak boleh dibaca lewat pratinjau (dulu ID bisa diulang → nama & HP semua cabang).
+            if (lead && branchCtx) assertBranchAccess(branchCtx, (lead as any).branchId ?? null);
             if (lead) {
                 ph.name = lead.name;
                 ph.phone = lead.phone || '';

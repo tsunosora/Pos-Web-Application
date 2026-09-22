@@ -32,6 +32,7 @@ const catalogImageStorage = diskStorage({
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { Menu, MenuGuard } from '../auth/role-groups';
 import {
     WhatsappCloudService,
     type CreateChannelInput,
@@ -54,7 +55,9 @@ import { WaSseAuthGuard } from './wa-sse-auth.guard';
 
 // Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
 // dicocokkan by kata kunci karena nama role dinamis — mis. "Desainer"/"CS").
-const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
+// "Manajer" setara Admin (setingkat manajer melihat semua menu; dulu halaman Katalog/Template WA
+// terbuka untuknya tapi setiap panggilan ditolak 403).
+const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN', 'MANAJER', 'MANAGER'] as const;
 const TEMPLATE_ROLES = [...ADMIN_ROLES, 'MARKETING'] as const;
 
 @Controller('whatsapp')
@@ -142,8 +145,8 @@ export class WhatsappCloudController {
     @Roles(...TEMPLATE_ROLES)
     @Patch('catalog/:productId')
     updateCatalogProduct(@Param('productId') productId: string, @Body() body: { channelId: number } & CatalogProductInput) {
-        const { channelId, ...input } = body;
-        return this.catalog.update(channelId, productId, input);
+        const { channelId, ...input } = body ?? ({} as any);
+        return this.catalog.update(Number(channelId), productId, input);
     }
 
     @UseGuards(JwtAuthGuard, RolesGuard)
@@ -291,8 +294,10 @@ export class WhatsappCloudController {
 
     // ─── Manajemen Channel (nomor per cabang) — Owner/Admin ──────────────────
 
-    @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(...ADMIN_ROLES)
+    // Daftar kanal (label/nomor, tanpa token) = pemakai Inbox WA: dropdown kanal di inbox, katalog &
+    // template. Dulu khusus Admin → CS/desainer/operator & Marketing melihat dropdown kosong.
+    @UseGuards(JwtAuthGuard, MenuGuard)
+    @Menu('/crm/whatsapp')
     @Get('channels')
     listChannels() {
         return this.service.listChannels();

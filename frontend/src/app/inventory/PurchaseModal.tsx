@@ -110,7 +110,7 @@ export default function PurchaseModal({ onClose }: Props) {
             notes: notes.trim() || undefined,
             items: validItems.map(c => ({
                 productVariantId: c.variantId,
-                quantity: Math.round(Number(c.quantity)),
+                quantity: Number(c.quantity), // tanpa pembulatan diam-diam (2,5 dulu jadi 3, 0,4 jadi 0); server menolak pecahan
                 unitPrice: c.unitPrice ? Number(c.unitPrice) : undefined,
             })),
         });

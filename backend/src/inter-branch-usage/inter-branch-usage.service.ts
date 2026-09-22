@@ -118,7 +118,11 @@ export class InterBranchUsageService {
         }
 
         // Build date range filter
-        const dateClauses: string[] = ['sm.branch_id = ?', `sm.type = 'OUT'`];
+        // OUT = bahan terpakai; IN berreferensi nota/job = bahan kembali (qty nota diturunkan, gulungan
+        // dikembalikan) → dikurangkan. Dulu hanya OUT: nota 10 → diedit 4 tetap terhitung 10.
+        // Hanya referensi nota/job (titipan) yang diambil — dulu LIMIT 5000 atas SEMUA gerak OUT cabang
+        // produksi, sehingga periode ramai diam-diam terpotong.
+        const dateClauses: string[] = ['sm.branch_id = ?', `sm.type IN ('OUT', 'IN')`, `(sm.reference_id LIKE 'tx-%' OR sm.reference_id LIKE 'JOB-%')`];
         const dateArgs: any[] = [Number(productionBranchId)];
         if (params.startDate) {
             dateClauses.push('sm.created_at >= ?');
@@ -132,7 +136,7 @@ export class InterBranchUsageService {
 
         // Ambil semua StockMovement OUT dari cabang produksi target
         const movements: any[] = await this.prisma.$queryRawUnsafe(
-            `SELECT sm.id, sm.product_variant_id, sm.quantity, sm.reason, sm.reference_id,
+            `SELECT sm.id, sm.type, sm.product_variant_id, sm.quantity, sm.reason, sm.reference_id,
                     sm.created_at, sm.branch_id,
                     pv.sku, pv.variant_name, pv.hpp,
                     p.name AS product_name, p.pricing_mode, p.product_type
@@ -141,7 +145,7 @@ export class InterBranchUsageService {
              JOIN products p ON p.id = pv.product_id
              WHERE ${whereSql}
              ORDER BY sm.created_at DESC
-             LIMIT 5000`,
+             LIMIT 50000`,
             ...dateArgs,
         );
 
@@ -251,7 +255,7 @@ export class InterBranchUsageService {
 
             // Hitung nilai movement
             const variantId = Number(m.product_variant_id);
-            const qty = Number(m.quantity) || 0;
+            const qty = (Number(m.quantity) || 0) * (m.type === 'IN' ? -1 : 1);
             const variantHpp = Number(m.hpp) || 0;
             const lastPrice = lastPriceMap.get(variantId) ?? 0;
             const effectiveHpp = variantHpp > 0 ? variantHpp : lastPrice;

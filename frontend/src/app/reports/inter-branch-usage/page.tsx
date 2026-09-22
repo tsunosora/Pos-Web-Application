@@ -12,6 +12,7 @@ import { getInterBranchUsage } from '@/lib/api/inter-branch-usage';
 import { getPublicBranches, type PublicBranch } from '@/lib/api/production';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
 import { useBranchStore } from '@/store/branch-store';
+import { safeCellText } from '@/lib/spreadsheet-safe';
 
 function getPresetRange(key: string): { start: string; end: string } {
     const now = new Date();
@@ -118,24 +119,27 @@ export default function InterBranchUsageReportPage() {
 
     const handleExportCSV = () => {
         if (!data) return;
-        const header = 'Cabang Asal,Produk,Varian,SKU,Total Qty,Total Nilai,Jumlah Order,Invoice,Customer,Qty,Nilai,Tanggal\n';
+        // Sel dikutip & tanda kutip digandakan; teks diawali = + - @ diamankan (dulu nama pelanggan
+        // "=HYPERLINK(…)" jadi rumus). Kolom total berisi total per varian, bukan qty per gerak stok.
+        const sel = (v: unknown) => `"${safeCellText(String(v ?? '')).replace(/"/g, '""')}"`;
+        const header = 'Cabang Asal,Produk,Varian,SKU,Total Qty Varian,Total Nilai Varian,Jumlah Order,Invoice,Customer,Qty,Nilai,Tanggal\n';
         const rows: string[] = [];
         for (const b of data.perBranch) {
             for (const item of b.items) {
                 for (const m of item.movements) {
                     rows.push([
-                        `"${b.branchName}"`,
-                        `"${item.productName}"`,
-                        `"${item.variantName ?? ''}"`,
-                        item.sku,
-                        fmtQty(m.qty),
-                        m.valueRupiah,
+                        sel(b.branchName),
+                        sel(item.productName),
+                        sel(item.variantName ?? ''),
+                        sel(item.sku ?? ''),
+                        sel(fmtQty(item.totalQty)), // "1,5" berkoma → wajib dikutip agar kolom tidak bergeser
+                        item.totalValue,
                         b.txCount,
-                        m.txCheckoutNumber || m.txInvoiceNumber || '',
-                        `"${m.customerName ?? ''}"`,
-                        fmtQty(m.qty),
+                        sel(m.txCheckoutNumber || m.txInvoiceNumber || ''),
+                        sel(m.customerName ?? ''),
+                        sel(fmtQty(m.qty)),
                         m.valueRupiah,
-                        m.date,
+                        sel(m.date),
                     ].join(','));
                 }
             }

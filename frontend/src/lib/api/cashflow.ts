@@ -90,7 +90,13 @@ export type CashflowChangeRequest = {
     reviewerNote: string | null;
     createdAt: string;
     requester: { id: number; name: string | null; email: string };
-    cashflow: { id: number; type: string; category: string; amount: string; note: string | null; date: string };
+    cashflow: {
+        id: number; type: string; category: string; amount: string; note: string | null; date: string;
+        platformSource?: string | null; paymentMethod?: string | null;
+        bankAccountId?: number | null; bankAccount?: { bankName: string; accountNumber: string | null } | null;
+    };
+    /** Nama rekening yang diusulkan (diisi server untuk layar persetujuan). */
+    usulanRekening?: string | null;
 };
 
 export const submitCashflowRequest = async (body: {

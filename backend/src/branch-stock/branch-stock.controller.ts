@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, ParseIntPipe, Query, UseGuards, ForbiddenException } from '@nestjs/common';
-import { ManagerGuard } from '../auth/role-groups';
+import { ManagerGuard, OwnerGuard } from '../auth/role-groups';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BranchStockService } from './branch-stock.service';
 import { CurrentBranch } from '../common/branch-context.decorator';
@@ -16,7 +16,9 @@ export class BranchStockController {
         return this.service.listForBranch(ctx);
     }
 
+    // Matriks stok semua cabang: khusus owner (dulu cukup login; tak dipakai layar mana pun).
     @Get('matrix')
+    @UseGuards(OwnerGuard)
     matrix() {
         return this.service.matrixView();
     }

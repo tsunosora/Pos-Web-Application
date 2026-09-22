@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, Re
 import { CashflowService } from './cashflow.service';
 import { Prisma } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ManagerGuard } from '../auth/role-groups';
+import { ManagerGuard, Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 
@@ -13,7 +13,10 @@ function parseIntParam(v?: string): number | undefined {
     return Number.isFinite(n) ? n : undefined;
 }
 
-@UseGuards(JwtAuthGuard)
+// Halaman Kas saja (kasir & setingkat manajer; owner juga lewat dasbor). Dulu cukup login:
+// akun desainer/operator bisa mencatat pengeluaran → ekspektasi kas laci shift terbuka berubah.
+@UseGuards(JwtAuthGuard, MenuGuard)
+@Menu('/cashflow')
 @Controller('cashflow')
 export class CashflowController {
     constructor(private readonly cashflowService: CashflowService) { }

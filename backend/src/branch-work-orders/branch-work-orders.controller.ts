@@ -7,6 +7,7 @@ import { diskStorage } from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Menu, MenuGuard } from '../auth/role-groups';
 import { BranchWorkOrdersService } from './branch-work-orders.service';
 import type { CreateBranchWODto } from './branch-work-orders.service';
 import { compressImage } from '../common/utils/compress-image.util';
@@ -23,7 +24,10 @@ const proofStorage = diskStorage({
     },
 });
 
-@UseGuards(JwtAuthGuard)
+// Menu "Order Cabang" saja (dulu cukup login: akun mana pun bisa membatalkan/menyelesaikan
+// order & mengganti foto bukti — foto lama ikut terhapus).
+@UseGuards(JwtAuthGuard, MenuGuard)
+@Menu('/branch-orders')
 @Controller('branch-work-orders')
 export class BranchWorkOrdersController {
     constructor(private readonly service: BranchWorkOrdersService) {}

@@ -1,3 +1,4 @@
+import { PartialType } from '@nestjs/mapped-types';
 import {
   IsString,
   IsOptional,
@@ -81,7 +82,9 @@ export class CreateScheduleDto {
   rotationUserIds?: string | null; // giliran harian "18,19,24,9" (dihitung dari startDate)
 }
 
-export class UpdateScheduleDto extends CreateScheduleDto {
+// PATCH sebagian: dulu mewarisi field wajib (judul, frekuensi) → tombol aktif/nonaktif jadwal
+// yang hanya mengirim { isActive } selalu ditolak 400.
+export class UpdateScheduleDto extends PartialType(CreateScheduleDto) {
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
 

@@ -147,8 +147,8 @@ export interface CreateLeadInput {
     estimatedValue?: number;
     city?: string;
     assignedToId?: number;
-    followUpDate?: string;
-    deliveryDeadline?: string;
+    followUpDate?: string | null;
+    deliveryDeadline?: string | null;
     status?: LeadStatus;
     imageUrl?: string;
     imageUrls?: string[];

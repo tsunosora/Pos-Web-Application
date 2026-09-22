@@ -60,12 +60,12 @@ export class WorkOrdersController {
 
     @Post()
     create(@Body() data: UpsertWorkOrderDto, @Req() req: any) {
-        return this.wo.create(data, req?.user?.id);
+        return this.wo.create(data, req?.user?.userId); // user JWT berkolom userId (dulu .id → pembuat tak pernah tersimpan)
     }
 
     @Patch(':id')
     update(@Param('id', ParseIntPipe) id: number, @Body() data: UpsertWorkOrderDto, @Req() req: any) {
-        return this.wo.update(id, data, req?.user?.id);
+        return this.wo.update(id, data, req?.user?.userId);
     }
 
     @Delete(':id')

@@ -62,7 +62,7 @@ export default function BranchOrderNewPage() {
     const allVariants: ProductVariant[] = allProducts.flatMap((p: any) =>
         (p.variants ?? []).map((v: any) => ({
             id: v.id,
-            name: v.name,
+            name: v.variantName ?? v.name ?? '', // kolom varian bernama variantName (dulu tampil "undefined")
             sku: v.sku,
             product: { id: p.id, name: p.name, pricingMode: p.pricingMode },
         }))

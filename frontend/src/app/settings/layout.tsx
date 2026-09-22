@@ -1,11 +1,13 @@
 "use client";
 
-import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, GitBranch, SlidersHorizontal, Webhook, Printer } from 'lucide-react';
+import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, GitBranch, SlidersHorizontal, Webhook, Printer, Lock } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useCurrentUser } from '@/hooks/useCurrentUser';
 
-const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: string }[] }[] = [
+const NAV_GROUPS: { title: string; items: { href: string; icon: LucideIcon; label: string; ownerOnly?: boolean }[] }[] = [
     {
         title: 'Toko',
         items: [
@@ -24,6 +26,8 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: stri
             // Halaman /settings/designers masih ada sebagai alat lanjutan,
             // tapi tidak lagi di menu supaya tidak tertukar lagi.
             { href: '/settings/users', icon: Users, label: 'Karyawan (Akun & PIN)' },
+            // Menu yang boleh dilihat tiap peran — khusus owner (server juga menjaga).
+            { href: '/settings/akses-menu', icon: Lock, label: 'Akses Menu Role', ownerOnly: true },
             { href: '/settings/branches', icon: GitBranch, label: 'Cabang Perusahaan' },
             { href: '/settings/branch-config', icon: SlidersHorizontal, label: 'Per Cabang' },
         ],
@@ -41,6 +45,8 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: any; label: stri
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const { isOwner } = useCurrentUser();
+    const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.ownerOnly || isOwner) }));
     return (
         <div className="flex flex-col md:flex-row md:h-[calc(100vh-8rem)] gap-4 md:gap-6">
             {/* Settings Nav */}
@@ -58,7 +64,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
                 {/* Mobile — horizontal scroll bar */}
                 <nav className="md:hidden flex gap-1 p-2 overflow-x-auto">
-                    {NAV_GROUPS.flatMap(g => g.items).map(({ href, icon: Icon, label }) => {
+                    {groups.flatMap(g => g.items).map(({ href, icon: Icon, label }) => {
                         const active = pathname === href;
                         return (
                             <Link
@@ -81,7 +87,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
                 {/* Desktop — grouped vertical */}
                 <nav className="hidden md:flex md:flex-col p-3 gap-4 overflow-y-auto flex-1">
-                    {NAV_GROUPS.map(group => (
+                    {groups.map(group => (
                         <div key={group.title}>
                             <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">{group.title}</p>
                             <div className="space-y-0.5">

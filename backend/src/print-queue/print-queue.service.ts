@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { samaAman } from '../common/utils/sama-aman';
 import { PrismaService } from '../prisma/prisma.service';
 import { DiscordService } from '../discord/discord.service';
 
@@ -312,6 +313,6 @@ export class PrintQueueService {
         if (!pin_) {
             return { valid: false, message: 'PIN operator belum dikonfigurasi. Hubungi admin.' };
         }
-        return { valid: pin_ === pin };
+        return { valid: samaAman(pin_, pin) };
     }
 }

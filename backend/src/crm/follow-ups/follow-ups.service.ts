@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { branchWhere, requireBranch } from '../../common/branch-where.helper';
+import { assertBranchAccess, branchWhere, requireBranch } from '../../common/branch-where.helper';
 import type { BranchContext } from '../../common/branch-context.decorator';
 
 export type FollowUpType = 'LEAD_FU' | 'AFTER_SALES' | 'REPEAT_ORDER' | 'PAYMENT_REMINDER';
@@ -96,8 +96,22 @@ export class FollowUpsService {
 
     async create(ctx: BranchContext, data: CreateFollowUpDto, userId?: number) {
         const branchId = requireBranch(ctx);
-        if (!data.leadId && !data.customerId) {
+        if (!data?.leadId && !data?.customerId) {
             throw new BadRequestException('FollowUp harus terkait Lead atau Customer.');
+        }
+        if (!['LEAD_FU', 'AFTER_SALES', 'REPEAT_ORDER', 'PAYMENT_REMINDER'].includes(String(data.type))) {
+            throw new BadRequestException('Jenis follow-up tidak dikenal.');
+        }
+        if (!data.dueDate || isNaN(new Date(data.dueDate).getTime())) throw new BadRequestException('Tanggal follow-up tidak valid.');
+        // Lead cabang lain: dulu diterima & detail follow-up lalu memuat seluruh data lead itu (HP dsb.),
+        // pengingat WA pun terkirim ke pelanggan cabang lain.
+        if (data.leadId) {
+            const lead = await this.prisma.lead.findUnique({ where: { id: Number(data.leadId) }, select: { branchId: true } });
+            if (!lead) throw new BadRequestException('Lead tidak ditemukan.');
+            assertBranchAccess(ctx, lead.branchId ?? null);
+        }
+        if (data.customerId && !(await this.prisma.customer.findUnique({ where: { id: Number(data.customerId) }, select: { id: true } }))) {
+            throw new BadRequestException('Pelanggan tidak ditemukan.');
         }
         const fu = await this.fu.create({
             data: {

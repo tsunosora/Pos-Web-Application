@@ -45,6 +45,30 @@ export class TaskBoardService {
     return fallback;
   }
 
+  /**
+   * Penerima tugas (orang, anggota grup, giliran) harus ada; untuk manajer cabang juga harus
+   * karyawan cabangnya sendiri (atau tanpa cabang). Dulu tidak dicek: manajer cabang 1 bisa
+   * membuat kartu/jadwal di cabang 2, dan ID yang tidak ada berakhir galat 500.
+   */
+  private async cekPenerima(
+    ctx: BranchContext,
+    t: { userIds?: (number | null | undefined)[]; groupId?: number | null },
+  ) {
+    const ids = [...new Set((t.userIds ?? []).filter((x): x is number => x != null).map(Number))];
+    if (ids.some((x) => !Number.isInteger(x) || x <= 0)) throw new BadRequestException('ID karyawan tidak valid.');
+    if (ids.length) {
+      const ada = await this.db.user.findMany({ where: { id: { in: ids } }, select: { id: true, branchId: true } });
+      if (ada.length !== ids.length) throw new BadRequestException('Ada karyawan yang tidak ditemukan.');
+      if (!ctx.isOwner && ada.some((u: any) => u.branchId != null && u.branchId !== ctx.branchId))
+        throw new ForbiddenException('Penerima tugas harus karyawan cabang Anda.');
+    }
+    if (t.groupId != null) {
+      const g = await this.db.taskGroup.findUnique({ where: { id: Number(t.groupId) }, select: { branchId: true } });
+      if (!g) throw new BadRequestException('Grup tidak ditemukan.');
+      if (!ctx.isOwner && g.branchId !== ctx.branchId) throw new ForbiddenException('Grup itu bukan milik cabang Anda.');
+    }
+  }
+
   /** Boleh memberi/mengelola tugas? Hanya Owner + Manajer (Admin TIDAK boleh). */
   canAssign(ctx: BranchContext): boolean {
     const r = String(ctx.roleName ?? '').toUpperCase();
@@ -81,7 +105,15 @@ export class TaskBoardService {
   ): Promise<(number | null)[]> {
     if (t.rotationUserIds) {
       const who = rotationAssigneeOn(t, date);
-      return who != null ? [who] : [];
+      if (who == null) return [];
+      // Petugas giliran yang sudah dinonaktifkan: jangan buat kartu untuk akun mati
+      // (dulu kartunya tetap dibuat & tak ada yang mengerjakan). Owner perlu merapikan giliran.
+      const u = await this.db.user.findUnique({ where: { id: who }, select: { isActive: true } });
+      if (!u?.isActive) {
+        this.logger.warn(`Giliran ${periodKeyFor(date)} jatuh ke karyawan #${who} yang nonaktif — kartu tidak dibuat; perbarui daftar giliran.`);
+        return [];
+      }
+      return [who];
     }
     if (t.assigneeId) return [t.assigneeId];
     if (t.groupId) {
@@ -152,6 +184,7 @@ export class TaskBoardService {
 
   // ---- SCHEDULE (aturan berulang) ----
   listSchedules(ctx: BranchContext) {
+    this.assertManager(ctx); // dulu karyawan biasa bisa membaca semua jadwal tugas pribadi rekan
     const where: any = {};
     if (!ctx.isOwner) where.branchId = ctx.branchId;
     else if (ctx.branchId != null) where.branchId = ctx.branchId;
@@ -171,6 +204,7 @@ export class TaskBoardService {
     userId: number,
   ) {
     this.assertManager(ctx);
+    await this.cekPenerima(ctx, { userIds: [dto.assigneeId, ...parseRotation(dto.rotationUserIds ?? null)], groupId: dto.groupId });
     const fallback = ctx.isOwner
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
@@ -210,13 +244,23 @@ export class TaskBoardService {
   async updateSchedule(ctx: BranchContext, id: number, dto: UpdateScheduleDto) {
     this.assertManager(ctx);
     const existing = await this.getScheduleScoped(ctx, id);
+    await this.cekPenerima(ctx, {
+      userIds: [dto.assigneeId, ...(dto.rotationUserIds !== undefined ? parseRotation(dto.rotationUserIds) : [])],
+      groupId: dto.groupId,
+    });
     const piket = await this.piketFields(dto, existing);
-    // Staf/manajer cabang tidak boleh memindah jadwal ke cabang lain (DTO: "staff diabaikan").
-    const { branchId: _cabangKiriman, ...tanpaCabang } = dto as any;
+    // Hanya kolom jadwal yang dikenal. Dulu seluruh body diteruskan ke Prisma → relasi
+    // bersarang (branch/items connect/create) bisa memindah jadwal atau membuat kartu di
+    // cabang lain; kunci asing → 500. Cabang hanya boleh dipindah owner.
+    const KOLOM = ['title', 'description', 'frequency', 'daysOfWeek', 'dayOfMonth', 'skipWeekends', 'timeOfDay',
+      'priority', 'assigneeId', 'groupId', 'targetRole', 'targetAll', 'isActive'] as const;
+    const data: any = {};
+    for (const k of KOLOM) if ((dto as any)[k] !== undefined) data[k] = (dto as any)[k];
+    if (ctx.isOwner && dto.branchId !== undefined) data.branchId = dto.branchId;
     return this.db.taskSchedule.update({
       where: { id },
       data: {
-        ...(ctx.isOwner ? dto : tanpaCabang),
+        ...data,
         startDate: dto.startDate ? new Date(dto.startDate) : undefined,
         endDate: dto.endDate ? new Date(dto.endDate) : undefined,
         ...piket,
@@ -346,6 +390,9 @@ export class TaskBoardService {
       else if (ctx.branchId != null) where.branchId = ctx.branchId;
       if (opts.assigneeId) where.assigneeId = opts.assigneeId;
     }
+    // Kartu "Selesai" cukup 30 hari terakhir — piket membuat kartu tiap hari per orang, dulu
+    // seluruh riwayat dimuat & dirender di papan (terus membesar).
+    where.OR = [{ status: { not: 'DONE' } }, { completedAt: null }, { completedAt: { gte: new Date(Date.now() - 30 * 86400000) } }];
     const rows = await this.db.taskItem.findMany({
       where,
       orderBy: [{ status: 'asc' }, { index: 'asc' }, { dueDate: 'asc' }],
@@ -356,6 +403,7 @@ export class TaskBoardService {
 
   async createItem(ctx: BranchContext, dto: CreateTaskItemDto, userId: number) {
     this.assertManager(ctx);
+    await this.cekPenerima(ctx, { userIds: [dto.assigneeId], groupId: dto.groupId });
     const fallback = ctx.isOwner
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
@@ -471,7 +519,14 @@ export class TaskBoardService {
       this.assertManager(ctx);
       data.verifiedByOwnerAt = dto.verified ? new Date() : null;
     }
-    return this.db.taskItem.update({ where: { id }, data });
+    if (dto.assigneeId != null) await this.cekPenerima(ctx, { userIds: [dto.assigneeId] });
+    try {
+      return await this.db.taskItem.update({ where: { id }, data });
+    } catch (e: any) {
+      // Kartu jadwal: penerima baru sudah punya kartu jadwal yang sama untuk hari itu.
+      if (e?.code === 'P2002') throw new BadRequestException('Karyawan itu sudah punya kartu tugas ini untuk periode yang sama.');
+      throw e;
+    }
   }
 
   async moveItem(
@@ -501,12 +556,13 @@ export class TaskBoardService {
 
   // ---- STAT ringkas utk owner (siapa idle) ----
   async summary(ctx: BranchContext) {
+    this.assertManager(ctx);
     const where: any = {};
     if (!ctx.isOwner) where.branchId = ctx.branchId;
     else if (ctx.branchId != null) where.branchId = ctx.branchId;
     const items = await this.db.taskItem.findMany({
       where,
-      include: { assignee: { select: { id: true, name: true } } },
+      select: { assigneeId: true, status: true, dueDate: true, assignee: { select: { id: true, name: true } } },
     });
     const byUser: Record<string, any> = {};
     const now = new Date();
@@ -532,6 +588,7 @@ export class TaskBoardService {
 
   // ---- GRUP TIM KUSTOM ----
   listGroups(ctx: BranchContext) {
+    this.assertManager(ctx);
     const where: any = {};
     if (!ctx.isOwner) where.branchId = ctx.branchId;
     else if (ctx.branchId != null) where.branchId = ctx.branchId;
@@ -548,6 +605,7 @@ export class TaskBoardService {
     userId: number,
   ) {
     this.assertManager(ctx);
+    await this.cekPenerima(ctx, { userIds: dto.memberIds ?? [] });
     const branchId = ctx.isOwner
       ? (dto.branchId ?? ctx.branchId ?? null)
       : ctx.branchId;
@@ -579,6 +637,7 @@ export class TaskBoardService {
   ) {
     this.assertManager(ctx);
     await this.getGroupScoped(ctx, id);
+    if (dto.memberIds) await this.cekPenerima(ctx, { userIds: dto.memberIds });
     if (dto.memberIds) {
       // Ganti total anggota.
       await this.db.taskGroupMember.deleteMany({ where: { groupId: id } });

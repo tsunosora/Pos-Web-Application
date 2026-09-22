@@ -11,7 +11,12 @@ import type { PushBody } from './dto';
 function callerOf(req: any): SyncCaller {
   if (req?.device) return { isDevice: true, userId: null };
   const userId = Number(req?.user?.userId);
-  return { isDevice: false, userId: Number.isInteger(userId) && userId > 0 ? userId : null };
+  return {
+    isDevice: false,
+    userId: Number.isInteger(userId) && userId > 0 ? userId : null,
+    roleName: req?.user?.roleName ?? null,
+    menuAccess: req?.user?.menuAccess ?? null,
+  };
 }
 
 @Controller('sync')

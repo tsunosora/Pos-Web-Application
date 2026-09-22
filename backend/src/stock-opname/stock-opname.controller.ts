@@ -3,11 +3,15 @@ import {
 } from '@nestjs/common';
 import { StockOpnameService } from './stock-opname.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Menu, MenuGuard } from '../auth/role-groups';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
 
 // ─── Admin endpoints (butuh login JWT) ────────────────────────────────────────
-@UseGuards(JwtAuthGuard)
+// Pemegang menu Opname saja: "Selesai" menetapkan stok cabang (dulu cukup login — akun desainer
+// pun bisa membuat sesi & menetapkan stok varian mana pun).
+@UseGuards(JwtAuthGuard, MenuGuard)
+@Menu('/inventory/opname')
 @Controller('stock-opname/sessions')
 export class StockOpnameAdminController {
     constructor(private readonly svc: StockOpnameService) {}
@@ -41,7 +45,7 @@ export class StockOpnameAdminController {
         @Body() dto: { confirmedItems: { productVariantId: number; confirmedStock: number }[] },
         @CurrentBranch() branchCtx: BranchContext,
     ) {
-        return this.svc.finishSession(id, dto.confirmedItems, branchCtx);
+        return this.svc.finishSession(id, Array.isArray(dto?.confirmedItems) ? dto.confirmedItems : [], branchCtx);
     }
 }
 

@@ -8,7 +8,7 @@ import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { ManagerGuard, isManagerLevelRole } from '../auth/role-groups';
+import { ManagerGuard, Menu, MenuGuard, isManagerLevelRole } from '../auth/role-groups';
 import { compressImage } from '../common/utils/compress-image.util';
 import { CurrentBranch } from '../common/branch-context.decorator';
 import type { BranchContext } from '../common/branch-context.decorator';
@@ -29,22 +29,27 @@ const imageFilter = (req: any, file: any, cb: any) => {
     cb(null, true);
 };
 
-@UseGuards(JwtAuthGuard)
+// Tulis produk/harga/varian = pemegang menu Inventori (Operator & setingkat manajer). Dulu cukup
+// login: kasir/desainer bisa mengubah harga & HPP lewat API. Hitung komposit (dipakai kasir) bebas.
+@UseGuards(JwtAuthGuard, MenuGuard)
 @Controller('products')
 export class ProductsController {
     constructor(private readonly productsService: ProductsService) { }
 
     // Stok awal varian baru dicatat ke cabang aktif (lihat ProductsService.cekStokAwal).
+    @Menu('/inventory')
     @Post()
     create(@Body() createProductDto: any, @CurrentBranch() branchCtx: BranchContext) {
         return this.productsService.create(createProductDto, branchCtx.branchId ?? null);
     }
 
+    @Menu('/inventory')
     @Post('bulk-import')
     bulkImport(@Body() payload: any, @CurrentBranch() branchCtx: BranchContext) {
         return this.productsService.bulkImport(payload, branchCtx.branchId ?? null);
     }
 
+    @Menu('/inventory')
     @Delete('bulk')
     @UseGuards(ManagerGuard)
     bulkRemove(@Body() payload: { ids: number[] }) {
@@ -75,6 +80,7 @@ export class ProductsController {
         return this.productsService.computeComposite(id, body?.selectedOptions ?? {});
     }
 
+    @Menu('/inventory')
     @Patch(':id')
     update(@Param('id', ParseIntPipe) id: number, @Body() updateProductDto: any, @Req() req: any, @CurrentBranch() branchCtx: BranchContext) {
         // Menghapus varian lewat form produk = setingkat manajer (sama dgn DELETE varian/produk).
@@ -84,6 +90,7 @@ export class ProductsController {
         return this.productsService.update(id, updateProductDto, branchCtx.branchId ?? null);
     }
 
+    @Menu('/inventory')
     @Delete(':id')
     @UseGuards(ManagerGuard)
     remove(@Param('id', ParseIntPipe) id: number) {
@@ -92,11 +99,13 @@ export class ProductsController {
 
     // ── Variant endpoints ───────────────────────────────────────────────────
 
+    @Menu('/inventory')
     @Post(':id/variants')
     addVariant(@Param('id', ParseIntPipe) id: number, @Body() variantData: any, @CurrentBranch() branchCtx: BranchContext) {
         return this.productsService.addVariant(id, variantData, branchCtx.branchId ?? null);
     }
 
+    @Menu('/inventory')
     @Patch('variants/:variantId')
     updateVariant(
         @Param('variantId', ParseIntPipe) variantId: number,
@@ -105,6 +114,7 @@ export class ProductsController {
         return this.productsService.updateVariant(variantId, variantData);
     }
 
+    @Menu('/inventory')
     @Delete('variants/:variantId')
     @UseGuards(ManagerGuard)
     removeVariant(@Param('variantId', ParseIntPipe) variantId: number) {
@@ -113,6 +123,7 @@ export class ProductsController {
 
     // ── Image upload endpoints ──────────────────────────────────────────────
 
+    @Menu('/inventory')
     @Post(':id/upload-image')
     @UseInterceptors(FileInterceptor('image', {
         storage: imageStorage,
@@ -130,6 +141,7 @@ export class ProductsController {
         return { message: 'Image uploaded successfully', imageUrl };
     }
 
+    @Menu('/inventory')
     @Post(':id/upload-images')
     @UseInterceptors(FilesInterceptor('images', 4, {
         storage: imageStorage,
@@ -148,6 +160,7 @@ export class ProductsController {
         return { message: 'Images uploaded successfully', imageUrls };
     }
 
+    @Menu('/inventory')
     @Post('variants/:variantId/upload-image')
     @UseInterceptors(FileInterceptor('image', {
         storage: imageStorage,
@@ -167,19 +180,23 @@ export class ProductsController {
 
     // ── Product Ingredient endpoints ────────────────────────────────────────
 
+    @Menu('/inventory')
     @Post(':id/ingredients')
     addIngredient(@Param('id', ParseIntPipe) id: number, @Body() ingredientData: any) {
         return this.productsService.addIngredient(id, ingredientData);
     }
 
+    @Menu('/inventory')
     @Patch(':id/ingredients/:ingId')
     updateIngredient(
+        @Param('id', ParseIntPipe) id: number,
         @Param('ingId', ParseIntPipe) ingId: number,
         @Body() data: any,
     ) {
-        return this.productsService.updateIngredient(ingId, data);
+        return this.productsService.updateIngredient(ingId, data, id);
     }
 
+    @Menu('/inventory')
     @Delete(':id/ingredients/:ingId')
     @UseGuards(ManagerGuard)
     removeIngredient(@Param('ingId', ParseIntPipe) ingId: number) {
@@ -193,6 +210,7 @@ export class ProductsController {
         return this.productsService.getPriceTiers(variantId);
     }
 
+    @Menu('/inventory')
     @Put('variants/:variantId/price-tiers')
     replacePriceTiers(
         @Param('variantId', ParseIntPipe) variantId: number,
@@ -201,6 +219,7 @@ export class ProductsController {
         return this.productsService.replacePriceTiers(variantId, body.tiers || []);
     }
 
+    @Menu('/inventory')
     @Delete('variants/:variantId/price-tiers/:tierId')
     @UseGuards(ManagerGuard)
     removePriceTier(@Param('tierId', ParseIntPipe) tierId: number) {
@@ -214,6 +233,7 @@ export class ProductsController {
         return this.productsService.getVariantIngredients(variantId);
     }
 
+    @Menu('/inventory')
     @Put('variants/:variantId/variant-ingredients')
     replaceVariantIngredients(
         @Param('variantId', ParseIntPipe) variantId: number,
@@ -222,6 +242,7 @@ export class ProductsController {
         return this.productsService.replaceVariantIngredients(variantId, body.ingredients || []);
     }
 
+    @Menu('/inventory')
     @Delete('variants/:variantId/variant-ingredients/:ingId')
     @UseGuards(ManagerGuard)
     removeVariantIngredient(@Param('ingId', ParseIntPipe) ingId: number) {

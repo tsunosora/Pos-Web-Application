@@ -59,7 +59,7 @@ export class PrintQueueController {
         if (!Number.isInteger(bid) || bid <= 0) throw new BadRequestException('Pilih cabang dulu, lalu masukkan PIN.');
         const r = await this.svc.verifyPin(pin, bid);
         if (!r.valid) return r;
-        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: bid }) };
+        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: bid }, pin) };
     }
 
     @Post('jobs/:id/start')

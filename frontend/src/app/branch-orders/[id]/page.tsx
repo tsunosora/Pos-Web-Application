@@ -72,7 +72,10 @@ export default function BranchOrderDetailPage() {
         enabled: !!id,
     });
 
-    const invalidate = () => qc.invalidateQueries({ queryKey: ['branch-work-order', id] });
+    // Daftar & ringkasan ikut disegarkan (dulu status lama tampil sampai 60 detik).
+    const invalidate = () => {
+        for (const k of ['branch-work-order', 'branch-work-orders', 'branch-wo-summary']) void qc.invalidateQueries({ queryKey: [k] });
+    };
 
     const statusMut = useMutation({
         mutationFn: ({ status, reason }: { status: BranchWOStatus; reason?: string }) =>
@@ -255,7 +258,7 @@ export default function BranchOrderDetailPage() {
                             </button>
                             <div className="flex-1 min-w-0">
                                 <p className={`font-medium text-sm ${item.isDone ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                    {item.productVariant.product.name} — {item.productVariant.name}
+                                    {item.productVariant.product.name}{(item.productVariant.variantName ?? item.productVariant.name) ? ` — ${item.productVariant.variantName ?? item.productVariant.name}` : ''}
                                 </p>
                                 <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                                     <span className="text-xs text-muted-foreground">Qty: {item.quantity}</span>

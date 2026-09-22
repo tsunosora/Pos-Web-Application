@@ -239,7 +239,9 @@ export class ProductionController {
         if (!Number.isInteger(pinBranchId) || pinBranchId <= 0) throw new BadRequestException('branchId wajib diisi');
         const job = await this.productionService.getJobMeta(id);
         if (job.branchId !== pinBranchId) throw new ForbiddenException('Job ini milik cabang lain');
-        const { pin: _p, branchId, operatorName, ...data } = body;
+        // Jalur PIN operator hanya memindah tahap/catatan: kredit desainer (papan peringkat & bonus)
+        // dan tanda EXPRESS diatur dari akun login (dulu ikut diterima tanpa jejak aktivitas).
+        const { pin: _p, branchId, operatorName, designerName: _desainer, isExpress: _ekspres, ...data } = body as typeof body & { designerName?: unknown; isExpress?: unknown };
         // branchId = cabang PIN operator → dipakai atribusi leaderboard (bukan dibuang).
         return this.productionService.updatePipelineStage(id, data, { name: operatorName.trim(), role: 'OPERATOR', branchId: branchId ?? null });
     }
@@ -311,7 +313,7 @@ export class ProductionController {
         if (!Number.isInteger(bid) || bid <= 0) throw new BadRequestException('Pilih cabang dulu, lalu masukkan PIN.');
         const r = await this.productionService.verifyPin(pin, bid);
         if (!r.valid) return r;
-        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: bid }) };
+        return { ...r, boardToken: signBoardToken(this.jwt, { branchId: bid }, pin) };
     }
 
     @Post('jobs/:id/start')

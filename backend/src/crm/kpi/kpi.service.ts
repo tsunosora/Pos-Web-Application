@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { samaAman } from '../../common/utils/sama-aman';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere } from '../../common/branch-where.helper';
 import { matchBranchId } from '../../common/branch-name.util';
@@ -869,7 +870,7 @@ export class KpiService {
         if (!pin) return false;
         const s: any = await this.prisma.storeSettings.findFirst({ select: { marketingPin: true } as any });
         const real = s?.marketingPin;
-        return !!real && String(real) === String(pin);
+        return !!real && samaAman(real, pin);
     }
 
     /** Data dashboard publik: report KPI semua cabang + daftar lead beserta produknya. */

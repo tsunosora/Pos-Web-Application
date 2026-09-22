@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -60,6 +60,27 @@ export interface DiscordConfigShape {
 
 const rupiah = (n: number) => 'Rp ' + Math.round(Number(n) || 0).toLocaleString('id-ID');
 
+// URL webhook hanya ke Discord. Dulu alamat apa pun diterima → server bisa disuruh POST ke
+// layanan internal lewat tombol "Tes", atau laporan omzet dialihkan ke server luar.
+const WEBHOOK_DISCORD = /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/api\/webhooks\/\d+\/[\w-]+\/?$/;
+function cekWebhooks(w: unknown, label: string): BranchWebhooks {
+    if (w == null) return {};
+    if (typeof w !== 'object' || Array.isArray(w)) throw new BadRequestException(`Format webhook ${label} tidak valid.`);
+    const out: BranchWebhooks = {};
+    for (const [k, v] of Object.entries(w as Record<string, unknown>)) {
+        if (!(DISCORD_CHANNELS as string[]).includes(k)) continue;
+        const url = typeof v === 'string' ? v.trim() : '';
+        if (url && !WEBHOOK_DISCORD.test(url)) {
+            throw new BadRequestException(`Webhook ${label} kanal ${k} harus alamat webhook Discord (https://discord.com/api/webhooks/…).`);
+        }
+        out[k as DiscordChannel] = url;
+    }
+    return out;
+}
+/** Bentuk baku untuk membandingkan (kanal kosong = tidak diisi). */
+const kanonWebhooks = (w: any) => JSON.stringify(DISCORD_CHANNELS.map((k) => (typeof w?.[k] === 'string' ? w[k].trim() : '')));
+const kanonEvents = (e: any) => JSON.stringify(DISCORD_EVENTS.map((k) => (e?.[k] === undefined ? null : !!e[k])));
+
 @Injectable()
 export class DiscordService implements OnModuleInit {
     private readonly logger = new Logger('DiscordService');
@@ -119,13 +140,44 @@ export class DiscordService implements OnModuleInit {
         return data;
     }
 
-    async updateConfig(patch: Partial<DiscordConfigShape>): Promise<DiscordConfigShape> {
+    /**
+     * Simpan setelan. Setingkat manajer (bukan owner) hanya boleh mengubah webhook cabangnya
+     * sendiri; webhook global/sistem, daftar event, tombol aktif, dan cabang lain = owner
+     * (dulu Admin satu cabang bisa mengalihkan laporan semua cabang).
+     */
+    async updateConfig(patch: Partial<DiscordConfigShape>, aktor?: { isOwner: boolean; branchId: number | null }): Promise<DiscordConfigShape> {
         let row = await this.model.findFirst({ orderBy: { id: 'asc' } });
+        patch = patch && typeof patch === 'object' ? patch : {};
         const data: any = {};
         if (patch.enabled !== undefined) data.enabled = !!patch.enabled;
-        if (patch.webhooks !== undefined) data.webhooks = patch.webhooks;
-        if (patch.events !== undefined) data.events = patch.events;
-        if (patch.branchConfigs !== undefined) data.branchConfigs = patch.branchConfigs;
+        if (patch.webhooks !== undefined) data.webhooks = cekWebhooks(patch.webhooks, 'global');
+        if (patch.events !== undefined) {
+            const e: any = patch.events && typeof patch.events === 'object' ? patch.events : {};
+            data.events = Object.fromEntries(DISCORD_EVENTS.filter((k) => e[k] !== undefined).map((k) => [k, !!e[k]]));
+        }
+        if (patch.branchConfigs !== undefined) {
+            const bc: any = patch.branchConfigs;
+            if (!bc || typeof bc !== 'object' || Array.isArray(bc)) throw new BadRequestException('Format webhook cabang tidak valid.');
+            data.branchConfigs = Object.fromEntries(
+                Object.entries(bc)
+                    .filter(([id]) => /^\d+$/.test(id))
+                    .map(([id, v]: [string, any]) => [id, { webhooks: cekWebhooks(v?.webhooks, `cabang ${id}`) }]),
+            );
+        }
+        if (aktor && !aktor.isOwner) {
+            const lama = this.normalize(row);
+            const tolak = () => { throw new ForbiddenException('Hanya owner yang dapat mengubah webhook global, daftar notifikasi, atau webhook cabang lain.'); };
+            if (data.enabled !== undefined && data.enabled !== lama.enabled) tolak();
+            if (data.webhooks !== undefined && kanonWebhooks(data.webhooks) !== kanonWebhooks(lama.webhooks)) tolak();
+            if (data.events !== undefined && kanonEvents(data.events) !== kanonEvents(lama.events)) tolak();
+            if (data.branchConfigs !== undefined) {
+                const ids = new Set([...Object.keys(lama.branchConfigs), ...Object.keys(data.branchConfigs)]);
+                for (const id of ids) {
+                    if (aktor.branchId != null && id === String(aktor.branchId)) continue;
+                    if (kanonWebhooks(data.branchConfigs[id]?.webhooks) !== kanonWebhooks(lama.branchConfigs[id]?.webhooks)) tolak();
+                }
+            }
+        }
         row = row
             ? await this.model.update({ where: { id: row.id }, data })
             : await this.model.create({ data: { enabled: false, webhooks: {}, events: {}, branchConfigs: {}, ...data } });

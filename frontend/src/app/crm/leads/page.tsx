@@ -465,7 +465,14 @@ export default function LeadsPage() {
                     <LeadKanbanBoard
                         leads={items}
                         onCardClick={(l) => setDetailId(l.id)}
-                        onStatusChange={(id, status) => statusMut.mutate({ id, status })}
+                        onStatusChange={(id, status) => {
+                            // Menutup lead lewat alurnya (konversi / alasan kalah) di detail lead.
+                            if (status === "CLOSED_WON" || status === "CLOSED_LOST" || status === "INVALID") {
+                                setDetailId(id);
+                                return;
+                            }
+                            statusMut.mutate({ id, status });
+                        }}
                     />
                 </div>
             )}
@@ -690,8 +697,9 @@ function LeadFormModal({
             // Kalau ada items, estimasi auto dari sum items. Kalau user manual override, pakai itu.
             estimatedValue: form.estimatedValue === "" ? (itemsTotal > 0 ? itemsTotal : undefined) : Number(form.estimatedValue),
             intakeAt: form.intakeAt || undefined,
-            followUpDate: form.followUpDate || undefined,
-            deliveryDeadline: form.deliveryDeadline || undefined,
+            // null = dikosongkan (dulu `undefined` → mengosongkan tanggal di form edit diabaikan).
+            followUpDate: form.followUpDate || null,
+            deliveryDeadline: form.deliveryDeadline || null,
             assignedToId: form.assignedToId === "" ? null : Number(form.assignedToId),
             imageUrls: imageUrls, // multi
             imageUrl: imageUrls[0] || null, // backward compat: first image
@@ -1060,10 +1068,22 @@ function LeadDetailDrawer({
         enabled: false,
     });
     // gunakan getLead langsung
-    const { data: leadDetail } = useQuery({
+    const { data: leadDetail, isError: leadGagal } = useQuery({
         queryKey: ["crm-lead", leadId],
         queryFn: async () => (await import("@/lib/api")).getLead(leadId),
+        retry: false,
     });
+    // Lead tak ditemukan / cabang lain (mis. tautan ?leadId= dari inbox): tutup laci & buang
+    // parameter URL. Dulu spinner layar penuh tampil selamanya tanpa tombol tutup.
+    useEffect(() => {
+        if (!leadGagal) return;
+        try {
+            const u = new URL(window.location.href);
+            if (u.searchParams.has("leadId")) { u.searchParams.delete("leadId"); window.history.replaceState(null, "", u.toString()); }
+        } catch { /* abaikan */ }
+        alert("Lead tidak ditemukan atau bukan milik cabang Anda.");
+        onClose();
+    }, [leadGagal, onClose]);
 
     const [activityText, setActivityText] = useState("");
     const [activityKind, setActivityKind] = useState("NOTE");

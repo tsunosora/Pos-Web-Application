@@ -160,7 +160,9 @@ export class TransactionsService {
      */
     private async cashflowsOfInvoice(tx: any, invoiceNumber: string, where: Record<string, unknown>) {
         const rows: any[] = await tx.cashflow.findMany({
-            where: { ...where, note: { contains: invoiceNumber } },
+            // Kas otomatis selalu tanpa akun pencatat; kas manual yang kebetulan menyebut nomor nota
+            // (mis. "Ongkir tambahan INV-…") dulu ikut terhapus/terkoreksi bersama notanya.
+            where: { ...where, userId: null, note: { contains: invoiceNumber } },
             orderBy: [{ date: 'desc' }, { id: 'desc' }],
         });
         return rows.filter((r) => {
@@ -2814,13 +2816,16 @@ export class TransactionsService {
         return rows.map((r) => ({ ...r, newVariantNames: nama }));
     }
 
-    async reviewEditRequest(requestId: number, reviewerId: number, reviewerRoleId: number | null, approved: boolean, reviewNote?: string) {
+    async reviewEditRequest(requestId: number, reviewerId: number, reviewerRoleId: number | null, approved: boolean, reviewNote?: string, branchCtx?: BranchContext) {
         if (!(await this.isAdminOrOwner(reviewerRoleId))) {
             throw new ForbiddenException('Hanya Admin/Owner yang dapat mereview permintaan edit');
         }
 
         const req = await (this.prisma as any).transactionEditRequest.findUnique({ where: { id: requestId } });
         if (!req) throw new NotFoundException('Permintaan edit tidak ditemukan');
+        // Penyetuju cabang lain tidak boleh memutus permintaan atas nota cabang ini (dulu daftar
+        // dibatasi per cabang, tapi ID berurutan bisa ditebak & langsung disetujui).
+        await this.assertTxBranchAccess(req.transactionId, branchCtx);
         if (req.status !== 'PENDING') throw new BadRequestException('Permintaan ini sudah diproses');
 
         if (approved) {

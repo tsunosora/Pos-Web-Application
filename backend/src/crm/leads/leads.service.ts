@@ -1,6 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ymdLokal } from '../../common/utils/tanggal.util';
-import { LeadStatus, Prisma } from '@prisma/client';
+import { LeadLevel, LeadSource, LeadStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { branchWhere, requireBranch } from '../../common/branch-where.helper';
 import type { BranchContext } from '../../common/branch-context.decorator';
@@ -115,10 +115,15 @@ export class LeadsService {
         limit?: number;
     }) {
         const where: Prisma.LeadWhereInput = { ...branchWhere(ctx) };
-        if (params.status) where.status = params.status as LeadStatus;
-        if (params.source) where.source = params.source as any;
+        // Nilai filter di luar daftar → 400 (dulu diteruskan ke Prisma → galat 500).
+        const cekEnum = (v: string, daftar: object, label: string) => {
+            if (!(Object.values(daftar) as string[]).includes(v)) throw new BadRequestException(`${label} tidak dikenal: ${String(v).slice(0, 30)}`);
+            return v as any;
+        };
+        if (params.status) where.status = cekEnum(params.status, LeadStatus, 'Status lead');
+        if (params.source) where.source = cekEnum(params.source, LeadSource, 'Sumber lead');
         if (params.assignedToId) where.assignedToId = params.assignedToId;
-        if (params.level) where.level = params.level as any;
+        if (params.level) where.level = cekEnum(params.level, LeadLevel, 'Level lead');
         if (params.dateFrom || params.dateTo) {
             const createdAtFilter: Prisma.DateTimeFilter = {};
             if (params.dateFrom) createdAtFilter.gte = parseDateParam(params.dateFrom);
@@ -536,11 +541,14 @@ export class LeadsService {
         items?: LeadItemDto[]; branchId?: number;
     }) {
         // Batasi panjang/jumlah input (anti payload abusive & DB bloat).
-        const name = (dto?.name ?? '').trim().slice(0, 120);
+        // Bukan teks (angka/objek dari pengirim asal) → dianggap kosong; dulu `.trim` gagal → 500
+        // (endpoint publik, tiap galat juga membanjiri kanal error Discord).
+        const teks = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+        const name = teks(dto?.name).trim().slice(0, 120);
         if (!name) throw new BadRequestException('Nama wajib diisi');
-        const phone = (dto.phone ?? '').trim().slice(0, 30) || null;
-        const note = (dto.note ?? '').trim().slice(0, 2000);
-        const address = (dto.address ?? '').trim().slice(0, 2000);
+        const phone = teks(dto.phone).trim().slice(0, 30) || null;
+        const note = teks(dto.note).trim().slice(0, 2000);
+        const address = teks(dto.address).trim().slice(0, 2000);
         let items = Array.isArray(dto.items) ? dto.items.filter(i => i && i.description) : [];
         if (items.length > 50) items = items.slice(0, 50); // maks 50 baris item/order
         // Clamp qty per baris agar tidak ada nilai absurd (estimasi nilai membengkak).
@@ -656,8 +664,26 @@ export class LeadsService {
         return { ok: true, leadId: lead.id, total: itemsTotal };
     }
 
+    /**
+     * Validasi item SEBELUM apa pun ditulis. Dulu item lama dihapus dulu baru divalidasi → satu varian
+     * yang sudah dihapus membuat semua item lead hilang (dan lead baru tercipta tanpa item → dibuat ulang = dobel).
+     */
+    private async _cekItems(items: LeadItemDto[] | undefined | null) {
+        if (items == null) return;
+        if (!Array.isArray(items)) throw new BadRequestException('Daftar item tidak valid.');
+        const variantIds = Array.from(new Set(
+            items.map(i => i?.productVariantId).filter((v): v is number => typeof v === 'number'),
+        ));
+        if (!variantIds.length) return;
+        const found = await this.prisma.productVariant.findMany({ where: { id: { in: variantIds } }, select: { id: true } });
+        const foundSet = new Set(found.map(v => v.id));
+        const hilang = variantIds.filter((v) => !foundSet.has(v));
+        if (hilang.length) throw new BadRequestException(`Varian produk #${hilang.join(', #')} sudah tidak ada — pilih ulang produknya.`);
+    }
+
     private async _syncItems(leadId: number, items: LeadItemDto[]) {
         const hasLeadItemModel = !!(this.prisma as any).leadItem?.deleteMany;
+        await this._cekItems(items);
 
         // Delete existing items, lalu insert ulang
         if (hasLeadItemModel) {
@@ -667,7 +693,7 @@ export class LeadsService {
         }
         if (!items.length) return;
 
-        // Validate productVariantId yang non-null
+        // Validate productVariantId yang non-null (sudah dicek di atas; dibiarkan sebagai jaring kedua)
         const variantIds = Array.from(new Set(
             items.map(i => i.productVariantId).filter((v): v is number => typeof v === 'number'),
         ));
@@ -714,6 +740,7 @@ export class LeadsService {
 
     async create(ctx: BranchContext, data: CreateLeadDto, userId?: number) {
         const branchId = requireBranch(ctx);
+        await this._cekItems(data.items);
         const phoneNorm = normalizePhone(data.phone);
 
         // Auto-calc estimatedValue dari items kalau tidak di-set manual
@@ -800,6 +827,7 @@ export class LeadsService {
 
     async update(ctx: BranchContext, id: number, data: UpdateLeadDto, userId?: number) {
         const existing = await this.detail(ctx, id);
+        await this._cekItems(data.items);
         // Catatan: lead terminal (CLOSED_WON/CLOSED_LOST) tetap bisa diedit & diubah
         // status-nya (mis. reopen ke FOLLOW_UP). Activity log mencatat perubahan
         // supaya history tetap rapih. Kalau reopen, closedAt di-reset null.
@@ -807,6 +835,16 @@ export class LeadsService {
             (existing.status === 'CLOSED_WON' || existing.status === 'CLOSED_LOST' || existing.status === 'INVALID') &&
             data.status && data.status !== existing.status &&
             data.status !== 'CLOSED_WON' && data.status !== 'CLOSED_LOST' && data.status !== 'INVALID';
+        // Status akhir hanya lewat alurnya (Konversi / Tandai Lost + alasan / Invalid): dulu seret kartu
+        // Kanban langsung mengubah status → tanpa alasan kalah, follow-up tetap terbuka, closing tanpa nota.
+        if (data.status !== undefined && data.status !== existing.status &&
+            (data.status === 'CLOSED_WON' || data.status === 'CLOSED_LOST' || data.status === 'INVALID')) {
+            throw new BadRequestException('Gunakan tombol Konversi, Tandai Lost, atau Invalid di detail lead untuk menutup lead.');
+        }
+        // Lead yang sudah menjadi nota tidak dibuka lagi (omzet nota itu hilang dari papan peringkat CS).
+        if (isReopen && (existing as any).convertedTransactionId) {
+            throw new BadRequestException('Lead ini sudah menjadi nota — tidak bisa dibuka kembali.');
+        }
 
         const updateData: Prisma.LeadUpdateInput = {};
         if (data.name !== undefined) updateData.name = data.name;
@@ -893,11 +931,22 @@ export class LeadsService {
             await this._syncImages(id, data.imageUrl ? [data.imageUrl] : []);
         }
 
-        // Sync FollowUp kalau followUpDate di-update (termasuk dihapus = null)
-        if (data.followUpDate !== undefined) {
-            const targetAssignee = data.assignedToId !== undefined
-                ? data.assignedToId
-                : existing.assignedToId;
+        // Sync FollowUp hanya bila tanggalnya BENAR-BENAR berubah (termasuk dihapus = null). Form edit
+        // selalu mengirim ulang tanggal lama → dulu follow-up yang sudah DONE "hidup lagi" (PENDING,
+        // tanggal lampau): lencana terlambat, pengingat WA terkirim ulang, KPI kepatuhan turun.
+        const tglLama = existing.followUpDate ? new Date(existing.followUpDate).getTime() : null;
+        const tglBaru = data.followUpDate ? new Date(data.followUpDate).getTime() : null;
+        const targetAssignee = data.assignedToId !== undefined
+            ? data.assignedToId
+            : existing.assignedToId;
+        if (data.followUpDate !== undefined && tglBaru === tglLama && data.assignedToId !== undefined && data.assignedToId !== existing.assignedToId) {
+            // Hanya ganti penanggung jawab → pindahkan follow-up yang masih menunggu saja.
+            await (this.prisma as any).followUp.updateMany({
+                where: { leadId: id, status: 'PENDING', sourceRef: `lead-fudate:${id}` },
+                data: { assignedToId: data.assignedToId ?? null },
+            }).catch(() => undefined);
+        }
+        if (data.followUpDate !== undefined && tglBaru !== tglLama) {
             await this._syncLeadFollowUp({
                 leadId: id,
                 followUpDate: data.followUpDate ? new Date(data.followUpDate) : null,
@@ -961,8 +1010,22 @@ export class LeadsService {
         return act;
     }
 
+    /** Lead yang sedang dikonversi (satu proses backend): dua tab/dua staf serentak dulu sama-sama
+     *  lolos cek → dua nota, DP & potong stok dobel. */
+    private readonly sedangKonversi = new Set<number>();
+
     /** Convert lead → Customer (existing/baru) + opsional SO draft. */
     async convert(ctx: BranchContext, leadId: number, data: ConvertLeadDto, userId?: number) {
+        if (this.sedangKonversi.has(leadId)) throw new ConflictException('Lead ini sedang dikonversi — tunggu sebentar lalu muat ulang.');
+        this.sedangKonversi.add(leadId);
+        try {
+            return await this.konversiSekali(ctx, leadId, data, userId);
+        } finally {
+            this.sedangKonversi.delete(leadId);
+        }
+    }
+
+    private async konversiSekali(ctx: BranchContext, leadId: number, data: ConvertLeadDto, userId?: number) {
         const lead = await this.detail(ctx, leadId);
         // Re-convert hanya boleh dilakukan oleh owner. Staff biasa hanya bisa convert sekali.
         if (lead.status === 'CLOSED_WON' && !ctx.isOwner) {
@@ -1560,6 +1623,13 @@ export class LeadsService {
             });
             if (!so) throw new NotFoundException('Sales Order tidak ditemukan');
             if (so.status === 'CANCELLED') throw new BadRequestException('SO sudah dibatalkan, tidak bisa ditautkan');
+            // Satu SO = satu lead. Dulu lead dobel (WA + IG) bisa menaut SO yang sama → saat checkout
+            // keduanya CLOSED_WON ke nota yang sama & omzet/closing CS terhitung dua kali.
+            const lain: any = await (this.prisma as any).lead.findFirst({
+                where: { convertedSalesOrderId: salesOrderId, id: { not: leadId }, status: { notIn: ['CLOSED_LOST', 'INVALID'] } },
+                select: { id: true, name: true },
+            });
+            if (lain) throw new BadRequestException(`SO ${so.soNumber} sudah tertaut ke lead "${lain.name}" (#${lain.id}). Lepas dulu dari lead itu.`);
         }
         const current: any = await (this.prisma as any).lead.findUnique({ where: { id: leadId }, select: { status: true } });
         const bumpStatus = salesOrderId != null && ['NEW', 'FOLLOW_UP'].includes(current?.status);
