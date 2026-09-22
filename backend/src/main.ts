@@ -8,6 +8,7 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
+import { tolakTulisanBersarang } from './common/tolak-tulisan-bersarang';
 
 async function bootstrap() {
   // rawBody: true → menyimpan Buffer body mentah (req.rawBody) untuk verifikasi
@@ -37,6 +38,8 @@ async function bootstrap() {
   // agar tidak ditolak "request entity too large" (PayloadTooLargeError).
   app.useBodyParser('json', { limit: '10mb' });
   app.useBodyParser('urlencoded', { extended: true, limit: '10mb' });
+  // Tepat setelah body terbaca: tolak body berbentuk tulisan relasi bersarang Prisma (lihat berkasnya).
+  app.use(tolakTulisanBersarang);
 
   // Header keamanan (X-Frame-Options, X-Content-Type-Options, dll).
   // CSP & COEP dimatikan, dan CORP di-set 'cross-origin': backend menyajikan
