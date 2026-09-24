@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-PosPro menyajikan **594 endpoint** dalam **75 controller**.
+PosPro menyajikan **595 endpoint** dalam **75 controller**.
 Sebanyak **60 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
@@ -42,7 +42,7 @@ Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 | `/crm/follow-ups` | FollowUpsController | 7 | `backend/src/crm/follow-ups/follow-ups.controller.ts` |
 | `/crm/kpi` | KpiController | 11 | `backend/src/crm/kpi/kpi.controller.ts` |
 | `/crm/lead-sources` | LeadSourcesController | 2 | `backend/src/crm/leads/lead-sources.controller.ts` |
-| `/crm/leads` | LeadsController | 13 | `backend/src/crm/leads/leads.controller.ts` |
+| `/crm/leads` | LeadsController | 14 | `backend/src/crm/leads/leads.controller.ts` |
 | `/crm/public` | KpiPublicController | 5 | `backend/src/crm/kpi/kpi-public.controller.ts` |
 | `/crm/templates` | TemplatesController | 7 | `backend/src/crm/templates/templates.controller.ts` |
 | `/cs-rating` | CsRatingController | 4 | `backend/src/cs-rating/cs-rating.controller.ts` |
@@ -431,6 +431,7 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 | POST | `/crm/leads/:id/convert` | `convert` | `JwtAuthGuard` | — |
 | POST | `/crm/leads/:id/close-lost` | `closeLost` | `JwtAuthGuard` | — |
 | POST | `/crm/leads/:id/mark-invalid` | `markInvalid` | `JwtAuthGuard` | — |
+| PATCH | `/crm/leads/:id/branch` | `pindahCabang` | `ManagerGuard` | — |
 | POST | `/crm/leads/:id/link-so` | `linkToSalesOrder` | `JwtAuthGuard` | — |
 | DELETE | `/crm/leads/:id` | `remove` | `ManagerGuard` | — |
 | POST | `/crm/leads/upload-image` | `` | `JwtAuthGuard` | — |
