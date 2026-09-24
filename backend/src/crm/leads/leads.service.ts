@@ -1614,6 +1614,37 @@ export class LeadsService {
      * lead ini jadi CLOSED_WON menunjuk nota yang sama (cegah nota dobel).
      * Kirim salesOrderId = null untuk melepas tautan.
      */
+    /**
+     * Pindah cabang lead (dua arah). Follow-up yang masih menunggu ikut pindah supaya muncul di
+     * daftar kerja CS cabang tujuan, dan alasannya tercatat di riwayat lead.
+     */
+    async pindahCabang(ctx: BranchContext, leadId: number, branchId: number, userId?: number) {
+        const lead = await this.detail(ctx, leadId); // sekaligus memastikan lead ini milik cabang pemanggil
+        if (!Number.isInteger(branchId) || branchId <= 0) throw new BadRequestException('Cabang tujuan wajib dipilih.');
+        if ((lead as any).branchId === branchId) throw new BadRequestException('Lead ini sudah ada di cabang itu.');
+        const tujuan = await (this.prisma as any).companyBranch.findFirst({
+            where: { id: branchId, isActive: true },
+            select: { id: true, name: true },
+        });
+        if (!tujuan) throw new BadRequestException('Cabang tujuan tidak ditemukan atau sudah nonaktif.');
+        const asal = (lead as any).branch?.name ?? `#${(lead as any).branchId ?? '-'}`;
+
+        await this.prisma.$transaction(async (tx: any) => {
+            await tx.lead.update({ where: { id: leadId }, data: { branchId } });
+            await tx.followUp.updateMany({ where: { leadId, status: 'PENDING' }, data: { branchId } });
+            await tx.leadActivity.create({
+                data: {
+                    leadId,
+                    kind: 'NOTE',
+                    text: `Lead dipindah dari cabang ${asal} ke ${tujuan.name}`,
+                    meta: { pindahCabang: { dari: (lead as any).branchId ?? null, ke: branchId } } as any,
+                    createdById: userId ?? null,
+                },
+            });
+        });
+        return { ok: true, branchId, branchName: tujuan.name };
+    }
+
     async linkToSalesOrder(ctx: BranchContext, leadId: number, salesOrderId: number | null) {
         await this.detail(ctx, leadId);
         if (salesOrderId != null) {

@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
     getLeads, getLeadStatusSummary, createLead, updateLead, deleteLead,
-    addLeadActivity, convertLead, closeLeadLost, markLeadInvalid, linkLeadToSalesOrder,
+    addLeadActivity, convertLead, closeLeadLost, markLeadInvalid, linkLeadToSalesOrder, pindahLeadCabang,
     getMessageTemplates, renderTemplate,
     getLeadSourceOptions, saveLeadSourceOption,
     uploadLeadImage, resolveLeadImageUrl, lookupCustomerByPhone, lookupCustomerByName, type CustomerLookupResult,
@@ -20,7 +20,7 @@ import {
     Plus, Search, X, Phone, MessageSquare, Calendar, MapPin, Sparkles, Trash2,
     Loader2, ChevronRight, ChevronLeft, User, Clock, AlertCircle, Tag, MessageCircle, Copy,
     CheckCircle2, XCircle, Filter, ChevronDown, Users, CalendarDays, Link2, Unlink, Palette,
-    Receipt, Package, Download,
+    Receipt, Package, Download, Building2,
 } from "lucide-react";
 import { LeadKanbanBoard } from "@/components/crm/LeadKanbanBoard";
 import { LeadExportModal } from "@/components/crm/LeadExportModal";
@@ -1092,6 +1092,8 @@ function LeadDetailDrawer({
     const [showPreNota, setShowPreNota] = useState(false);
     const [showCloseLost, setShowCloseLost] = useState(false);
     const [showMarkInvalid, setShowMarkInvalid] = useState(false);
+    const [showPindahCabang, setShowPindahCabang] = useState(false);
+    const [cabangTujuan, setCabangTujuan] = useState<number | "">("");
     const [invalidReason, setInvalidReason] = useState("");
     const [showTemplate, setShowTemplate] = useState(false);
     const [closeLostReason, setCloseLostReason] = useState("");
@@ -1237,6 +1239,24 @@ function LeadDetailDrawer({
             else alert("SO gagal dibuat. Coba lagi.");
         },
         onError: (e: any) => alert(`Gagal: ${e?.response?.data?.message || e?.message || e}`),
+    });
+
+    // Daftar cabang aktif untuk tombol "Pindah cabang" (dimuat hanya saat dialognya dibuka).
+    const { data: cabangAktif = [] } = useQuery({
+        queryKey: ["company-branches-active"],
+        queryFn: async () => (await import("@/lib/api/discord")).getActiveCompanyBranches(),
+        enabled: showPindahCabang,
+    });
+    const pindahMut = useMutation({
+        mutationFn: () => pindahLeadCabang(leadId, Number(cabangTujuan)),
+        onSuccess: (r) => {
+            setShowPindahCabang(false);
+            setCabangTujuan("");
+            qc.invalidateQueries({ queryKey: ["crm-leads"] });
+            qc.invalidateQueries({ queryKey: ["crm-leads-summary"] });
+            alert(`Lead dipindah ke ${r.branchName}. Sekarang lead ini muncul di daftar cabang itu.`);
+            onClose();
+        },
     });
 
     const markInvalidMut = useMutation({
@@ -1640,6 +1660,14 @@ function LeadDetailDrawer({
                                 <XCircle className="h-4 w-4" /> Invalid
                             </button>
                         )}
+                        {/* Pindah cabang — chat masuk lewat nomor WA cabang lain, pesanan dikerjakan cabang ini (atau sebaliknya) */}
+                        <button
+                            onClick={() => setShowPindahCabang(true)}
+                            title={`Cabang lead sekarang: ${lead2.branch?.name ?? "-"}`}
+                            className="px-3 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors flex items-center gap-1"
+                        >
+                            <Building2 className="h-4 w-4" /> Pindah cabang
+                        </button>
                         {/* Edit — selalu tampil */}
                         <button
                             onClick={() => onEdit(lead2)}
@@ -1777,6 +1805,44 @@ function LeadDetailDrawer({
                                     className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
                                 >
                                     {closeLostMut.isPending ? "..." : "Tutup Lost"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {showPindahCabang && (
+                    <div className="fixed inset-0 bg-background/25 backdrop-blur-md z-[300] flex items-center justify-center p-4">
+                        <div className="bg-card rounded-2xl border border-border shadow-xl p-5 max-w-md w-full animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-2.5 mb-2">
+                                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                                    <Building2 className="h-4 w-4" />
+                                </div>
+                                <h3 className="font-bold">Pindah cabang lead</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground mb-3">
+                                Cabang sekarang: <strong>{lead2.branch?.name ?? "-"}</strong>. Pilih cabang yang benar-benar
+                                mengerjakan pesanan ini. Lead akan hilang dari daftar cabang asal dan muncul di cabang tujuan
+                                (follow-up yang masih menunggu ikut pindah).
+                            </p>
+                            <select
+                                value={cabangTujuan}
+                                onChange={(e) => setCabangTujuan(e.target.value ? Number(e.target.value) : "")}
+                                className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+                            >
+                                <option value="">— pilih cabang tujuan —</option>
+                                {cabangAktif.filter((b) => b.id !== lead2.branch?.id).map((b) => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                            </select>
+                            <div className="flex gap-2">
+                                <button onClick={() => { setShowPindahCabang(false); setCabangTujuan(""); }} className="flex-1 px-4 py-2 border border-border rounded-lg text-sm hover:bg-accent transition-colors">Batal</button>
+                                <button
+                                    onClick={() => pindahMut.mutate()}
+                                    disabled={!cabangTujuan || pindahMut.isPending}
+                                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                                >
+                                    {pindahMut.isPending ? "..." : "Pindahkan"}
                                 </button>
                             </div>
                         </div>

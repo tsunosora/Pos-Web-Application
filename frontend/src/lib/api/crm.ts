@@ -323,6 +323,14 @@ export const closeLeadLost = async (leadId: number, reason: string): Promise<Lea
 export const linkLeadToSalesOrder = async (leadId: number, salesOrderId: number | null): Promise<Lead> =>
     (await api.post(`/crm/leads/${leadId}/link-so`, { salesOrderId })).data;
 
+/**
+ * Pindahkan lead ke cabang lain (dua arah). Dipakai bila chat masuk lewat nomor WA cabang lain
+ * padahal pesanan dikerjakan cabang ini (atau sebaliknya). Setelah pindah, lead hilang dari
+ * daftar cabang asal — follow-up yang masih menunggu ikut pindah.
+ */
+export const pindahLeadCabang = async (leadId: number, branchId: number): Promise<{ ok: boolean; branchId: number; branchName: string }> =>
+    (await api.patch(`/crm/leads/${leadId}/branch`, { branchId })).data;
+
 export const markLeadInvalid = async (leadId: number, reason?: string): Promise<Lead> =>
     (await api.post(`/crm/leads/${leadId}/mark-invalid`, { reason })).data;
 

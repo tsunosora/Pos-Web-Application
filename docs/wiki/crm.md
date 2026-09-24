@@ -479,6 +479,35 @@ Gunakan untuk:
 
 ---
 
+## Lead masuk ke cabang yang salah? Pakai "Pindah cabang" (24 September 2026)
+
+Cabang sebuah lead ditentukan saat lead itu lahir:
+
+| Lead lahir dari | Cabangnya diambil dari |
+|---|---|
+| Chat WhatsApp masuk | **cabang nomor WhatsApp** yang dihubungi |
+| Chat dari iklan Meta berlabel | cabang yang ditautkan ke label iklan itu (menang atas cabang nomor) |
+| Surat Order desainer | cabang SO (kode cabang di SO) |
+| Dibuat manual CS | cabang CS yang membuatnya |
+
+Karena nomor WhatsApp toko hanya satu dan terdaftar di satu cabang, **semua chat langsung
+(bukan dari iklan berlabel) jatuh ke cabang itu** — walau pesanannya dikerjakan cabang lain.
+Ketika desainer cabang lain membuat SO untuk pelanggan yang sama, SO itu ditempelkan ke lead
+tadi (fitur "satu pintu" anti lead dobel, dicocokkan dari nomor HP), sehingga CS cabang asal
+melihat lead yang sebenarnya pesanan cabang lain.
+
+**Solusinya:** buka detail lead → tombol **Pindah cabang** → pilih cabang yang benar.
+
+- Bisa dua arah (pusat → cabang maupun sebaliknya).
+- Follow-up yang masih menunggu ikut pindah, jadi muncul di Daily Worklist CS cabang tujuan.
+- Perpindahan tercatat di riwayat lead ("Lead dipindah dari cabang A ke B").
+- Setelah pindah, lead hilang dari daftar cabang asal. Yang memindahkan kembali adalah CS
+  cabang tujuan (atau owner, yang melihat semua cabang).
+- Hak akses: owner & setingkat manajer (termasuk peran "Admin"). Kasir/desainer/operator tidak.
+
+Dengan begini lead tidak perlu lagi ditandai *Invalid* atau dihapus hanya karena salah cabang —
+angka closing & KPI tetap utuh di cabang yang benar.
+
 ## Perbaikan 22 September 2026 (putaran 10)
 
 - **Menutup lead** hanya lewat alurnya: Konversi, Tandai Lost (dengan alasan), atau Invalid.

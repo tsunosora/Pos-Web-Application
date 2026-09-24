@@ -155,6 +155,22 @@ export class LeadsController {
         return this.leads.markInvalid(ctx, id, body.reason || '', req?.user?.userId);
     }
 
+    /**
+     * Pindahkan lead ke cabang lain (dua arah). Dipakai bila chat masuk lewat nomor WA satu cabang
+     * padahal pesanannya dikerjakan cabang lain — dulu CS hanya bisa menandai invalid/menghapus.
+     * Setelah dipindah, lead hilang dari daftar cabang asal dan muncul di cabang tujuan.
+     */
+    @Patch(':id/branch')
+    @UseGuards(ManagerGuard)
+    pindahCabang(
+        @CurrentBranch() ctx: BranchContext,
+        @Param('id', ParseIntPipe) id: number,
+        @Body() body: { branchId: number },
+        @Req() req: any,
+    ) {
+        return this.leads.pindahCabang(ctx, id, Number(body?.branchId), req?.user?.userId);
+    }
+
     /** Tautkan lead ke SO desainer yang sudah ada (Alur B — tanpa convert/nota baru). */
     @Post(':id/link-so')
     linkToSalesOrder(
