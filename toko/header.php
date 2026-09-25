@@ -25,7 +25,9 @@ $hdrWa = store_wa(); ?>
     <meta name="robots" content="<?= h($seo_robots) ?>">
     <link rel="canonical" href="<?= h($seo_canonical) ?>">
     <meta name="theme-color" content="<?= h(brand_color()) ?>">
-    <?php if ($logoAbs): ?><link rel="icon" href="<?= h($logoAbs) ?>"><?php endif; ?>
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/favicon-192.png">
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
     <meta property="og:type" content="<?= h($seo_type) ?>">
     <meta property="og:title" content="<?= h($seo_title) ?>">
     <meta property="og:description" content="<?= h($seo_desc) ?>">
