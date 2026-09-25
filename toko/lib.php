@@ -607,6 +607,70 @@ function store_wa(): string {
     return $v = preg_replace('/^0/', '62', preg_replace('/\D/', '', $raw));
 }
 
+/**
+ * JSON-LD bisnis lokal (@graph): Organization + satu LocalBusiness per cabang dari
+ * blok Kontak (alamat, telp, jam buka, koordinat dari URL embed Maps). Sinyal
+ * penting untuk pencarian lokal "digital printing jogja / percetakan terdekat".
+ */
+function seo_business_jsonld(): array {
+    require_once __DIR__ . '/content_store.php';
+    $st   = settings();
+    $name = $st['storeName'] ?? 'Voliko Print';
+    $logo = !empty($st['logoImageUrl']) ? img_url($st['logoImageUrl']) : '';
+    $k    = site_content('kontak');
+    $orgId = base_url() . '#org';
+    $org = [
+        '@type' => 'Organization', '@id' => $orgId, 'name' => $name, 'url' => base_url(),
+        'alternateName' => ['Voliko Digital Printing', 'Voliko Digital Printing & Cutting Laser'],
+    ];
+    if ($logo) $org['logo'] = $logo;
+    if (!empty($k['email'])) $org['email'] = $k['email'];
+    if (($ph = store_phone()) !== '') $org['telephone'] = $ph;
+    $graph = [$org];
+
+    $days = ['Senin' => 'Monday', 'Selasa' => 'Tuesday', 'Rabu' => 'Wednesday', 'Kamis' => 'Thursday',
+             'Jumat' => 'Friday', 'Sabtu' => 'Saturday', 'Minggu' => 'Sunday'];
+    $dayKeys = array_keys($days);
+    foreach ((array)($k['locations'] ?? []) as $i => $l) {
+        if (trim($l['name'] ?? '') === '' || trim($l['address'] ?? '') === '') continue;
+        $b = [
+            '@type' => 'LocalBusiness', '@id' => base_url() . '#cabang-' . ($i + 1),
+            'name' => $l['name'], 'parentOrganization' => ['@id' => $orgId], 'url' => base_url(),
+            'priceRange' => 'Rp', 'image' => $logo ?: null,
+            'address' => ['@type' => 'PostalAddress', 'streetAddress' => $l['address'],
+                          'addressLocality' => 'Bantul', 'addressRegion' => 'Daerah Istimewa Yogyakarta',
+                          'addressCountry' => 'ID'],
+            'areaServed' => ['Yogyakarta', 'Bantul', 'Sleman', 'Kota Yogyakarta', 'Daerah Istimewa Yogyakarta'],
+        ];
+        if (preg_match('/\b(\d{5})\b/', $l['address'], $m)) $b['address']['postalCode'] = $m[1];
+        if (!empty($l['phone'])) $b['telephone'] = $l['phone'];
+        // Koordinat dari URL embed Google Maps: ...!2d<lng>!3d<lat>...
+        if (preg_match('/!2d(-?[\d.]+)!3d(-?[\d.]+)/', (string)($l['mapsEmbed'] ?? ''), $m)) {
+            $b['geo'] = ['@type' => 'GeoCoordinates', 'latitude' => (float)$m[2], 'longitude' => (float)$m[1]];
+        }
+        // "Senin–Sabtu 08.00–21.00" → openingHoursSpecification
+        if (preg_match('/(\p{L}+)\s*[–-]\s*(\p{L}+)\s+(\d{1,2})[.:](\d{2})\s*[–-]\s*(\d{1,2})[.:](\d{2})/u', (string)($l['hours'] ?? ''), $m)
+            && isset($days[$m[1]], $days[$m[2]])) {
+            $from = array_search($m[1], $dayKeys, true); $to = array_search($m[2], $dayKeys, true);
+            $b['openingHoursSpecification'] = [
+                '@type' => 'OpeningHoursSpecification',
+                'dayOfWeek' => array_map(fn($d) => $days[$d], array_slice($dayKeys, $from, $to - $from + 1)),
+                'opens' => sprintf('%02d:%s', $m[3], $m[4]), 'closes' => sprintf('%02d:%s', $m[5], $m[6]),
+            ];
+        }
+        $graph[] = array_filter($b, fn($v) => $v !== null);
+    }
+    return ['@context' => 'https://schema.org', '@graph' => $graph];
+}
+
+/** JSON-LD FAQPage dari daftar [pertanyaan, jawaban]. */
+function seo_faq_jsonld(array $faqs): array {
+    return ['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(fn($f) => [
+        '@type' => 'Question', 'name' => $f[0],
+        'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f[1]],
+    ], $faqs)];
+}
+
 /** ID kategori yang disembunyikan dari toko (diatur di Setelan). */
 function hidden_cats(): array {
     static $h = null;

@@ -15,11 +15,10 @@ $hdrWa = store_wa(); ?>
     $seo_type      = $seo_type      ?? 'website';
     $seo_robots    = $seo_robots    ?? 'index,follow';
     if (!isset($seo_jsonld)) {
-        $orgLd = ['@context' => 'https://schema.org', '@type' => 'Store', 'name' => $storeName, 'url' => base_url()];
-        if ($logoAbs) $orgLd['logo'] = $logoAbs;
-        if (($phEff = store_phone()) !== '') $orgLd['telephone'] = $phEff;
-        $seo_jsonld = json_encode($orgLd, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        // Default: data bisnis lokal (Organization + tiap cabang) — sinyal pencarian lokal
+        $seo_jsonld = json_encode(seo_business_jsonld(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     }
+    $seo_jsonld_extra = $seo_jsonld_extra ?? []; // JSON-LD tambahan per halaman (mis. FAQPage)
     ?>
     <title><?= h($seo_title) ?></title>
     <meta name="description" content="<?= h($seo_desc) ?>">
@@ -38,16 +37,18 @@ $hdrWa = store_wa(); ?>
     <meta name="twitter:description" content="<?= h($seo_desc) ?>">
     <?php if ($seo_image): ?><meta name="twitter:image" content="<?= h($seo_image) ?>"><?php endif; ?>
     <?php if ($seo_jsonld): ?><script type="application/ld+json"><?= $seo_jsonld ?></script><?php endif; ?>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>tailwind.config = { theme: { extend: { colors: { brand: '<?= h(brand_color()) ?>' } } } };</script>
+    <?php foreach ($seo_jsonld_extra as $ld): ?><script type="application/ld+json"><?= json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script><?php endforeach; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <?php /* Ikon Font Awesome tidak kritis untuk tampilan awal → muat tanpa memblokir render */ ?>
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css">
     <link rel="stylesheet" href="assets/voliko.css?v=<?= @filemtime(__DIR__ . '/assets/voliko.css') ?: '1' ?>">
     <style>
-    :root { --accent: <?= h(brand_color()) ?>; }
+    <?php $bc = ltrim(brand_color(), '#'); if (strlen($bc) === 3) $bc = preg_replace('/(.)/', '$1$1', $bc); $bc = ctype_xdigit($bc) && strlen($bc) === 6 ? $bc : '2563EB'; ?>
+    :root { --accent: <?= h(brand_color()) ?>; --brand-rgb: <?= hexdec(substr($bc, 0, 2)) ?> <?= hexdec(substr($bc, 2, 2)) ?> <?= hexdec(substr($bc, 4, 2)) ?>; }
     .prose-toko a{color:<?= h(brand_color()) ?>;text-decoration:underline}.prose-toko h2,.prose-toko h3{font-weight:700;color:#0f172a;margin:.5rem 0}.prose-toko p{margin:.5rem 0}.prose-toko ul{list-style:disc;padding-left:1.25rem}
     /* Animasi kartu produk & CTA (dipertahankan dari tema lama) */
     @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
@@ -63,6 +64,9 @@ $hdrWa = store_wa(); ?>
     </style>
     <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js" defer></script>
     <script src="assets/voliko.js?v=<?= @filemtime(__DIR__ . '/assets/voliko.js') ?: '1' ?>" defer></script>
+    <?php /* Tailwind hasil build (toko-build/). Sengaja DIPALING AKHIR <head>: meniru urutan
+             CDN lama (style disisipkan terakhir) agar prioritas cascade tidak berubah. */ ?>
+    <link rel="stylesheet" href="assets/tailwind.css?v=<?= @filemtime(__DIR__ . '/assets/tailwind.css') ?: '1' ?>">
 </head>
 <body class="antialiased min-h-screen flex flex-col">
 <!-- Background blobs pastel (tema PrintKreatif) — dibungkus layer clipping

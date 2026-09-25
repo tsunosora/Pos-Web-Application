@@ -16,6 +16,8 @@ Disallow: /settings.php
 Disallow: /backup.php
 Disallow: /upload.php
 Disallow: /cart.php
+Disallow: /content.php
+Disallow: /lead.php
+Disallow: /cron.php
 
-# Sitemap (ganti dengan domain produksi kamu):
-# Sitemap: https://www.tokokamu.com/sitemap.php
+Sitemap: https://volikoprint.com/sitemap.xml

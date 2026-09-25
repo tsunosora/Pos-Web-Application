@@ -58,8 +58,11 @@ function sec_hero(): void {
                         <div class="swiper-slide !h-auto">
                             <div class="pk-hs-slide">
                                 <div class="pk-hs-copy">
-                                    <?php if (!empty($c['kicker'])): ?><span class="pk-hs-kicker"><?= h($c['kicker']) ?></span><?php endif; ?>
-                                    <h1 class="pk-hs-title"><?= co_title_html($s['title'], $s['accent'] ?? '') ?></h1>
+                                    <?php if ($i === 0): ?>
+                                        <?php /* Satu-satunya H1 halaman: memuat kata kunci utama. Judul slide = heading visual (bukan H1) agar tak ada 3 H1. */ ?>
+                                        <h1 class="pk-hs-kicker"><?= h($c['h1'] ?? 'Digital Printing Jogja & Percetakan Cepat — Imogiri & Sewon, Bantul') ?></h1>
+                                    <?php elseif (!empty($c['kicker'])): ?><span class="pk-hs-kicker"><?= h($c['kicker']) ?></span><?php endif; ?>
+                                    <p class="pk-hs-title" role="heading" aria-level="2"><?= co_title_html($s['title'], $s['accent'] ?? '') ?></p>
                                     <?php if (!empty($s['subtitle'])): ?><p class="pk-hs-sub"><?= h($s['subtitle']) ?></p><?php endif; ?>
                                     <div class="pk-hs-actions">
                                         <?php if (!empty($s['btn1Text'])): ?><a href="<?= h($s['btn1Link'] ?: '#order-cepat') ?>" class="pk-hs-btn pk-hs-btn--cta"><?= h($s['btn1Text']) ?><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.4"><path stroke-linecap="round" stroke-linejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg></a><?php endif; ?>
@@ -887,6 +890,73 @@ function sec_services(): void {
                     <div><h3 class="pk-svc-title"><?= h($t) ?></h3><p class="pk-svc-desc"><?= h($d) ?></p></div>
                 </div>
             <?php endforeach; ?>
+        </div>
+    </section>
+    <?php
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 15. SEO LOKAL — "Digital Printing Jogja" + FAQ (teks terlihat = sumber FAQPage)
+// ─────────────────────────────────────────────────────────────────────────────
+/** Pertanyaan umum beranda — dipakai untuk tampilan DAN JSON-LD FAQPage (harus sama). */
+function home_faqs(): array {
+    return [
+        ['Apakah Voliko Print buka 24 jam?',
+         'Jam operasional kami Senin–Sabtu 08.00–21.00 (Pusat Imogiri) dan 08.00–16.00 (Cabang Sewon); Minggu tutup. Untuk kebutuhan mendesak — misalnya cetak banner atau backdrop untuk event malam hari — hubungi WhatsApp kami lebih dulu. Tim kami siap mengusahakan pengerjaan di luar jam operasional sesuai kesepakatan.'],
+        ['Berapa lama cetak banner di Jogja?',
+         'Banner ukuran umum biasanya bisa selesai di hari yang sama, tergantung antrean dan ukuran. Kirim file dan ukurannya via WhatsApp untuk mendapatkan estimasi waktu jadi yang pasti.'],
+        ['Apakah bisa cetak satuan atau jumlah sedikit?',
+         'Bisa. Banner, stiker, sablon DTF, ID card, hingga cetak A3+ bisa dipesan satuan maupun partai besar.'],
+        ['Apakah Voliko melayani EO dan vendor event?',
+         'Ya. Kami menangani kebutuhan cetak event: backdrop, banner, X-banner, roll-up banner, standing banner, ID card & lanyard, event desk, stiker, hingga merchandise — termasuk order mendesak menjelang acara.'],
+        ['Di mana lokasi percetakan Voliko?',
+         'Pusat Imogiri: Jl. Monumen Perjuangan, Glondong, Wirokerten, Banguntapan, Bantul. Cabang Sewon: Glondong, Panggungharjo, Sewon, Bantul. Keduanya mudah dijangkau dari Kota Yogyakarta.'],
+        ['Apakah bisa kirim ke luar Jogja?',
+         'Bisa. Pesanan dapat dikirim ke seluruh Indonesia melalui ekspedisi, atau diambil langsung di salah satu cabang kami.'],
+    ];
+}
+
+function sec_seo_jogja(): void {
+    $wa = store_wa();
+    $svc = [
+        ['Cetak banner & spanduk', 'product.php?id=6'],
+        ['X-banner', 'product.php?id=143'],
+        ['Roll-up banner', 'product.php?id=133'],
+        ['Stiker vinyl & outdoor', 'product.php?id=190'],
+        ['Sablon DTF', 'product.php?id=71'],
+        ['ID card & lanyard', 'product.php?id=84'],
+        ['Cutting laser & akrilik', 'product.php?id=87'],
+        ['Brosur & cetak A3+', 'product.php?id=151'],
+    ];
+    ?>
+    <section class="co-sec" id="digital-printing-jogja" data-reveal>
+        <div class="grid lg:grid-cols-[1.1fr_0.9fr] gap-10 items-start">
+            <div>
+                <span class="co-kicker">Percetakan Jogja</span>
+                <h2 class="co-h2">Digital Printing Jogja untuk Bisnis, Event &amp; EO</h2>
+                <div class="mt-5 space-y-4 text-slate-600 leading-relaxed">
+                    <p><strong>Voliko Print</strong> adalah <strong>digital printing Jogja</strong> dengan dua workshop di Bantul — Pusat Imogiri dan Cabang Sewon — yang melayani cetak cepat untuk UMKM, perusahaan, instansi, kampus, hingga <strong>EO dan vendor event</strong> di seluruh Yogyakarta.</p>
+                    <p>Produksi dikerjakan in-house: <strong>cetak banner</strong> dan spanduk, stiker meteran, UV roll, sablon DTF, cetak A3+, hingga cutting laser akrilik. Karena mesin dan tim ada di satu atap, kami bisa mengejar <strong>cetak cepat di Jogja</strong> tanpa mengorbankan ketajaman warna.</p>
+                    <p>Butuh <strong>cetak banner event Jogja</strong> yang mepet waktu? Kami terbiasa menerima order mendesak menjelang acara — termasuk untuk event malam hari. Lihat <a href="/cetak-banner-event-jogja" class="text-brand font-semibold underline underline-offset-4">layanan cetak event &amp; order mendesak</a>.</p>
+                </div>
+                <ul class="mt-6 grid sm:grid-cols-2 gap-x-8 gap-y-2.5">
+                    <?php foreach ($svc as [$label, $href]): ?>
+                        <li class="flex items-center gap-3 text-sm"><span class="co-dot"></span><a href="<?= h($href) ?>" class="text-slate-700 hover:text-brand font-medium"><?= h($label) ?></a></li>
+                    <?php endforeach; ?>
+                </ul>
+                <?php if ($wa): ?><a href="https://wa.me/<?= h($wa) ?>?text=<?= rawurlencode('Halo Voliko, saya mau tanya cetak:') ?>" target="_blank" rel="noopener" class="btn-pill btn-pill--accent mt-7 text-sm">Tanya harga via WhatsApp</a><?php endif; ?>
+            </div>
+            <div class="divide-y divide-slate-200 border-y border-slate-200">
+                <?php foreach (home_faqs() as [$q, $a]): ?>
+                    <details class="group py-5" data-reveal-item>
+                        <summary class="flex items-center justify-between cursor-pointer font-semibold text-slate-900 list-none gap-4">
+                            <h3 class="text-base font-semibold"><?= h($q) ?></h3>
+                            <span class="co-faq-ico shrink-0"><svg class="w-4 h-4 group-open:rotate-45 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg></span>
+                        </summary>
+                        <p class="mt-3 text-slate-500 text-sm leading-relaxed max-w-2xl"><?= h($a) ?></p>
+                    </details>
+                <?php endforeach; ?>
+            </div>
         </div>
     </section>
     <?php

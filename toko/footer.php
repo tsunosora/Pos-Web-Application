@@ -18,7 +18,7 @@ $ftWa    = store_wa();
                 <?php endif; ?>
                 <span class="font-head font-extrabold text-white text-lg"><?= h($ftName) ?></span>
             </div>
-            <p class="text-sm text-slate-400 leading-relaxed">Layanan cetak & sablon berkualitas — label, buku, kalender, souvenir, dan merchandise. Tanpa minimal order, respon cepat, desain dibantu gratis.</p>
+            <p class="text-sm text-slate-400 leading-relaxed">Digital printing Jogja di Bantul — cetak banner, stiker, sablon DTF, cutting laser, souvenir &amp; merchandise. Tanpa minimal order, respon cepat, desain dibantu gratis.</p>
             <?php if ($ftAddr): ?>
                 <p class="mt-4 text-sm text-slate-500 whitespace-pre-line flex items-start gap-2">
                     <svg class="w-4 h-4 mt-0.5 shrink-0 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><circle cx="12" cy="11" r="3"/></svg>
@@ -39,11 +39,12 @@ $ftWa    = store_wa();
         <div>
             <h3 class="text-white font-head font-bold text-sm uppercase tracking-widest mb-4">Layanan</h3>
             <ul class="space-y-2.5 text-sm text-slate-400">
-                <li>Cetak Stiker &amp; Label</li>
-                <li>Banner &amp; Media Outdoor</li>
-                <li>Print Dokumen &amp; Buku</li>
-                <li>Merchandise &amp; Souvenir</li>
-                <li>Jasa Desain</li>
+                <li><a href="/cetak-banner-event-jogja" class="hover:text-white transition">Cetak Banner Event Jogja</a></li>
+                <li><a href="product.php?id=6" class="hover:text-white transition">Cetak Banner &amp; Spanduk</a></li>
+                <li><a href="product.php?id=190" class="hover:text-white transition">Cetak Stiker &amp; Label</a></li>
+                <li><a href="product.php?id=71" class="hover:text-white transition">Sablon DTF Jogja</a></li>
+                <li><a href="product.php?id=87" class="hover:text-white transition">Cutting Laser &amp; Akrilik</a></li>
+                <li><a href="produk.php" class="hover:text-white transition">Merchandise &amp; Souvenir</a></li>
             </ul>
         </div>
         <div>

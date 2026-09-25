@@ -12,6 +12,7 @@ $add(abs_url('produk.php'), 'daily',   '0.9');
 $add(abs_url('profil.php'), 'monthly', '0.5');
 $add(abs_url('portofolio.php'), 'monthly', '0.6');
 $add(abs_url('artikel.php'),'weekly',  '0.6');
+$add(abs_url('cetak-banner-event-jogja'), 'monthly', '0.9');
 
 // Produk dari katalog PosPro
 foreach (public_products() as $p) {
