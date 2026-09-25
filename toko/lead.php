@@ -7,7 +7,7 @@
 require_once __DIR__ . '/lib.php';
 
 // Halaman builder yang valid sebagai tujuan redirect (anti open-redirect)
-$allowedBack = ['index.php', 'profil.php', 'portofolio.php'];
+$allowedBack = ['index.php', 'profil.php', 'portofolio.php', 'cetak-event-jogja.php'];
 $back = basename($_POST['back'] ?? 'index.php');
 if (!in_array($back, $allowedBack, true)) $back = 'index.php';
 $go = fn(string $qs) => header('Location: ' . $back . $qs . '#order-cepat');

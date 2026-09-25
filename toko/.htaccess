@@ -6,3 +6,53 @@
     Require all denied
 </FilesMatch>
 RedirectMatch 403 (^|/)\.(claude|git|github)(/|$)
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# ── Satu host kanonik: www → non-www (cegah konten duplikat di Google) ──────
+RewriteCond %{HTTP_HOST} ^www\.volikoprint\.com$ [NC]
+RewriteRule ^(.*)$ https://volikoprint.com/$1 [R=301,L]
+
+# ── URL bersih ───────────────────────────────────────────────────────────────
+RewriteRule ^sitemap\.xml$ sitemap.php [L]
+RewriteRule ^cetak-banner-event-jogja/?$ cetak-event-jogja.php [L,QSA]
+
+# ── 301 dari URL situs lama (WordPress, masih terindeks Google) ─────────────
+# Tujuan: nilai SEO URL lama pindah ke halaman setara di situs PHP, bukan 404.
+# Artikel lama → halaman/artikel/produk baru yang paling relevan
+RewriteRule ^(digital-printing-jogja-24-jam|jasa-digital-printing-24-jam-jogja)/?$ /cetak-banner-event-jogja [R=301,L]
+RewriteRule ^cetak-banner-kilat-jogja-voliko-digital-printing/?$ /artikel.php?slug=cetak-banner-tercepat-yogyakarta-same-day [R=301,L]
+RewriteRule ^cetak-banner-jogja/?$ /artikel.php?slug=percetakan-banner-jogja-termurah-tercepat-seluruh-indonesia [R=301,L]
+RewriteRule ^print-dtf-jogja-solusi-cetak-modern-dengan-kualitas-unggul/?$ /artikel.php?slug=jasa-sablon-dtf-jogja-kirim-seluruh-indonesia [R=301,L]
+RewriteRule ^(jasa-cutting-laser-jogja-cepat-presisi-dan-terpercaya|tips-memilih-jasa-cutting-laser-jogja|cutting-laser-jogja-voliko-digital-printing)/?$ /product.php?id=87 [R=301,L]
+RewriteRule ^(print-stiker-jogja-custom-desain-untuk-promosi-bisnis-anda|print-stiker-jogja-terbaik-untuk-event-dan-promosi)/?$ /product.php?id=190 [R=301,L]
+RewriteRule ^print-label-jogja-tingkatkan-penjualan-dengan-label-profesional/?$ /product.php?id=39 [R=301,L]
+RewriteRule ^cetak-a3-brosur-poster-dan-buku-jogja-lengkap-dan-berkualitas/?$ /product.php?id=27 [R=301,L]
+RewriteRule ^memilih-kertas-yang-tepat-untuk-kartu-nama/?$ /product.php?id=103 [R=301,L]
+RewriteRule ^(tips-memilih-jasa-digital-printing-terbaik-di-jogja|voliko-digital-printing-jogja-destinasi-[^/]*|mengungkap-[^/]*|mendekati-peluang-bisnis-digital-printing-[^/]*|cmyk-color-models-[^/]*)/?$ /artikel.php?slug=digital-printing-yogyakarta-segala-kebutuhan [R=301,L]
+
+# Produk WooCommerce lama (/product/<slug>/) → produk PosPro setara
+RewriteRule ^product/ganci-akrilik/?$ /product.php?id=62 [R=301,L]
+RewriteRule ^product/(stiker-vinyl-blockout|stiker-vinyl-ritrama|stiker-vinyl-china)/?$ /product.php?id=190 [R=301,L]
+RewriteRule ^product/stiker-vinyl-transparant/?$ /product.php?id=42 [R=301,L]
+RewriteRule ^product/stiker-one-way/?$ /product.php?id=128 [R=301,L]
+RewriteRule ^product/tripod-banner/?$ /product.php?id=182 [R=301,L]
+RewriteRule ^product/y-banner/?$ /product.php?id=201 [R=301,L]
+RewriteRule ^product/event-desk/?$ /product.php?id=77 [R=301,L]
+RewriteRule ^product/cetak-bahan-luster/?$ /product.php?id=89 [R=301,L]
+RewriteRule ^product/cetak-albatros-hr/?$ /product.php?id=206 [R=301,L]
+RewriteRule ^product/photo-paper/?$ /product.php?id=55 [R=301,L]
+RewriteRule ^product/cetak-backlite/?$ /product.php?id=85 [R=301,L]
+RewriteRule ^product/mmt-spanduk/?$ /product.php?id=6 [R=301,L]
+RewriteRule ^product/roll-up-banner/?$ /product.php?id=133 [R=301,L]
+RewriteRule ^(product|product-category|product-tag)(/.*)?$ /produk.php [R=301,L]
+
+# Arsip, portofolio & halaman lama
+RewriteRule ^(category|tag|blog|feed)(/.*)?$ /artikel.php [R=301,L]
+RewriteRule ^portfolio-item(/.*)?$ /portofolio.php [R=301,L]
+RewriteRule ^(produk|voliko-produk|our-services|shop)/?$ /produk.php [R=301,L]
+RewriteRule ^(about-us|our-team)/?$ /profil.php [R=301,L]
+RewriteRule ^(contact-us|get-in-touch|pricing-plans)/?$ /#order-cepat [R=301,NE,L]
+RewriteRule ^(main-home|my-account(-2)?|checkout(-2)?|cart(-2)?)/?$ / [R=301,L]
+</IfModule>
