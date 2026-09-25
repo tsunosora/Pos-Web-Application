@@ -7,7 +7,7 @@ $apiOn  = pospro_configured();
 $orders = [];
 $failed = false;
 if ($apiOn) {
-    $query = '/crm/leads?source=WEBSITE&limit=200' . ($status !== '' ? '&status=' . urlencode($status) : '');
+    $query = '/leads?limit=200' . ($status !== '' ? '&status=' . urlencode($status) : '');
     $res = pospro_get($query);
     if (is_array($res)) $orders = $res['items'] ?? [];
     else $failed = true;
