@@ -7,6 +7,7 @@ import {
     Logger,
 } from '@nestjs/common';
 import { clientIp as ipAsli } from '../auth/pin-throttle.interceptor';
+import { samaAman } from './utils/sama-aman';
 
 /**
  * Rate limit in-memory untuk endpoint order publik (`POST /orders/public`).
@@ -22,6 +23,11 @@ import { clientIp as ipAsli } from '../auth/pin-throttle.interceptor';
  *    dengan limit lebih longgar + ada circuit breaker global.
  * Limit presisi per-customer untuk jalur website tetap ditegakkan juga di sisi
  * PHP (yang melihat REMOTE_ADDR asli).
+ *
+ * KUNCI ASAL ORDER: bila env STOREFRONT_TOKEN terisi, endpoint ini HANYA menerima request
+ * ber-header `x-storefront-token` yang cocok — bot yang menembak API langsung (melewati
+ * anti-spam website) ditolak 403. Bila env kosong, perilaku lama dipertahankan (rate limit
+ * saja) supaya token bisa dipasang di website LEBIH DULU tanpa memutus order yang berjalan.
  */
 @Injectable()
 export class PublicOrderThrottleGuard implements CanActivate {
@@ -53,8 +59,17 @@ export class PublicOrderThrottleGuard implements CanActivate {
 
         const token = process.env.STOREFRONT_TOKEN;
         const sent = String(req.headers?.['x-storefront-token'] ?? '');
+        // Perbandingan waktu-tetap: token tidak bisa ditebak dari selisih waktu jawaban.
+        const tokenCocok = !!token && !!sent && samaAman(sent, token);
+        if (token && !tokenCocok) {
+            this.logger.warn(`[SECURITY] storefront_token_ditolak ip=${ipAsli(req)} header=${sent ? 'salah' : 'kosong'}`);
+            throw new HttpException(
+                { ok: false, message: 'Order hanya diterima lewat website resmi.' },
+                HttpStatus.FORBIDDEN,
+            );
+        }
         const clientIp = req.headers?.['x-client-ip'];
-        if (token && sent && sent === token && clientIp) {
+        if (tokenCocok && clientIp) {
             key = 'cust:' + String(clientIp).slice(0, 64);
             dariToko = true;
             limMin = PublicOrderThrottleGuard.CUST_MIN;

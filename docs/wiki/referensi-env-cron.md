@@ -9,6 +9,10 @@
 **52 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
+### Env yang mengubah perilaku saat diisi
+
+- `STOREFRONT_TOKEN` — Kunci asal order publik. **Terisi:** `POST /orders/public` hanya menerima request ber-header `X-Storefront-Token` yang cocok (selain itu 403) — bot yang menembak API langsung ditolak. **Kosong:** endpoint terbuka, hanya dibatasi rate limit. Nilainya harus SAMA dengan setelan `storefront_token` di dashboard website toko (`toko/lib.php` mengirimnya). Urutan pemasangan: isi di website dulu, baru di `.env` backend + restart, supaya order tidak sempat tertolak.
+
 | Variabel | Dipakai di |
 |---|---|
 | `AI_API_KEY` | `backend/src/studio-ai/studio-ai.service.ts` |

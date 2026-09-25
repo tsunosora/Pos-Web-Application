@@ -292,12 +292,30 @@ function bacaEnvCron() {
     return { be: kumpul(sumberBe), fe: kumpul(sumberFe), cron };
 }
 
+/**
+ * Catatan manual untuk env yang perilakunya berubah tergantung terisi/tidak — tabel di bawah
+ * hanya bisa menunjukkan nama & berkasnya. Tambahkan di sini bila ada env sejenis.
+ */
+const CATATAN_ENV = {
+    STOREFRONT_TOKEN:
+        'Kunci asal order publik. **Terisi:** `POST /orders/public` hanya menerima request ber-header '
+        + '`X-Storefront-Token` yang cocok (selain itu 403) — bot yang menembak API langsung ditolak. '
+        + '**Kosong:** endpoint terbuka, hanya dibatasi rate limit. Nilainya harus SAMA dengan setelan '
+        + '`storefront_token` di dashboard website toko (`toko/lib.php` mengirimnya). Urutan pemasangan: '
+        + 'isi di website dulu, baru di `.env` backend + restart, supaya order tidak sempat tertolak.',
+};
+
 function tulisEnvCron({ be, fe, cron }) {
+    const catatan = Object.entries(CATATAN_ENV);
     const baris = [
         '# ⚙️ Referensi Variabel Lingkungan & Pekerjaan Terjadwal', '', STEMPEL, '',
         '## Variabel lingkungan backend', '',
         `**${be.length} variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya`,
         'menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.', '',
+        ...(catatan.length
+            ? ['### Env yang mengubah perilaku saat diisi', '',
+                ...catatan.map(([nama, teks]) => `- \`${nama}\` — ${teks}`), '']
+            : []),
         '| Variabel | Dipakai di |', '|---|---|',
         ...be.map((v) => `| \`${v.nama}\` | ${v.berkas.slice(0, 3).map((f) => `\`${f}\``).join(', ')}${v.berkas.length > 3 ? ` _(+${v.berkas.length - 3})_` : ''} |`),
         '',

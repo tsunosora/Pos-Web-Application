@@ -108,6 +108,25 @@ Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 - Tombol WhatsApp di landing mengubah nomor 08… menjadi 628… (dulu tautan tidak
   valid).
 
+## Order publik dikunci ke website toko (25 September 2026)
+
+Bot sempat mengirim lead sampah langsung ke `POST /orders/public`, melewati semua anti-spam
+di website. Sekarang endpoint itu bisa dikunci:
+
+- Isi setelan **storefront token** di dashboard website (Setelan → storefront token) — nilai itu
+  dikirim `toko/lib.php` sebagai header `X-Storefront-Token` pada tiap order.
+- Isi env **`STOREFRONT_TOKEN`** di `.env` backend dengan nilai yang sama, lalu restart backend.
+- Sejak itu, order tanpa header token (atau tokennya salah) ditolak **403**, dan penolakannya
+  tercatat di log dengan awalan `[SECURITY] storefront_token_ditolak`.
+
+Selama env backend masih kosong, perilaku lama berlaku (endpoint terbuka, hanya dibatasi
+rate limit) — jadi **isi di website dulu, baru di backend**, supaya tidak ada order yang tertolak
+di tengah pergantian. Kalau token perlu diganti, urutannya sama: website dulu, backend menyusul.
+
+Rate limit tetap berlaku di belakang kunci itu: 5 order/menit & 20 order/jam per **IP customer**
+(IP asli diteruskan website lewat `X-Client-IP`), dan lapisan PHP di website membatasi
+3/menit, 12/jam, 30/hari per IP.
+
 ## Yang sebaiknya tidak dibuka ke internet
 
 `/tv/leaderboard` menampilkan omzet dan nama karyawan. Halaman ini tanpa login
