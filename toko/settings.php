@@ -25,6 +25,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // Kunci order ke PosPro: dikirim tiap order sebagai header X-Storefront-Token.
+    // Backend menolak order tanpa token ini bila env STOREFRONT_TOKEN-nya sudah diisi
+    // (bot yang menembak API langsung tidak bisa lagi membuat lead).
+    if ($action === 'storefront') {
+        if (($_POST['do'] ?? '') === 'generate') {
+            cfg_set('storefront_token', rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='));
+        } else {
+            $t = trim($_POST['storefront_token'] ?? '');
+            if ($t !== '') {
+                if (!preg_match('/^[A-Za-z0-9_-]{24,128}$/', $t)) { header('Location: settings.php?badtoken=1'); exit; }
+                cfg_set('storefront_token', $t);
+            } elseif (($_POST['do'] ?? '') === 'clear') {
+                cfg_set('storefront_token', '');
+            }
+            // kosong tanpa "clear" → pertahankan token lama
+        }
+        header('Location: settings.php?saved=1');
+        exit;
+    }
+
     // Simpan integrasi SEO Machine (receiver artikel dari pipeline eksternal)
     if ($action === 'seomachine') {
         cfg_set('seomachine_enabled', isset($_POST['seomachine_enabled']) ? '1' : '0');
@@ -74,6 +94,7 @@ if (isset($_GET['saved']))  { $msg = 'Setelan tersimpan.'; }
 if (isset($_GET['cats']))   { $msg = 'Kategori toko diperbarui.'; }
 if (isset($_GET['badurl'])) { $msg = 'URL API tidak valid — harus diawali http:// atau https://. Setelan tidak diubah.'; $msgType = 'err'; }
 if (isset($_GET['badkey'])) { $msg = 'API key SEO Machine tidak valid — harus 32–128 karakter heksadesimal. Setelan tidak diubah.'; $msgType = 'err'; }
+if (isset($_GET['badtoken'])) { $msg = 'Kunci order tidak valid — 24–128 karakter (huruf, angka, - dan _). Setelan tidak diubah.'; $msgType = 'err'; }
 
 // SEO Machine (receiver artikel)
 $smEnabled  = ((string)cfg('seomachine_enabled', '0')) === '1';
@@ -86,6 +107,7 @@ $apiEmail = cfg('pospro_email', '');
 $hasPass  = (cfg('pospro_password') ?? '') !== '';
 $tsSiteKey  = turnstile_site_key();
 $tsHasSecret = secret_get('turnstile_secret') !== '';
+$sfToken    = (string)cfg('storefront_token', '');
 
 // Kategori dari katalog (untuk pilih mana yang disembunyikan)
 $rawProducts = api_get('/products/public') ?: [];
@@ -181,6 +203,39 @@ include __DIR__ . '/admin_header.php';
                 <p class="mt-1 text-xs text-slate-400">Disimpan terenkripsi. Ambil keduanya di Cloudflare dashboard → Turnstile → Add site (tambahkan domain toko ini). Kosongkan keduanya untuk menonaktifkan.</p>
             </div>
             <button type="submit" class="px-5 py-2.5 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Simpan</button>
+        </form>
+    </div>
+
+    <!-- Kunci order ke PosPro (X-Storefront-Token) -->
+    <div class="bg-white rounded-3xl border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-1">
+            <span class="h-10 w-10 rounded-2xl bg-brand/10 text-brand grid place-items-center">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            </span>
+            <div>
+                <h3 class="font-bold text-slate-900">Kunci Order ke PosPro</h3>
+                <p class="text-xs text-slate-400">Dikirim tiap order sebagai header <code>X-Storefront-Token</code>. PosPro menolak order yang tidak membawanya, sehingga bot tidak bisa membuat lead lewat API.</p>
+            </div>
+            <span class="ml-auto px-2.5 py-1 rounded-full text-xs font-semibold <?= $sfToken !== '' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' ?>"><?= $sfToken !== '' ? 'Terisi' : 'Kosong' ?></span>
+        </div>
+
+        <form method="post" class="mt-5 space-y-4">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="storefront">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Kunci order</label>
+                <input type="text" name="storefront_token" value="<?= h($sfToken) ?>" placeholder="klik Generate untuk membuat"
+                       spellcheck="false" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <p class="mt-1 text-xs text-slate-400">
+                    Nilai yang sama harus diisi di server PosPro (<code>.env</code> → <code>STOREFRONT_TOKEN</code>) lalu backend di-restart.
+                    <strong>Urutannya: isi di sini dulu, baru di PosPro</strong> — supaya tidak ada order yang tertolak saat pergantian.
+                    Selama PosPro belum diisi, kunci ini belum berpengaruh apa-apa.
+                </p>
+            </div>
+            <div class="flex gap-2">
+                <button type="submit" class="px-5 py-2.5 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Simpan</button>
+                <button type="submit" name="do" value="generate" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">Generate Kunci Baru</button>
+            </div>
         </form>
     </div>
 
