@@ -66,6 +66,7 @@ import { MetaAdsModule } from './meta-ads/meta-ads.module';
 import { CustomProductMetricsModule } from './crm/custom-product-metrics/custom-product-metrics.module';
 import { TaskBoardModule } from './task-board/task-board.module';
 import { StudioAiModule } from './studio-ai/studio-ai.module';
+import { LisensiModule } from './lisensi/lisensi.module';
 
 @Module({
   imports: [
@@ -78,6 +79,9 @@ import { StudioAiModule } from './studio-ai/studio-ai.module';
       renderPath: '/__tanpa-spa__',
     }),
     ScheduleModule.forRoot(),
+    // LisensiModule di depan: @Global, dan dua penjaga globalnya (fitur + hanya-baca) harus
+    // sudah ada sebelum controller lain terdaftar. Tanpa kunci lisensi dia diam total.
+    LisensiModule,
     PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule, PrinterRelayModule, SyncModule, LocalSyncModule, WhatsappCloudModule, MetaMessagingModule, MetaAdsModule, CustomProductMetricsModule, TaskBoardModule, StudioAiModule, IntegrationsModule, StorefrontModule],
   controllers: [AppController],
   providers: [AppService],
