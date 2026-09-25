@@ -756,9 +756,8 @@ function seo_business_jsonld(): array {
         ];
         if (preg_match('/\b(\d{5})\b/', $l['address'], $m)) $b['address']['postalCode'] = $m[1];
         if (!empty($l['phone'])) $b['telephone'] = $l['phone'];
-        // Koordinat dari URL embed Google Maps: ...!2d<lng>!3d<lat>...
-        if (preg_match('/!2d(-?[\d.]+)!3d(-?[\d.]+)/', (string)($l['mapsEmbed'] ?? ''), $m)) {
-            $b['geo'] = ['@type' => 'GeoCoordinates', 'latitude' => (float)$m[2], 'longitude' => (float)$m[1]];
+        if ($c = location_coords($l)) {
+            $b['geo'] = ['@type' => 'GeoCoordinates', 'latitude' => $c[0], 'longitude' => $c[1]];
         }
         // "Senin–Sabtu 08.00–21.00" → openingHoursSpecification
         if (preg_match('/(\p{L}+)\s*[–-]\s*(\p{L}+)\s+(\d{1,2})[.:](\d{2})\s*[–-]\s*(\d{1,2})[.:](\d{2})/u', (string)($l['hours'] ?? ''), $m)
@@ -773,6 +772,20 @@ function seo_business_jsonld(): array {
         $graph[] = array_filter($b, fn($v) => $v !== null);
     }
     return ['@context' => 'https://schema.org', '@graph' => $graph];
+}
+
+/**
+ * Koordinat [lat, lng] sebuah cabang. Utamakan field 'coords' ("lat, lng" — disalin
+ * dari pin Google Maps); fallback angka di URL embed (!3d/!2d). Catatan: angka embed
+ * adalah TITIK TENGAH tampilan peta, bukan pin — bisa meleset ratusan meter.
+ */
+function location_coords(array $l): ?array {
+    if (preg_match('/^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/', (string)($l['coords'] ?? ''), $m)
+        && abs((float)$m[1]) <= 90 && abs((float)$m[2]) <= 180) {
+        return [(float)$m[1], (float)$m[2]];
+    }
+    if (preg_match('/!2d(-?[\d.]+)!3d(-?[\d.]+)/', (string)($l['mapsEmbed'] ?? ''), $m)) return [(float)$m[2], (float)$m[1]];
+    return null;
 }
 
 /** JSON-LD FAQPage dari daftar [pertanyaan, jawaban]. */
