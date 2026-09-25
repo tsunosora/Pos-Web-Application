@@ -257,7 +257,45 @@ function looks_like_spam(string $name, string $note = '', string $address = ''):
     foreach ($kw as $k) if (mb_strpos($hay, $k) !== false) return true;
     // URL/domain di nama
     $urlRe = '~(https?://|www\.|\b[a-z0-9-]{2,}\.(com|net|org|xyz|info|online|site|club|vip|link|live|bet|win|top|asia|cc|me|id|co|biz|store|shop|fun|icu|pro)\b)~i';
-    return (bool)preg_match($urlRe, $name);
+    if (preg_match($urlRe, $name)) return true;
+    // Aksara non-Latin (Kiril, CJK, Arab, Thai, Devanagari, Hangul, dll) → pelanggan
+    // percetakan lokal tidak menulis dengan aksara ini; tipikal bot spam asing.
+    if (preg_match('/[\p{Cyrillic}\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}\p{Arabic}\p{Hebrew}\p{Thai}\p{Devanagari}\p{Greek}]/u', $name . $note . $address)) return true;
+    // Spam asing berbahasa Inggris (jasa SEO/web, kripto, pinjaman, dll). Pakai batas
+    // kata supaya kata Indonesia tidak ikut kena (mis. "seorang" ≠ "seo").
+    $enRe = '/\b(seo|backlinks?|guest ?posts?|crypto|bitcoin|btc|usdt|forex|casino|viagra|cialis|porn|escort|loans?|'
+          . 'web ?design(er)?|web ?development|app development|digital marketing|lead generation|'
+          . 'google (ranking|first page)|first page of google|increase (your )?(traffic|sales)|'
+          . 'business proposal|dear (sir|madam)|telegram|unsubscribe)\b/iu';
+    if (preg_match($enRe, $name . ' ' . $note . ' ' . $address)) return true;
+    // Banyak tautan di catatan (≥ 2) → promosi. Satu tautan referensi (GDrive) tetap boleh.
+    return preg_match_all('~https?://|www\.~i', $note . ' ' . $address) >= 2;
+}
+
+/**
+ * Validasi & normalisasi nomor HP/WA Indonesia. Terima 08xx, 628xx, +62 8xx
+ * (boleh ada spasi/strip), panjang 10–14 digit. Return format 08xx, atau '' bila
+ * tidak valid (telepon kantor 0274… juga diterima; nomor luar negeri seperti +1, +44, +91 ditolak).
+ */
+function normalize_id_phone(string $raw): string {
+    $d = preg_replace('/\D/', '', $raw);
+    if (str_starts_with($d, '62')) $d = '0' . substr($d, 2);
+    return preg_match('/^(08[1-9]\d{7,11}|0[2-7]\d{7,10})$/', $d) ? $d : '';
+}
+
+/**
+ * Jebakan waktu anti-bot: form menyertakan timestamp bertanda tangan HMAC.
+ * Bot biasanya submit < 3 detik setelah memuat halaman (atau memalsukan field).
+ */
+function form_ts_field(): string {
+    $t = (string)time();
+    return '<input type="hidden" name="fts" value="' . $t . '.' . hash_hmac('sha256', $t, APP_KEY) . '">';
+}
+function form_ts_ok(?string $v, int $minSec = 3, int $maxSec = 604800): bool {
+    [$t, $sig] = array_pad(explode('.', (string)$v, 2), 2, '');
+    if (!ctype_digit($t) || !hash_equals(hash_hmac('sha256', $t, APP_KEY), $sig)) return false;
+    $age = time() - (int)$t;
+    return $age >= $minSec && $age <= $maxSec;
 }
 
 /**

@@ -35,6 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'check
         $error = 'Terlalu banyak order beruntun dari perangkat ini. Coba lagi beberapa saat lagi atau hubungi kami via WhatsApp.';
     } elseif ($name === '') {
         $error = 'Nama wajib diisi.';
+    } elseif (($phone = normalize_id_phone($phone)) === '') {
+        $error = 'Nomor WhatsApp wajib diisi dengan nomor Indonesia (mis. 0812xxxxxxxx atau +62 812xxxxxxxx).';
     } elseif (!count($items)) {
         $error = 'Keranjang masih kosong.';
     } else {
@@ -144,8 +146,8 @@ $total = cart_total();
                     <input type="text" name="name" required class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
                 </div>
                 <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">No. WhatsApp / Telepon</label>
-                    <input type="text" name="phone" placeholder="0812..." class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">No. WhatsApp <span class="text-rose-500">*</span></label>
+                    <input type="tel" name="phone" required placeholder="0812..." class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-slate-700 mb-1.5">Alamat</label>

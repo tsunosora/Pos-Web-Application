@@ -2,7 +2,8 @@
 // Endpoint form "Order Last-Minute" (PRD §5.6).
 // Submit → POST /orders/public PosPro → tercatat sebagai Lead WEBSITE di CRM
 // (notif Discord "Lead baru" otomatis dari backend). Tanpa items (lead murni).
-// Proteksi spam: honeypot field + rate limit per sesi (tanpa CAPTCHA).
+// Proteksi spam: honeypot + jebakan waktu + Turnstile + nomor WA Indonesia wajib
+// + filter konten + rate limit per sesi & per IP.
 require_once __DIR__ . '/lib.php';
 
 // Halaman builder yang valid sebagai tujuan redirect (anti open-redirect)
@@ -15,6 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { header('Location: index.php'); exit
 
 // Honeypot: manusia tidak mengisi field tersembunyi "website"
 if (trim($_POST['website'] ?? '') !== '') { $go('?lead=ok'); exit; } // diam-diam buang bot
+// Jebakan waktu: tanpa timestamp sah / submit < 3 detik → bot, buang diam-diam
+if (!form_ts_ok($_POST['fts'] ?? null)) { $go('?lead=ok'); exit; }
+if (!turnstile_verify($_POST['cf-turnstile-response'] ?? '')) { $go('?lead=err&e=bot'); exit; }
 
 // Rate limit: 1 kiriman per 60 detik per sesi
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
@@ -28,14 +32,18 @@ $name     = trim($_POST['name'] ?? '');
 $phone    = trim($_POST['phone'] ?? '');
 $note     = trim($_POST['note'] ?? '');
 $branchId = (int)($_POST['branchId'] ?? 0);
+$branch   = trim($_POST['branch'] ?? ''); // nama cabang dari blok form (teks)
 
 if ($name === '' || $note === '') { $go('?lead=err'); exit; }
-// Konten spam judol/link → pura-pura sukses, tidak dikirim ke CRM.
+// Konten spam judol/link/asing → pura-pura sukses, tidak dikirim ke CRM.
 if (looks_like_spam($name, $note)) { $go('?lead=ok'); exit; }
+$phone = normalize_id_phone($phone);
+if ($phone === '') { $go('?lead=err&e=phone'); exit; }
 if (mb_strlen($name) > 120) $name = mb_substr($name, 0, 120);
 if (mb_strlen($note) > 2000) $note = mb_substr($note, 0, 2000);
 
 $noteParts = ['[Order Cepat — form website]', $note];
+if ($branch !== '') $noteParts[] = 'Cabang: ' . mb_substr($branch, 0, 80);
 
 $payload = [
     'name'  => $name,

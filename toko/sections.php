@@ -491,9 +491,15 @@ function sec_order(): void {
                         <?php if ($waNum): ?><a href="https://wa.me/<?= h($waNum) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="co-btn co-btn--dark mt-5 text-sm">Lanjutkan via WhatsApp</a><?php endif; ?>
                     </div>
                 <?php else: ?>
-                    <?php if ($sentErr): ?><div class="mb-4 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">Gagal mengirim — silakan coba lagi atau hubungi kami via WhatsApp.</div><?php endif; ?>
+                    <?php if ($sentErr):
+                        $errMsg = match ($_GET['e'] ?? '') {
+                            'phone' => 'Nomor WhatsApp tidak valid — gunakan nomor Indonesia (mis. 0812xxxxxxxx atau +62 812xxxxxxxx).',
+                            'bot'   => 'Verifikasi anti-bot gagal — muat ulang halaman lalu kirim ulang.',
+                            default => 'Gagal mengirim — silakan coba lagi atau hubungi kami via WhatsApp.',
+                        }; ?><div class="mb-4 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm"><?= h($errMsg) ?></div><?php endif; ?>
                     <form method="post" action="lead.php" class="space-y-4">
                         <input type="hidden" name="back" value="<?= h(($_SERVER['PHP_SELF'] ?? 'index.php')) ?>">
+                        <?= form_ts_field() ?>
                         <input type="text" name="website" value="" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
                         <div>
                             <label class="co-label">Nama</label>
@@ -518,6 +524,10 @@ function sec_order(): void {
                             </div>
                         <?php elseif (count($poBranches) === 1): ?>
                             <input type="hidden" name="branchId" value="<?= (int)$poBranches[0]['id'] ?>">
+                        <?php endif; ?>
+                        <?php if (turnstile_enabled()): ?>
+                            <div class="cf-turnstile" data-sitekey="<?= h(turnstile_site_key()) ?>"></div>
+                            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
                         <?php endif; ?>
                         <button type="submit" class="co-btn co-btn--dark w-full justify-center text-sm">
                             Kirim &amp; Minta Penawaran

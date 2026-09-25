@@ -1,0 +1,8 @@
+# Blokir file sensitif (backup, dump SQL, arsip, dotfile) — ditambahkan 2026-09-24
+<FilesMatch "\.(zip|sql|gz|tar|rar|7z|bak|log|env|md|lock)$">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^(\.ftp-deploy-sync-state\.json|composer\.(json|lock)|package(-lock)?\.json)$">
+    Require all denied
+</FilesMatch>
+RedirectMatch 403 (^|/)\.(claude|git|github)(/|$)
