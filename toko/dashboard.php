@@ -24,11 +24,11 @@ $popular = db()->query("SELECT id, title, slug, views, status FROM articles ORDE
 $apiOn = pospro_configured();
 $totalOrder = null; $newOrder = null; $recentOrders = [];
 if ($apiOn) {
-    $res = pospro_get('/crm/leads?source=WEBSITE&limit=5');
+    $res = pospro_get('/leads?limit=5');
     if (is_array($res)) {
         $totalOrder   = (int)($res['total'] ?? 0);
         $recentOrders = $res['items'] ?? [];
-        $sum = pospro_get('/crm/leads/status-summary');
+        $sum = pospro_get('/leads/status-summary');
         $newOrder = is_array($sum) ? (int)($sum['NEW'] ?? 0) : null;
     } else { $apiOn = false; } // kredensial ada tapi gagal konek
 }

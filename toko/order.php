@@ -3,7 +3,7 @@ require_once __DIR__ . '/lib.php';
 require_admin();
 
 $id = (int)($_GET['id'] ?? 0);
-$o  = ($id && pospro_configured()) ? pospro_get('/crm/leads/' . $id) : null;
+$o  = ($id && pospro_configured()) ? pospro_get('/leads/' . $id) : null;
 
 $page_title = 'Detail Order';
 $active = 'orders';

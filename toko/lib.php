@@ -134,37 +134,27 @@ function pospro_base(): string {
     return rtrim($u ?: API_BASE, '/');
 }
 
-/** True kalau kredensial service PosPro sudah diisi di setelan. */
+/**
+ * True kalau token baca lead sudah diisi di Setelan (menu Order/Dashboard aktif).
+ * Tidak ada lagi login akun+password ke PosPro: website hanya membawa token.
+ */
 function pospro_configured(): bool {
-    try { return !empty(cfg('pospro_email')) && cfg('pospro_password') !== null && cfg('pospro_password') !== ''; }
+    try { return (string)cfg('storefront_read_token', '') !== ''; }
     catch (Throwable $e) { return false; }
 }
 
-/** Login ke PosPro pakai service account tersimpan; cache JWT di session. */
-function pospro_token(): ?string {
-    if (!empty($_SESSION['pospro_token'])) return $_SESSION['pospro_token'];
-    if (!pospro_configured()) return null;
-    $r = http_json('POST', pospro_base() . '/auth/login', [
-        'email'    => cfg('pospro_email'),
-        'password' => secret_get('pospro_password'),
-    ]);
-    if (($r['status'] ?? 0) === 200 && !empty($r['data']['access_token'])) {
-        return $_SESSION['pospro_token'] = $r['data']['access_token'];
-    }
-    return null;
-}
-
-/** GET terotentikasi ke PosPro (auto refresh token sekali kalau 401). */
+/**
+ * GET ke API baca-lead khusus toko di PosPro: /storefront{path}, diautentikasi
+ * header X-Storefront-Read-Token (= env STOREFRONT_READ_TOKEN di backend).
+ * Hanya lead ber-source WEBSITE, hanya-baca. Gagal/tidak diatur → null.
+ * Token ini TERPISAH dari kunci kirim order (storefront_token) supaya bocornya
+ * satu tidak membuka yang lain.
+ */
 function pospro_get(string $path) {
-    $t = pospro_token();
-    if (!$t) return null;
-    $r = http_json('GET', pospro_base() . $path, null, $t);
-    if (($r['status'] ?? 0) === 401) {
-        unset($_SESSION['pospro_token']);
-        $t = pospro_token();
-        if ($t) $r = http_json('GET', pospro_base() . $path, null, $t);
-    }
-    return $r['data'] ?? null;
+    try { $tok = (string)cfg('storefront_read_token', ''); } catch (Throwable $e) { $tok = ''; }
+    if ($tok === '') return null;
+    $r = http_json('GET', pospro_base() . '/storefront' . $path, null, null, ['X-Storefront-Read-Token' => $tok]);
+    return ($r['status'] ?? 0) === 200 ? ($r['data'] ?? null) : null;
 }
 
 // ── API publik PosPro (storefront — produk/profil toko) ──────────────────────

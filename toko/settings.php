@@ -70,24 +70,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
     cfg_set('pospro_api', $apiIn);
-    cfg_set('pospro_email', trim($_POST['pospro_email'] ?? ''));
-    $pw = $_POST['pospro_password'] ?? '';
-    if ($pw !== '') secret_set('pospro_password', $pw);  // hanya update kalau diisi
+    // Token baca lead (pengganti login akun service PosPro)
+    if ($action === 'gen_read') {
+        cfg_set('storefront_read_token', rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='));
+    } else {
+        $rt = trim($_POST['storefront_read_token'] ?? '');
+        if ($rt !== '') {
+            if (!preg_match('/^[A-Za-z0-9_-]{24,128}$/', $rt)) { header('Location: settings.php?badtoken=1'); exit; }
+            cfg_set('storefront_read_token', $rt);
+        }
+    }
+    // Kredensial login lama tidak dipakai lagi → hapus dari DB
+    if ((string)cfg('pospro_email', '') !== '') cfg_set('pospro_email', '');
+    if ((string)(cfg('pospro_password') ?? '') !== '') cfg_set('pospro_password', '');
     unset($_SESSION['pospro_token']);
 
-    if ($action === 'save') {
+    if ($action === 'save' || $action === 'gen_read') {
         header('Location: settings.php?saved=1');
         exit;
     }
     // action === 'test'
-    $tok = pospro_token();
-    if ($tok) {
-        $probe = pospro_get('/crm/leads?source=WEBSITE&limit=1');
+    if (!pospro_configured()) {
+        $testResult = ['ok' => false, 'text' => 'Token baca lead belum diisi. Klik "Generate Token" dulu.'];
+    } else {
+        $probe = pospro_get('/leads?limit=1');
         $testResult = is_array($probe)
             ? ['ok' => true,  'text' => 'Berhasil terhubung & membaca order (total: ' . (int)($probe['total'] ?? 0) . ').']
-            : ['ok' => false, 'text' => 'Login berhasil tapi gagal membaca order. Pastikan akun punya akses CRM.'];
-    } else {
-        $testResult = ['ok' => false, 'text' => 'Gagal login ke PosPro. Periksa URL, email, dan password.'];
+            : ['ok' => false, 'text' => 'Gagal membaca order. Pastikan token yang sama sudah diisi di server PosPro (STOREFRONT_READ_TOKEN) dan backend sudah di-restart.'];
     }
 }
 if (isset($_GET['saved']))  { $msg = 'Setelan tersimpan.'; }
@@ -103,8 +112,7 @@ $smStatus   = ((string)cfg('seomachine_default_status', 'draft')) === 'publish' 
 $smEndpoint = abs_url('api/seo-publish.php');
 
 $apiUrl   = cfg('pospro_api', API_BASE);
-$apiEmail = cfg('pospro_email', '');
-$hasPass  = (cfg('pospro_password') ?? '') !== '';
+$readTok  = (string)cfg('storefront_read_token', '');
 $tsSiteKey  = turnstile_site_key();
 $tsHasSecret = secret_get('turnstile_secret') !== '';
 $sfToken    = (string)cfg('storefront_token', '');
@@ -144,7 +152,7 @@ include __DIR__ . '/admin_header.php';
             </span>
             <div>
                 <h3 class="font-bold text-slate-900">Koneksi API PosPro</h3>
-                <p class="text-xs text-slate-400">Hubungkan ke server PosPro untuk menarik data order.</p>
+                <p class="text-xs text-slate-400">Menarik data order website dari PosPro memakai token baca — tanpa akun &amp; password.</p>
             </div>
             <span class="ml-auto px-2.5 py-1 rounded-full text-xs font-semibold <?= pospro_configured() ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500' ?>"><?= pospro_configured() ? 'Terkonfigurasi' : 'Belum diatur' ?></span>
         </div>
@@ -158,19 +166,19 @@ include __DIR__ . '/admin_header.php';
                 <p class="mt-1 text-xs text-slate-400">Alamat backend PosPro di server homelab (harus bisa diakses dari hosting ini).</p>
             </div>
             <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Email akun service PosPro</label>
-                <input type="email" name="pospro_email" value="<?= h($apiEmail) ?>" placeholder="bot@tokokamu.com"
-                       class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
-            </div>
-            <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Password akun service</label>
-                <input type="password" name="pospro_password" placeholder="<?= $hasPass ? '•••••••• (biarkan kosong jika tidak diubah)' : 'masukkan password' ?>"
-                       class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-brand/50">
-                <p class="mt-1 text-xs text-slate-400">Disimpan terenkripsi. Disarankan pakai akun khusus (bukan akun owner utama).</p>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Token baca lead</label>
+                <input type="text" name="storefront_read_token" value="<?= h($readTok) ?>" placeholder="klik Generate Token untuk membuat"
+                       spellcheck="false" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand/50">
+                <p class="mt-1 text-xs text-slate-400">
+                    Dikirim sebagai header <code>X-Storefront-Read-Token</code>; hanya bisa MEMBACA order dari website.
+                    Salin nilai yang sama ke server PosPro (<code>.env</code> → <code>STOREFRONT_READ_TOKEN</code>) lalu restart backend.
+                    Sengaja berbeda dari "Kunci Order" di bawah.
+                </p>
             </div>
             <div class="flex gap-3 pt-1">
                 <button type="submit" name="action" value="save" class="px-5 py-2.5 rounded-xl bg-brand text-white font-semibold hover:opacity-90 transition">Simpan</button>
                 <button type="submit" name="action" value="test" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">Tes Koneksi</button>
+                <button type="submit" name="action" value="gen_read" class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold hover:bg-slate-200 transition">Generate Token</button>
             </div>
         </form>
     </div>
