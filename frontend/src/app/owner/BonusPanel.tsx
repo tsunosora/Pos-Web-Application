@@ -10,7 +10,7 @@ import {
 } from "@/lib/api/bonus";
 
 const ROLES: { role: BonusRole; label: string; metric: string; hint: string }[] = [
-    { role: "CS", label: "Customer Service", metric: "Omzet (Rp)", hint: "Imogiri 105.4jt/52.7jt · Sewon 51.5jt/25.75jt" },
+    { role: "CS", label: "Customer Service", metric: "Omzet (Rp)", hint: "isi target omzet per cabang" },
     { role: "DESIGNER", label: "Designer", metric: "Design ACC (jumlah)", hint: "isi target jumlah Design ACC" },
     { role: "OPERATOR", label: "Operator", metric: "Nota / transaksi (jumlah)", hint: "isi target jumlah nota cabang" },
 ];

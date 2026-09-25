@@ -193,7 +193,7 @@ export const upsertOperatorMeterReading = async (data: {
  *   3. Path relatif & API_BASE = localhost (build-time env tidak ter-set di prod) →
  *      fallback ke `window.location.origin`. Asumsi: production deploy pakai reverse
  *      proxy nginx yang melayani /uploads/ ke backend di domain yang sama
- *      (mis. https://kasir.volikoprint.com/uploads/...).
+ *      (mis. https://kasir.domain-toko.com/uploads/...).
  *
  * Ini bikin upload foto bekerja di:
  *   - Dev (NEXT_PUBLIC_API_URL=http://localhost:3001 + same machine) ✓

@@ -66,7 +66,7 @@ export class StudioAiController {
     return this.svc.fill(potong(body?.idea, 2000), potong(body?.modeLabel, 200), (body?.fields || []).slice(0, 40));
   }
 
-  /** Asisten chat scoped VolikoPrint (semua user login; HPP di-gate owner/admin). */
+  /** Asisten chat scoped ke toko ini (semua user login; HPP di-gate owner/admin). */
   @Post('chat')
   chat(
     @Body() body: { message: string; history?: { role: string; content: string }[] },

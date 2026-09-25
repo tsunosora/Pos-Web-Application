@@ -438,7 +438,7 @@ export class StudioAiService {
     return { values };
   }
 
-  // ── Asisten Chat (scoped VolikoPrint) ───────────────────────────
+  // ── Asisten Chat (scoped ke toko ini) ───────────────────────────
 
   private static STOPWORDS = new Set([
     'harga', 'hpp', 'berapa', 'untuk', 'yang', 'dan', 'atau', 'produk', 'jual', 'modal',
@@ -708,6 +708,13 @@ export class StudioAiService {
       this.compositeContext(),
     ]);
     const guide = this.guideContext(message);
+    // Kontak dukungan dari env SUPPORT_WA (mis. "6281234567890") — bukan nomor
+    // pribadi yang tertanam di kode (T-34). Tiap pemasangan punya kontaknya sendiri;
+    // kalau env-nya kosong, asisten tidak menyebut nomor siapa pun.
+    const waDukungan = (process.env.SUPPORT_WA || '').replace(/\D/g, '');
+    const arahanDukungan = waDukungan
+      ? `untuk perbaikan bug atau permintaan tambah fitur, arahkan hubungi dukungan via WhatsApp wa.me/${waDukungan}.`
+      : 'untuk perbaikan bug atau permintaan tambah fitur, arahkan lapor ke Owner/Admin toko — jangan menyebut nomor kontak apa pun.';
     const sys = [
       `Kamu "${cfg.aiName}" — asisten internal toko percetakan ${toko} yang ramah, cerdas, dan enak diajak ngobrol. Bicara santai & manusiawi, boleh sedikit hangat/berempati. JANGAN kaku seperti robot. Kalau ditanya namamu, sebut "${cfg.aiName}".`,
       'Kamu BOLEH diajak berpikir & berdiskusi: menimbang pilihan, kasih rekomendasi beserta alasannya, bertanya balik kalau info kurang, dan memberi ide (promo, desain, cara jual, layanan pelanggan).',
@@ -717,7 +724,7 @@ export class StudioAiService {
       '- PRODUK KONFIGURASI (buku custom dll): kalau ada "DATA PRODUK KONFIGURASI", kamu PUNYA harga komponen + rumusnya. Kamu BOLEH & DIHARAPKAN menghitung sendiri estimasi harga dari data itu (jumlahkan komponen sesuai rumus; konversi halaman→lembar A3 pakai metadata pagesPerA3, lembar isi = ceil(halaman/pagesPerA3)). Tunjukkan rinciannya, sebut sebagai "estimasi". Kalau user belum sebut ukuran/halaman/bahan/finishing, boleh pilih default masuk akal lalu sebutkan asumsinya — jangan menolak memberi harga.',
       '- Rekomendasi produk: sarankan HANYA dari "DAFTAR PRODUK TERDAFTAR", tapi jelaskan kenapa cocok (kelebihan, buat kebutuhan apa) dengan bahasa yang mengalir.',
       '- Kamu SUDAH memahami sistem aplikasi ini dari "PANDUAN APLIKASI" + "DAFTAR TOPIK PANDUAN" di bawah — anggap itu pengetahuanmu sendiri. Untuk pertanyaan cara pakai/sistem, jawab LANGSUNG, jelas, & percaya diri, sebutkan menu/path-nya (mis. /inventory, /settings/users). JANGAN menyuruh user membuka halaman /help — kamulah asistennya.',
-      '- Kalau suatu hal benar-benar TIDAK ada di panduan dan kamu tetap tidak yakin, JANGAN mengarang langkah/menu. Jujur bilang belum tersedia, lalu arahkan: untuk perbaikan bug atau permintaan tambah fitur, hubungi developer via WhatsApp wa.me/6289669180127 (089669180127).',
+      `- Kalau suatu hal benar-benar TIDAK ada di panduan dan kamu tetap tidak yakin, JANGAN mengarang langkah/menu. Jujur bilang belum tersedia, lalu ${arahanDukungan}`,
       canHpp ? '' : '- Jangan sebut/menerka HPP/modal; kalau ditanya, bilang hanya Owner/Admin yang bisa melihatnya.',
       'GAYA MENULIS (layar chat sempit — WAJIB rapi & mudah dibaca):',
       '- Ringkas. Paragraf pendek 1–2 kalimat, beri baris kosong antar bagian.',

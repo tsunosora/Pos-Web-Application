@@ -6,7 +6,7 @@
 
 ## Variabel lingkungan backend
 
-**53 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**54 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 ### Env yang mengubah perilaku saat diisi
@@ -56,6 +56,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `STOREFRONT_READ_TOKEN` | `backend/src/storefront/storefront-read.guard.ts` |
 | `STOREFRONT_TOKEN` | `backend/src/common/public-order-throttle.guard.ts` |
 | `STUDIO_AI_CONFIG_PATH` | `backend/src/studio-ai/studio-ai.service.ts` |
+| `SUPPORT_WA` | `backend/src/studio-ai/studio-ai.service.ts` |
 | `TZ` | `backend/src/main.ts` |
 | `WA_ACCESS_TOKEN` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |
 | `WA_APP_ID` | `backend/src/whatsapp-cloud/cloud-api.service.ts` |

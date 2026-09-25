@@ -143,7 +143,7 @@ Hitung fisik stok gudang dengan sistem link operator yang aman dan terstruktur.
 - Upload beberapa **foto latar** yang berganti otomatis dengan efek **Ken Burns** (zoom + geser halus)
 - Atur **tagline / slogan** toko yang tampil bergantian di panel login
 - Logo dan nama toko mengikuti pengaturan di **Profil Toko** secara otomatis
-- **Animated logo** Voliko dengan efek stroke draw-in dan letter pop-in
+- **Logo login** yang diunggah sendiri, tampil dengan efek pop-in + kilau halus
 - Tampilan login **responsif penuh** — di HP menggunakan glass-morphism card di atas background animasi, di desktop split-panel dua kolom
 
 ### 🔐 14. Sistem Autentikasi & Role

@@ -13,7 +13,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 
 | Tabel | Model | Kolom | Untuk apa |
 |---|---|---:|---|
-| `ad_labels` | AdLabel | 9 | Label custom iklan Meta (mis. "Voliko Paris", "Divisi Spanduk"). Satu akun iklan dipakai lintas cabang/perusah |
+| `ad_labels` | AdLabel | 9 | Label custom iklan Meta (mis. "Cabang Kota", "Divisi Spanduk"). Satu akun iklan dipakai lintas cabang/perusaha |
 | `articles` | Article | 13 | Artikel / blog untuk landing. content = HTML dari editor rich text (Tiptap). |
 | `bank_accounts` | BankAccount | 12 | — |
 | `batches` | Batch | 10 | — |
@@ -130,7 +130,7 @@ kolom yang belum jelas maknanya, tambahkan komentarnya di sana — bukan di sini
 
 ### AdLabel — `ad_labels`
 
-> Label custom iklan Meta (mis. "Voliko Paris", "Divisi Spanduk"). Satu akun iklan
+> Label custom iklan Meta (mis. "Cabang Kota", "Divisi Spanduk"). Satu akun iklan
 > dipakai lintas cabang/perusahaan → label per campaign untuk pisah biaya & lead.
 > branchId opsional: bila diisi, lead dari iklan berlabel ini otomatis masuk cabang
 > tsb (atribusi cabang otomatis). Dedup case-insensitive via normalizedName.
@@ -1864,7 +1864,7 @@ Indeks & kunci: `@@index([fromBranchId])` · `@@index([toBranchId])` · `@@index
 | `receiptDefaultFormat` | `String` | `receipt_default_format` | "A5" \| "THERMAL_58" |
 | `loginBgImages` | `String?` | `login_bg_images` | — |
 | `loginTaglines` | `String?` | `login_taglines` | — |
-| `loginLogoUrl` | `String?` | `login_logo_url` | Custom logo untuk login page (replace animasi Voliko centerpiece). Support SVG/PNG/JPG. Kalau null, animasi Voliko default tetap. |
+| `loginLogoUrl` | `String?` | `login_logo_url` | Custom logo untuk login page (centerpiece panel login). Support SVG/PNG/JPG. Kalau null, centerpiece-nya kosong. |
 | `themeMode` | `String?` | `theme_mode` | Theme color app-wide (di-expose via CSS variable --theme-primary, --theme-bg). |
 | `themePrimaryColor` | `String?` | `theme_primary_color` | — |
 | `themeSecondaryColor` | `String?` | `theme_secondary_color` | — |

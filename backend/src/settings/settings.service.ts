@@ -66,7 +66,7 @@ export class SettingsService {
         if (!settings) {
             settings = await this.prisma.storeSettings.create({
                 data: {
-                    storeName: 'PosPro',
+                    storeName: 'Toko Saya',
                     storeAddress: '',
                 },
             });

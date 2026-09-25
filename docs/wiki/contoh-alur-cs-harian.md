@@ -8,7 +8,7 @@
 
 ## 👤 Profil
 
-- **Nama**: Sari, CS di VolikoPrint cabang Pusat
+- **Nama**: Sari, CS di Toko Contoh cabang Pusat
 - **Tanggung jawab**: Handle lead masuk dari WA/IG, follow-up customer, dan koordinasi dengan tim produksi & kasir
 - **Tools**: Laptop dengan browser Chrome buka tab PosPro + WA Web
 
@@ -129,7 +129,7 @@ Sari excited — closing!
 2. Detail drawer terbuka → klik **"Convert (Closing)"**
 3. Modal Convert terbuka, centang:
    - ✅ Buat Customer Baru (data dari lead: PT Bina Sekolah · 0812345678)
-   - ✅ Buat SPK (Sales Order) Draft → input designer: **Andi** (designer freelance VolikoPrint)
+   - ✅ Buat SPK (Sales Order) Draft → input designer: **Andi** (designer freelance Toko Contoh)
    - ✅ Buat Invoice Draft → type: **Invoice** (INV-...)
    - Catatan: *"Order 30 pcs jersey futsal custom desain, deadline 2 minggu. Customer minta warna utama biru-putih dengan logo sekolah di dada kiri."*
 4. Klik **Convert** → loading 2 detik → alert popup:
@@ -148,7 +148,7 @@ Sari excited — closing!
 
 ## ⏰ 10:30 — Lead Baru Masuk dari Instagram DM
 
-Notif WA dari rekan admin IG: *"Sis, ada lead DM IG @volikoprint dari toko 'Andini Sport Yogya', tanyain harga jersey 50pcs untuk komunitas lari."*
+Notif WA dari rekan admin IG: *"Sis, ada lead DM IG @tokocontoh dari toko 'Andini Sport Yogya', tanyain harga jersey 50pcs untuk komunitas lari."*
 
 1. Sari buka `/crm/leads` → klik **"+ Lead Baru"**
 2. Form terbuka, isi:
@@ -157,7 +157,7 @@ Notif WA dari rekan admin IG: *"Sis, ada lead DM IG @volikoprint dari toko 'Andi
      - **🔄 Sistem otomatis cek dedup** → banner kuning muncul: *"⚠️ Customer dengan HP serupa sudah terdaftar (1)"* dengan nama "Pak Andini Pratama" dari order sebelumnya 6 bulan lalu (jersey komunitas gowes)
      - Sari klik **"Pakai Data Ini"** → nama lead auto-fill jadi "Pak Andini Pratama" → no duplikat ✓
    - **Source**: INSTAGRAM
-   - **Detail Sumber**: "IG @volikoprint - DM tanya jersey lari 50pcs"
+   - **Detail Sumber**: "IG @tokocontoh - DM tanya jersey lari 50pcs"
    - **Level**: 🌤️ WARM
    - **Kebutuhan**: "Jersey lari komunitas 50pcs, deadline 3 minggu, budget 250rb/pcs. Sudah ada referensi desain (file PDF dikirim via WA)"
    - **Estimasi Nilai**: 12.500.000 (auto bisa dari items)
@@ -200,7 +200,7 @@ CV Maju Bersama customer lama yang sudah 5 bulan tidak order. Cron Senin pagi au
 
 1. Klik **💬 WA** → pilih template **"Repeat Order Nudge"**
 2. Preview:
-   > *"Halo kak CV Maju Bersama 👋 Sudah 5 bulan ya sejak order terakhir di VolikoPrint. Kalau ada agenda baru — turnamen, event, atau seragam — kami siap bantu dengan harga & timeline terbaik untuk customer langganan 🙏 Langsung balas chat ini kalau ada yang mau dibahas ya kak 🙌"*
+   > *"Halo kak CV Maju Bersama 👋 Sudah 5 bulan ya sejak order terakhir di Toko Contoh. Kalau ada agenda baru — turnamen, event, atau seragam — kami siap bantu dengan harga & timeline terbaik untuk customer langganan 🙏 Langsung balas chat ini kalau ada yang mau dibahas ya kak 🙌"*
 3. Copy + kirim WA
 4. Pak Heri (PIC CV Maju) balas: *"Wah pas banget kak, kami lagi pikirin seragam tim baru untuk acara company gathering bulan Juli. Bisa minta katalog?"*
 5. Sari kirim katalog PDF + harga

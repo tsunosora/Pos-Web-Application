@@ -93,7 +93,7 @@ Login pakai akun dengan role **Owner** atau **SuperAdmin** (`owner@tokokamu.test
 1. Sidebar → **Pengaturan → Daftar Cabang** (`/settings/branches`)
 2. Klik **+ Tambah Cabang**
 3. Isi form:
-   - **Nama Cabang** (wajib) — contoh: `Voliko Cabang Sewon`
+   - **Nama Cabang** (wajib) — contoh: `Toko Cabang Sewon`
    - **Kode** (2–4 huruf, wajib) — contoh: `SWN` (dipakai di prefix nota & badge)
    - **Alamat** — alamat lengkap cabang
    - **Telepon** — nomor kontak
@@ -149,7 +149,7 @@ Cabang baru punya stok **0 untuk semua varian**. Ada 2 cara mengisi:
 ### Kasir Cabang Sewon
 
 1. **Login** dengan akun cabang Sewon (mis. `kasir.cabang@tokokamu.test`)
-2. Topbar tampilkan badge hijau `SWN · Voliko Cabang Sewon`
+2. Topbar tampilkan badge hijau `SWN · Toko Cabang Sewon`
 3. Buka **POS** — katalog produk sama (share global), tapi **stok yang tampil = stok Sewon saja**
 4. Bertransaksi normal — transaksi tercatat `branchId=Sewon`
 5. Antrian produksi cabang Sewon hanya menampilkan job dari transaksi Sewon
@@ -220,11 +220,11 @@ Saat **Tutup Shift** cabang Sewon dikirim:
 ## 📋 Skenario Umum & Contoh
 
 ### Skenario 1: Toko Baru Buka Cabang Kedua
-**Situasi**: Voliko Pusat sudah berjalan, sekarang buka cabang Sewon.
+**Situasi**: cabang Pusat sudah berjalan, sekarang buka cabang Sewon.
 
 **Langkah**:
 1. Data lama → tetap di Pusat (migration sudah backfill otomatis)
-2. Buka `/settings/branches` → tambah "Voliko Cabang Sewon" (code `SWN`)
+2. Buka `/settings/branches` → tambah "Toko Cabang Sewon" (code `SWN`)
 3. Buka `/settings/branch-config` → pilih Sewon → atur PIN, WA group, identitas nota
 4. Buat akun kasir Sewon di `/settings/users` dengan `branchId=Sewon`
 5. Transfer stok awal: `/inventory/transfer` → Pusat → Sewon, pilih produk & qty

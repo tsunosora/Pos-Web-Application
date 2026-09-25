@@ -145,7 +145,7 @@ describe('HrSummaryService.myPortal — tautan portal pribadi', () => {
   const portal = {
     found: true,
     name: 'Gugun',
-    portalUrl: 'https://absensi.volikoprint.com/me/tok-123',
+    portalUrl: 'https://absensi.contoh-toko.com/me/tok-123',
     hasPin: true,
   };
 
@@ -227,7 +227,7 @@ describe('HrSummaryService.myPortalByPin — halaman kerja ber-PIN', () => {
   const portal = {
     found: true,
     name: 'Gesang',
-    portalUrl: 'https://absensi.volikoprint.com/me/tok-9',
+    portalUrl: 'https://absensi.contoh-toko.com/me/tok-9',
     hasPin: true,
   };
 

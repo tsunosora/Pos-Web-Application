@@ -3,7 +3,7 @@ import { sanitizeHtml } from './sanitize-html.util';
 describe('sanitizeHtml — konten artikel publik', () => {
     it('keluaran editor tetap utuh', () => {
         const html =
-            '<h2>Judul</h2><p style="text-align: center">Halo <strong>dunia</strong> &amp; <a target="_blank" rel="noopener noreferrer nofollow" href="https://voliko.id">tautan</a></p>' +
+            '<h2>Judul</h2><p style="text-align: center">Halo <strong>dunia</strong> &amp; <a target="_blank" rel="noopener noreferrer nofollow" href="https://contoh-toko.id">tautan</a></p>' +
             '<img src="/uploads/a.png" data-align="left" style="float:left;margin:4px 16px 12px 0;max-width:50%;"><ul><li><p>satu</p></li></ul>';
         expect(sanitizeHtml(html)).toBe(html);
     });

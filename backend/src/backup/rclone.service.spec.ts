@@ -12,8 +12,8 @@ const { RcloneService } =
 
 const SETTINGS = {
   id: 1,
-  storeName: 'Voliko',
-  rcloneRemote: 'remote:voliko',
+  storeName: 'Toko Uji',
+  rcloneRemote: 'remote:toko-uji',
   rcloneKeepCount: 14,
 };
 

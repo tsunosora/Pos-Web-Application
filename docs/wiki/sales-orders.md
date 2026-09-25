@@ -262,7 +262,7 @@ Halaman: `/settings/designers` (Owner only)
 |---|---|
 | **Nama** | Nama lengkap desainer |
 | **PIN** | Numerik 4-6 digit untuk login portal |
-| **Branch Name** | Nama cabang asal (mis. "Voliko Cabang Sewon" atau "CAB"). Dipakai untuk auto-tag SO |
+| **Branch Name** | Nama cabang asal (mis. "Toko Cabang Sewon" atau "CAB"). Dipakai untuk auto-tag SO |
 | **Aktif** | Toggle. Non-aktif = tidak bisa login portal |
 
 ### Branch Name
@@ -305,7 +305,7 @@ Broadcast manual via tombol di UI:
 
 ### Skenario: Desainer Freelance → Kasir Cabang Sewon
 
-1. Owner: `/settings/branches` → pastikan ada cabang "Voliko Cabang Sewon" dengan code "CAB"
+1. Owner: `/settings/branches` → pastikan ada cabang "Toko Cabang Sewon" dengan code "CAB"
 2. Owner: `/settings/discord` → aktifkan + isi webhook channel **#produksi**
 3. Owner: `/settings/designers` → tambah desainer "Mas Asad" PIN 1234, branchName "CAB"
 4. Mas Asad: buka `/so-designer` di HP → pilih nama → input PIN 1234 → masuk dashboard

@@ -126,7 +126,7 @@ export default function LoginAppearancePage() {
                 </div>
             </div>
 
-            {/* Logo Login (replace animasi Voliko centerpiece) */}
+            {/* Logo Login (centerpiece panel login) */}
             <section className="space-y-4">
                 <div className="flex items-center justify-between">
                     <h3 className="font-semibold flex items-center gap-2">

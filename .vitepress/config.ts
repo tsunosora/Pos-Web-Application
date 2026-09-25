@@ -167,7 +167,7 @@ export default defineConfig({
 
     footer: {
       message: 'PosPro — Aplikasi Kasir & Manajemen Toko Berbasis Web',
-      copyright: 'VOLIKO IMOGIRI © 2026'
+      copyright: 'PosPro © 2026'
     },
 
     editLink: {

@@ -1,7 +1,7 @@
 import { absolutePublicUrl, buildPosCatalogPlan, posRetailerId } from './catalog.service';
 
 describe('buildPosCatalogPlan — produk POS → item katalog WhatsApp', () => {
-    const BASE = 'https://api.volikoprint.com';
+    const BASE = 'https://api.contoh-toko.com';
     const brosur = {
         name: 'Paket Brosur 1RIM 1MUKA AP 120gsm 20 x 10cm',
         description: 'Brosur full color 500 lembar',
@@ -19,8 +19,8 @@ describe('buildPosCatalogPlan — produk POS → item katalog WhatsApp', () => {
             description: 'Brosur full color 500 lembar',
             price: 26000000,
             currency: 'IDR',
-            image_url: 'https://api.volikoprint.com/uploads/a.png',
-            additional_image_urls: ['https://api.volikoprint.com/uploads/b.png'],
+            image_url: 'https://api.contoh-toko.com/uploads/a.png',
+            additional_image_urls: ['https://api.contoh-toko.com/uploads/b.png'],
             availability: 'in stock',
         });
     });
@@ -43,7 +43,7 @@ describe('buildPosCatalogPlan — produk POS → item katalog WhatsApp', () => {
         expect(plan).toHaveLength(1);
         expect(plan[0].payload?.name).toBe('Cetak Stiker Vinyl Glossy — KissCut');
         expect(plan[0].payload?.description).toBe('Cetak Stiker Vinyl Glossy — KissCut'); // deskripsi kosong → nama
-        expect(buildPosCatalogPlan(stiker, BASE, {}, [1])[0].payload?.image_url).toBe('https://api.volikoprint.com/uploads/v1.png');
+        expect(buildPosCatalogPlan(stiker, BASE, {}, [1])[0].payload?.image_url).toBe('https://api.contoh-toko.com/uploads/v1.png');
     });
 
     it('produk tanpa gambar dilewati dengan pesan jelas', () => {
@@ -58,7 +58,7 @@ describe('buildPosCatalogPlan — produk POS → item katalog WhatsApp', () => {
     });
 
     it('URL absolut & retailer_id stabil', () => {
-        expect(absolutePublicUrl('uploads/x.png', 'https://api.volikoprint.com/')).toBe('https://api.volikoprint.com/uploads/x.png');
+        expect(absolutePublicUrl('uploads/x.png', 'https://api.contoh-toko.com/')).toBe('https://api.contoh-toko.com/uploads/x.png');
         expect(absolutePublicUrl('https://cdn.contoh.com/x.png', BASE)).toBe('https://cdn.contoh.com/x.png');
         expect(absolutePublicUrl('  ', BASE)).toBeNull();
         expect(posRetailerId(368)).toBe('pos-v368');

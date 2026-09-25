@@ -3,7 +3,7 @@ import { StorefrontReadGuard } from './storefront-read.guard';
 import { StorefrontService } from './storefront.service';
 
 /**
- * API baca-lead untuk website toko (volikoprint.com). Tanpa akun PosPro: cukup header
+ * API baca-lead untuk website toko milik klien. Tanpa akun PosPro: cukup header
  * `X-Storefront-Read-Token` (lihat StorefrontReadGuard). HANYA GET, dan hanya lead
  * `source = WEBSITE` — order dari WhatsApp/iklan/walk-in tidak pernah ikut.
  */

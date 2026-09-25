@@ -252,7 +252,7 @@ export class SalesOrdersService {
         return {
             OR: [
                 { branchName: { in: names } },
-                // Fallback: cocok kalau branchName mengandung salah satu name/code (mis. "Cab Sewon" match "Voliko Cabang Sewon")
+                // Fallback: cocok kalau branchName mengandung salah satu name/code (mis. "Cab Sewon" match "Toko Cabang Sewon")
                 ...names.map(n => ({ branchName: { contains: n } })),
             ],
         };

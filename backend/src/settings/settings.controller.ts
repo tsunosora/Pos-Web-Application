@@ -98,7 +98,7 @@ export class SettingsController {
         return { url: `/uploads/${file.filename}` };
     }
 
-    /** Upload login logo (centerpiece di login page, replace animasi Voliko). */
+    /** Upload login logo (centerpiece di login page). */
     @Post('upload-login-logo')
     @UseGuards(JwtAuthGuard, ManagerGuard)
     @UseInterceptors(FileInterceptor('image', {

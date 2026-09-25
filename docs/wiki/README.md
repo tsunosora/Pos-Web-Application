@@ -600,7 +600,7 @@ Bot WhatsApp berjalan langsung di dalam server PosPro — tidak perlu aplikasi a
 
 ### Cara Setup Grup Penerima Laporan
 
-1. Buat atau buka grup WhatsApp yang akan menerima laporan (contoh: "Owner VOLIKO")
+1. Buat atau buka grup WhatsApp yang akan menerima laporan (contoh: "Owner Toko")
 2. Tambahkan nomor WhatsApp bot ke grup tersebut
 3. Ketik `!getgroupid` di grup — bot akan balas dengan ID grup
 4. Salin ID tersebut (formatnya angka panjang diakhiri `@g.us`)

@@ -685,8 +685,8 @@ model StoreSettings {
   receiptDefaultFormat   String    @default("A5") @map("receipt_default_format") @db.VarChar(20) // "A5" | "THERMAL_58"
   loginBgImages          String?   @map("login_bg_images") @db.Text
   loginTaglines          String?   @map("login_taglines") @db.Text
-  // Custom logo untuk login page (replace animasi Voliko centerpiece).
-  // Support SVG/PNG/JPG. Kalau null, animasi Voliko default tetap.
+  // Custom logo untuk login page (centerpiece panel login).
+  // Support SVG/PNG/JPG. Kalau null, centerpiece-nya kosong.
   loginLogoUrl           String?   @map("login_logo_url") @db.Text
   // Theme color app-wide (di-expose via CSS variable --theme-primary, --theme-bg).
   themeMode              String?   @default("SOLID") @map("theme_mode") @db.VarChar(20)
@@ -2000,7 +2000,7 @@ model LeadSourceOption {
   @@map("lead_source_options")
 }
 
-// Label custom iklan Meta (mis. "Voliko Paris", "Divisi Spanduk"). Satu akun iklan
+// Label custom iklan Meta (mis. "Cabang Kota", "Divisi Spanduk"). Satu akun iklan
 // dipakai lintas cabang/perusahaan → label per campaign untuk pisah biaya & lead.
 // branchId opsional: bila diisi, lead dari iklan berlabel ini otomatis masuk cabang
 // tsb (atribusi cabang otomatis). Dedup case-insensitive via normalizedName.

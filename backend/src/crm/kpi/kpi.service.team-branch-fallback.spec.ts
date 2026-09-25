@@ -10,8 +10,8 @@ import { KpiService } from './kpi.service';
  */
 
 const BRANCHES = [
-  { id: 1, name: 'Voliko Imogiri', code: 'PST', isActive: true },
-  { id: 2, name: 'Voliko Sewon', code: 'CAB', isActive: true },
+  { id: 1, name: 'Toko Pusat', code: 'PST', isActive: true },
+  { id: 2, name: 'Toko Cabang', code: 'CAB', isActive: true },
 ];
 
 type Nota = {
@@ -48,7 +48,7 @@ const nota = (over: Partial<Nota> = {}): Nota => ({
   grandTotal: 2202810,
   cashierName: 'Muhammad Faisal',
   branchId: 1,
-  salesOrder: { designerName: 'Muhammad Faisal', branchName: 'Voliko Imogiri' },
+  salesOrder: { designerName: 'Desainer Satu', branchName: 'Toko Pusat' },
   ...over,
 });
 

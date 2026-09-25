@@ -94,7 +94,7 @@ function RichText({ text }: { text: string }) {
 }
 
 /**
- * Widget chat asisten VolikoPrint (mengambang). Hanya untuk pertanyaan seputar
+ * Widget chat asisten toko (mengambang). Hanya untuk pertanyaan seputar
  * produk/harga/HPP & aplikasi ini — barrier ada di backend (/studio-ai/chat).
  * Tampil hanya bila AI aktif (status.enabled).
  */

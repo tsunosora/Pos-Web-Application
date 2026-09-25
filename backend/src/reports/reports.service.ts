@@ -201,7 +201,7 @@ export class ReportsService {
     }
 
     /**
-     * Laporan TUTUP BUKU bulanan (basis kas) — meniru format manual Voliko:
+     * Laporan TUTUP BUKU bulanan (basis kas) — meniru format tutup buku manual:
      * pendapatan per kanal (Cash/QRIS/Bank) × pekan, pengeluaran per kategori ×
      * pekan + rincian, laba (uang masuk − uang keluar), dan piutang outstanding.
      * Sumber: Cashflow (INCOME/EXPENSE) + Transaction (PENDING/PARTIAL).
