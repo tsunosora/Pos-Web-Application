@@ -737,9 +737,15 @@ function render_home_block(array $b, array $ctx): string {
                                 <?php if ($waNum): ?><a href="https://wa.me/<?= h($waNum) ?>?text=<?= $waText ?>" target="_blank" rel="noopener" class="btn-pill btn-pill--accent mt-5 text-sm">Lanjut chat WA</a><?php endif; ?>
                             </div>
                         <?php else: ?>
-                            <?php if ($sentErr): ?><div class="mb-4 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">Gagal mengirim — coba lagi atau langsung chat WA kami.</div><?php endif; ?>
+                            <?php if ($sentErr):
+                                $errMsg = match ($_GET['e'] ?? '') {
+                                    'phone' => 'Nomor WhatsApp tidak valid — gunakan nomor Indonesia (mis. 0812xxxxxxxx atau +62 812xxxxxxxx).',
+                                    'bot'   => 'Verifikasi anti-bot gagal — muat ulang halaman lalu kirim ulang.',
+                                    default => 'Gagal mengirim — coba lagi atau langsung chat WA kami.',
+                                }; ?><div class="mb-4 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm"><?= h($errMsg) ?></div><?php endif; ?>
                             <form method="post" action="lead.php" class="space-y-3.5">
                                 <input type="hidden" name="back" value="<?= h(($_SERVER['PHP_SELF'] ?? 'index.php')) ?>">
+                                <?= form_ts_field() ?>
                                 <!-- honeypot anti-spam: dibiarkan kosong oleh manusia -->
                                 <input type="text" name="website" value="" tabindex="-1" autocomplete="off" class="hidden" aria-hidden="true">
                                 <div>
@@ -763,6 +769,10 @@ function render_home_block(array $b, array $ctx): string {
                                     </div>
                                 <?php elseif ($branches): ?>
                                     <input type="hidden" name="branch" value="<?= h($branches[0]) ?>">
+                                <?php endif; ?>
+                                <?php if (turnstile_enabled()): ?>
+                                    <div class="cf-turnstile" data-sitekey="<?= h(turnstile_site_key()) ?>"></div>
+                                    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
                                 <?php endif; ?>
                                 <button type="submit" class="btn-pill btn-pill--accent w-full justify-center text-sm">
                                     Kirim & Minta Penawaran
