@@ -67,4 +67,7 @@ RewriteRule ^(main-home|my-account(-2)?|checkout(-2)?|cart(-2)?)/?$ / [R=301,L]
     SetEnvIf Request_URI "\.(jpe?g|png|webp|gif|svg|ico|avif)$" CACHE_IMG
     Header set Cache-Control "public, max-age=2592000" env=CACHE_IMG
     Header set Cache-Control "public, max-age=31536000, immutable" env=CACHE_LONG
+    # Jangan umumkan versi PHP (info berguna bagi penyerang)
+    Header always unset X-Powered-By
+    Header unset X-Powered-By
 </IfModule>
