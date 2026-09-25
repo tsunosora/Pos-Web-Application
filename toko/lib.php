@@ -433,6 +433,27 @@ function mirror_existing(string $remoteKey): ?string {
     return is_file(mirror_dir() . '/' . $name) ? 'uploads/mirror/' . $name : null;
 }
 
+/**
+ * Buat salinan WebP (sisi terpanjang maks 1000px, q80) di samping file mirror
+ * JPG/PNG. Foto produk PosPro banyak berupa PNG 1254px ±650 KB → WebP jauh lebih
+ * ringan. File asli tetap disimpan (dipakai og:image & fallback).
+ */
+function mirror_make_webp(string $absPath): void {
+    if (!function_exists('imagewebp') || !preg_match('/\.(png|jpe?g)$/i', $absPath)) return;
+    $out = preg_replace('/\.(png|jpe?g)$/i', '.webp', $absPath);
+    if (is_file($out)) return;
+    $info = @getimagesize($absPath);
+    if (!$info || $info[0] * $info[1] > 40000000) return;
+    $src = $info[2] === IMAGETYPE_PNG ? @imagecreatefrompng($absPath) : @imagecreatefromjpeg($absPath);
+    if (!$src) return;
+    $w = imagesx($src); $h = imagesy($src); $scale = min(1, 1000 / max($w, $h));
+    $dst = imagecreatetruecolor(max(1, (int)round($w * $scale)), max(1, (int)round($h * $scale)));
+    imagealphablending($dst, false); imagesavealpha($dst, true);
+    imagecopyresampled($dst, $src, 0, 0, 0, 0, imagesx($dst), imagesy($dst), $w, $h);
+    if (@imagewebp($dst, $out . '.tmp', 80) && filesize($out . '.tmp') > 0) @rename($out . '.tmp', $out); else @unlink($out . '.tmp');
+    imagedestroy($src); imagedestroy($dst);
+}
+
 /** Unduh satu gambar PosPro ke mirror lokal. Return path relatif atau null bila gagal. */
 function mirror_fetch(string $remoteUrl, string $remoteKey): ?string {
     $name = mirror_name($remoteKey);
@@ -447,6 +468,7 @@ function mirror_fetch(string $remoteUrl, string $remoteKey): ?string {
     $isSvg = substr($name, -4) === '.svg' && stripos($bin, '<svg') !== false && stripos($bin, '<?php') === false;
     if (@getimagesize($tmp) === false && !$isSvg) { @unlink($tmp); return null; }
     @rename($tmp, $dest);
+    mirror_make_webp($dest);
     return 'uploads/mirror/' . $name;
 }
 
@@ -480,7 +502,7 @@ function mirror_opportunistic($data): void {
     $left -= mirror_scan($data, $left);
 }
 
-function img_url(?string $u): string {
+function img_url(?string $u, bool $webp = true): string {
     if (!$u) return '';
     $isAbs = (bool)preg_match('#^https?://#i', $u);
     $base  = pospro_base();
@@ -488,7 +510,12 @@ function img_url(?string $u): string {
     if (!$isAbs || strncmp($u, $base, strlen($base)) === 0) {
         $key   = $isAbs ? substr($u, strlen($base)) : $u;
         $local = mirror_existing($key);
-        if ($local) return abs_url($local);     // absolut di domain toko (valid utk og:image)
+        if ($local) {
+            // Versi WebP ringan bila sudah dibuat (lihat mirror_make_webp); og:image pakai asli.
+            $wp = preg_replace('/\.(png|jpe?g)$/i', '.webp', $local);
+            if ($webp && $wp !== $local && is_file(__DIR__ . '/' . $wp)) return abs_url($wp);
+            return abs_url($local);             // absolut di domain toko (valid utk og:image)
+        }
     }
     return $isAbs ? $u : $base . $u;            // fallback: sajikan langsung dari PosPro
 }
@@ -616,7 +643,7 @@ function seo_business_jsonld(): array {
     require_once __DIR__ . '/content_store.php';
     $st   = settings();
     $name = $st['storeName'] ?? 'Voliko Print';
-    $logo = !empty($st['logoImageUrl']) ? img_url($st['logoImageUrl']) : '';
+    $logo = !empty($st['logoImageUrl']) ? img_url($st['logoImageUrl'], false) : '';
     $k    = site_content('kontak');
     $orgId = base_url() . '#org';
     $org = [

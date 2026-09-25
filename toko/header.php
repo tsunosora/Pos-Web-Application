@@ -7,7 +7,7 @@ $hdrWa = store_wa(); ?>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <?php
     $storeName     = $st['storeName'] ?? 'Toko';
-    $logoAbs       = !empty($st['logoImageUrl']) ? img_url($st['logoImageUrl']) : '';
+    $logoAbs       = !empty($st['logoImageUrl']) ? img_url($st['logoImageUrl'], false) : ''; // asli (og:image/ikon)
     $seo_title     = $seo_title     ?? $storeName;
     $seo_desc      = $seo_desc      ?? meta_desc('Belanja produk & layanan cetak berkualitas di ' . $storeName . '. Pesan online, respon cepat, hasil rapi.');
     $seo_image     = $seo_image     ?? $logoAbs;
