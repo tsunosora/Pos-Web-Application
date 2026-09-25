@@ -56,3 +56,15 @@ RewriteRule ^(about-us|our-team)/?$ /profil.php [R=301,L]
 RewriteRule ^(contact-us|get-in-touch|pricing-plans)/?$ /#order-cepat [R=301,NE,L]
 RewriteRule ^(main-home|my-account(-2)?|checkout(-2)?|cart(-2)?)/?$ / [R=301,L]
 </IfModule>
+
+# ── Cache browser (PageSpeed: "Use efficient cache lifetimes") ──────────────
+# Aman 1 tahun: CSS/JS selalu dipanggil dengan ?v=<filemtime>; nama file di
+# uploads/mirror (hash path PosPro) & uploads/opt (hash mtime) berubah bila isinya
+# berubah. Gambar upload lain (bisa ditimpa admin dengan nama sama) cukup 30 hari.
+<IfModule mod_headers.c>
+    SetEnvIf Request_URI "\.(css|js|woff2?)$" CACHE_LONG
+    SetEnvIf Request_URI "^/uploads/(mirror|opt)/" CACHE_LONG
+    SetEnvIf Request_URI "\.(jpe?g|png|webp|gif|svg|ico|avif)$" CACHE_IMG
+    Header set Cache-Control "public, max-age=2592000" env=CACHE_IMG
+    Header set Cache-Control "public, max-age=31536000, immutable" env=CACHE_LONG
+</IfModule>

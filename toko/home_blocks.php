@@ -185,7 +185,7 @@ function hero_title_html(string $title, string $highlight = ''): string {
 // Kartu produk "image-forward" (dipakai di katalog, produk serupa & beranda)
 // Foto memenuhi kartu; info di bar kaca mengambang. Tema PrintKreatif glass+biru.
 function product_card_html(array $p, int $i = 0, string $shop = '', bool $badge = false): string {
-    $im = product_image($p);
+    $im = img_opt(product_image($p), 500); // kartu: versi kecil
     $vc = count($p['variants'] ?? []);
     ob_start(); ?>
     <a href="product.php?id=<?= h($p['id']) ?>" class="pk-card2 card-in" style="animation-delay:<?= ($i % 8) * 60 ?>ms">
@@ -199,7 +199,7 @@ function product_card_html(array $p, int $i = 0, string $shop = '', bool $badge 
             <div class="pk-card2-foot">
                 <span class="pk-card2-price">
                     <small><?= $vc > 1 ? 'Mulai dari' : 'Harga' ?></small>
-                    <b><?= rupiah(product_price($p)) ?><?= product_is_area($p) ? '<small class="font-semibold opacity-70">/m²</small>' : '' ?></b>
+                    <b><?= rupiah(product_price($p)) ?><?= product_is_area($p) ? '<small class="font-semibold opacity-90">/m²</small>' : '' ?></b>
                 </span>
                 <span class="pk-card2-cart" aria-hidden="true"><i class="fa-solid fa-plus"></i></span>
             </div>
@@ -214,7 +214,7 @@ function product_card_html(array $p, int $i = 0, string $shop = '', bool $badge 
  * Dipakai bersama di homepage (sec_products_grid), katalog (produk.php), & produk serupa.
  */
 function bs_card_html(array $p, int $i = 0, bool $badge = false): string {
-    $im = product_image($p); $vc = count($p['variants'] ?? []);
+    $im = img_opt(product_image($p), 500); $vc = count($p['variants'] ?? []); // kartu: versi kecil
     $price = product_price($p); $old = 0;
     foreach (['priceOld', 'compareAtPrice', 'oldPrice', 'strikePrice'] as $k) { if (!empty($p[$k]) && (float)$p[$k] > $price) { $old = (float)$p[$k]; break; } }
     $disc   = $old ? (int)round(100 - ($price / $old * 100)) : 0;
@@ -234,7 +234,7 @@ function bs_card_html(array $p, int $i = 0, bool $badge = false): string {
             <a href="product.php?id=<?= h($p['id']) ?>" class="pk-bs-title"><?= h($p['name']) ?></a>
             <?php if ($rating > 0): ?><div class="pk-bs-rate"><span class="pk-bs-stars"><?= str_repeat('★', $rr) . str_repeat('☆', max(0, 5 - $rr)) ?></span><span class="pk-bs-rate-c"><?= number_format($rating, 1) ?><?= $rcount ? ' (' . (int)$rcount . ')' : '' ?></span></div><?php endif; ?>
             <div class="pk-bs-foot">
-                <span class="pk-bs-price"><small><?= $vc > 1 ? 'Mulai' : 'Harga' ?></small><span class="pk-bs-price-row"><b><?= rupiah($price) ?><?= product_is_area($p) ? '<small class="font-semibold opacity-70">/m²</small>' : '' ?></b><?php if ($old): ?><span class="pk-bs-oldprice"><?= rupiah($old) ?></span><?php endif; ?></span></span>
+                <span class="pk-bs-price"><small><?= $vc > 1 ? 'Mulai' : 'Harga' ?></small><span class="pk-bs-price-row"><b><?= rupiah($price) ?><?= product_is_area($p) ? '<small class="font-semibold opacity-90">/m²</small>' : '' ?></b><?php if ($old): ?><span class="pk-bs-oldprice"><?= rupiah($old) ?></span><?php endif; ?></span></span>
                 <a href="product.php?id=<?= h($p['id']) ?>" class="pk-bs-cart" aria-label="Lihat produk"><i class="fa-solid fa-plus"></i></a>
             </div>
         </div>
@@ -430,7 +430,7 @@ function render_home_block(array $b, array $ctx): string {
                 </div>
                 <?php if ($useSearch): ?>
                     <form method="get" class="flex flex-col sm:flex-row gap-3 mb-6">
-                        <select name="cat" onchange="this.form.submit()" class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand/50">
+                        <select name="cat" aria-label="Filter kategori" onchange="this.form.submit()" class="px-4 py-2.5 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-brand/50">
                             <option value="">Semua kategori</option>
                             <?php foreach ($cats as $id => $name): ?><option value="<?= h($id) ?>" <?= (string)$cat === (string)$id ? 'selected' : '' ?>><?= h($name) ?></option><?php endforeach; ?>
                         </select>
@@ -471,7 +471,7 @@ function render_home_block(array $b, array $ctx): string {
                 </div>
                 <div class="bento">
                     <?php foreach ($list as $i => $p):
-                        $im = product_image($p);
+                        $im = img_opt(product_image($p), 500); // kartu: versi kecil
                         $vc = count($p['variants'] ?? []);
                         $isFeat = $i === 0;
                         $desc = trim(strip_tags((string)($p['description'] ?? '')));
@@ -763,7 +763,7 @@ function render_home_block(array $b, array $ctx): string {
                                 <?php if (count($branches) > 1): ?>
                                     <div>
                                         <label class="text-xs font-bold text-slate-600 uppercase tracking-wide">Ambil / kirim dari cabang</label>
-                                        <select name="branch" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white/80 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
+                                        <select name="branch" aria-label="Cabang" class="mt-1 w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white/80 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40">
                                             <?php foreach ($branches as $br): ?><option value="<?= h($br) ?>"><?= h($br) ?></option><?php endforeach; ?>
                                         </select>
                                     </div>

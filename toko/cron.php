@@ -19,7 +19,7 @@ $n = publish_due_articles();
 // termasuk gambar. Aman dipanggil berulang — hanya unduh yang belum ada.
 $img = 0;
 foreach (['/products/public', '/settings/public', '/company-branches/public-active'] as $p) {
-    $d = api_get($p);
+    $d = api_get($p, true); // cron: selalu ambil data terbaru dari PosPro
     if (is_array($d)) $img += mirror_scan($d, 80 - $img);
     if ($img >= 80) break;
 }

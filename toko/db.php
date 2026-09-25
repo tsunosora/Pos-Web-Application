@@ -100,6 +100,17 @@ function api_cache_write(string $key, string $json): void {
     } catch (Throwable $e) { /* gagal cache tidak fatal */ }
 }
 
+/** Cache + umurnya sekaligus (1 query): ['v' => string JSON, 't' => UNIX time] atau null. */
+function api_cache_row(string $key): ?array {
+    ensure_api_cache_table();
+    try {
+        $st = db()->prepare('SELECT v, UNIX_TIMESTAMP(updated_at) t FROM api_cache WHERE k = ? LIMIT 1');
+        $st->execute([$key]);
+        $r = $st->fetch();
+    } catch (Throwable $e) { return null; }
+    return $r ? ['v' => (string)$r['v'], 't' => (int)$r['t']] : null;
+}
+
 /** Waktu (UNIX) cache terakhir diperbarui untuk path, atau 0 bila belum ada. */
 function api_cache_time(string $key): int {
     ensure_api_cache_table();
