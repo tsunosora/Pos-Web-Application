@@ -67,7 +67,21 @@ $ftMapsLink = function (array $l): string {
                     <span>Senin–Sabtu, 08.00–21.00<br><span class="text-slate-500">Minggu tutup</span></span>
                 </li>
                 <?php endif; ?>
-                <?php if ($ftPhone): ?>
+                <?php if ($ftLocs): ?>
+                    <?php foreach ($ftLocs as $l): if (trim($l['phone'] ?? '') === '' && trim($l['whatsapp'] ?? '') === '') continue;
+                        // Label singkat: bagian setelah "—" (mis. "Pusat — Imogiri" → "Imogiri"), else nama lengkap
+                        $lbl = trim(preg_replace('/^.*[—–-]\s*/u', '', $l['name'])) ?: $l['name'];
+                        $lwa = preg_replace('/^0/', '62', preg_replace('/\D/', '', ($l['whatsapp'] ?? '') ?: ($l['phone'] ?? ''))); ?>
+                        <li class="flex items-start gap-2.5">
+                            <svg class="w-4 h-4 mt-0.5 shrink-0 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11 11 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+                            <span>
+                                <span class="block text-xs uppercase tracking-wider text-slate-500"><?= h($lbl) ?></span>
+                                <?php if (!empty($l['phone'])): ?><a href="tel:<?= h(preg_replace('/[^\d+]/', '', $l['phone'])) ?>" class="text-slate-300 hover:text-white transition"><?= h($l['phone']) ?></a><?php endif; ?>
+                                <?php if ($lwa !== ''): ?><a href="https://wa.me/<?= h($lwa) ?>" target="_blank" rel="noopener" class="ml-2 text-xs text-emerald-400 hover:text-emerald-300">WhatsApp</a><?php endif; ?>
+                            </span>
+                        </li>
+                    <?php endforeach; ?>
+                <?php elseif ($ftPhone): ?>
                     <li class="flex items-center gap-2.5">
                         <svg class="w-4 h-4 shrink-0 text-brand" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11 11 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
                         <a href="tel:<?= h($ftPhone) ?>" class="text-slate-400 hover:text-white transition"><?= h($ftPhone) ?></a>
