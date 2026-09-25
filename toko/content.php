@@ -138,6 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'name' => $nm, 'address' => $ad,
                     'phone' => $f("loc{$i}_phone"), 'whatsapp' => $f("loc{$i}_whatsapp"),
                     'hours' => $f("loc{$i}_hours"), 'mapsEmbed' => maps_embed_src($f("loc{$i}_maps")),
+                    'coords' => preg_replace('/\s+/', ' ', trim($f("loc{$i}_coords"))),
                 ];
             }
             $data['locations'] = $locs;
@@ -394,6 +395,8 @@ function onoff(bool $val): void {
                         </div>
                         <?php fld("loc{$i}_maps", 'URL embed Google Maps', $l['mapsEmbed'] ?? ''); ?>
                         <p class="text-[11px] text-slate-400">Cara ambil: buka Google Maps &rarr; cari lokasi &rarr; <b>Bagikan</b> &rarr; tab <b>Sematkan peta</b> &rarr; salin alamat yang ada di dalam <code>src="..."</code>.</p>
+                        <?php fld("loc{$i}_coords", 'Koordinat titik lokasi (lat, lng)', $l['coords'] ?? '', '-7.848978, 110.359326'); ?>
+                        <p class="text-[11px] text-slate-400">Dipakai untuk tombol <b>Petunjuk arah</b> &amp; data Google. Cara ambil: di Google Maps <b>klik kanan pin toko</b> &rarr; klik angka koordinat paling atas (otomatis tersalin) &rarr; tempel di sini. Kosong = pakai perkiraan dari peta embed (bisa meleset).</p>
                     </fieldset>
                 <?php endfor; ?>
 

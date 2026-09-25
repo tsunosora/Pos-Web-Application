@@ -10,10 +10,10 @@ $ftWa    = store_wa();
 require_once __DIR__ . '/content_store.php';
 $ftLocs = array_values(array_filter((array)(site_content('kontak')['locations'] ?? []),
     fn($l) => trim($l['name'] ?? '') !== '' && trim($l['address'] ?? '') !== ''));
-/** Link "Petunjuk arah" Google Maps: koordinat dari URL embed bila ada, else cari nama+alamat. */
+/** Link "Petunjuk arah" Google Maps: koordinat cabang bila ada, else cari nama+alamat. */
 $ftMapsLink = function (array $l): string {
-    if (preg_match('/!2d(-?[\d.]+)!3d(-?[\d.]+)/', (string)($l['mapsEmbed'] ?? ''), $m)) {
-        return 'https://www.google.com/maps/dir/?api=1&destination=' . $m[2] . ',' . $m[1];
+    if ($c = location_coords($l)) {
+        return 'https://www.google.com/maps/dir/?api=1&destination=' . $c[0] . ',' . $c[1];
     }
     return 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode(($l['name'] ?? '') . ', ' . ($l['address'] ?? ''));
 };
