@@ -40,7 +40,7 @@ $hdrWa = store_wa(); ?>
     <?php foreach ($seo_jsonld_extra as $ld): ?><script type="application/ld+json"><?= json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script><?php endforeach; ?>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;0,800;1,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:ital,wght@0,400;0,500;0,600;0,700;0,800;1,500;1,600&family=Nunito+Sans:ital,wght@0,400;0,600;0,700;0,800;1,600&display=optional" rel="stylesheet">
     <?php /* Ikon Font Awesome tidak kritis untuk tampilan awal → muat tanpa memblokir render */ ?>
     <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
     <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
@@ -78,7 +78,7 @@ $hdrWa = store_wa(); ?>
 </div>
 <header class="nav-glass sticky top-0 z-40">
     <div class="nav-inner max-w-[96rem] mx-auto px-4 flex items-center gap-3 sm:gap-5">
-        <a href="index.php" class="flex items-center gap-2 font-extrabold text-lg text-slate-900 shrink-0 font-head">
+        <a href="index.php" class="flex items-center gap-2 font-extrabold text-lg text-slate-900 shrink-0 font-head" aria-label="<?= h($storeName) ?> — Beranda">
             <?php if (!empty($st['logoImageUrl'])): ?>
                 <img src="<?= h(img_url($st['logoImageUrl'])) ?>" alt="" class="h-9 w-9 rounded-xl object-cover">
             <?php else: ?>

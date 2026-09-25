@@ -174,13 +174,34 @@ function pospro_get(string $path) {
  * agar storefront tetap tampil normal. Hanya null bila tak ada data & tak ada
  * cache sama sekali.
  */
-function api_get(string $path) {
+/**
+ * Umur maksimal cache API sebelum diperbarui (detik). PosPro ada di homelab —
+ * /products/public butuh 1–1,5 dtk per panggilan; tanpa cache ini tiap kunjungan
+ * halaman ikut menunggu (penyebab utama "server response" lambat di PageSpeed).
+ */
+const API_CACHE_TTL = 300;
+
+function api_get(string $path, bool $force = false) {
+    if (!$force) {
+        $row = api_cache_row($path);
+        $d = $row ? json_decode($row['v'], true) : null;
+        if ($d !== null) {
+            $stale = time() - $row['t'] >= API_CACHE_TTL;
+            // Segar → pakai langsung. Kedaluwarsa → tetap sajikan salinan ini dulu,
+            // lalu perbarui dari PosPro SETELAH respons terkirim ke pengunjung
+            // (stale-while-revalidate). Tanpa dukungan finish_request → ambil langsung.
+            if (!$stale || api_refresh_later($path)) {
+                if (is_array($d)) mirror_opportunistic($d);
+                return $d;
+            }
+        }
+    }
     $r = http_json('GET', pospro_base() . $path);
     $result = null;
     if (($r['status'] ?? 0) === 200 && ($r['data'] ?? null) !== null) {
         $json = json_encode($r['data'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-        // Tulis hanya bila berubah → hindari write tiap kunjungan.
-        if ($json !== false && $json !== api_cache_read($path)) api_cache_write($path, $json);
+        // Selalu tulis (juga bila isi sama) supaya umur cache ter-reset.
+        if ($json !== false) api_cache_write($path, $json);
         $result = $r['data'];
     } elseif (($r['status'] ?? 0) === 404) {
         // Data memang sudah tidak ada (mis. produk diarsipkan) → jangan tampilkan salinan lama.
@@ -199,6 +220,29 @@ function api_get(string $path) {
     if (is_array($result)) mirror_opportunistic($result);
     return $result;
 }
+/**
+ * Jadwalkan api_get($path, true) setelah respons selesai dikirim. Return false
+ * bila server tidak bisa menutup koneksi lebih awal (tanpa LiteSpeed/FPM) →
+ * pemanggil mengambil data langsung seperti biasa.
+ */
+function api_refresh_later(string $path): bool {
+    static $queue = null;
+    if (PHP_SAPI === 'cli') return false;
+    if (!function_exists('litespeed_finish_request') && !function_exists('fastcgi_finish_request')) return false;
+    if ($queue === null) {
+        $queue = [];
+        register_shutdown_function(function () use (&$queue) {
+            if (session_status() === PHP_SESSION_ACTIVE) session_write_close(); // lepas lock sesi
+            if (function_exists('litespeed_finish_request')) litespeed_finish_request();
+            else fastcgi_finish_request();
+            @set_time_limit(30);
+            foreach (array_keys($queue) as $p) { try { api_get($p, true); } catch (Throwable $e) {} }
+        });
+    }
+    $queue[$path] = true;
+    return true;
+}
+
 function api_post(string $path, array $data) {
     // Teruskan IP customer asli + token toko agar PosPro bisa rate-limit per
     // customer (lihat PublicOrderThrottleGuard). Tanpa token, backend pakai IP soket.
@@ -452,6 +496,57 @@ function mirror_make_webp(string $absPath): void {
     imagecopyresampled($dst, $src, 0, 0, 0, 0, imagesx($dst), imagesy($dst), $w, $h);
     if (@imagewebp($dst, $out . '.tmp', 80) && filesize($out . '.tmp') > 0) @rename($out . '.tmp', $out); else @unlink($out . '.tmp');
     imagedestroy($src); imagedestroy($dst);
+}
+
+/** Path lokal (relatif root toko) dari URL gambar milik situs ini, atau null. */
+function local_upload_path(?string $src): ?string {
+    $src = trim((string)$src);
+    if ($src === '') return null;
+    if (preg_match('#^https?://#i', $src)) {
+        $host = strtolower((string)parse_url($src, PHP_URL_HOST));
+        if ($host !== strtolower(preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST'] ?? ''))) return null;
+        $src = (string)parse_url($src, PHP_URL_PATH);
+    }
+    $src = ltrim(preg_replace('/[?#].*$/', '', $src), '/');
+    if (!preg_match('#^uploads/[^\0]+$#', $src) || str_contains($src, '..')) return null;
+    return is_file(__DIR__ . '/' . $src) ? $src : null;
+}
+
+/**
+ * Versi WebP ter-resize (lebar maks $maxW) untuk gambar JPG/PNG/WebP di uploads/
+ * (hero, portofolio, logo klien, cover artikel). Dibuat SEKALI di uploads/opt/
+ * lalu dipakai ulang; nama memuat hash mtime → ganti file asli = versi baru.
+ * Gagal/bukan gambar lokal → kembalikan $src apa adanya.
+ */
+function img_opt(?string $src, int $maxW = 1000): string {
+    $src = (string)$src;
+    $rel = local_upload_path($src);
+    if ($rel === null || !preg_match('/\.(jpe?g|png|webp)$/i', $rel) || str_starts_with($rel, 'uploads/opt/') || !function_exists('imagewebp')) return $src;
+    $abs = __DIR__ . '/' . $rel;
+    $out = 'uploads/opt/' . pathinfo($rel, PATHINFO_FILENAME) . '-' . substr(sha1($rel . '|' . @filemtime($abs)), 0, 8) . '-' . $maxW . '.webp';
+    if (is_file(__DIR__ . '/' . $out)) return $out;
+    $info = @getimagesize($abs);
+    if (!$info || $info[0] * $info[1] > 40000000) return $src;
+    if ($info[0] <= $maxW && $info[2] === IMAGETYPE_WEBP) return $src; // sudah WebP & cukup kecil
+    $im = match ($info[2]) { IMAGETYPE_PNG => @imagecreatefrompng($abs), IMAGETYPE_WEBP => @imagecreatefromwebp($abs), default => @imagecreatefromjpeg($abs) };
+    if (!$im) return $src;
+    $w = imagesx($im); $h = imagesy($im); $scale = min(1, $maxW / $w);
+    $dst = imagecreatetruecolor(max(1, (int)round($w * $scale)), max(1, (int)round($h * $scale)));
+    imagealphablending($dst, false); imagesavealpha($dst, true);
+    imagecopyresampled($dst, $im, 0, 0, 0, 0, imagesx($dst), imagesy($dst), $w, $h);
+    @mkdir(__DIR__ . '/uploads/opt', 0775, true);
+    $ok = @imagewebp($dst, __DIR__ . '/' . $out . '.tmp', 78);
+    imagedestroy($im); imagedestroy($dst);
+    if ($ok && @filesize(__DIR__ . '/' . $out . '.tmp') > 0 && @rename(__DIR__ . '/' . $out . '.tmp', __DIR__ . '/' . $out)) return $out;
+    @unlink(__DIR__ . '/' . $out . '.tmp');
+    return $src;
+}
+
+/** Atribut width/height gambar lokal (cegah layout bergeser / CLS). Kosong bila tak diketahui. */
+function img_dims(?string $src): string {
+    $rel = local_upload_path($src);
+    $i = $rel ? @getimagesize(__DIR__ . '/' . $rel) : false;
+    return $i ? 'width="' . (int)$i[0] . '" height="' . (int)$i[1] . '"' : '';
 }
 
 /** Unduh satu gambar PosPro ke mirror lokal. Return path relatif atau null bila gagal. */

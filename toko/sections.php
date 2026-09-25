@@ -78,7 +78,7 @@ function sec_hero(): void {
                                 </div>
                                 <div class="pk-hs-media">
                                     <?php if ($img): ?>
-                                        <img class="pk-hs-photo" src="<?= h($img) ?>" alt="<?= h($s['title']) ?>" decoding="async" <?= $i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?> onerror="this.style.display='none';var f=this.parentNode.querySelector('.pk-hs-fallback');if(f)f.style.display='grid';">
+                                        <img class="pk-hs-photo" src="<?= h(img_opt($img, 960)) ?>" <?= img_dims(img_opt($img, 960)) ?> alt="<?= h($s['title']) ?>" decoding="async" <?= $i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' ?> onerror="this.style.display='none';var f=this.parentNode.querySelector('.pk-hs-fallback');if(f)f.style.display='grid';">
                                     <?php endif; ?>
                                     <div class="pk-hs-fallback" aria-hidden="true"<?= $img ? ' style="display:none"' : '' ?>>
                                         <div class="pk-hf-core">
@@ -151,7 +151,7 @@ function sec_layanan(): void {
                     <a href="<?= h($link) ?>" class="co-svc-row" data-svc="<?= $i ?>" data-reveal-item>
                         <span class="co-svc-num"><?= str_pad((string)($i + 1), 2, '0', STR_PAD_LEFT) ?></span>
                         <span class="co-svc-main">
-                            <?php if ($im): ?><img src="<?= h($im) ?>" alt="" loading="lazy" class="co-svc-thumb lg:hidden"><?php endif; ?>
+                            <?php if ($im): ?><img src="<?= h(img_opt($im, 600)) ?>" <?= img_dims(img_opt($im, 600)) ?> alt="" loading="lazy" class="co-svc-thumb lg:hidden"><?php endif; ?>
                             <span class="co-svc-name"><?= h($it[0]) ?></span>
                         </span>
                         <span class="co-svc-desc"><?= h($it[1] ?? '') ?></span>
@@ -164,7 +164,7 @@ function sec_layanan(): void {
             <div class="co-svc-vis hidden lg:block" data-reveal-item>
                 <?php foreach ($items as $i => $it): $im = trim($it[3] ?? ''); if (!$im) continue; ?>
                     <figure class="co-svc-img <?= $i === 0 ? 'is-on' : '' ?>" data-svc-img="<?= $i ?>">
-                        <img src="<?= h($im) ?>" alt="<?= h($it[0]) ?>" loading="lazy">
+                        <img src="<?= h(img_opt($im, 900)) ?>" <?= img_dims(img_opt($im, 900)) ?> alt="<?= h($it[0]) ?>" loading="lazy">
                         <figcaption><?= h($it[0]) ?></figcaption>
                     </figure>
                 <?php endforeach; ?>
@@ -251,7 +251,7 @@ function sec_portofolio(array $opts = []): void {
         <div class="columns-2 md:columns-3 lg:columns-4 gap-3 sm:gap-4 [&>*]:mb-3 sm:[&>*]:mb-4">
             <?php foreach ($items as $i => $it): ?>
                 <button type="button" data-pf="<?= $i ?>" class="card-in group relative w-full rounded-xl overflow-hidden bg-slate-100 text-left cursor-zoom-in break-inside-avoid" style="animation-delay:<?= ($i % 8) * 60 ?>ms">
-                    <img src="<?= h($it['image']) ?>" alt="<?= h($it['title'] ?? 'Karya') ?>" loading="lazy" class="w-full h-auto object-cover group-hover:scale-[1.04] transition-transform duration-700">
+                    <img src="<?= h(img_opt($it['image'], 800)) ?>" <?= img_dims(img_opt($it['image'], 800)) ?> alt="<?= h($it['title'] ?? 'Karya') ?>" loading="lazy" class="w-full h-auto object-cover group-hover:scale-[1.04] transition-transform duration-700">
                     <span class="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></span>
                     <span class="absolute inset-x-0 bottom-0 p-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
                         <?php if (!empty($it['title'])): ?><span class="block text-white font-semibold text-sm leading-snug"><?= h($it['title']) ?></span><?php endif; ?>
@@ -341,7 +341,7 @@ function sec_produk(array $products): void {
         <?= co_head($c['kicker'] ?? 'Katalog', $c['title'] ?? 'Produk Unggulan', $c['subtitle'] ?? '', 'Semua produk', 'produk.php') ?>
         <div class="bento">
             <?php foreach ($list as $i => $p):
-                $im = product_image($p);
+                $im = img_opt(product_image($p), 500); // kartu: versi kecil
                 $vc = count($p['variants'] ?? []);
                 $isFeat = $i === 0;
                 $desc = trim(strip_tags((string)($p['description'] ?? '')));
@@ -354,7 +354,7 @@ function sec_produk(array $products): void {
                         <span class="block font-head font-extrabold text-white leading-snug <?= $isFeat ? 'text-xl sm:text-3xl' : 'text-sm sm:text-base line-clamp-2' ?>"><?= h($p['name']) ?></span>
                         <?php if ($isFeat && $desc): ?><span class="hidden sm:block text-white/65 text-sm mt-1.5 line-clamp-2 max-w-md"><?= h(mb_substr($desc, 0, 160)) ?></span><?php endif; ?>
                         <span class="flex items-center gap-2 mt-2.5 flex-wrap">
-                            <span class="inline-flex items-baseline gap-1 bg-white text-slate-900 rounded-full px-3 py-1 text-xs font-extrabold"><?= $vc > 1 ? '<span class="font-medium text-slate-400">Mulai</span> ' : '' ?><?= rupiah(product_price($p)) ?><?= product_is_area($p) ? '<span class="font-semibold text-slate-400">/m²</span>' : '' ?></span>
+                            <span class="inline-flex items-baseline gap-1 bg-white text-slate-900 rounded-full px-3 py-1 text-xs font-extrabold"><?= $vc > 1 ? '<span class="font-medium text-slate-500">Mulai</span> ' : '' ?><?= rupiah(product_price($p)) ?><?= product_is_area($p) ? '<span class="font-semibold text-slate-500">/m²</span>' : '' ?></span>
                             <?php if ($vc > 1): ?><span class="text-[11px] text-white/60"><?= $vc ?> varian</span><?php endif; ?>
                         </span>
                     </span>
@@ -379,7 +379,7 @@ function sec_video(): void {
     <section class="co-sec" data-reveal>
         <?= co_head($c['kicker'] ?? 'Fasilitas', $c['title'] ?? '', $c['text'] ?? '') ?>
         <div class="co-media" data-reveal-item>
-            <img src="<?= h($img) ?>" alt="<?= h($c['title'] ?? 'Fasilitas produksi') ?>" loading="lazy">
+            <img src="<?= h(img_opt($img, 1100)) ?>" <?= img_dims(img_opt($img, 1100)) ?> alt="<?= h($c['title'] ?? 'Fasilitas produksi') ?>" loading="lazy">
             <?php if ($yt): ?>
                 <button type="button" data-video-open="<?= h($yt) ?>" class="co-play" aria-label="Putar video">
                     <span class="co-play-ring"></span>
@@ -413,7 +413,7 @@ function sec_testimoni(): void {
                     <blockquote class="pk-testi-quote">&ldquo;<?= h($it[0]) ?>&rdquo;</blockquote>
                     <figcaption class="pk-testi-foot">
                         <?php if ($photo): ?>
-                            <img src="<?= h($photo) ?>" alt="<?= h($it[1] ?? '') ?>" loading="lazy" class="pk-testi-ava">
+                            <img src="<?= h(img_opt($photo, 160)) ?>" alt="<?= h($it[1] ?? '') ?>" loading="lazy" class="pk-testi-ava">
                         <?php else: ?>
                             <span class="pk-testi-ava pk-testi-ava--init"><?= h(strtoupper(mb_substr($it[1] ?? 'A', 0, 1))) ?></span>
                         <?php endif; ?>
@@ -441,7 +441,7 @@ function sec_klien(): void {
         $name = $it[0] ?? ''; $logo = trim($it[1] ?? '');
         // hanya logo; nama dipakai sebagai alt/fallback bila logo kosong
         $inner = $logo !== ''
-            ? '<img src="' . h($logo) . '" alt="' . h($name) . '" title="' . h($name) . '" loading="lazy" class="h-9 sm:h-11 w-auto max-w-[150px] object-contain grayscale opacity-75 hover:grayscale-0 hover:opacity-100 transition">'
+            ? '<img src="' . h(img_opt($logo, 320)) . '" alt="' . h($name) . '" title="' . h($name) . '" loading="lazy" class="h-9 sm:h-11 w-auto max-w-[150px] object-contain grayscale opacity-75 hover:grayscale-0 hover:opacity-100 transition">'
             : '<span class="font-head font-semibold text-slate-400 whitespace-nowrap text-sm tracking-wide uppercase">' . h($name) . '</span>';
         return '<div class="co-chip">' . $inner . '</div>';
     };
@@ -520,7 +520,7 @@ function sec_order(): void {
                         <?php if (count($poBranches) > 1): ?>
                             <div>
                                 <label class="co-label">Cetak di cabang</label>
-                                <select name="branchId" required class="co-input">
+                                <select name="branchId" required class="co-input" aria-label="Cetak di cabang">
                                     <option value="">— Pilih lokasi cetak —</option>
                                     <?php foreach ($poBranches as $b): ?><option value="<?= (int)$b['id'] ?>"><?= h($b['name']) ?></option><?php endforeach; ?>
                                 </select>
@@ -563,7 +563,7 @@ function sec_artikel(): void {
         <div class="grid lg:grid-cols-2 gap-8">
             <a href="artikel.php?slug=<?= h($feat['slug']) ?>" class="group block" data-reveal-item>
                 <div class="aspect-[16/10] rounded-2xl bg-slate-100 overflow-hidden">
-                    <?php if (!empty($feat['cover_url'])): ?><img src="<?= h($feat['cover_url']) ?>" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"><?php endif; ?>
+                    <?php if (!empty($feat['cover_url'])): ?><img src="<?= h(img_opt($feat['cover_url'], 1000)) ?>" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"><?php endif; ?>
                 </div>
                 <div class="mt-5">
                     <span class="text-[11px] font-semibold uppercase tracking-widest text-slate-400"><?= h(tgl($feat['pub'] ?? null)) ?></span>
@@ -576,7 +576,7 @@ function sec_artikel(): void {
                     <?php foreach ($rest as $a): ?>
                         <a href="artikel.php?slug=<?= h($a['slug']) ?>" class="group flex items-center gap-5 py-5 first:lg:pt-0" data-reveal-item>
                             <div class="w-28 h-20 rounded-xl bg-slate-100 overflow-hidden shrink-0">
-                                <?php if (!empty($a['cover_url'])): ?><img src="<?= h($a['cover_url']) ?>" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"><?php endif; ?>
+                                <?php if (!empty($a['cover_url'])): ?><img src="<?= h(img_opt($a['cover_url'], 640)) ?>" alt="" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"><?php endif; ?>
                             </div>
                             <div class="min-w-0">
                                 <span class="text-[10px] font-semibold uppercase tracking-widest text-slate-400"><?= h(tgl($a['pub'] ?? null)) ?></span>
