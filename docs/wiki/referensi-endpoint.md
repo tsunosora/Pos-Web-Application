@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-PosPro menyajikan **595 endpoint** dalam **75 controller**.
+PosPro menyajikan **598 endpoint** dalam **76 controller**.
 Sebanyak **60 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
@@ -81,6 +81,7 @@ Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 | `/stock-purchases` | StockPurchasesController | 2 | `backend/src/stock-purchases/stock-purchases.controller.ts` |
 | `/stock-transfers` | StockTransferController | 3 | `backend/src/stock-transfer/stock-transfer.controller.ts` |
 | `/stock-transfers` | StockTransfersController | 2 | `backend/src/stock-transfers/stock-transfers.controller.ts` |
+| `/storefront` | StorefrontController | 3 | `backend/src/storefront/storefront.controller.ts` |
 | `/studio-ai` | StudioAiController | 8 | `backend/src/studio-ai/studio-ai.controller.ts` |
 | `/suppliers` | SuppliersController | 8 | `backend/src/suppliers/suppliers.controller.ts` |
 | `/sync` | SyncController | 3 | `backend/src/sync/sync.controller.ts` |
@@ -987,6 +988,17 @@ Penjaga tingkat kelas: `JwtAuthGuard`
 |---|---|---|---|---|
 | POST | `/stock-transfers` | `create` | `JwtAuthGuard` | — |
 | GET | `/stock-transfers` | `list` | `JwtAuthGuard` | — |
+
+## StorefrontController — `/storefront`
+
+Berkas: `backend/src/storefront/storefront.controller.ts`
+Penjaga tingkat kelas: `StorefrontReadGuard`
+
+| Metode | Jalur | Handler | Penjaga | Peran |
+|---|---|---|---|---|
+| GET | `/storefront/leads` | `daftar` | `StorefrontReadGuard` | — |
+| GET | `/storefront/leads/status-summary` | `ringkasan` | `StorefrontReadGuard` | — |
+| GET | `/storefront/leads/:id` | `detail` | `StorefrontReadGuard` | — |
 
 ## StudioAiController — `/studio-ai`
 

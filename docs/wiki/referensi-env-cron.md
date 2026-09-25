@@ -6,12 +6,13 @@
 
 ## Variabel lingkungan backend
 
-**52 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**53 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 ### Env yang mengubah perilaku saat diisi
 
 - `STOREFRONT_TOKEN` — Kunci asal order publik. **Terisi:** `POST /orders/public` hanya menerima request ber-header `X-Storefront-Token` yang cocok (selain itu 403) — bot yang menembak API langsung ditolak. **Kosong:** endpoint terbuka, hanya dibatasi rate limit. Nilainya harus SAMA dengan setelan `storefront_token` di dashboard website toko (`toko/lib.php` mengirimnya). Urutan pemasangan: isi di website dulu, baru di `.env` backend + restart, supaya order tidak sempat tertolak.
+- `STOREFRONT_READ_TOKEN` — Kunci BACA lead untuk website toko (`GET /storefront/leads*`, dipakai menu Order di dashboard website). **Kosong:** endpoint itu mati total (403) — bukan terbuka. **Terisi:** hanya request ber-header `X-Storefront-Read-Token` yang cocok yang dilayani (60 permintaan/menit per IP), dan yang dikirim hanya lead `source = WEBSITE` dengan kolom terbatas. TERPISAH dari `STOREFRONT_TOKEN` (kunci kirim order) — jangan diisi nilai yang sama.
 
 | Variabel | Dipakai di |
 |---|---|
@@ -52,6 +53,7 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `SOCIAL_AUTO_SYNC` | `backend/src/meta-messaging/social-comments.service.ts` |
 | `STAFF_KPI_ALLOW_REMOTE` | `backend/src/auth/api-key.guard.ts` |
 | `STAFF_KPI_API_KEY` | `backend/src/auth/api-key.guard.ts` |
+| `STOREFRONT_READ_TOKEN` | `backend/src/storefront/storefront-read.guard.ts` |
 | `STOREFRONT_TOKEN` | `backend/src/common/public-order-throttle.guard.ts` |
 | `STUDIO_AI_CONFIG_PATH` | `backend/src/studio-ai/studio-ai.service.ts` |
 | `TZ` | `backend/src/main.ts` |

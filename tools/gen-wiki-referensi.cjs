@@ -303,6 +303,12 @@ const CATATAN_ENV = {
         + '**Kosong:** endpoint terbuka, hanya dibatasi rate limit. Nilainya harus SAMA dengan setelan '
         + '`storefront_token` di dashboard website toko (`toko/lib.php` mengirimnya). Urutan pemasangan: '
         + 'isi di website dulu, baru di `.env` backend + restart, supaya order tidak sempat tertolak.',
+    STOREFRONT_READ_TOKEN:
+        'Kunci BACA lead untuk website toko (`GET /storefront/leads*`, dipakai menu Order di dashboard '
+        + 'website). **Kosong:** endpoint itu mati total (403) — bukan terbuka. **Terisi:** hanya request '
+        + 'ber-header `X-Storefront-Read-Token` yang cocok yang dilayani (60 permintaan/menit per IP), dan '
+        + 'yang dikirim hanya lead `source = WEBSITE` dengan kolom terbatas. TERPISAH dari `STOREFRONT_TOKEN` '
+        + '(kunci kirim order) — jangan diisi nilai yang sama.',
 };
 
 function tulisEnvCron({ be, fe, cron }) {

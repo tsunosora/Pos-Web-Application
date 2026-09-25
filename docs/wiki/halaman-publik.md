@@ -127,6 +127,31 @@ Rate limit tetap berlaku di belakang kunci itu: 5 order/menit & 20 order/jam per
 (IP asli diteruskan website lewat `X-Client-IP`), dan lapisan PHP di website membatasi
 3/menit, 12/jam, 30/hari per IP.
 
+## API baca-lead untuk website toko (25 September 2026)
+
+Menu **Order** di dashboard website tidak lagi login ke PosPro dengan email + sandi. Ia memanggil
+tiga endpoint baca-saja dengan header `X-Storefront-Read-Token`:
+
+| Endpoint | Isi |
+|---|---|
+| `GET /storefront/leads?limit=&status=` | daftar order website terbaru (`{ items, total }`), maks 200 |
+| `GET /storefront/leads/:id` | satu order; 404 bila bukan order dari website |
+| `GET /storefront/leads/status-summary` | jumlah per status (NEW … CLOSED_LOST) |
+
+Aturannya:
+
+- Semua endpoint **hanya membaca**, dan selalu dikunci `source = WEBSITE` — lead dari WhatsApp,
+  iklan, atau walk-in tidak pernah ikut terkirim.
+- Kolom yang dikirim hanya yang dipakai website: nama, HP, kota, kebutuhan, status, tanggal,
+  estimasi nilai, dan daftar itemnya. Catatan internal, cabang, penanggung jawab, tautan nota,
+  dan harga modal tidak ikut.
+- Token disimpan di env **`STOREFRONT_READ_TOKEN`**. Selama env itu kosong, endpoint **mati
+  (403)** — jadi memasang kode ini saja belum membuka apa pun.
+- Token baca ini **terpisah** dari `STOREFRONT_TOKEN` (kunci kirim order). Jangan diisi nilai
+  yang sama, supaya bocornya satu kunci tidak otomatis memberi kemampuan yang lain.
+- Batas 60 permintaan/menit per IP. Penolakan tercatat di log: `storefront_read_nonaktif`
+  (env kosong), `storefront_read_ditolak` (token salah), `storefront_read_throttle`.
+
 ## Yang sebaiknya tidak dibuka ke internet
 
 `/tv/leaderboard` menampilkan omzet dan nama karyawan. Halaman ini tanpa login
