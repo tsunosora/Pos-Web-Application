@@ -127,6 +127,7 @@ mencoba sendiri:
 | 51 | [🤖 Notifikasi Discord](discord.md) | Rekap & peringatan ke kanal Discord, bisa berbeda per cabang |
 | 52 | [📅 Contoh Alur 1 Hari CS](contoh-alur-cs-harian.md) | Contoh nyata satu hari kerja CS memakai CRM, dari chat masuk sampai nota |
 | 53 | [📢 Arsip: Pengumuman v3.3](discord-announcement-v3.3.md) | Catatan rilis modul CRM — disimpan sebagai arsip |
+| 54 | [🔑 Lisensi Qendali](lisensi-qendali.md) | Membaca kunci lisensi qendali.com: env & token, tempat kunci disimpan, mode hanya-baca saat habis masa, `@ButuhFitur`, `GET /saya/fitur`, dan cara mematikan penegakan |
 
 ---
 

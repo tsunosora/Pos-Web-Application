@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-PosPro menyajikan **598 endpoint** dalam **76 controller**.
+PosPro menyajikan **600 endpoint** dalam **77 controller**.
 Sebanyak **60 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
@@ -71,6 +71,7 @@ Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 | `/reports/inter-branch-usage` | InterBranchUsageController | 1 | `backend/src/inter-branch-usage/inter-branch-usage.controller.ts` |
 | `/sales-orders` | SalesOrdersController | 10 | `backend/src/sales-orders/sales-orders.controller.ts` |
 | `/sales-orders/designer` | SalesOrdersPublicController | 12 | `backend/src/sales-orders/sales-orders-public.controller.ts` |
+| `/saya` | LisensiController | 2 | `backend/src/lisensi/lisensi.controller.ts` |
 | `/settings` | SettingsController | 7 | `backend/src/settings/settings.controller.ts` |
 | `/social` | MetaMessagingController | 22 | `backend/src/meta-messaging/meta-messaging.controller.ts` |
 | `/social/data-deletion` | DataDeletionController | 2 | `backend/src/meta-messaging/data-deletion.controller.ts` |
@@ -861,6 +862,15 @@ Berkas: `backend/src/sales-orders/sales-orders-public.controller.ts`
 | DELETE | `/sales-orders/designer/:id/proofs/:proofId` | `removeProof` | — _terbuka_ | — |
 | POST | `/sales-orders/designer/:id/send-wa` | `sendWa` | — _terbuka_ | — |
 | POST | `/sales-orders/designer/:id/cancel` | `cancel` | — _terbuka_ | — |
+
+## LisensiController — `/saya`
+
+Berkas: `backend/src/lisensi/lisensi.controller.ts`
+
+| Metode | Jalur | Handler | Penjaga | Peran |
+|---|---|---|---|---|
+| GET | `/saya/fitur` | `fitur` | `JwtAuthGuard` | — |
+| POST | `/saya/lisensi/segarkan` | `segarkan` | `JwtAuthGuard, RolesGuard` | `...ROLE_PEMILIK` |
 
 ## SettingsController — `/settings`
 

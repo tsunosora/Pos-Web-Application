@@ -13,6 +13,7 @@ import { ClickCountingService } from '../click-counting/click-counting.service';
 import { compressImage } from '../common/utils/compress-image.util';
 import type { BranchContext } from '../common/branch-context.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ButuhFitur } from '../lisensi/butuh-fitur.decorator';
 import { CurrentBranch, isOwnerRole } from '../common/branch-context.decorator';
 import { assertBranchAccess } from '../common/branch-where.helper';
 
@@ -82,6 +83,12 @@ export class ProductionController {
         private readonly jwt: JwtService,
     ) {}
 
+    // Contoh penjagaan per METODE (bukan per controller): papan produksi = kode fitur
+    // `production.board`. Sisa controller ini SENGAJA belum dijaga — `meter/*` sebenarnya
+    // milik kode fitur `click.counting` dan `pipeline/*` milik `production.pipeline`, jadi
+    // memasang satu kode ke seluruh controller justru salah. Pemilahannya pekerjaan
+    // tersendiri; lihat "yang belum dijaga" di docs/wiki/lisensi-qendali.md.
+    @ButuhFitur('production.board')
     @Get('jobs')
     @UseGuards(BoardOrUserGuard)
     async getJobs(

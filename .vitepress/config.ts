@@ -115,6 +115,7 @@ export default defineConfig({
           { text: '💻 Setup Pengembangan Lokal', link: '/setup-lokal' },
           { text: '🌐 Halaman Publik', link: '/halaman-publik' },
           { text: '🔐 Model Akses & Keamanan', link: '/keamanan-akses' },
+          { text: '🔑 Lisensi Qendali', link: '/lisensi-qendali' },
         ]
       },
       {

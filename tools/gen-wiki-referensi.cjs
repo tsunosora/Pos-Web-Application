@@ -297,6 +297,20 @@ function bacaEnvCron() {
  * hanya bisa menunjukkan nama & berkasnya. Tambahkan di sini bila ada env sejenis.
  */
 const CATATAN_ENV = {
+    QENDALI_LISENSI_TOKEN:
+        'Token instalasi untuk menyegarkan kunci lisensi ke qendali.com. **Kosong:** penyegaran '
+        + 'dilewati; kalau berkas kunci juga tidak ada (`backend/storage/lisensi-qendali.json`), '
+        + 'PENEGAKAN LISENSI MATI TOTAL dan aplikasi terbuka seluruhnya — itu bawaan yang disengaja '
+        + 'supaya instalasi yang sudah jalan produksi & lingkungan pengembangan tidak ikut terkunci. '
+        + '**Terisi:** kunci ditarik saat boot + sekali sehari; fitur di luar paket dijawab 403 dan '
+        + 'lisensi yang habis masa (setelah tenggang) membuat aplikasi hanya-baca. '
+        + 'Lihat [Lisensi Qendali](lisensi-qendali.md).',
+    QENDALI_ALAMAT:
+        'Alamat pemasangan ini, dicocokkan ke `alamatSah` di dalam kunci lisensi (boleh dengan '
+        + '`https://` dan port). **Kosong:** dipakai `PUBLIC_BASE_URL`; kalau itu juga kosong, alamat '
+        + 'TIDAK diperiksa — sengaja, supaya salah isi env tidak mengunci instalasi yang sah. '
+        + '**Terisi:** kunci yang alamatnya tidak cocok ditolak (`alamat_tidak_sah`) dan aplikasi '
+        + 'jadi hanya-baca, jadi satu kunci tidak bisa dipakai di dua pemasangan.',
     STOREFRONT_TOKEN:
         'Kunci asal order publik. **Terisi:** `POST /orders/public` hanya menerima request ber-header '
         + '`X-Storefront-Token` yang cocok (selain itu 403) — bot yang menembak API langsung ditolak. '

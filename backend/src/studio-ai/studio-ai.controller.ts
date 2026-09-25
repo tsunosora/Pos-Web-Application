@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentBranch } from '../common/branch-context.decorator';
+import { ButuhFitur } from '../lisensi/butuh-fitur.decorator';
 import { StudioAiService } from './studio-ai.service';
 
 // Batas masukan ke AI (kuota berbayar): dulu teks & riwayat tanpa batas (body JSON sampai 10 MB).
@@ -17,6 +18,10 @@ const OWNER_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
  * - config/test: Owner-only (kelola token 9router).
  * - status/ideas/fill: semua user login (dipakai desainer di iframe studio).
  */
+// Studio Desain AI dijual sebagai ADD-ON (`fiturTambahan` paket Produksi & Bisnis), jadi klien
+// berpaket Produksi pun belum tentu memilikinya — ini contoh nyata kenapa penegakannya per kode
+// fitur, bukan per nama paket. Tanpa kunci lisensi dekorator ini tidak berpengaruh apa pun.
+@ButuhFitur('ai.studio')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('studio-ai')
 export class StudioAiController {

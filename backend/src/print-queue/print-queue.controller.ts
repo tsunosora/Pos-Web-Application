@@ -4,6 +4,7 @@ import { PrintQueueService } from './print-queue.service';
 import type { PrintJobStatus } from './print-queue.service';
 import { BoardOrUserGuard, boardSessionOf, hidePhonesForBoard, signBoardToken } from '../auth/board-auth';
 import { isOwnerRole } from '../common/branch-context.decorator';
+import { ButuhFitur } from '../lisensi/butuh-fitur.decorator';
 
 /** Cabang yang boleh dilihat/digerakkan: papan → cabang PIN; staf → cabangnya; owner → bebas (null). */
 function cabangPapan(req: any): number | null {
@@ -17,6 +18,11 @@ import { PinThrottleInterceptor } from '../auth/pin-throttle.interceptor';
 
 // Papan /cetak dipakai tanpa akun login: semua endpoint (kecuali verifikasi PIN)
 // wajib token papan kerja ATAU token login akun — sama dengan /production (T-17).
+//
+// Antrian cetak = kode fitur lisensi `print.queue` (paket Produksi & Bisnis). Seluruh
+// controller dijaga karena modulnya memang satu fitur utuh — termasuk verifikasi PIN,
+// sebab papan cetak tanpa antrian tidak ada isinya. Tanpa kunci lisensi: tidak berpengaruh.
+@ButuhFitur('print.queue')
 @Controller('print-queue')
 export class PrintQueueController {
     constructor(

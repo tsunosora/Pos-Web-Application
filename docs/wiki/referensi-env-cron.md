@@ -6,11 +6,13 @@
 
 ## Variabel lingkungan backend
 
-**53 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
+**59 variabel** dibaca oleh backend. Yang tidak diisi membuat fiturnya
 menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yang diam.
 
 ### Env yang mengubah perilaku saat diisi
 
+- `QENDALI_LISENSI_TOKEN` — Token instalasi untuk menyegarkan kunci lisensi ke qendali.com. **Kosong:** penyegaran dilewati; kalau berkas kunci juga tidak ada (`backend/storage/lisensi-qendali.json`), PENEGAKAN LISENSI MATI TOTAL dan aplikasi terbuka seluruhnya — itu bawaan yang disengaja supaya instalasi yang sudah jalan produksi & lingkungan pengembangan tidak ikut terkunci. **Terisi:** kunci ditarik saat boot + sekali sehari; fitur di luar paket dijawab 403 dan lisensi yang habis masa (setelah tenggang) membuat aplikasi hanya-baca. Lihat [Lisensi Qendali](lisensi-qendali.md).
+- `QENDALI_ALAMAT` — Alamat pemasangan ini, dicocokkan ke `alamatSah` di dalam kunci lisensi (boleh dengan `https://` dan port). **Kosong:** dipakai `PUBLIC_BASE_URL`; kalau itu juga kosong, alamat TIDAK diperiksa — sengaja, supaya salah isi env tidak mengunci instalasi yang sah. **Terisi:** kunci yang alamatnya tidak cocok ditolak (`alamat_tidak_sah`) dan aplikasi jadi hanya-baca, jadi satu kunci tidak bisa dipakai di dua pemasangan.
 - `STOREFRONT_TOKEN` — Kunci asal order publik. **Terisi:** `POST /orders/public` hanya menerima request ber-header `X-Storefront-Token` yang cocok (selain itu 403) — bot yang menembak API langsung ditolak. **Kosong:** endpoint terbuka, hanya dibatasi rate limit. Nilainya harus SAMA dengan setelan `storefront_token` di dashboard website toko (`toko/lib.php` mengirimnya). Urutan pemasangan: isi di website dulu, baru di `.env` backend + restart, supaya order tidak sempat tertolak.
 - `STOREFRONT_READ_TOKEN` — Kunci BACA lead untuk website toko (`GET /storefront/leads*`, dipakai menu Order di dashboard website). **Kosong:** endpoint itu mati total (403) — bukan terbuka. **Terisi:** hanya request ber-header `X-Storefront-Read-Token` yang cocok yang dilayani (60 permintaan/menit per IP), dan yang dikirim hanya lead `source = WEBSITE` dengan kolom terbatas. TERPISAH dari `STOREFRONT_TOKEN` (kunci kirim order) — jangan diisi nilai yang sama.
 
@@ -49,7 +51,13 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `POSPRO_DEVICE_NAME` | `backend/src/local-sync/local-sync.service.ts` |
 | `POSPRO_DEVICE_TOKEN_FILE` | `backend/src/local-sync/local-sync.service.ts` |
 | `POSPRO_LOCAL` | `backend/src/local-sync/local-sync.service.ts`, `backend/src/local-sync/push-capture.interceptor.ts` |
-| `PUBLIC_BASE_URL` | `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/whatsapp-cloud/whatsapp-cloud.controller.ts` |
+| `PUBLIC_BASE_URL` | `backend/src/lisensi/lisensi.service.ts`, `backend/src/meta-messaging/data-deletion.controller.ts`, `backend/src/whatsapp-cloud/whatsapp-cloud.controller.ts` |
+| `QENDALI_ALAMAT` | `backend/src/lisensi/lisensi.service.ts` |
+| `QENDALI_KUNCI_PUBLIK` | `backend/src/lisensi/kunci-publik.ts` |
+| `QENDALI_LISENSI_BERKAS` | `backend/src/lisensi/simpanan-lisensi.ts` |
+| `QENDALI_LISENSI_TOKEN` | `backend/src/lisensi/lisensi.service.ts` |
+| `QENDALI_LISENSI_URL` | `backend/src/lisensi/lisensi.service.ts` |
+| `QENDALI_VERSI` | `backend/src/lisensi/lisensi.service.ts` |
 | `SOCIAL_AUTO_SYNC` | `backend/src/meta-messaging/social-comments.service.ts` |
 | `STAFF_KPI_ALLOW_REMOTE` | `backend/src/auth/api-key.guard.ts` |
 | `STAFF_KPI_API_KEY` | `backend/src/auth/api-key.guard.ts` |
@@ -77,7 +85,7 @@ Hanya yang berawalan `NEXT_PUBLIC_` yang sampai ke browser, dan nilainya
 
 | Variabel | Dipakai di |
 |---|---|
-| `NEXT_PUBLIC_API_URL` | `frontend/src/app/api/logo/route.ts`, `frontend/src/app/artikel/[slug]/page.tsx`, `frontend/src/app/artikel/page.tsx` _(+52)_ |
+| `NEXT_PUBLIC_API_URL` | `frontend/src/app/api/logo/route.ts`, `frontend/src/app/artikel/page.tsx`, `frontend/src/app/artikel/[slug]/page.tsx` _(+52)_ |
 | `NEXT_PUBLIC_BRIDGE_URL` | `frontend/src/lib/thermal/print-thermal.ts` |
 | `NEXT_PUBLIC_HR_APP_URL` | `frontend/src/components/dashboard/HrSummaryCard.tsx` |
 | `NEXT_PUBLIC_LANDING_DOMAIN` | `frontend/src/middleware.ts` |
@@ -85,13 +93,14 @@ Hanya yang berawalan `NEXT_PUBLIC_` yang sampai ke browser, dan nilainya
 
 ## Pekerjaan terjadwal
 
-**10 pekerjaan** berjalan sendiri di backend.
+**11 pekerjaan** berjalan sendiri di backend.
 Semua memakai zona waktu server kecuali disebut lain di jadwalnya.
 
 | Jenis | Jadwal | Fungsi | Berkas |
 |---|---|---|---|
 | Cron | `'0 8 * * 1', { name: 'crm-repeat-order-weekly', timeZone: 'Asia/Jakarta' }` | `scheduleRepeatOrders` | `backend/src/crm/follow-ups/follow-ups.cron.ts` |
 | Cron | `'0 8 * * 1', { name: 'discord-champion-weekly', timeZone: 'Asia/Jakarta' }` | `weeklyChampion` | `backend/src/crm/kpi/kpi.cron.ts` |
+| Cron | `'37 3 * * *', { name: 'lisensi-segarkan-harian', timeZone: 'Asia/Jakarta' }` | `segarkanHarian` | `backend/src/lisensi/lisensi.service.ts` |
 | Interval | `30000` | `scheduled` | `backend/src/local-sync/local-sync.service.ts` |
 | Cron | `'30 */5 * * * *', { name: 'social-comments-auto-sync' }` | `autoSync` | `backend/src/meta-messaging/social-comments.service.ts` |
 | Cron | `'5 0 * * *', { name: 'task-board-generate-daily' }` | `generateDaily` | `backend/src/task-board/task-board.cron.ts` |
