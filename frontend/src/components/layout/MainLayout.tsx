@@ -9,6 +9,7 @@ import { getActiveSection } from "./nav-config";
 import { Footer } from "./Footer";
 import { ShiftReminderBanner } from "./ShiftReminderBanner";
 import { DailyTargetBanner } from "./DailyTargetBanner";
+import { SpandukLisensi } from "./SpandukLisensi";
 import { BranchInboxPopup } from "./BranchInboxPopup";
 import { BranchOutboxReadyPopup } from "./BranchOutboxReadyPopup";
 import { ReadyJobsPopup } from "./ReadyJobsPopup";
@@ -118,6 +119,10 @@ export function MainLayout({ children }: MainLayoutProps) {
             <div className="print:hidden"><Sidebar /></div>
             <div className="flex flex-1 flex-col min-w-0 overflow-hidden print:block">
                 <div className="print:hidden"><Header /></div>
+                {/* Keadaan lisensi: satu strip di bawah header, di luar area yang bisa di-scroll
+                    supaya tidak hilang saat orang menggulir. Tidak tampil sama sekali kalau
+                    instalasinya belum tersambung ke qendali.com. */}
+                <SpandukLisensi />
                 <main className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden overscroll-x-none print:overflow-visible [scrollbar-gutter:stable]">
                     {/* min-h-full → area konten minimal setinggi viewport supaya Footer tak
                         "melompat" saat data async selesai load. [scrollbar-gutter:stable] →
