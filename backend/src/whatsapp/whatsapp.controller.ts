@@ -14,6 +14,12 @@ import { ManagerGuard } from '../auth/role-groups';
 // Controller WhatsApp lama (whatsapp-web.js): kirim/siaran/logout sesi toko.
 // Hanya dipakai halaman Pengaturan → setingkat manajer (T-29). Controller
 // WhatsApp Cloud memakai prefix yang sama tapi kelas terpisah — tidak terpengaruh.
+//
+// SENGAJA TIDAK dijaga `@ButuhFitur`. Ini bot tempel-QR, BUKAN Cloud API: tidak ada kode
+// fiturnya di `data/paket.json`, tidak dijual di paket mana pun, dan tidak menagih Meta
+// sepeser pun. `wa.cloud`/`wa.automation` salah alamat — memasangnya berarti mencabut rekap
+// shift ke grup pemilik dari klien yang tidak membeli add-on WhatsApp resmi. Alasan yang
+// sama sudah tertulis untuk menu `/settings/whatsapp` di frontend.
 @UseGuards(JwtAuthGuard, ManagerGuard)
 @Controller('whatsapp')
 export class WhatsappController {

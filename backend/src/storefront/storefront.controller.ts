@@ -6,6 +6,10 @@ import { StorefrontService } from './storefront.service';
  * API baca-lead untuk website toko (volikoprint.com). Tanpa akun PosPro: cukup header
  * `X-Storefront-Read-Token` (lihat StorefrontReadGuard). HANYA GET, dan hanya lead
  * `source = WEBSITE` — order dari WhatsApp/iklan/walk-in tidak pernah ikut.
+ *
+ * SENGAJA TIDAK dijaga `@ButuhFitur('crm.leads')` walau isinya lead: otentikasinya token
+ * tersendiri, bukan sesi pengguna, dan pemakainya situs toko klien yang sedang hidup.
+ * Menjaganya = situs itu mati begitu kode fiturnya tidak ada di kunci.
  */
 @UseGuards(StorefrontReadGuard)
 @Controller('storefront')

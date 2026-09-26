@@ -5,8 +5,13 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { Menu, MenuGuard } from '../../auth/role-groups';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
+import { ButuhFitur } from '../../lisensi/butuh-fitur.decorator';
 import { TemplatesService } from './templates.service';
 
+// Template Pesan CRM (teks siap tempel untuk follow-up) → `crm.leads`, sama dengan pemetaan
+// menu `/crm/templates` yang sudah ada di frontend. Ini BUKAN template Meta yang berbayar —
+// yang itu `/whatsapp/templates` dan berkode `wa.cloud`.
+@ButuhFitur('crm.leads')
 @UseGuards(JwtAuthGuard)
 @Controller('crm/templates')
 export class TemplatesController {

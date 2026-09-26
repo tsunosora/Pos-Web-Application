@@ -12,6 +12,11 @@ import { Logger } from '@nestjs/common';
  * comments untuk Instagram; messages, feed untuk Facebook Page).
  * Verify token: META_VERIFY_TOKEN (fallback WA_VERIFY_TOKEN). Signature: IG_APP_SECRET
  * (Instagram API with Instagram Login) atau WA_APP_SECRET (aplikasi Meta).
+ *
+ * JANGAN PERNAH dijaga `@ButuhFitur` (mis. `social.inbox` seperti `/social` yang lain):
+ * Meta memanggilnya tanpa sesi pengguna, dan 403 membuat Meta menonaktifkan webhooknya →
+ * DM & komentar masuk hilang tanpa jejak. Kelasnya sengaja terpisah dari
+ * `MetaMessagingController` supaya dekorator di sana tidak pernah sampai ke sini.
  */
 @Controller('social/webhook')
 export class SocialWebhookController {

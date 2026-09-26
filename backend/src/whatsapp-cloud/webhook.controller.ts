@@ -20,6 +20,13 @@ import { verifyMetaSignature } from './signature.util';
  * Endpoint webhook Meta (PUBLIK — tanpa JWT). Satu URL untuk semua channel;
  * routing per cabang dilakukan InboxService via metadata.phone_number_id.
  * Set di Meta: https://<domain>/whatsapp/webhook (field: messages).
+ *
+ * JANGAN PERNAH memasang `@ButuhFitur` di sini, dan jangan menyatukan kelas ini dengan
+ * `WhatsappCloudController` (yang berkode `wa.cloud`). Meta memanggil URL ini tanpa sesi
+ * pengguna: sekali dijawab 403 Meta menonaktifkan webhooknya, dan sejak itu pesan pelanggan
+ * hilang tanpa jejak — juga untuk klien yang paketnya MEMANG memuat WhatsApp. Kalau kunci
+ * lisensinya tidak memuat `wa.cloud`, yang pantas ditolak adalah orang yang membuka inbox,
+ * bukan pesan pelanggan yang sudah sampai.
  */
 @Controller('whatsapp/webhook')
 export class WhatsappWebhookController {

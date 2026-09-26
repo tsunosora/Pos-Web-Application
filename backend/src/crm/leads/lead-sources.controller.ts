@@ -1,7 +1,10 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { ButuhFitur } from '../../lisensi/butuh-fitur.decorator';
 import { LeadSourcesService } from './lead-sources.service';
 
+// Sumber lead itu isi dropdown di form lead — tidak dipakai di luar CRM, jadi ikut `crm.leads`.
+@ButuhFitur('crm.leads')
 @UseGuards(JwtAuthGuard)
 @Controller('crm/lead-sources')
 export class LeadSourcesController {

@@ -12,7 +12,13 @@ interface PublicOrderDto {
     branchId?: number; // Cabang/lokasi cetak yang dipilih customer di website (opsional)
 }
 
-/** Endpoint publik (tanpa auth) untuk order online dari website customer. */
+/**
+ * Endpoint publik (tanpa auth) untuk order online dari website customer.
+ *
+ * SENGAJA TIDAK dijaga `@ButuhFitur('crm.leads')` seperti `/crm/leads`: yang memanggilnya
+ * form di situs klien, tanpa sesi pengguna. Ditolak 403 = order pelanggan hilang di tengah
+ * jalan, dan pelanggannya tidak tahu apa-apa soal paket langganan.
+ */
 @Controller('orders/public')
 export class PublicOrdersController {
     constructor(private readonly leads: LeadsService) {}

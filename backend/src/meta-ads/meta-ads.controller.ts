@@ -1,10 +1,14 @@
 import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OwnerGuard } from '../auth/role-groups';
+import { ButuhFitur } from '../lisensi/butuh-fitur.decorator';
 import { MetaAdsService } from './meta-ads.service';
 
 // Data biaya iklan & label kampanye (memindah lead antar cabang) → owner saja, sama dengan
 // menu /owner/iklan yang ownerOnly (dulu Admin cabang juga bisa lewat API).
+// Biaya iklan & label kampanye = kode fitur `ads.meta` (isi paket Bisnis), sama dengan
+// pemetaan menu `/owner/iklan`. Batasnya bersih: seluruh controller cuma soal iklan Meta.
+@ButuhFitur('ads.meta')
 @UseGuards(JwtAuthGuard, OwnerGuard)
 @Controller('meta-ads')
 export class MetaAdsController {

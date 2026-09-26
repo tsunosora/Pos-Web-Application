@@ -4,8 +4,13 @@ import {
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
+import { ButuhFitur } from '../../lisensi/butuh-fitur.decorator';
 import { CreateFollowUpDto, FollowUpsService, FollowUpStatus, FollowUpType } from './follow-ups.service';
 
+// Tugas follow-up menempel ke lead — satu modul, satu kode: `crm.leads`.
+// Cron REPEAT_ORDER mingguan (`follow-ups.cron.ts`) TIDAK lewat HTTP, jadi penjaga ini tidak
+// menyentuhnya: dia tetap membuat FU walau kliennya tidak punya `crm.leads`. Dicatat di wiki.
+@ButuhFitur('crm.leads')
 @UseGuards(JwtAuthGuard)
 @Controller('crm/follow-ups')
 export class FollowUpsController {

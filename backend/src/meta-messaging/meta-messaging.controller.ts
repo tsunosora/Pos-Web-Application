@@ -6,10 +6,17 @@ import { Roles } from '../auth/roles.decorator';
 import { SocialInboxService, type CreateSocialChannelInput } from './social-inbox.service';
 import { SocialCommentsService, type InboxScope } from './social-comments.service';
 import { CurrentBranch, type BranchContext } from '../common/branch-context.decorator';
+import { ButuhFitur } from '../lisensi/butuh-fitur.decorator';
 
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN'] as const;
 const INBOX_ROLES = [...ADMIN_ROLES, 'CS', 'MARKETING'] as const;
 
+// Inbox DM + komentar Instagram/Facebook = kode fitur `social.inbox` (isi paket Bisnis).
+// Seluruh controller dijaga karena isinya satu fitur utuh, dan semua endpointnya memakai sesi
+// pengguna (JWT). Yang TIDAK boleh ikut dijaga: `/social/webhook` dan `/social/data-deletion`
+// — keduanya dipanggil Meta tanpa sesi siapa pun. Untung keduanya kelas controller sendiri,
+// jadi dekorator ini tidak sampai ke sana; jangan pernah disatukan ke kelas ini.
+@ButuhFitur('social.inbox')
 @Controller('social')
 export class MetaMessagingController {
     constructor(

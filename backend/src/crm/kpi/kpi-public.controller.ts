@@ -2,6 +2,10 @@
  * Dashboard Marketing PUBLIK — tanpa login, hanya dengan PIN.
  * Tim marketing memantau lead (sumber, status, pendapatan, produk yang diorder)
  * lintas cabang. PIN diverifikasi inline tiap request (tidak ada JWT guard).
+ *
+ * TIDAK dijaga `@ButuhFitur`: tanpa sesi pengguna (PIN saja), dan dipakai papan TV yang
+ * menyala terus. Dasbor KPI yang pakai login (`/crm/kpi`) juga belum dijaga — kodenya
+ * campur (`crm.leads`, `team.leaderboard`, `cs.rating`), lihat wiki lisensi.
  */
 import { Controller, Post, Body, BadRequestException, UseInterceptors } from '@nestjs/common';
 import { KpiPeriod, KpiService } from './kpi.service';

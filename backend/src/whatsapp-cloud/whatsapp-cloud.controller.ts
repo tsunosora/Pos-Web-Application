@@ -52,6 +52,7 @@ import { CloudApiService } from './cloud-api.service';
 import { WaInboxGuard, isScopedInboxRole } from './wa-roles.util';
 import { WaEventsService } from './wa-events.service';
 import { WaSseAuthGuard } from './wa-sse-auth.guard';
+import { ButuhFitur } from '../lisensi/butuh-fitur.decorator';
 
 // Manajemen kredensial: Owner/Admin. Inbox (baca+balas): via WaInboxGuard (role
 // dicocokkan by kata kunci karena nama role dinamis — mis. "Desainer"/"CS").
@@ -60,6 +61,26 @@ import { WaSseAuthGuard } from './wa-sse-auth.guard';
 const ADMIN_ROLES = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN', 'ADMIN', 'MANAJER', 'MANAGER'] as const;
 const TEMPLATE_ROLES = [...ADMIN_ROLES, 'MARKETING'] as const;
 
+// WhatsApp resmi (Cloud API) dijual sebagai ADD-ON, bukan isi paket — jadi klien berpaket
+// Bisnis pun belum tentu memilikinya. Dua kode fitur, dan pembagiannya PER METODE:
+//
+// - `wa.cloud`      → inbox & balas chat, channel, template Meta, katalog, QR chat, pesan
+//                     cepat, analitik, kredensial. Itu dekorator di kelas ini (bawaan).
+// - `wa.automation` → broadcast, balasan otomatis, reminder POS. Ditulis ulang di tiap
+//                     metodenya, menyebut KEDUA kode: siaran tanpa channel WA tidak ada
+//                     artinya, jadi keduanya wajib ada. (Dekorator di metode MENIMPA
+//                     dekorator kelas — `getAllAndOverride` — bukan menambahi.)
+//
+// Yang TIDAK dijaga dan jangan pernah dijaga: `/whatsapp/webhook` (kelas
+// `WhatsappWebhookController`, berkas webhook.controller.ts). Meta memanggilnya tanpa sesi
+// pengguna; dijawab 403 → Meta menonaktifkan webhooknya dan pesan pelanggan hilang tanpa
+// jejak, termasuk untuk klien yang paketnya memang memuat WhatsApp. Kelasnya sengaja
+// terpisah — jangan digabung ke sini.
+//
+// Penjaga ini tingkat HTTP. Cron di dalam modul ini (broadcast tiap menit, reminder tiap 15
+// menit, sinkron template tiap 10 menit, bersih-bersih media 03.00) TIDAK lewat HTTP, jadi
+// tetap jalan walau kode fiturnya dicabut. Dicatat di docs/wiki/lisensi-qendali.md.
+@ButuhFitur('wa.cloud')
 @Controller('whatsapp')
 export class WhatsappCloudController {
     constructor(
@@ -402,6 +423,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Get('reminders/config')
     reminderConfigs() {
         return this.reminders.getConfigs();
@@ -409,12 +431,14 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Patch('reminders/config/:eventType')
     setReminderConfig(@Param('eventType') eventType: ReminderEvent, @Body() body: SetReminderConfigInput) {
         return this.reminders.setConfig(eventType, body);
     }
 
     @UseGuards(JwtAuthGuard, WaInboxGuard)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('reminders/order-ready/:transactionId')
     async triggerOrderReady(@Param('transactionId', ParseIntPipe) transactionId: number) {
         await this.reminders.sendOrderReady(transactionId);
@@ -425,6 +449,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Get('auto-replies')
     listAutoReplies() {
         return this.autoReplies.listRules();
@@ -432,6 +457,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('auto-replies')
     createAutoReply(@Body() body: CreateRuleInput) {
         return this.autoReplies.createRule(body);
@@ -439,6 +465,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Patch('auto-replies/:id')
     updateAutoReply(@Param('id', ParseIntPipe) id: number, @Body() body: Partial<CreateRuleInput>) {
         return this.autoReplies.updateRule(id, body);
@@ -446,6 +473,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Delete('auto-replies/:id')
     deleteAutoReply(@Param('id', ParseIntPipe) id: number) {
         return this.autoReplies.removeRule(id);
@@ -455,6 +483,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Get('broadcasts')
     listBroadcasts() {
         return this.broadcasts.list();
@@ -463,6 +492,7 @@ export class WhatsappCloudController {
     /** Daftar kontak untuk pilih manual di broadcast (opt-out dikecualikan, maks 500). */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Get('broadcast-contacts')
     broadcastContacts(@Query() query: Record<string, string>) {
         return this.broadcasts.listContacts(query.q);
@@ -470,6 +500,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('broadcasts/preview')
     previewBroadcast(@Body() body: { segment?: SegmentDef; numbers?: string[] }) {
         if (body.numbers?.length) return this.broadcasts.previewNumbers(body.numbers);
@@ -478,6 +509,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('broadcasts')
     createBroadcast(@Req() req: any, @Body() body: CreateBroadcastInput) {
         return this.broadcasts.create(body, req.user?.userId);
@@ -485,6 +517,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Get('broadcasts/:id')
     broadcastReport(@Param('id', ParseIntPipe) id: number) {
         return this.broadcasts.report(id);
@@ -493,6 +526,7 @@ export class WhatsappCloudController {
     /** Daftar penerima broadcast (siapa saja di-blast + status per orang). */
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Get('broadcasts/:id/recipients')
     broadcastRecipients(@Param('id', ParseIntPipe) id: number, @Query() query: Record<string, string>) {
         return this.broadcasts.recipients(id, query.status || undefined);
@@ -500,6 +534,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('broadcasts/:id/run')
     runBroadcast(@Param('id', ParseIntPipe) id: number) {
         return this.broadcasts.run(id);
@@ -507,6 +542,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('broadcasts/:id/pause')
     pauseBroadcast(@Param('id', ParseIntPipe) id: number) {
         return this.broadcasts.pause(id);
@@ -514,6 +550,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('broadcasts/:id/resume')
     resumeBroadcast(@Param('id', ParseIntPipe) id: number) {
         return this.broadcasts.resume(id);
@@ -521,6 +558,7 @@ export class WhatsappCloudController {
 
     @UseGuards(JwtAuthGuard, RolesGuard)
     @Roles(...TEMPLATE_ROLES)
+    @ButuhFitur('wa.cloud', 'wa.automation')
     @Post('broadcasts/:id/cancel')
     cancelBroadcast(@Param('id', ParseIntPipe) id: number) {
         return this.broadcasts.cancel(id);

@@ -11,6 +11,7 @@ import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
 import { ManagerGuard } from '../../auth/role-groups';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
+import { ButuhFitur } from '../../lisensi/butuh-fitur.decorator';
 import { LeadsService } from './leads.service';
 import {
     CloseLostDto, ConvertLeadDto, CreateActivityDto, CreateLeadDto, UpdateLeadDto,
@@ -28,6 +29,11 @@ function canExportLeads(roleName?: string | null): boolean {
 
 const randomHex = () => Array(32).fill(null).map(() => Math.round(Math.random() * 16).toString(16)).join('');
 
+// Prospek & pipeline CRM = kode fitur `crm.leads` (ada di Usaha, Produksi, Bisnis — TIDAK di
+// Gratis). Seluruh controller dijaga: isinya satu modul yang sama, termasuk export dan upload
+// gambar lead. Data pelanggan (`customers.core`, ada di SEMUA paket) sengaja TIDAK dijaga —
+// alasannya di docs/wiki/lisensi-qendali.md. Tanpa kunci lisensi: tidak berpengaruh apa pun.
+@ButuhFitur('crm.leads')
 @UseGuards(JwtAuthGuard)
 @Controller('crm/leads')
 export class LeadsController {

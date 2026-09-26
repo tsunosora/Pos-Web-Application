@@ -27,6 +27,10 @@ const b64url = (s: string) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'
  * pengguna berlingkup aplikasi — tidak sama dengan ID kontak DM/komentar yang kita
  * simpan — jadi permintaan dicatat + dikabarkan ke Discord untuk diproses staf
  * (paling lambat 30 hari, sesuai halaman /hapus-data).
+ *
+ * JANGAN dijaga `@ButuhFitur`. Ini callback Meta (dan halaman status yang dibuka orangnya),
+ * tanpa sesi pengguna. Selain memutus callback, menolaknya berarti melanggar kewajiban
+ * menghapus data — kewajiban itu tidak ikut hilang kalau langganan kliennya turun paket.
  */
 @Controller('social/data-deletion')
 export class DataDeletionController {
