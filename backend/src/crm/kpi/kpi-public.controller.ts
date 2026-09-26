@@ -4,8 +4,10 @@
  * lintas cabang. PIN diverifikasi inline tiap request (tidak ada JWT guard).
  *
  * TIDAK dijaga `@ButuhFitur`: tanpa sesi pengguna (PIN saja), dan dipakai papan TV yang
- * menyala terus. Dasbor KPI yang pakai login (`/crm/kpi`) juga belum dijaga — kodenya
- * campur (`crm.leads`, `team.leaderboard`, `cs.rating`), lihat wiki lisensi.
+ * menyala terus. Dasbor KPI yang pakai login (`/crm/kpi`) SUDAH dijaga sejak 26 Sep 2026 —
+ * tapi dengan `@ButuhSalahSatuFitur('crm.leads', 'team.leaderboard', 'cs.rating')`, karena
+ * isinya campur tiga fitur. Papan ini tetap dibiarkan terbuka: 403 di layar TV yang menyala
+ * terus tidak ada yang membacanya, dan PIN-nya bukan sesi yang bisa dihubungkan ke paket.
  */
 import { Controller, Post, Body, BadRequestException, UseInterceptors } from '@nestjs/common';
 import { KpiPeriod, KpiService } from './kpi.service';

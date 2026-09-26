@@ -19,7 +19,7 @@
  */
 import { ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { FITUR_KEY } from './butuh-fitur.decorator';
+import { ButuhFitur, ButuhSalahSatuFitur, FITUR_KEY, FITUR_SALAH_SATU_KEY } from './butuh-fitur.decorator';
 import { FiturGuard } from './fitur.guard';
 import { Keadaan } from './keadaan-lisensi';
 import { LisensiService } from './lisensi.service';
@@ -29,7 +29,9 @@ import { LeadSourcesController } from '../crm/leads/lead-sources.controller';
 import { PublicOrdersController } from '../crm/leads/public-orders.controller';
 import { FollowUpsController } from '../crm/follow-ups/follow-ups.controller';
 import { TemplatesController } from '../crm/templates/templates.controller';
+import { KpiController } from '../crm/kpi/kpi.controller';
 import { KpiPublicController } from '../crm/kpi/kpi-public.controller';
+import { CustomProductMetricsController } from '../crm/custom-product-metrics/custom-product-metrics.controller';
 import { WhatsappCloudController } from '../whatsapp-cloud/whatsapp-cloud.controller';
 import { WhatsappWebhookController } from '../whatsapp-cloud/webhook.controller';
 import { WhatsappController } from '../whatsapp/whatsapp.controller';
@@ -254,5 +256,105 @@ describe('Yang SENGAJA tidak dijaga', () => {
         expect(WhatsappWebhookController).not.toBe(WhatsappCloudController);
         expect(SocialWebhookController).not.toBe(MetaMessagingController);
         expect(DataDeletionController).not.toBe(MetaMessagingController);
+    });
+});
+
+// ══════════════════════════════════════════════════════════════════════════════════════
+// `@ButuhSalahSatuFitur` — "salah satu cukup", untuk halaman yang isinya campur.
+// ══════════════════════════════════════════════════════════════════════════════════════
+
+/** Kode fitur "salah satu cukup" yang Nest baca (metode menimpa kelas, sama seperti FiturGuard). */
+const kodeSalahSatu = (kelas: any, metode: string): string[] | undefined =>
+    reflector.getAllAndOverride<string[] | undefined>(FITUR_SALAH_SATU_KEY, [ctx(kelas, metode).getHandler(), kelas]);
+
+/** Dua kelas contoh dengan daftar kode yang SAMA — jadi yang membedakan hasil cuma dekoratornya. */
+class ContohSemuaWajib {
+    @ButuhFitur('a.satu', 'a.dua')
+    buka() {
+        return true;
+    }
+}
+class ContohSalahSatuCukup {
+    @ButuhSalahSatuFitur('a.satu', 'a.dua')
+    buka() {
+        return true;
+    }
+}
+
+describe('@ButuhSalahSatuFitur (dasbor KPI & setelan metriknya)', () => {
+    const CAMPUR = ['crm.leads', 'team.leaderboard', 'cs.rating'];
+    const HALAMAN: Array<[string, any, string]> = [
+        ['GET /crm/kpi', KpiController, 'report'],
+        ['GET /crm/custom-product-metrics', CustomProductMetricsController, 'list'],
+        ['POST /crm/custom-product-metrics', CustomProductMetricsController, 'create'],
+    ];
+
+    it.each(HALAMAN)('%s dijaga "salah satu dari" ketiga kodenya', (_nama, kelas, metode) => {
+        expect(kodeSalahSatu(kelas, metode)).toEqual(CAMPUR);
+        // Dan BUKAN `@ButuhFitur` — kalau tertukar, klien yang cuma punya satu kode kena 403.
+        expect(kodeFitur(kelas, metode)).toBeUndefined();
+    });
+
+    it.each(CAMPUR)('punya %s saja → dasbornya terbuka', (punya) => {
+        const g = penjaga(['pos.core', punya]);
+        for (const [, kelas, metode] of HALAMAN) {
+            expect(g.canActivate(ctx(kelas, metode))).toBe(true);
+        }
+    });
+
+    it('tidak punya satu pun → 403 yang menyebut ketiganya + "salah satu saja sudah cukup"', () => {
+        const isi = tolakan(penjaga(['pos.core']), KpiController, 'report');
+        expect(isi.kode).toBe('lisensi_fitur_tidak_ada');
+        expect(isi.fitur).toEqual(CAMPUR);
+        expect(isi.salahSatuCukup).toBe(true);
+        expect(String(isi.message)).toContain('salah satu saja sudah cukup');
+    });
+
+    it('GAGAL-TERBUKA: tanpa kunci lisensi, dasbor KPI tetap terbuka', () => {
+        const g = penjagaTanpaKunci();
+        for (const [, kelas, metode] of HALAMAN) {
+            expect(g.canActivate(ctx(kelas, metode))).toBe(true);
+        }
+    });
+
+    it('kedua controller memakai daftar kode yang SAMA', () => {
+        // Kalau berbeda, klien bisa membuka dasbornya tapi tidak bisa mengatur metriknya (atau
+        // sebaliknya), dan ketahuannya cuma dari klien yang menelepon.
+        expect(kodeSalahSatu(CustomProductMetricsController, 'list')).toEqual(
+            kodeSalahSatu(KpiController, 'report'),
+        );
+    });
+
+    it('DUA DEKORATOR TIDAK TERTUKAR: satu menuntut SEMUA, satu cukup SATU', () => {
+        // Daftar kodenya identik di kedua kelas contoh. Ini tes yang gagal kalau suatu hari
+        // keduanya disatukan "biar rapi".
+        const cumaSatu = penjaga(['a.satu']);
+        expect(() => cumaSatu.canActivate(ctx(ContohSemuaWajib, 'buka'))).toThrow(ForbiddenException);
+        expect(cumaSatu.canActivate(ctx(ContohSalahSatuCukup, 'buka'))).toBe(true);
+
+        const punyaDua = penjaga(['a.satu', 'a.dua']);
+        expect(punyaDua.canActivate(ctx(ContohSemuaWajib, 'buka'))).toBe(true);
+        expect(punyaDua.canActivate(ctx(ContohSalahSatuCukup, 'buka'))).toBe(true);
+
+        const nol = penjaga(['pos.core']);
+        expect(() => nol.canActivate(ctx(ContohSemuaWajib, 'buka'))).toThrow(ForbiddenException);
+        expect(() => nol.canActivate(ctx(ContohSalahSatuCukup, 'buka'))).toThrow(ForbiddenException);
+    });
+
+    it('endpoint tanpa dekorator apa pun tetap lewat (dua kunci metadata terpisah)', () => {
+        class Telanjang {
+            buka() {
+                return true;
+            }
+        }
+        expect(penjaga([]).canActivate(ctx(Telanjang, 'buka'))).toBe(true);
+        expect(kodeSalahSatu(Telanjang, 'buka')).toBeUndefined();
+    });
+
+    it('papan TV marketing (PIN) TIDAK ikut dijaga', () => {
+        // 403 di layar yang menyala terus tidak ada yang membacanya, dan PIN bukan sesi yang
+        // bisa dihubungkan ke paket.
+        expect(kodeSalahSatu(KpiPublicController, 'dashboard')).toBeUndefined();
+        expect(penjaga([]).canActivate(ctx(KpiPublicController, 'dashboard'))).toBe(true);
     });
 });

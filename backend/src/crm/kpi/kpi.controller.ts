@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { ManagerGuard } from '../../auth/role-groups';
 import { JwtAuthGuard } from '../../auth/jwt-auth.guard';
+import { ButuhSalahSatuFitur } from '../../lisensi/butuh-fitur.decorator';
 import { CurrentBranch } from '../../common/branch-context.decorator';
 import type { BranchContext } from '../../common/branch-context.decorator';
 import { KpiPeriod, KpiService } from './kpi.service';
@@ -23,6 +24,18 @@ function parseId(raw?: string): number | undefined {
     return Number.isFinite(n) ? n : undefined;
 }
 
+/**
+ * Dasbor KPI — satu layar, TIGA fitur lisensi yang berbeda: kepatuhan follow-up (`crm.leads`),
+ * leaderboard desainer & operator (`team.leaderboard`), dan tren rating CS (`cs.rating`).
+ *
+ * Karena itu `@ButuhSalahSatuFitur`, bukan `@ButuhFitur`: yang terakhir menuntut ketiganya
+ * sekaligus, jadi klien yang cuma berlangganan leaderboard akan kena 403 di halaman yang
+ * separuhnya memang miliknya. Itu sebabnya endpoint ini sebelumnya dibiarkan terbuka sama sekali.
+ *
+ * Yang belum: menyaring ISI jawabannya per fitur. Klien yang cuma punya `cs.rating` tetap
+ * menerima angka leaderboard di payload yang sama — lihat catatan di dekoratornya.
+ */
+@ButuhSalahSatuFitur('crm.leads', 'team.leaderboard', 'cs.rating')
 @UseGuards(JwtAuthGuard)
 @Controller('crm/kpi')
 export class KpiController {
