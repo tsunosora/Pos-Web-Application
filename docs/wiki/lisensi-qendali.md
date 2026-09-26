@@ -152,13 +152,59 @@ dikarang di sini tidak akan pernah cocok dengan kunci yang terbit.
 Penjaganya sudah terpasang global, jadi tidak perlu ikut `@UseGuards`. Endpoint tanpa dekorator
 tidak tersentuh, dan tanpa kunci lisensi dekorator ini tidak berpengaruh apa pun.
 
-Yang **sudah** dijaga sekarang (sengaja sedikit, sebagai contoh yang benar-benar jalan):
+Yang **sudah** dijaga sekarang:
 
-| Endpoint | Kode fitur |
+| Endpoint | Kode fitur | Dipasang di |
+|---|---|---|
+| Seluruh `/studio-ai/*` | `ai.studio` (add-on paket Produksi & Bisnis) | kelas |
+| Seluruh `/print-queue/*` | `print.queue` | kelas |
+| `GET /production/jobs` | `production.board` | metode |
+| Seluruh `/crm/leads/*` | `crm.leads` | kelas |
+| Seluruh `/crm/lead-sources/*` | `crm.leads` | kelas |
+| Seluruh `/crm/follow-ups/*` | `crm.leads` | kelas |
+| Seluruh `/crm/templates/*` | `crm.leads` | kelas |
+| `/whatsapp/*` — inbox, channel, template Meta, katalog, QR chat, pesan cepat, analitik, kredensial, SSE | `wa.cloud` | kelas |
+| `/whatsapp/broadcasts*` (10 rute), `/whatsapp/auto-replies*` (4), `/whatsapp/reminders/*` (3) | `wa.cloud` **+** `wa.automation` | metode |
+| Seluruh `/social/*` (kecuali webhook & data-deletion) | `social.inbox` | kelas |
+| Seluruh `/meta-ads/*` | `ads.meta` | kelas |
+
+`WhatsappCloudController` itu contoh **campuran yang dijaga per metode**: bawaannya `wa.cloud` di
+kelas, lalu broadcast/balasan-otomatis/reminder menulis ulang `@ButuhFitur('wa.cloud', 'wa.automation')`
+di metodenya masing-masing. Ditulis ULANG, bukan ditambahi: dekorator di metode **menimpa**
+dekorator kelas (`getAllAndOverride`), jadi kalau `wa.cloud` tidak disebut lagi di situ, broadcast
+justru jadi lebih longgar daripada inboxnya. Keduanya memang dijual satu paket (add-on
+`whatsapp_resmi` = `wa.cloud` + `wa.automation`), tapi pengecualian per klien di dasbor bisa
+memberi salah satunya saja — dan siaran tanpa channel WA tidak ada artinya.
+
+### Yang SENGAJA dikecualikan (jangan "dirapikan")
+
+| Endpoint | Kenapa dibiarkan terbuka |
 |---|---|
-| Seluruh `/studio-ai/*` | `ai.studio` (add-on paket Produksi & Bisnis) |
-| Seluruh `/print-queue/*` | `print.queue` |
-| `GET /production/jobs` | `production.board` |
+| `GET/POST /whatsapp/webhook` | **Webhook Meta.** Dipanggil tanpa sesi pengguna. Sekali dijawab 403, Meta menonaktifkan webhooknya → pesan pelanggan hilang tanpa jejak, juga untuk klien yang paketnya MEMANG memuat WhatsApp. |
+| `GET/POST /social/webhook` | Sama: webhook Messenger & Instagram. DM dan komentar masuk lewat sini. |
+| `POST/GET /social/data-deletion` | Callback hapus-data Meta + halaman statusnya. Kewajiban menghapus data tidak ikut hilang kalau klien turun paket. |
+| `GET /storefront/*` | API baca-lead untuk situs toko klien; otentikasinya token tersendiri (`X-Storefront-Read-Token`), bukan sesi pengguna. Menjaganya = mematikan situs yang sedang hidup. |
+| `POST /orders/public` | Form order di situs klien. 403 di sini = order pelanggan hilang di tengah jalan. |
+| `POST /crm/public/*` | Dasbor marketing & papan TV, masuknya cuma PIN. Tanpa sesi pengguna. |
+| Seluruh `/customers/*` | `customers.core` ada di **semua** paket termasuk Gratis. Menjaganya nol gunanya dan cuma menambah kemungkinan salah. |
+| `/whatsapp/status`, `/whatsapp/send`, `/whatsapp/broadcast`, `/whatsapp/config/*` (kelas `WhatsappController`) | Bot tempel-QR (whatsapp-web.js), **bukan** Cloud API: tidak punya kode fitur di `paket.json`, tidak dijual di paket mana pun, tidak menagih Meta sepeser pun. Dipakai rekap shift ke grup pemilik. Alasan yang sama dengan menu `/settings/whatsapp` di frontend. |
+| `/crm/kpi/*` | Isinya campur: kepatuhan follow-up (`crm.leads`), leaderboard desainer/operator (`team.leaderboard`), tren rating CS (`cs.rating`). Satu kode untuk seluruh controller justru salah — sama seperti `/production`. |
+| `/crm/custom-product-metrics/*` | Setelan metrik yang tampil di dasbor KPI itu, jadi ikut menunggu pemilahan `/crm/kpi`. |
+| `/work-orders/*` | Namanya di bawah `crm/`, tapi isinya SPK cetak (mockup, pola print) — urusan produksi, bukan prospek. |
+
+Aturannya sama dengan aturan menu: **kalau ragu, biarkan terbuka.** Endpoint yang ternyata boleh
+dipakai lalu ditolak 403 jauh lebih mahal daripada endpoint yang kelewat longgar.
+
+**Penjaga ini tingkat HTTP, jadi cron tidak tersentuh.** Yang perlu diingat: broadcast
+(`broadcast.service.ts`, tiap menit), reminder follow-up (`reminders.service.ts`, tiap 15 menit),
+sinkron template Meta (tiap 10 menit), bersih-bersih media (03.00), sinkron komentar IG/FB
+(`social-comments.service.ts`, tiap 5 menit), dan REPEAT_ORDER CRM (`follow-ups.cron.ts`, Senin
+08.00 — dan itu pun mati kecuali `CRM_REPEAT_ORDER_AUTO=on`) semuanya dipanggil penjadwal di dalam
+proses, **bukan** lewat HTTP. Klien yang kode fiturnya dicabut tetap tidak bisa MEMBUAT broadcast
+atau reminder baru lewat dasbor, tapi yang sudah terjadwal sebelum paketnya turun akan tetap
+terkirim. Tidak ada cron yang memanggil API-nya sendiri lewat HTTP (sudah dicek), jadi tidak ada
+cron yang mati gara-gara penjagaan ini. Kalau suatu hari ini mau ditutup, tempatnya di service —
+bukan di penjaga HTTP.
 
 ## Batas angka: jumlah pengguna & cabang
 
@@ -409,10 +455,16 @@ masih boleh — itu memang gunanya tenggang.
   `company-branches.service.ts`.
 - **Batas yang lain memang tidak ditegakkan.** `limit.customers` & `limit.retention` sengaja
   dilewati — alasannya di bagian "Batas angka" di atas, jangan ditambahkan tanpa membacanya dulu.
-- **Baru 3 titik yang dijaga `@ButuhFitur`.** Sisa modul (CRM, WhatsApp, cabang, papan tugas,
-  leaderboard, backup, …) masih terbuka untuk semua paket. `/production` sengaja belum dijaga
-  menyeluruh: `meter/*` sebenarnya milik `click.counting` dan `pipeline/*` milik
-  `production.pipeline`, jadi satu kode untuk seluruh controller justru salah.
+- **Masih banyak modul yang belum dijaga `@ButuhFitur`.** Yang sudah: Studio AI, antrian cetak,
+  papan produksi, CRM prospek & follow-up, WhatsApp Cloud, inbox IG/FB, iklan Meta (tabel di atas).
+  Yang belum: cabang & buku titipan, papan tugas, leaderboard, backup, landing page, invoice &
+  penawaran, portal desainer. `/production` sengaja belum dijaga menyeluruh: `meter/*` sebenarnya
+  milik `click.counting` dan `pipeline/*` milik `production.pipeline`, jadi satu kode untuk seluruh
+  controller justru salah. `/crm/kpi` menunggu pemilahan yang sama.
+- **Penegakan WhatsApp & CRM baru di lapis HTTP.** Cron broadcast/reminder/sinkron di dalam proses
+  tidak ikut berhenti (lihat "Penjaga ini tingkat HTTP" di atas), dan halaman frontend yang memanggil
+  `/whatsapp/*` dari luar menu WA — mis. tombol "buka chat" di halaman Leads — baru tahu fiturnya
+  tidak ada setelah kena 403. Menu-nya sendiri sudah disembunyikan lewat `PETA_FITUR_MENU`.
 - **Halaman, bukan menu, belum dijaga di frontend.** Menu yang fiturnya tidak ada sudah
   disembunyikan (lihat "Menu dasbor ikut isi kunci"), tapi mengetik alamatnya langsung tetap
   membuka halamannya — isinya baru kosong/galat saat API-nya menjawab 403. Itu disengaja untuk
@@ -463,6 +515,13 @@ Yang dijaganya: fitur ada → tampil, fitur tidak ada → sembunyi, gagal ambil 
 tidak ditegakkan → semua tampil, menu tanpa pemetaan → tampil, hanya-baca tidak menyembunyikan
 apa-apa, dan lima href yang tidak boleh pernah dipetakan. Untuk batas: `null` disembunyikan, `0`
 tetap tampil, dan hitungan yang tidak dikirim backend tidak ditebak jadi nol.
+
+Penjagaan kode fitur punya dua berkas tes juga, dan bedanya sama pentingnya:
+
+| Berkas | Yang dijaganya |
+|---|---|
+| `src/lisensi/penjaga-lisensi.spec.ts` | Keputusan penjaganya, dengan Reflector palsu: gagal-terbuka, 403 yang menyebut kode fiturnya, hanya-baca tidak mematikan fitur. |
+| `src/lisensi/penjaga-crm-wa.spec.ts` | Bahwa dekoratornya benar-benar **terpasang di controller yang sungguhan** — Reflector-nya asli, metadatanya dibaca dari kelas & metode CRM/WhatsApp yang nyata. Gagal kalau dekoratornya hilang, pindah metode, atau kodenya salah tulis. Di dalamnya ada tes khusus **webhook Meta tetap terbuka di kunci apa pun**, dan tes bahwa kelas webhook tidak pernah disatukan dengan kelas yang dijaga. Kalau yang itu gagal: cabut dekoratornya, jangan diakali. |
 
 Batasnya punya dua berkas tes di backend, dan keduanya menjaga hal yang berbeda:
 
