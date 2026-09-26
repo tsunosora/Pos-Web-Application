@@ -18,12 +18,23 @@ MCowBQYDK2VwAyEAMWh3dXB910jHpVpqzXNivcJ+SxC1oJox/sTa4kcdOwc=
 `;
 
 /**
- * Bawaan yang ikut ter-bundle. `prod-1` belum ada di sini karena kunci produksinya belum
- * terbit; begitu terbit, tambahkan satu baris `'prod-1': PROD_1,` — atau isi env
- * `QENDALI_KUNCI_PUBLIK` supaya tidak perlu build ulang sama sekali.
+ * Kunci PRODUKSI, terbit 26 Sep 2026. Yang menandatangani lisensi klien sungguhan.
+ * Privatnya ada di mesin penerbit qendali.com dan tidak pernah masuk repo mana pun.
+ */
+const PROD_1 = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAO+g//5WH0sDGJCoH0f5yddTr42oB8uRZNGR/odFCwIY=
+-----END PUBLIC KEY-----
+`;
+
+/**
+ * Bawaan yang ikut ter-bundle. Dua kid hidup bersamaan dengan sengaja: `uji-1` untuk
+ * pengembangan, `prod-1` untuk klien sungguhan. Kunci berikutnya (`prod-2`) tinggal
+ * ditambahkan satu baris di sini, atau lewat env `QENDALI_KUNCI_PUBLIK` supaya tidak
+ * perlu build ulang.
  */
 const BAWAAN: Record<string, string> = {
     'uji-1': UJI_1,
+    'prod-1': PROD_1,
 };
 
 /**
