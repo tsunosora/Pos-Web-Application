@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test \"src/**/*.test.mjs\"",
     "build:studio": "cd ../studio-desain && VITE_EMBED=1 npm run build"
   },
   "dependencies": {

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { getActiveSection, isItemActive, canSeeNavItem } from "./nav-config";
 import { useNavBadges } from "@/hooks/useNavBadges";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { usePunyaFitur } from "@/hooks/useLisensi";
 import { useUIStore } from "@/store/ui-store";
 
 /**
@@ -19,6 +20,8 @@ export function SubNav({ mode = "inline" }: { mode?: "inline" | "strip" }) {
     const pathname = usePathname();
     const { isManager, isOwner, navAllowed } = useCurrentUser();
     const { getBadge } = useNavBadges();
+    // Sama seperti Sidebar: menu yang kode fiturnya tidak ada di kunci tidak ikut tampil.
+    const punyaFitur = usePunyaFitur();
     const subnavOverflow = useUIStore((s) => s.subnavOverflow);
     const setSubnavOverflow = useUIStore((s) => s.setSubnavOverflow);
     const measureRef = useRef<HTMLDivElement>(null);
@@ -48,7 +51,7 @@ export function SubNav({ mode = "inline" }: { mode?: "inline" | "strip" }) {
     // Inline (desktop): tetap kirim spacer agar aksi kanan tetap di kanan.
     if (mode === "inline" && !section) return <div className="flex-1" />;
 
-    const items = section!.items.filter(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed }));
+    const items = section!.items.filter(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed, punyaFitur }));
     const activeHref = items
         .filter(it => isItemActive(pathname, it.href))
         .sort((a, b) => b.href.length - a.href.length)[0]?.href;

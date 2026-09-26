@@ -10,6 +10,8 @@ import { useQuery } from "@tanstack/react-query";
 import { getSettings } from "@/lib/api";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useNavBadges } from "@/hooks/useNavBadges";
+import { usePunyaFitur } from "@/hooks/useLisensi";
+import { bolehLihatMenu } from "@/lib/lisensi/aturan-menu";
 import { SECTIONS, TOP_LINK, OWNER_LINK, DESIGNER_LINK, isItemActive, getActiveSection, firstItemHref, canSeeNavItem, type NavSection } from "./nav-config";
 
 export function Sidebar() {
@@ -17,6 +19,8 @@ export function Sidebar() {
     const { isSidebarOpen, closeSidebar, sidebarCollapsed: collapsed, toggleSidebarCollapsed } = useUIStore();
     const { isManager, isOwner, navAllowed } = useCurrentUser();
     const { getSectionBadge, getBadge } = useNavBadges();
+    // Menu ikut isi kunci lisensi. Gagal ambil / tanpa lisensi → semua fitur dianggap ada.
+    const punyaFitur = usePunyaFitur();
 
     const { data: settings } = useQuery({
         queryKey: ['store-settings'],
@@ -48,12 +52,14 @@ export function Sidebar() {
         };
     }, [isSidebarOpen, closeSidebar]);
 
-    const visibleSections = SECTIONS.filter(s => s.items.some(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed })));
+    const visibleSections = SECTIONS.filter(s => s.items.some(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed, punyaFitur })));
     // Staf dengan menu terbatas → "beranda" jadi home (bukan dashboard penjualan penuh).
     const restricted = navAllowed !== null;
     const homeHref = restricted ? "/beranda" : TOP_LINK.href;
     const homeLabel = restricted ? "Beranda" : "Dashboard";
-    const canSeeDesigner = navAllowed === null || navAllowed.has(DESIGNER_LINK.href);
+    // Studio Desain = add-on `ai.studio`; tanpa add-on itu tautannya tidak ada gunanya.
+    const canSeeDesigner = (navAllowed === null || navAllowed.has(DESIGNER_LINK.href))
+        && bolehLihatMenu(DESIGNER_LINK.href, punyaFitur);
 
     // Class link nav — saat collapsed (lg+) jadi ikon terpusat.
     const navLinkCls = (active: boolean) =>
@@ -72,7 +78,7 @@ export function Sidebar() {
         const badge = getSectionBadge(section);
         return (
             <Link
-                href={firstItemHref(section, isManager, isOwner, navAllowed)}
+                href={firstItemHref(section, isManager, isOwner, navAllowed, punyaFitur)}
                 onClick={handleLinkClick}
                 title={section.label}
                 className={navLinkCls(active)}
@@ -213,7 +219,7 @@ export function Sidebar() {
 
                     {visibleSections.map((section) => {
                         const isActiveSection = activeSection?.key === section.key;
-                        const subItems = section.items.filter(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed }));
+                        const subItems = section.items.filter(it => canSeeNavItem(it, { isManager, isOwner, allowed: navAllowed, punyaFitur }));
                         const subActiveHref = subItems
                             .filter(it => isItemActive(pathname, it.href))
                             .sort((a, b) => b.href.length - a.href.length)[0]?.href;

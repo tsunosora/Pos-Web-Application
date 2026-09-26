@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { usePunyaFitur } from '@/hooks/useLisensi';
+import { bolehLihatMenu } from '@/lib/lisensi/aturan-menu';
 
 const NAV_GROUPS: { title: string; items: { href: string; icon: LucideIcon; label: string; ownerOnly?: boolean }[] }[] = [
     {
@@ -55,7 +57,16 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: LucideIcon; labe
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const { isOwner } = useCurrentUser();
-    const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter((i) => !i.ownerOnly || isOwner) }));
+    // Beberapa halaman pengaturan ikut isi kunci lisensi (Akses Menu Role, Discord, Backup).
+    // Peta & alasannya di `lib/lisensi/aturan-menu.ts`. Tanpa lisensi / gagal ambil → tampil
+    // semua. "Langganan" TIDAK pernah dipetakan: itu jalan keluar dari hanya-baca.
+    const punyaFitur = usePunyaFitur();
+    const groups = NAV_GROUPS
+        .map((g) => ({
+            ...g,
+            items: g.items.filter((i) => (!i.ownerOnly || isOwner) && bolehLihatMenu(i.href, punyaFitur)),
+        }))
+        .filter((g) => g.items.length > 0);
     return (
         <div className="flex flex-col md:flex-row md:h-[calc(100vh-8rem)] gap-4 md:gap-6">
             {/* Settings Nav */}

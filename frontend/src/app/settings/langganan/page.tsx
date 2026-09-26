@@ -25,6 +25,7 @@ import {
     pasangTambahan, periksaDomain, pesanGalat, rupiah, segarkanLisensi, sudahTransfer, tanggal,
     type PilihanPaket, type PilihanTambahan, type RingkasanLangganan, type Tagihan,
 } from '@/lib/api/langganan';
+import { segarkanKeadaanLisensi } from '@/hooks/useLisensi';
 
 /** Tagihan yang masih menunggu uang. Sisanya masuk riwayat. */
 const TAGIHAN_TERBUKA = new Set(['terkirim', 'menunggu_verifikasi', 'telat']);
@@ -84,7 +85,16 @@ export default function LanggananPage() {
     const [catatan, setCatatan] = useState<Record<number, string>>({});
     const [domainBaru, setDomainBaru] = useState('');
 
-    const segar = () => qc.invalidateQueries({ queryKey: ['langganan'] });
+    /**
+     * Muat ulang ringkasan langganan DAN keadaan lisensi. Yang kedua penting: begitu sebuah
+     * perubahan langsung berlaku, backend ikut menarik kunci baru — kalau cache `/saya/fitur`
+     * tidak dibuang, menu barunya baru muncul setengah jam kemudian dan orangnya mengira
+     * pembeliannya gagal.
+     */
+    const segar = async () => {
+        await qc.invalidateQueries({ queryKey: ['langganan'] });
+        await segarkanKeadaanLisensi(qc);
+    };
 
     /** Satu pembungkus untuk semua aksi: pesan galat dari server ditampilkan apa adanya. */
     const aksi = useMutation({

@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { SidebarSectionKey } from "@/store/ui-store";
+import { bolehLihatMenu, type PunyaFitur } from "@/lib/lisensi/aturan-menu";
 
 export type NavBadgeKey =
     | 'pendingInvoice' | 'pendingEdit' | 'branchInbox' | 'ledgerOutstanding'
@@ -136,14 +137,19 @@ export const SECTIONS: NavSection[] = [
 
 /** Apakah user boleh melihat item ini.
  *  `allowed` = daftar href yang boleh dilihat (hasil preset/konfigurasi role).
- *  null/undefined = tanpa batas divisi (owner/manajer lihat semua). */
+ *  null/undefined = tanpa batas divisi (owner/manajer lihat semua).
+ *  `punyaFitur` = penjawab dari `useLisensi()`. TIDAK dioper (undefined) berarti semua fitur
+ *  dianggap ada — itu yang membuat halaman konfigurasi akses menu & lingkungan tanpa lisensi
+ *  tetap melihat daftar lengkap. Peta menu → kode fitur ada di `lib/lisensi/aturan-menu.ts`;
+ *  ingat penyembunyian ini KOSMETIK, penolakan sungguhan tetap di penjaga backend. */
 export function canSeeNavItem(
     it: NavItem,
-    roles: { isManager: boolean; isOwner: boolean; allowed?: Set<string> | null },
+    roles: { isManager: boolean; isOwner: boolean; allowed?: Set<string> | null; punyaFitur?: PunyaFitur | null },
 ): boolean {
     if (it.managerOnly && !roles.isManager) return false;
     if (it.ownerOnly && !roles.isOwner) return false;
     if (roles.allowed && !roles.allowed.has(it.href)) return false;
+    if (!bolehLihatMenu(it.href, roles.punyaFitur)) return false;
     return true;
 }
 
@@ -233,7 +239,13 @@ export function getActiveSection(pathname: string): NavSection | undefined {
 }
 
 /** Item pertama yang boleh diakses user (untuk tujuan klik kategori). */
-export function firstItemHref(section: NavSection, isManager: boolean, isOwner = false, allowed: Set<string> | null = null): string {
-    const it = section.items.find(i => canSeeNavItem(i, { isManager, isOwner, allowed }));
+export function firstItemHref(
+    section: NavSection,
+    isManager: boolean,
+    isOwner = false,
+    allowed: Set<string> | null = null,
+    punyaFitur?: PunyaFitur | null,
+): string {
+    const it = section.items.find(i => canSeeNavItem(i, { isManager, isOwner, allowed, punyaFitur }));
     return (it ?? section.items[0]).href;
 }
