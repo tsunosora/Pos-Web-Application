@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-PosPro menyajikan **600 endpoint** dalam **77 controller**.
+PosPro menyajikan **608 endpoint** dalam **78 controller**.
 Sebanyak **60 endpoint tanpa penjaga login** — itu memang disengaja untuk
 halaman publik (landing, artikel, tautan penilaian, verifikasi PIN) dan webhook,
 tetapi daftar ini juga berguna saat mengaudit akses.
@@ -59,6 +59,7 @@ Rinciannya di [Model Akses & Keamanan](keamanan-akses.md).
 | `/integrations` | StaffKpiController | 5 | `backend/src/integrations/staff-kpi.controller.ts` |
 | `/invoices` | InvoiceController | 8 | `backend/src/invoice/invoice.controller.ts` |
 | `/landing` | LandingController | 6 | `backend/src/landing/landing.controller.ts` |
+| `/langganan` | LanggananController | 8 | `backend/src/langganan/langganan.controller.ts` |
 | `/meta-ads` | MetaAdsController | 9 | `backend/src/meta-ads/meta-ads.controller.ts` |
 | `/orders/public` | PublicOrdersController | 1 | `backend/src/crm/leads/public-orders.controller.ts` |
 | `/print-queue` | PrintQueueController | 8 | `backend/src/print-queue/print-queue.controller.ts` |
@@ -639,6 +640,22 @@ Berkas: `backend/src/landing/landing.controller.ts`
 | POST | `/landing/publish` | `publish` | `JwtAuthGuard, MenuGuard` | — |
 | POST | `/landing/unpublish` | `unpublish` | `JwtAuthGuard, MenuGuard` | — |
 | POST | `/landing/restore-previous` | `restorePrevious` | `JwtAuthGuard, MenuGuard` | — |
+
+## LanggananController — `/langganan`
+
+Berkas: `backend/src/langganan/langganan.controller.ts`
+Penjaga tingkat kelas: `JwtAuthGuard, OwnerGuard`
+
+| Metode | Jalur | Handler | Penjaga | Peran |
+|---|---|---|---|---|
+| GET | `/langganan` | `ringkasan` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/langganan/perubahan` | `ajukanPerubahan` | `JwtAuthGuard, OwnerGuard` | — |
+| DELETE | `/langganan/perubahan` | `batalkanPerubahan` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/langganan/tagihan` | `sudahTransfer` | `JwtAuthGuard, OwnerGuard` | — |
+| GET | `/langganan/domain` | `domain` | `JwtAuthGuard, OwnerGuard` | — |
+| PUT | `/langganan/domain` | `pasangDomain` | `JwtAuthGuard, OwnerGuard` | — |
+| POST | `/langganan/domain/periksa` | `periksaDomain` | `JwtAuthGuard, OwnerGuard` | — |
+| DELETE | `/langganan/domain` | `lepasDomain` | `JwtAuthGuard, OwnerGuard` | — |
 
 ## MetaAdsController — `/meta-ads`
 

@@ -116,6 +116,7 @@ export default defineConfig({
           { text: '🌐 Halaman Publik', link: '/halaman-publik' },
           { text: '🔐 Model Akses & Keamanan', link: '/keamanan-akses' },
           { text: '🔑 Lisensi Qendali', link: '/lisensi-qendali' },
+          { text: '💳 Langganan (Pengaturan)', link: '/langganan-qendali' },
         ]
       },
       {

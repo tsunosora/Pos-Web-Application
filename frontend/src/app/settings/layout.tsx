@@ -1,6 +1,6 @@
 "use client";
 
-import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, GitBranch, SlidersHorizontal, Webhook, Printer, Lock } from 'lucide-react';
+import { Store, CreditCard, Users, Settings, MessageCircle, Building2, Paintbrush, HardDrive, Bell, GitBranch, SlidersHorizontal, Webhook, Printer, Lock, Receipt } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -39,6 +39,15 @@ const NAV_GROUPS: { title: string; items: { href: string; icon: LucideIcon; labe
             { href: '/settings/notifications', icon: Bell, label: 'Notifikasi' },
             { href: '/settings/discord', icon: Webhook, label: 'Discord' },
             { href: '/settings/backup', icon: HardDrive, label: 'Backup & Recovery' },
+        ],
+    },
+    {
+        title: 'Akun Qendali',
+        items: [
+            // Paket, tagihan, dan alamat aplikasi. ownerOnly: yang bukan pemilik tidak perlu
+            // melihat tagihan, dan backend menolaknya juga (OwnerGuard di LanggananController) —
+            // menyembunyikan menu di sini cuma supaya tidak ada yang mengklik lalu kena 403.
+            { href: '/settings/langganan', icon: Receipt, label: 'Langganan', ownerOnly: true },
         ],
     },
 ];

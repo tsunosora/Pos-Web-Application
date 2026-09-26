@@ -4,7 +4,7 @@
 > Jalankan ulang skripnya setelah menambah fitur.
 
 
-**105 halaman** di aplikasi. **56** di antaranya punya menu di sidebar;
+**106 halaman** di aplikasi. **56** di antaranya punya menu di sidebar;
 sisanya dibuka dari dalam halaman lain (detail, form), lewat PIN (papan kerja),
 atau memang halaman publik tanpa login.
 
@@ -94,6 +94,7 @@ atau memang halaman publik tanpa login.
 | `/settings/designers` | — | — | — | `frontend/src/app/settings/designers/page.tsx` |
 | `/settings/discord` | — | — | — | `frontend/src/app/settings/discord/page.tsx` |
 | `/settings/general` | — | — | — | `frontend/src/app/settings/general/page.tsx` |
+| `/settings/langganan` | — | — | — | `frontend/src/app/settings/langganan/page.tsx` |
 | `/settings/login` | — | — | — | `frontend/src/app/settings/login/page.tsx` |
 | `/settings/notifications` | — | — | — | `frontend/src/app/settings/notifications/page.tsx` |
 | `/settings/payments` | — | — | — | `frontend/src/app/settings/payments/page.tsx` |
@@ -158,6 +159,7 @@ papan kerja ber-PIN, atau halaman publik.
 - `/settings/designers`
 - `/settings/discord`
 - `/settings/general`
+- `/settings/langganan`
 - `/settings/login`
 - `/settings/notifications`
 - `/settings/payments`

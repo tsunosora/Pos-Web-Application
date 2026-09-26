@@ -55,8 +55,8 @@ menganggap diri belum dikonfigurasi — aplikasi tetap jalan, fitur itu saja yan
 | `QENDALI_ALAMAT` | `backend/src/lisensi/lisensi.service.ts` |
 | `QENDALI_KUNCI_PUBLIK` | `backend/src/lisensi/kunci-publik.ts` |
 | `QENDALI_LISENSI_BERKAS` | `backend/src/lisensi/simpanan-lisensi.ts` |
-| `QENDALI_LISENSI_TOKEN` | `backend/src/lisensi/lisensi.service.ts` |
-| `QENDALI_LISENSI_URL` | `backend/src/lisensi/lisensi.service.ts` |
+| `QENDALI_LISENSI_TOKEN` | `backend/src/langganan/langganan.service.ts`, `backend/src/lisensi/lisensi.service.ts` |
+| `QENDALI_LISENSI_URL` | `backend/src/langganan/langganan.service.ts`, `backend/src/lisensi/lisensi.service.ts` |
 | `QENDALI_VERSI` | `backend/src/lisensi/lisensi.service.ts` |
 | `SOCIAL_AUTO_SYNC` | `backend/src/meta-messaging/social-comments.service.ts` |
 | `STAFF_KPI_ALLOW_REMOTE` | `backend/src/auth/api-key.guard.ts` |
