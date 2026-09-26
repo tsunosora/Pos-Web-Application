@@ -17,7 +17,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-    AlertTriangle, ArrowRight, Ban, CheckCircle2, CreditCard, Globe, Info, Loader2, Package,
+    AlertTriangle, ArrowRight, Ban, CheckCircle2, CreditCard, Gauge, Globe, Info, Loader2, Package,
     PlugZap, RefreshCw, Send, Wallet,
 } from 'lucide-react';
 import {
@@ -25,7 +25,8 @@ import {
     pasangTambahan, periksaDomain, pesanGalat, rupiah, segarkanLisensi, sudahTransfer, tanggal,
     type PilihanPaket, type PilihanTambahan, type RingkasanLangganan, type Tagihan,
 } from '@/lib/api/langganan';
-import { segarkanKeadaanLisensi } from '@/hooks/useLisensi';
+import { segarkanKeadaanLisensi, useLisensi } from '@/hooks/useLisensi';
+import { barisPemakaian, type BarisPemakaian } from '@/lib/lisensi/pemakaian-batas';
 
 /** Tagihan yang masih menunggu uang. Sisanya masuk riwayat. */
 const TAGIHAN_TERBUKA = new Set(['terkirim', 'menunggu_verifikasi', 'telat']);
@@ -75,6 +76,10 @@ function Akibat({ rincian, jumlah }: { rincian: string[]; jumlah: number }) {
 export default function LanggananPage() {
     const qc = useQueryClient();
     const { data, isLoading, error } = useQuery({ queryKey: ['langganan'], queryFn: getLangganan, retry: false });
+    // Batas & pemakaian datang dari kunci lisensi (`/saya/fitur`), BUKAN dari penerbit: yang
+    // menegakkannya backend ini juga, jadi angka yang tampil harus angka yang sama dengan yang
+    // menolak. Hook-nya di atas semua `return` awal karena hook tidak boleh dipanggil bersyarat.
+    const { keadaan } = useLisensi();
 
     const [galat, setGalat] = useState('');
     const [kabar, setKabar] = useState('');
@@ -158,6 +163,9 @@ export default function LanggananPage() {
                         <p className="text-muted-foreground mt-1">{data.pesan}</p>
                     </div>
                 </div>
+                {/* Belum tersambung tapi kuncinya sudah ada? Batasnya tetap berlaku, jadi tetap
+                    ditampilkan. Kalau tidak ada kunci, bagian ini merender null sendiri. */}
+                <PemakaianPaket keadaan={keadaan} />
             </div>
         );
     }
@@ -195,6 +203,9 @@ export default function LanggananPage() {
                     <Nilai label="Produk" isi={d.produk} />
                 </div>
             } />
+
+            {/* ── Pemakaian vs batas paket ─────────────────────────────────────────── */}
+            <PemakaianPaket keadaan={keadaan} />
 
             {/* ── Perubahan tertunda ───────────────────────────────────────────────── */}
             {tertunda && (
@@ -490,6 +501,58 @@ function Kepala({ nama }: { nama?: string }) {
                     {nama ? <>Paket, tagihan, dan alamat untuk {nama}.</> : 'Paket, tagihan, dan alamat aplikasi.'}
                 </p>
             </div>
+        </div>
+    );
+}
+
+/**
+ * "Pengguna: 4 dari 5" — pemakaian vs batas paket.
+ *
+ * Aturannya di `lib/lisensi/pemakaian-batas.ts` (murni & ada tesnya); di sini cuma tampilan.
+ * Tidak merender apa pun kalau tidak ada batas yang berlaku — instalasi tanpa kunci dan paket
+ * tanpa batas tidak perlu melihat bagian ini sama sekali.
+ *
+ * SENGAJA tidak ada tombol apa pun di sini. Bagian ini keterangan, bukan penjagaan: yang
+ * menolak penambahan adalah backend, dan mematikan tombol "Tambah pengguna" dari sini berarti
+ * satu permintaan `/saya/fitur` yang gagal bisa mengunci pemilik dari halaman karyawannya.
+ */
+function PemakaianPaket({ keadaan }: { keadaan: Parameters<typeof barisPemakaian>[0] }) {
+    const baris = barisPemakaian(keadaan);
+    if (baris.length === 0) return null;
+
+    return (
+        <Bagian
+            judul="Pemakaian paket"
+            ikon={Gauge}
+            keterangan="Yang dihitung hanya yang aktif — karyawan yang sudah keluar dan cabang yang ditutup tidak ikut."
+            anak={<div className="space-y-3">{baris.map((b) => <BarisPakai key={b.kode} b={b} />)}</div>}
+        />
+    );
+}
+
+function BarisPakai({ b }: { b: BarisPemakaian }) {
+    // Amber untuk dua-duanya, bukan merah: klien yang penuh bukan klien yang rusak, dan warna
+    // genting di halaman tagihan cuma membuat orang menelepon panik.
+    const warnaBar =
+        b.nada === 'penuh' ? 'bg-amber-600' : b.nada === 'dekat' ? 'bg-amber-500' : 'bg-primary/60';
+    const warnaAngka = b.nada === 'biasa' ? '' : 'text-amber-700 dark:text-amber-500';
+    // Lebih dari batas tetap digambar penuh, tidak melimpah keluar kotaknya.
+    const persen = b.batas > 0 ? Math.min(100, Math.round((b.pemakaian / b.batas) * 100)) : 100;
+
+    return (
+        <div>
+            <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-medium">{b.nama}</p>
+                <p className={`text-sm font-semibold tabular-nums ${warnaAngka}`}>{b.teks}</p>
+            </div>
+            <div
+                className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+                role="img"
+                aria-label={`${b.nama}: ${b.teks}`}
+            >
+                <div className={`h-full rounded-full ${warnaBar}`} style={{ width: `${persen}%` }} />
+            </div>
+            {b.catatan && <p className="mt-1 text-xs text-muted-foreground">{b.catatan}</p>}
         </div>
     );
 }

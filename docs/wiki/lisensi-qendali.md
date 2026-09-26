@@ -29,6 +29,8 @@ Kode: `backend/src/lisensi/`
 | `lisensi.service.ts` | Memuat kunci saat boot, menyegarkan sekali sehari, menjawab "boleh pakai fitur ini?". |
 | `fitur.guard.ts` + `butuh-fitur.decorator.ts` | `@ButuhFitur('kode.fitur')` → 403 kalau kodenya tidak ada di kunci. |
 | `hanya-baca.guard.ts` | Menolak POST/PUT/PATCH/DELETE saat lisensi kedaluwarsa melewati tenggang. |
+| `aturan-batas.ts` | Aturan batas angka (`limit.users`, `limit.branches`): boleh nambah atau tidak, plus kalimatnya. Murni, tanpa import. |
+| `batas.service.ts` | Menghitung pemakaian sekarang & melempar 403. **Satu-satunya tempat** yang menegakkan batas angka. |
 | `lisensi.controller.ts` | `GET /saya/fitur`, `POST /saya/lisensi/segarkan`. |
 
 ## Memasang token instalasi
@@ -158,10 +160,115 @@ Yang **sudah** dijaga sekarang (sengaja sedikit, sebagai contoh yang benar-benar
 | Seluruh `/print-queue/*` | `print.queue` |
 | `GET /production/jobs` | `production.board` |
 
+## Batas angka: jumlah pengguna & cabang
+
+Selain daftar fitur, kunci juga membawa batas angka (`batas` di kunci, `limit.*` di
+`data/paket.json`). Yang **ditegakkan** cuma dua, dan cuma saat MENAMBAH:
+
+| Kode | Ditegakkan di | Yang dihitung |
+|---|---|---|
+| `limit.users` | `POST /users` (`UsersService.create`) | `users` dengan `is_active = true` |
+| `limit.branches` | `POST /company-branches` (`CompanyBranchesService.create`) | `company_branches` dengan `is_active = true` |
+
+Pemeriksanya **satu**: `BatasService.wajibBolehMenambah('limit.users')`. Jangan pernah menyalin
+logikanya ke controller — dua tempat yang menghitung "aktif" dengan cara berbeda akan menolak
+klien yang sebenarnya belum penuh.
+
+::: danger Klien yang sudah lewat batas DIBIARKAN
+Tidak ada pengguna dinonaktifkan, tidak ada cabang dimatikan, tidak ada data disembunyikan.
+Toko dengan **8 pengguna** di paket berbatas 5: delapan-delapannya tetap masuk kerja besok pagi;
+yang ditolak cuma penambahan orang kesembilan.
+
+Alasannya: batas ini dipasang di tengah jalan. Kunci pertama yang terbit untuk klien yang sudah
+setahun memakai aplikasi tidak boleh mengunci karyawannya di luar pintu gara-gara angka di
+paket — itu memutus jualan, bukan menagih. Karena itu penegakannya **hanya di `create`**, bukan
+di `update`/`delete`: klien yang lewat batas harus tetap bisa merapikan datanya sendiri.
+:::
+
+### Yang SENGAJA tidak ditegakkan
+
+| Kode | Kenapa |
+|---|---|
+| `limit.customers` | Pelanggan sering dibuat di tengah transaksi. Menolaknya berarti menghentikan penjualan di depan pembeli yang sedang menunggu di kasir. Tidak sebanding dengan apa pun yang dihemat. |
+| `limit.retention` | Itu soal sejauh apa laporan boleh menengok ke belakang — **penyaringan**, bukan penolakan. Butuh pemikiran produk sendiri (laporan yang diam-diam terpotong lebih membingungkan daripada ditolak terang-terangan). |
+| `limit.wa_percakapan` | **Jangan pernah.** Meta menagih per pesan langsung ke akun WhatsApp Business klien, jadi tidak ada kuota yang perlu dijaga aplikasi. Alasan lengkapnya di `docs/lisensi.md` repo qendali. |
+
+### Empat aturan yang jangan dilonggarkan
+
+1. **Gagal-terbuka.** Tidak ada kunci, kunci tidak sah, atau nilai batasnya `null` → **tanpa
+   batas sama sekali**, dan database tidak disentuh (nol query tambahan di jalur itu). Kode batas
+   yang **tidak ada** di kunci juga dibaca `null` = tanpa batas — itu memang disengaja, jangan
+   "diperbaiki" jadi nol.
+2. **Hitungannya gagal = jangan menolak.** Kalau query hitungnya melempar (database sedang
+   bermasalah), batasnya dilewati dan cukup dicatat di log. Menolak orang karena *hitungannya*
+   gagal berarti menolak tanpa tahu dia sudah penuh atau belum.
+3. **`0` ≠ `null`.** Nol berarti jenis itu memang **tidak termasuk paket** → satu pun tidak
+   boleh. Di kode ini artinya `if (batas === null)`, bukan `if (!batas)`.
+4. **Yang dihitung hanya yang aktif.** Karyawan yang keluar tidak dihapus (`isActive: false` +
+   `resignedAt`, supaya riwayat lead/kas/tugasnya tetap utuh), dan cabang yang punya riwayat
+   memang tidak bisa dihapus — jadi menghitung semua baris berarti menagih klien untuk orang yang
+   resign dua tahun lalu, dan klien yang menutup satu cabang tidak akan pernah bisa buka cabang
+   baru lagi.
+
+::: warning `limit.branches` = CompanyBranch, bukan Branch
+Model `Branch` (tabel `branches`) itu **titik di Peta Cuan** — lat/long plus omzet pesaing, bisa
+diisi puluhan baris untuk riset lokasi. Cabang yang dilisensi adalah **`CompanyBranch`** (tabel
+`company_branches`). Tertukar di sini = klien satu outlet ditolak menambah cabang karena dia
+rajin memetakan pesaing. Tesnya menjaga ini: `prisma.branch.count` **tidak boleh** pernah
+dipanggil.
+:::
+
+### Apa yang dilihat klien
+
+Jawaban penolakannya:
+
+```json
+{ "statusCode": 403, "error": "Forbidden", "kode": "lisensi_batas_penuh",
+  "batas": { "kode": "limit.users", "nilai": 5, "pemakaian": 5 },
+  "message": "Paket Usaha membatasi 5 pengguna, dan sekarang sudah ada 5. …" }
+```
+
+`message`-nya menyebut jumlah sekarang, batasnya, nama paketnya, dan dua jalan keluar — jadi
+frontend cukup menampilkannya apa adanya, tidak perlu mengarang kalimat sendiri:
+
+> Paket Usaha membatasi 5 pengguna, dan sekarang sudah ada 5. Naikkan paket di Pengaturan →
+> Langganan, atau tandai pengguna lain keluar dulu.
+
+Yang sudah lewat batas mendapat kalimat yang menenangkan dulu, karena pertanyaan pertama di
+kepalanya adalah "karyawan saya dihapus?":
+
+> Paket Usaha membatasi 5 pengguna, dan sekarang sudah ada 8. Yang 8 itu tetap jalan seperti
+> biasa — yang belum bisa cuma menambah yang baru. Naikkan paket di Pengaturan → Langganan, atau
+> tandai pengguna lain keluar dulu.
+
+Di **Pengaturan → Langganan** ada bagian "Pemakaian paket": `Pengguna 4 dari 5 pengguna` dengan
+bar tipis. Penandanya cuma muncul kalau tinggal satu slot (amber, "Tinggal 1 pengguna lagi.")
+atau sudah penuh — **bukan** merah, dan tidak ada tombol yang dimatikan dari situ. Aturannya di
+`frontend/src/lib/lisensi/pemakaian-batas.ts` (murni, ada tesnya); batas `null` tidak ditampilkan
+sama sekali, batas `0` tetap ditampilkan.
+
+### Kalau mau menambah jenis batas baru
+
+Tiga tempat, semuanya wajib:
+
+1. `BATAS_DITEGAKKAN` di `aturan-batas.ts` — kode, nama, satuan, saran jalan keluar.
+2. `CARA_HITUNG` di `batas.service.ts` — cara menghitung yang **aktif** (sebut kolomnya di
+   komentar, dan pastikan modelnya yang benar).
+3. Tempat penambahannya memanggil `wajibBolehMenambah()`, **sesudah** semua pemeriksaan wewenang —
+   kalau dipanggil sebelum, orang yang tidak berhak ikut diberi tahu jumlah data klien ini.
+
+Plus label di `frontend/src/lib/lisensi/pemakaian-batas.ts` supaya barisnya ikut tampil.
+
+::: tip Kenapa bukan penjaga global seperti `@ButuhFitur`
+`BatasService` perlu database, dan penjaga global (APP_GUARD) jalan **sebelum** `JwtAuthGuard` di
+controller — jadi tamu yang belum masuk pun bisa memancing jumlah pengguna klien lewat pesan
+galatnya. Karena itu yang memanggilnya adalah service tempat penambahan terjadi.
+:::
+
 ## `GET /saya/fitur` (untuk frontend)
 
-Wajib login. Mengembalikan status lisensi, daftar kode fitur, batas, paket, produk, dan tanggal
-berlaku — **tanpa** kunci mentah dan **tanpa** token.
+Wajib login. Mengembalikan status lisensi, daftar kode fitur, batas, pemakaian, paket, produk,
+dan tanggal berlaku — **tanpa** kunci mentah dan **tanpa** token.
 
 ```json
 {
@@ -169,10 +276,16 @@ berlaku — **tanpa** kunci mentah dan **tanpa** token.
   "produk": "qendali", "paket": "produksi", "klien": "toko-budi", "namaKlien": "Toko Budi",
   "fitur": ["pos.core", "print.queue", "production.board"],
   "batas": { "limit.users": 8, "limit.branches": null },
+  "pemakaian": { "limit.users": 5 },
   "berlakuSampai": "2026-10-25T00:00:00.000Z", "tenggangSampai": "2026-11-08T00:00:00.000Z",
   "sisaHari": 29, "sisaHariTenggang": 43, "terakhirTerlihat": "2026-09-26T03:37:12.004Z"
 }
 ```
+
+`pemakaian` = jumlah yang terpakai sekarang, bentuknya kembar dengan `batas` supaya gampang
+dipasangkan di layar. Yang masuk ke situ **hanya** kode yang benar-benar punya batas angka: yang
+tanpa batas tidak dihitung (nol query), dan kode yang gagal dihitung **dilewati** — jangan dibaca
+sebagai nol. Instalasi tanpa kunci menjawab `{}`.
 
 `POST /saya/lisensi/segarkan` (Owner) menarik kunci terbaru sekarang — dipakai setelah klien
 bayar atau ganti paket, supaya menu baru langsung muncul tanpa menunggu jadwal harian.
@@ -287,18 +400,19 @@ masih boleh — itu memang gunanya tenggang.
 
 ## Yang BELUM dikerjakan (jangan dianggap sudah)
 
-- **Batas angka belum ditegakkan sama sekali.** `limit.users`, `limit.branches`,
-  `limit.customers`, `limit.retention` bisa dibaca (`lisensi.batasFitur('limit.users')`) tapi
-  tidak ada satu pun tempat yang menolak penambahan pengguna atau cabang. Klien paket Usaha
-  masih bisa membuat 50 pengguna. Menegakkannya perlu keputusan sendiri: yang sudah lewat batas
-  saat kunci pertama dipasang mau diapakan.
+- **Menyalakan kembali yang nonaktif belum dibatasi.** `limit.users` & `limit.branches` dijaga di
+  `create` saja (keputusan pemilik: jangan sentuh endpoint ubah/hapus), jadi klien yang sudah
+  penuh masih bisa menaikkan jumlah aktifnya dengan mengaktifkan lagi karyawan yang keluar atau
+  cabang yang ditutup. Dibiarkan dengan sadar — memblokirnya berarti klien yang lewat batas tidak
+  bisa lagi merapikan datanya, dan itu jalan keluarnya. Yang perlu diperhatikan kalau nanti mau
+  ditutup: `setStatus({active:true})` di `users.service.ts` dan `update({isActive:true})` di
+  `company-branches.service.ts`.
+- **Batas yang lain memang tidak ditegakkan.** `limit.customers` & `limit.retention` sengaja
+  dilewati — alasannya di bagian "Batas angka" di atas, jangan ditambahkan tanpa membacanya dulu.
 - **Baru 3 titik yang dijaga `@ButuhFitur`.** Sisa modul (CRM, WhatsApp, cabang, papan tugas,
   leaderboard, backup, …) masih terbuka untuk semua paket. `/production` sengaja belum dijaga
   menyeluruh: `meter/*` sebenarnya milik `click.counting` dan `pipeline/*` milik
   `production.pipeline`, jadi satu kode untuk seluruh controller justru salah.
-- `limit.wa_percakapan` **jangan pernah ditegakkan** walau muncul di kunci lama — Meta menagih
-  per pesan langsung ke akun klien, jadi tidak ada kuota yang perlu dijaga aplikasi. Alasan
-  lengkapnya di `docs/lisensi.md` repo qendali.
 - **Halaman, bukan menu, belum dijaga di frontend.** Menu yang fiturnya tidak ada sudah
   disembunyikan (lihat "Menu dasbor ikut isi kunci"), tapi mengetik alamatnya langsung tetap
   membuka halamannya — isinya baru kosong/galat saat API-nya menjawab 403. Itu disengaja untuk
@@ -308,8 +422,11 @@ masih boleh — itu memang gunanya tenggang.
 - **Menu di luar `PETA_FITUR_MENU` belum dipetakan** — mis. `/tv/leaderboard` (`team.tvboard`),
   `/owner/analisa-keuangan` (`owner.finance`), dan `/owner/laporan-bulanan`. Ketiganya bukan item
   nav (dibuka dari dalam halaman lain), jadi penyembunyian lewat nav tidak menyentuhnya.
-- **Batas angka belum ditampilkan ke pemakai.** `batas` sudah ikut di `/saya/fitur` dan bisa
-  dibaca `useLisensi()`, tapi belum ada layar yang bilang "pengguna 8 dari 8".
+- **Pemakaian baru tampil di satu layar.** Pengaturan → Langganan sudah menulis "4 dari 5
+  pengguna", tapi halaman Karyawan & Cabang sendiri belum memberi tahu apa pun sebelum orangnya
+  menekan Simpan dan kena 403. Yang perlu diingat kalau nanti ditambahkan: jangan mematikan
+  tombolnya dari frontend (`/saya/fitur` yang gagal akan mengunci pemilik dari halaman
+  karyawannya) — cukup tampilkan angkanya.
 
 ## Pemecahan masalah
 
@@ -336,15 +453,29 @@ cd backend  && npm test         # termasuk src/lisensi/*.spec.ts — murni, tanp
 cd frontend && npm test         # aturan menu & spanduk — node --test, tanpa jest
 ```
 
-Tes frontend-nya `src/lib/lisensi/aturan-menu.test.mjs`, dijalankan oleh **test runner bawaan
-Node** (`node --test`). Tidak ada jest, tidak ada dependensi baru, dan `aturan-menu.ts` sengaja
-tanpa satu pun import — jadi tesnya jalan di mesin yang `frontend/node_modules`-nya belum
-dipasang sekalipun. Perlu **Node ≥ 22.18** (yang melepas tipe dari `.ts` sendiri); di Node 20
-tesnya tidak jalan, sementara `npm run build` tetap aman.
+Tes frontend-nya `src/lib/lisensi/aturan-menu.test.mjs` + `pemakaian-batas.test.mjs`, dijalankan
+oleh **test runner bawaan Node** (`node --test`). Tidak ada jest, tidak ada dependensi baru, dan
+kedua berkas yang diujinya sengaja tanpa satu pun import — jadi tesnya jalan di mesin yang
+`frontend/node_modules`-nya belum dipasang sekalipun. Perlu **Node ≥ 22.18** (yang melepas tipe
+dari `.ts` sendiri); di Node 20 tesnya tidak jalan, sementara `npm run build` tetap aman.
 
 Yang dijaganya: fitur ada → tampil, fitur tidak ada → sembunyi, gagal ambil → semua tampil,
 tidak ditegakkan → semua tampil, menu tanpa pemetaan → tampil, hanya-baca tidak menyembunyikan
-apa-apa, dan lima href yang tidak boleh pernah dipetakan.
+apa-apa, dan lima href yang tidak boleh pernah dipetakan. Untuk batas: `null` disembunyikan, `0`
+tetap tampil, dan hitungan yang tidak dikirim backend tidak ditebak jadi nol.
+
+Batasnya punya dua berkas tes di backend, dan keduanya menjaga hal yang berbeda:
+
+| Berkas | Yang dijaganya |
+|---|---|
+| `src/lisensi/batas.spec.ts` | Keputusannya: gagal-terbuka, `0` ≠ `null`, pas-di-batas ditolak, dan `where` yang dikirim ke Prisma (`isActive: true`, model `companyBranch` — `prisma.branch.count` tidak boleh pernah dipanggil). |
+| `src/lisensi/batas-terpasang.spec.ts` | Bahwa keputusan itu benar-benar **dipanggil** di `UsersService.create` & `CompanyBranchesService.create`, sesudah pemeriksaan wewenang, dan **tidak** dipanggil di `setStatus`/`update`. Tanpa tes ini, pemeriksanya bisa sempurna tapi tidak pernah dijalankan siapa pun. |
+
+Hitungannya juga pernah **diuji ke MySQL sungguhan** sekali (26 Sep 2026, database sekali pakai
+`pos_uji_batas`): 5 baris `users` dengan 2 yang sudah keluar → dihitung 3; 3 `company_branches`
+dengan 1 ditutup → dihitung 2; 5 titik Peta Cuan di tabel `branches` → diabaikan; dan penolakan
+tidak mengubah satu baris pun. Angkanya dicocokkan ke `SELECT COUNT(*) … WHERE is_active=1`
+langsung. Tes DB-nya tidak ikut masuk repo — `npm test` harus tetap jalan tanpa database.
 
 Tes lisensinya meniru kasus uji di sisi penerbit (`test/lisensi.test.mjs` di repo qendali), jadi
 kalau suatu hari dua sisi berbeda, ketahuannya dari tes yang gagal — bukan dari klien yang

@@ -51,6 +51,13 @@ export interface KeadaanLisensi {
     namaKlien: string | null;
     fitur: string[];
     batas: Record<string, number | null>;
+    /**
+     * Jumlah yang TERPAKAI sekarang untuk batas yang ditegakkan backend, mis.
+     * `{ "limit.users": 4 }`. Bentuknya sengaja kembar dengan `batas` supaya keduanya gampang
+     * dipasangkan. Kode yang tidak ada di sini berarti belum/tidak dihitung — jangan dibaca
+     * sebagai nol. Yang memakainya: `pemakaian-batas.ts`.
+     */
+    pemakaian?: Record<string, number>;
     berlakuSampai: string | null;
     tenggangSampai: string | null;
     sisaHari: number | null;
