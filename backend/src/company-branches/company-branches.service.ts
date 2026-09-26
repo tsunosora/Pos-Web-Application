@@ -1,9 +1,18 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { BatasService } from '../lisensi/batas.service';
 
 @Injectable()
 export class CompanyBranchesService {
-    constructor(private prisma: PrismaService) {}
+    /**
+     * `batas` = pemeriksa batas angka lisensi (`limit.branches`), dari `LisensiModule` yang
+     * @Global. Wajib, bukan opsional: batas yang diam-diam mati lebih buruk daripada aplikasi
+     * yang gagal naik dengan galat DI yang jelas.
+     */
+    constructor(
+        private prisma: PrismaService,
+        private readonly batas: BatasService,
+    ) {}
 
     async findAll() {
         return (this.prisma as any).companyBranch.findMany({
@@ -38,6 +47,13 @@ export class CompanyBranchesService {
         logoUrl?: string;
     }) {
         if (!data.name?.trim()) throw new BadRequestException('Nama cabang wajib diisi');
+
+        // Batas jumlah cabang dari kunci lisensi. Cuma di sini — `update` (termasuk menyalakan
+        // kembali cabang yang nonaktif) sengaja TIDAK diperiksa: klien yang sudah lewat batas
+        // harus tetap bisa merapikan datanya, dan itu justru jalan keluarnya. Tanpa kunci
+        // lisensi, baris ini tidak melakukan apa pun.
+        await this.batas.wajibBolehMenambah('limit.branches');
+
         return (this.prisma as any).companyBranch.create({
             data: {
                 name: data.name.trim(),

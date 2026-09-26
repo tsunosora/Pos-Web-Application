@@ -14,19 +14,36 @@ import { Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { BatasService } from './batas.service';
 import { LisensiService } from './lisensi.service';
 
 const ROLE_PEMILIK = ['OWNER', 'SUPERADMIN', 'SUPER_ADMIN'];
 
 @Controller('saya')
 export class LisensiController {
-    constructor(private readonly lisensi: LisensiService) {}
+    constructor(
+        private readonly lisensi: LisensiService,
+        private readonly batas: BatasService,
+    ) {}
+
+    /**
+     * Ringkasan + `pemakaian`: jumlah yang terpakai sekarang untuk batas yang ditegakkan, mis.
+     * `{ "limit.users": 4 }`. Ditempel di sini, bukan di endpoint baru — halaman Langganan sudah
+     * memanggil endpoint ini, dan satu panggilan lagi cuma menambah tempat yang bisa gagal.
+     *
+     * Bentuknya sengaja sama dengan `batas` (peta kode → angka) supaya keduanya gampang
+     * dipasangkan di layar. Instalasi tanpa kunci menjawab `{}` — tidak ada batas, tidak ada
+     * yang perlu dihitung, dan tidak ada query ke database.
+     */
+    private async ringkasanLengkap() {
+        return { ...this.lisensi.ringkasan(), pemakaian: await this.batas.ringkasanPemakaian() };
+    }
 
     /** Wajib login — daftar fitur & paket klien bukan informasi publik. */
     @Get('fitur')
     @UseGuards(JwtAuthGuard)
     fitur() {
-        return this.lisensi.ringkasan();
+        return this.ringkasanLengkap();
     }
 
     /**
@@ -39,6 +56,6 @@ export class LisensiController {
     @Roles(...ROLE_PEMILIK)
     async segarkan() {
         await this.lisensi.segarkan('manual');
-        return this.lisensi.ringkasan();
+        return this.ringkasanLengkap();
     }
 }

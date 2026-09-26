@@ -2,6 +2,7 @@ import { Injectable, BadRequestException, ConflictException, ForbiddenException 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { isManagerLevelRole, isOwnerLevelRole } from '../auth/role-groups';
+import { BatasService } from '../lisensi/batas.service';
 import * as bcrypt from 'bcrypt';
 
 /** Pelaku aksi (dari req.user) — dasar batas wewenang owner vs admin/manajer. */
@@ -13,7 +14,16 @@ export interface UserActor {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  /**
+   * `batas` = pemeriksa batas angka lisensi (`limit.users`). Disuntik dari `LisensiModule`
+   * yang @Global, jadi `UsersModule` tidak perlu `imports`. Sengaja WAJIB, bukan opsional:
+   * kalau suatu hari wiringnya hilang, aplikasinya harus gagal naik dengan galat DI yang
+   * jelas — bukan diam-diam berhenti menegakkan batas pengguna.
+   */
+  constructor(
+    private prisma: PrismaService,
+    private readonly batas: BatasService,
+  ) { }
 
   /**
    * Non-owner (admin/manajer) hanya boleh mengelola akun di cabangnya sendiri
@@ -67,6 +77,13 @@ export class UsersService {
     if (existing) {
       throw new ConflictException('Email sudah terdaftar.');
     }
+
+    // Batas jumlah pengguna dari kunci lisensi. Diperiksa DI SINI — sesudah semua pemeriksaan
+    // wewenang (supaya orang yang tidak berhak tidak ikut diberi tahu jumlah pengguna klien)
+    // dan sesudah email duplikat (pesan "email sudah terdaftar" lebih berguna, dan email yang
+    // sudah ada memang tidak menambah pengguna baru). Tanpa kunci lisensi ini tidak melakukan
+    // apa pun. Yang SUDAH ada tidak pernah disentuh — lihat `lisensi/aturan-batas.ts`.
+    await this.batas.wajibBolehMenambah('limit.users');
 
     const salt = await bcrypt.genSalt();
     const passwordHash = await bcrypt.hash(createUserDto.password, salt);

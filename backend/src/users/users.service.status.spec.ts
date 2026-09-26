@@ -49,8 +49,11 @@ function makeSvc(
       count: jest.fn(() => Promise.resolve(opts.history?.[m] ?? 0)),
     };
   }
-  const svc = new UsersService(prisma);
-  return { svc, prisma };
+  // Batas lisensi tidak ada urusan dengan menandai karyawan keluar (yang dibatasi cuma
+  // PENAMBAHAN pengguna baru — lihat `lisensi/batas.spec.ts`), jadi cukup dipalsukan.
+  const batas: any = { wajibBolehMenambah: jest.fn(() => Promise.resolve()) };
+  const svc = new UsersService(prisma, batas);
+  return { svc, prisma, batas };
 }
 
 describe('UsersService.setStatus — tandai karyawan keluar', () => {
