@@ -167,6 +167,8 @@ Yang **sudah** dijaga sekarang:
 | `/whatsapp/broadcasts*` (10 rute), `/whatsapp/auto-replies*` (4), `/whatsapp/reminders/*` (3) | `wa.cloud` **+** `wa.automation` | metode |
 | Seluruh `/social/*` (kecuali webhook & data-deletion) | `social.inbox` | kelas |
 | Seluruh `/meta-ads/*` | `ads.meta` | kelas |
+| Seluruh `/crm/kpi/*` | `crm.leads` **atau** `team.leaderboard` **atau** `cs.rating` | kelas, `@ButuhSalahSatuFitur` |
+| Seluruh `/crm/custom-product-metrics/*` | sama dengan `/crm/kpi` | kelas, `@ButuhSalahSatuFitur` |
 
 `WhatsappCloudController` itu contoh **campuran yang dijaga per metode**: bawaannya `wa.cloud` di
 kelas, lalu broadcast/balasan-otomatis/reminder menulis ulang `@ButuhFitur('wa.cloud', 'wa.automation')`
@@ -175,6 +177,34 @@ dekorator kelas (`getAllAndOverride`), jadi kalau `wa.cloud` tidak disebut lagi 
 justru jadi lebih longgar daripada inboxnya. Keduanya memang dijual satu paket (add-on
 `whatsapp_resmi` = `wa.cloud` + `wa.automation`), tapi pengecualian per klien di dasbor bisa
 memberi salah satunya saja — dan siaran tanpa channel WA tidak ada artinya.
+
+### `@ButuhFitur` vs `@ButuhSalahSatuFitur`
+
+Dua dekorator, dan **bedanya menentukan apakah klien yang sudah bayar kena 403 atau tidak**:
+
+| Dekorator | Artinya | Dipakai untuk |
+|---|---|---|
+| `@ButuhFitur('a', 'b')` | **SEMUA** kode wajib ada di kunci (DAN) | Add-on yang memang dijual sepaket, mis. `wa.cloud` + `wa.automation` untuk broadcast |
+| `@ButuhSalahSatuFitur('a', 'b', 'c')` | **SALAH SATU** sudah cukup (ATAU) | Halaman yang isinya campur dari beberapa fitur sekaligus |
+
+Yang kedua lahir dari `/crm/kpi`: satu layar berisi kepatuhan follow-up (`crm.leads`), leaderboard
+desainer & operator (`team.leaderboard`), dan tren rating CS (`cs.rating`). Dengan `@ButuhFitur`
+ketiganya jadi syarat sekaligus, jadi klien yang cuma berlangganan leaderboard ditolak di halaman
+yang separuhnya memang miliknya — itu sebabnya kedua endpoint ini sebelumnya dibiarkan **terbuka
+sama sekali**. `/crm/custom-product-metrics` ikut daftar yang sama karena dia halaman setelan
+metrik yang tampil di dasbor itu; kalau satu daftar diubah, ubah dua-duanya.
+
+Metadatanya dua kunci yang **terpisah**, jadi keduanya tidak saling menimpa: memasang dua-duanya
+di satu handler berarti dua-duanya harus lolos. Boleh, tapi hampir selalu tanda daftar fiturnya
+perlu dipikir ulang, bukan ditumpuk.
+
+::: warning Yang TIDAK dilakukannya
+`@ButuhSalahSatuFitur` **tidak menyaring isi jawaban**. Klien yang cuma punya `cs.rating` tetap
+menerima seluruh payload dasbor KPI, termasuk angka leaderboard. Menyaring per bagian butuh
+pemikiran produk sendiri (panel kosong tanpa penjelasan lebih membingungkan daripada panel yang
+ada isinya), dan endpoint ini sebelumnya tidak dijaga sama sekali — jadi keadaan sekarang lebih
+rapat daripada sebelumnya, bukan lebih longgar.
+:::
 
 ### Yang SENGAJA dikecualikan (jangan "dirapikan")
 
@@ -185,26 +215,154 @@ memberi salah satunya saja — dan siaran tanpa channel WA tidak ada artinya.
 | `POST/GET /social/data-deletion` | Callback hapus-data Meta + halaman statusnya. Kewajiban menghapus data tidak ikut hilang kalau klien turun paket. |
 | `GET /storefront/*` | API baca-lead untuk situs toko klien; otentikasinya token tersendiri (`X-Storefront-Read-Token`), bukan sesi pengguna. Menjaganya = mematikan situs yang sedang hidup. |
 | `POST /orders/public` | Form order di situs klien. 403 di sini = order pelanggan hilang di tengah jalan. |
-| `POST /crm/public/*` | Dasbor marketing & papan TV, masuknya cuma PIN. Tanpa sesi pengguna. |
+| `POST /crm/public/*` | Dasbor marketing & papan TV, masuknya cuma PIN. Tanpa sesi pengguna, dan layarnya menyala terus — 403 di situ tidak ada yang membacanya. Dasbor KPI yang pakai login SUDAH dijaga, lihat tabel di atas. |
 | Seluruh `/customers/*` | `customers.core` ada di **semua** paket termasuk Gratis. Menjaganya nol gunanya dan cuma menambah kemungkinan salah. |
 | `/whatsapp/status`, `/whatsapp/send`, `/whatsapp/broadcast`, `/whatsapp/config/*` (kelas `WhatsappController`) | Bot tempel-QR (whatsapp-web.js), **bukan** Cloud API: tidak punya kode fitur di `paket.json`, tidak dijual di paket mana pun, tidak menagih Meta sepeser pun. Dipakai rekap shift ke grup pemilik. Alasan yang sama dengan menu `/settings/whatsapp` di frontend. |
-| `/crm/kpi/*` | Isinya campur: kepatuhan follow-up (`crm.leads`), leaderboard desainer/operator (`team.leaderboard`), tren rating CS (`cs.rating`). Satu kode untuk seluruh controller justru salah — sama seperti `/production`. |
-| `/crm/custom-product-metrics/*` | Setelan metrik yang tampil di dasbor KPI itu, jadi ikut menunggu pemilahan `/crm/kpi`. |
 | `/work-orders/*` | Namanya di bawah `crm/`, tapi isinya SPK cetak (mockup, pola print) — urusan produksi, bukan prospek. |
 
 Aturannya sama dengan aturan menu: **kalau ragu, biarkan terbuka.** Endpoint yang ternyata boleh
 dipakai lalu ditolak 403 jauh lebih mahal daripada endpoint yang kelewat longgar.
 
-**Penjaga ini tingkat HTTP, jadi cron tidak tersentuh.** Yang perlu diingat: broadcast
-(`broadcast.service.ts`, tiap menit), reminder follow-up (`reminders.service.ts`, tiap 15 menit),
-sinkron template Meta (tiap 10 menit), bersih-bersih media (03.00), sinkron komentar IG/FB
-(`social-comments.service.ts`, tiap 5 menit), dan REPEAT_ORDER CRM (`follow-ups.cron.ts`, Senin
-08.00 — dan itu pun mati kecuali `CRM_REPEAT_ORDER_AUTO=on`) semuanya dipanggil penjadwal di dalam
-proses, **bukan** lewat HTTP. Klien yang kode fiturnya dicabut tetap tidak bisa MEMBUAT broadcast
-atau reminder baru lewat dasbor, tapi yang sudah terjadwal sebelum paketnya turun akan tetap
-terkirim. Tidak ada cron yang memanggil API-nya sendiri lewat HTTP (sudah dicek), jadi tidak ada
-cron yang mati gara-gara penjagaan ini. Kalau suatu hari ini mau ditutup, tempatnya di service —
-bukan di penjaga HTTP.
+**Penjaga ini tingkat HTTP, jadi cron tidak tersentuh** — dan itulah kenapa ada bagian berikutnya.
+
+## Pekerjaan terjadwal ikut lisensi
+
+`FiturGuard` cuma melihat permintaan yang masuk lewat controller. Cron dan alur webhook tidak lewat
+controller, jadi sampai 26 Sep 2026 klien yang add-on WhatsApp-nya dicabut **tetap mengirim**
+broadcast & reminder yang sudah terjadwal sebelum paketnya turun — dan tiap pesan itu ditagih Meta
+ke kartu kliennya sendiri. Celah itu sekarang ditutup di **satu tempat**:
+
+| Berkas | Isinya |
+|---|---|
+| `src/lisensi/aturan-terjadwal.ts` | Aturannya: pekerjaan → kode fitur, dan putusannya. Murni, tanpa Nest/DB/jaringan. |
+| `src/lisensi/penjaga-terjadwal.service.ts` | `PenjagaTerjadwal` (disuntik lewat `LisensiModule` yang `@Global`) + fungsi `lewatiKarenaLisensi()` yang dipakai call site. |
+
+Satu baris di paling atas tiap penjadwal, sebelum baris apa pun disentuh:
+
+```ts
+@Cron('0 * * * * *')
+async sweepScheduled() {
+    if (lewatiKarenaLisensi(this.penjagaTerjadwal, 'wa.broadcast')) return;
+    …
+}
+```
+
+### Penjadwal → kode fitur → tempat pemeriksaannya
+
+| Penjadwal | Jadwal | Kode fitur (semua wajib) | Berhenti saat hanya-baca? | Dipasang di |
+|---|---|---|---|---|
+| Broadcast terjadwal | tiap menit | `wa.cloud` + `wa.automation` | **ya** | `broadcast.service.ts` → `sweepScheduled()` |
+| Pengingat follow-up | tiap 15 menit | `wa.cloud` + `wa.automation` | **ya** | `reminders.service.ts` → `sweepFollowUps()` |
+| Balasan otomatis WA | dipicu webhook | `wa.cloud` + `wa.automation` | **ya** | `auto-reply.service.ts` → `handleInbound()` |
+| Sinkron status template Meta | tiap 10 menit | `wa.cloud` | tidak | `templates.service.ts` → `autoSyncStatuses()` |
+| Sinkron komentar & DM IG/FB | tiap 5 menit | `social.inbox` | tidak | `social-comments.service.ts` → `autoSync()` |
+| Repeat order CRM | Senin 08.00 WIB | `crm.leads` | **ya** | `follow-ups.cron.ts` → `scheduleRepeatOrders()` |
+
+Yang terakhir juga masih mati kecuali `CRM_REPEAT_ORDER_AUTO=on`, dan **sakelar itu diperiksa
+lebih dulu**: fitur ini mati untuk hampir semua instalasi, jadi memeriksa lisensi di depan berarti
+tiap Senin menulis peringatan lisensi untuk pekerjaan yang tidak akan jalan juga — log yang
+menuduh hal yang salah lebih buruk daripada log yang tidak ada.
+
+Balasan otomatis bukan cron, tapi celahnya persis sama: webhook Meta **sengaja** dibiarkan terbuka
+(lihat tabel pengecualian di atas), jadi tanpa pemeriksaan di situ balasannya tetap terkirim dan
+tetap ditagih. Yang dilewati **pesannya**, bukan pencatatannya: pesan masuk tetap tersimpan, dan
+**opt-out/opt-in tetap dicatat ke database** — orang yang membalas "STOP" harus berhenti dapat
+pesan apa pun keadaan langganannya, itu janji yang tertulis di footer template dan tidak ikut
+kedaluwarsa. Yang hilang cuma balasan konfirmasinya.
+
+**Bersih-bersih media WA (03.00) sengaja TIDAK dijaga.** Dia cuma menghapus berkas media lama di
+disk sendiri: tidak mengirim apa pun, tidak menyentuh Meta, tidak menagih klien sepeser pun. Tidak
+ada kode fitur yang cocok untuk tukang sapu, dan menjaganya justru merugikan klien — disknya penuh
+sementara dia sudah bayar lagi. Penyegaran lisensi harian juga tidak dijaga: itu satu-satunya jalan
+KELUAR dari keadaan terkunci.
+
+### Hanya-baca: yang mengirim berhenti, yang menarik tidak
+
+Keputusannya (26 Sep 2026): saat lisensi sudah **hanya-baca** (kedaluwarsa melewati tenggang),
+pengiriman terjadwal **ikut dilewati** — dia membuat data baru di instalasi yang statusnya sudah
+"cuma boleh dibaca", dan menimbulkan biaya Meta ke klien yang justru sedang tidak membayar.
+
+Yang **tidak** ikut berhenti: sinkron status template dan sinkron komentar/DM. Keduanya cuma
+MENARIK keadaan dari Meta. Memblokirnya berarti membuang komentar dan pesan pelanggan — alasan yang
+persis sama dengan kenapa webhook Meta dibiarkan terbuka di `hanya-baca.guard.ts`.
+
+::: tip MASA TENGGANG MASIH JALAN PENUH
+Cuma kedaluwarsa yang berhenti. Selama tenggang, keenam penjadwal jalan seperti biasa — sama
+seperti menulis data yang masih boleh selama tenggang. Tenggang yang mematikan broadcast sama saja
+dengan tenggang yang tidak ada gunanya.
+:::
+
+### Pekerjaan yang dilewati TIDAK HILANG
+
+Ini yang paling penting, dan yang paling gampang dirusak orang yang "merapikan" kode ini nanti.
+Pekerjaan yang dilewati **tidak ditandai gagal, tidak dihapus, dan penghitung percobaannya tidak
+dinaikkan**. Karena itu pemeriksaannya dipasang **sebelum baris apa pun diklaim**:
+
+- **Broadcast** tetap `SCHEDULED` dengan `scheduledAt` yang sudah lewat → sapuan menit berikutnya
+  setelah fiturnya dipasang lagi menjalankannya sendiri. Kalau pemeriksaannya dipindah ke bawah
+  `run()`, statusnya sudah jadi `RUNNING` → `PAUSED` dan staf harus melanjutkan manual.
+- **Reminder** keluar sebelum `send()` pernah dipanggil. `send()` menulis `WaReminderLog` sebagai
+  penanda dedup, dan penanda itu membuat FU yang sama **tidak pernah** diingatkan lagi.
+- **Repeat order CRM** tidak membuat satu baris `FollowUp` pun.
+
+Yang menjaganya: `prisma` palsu di tesnya **melempar begitu disentuh**, jadi tesnya lulus hanya
+kalau cron-nya benar-benar keluar sebelum satu baris pun dibaca atau ditulis.
+
+**Satu pengecualian yang harus jujur disebut:** repeat order CRM jendelanya **bergerak** (order
+terakhir 90–97 hari lalu, irisan satu minggu). Putaran yang dilewati tidak kembali sendiri minggu
+depan — irisannya sudah bergeser. Itu sifat pekerjaannya, bukan kerusakan yang dibawa penjaga ini
+(hal yang sama terjadi kalau server mati pada Senin 08.00), tapi jangan pernah mengklaim
+"semuanya lanjut sendiri" untuk yang satu ini.
+
+### Log: per PERUBAHAN, bukan per putaran
+
+Penjadwal broadcast jalan **tiap menit**. Satu baris per putaran = 1.440 baris sehari untuk satu
+klien yang paketnya turun, dan log server yang tenggelam justru membuat masalah sungguhan tidak
+kelihatan. Jadi `PenjagaTerjadwal` mencatat **sekali saat keadaannya berubah**, lalu diam 6 jam
+untuk alasan yang sama, dan menulis satu baris lagi saat pekerjaannya pulih:
+
+```
+WARN  [Lisensi] broadcast WhatsApp terjadwal dilewati: kode fitur wa.cloud, wa.automation tidak
+                ada di paket usaha. Pekerjaannya tidak dibatalkan — dilanjutkan sendiri begitu
+                fiturnya dipasang lagi di qendali.com
+WARN  [Lisensi] pengingat follow-up WhatsApp dilewati: lisensi HANYA-BACA (masa_berlaku_habis).
+                Pekerjaannya tidak dibatalkan — dilanjutkan sendiri setelah lisensi diperbarui
+LOG   [Lisensi] broadcast WhatsApp terjadwal jalan lagi (lisensinya sudah cocok).
+```
+
+Tiap pekerjaan punya barisnya sendiri, dan alasan yang **berubah** (fitur dicabut → lalu
+kedaluwarsa) dicatat lagi; kalau tidak, log berhenti bercerita. Polanya dipinjam dari
+`social-comments.service.ts` (`lastAutoErrors`), yang sudah pakai cara yang sama untuk galat
+sinkron tiap 5 menit.
+
+### Gagal-terbuka, dan penjadwal yang tidak boleh mati
+
+`bolehJalan()` **tidak pernah melempar**, dan kalau ragu jawabannya "jalan":
+
+| Keadaan | Hasilnya |
+|---|---|
+| Tanpa kunci / penegakan mati | jalan seperti biasa |
+| Kunci gagal dibaca / tidak sah | jalan untuk yang cuma menarik; pengiriman berhenti karena statusnya hanya-baca |
+| Pemeriksaannya sendiri melempar galat | **jalan**, galatnya dicatat sebagai `error` untuk diperbaiki |
+| `PenjagaTerjadwal` tidak tersuntik | jalan (`lewatiKarenaLisensi(undefined, …)` = `false`) |
+
+Penjadwal yang mati diam-diam tidak meninggalkan jejak galat di mana pun: pemiliknya baru tahu
+berhari-hari kemudian, dari pelanggan yang tidak pernah dihubungi. Itu kerusakan yang jauh lebih
+mahal daripada beberapa pesan yang kelewat terkirim.
+
+::: danger Jangan menulis `!this.penjagaTerjadwal?.bolehJalan(kode)`
+Parameter penjaganya `@Optional()`. `!undefined?.bolehJalan(…)` bernilai `true`, jadi bentuk itu
+membuat penjadwalnya **berhenti total tanpa satu baris log** begitu penjaganya tidak tersuntik —
+arah kegagalan yang persis kebalikan dari yang dimaui, dari satu karakter. Selalu lewat
+`lewatiKarenaLisensi()`.
+:::
+
+Kenapa `@Optional()`: belasan tes lama membangun service-nya langsung
+(`new BroadcastService(prisma, cloud)`) untuk menguji hal yang sama sekali bukan lisensi, dan tes
+yang harus diubah tiap ada dependensi baru adalah tes yang cepat atau lambat dimatikan orang.
+Konsekuensinya salah wiring tidak meledak di mana pun — cuma membuat penegakannya diam-diam
+hilang. Yang menangkapnya cuma satu tes: "modul menyediakan `PenjagaTerjadwal`" di
+`lisensi.module.spec.ts`. Jangan hapus tes itu.
 
 ## Batas angka: jumlah pengguna & cabang
 
@@ -456,15 +614,32 @@ masih boleh — itu memang gunanya tenggang.
 - **Batas yang lain memang tidak ditegakkan.** `limit.customers` & `limit.retention` sengaja
   dilewati — alasannya di bagian "Batas angka" di atas, jangan ditambahkan tanpa membacanya dulu.
 - **Masih banyak modul yang belum dijaga `@ButuhFitur`.** Yang sudah: Studio AI, antrian cetak,
-  papan produksi, CRM prospek & follow-up, WhatsApp Cloud, inbox IG/FB, iklan Meta (tabel di atas).
-  Yang belum: cabang & buku titipan, papan tugas, leaderboard, backup, landing page, invoice &
-  penawaran, portal desainer. `/production` sengaja belum dijaga menyeluruh: `meter/*` sebenarnya
-  milik `click.counting` dan `pipeline/*` milik `production.pipeline`, jadi satu kode untuk seluruh
-  controller justru salah. `/crm/kpi` menunggu pemilahan yang sama.
-- **Penegakan WhatsApp & CRM baru di lapis HTTP.** Cron broadcast/reminder/sinkron di dalam proses
-  tidak ikut berhenti (lihat "Penjaga ini tingkat HTTP" di atas), dan halaman frontend yang memanggil
-  `/whatsapp/*` dari luar menu WA — mis. tombol "buka chat" di halaman Leads — baru tahu fiturnya
-  tidak ada setelah kena 403. Menu-nya sendiri sudah disembunyikan lewat `PETA_FITUR_MENU`.
+  papan produksi, CRM prospek & follow-up, dasbor KPI, WhatsApp Cloud, inbox IG/FB, iklan Meta
+  (tabel di atas). Yang belum: cabang & buku titipan, papan tugas, leaderboard, backup, landing
+  page, invoice & penawaran, portal desainer. `/production` sengaja belum dijaga menyeluruh:
+  `meter/*` sebenarnya milik `click.counting` dan `pipeline/*` milik `production.pipeline`, jadi
+  satu kode untuk seluruh controller justru salah — di situ yang dibutuhkan pemilahan per metode,
+  bukan `@ButuhSalahSatuFitur` (dua endpoint itu memang beda fitur, bukan satu halaman campuran).
+- **Halaman frontend yang memanggil `/whatsapp/*` dari luar menu WA** — mis. tombol "buka chat" di
+  halaman Leads — baru tahu fiturnya tidak ada setelah kena 403. Menu-nya sendiri sudah
+  disembunyikan lewat `PETA_FITUR_MENU`. (Cron-nya sendiri sudah ikut lisensi sejak 26 Sep 2026,
+  lihat "Pekerjaan terjadwal ikut lisensi".)
+- **`RemindersService.sendOrderReady()` dari `branch-inbox` belum dijaga.** Titipan yang ditandai
+  SIAP_AMBIL memanggilnya langsung di dalam proses (`branch-inbox.service.ts:280`), jadi dia lolos
+  dari `FiturGuard` sama seperti cron dulu. **Dibiarkan dengan sadar**, dan alasannya bukan
+  kemalasan: dia dipicu satu kejadian, bukan disapu berkala. Kalau dilewati, pemberitahuan "pesanan
+  siap diambil" **hilang permanen** — tidak ada sapuan yang mengulanginya setelah paketnya
+  dipulihkan, jadi menjaganya sekarang justru melanggar aturan "pekerjaan yang dilewati tidak
+  hilang". Yang perlu ada lebih dulu: antrean/sapuan untuk reminder jenis ini. Jalur manualnya
+  (`POST /whatsapp/reminders/order-ready`) sudah dijaga `wa.cloud` + `wa.automation`.
+- **Broadcast yang sudah `RUNNING` tidak dihentikan di tengah jalan.** Yang dijaga pemicunya
+  (sapuan terjadwal + endpoint HTTP untuk memulai), bukan loop yang sedang mengirim. Disengaja:
+  memutus di tengah meninggalkan separuh penerima sudah dapat pesan dan separuhnya tidak, dan itu
+  lebih buruk daripada menyelesaikannya. Setelah restart, `RUNNING` jadi `PAUSED` seperti biasa.
+- **Cron di luar WA/CRM/sosial belum dijaga sama sekali** — papan tugas & piket
+  (`task-board.cron.ts`), champion Discord mingguan (`kpi.cron.ts`), sinkron desktop
+  (`local-sync.service.ts`). Sengaja: endpoint-nya sendiri juga belum dijaga, dan cron yang lebih
+  rapat daripada endpoint-nya berarti dua tempat menjawab beda untuk fitur yang sama.
 - **Halaman, bukan menu, belum dijaga di frontend.** Menu yang fiturnya tidak ada sudah
   disembunyikan (lihat "Menu dasbor ikut isi kunci"), tapi mengetik alamatnya langsung tetap
   membuka halamannya — isinya baru kosong/galat saat API-nya menjawab 403. Itu disengaja untuk
@@ -522,6 +697,13 @@ Penjagaan kode fitur punya dua berkas tes juga, dan bedanya sama pentingnya:
 |---|---|
 | `src/lisensi/penjaga-lisensi.spec.ts` | Keputusan penjaganya, dengan Reflector palsu: gagal-terbuka, 403 yang menyebut kode fiturnya, hanya-baca tidak mematikan fitur. |
 | `src/lisensi/penjaga-crm-wa.spec.ts` | Bahwa dekoratornya benar-benar **terpasang di controller yang sungguhan** — Reflector-nya asli, metadatanya dibaca dari kelas & metode CRM/WhatsApp yang nyata. Gagal kalau dekoratornya hilang, pindah metode, atau kodenya salah tulis. Di dalamnya ada tes khusus **webhook Meta tetap terbuka di kunci apa pun**, dan tes bahwa kelas webhook tidak pernah disatukan dengan kelas yang dijaga. Kalau yang itu gagal: cabut dekoratornya, jangan diakali. |
+| `src/lisensi/penjaga-terjadwal.spec.ts` | Penegakan di **pekerjaan terjadwal**. Yang dijaganya: fitur ada → jalan, dicabut → dilewati, tanpa kunci → jalan, kunci rusak → jalan (dan dilaporkan sebagai hanya-baca, bukan sebagai fitur hilang), tenggang → jalan penuh, hanya-baca → pengiriman berhenti tapi sinkron tidak, pemeriksaannya melempar galat → penjadwal **tetap hidup**, penjaga tidak tersuntik → jalan, 200 putaran dilewati tetap **satu baris log**, dan opt-out WA tetap dicatat walau balasannya tidak dikirim. `prisma` palsunya **melempar begitu disentuh** — itu cara membuktikan antreannya tidak rusak, bukan cuma "tidak ditandai gagal". Plus satu tes yang membaca `design:paramtypes` keenam service: separuh wiring-nya, separuh yang lain ada di `lisensi.module.spec.ts`. |
+
+Dekorator `@ButuhSalahSatuFitur` diuji di `penjaga-crm-wa.spec.ts` — tempat yang sama dengan
+dekorator lain yang terpasang di controller sungguhan. Di dalamnya ada tes **"dua dekorator tidak
+tertukar"**: dua kelas contoh dengan daftar kode yang identik, jadi yang membedakan hasilnya cuma
+dekoratornya. Kalau yang itu gagal, `@ButuhFitur` dan `@ButuhSalahSatuFitur` sudah tertukar di
+suatu tempat, dan gejalanya di produksi adalah klien yang sudah bayar kena 403.
 
 Batasnya punya dua berkas tes di backend, dan keduanya menjaga hal yang berbeda:
 

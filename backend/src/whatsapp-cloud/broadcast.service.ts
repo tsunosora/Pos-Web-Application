@@ -1,8 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional, OnModuleInit } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { PenjagaTerjadwal, lewatiKarenaLisensi } from '../lisensi/penjaga-terjadwal.service';
 import { toWaPhone, toLeadKey } from '../common/utils/phone.util';
 
 export interface SegmentDef {
@@ -35,6 +36,8 @@ export class BroadcastService implements OnModuleInit {
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
+        // Opsional dengan sengaja — lihat catatan di `penjaga-terjadwal.service.ts`.
+        @Optional() private readonly penjagaTerjadwal?: PenjagaTerjadwal,
     ) {}
 
     private get ratePerSec(): number {
@@ -468,6 +471,11 @@ export class BroadcastService implements OnModuleInit {
     /** Cron: jalankan broadcast terjadwal yang sudah waktunya (tiap menit). */
     @Cron('0 * * * * *')
     async sweepScheduled() {
+        // Lisensi diperiksa PALING AWAL, sebelum satu baris pun disentuh: broadcast-nya tetap
+        // SCHEDULED dengan `scheduledAt` yang sudah lewat, jadi begitu fiturnya dipasang lagi
+        // sapuan menit berikutnya menjalankannya sendiri. Kalau pemeriksaan ini dipindah ke
+        // bawah `run()`, statusnya sudah jadi RUNNING → PAUSED dan staf harus melanjutkan manual.
+        if (lewatiKarenaLisensi(this.penjagaTerjadwal, 'wa.broadcast')) return;
         const due = await this.prisma.waBroadcast.findMany({
             where: { status: 'SCHEDULED', scheduledAt: { lte: new Date() } },
             select: { id: true },

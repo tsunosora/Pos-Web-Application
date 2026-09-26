@@ -1,7 +1,8 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { WaAutoReplyTrigger, WaDirection, WaMessageStatus, WaMessageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { PenjagaTerjadwal, lewatiKarenaLisensi } from '../lisensi/penjaga-terjadwal.service';
 
 const OPT_OUT_WORDS = ['stop', 'berhenti', 'unsubscribe', 'unsub'];
 const OPT_IN_WORDS = ['mulai', 'start', 'langganan', 'subscribe'];
@@ -43,6 +44,8 @@ export class AutoReplyService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
+        // Opsional dengan sengaja — lihat catatan di `penjaga-terjadwal.service.ts`.
+        @Optional() private readonly penjagaTerjadwal?: PenjagaTerjadwal,
     ) {}
 
     // ─── CRUD aturan ─────────────────────────────────────────────────────────
@@ -101,6 +104,21 @@ export class AutoReplyService {
         const text = (ctx.body || '').trim();
         const lower = text.toLowerCase();
 
+        /**
+         * Lisensi: `wa.cloud` + `wa.automation`, sama dengan endpoint `/whatsapp/auto-replies*`.
+         *
+         * Dipicu webhook, BUKAN cron — dan webhook Meta sengaja dibiarkan terbuka (lihat
+         * `hanya-baca.guard.ts`), jadi tanpa pemeriksaan di sini balasan otomatis tetap terkirim
+         * dan tetap ditagih Meta ke kartu klien yang add-on WhatsApp-nya sudah dicabut.
+         *
+         * PESANNYA yang dilewati, bukan pencatatannya: pesan masuk tetap tersimpan lewat
+         * InboxService seperti biasa, dan opt-out/opt-in di bawah TETAP dicatat ke database.
+         * Orang yang membalas "STOP" harus berhenti dapat pesan apa pun keadaan langganannya —
+         * itu janji yang tertulis di footer template dan tidak ikut kedaluwarsa. Yang hilang
+         * cuma balasan konfirmasinya.
+         */
+        const bolehBalas = !lewatiKarenaLisensi(this.penjagaTerjadwal, 'wa.balasan-otomatis');
+
         // 1) Opt-out
         if (perintahLangganan(text, OPT_OUT_WORDS)) {
             if (!ctx.contact.optedOut) {
@@ -108,7 +126,9 @@ export class AutoReplyService {
                     where: { id: ctx.contact.id },
                     data: { optedOut: true, optedOutAt: new Date() },
                 });
-                await this.send(ctx, 'Anda telah berhenti menerima pesan dari kami. Balas MULAI untuk berlangganan lagi.');
+                if (bolehBalas) {
+                    await this.send(ctx, 'Anda telah berhenti menerima pesan dari kami. Balas MULAI untuk berlangganan lagi.');
+                }
             }
             return;
         }
@@ -119,10 +139,13 @@ export class AutoReplyService {
                     where: { id: ctx.contact.id },
                     data: { optedOut: false, optedOutAt: null },
                 });
-                await this.send(ctx, 'Anda berlangganan kembali. Terima kasih! 🙏');
+                if (bolehBalas) await this.send(ctx, 'Anda berlangganan kembali. Terima kasih! 🙏');
             }
             return;
         }
+        // Selain opt-out/opt-in, tidak ada yang perlu dikerjakan kalau balasannya tidak boleh
+        // dikirim — keluar SEBELUM membaca aturan & riwayat, supaya tidak ada query sia-sia.
+        if (!bolehBalas) return;
         if (ctx.contact.optedOut) return;
 
         // 1c) Jangan membalas nomor kita sendiri (kanal lain) — dua kanal bisa saling balas tanpa akhir.

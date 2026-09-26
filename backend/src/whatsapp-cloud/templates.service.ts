@@ -1,8 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { Prisma, WaTemplateStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { PenjagaTerjadwal, lewatiKarenaLisensi } from '../lisensi/penjaga-terjadwal.service';
 
 export interface CreateTemplateInput {
     name: string;
@@ -49,6 +50,8 @@ export class TemplatesService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
+        // Opsional dengan sengaja — lihat catatan di `penjaga-terjadwal.service.ts`.
+        @Optional() private readonly penjagaTerjadwal?: PenjagaTerjadwal,
     ) {}
 
     /**
@@ -81,6 +84,10 @@ export class TemplatesService {
     /** Sinkron status template dari Meta otomatis tiap 10 menit (jaring pengaman bila webhook tak aktif). */
     @Cron('0 */10 * * * *')
     async autoSyncStatuses() {
+        // Tanpa `wa.cloud` di kunci, tidak ada gunanya menanyai Meta soal template klien ini.
+        // Sengaja TIDAK ikut berhenti saat hanya-baca: ini cuma MENARIK status, tidak mengirim
+        // apa pun dan tidak menagih klien sepeser pun (lihat `aturan-terjadwal.ts`).
+        if (lewatiKarenaLisensi(this.penjagaTerjadwal, 'wa.sinkron-template')) return;
         if (!this.cloud.enabled) return;
         const channels = await this.prisma.waChannel.findMany({ where: { isActive: true }, select: { id: true } });
         for (const ch of channels) {

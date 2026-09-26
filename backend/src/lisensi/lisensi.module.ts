@@ -11,6 +11,12 @@
  * Keduanya tidak melakukan apa pun selama tidak ada kunci lisensi (gagal-terbuka), jadi
  * memasang modul ini TIDAK mengubah perilaku instalasi yang sekarang jalan produksi.
  *
+ * `PenjagaTerjadwal` juga bukan penjaga global — dia tidak bisa jadi penjaga apa pun, karena yang
+ * dijaganya bukan permintaan HTTP: cron & alur webhook tidak pernah lewat controller. Dia
+ * diekspor sebagai service biasa dan dipanggil satu baris di tiap penjadwal (lihat
+ * `aturan-terjadwal.ts`). Karena modul ini `@Global`, penjadwal mana pun bisa menyuntiknya
+ * tanpa menambah `imports` — dan itu penting: penjadwal yang lupa di-wire = celah yang diam.
+ *
  * `BatasService` (batas angka: jumlah pengguna & cabang) SENGAJA bukan penjaga global: dia perlu
  * database, dan penjaga global jalan SEBELUM penjaga login di controller — jadi tamu yang belum
  * masuk pun bisa memancing jumlah pengguna klien lewat pesan galatnya. Yang memanggilnya adalah
@@ -28,6 +34,7 @@ import { FiturGuard } from './fitur.guard';
 import { HanyaBacaGuard } from './hanya-baca.guard';
 import { LisensiController } from './lisensi.controller';
 import { LisensiService } from './lisensi.service';
+import { PenjagaTerjadwal } from './penjaga-terjadwal.service';
 
 @Global()
 @Module({
@@ -36,9 +43,10 @@ import { LisensiService } from './lisensi.service';
     providers: [
         LisensiService,
         BatasService,
+        PenjagaTerjadwal,
         { provide: APP_GUARD, useClass: HanyaBacaGuard },
         { provide: APP_GUARD, useClass: FiturGuard },
     ],
-    exports: [LisensiService, BatasService],
+    exports: [LisensiService, BatasService, PenjagaTerjadwal],
 })
 export class LisensiModule {}

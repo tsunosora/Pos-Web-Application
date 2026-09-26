@@ -1,5 +1,6 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { PenjagaTerjadwal, lewatiKarenaLisensi } from '../lisensi/penjaga-terjadwal.service';
 import { Prisma, SocialDirection, SocialPlatform } from '@prisma/client';
 import type { SocialChannel } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -54,6 +55,8 @@ export class SocialCommentsService {
         private readonly meta: MetaApiService,
         private readonly leads: LeadsService,
         private readonly inbox: SocialInboxService,
+        // Opsional dengan sengaja — lihat catatan di `penjaga-terjadwal.service.ts`.
+        @Optional() private readonly penjagaTerjadwal?: PenjagaTerjadwal,
     ) {}
 
     // ─── Webhook ─────────────────────────────────────────────────────────────
@@ -273,6 +276,12 @@ export class SocialCommentsService {
 
     @Cron('30 */5 * * * *', { name: 'social-comments-auto-sync' })
     async autoSync() {
+        // Tanpa `social.inbox` di kunci, inbox IG/FB memang tidak dijual ke klien ini — menarik
+        // komentarnya tiap 5 menit cuma memakai kuota Graph API-nya untuk data yang tak terbuka.
+        // Tombol "Sinkronkan" manual TIDAK ikut dijaga di sini: dia lewat `/social/*` yang sudah
+        // dijaga `@ButuhFitur('social.inbox')`, jadi menambahnya di sini cuma dua penjaga untuk
+        // satu pintu. Sengaja tidak berhenti saat hanya-baca — alasannya sama dengan webhook Meta.
+        if (lewatiKarenaLisensi(this.penjagaTerjadwal, 'sosial.komentar')) return;
         // Penanda dipasang sebelum await pertama supaya pemicu yang tumpang tindih
         // (mis. sinkron sebelumnya belum selesai) tidak menjalankan sinkron kedua.
         if (process.env.SOCIAL_AUTO_SYNC === 'false' || this.autoBusy || this.running) return;

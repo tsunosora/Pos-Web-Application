@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../../prisma/prisma.service';
+import { PenjagaTerjadwal, lewatiKarenaLisensi } from '../../lisensi/penjaga-terjadwal.service';
 
 /**
  * Cron jobs CRM. Pakai @nestjs/schedule yang sudah di-register di app.module.
@@ -19,14 +20,32 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class FollowUpsCron {
     private readonly logger = new Logger('FollowUpsCron');
 
-    constructor(private readonly prisma: PrismaService) {}
+    constructor(
+        private readonly prisma: PrismaService,
+        // Opsional dengan sengaja — lihat catatan di `penjaga-terjadwal.service.ts`.
+        @Optional() private readonly penjagaTerjadwal?: PenjagaTerjadwal,
+    ) {}
 
     @Cron('0 8 * * 1', { name: 'crm-repeat-order-weekly', timeZone: 'Asia/Jakarta' })
     async scheduleRepeatOrders() {
+        // Sakelar pemiliknya DULU, lisensi sesudahnya. Urutan ini disengaja: fitur ini mati untuk
+        // hampir semua instalasi, jadi memeriksa lisensi lebih dulu berarti tiap Senin menulis
+        // peringatan lisensi untuk pekerjaan yang tidak akan jalan juga — log yang menuduh hal
+        // yang salah lebih buruk daripada log yang tidak ada.
         if (process.env.CRM_REPEAT_ORDER_AUTO !== 'on') {
             this.logger.log('REPEAT_ORDER otomatis dilewati (CRM_REPEAT_ORDER_AUTO belum "on")');
             return;
         }
+        // `crm.leads`: FU yang dibuat di sini muncul di papan follow-up dan ikut dihitung di
+        // kepatuhan FU (KPI CS) — dua tempat yang memang dijual sebagai fitur prospek. Diperiksa
+        // sebelum query kandidat, jadi nol baris FollowUp dibuat.
+        //
+        // PERHATIAN, dan ini satu-satunya pekerjaan dengan sifat begini: jendelanya BERGERAK
+        // (order terakhir 90–97 hari lalu, irisan satu minggu). Putaran yang dilewati tidak
+        // kembali sendiri minggu depan — irisannya sudah bergeser. Sama persis dengan yang
+        // terjadi kalau server mati pada Senin 08.00, jadi bukan kerusakan yang dibawa penjaga
+        // ini; tapi jangan pernah mengklaim "semuanya lanjut sendiri" untuk yang ini.
+        if (lewatiKarenaLisensi(this.penjagaTerjadwal, 'crm.repeat-order')) return;
         const now = new Date();
         const ninetyDaysAgo = new Date(now);
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);

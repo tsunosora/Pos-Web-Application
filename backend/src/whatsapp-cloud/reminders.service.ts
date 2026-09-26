@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { CloudApiService } from './cloud-api.service';
+import { PenjagaTerjadwal, lewatiKarenaLisensi } from '../lisensi/penjaga-terjadwal.service';
 import { toWaPhone } from '../common/utils/phone.util';
 
 export type ReminderEvent = 'ORDER_READY' | 'PAYMENT_DUE' | 'FOLLOWUP_DUE';
@@ -24,6 +25,8 @@ export class RemindersService {
     constructor(
         private readonly prisma: PrismaService,
         private readonly cloud: CloudApiService,
+        // Opsional dengan sengaja — lihat catatan di `penjaga-terjadwal.service.ts`.
+        @Optional() private readonly penjagaTerjadwal?: PenjagaTerjadwal,
     ) {}
 
     // ─── Konfigurasi ─────────────────────────────────────────────────────────
@@ -144,6 +147,11 @@ export class RemindersService {
 
     @Cron('0 */15 * * * *')
     async sweepFollowUps() {
+        // Lisensi dulu, sebelum `send()` pernah dipanggil: `send()` menulis WaReminderLog sebagai
+        // penanda dedup, dan penanda itu membuat FU yang sama TIDAK PERNAH diingatkan lagi. Jadi
+        // melewati di sini = FU tetap PENDING tanpa catatan, dan sapuan setelah paketnya dipulihkan
+        // mengirimnya seperti tidak terjadi apa-apa.
+        if (lewatiKarenaLisensi(this.penjagaTerjadwal, 'wa.reminder')) return;
         // Satu sapuan pada satu waktu (Meta lambat → sapuan berikutnya bisa mulai sebelum yang lama selesai).
         if (this.menyapu) return;
         this.menyapu = true;

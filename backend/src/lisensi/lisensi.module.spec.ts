@@ -6,6 +6,7 @@
 import { Test } from '@nestjs/testing';
 import { LisensiModule } from './lisensi.module';
 import { LisensiService } from './lisensi.service';
+import { PenjagaTerjadwal } from './penjaga-terjadwal.service';
 
 describe('LisensiModule', () => {
     it('merakit service + dua penjaga, dan tanpa kunci semuanya terbuka', async () => {
@@ -24,6 +25,21 @@ describe('LisensiModule', () => {
         expect(lisensi.batasFitur('limit.users')).toBeNull();
         expect(lisensi.ringkasan()).not.toHaveProperty('kunci');
 
+        await modul.close();
+    });
+
+    /**
+     * Penjaga pekerjaan terjadwal disuntik `@Optional()` di enam service (alasannya di
+     * `penjaga-terjadwal.service.ts`), jadi salah wiring TIDAK akan meledak di mana pun — cuma
+     * membuat penegakannya diam-diam hilang. Tes ini satu-satunya yang menangkapnya.
+     */
+    it('menyediakan PenjagaTerjadwal untuk seluruh aplikasi (@Global)', async () => {
+        const modul = await Test.createTestingModule({ imports: [LisensiModule] }).compile();
+        const penjaga = modul.get(PenjagaTerjadwal);
+        expect(penjaga).toBeInstanceOf(PenjagaTerjadwal);
+        // Tanpa kunci: gagal-terbuka, jadi semua pekerjaan terjadwal boleh jalan.
+        expect(penjaga.bolehJalan('wa.broadcast')).toBe(true);
+        expect(penjaga.bolehJalan('sosial.komentar')).toBe(true);
         await modul.close();
     });
 });
