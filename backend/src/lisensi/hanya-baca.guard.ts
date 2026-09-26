@@ -11,6 +11,9 @@
  *   membaca data lama. Login itu pintu ke mode baca, bukan penulisan data usaha.
  * - `/saya/lisensi/segarkan` — satu-satunya jalan KELUAR dari hanya-baca (setelah bayar).
  *   Kalau ini ikut diblokir, pemilik harus restart server hanya untuk memperbarui kunci.
+ * - `/langganan/**` — halaman Pengaturan → Langganan, jalan keluar yang satunya lagi: di
+ *   situlah pemilik menyatakan tagihannya sudah ditransfer dan menaikkan paket. Memblokirnya
+ *   saat hanya-baca berarti mengunci orang di luar pintu yang kuncinya ada di dalam.
  * - webhook pihak luar (`/webhook/**`, `/whatsapp/webhook`, `/social/**`) — Meta & GitHub
  *   mematikan langganan webhook kalau terus dijawab galat, dan itu kerusakan yang bertahan
  *   lama setelah tagihan dibayar. Sama dengan daftar di `common/tolak-tulisan-bersarang.ts`.
@@ -27,6 +30,7 @@ const JALUR_BEBAS = [
     /\/pin\/verify$/, // papan produksi & papan cetak: /production/pin/verify, /print-queue/pin/verify
     /\/staff-pin\/verify$/,
     /^\/saya\/lisensi\/segarkan$/,
+    /^\/langganan(\/|$)/,
     /^\/webhook\//,
     /^\/whatsapp\/webhook/,
     /^\/social\//,

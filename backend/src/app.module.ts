@@ -67,6 +67,7 @@ import { CustomProductMetricsModule } from './crm/custom-product-metrics/custom-
 import { TaskBoardModule } from './task-board/task-board.module';
 import { StudioAiModule } from './studio-ai/studio-ai.module';
 import { LisensiModule } from './lisensi/lisensi.module';
+import { LanggananModule } from './langganan/langganan.module';
 
 @Module({
   imports: [
@@ -82,6 +83,8 @@ import { LisensiModule } from './lisensi/lisensi.module';
     // LisensiModule di depan: @Global, dan dua penjaga globalnya (fitur + hanya-baca) harus
     // sudah ada sebelum controller lain terdaftar. Tanpa kunci lisensi dia diam total.
     LisensiModule,
+    // Halaman Pengaturan → Langganan: penerus ke /api/aplikasi/* di qendali.com.
+    LanggananModule,
     PrismaModule, UsersModule, AuthModule, CategoriesModule, ProductionCategoriesModule, UnitsModule, ProductsModule, BatchesModule, StockMovementsModule, TransactionsModule, CashflowModule, InvoiceModule, BranchesModule, SettingsModule, BankAccountsModule, CustomersModule, HppModule, ReportsModule, WhatsappModule, CompetitorsModule, StockOpnameModule, ProductionModule, SuppliersModule, BackupModule, NotificationsModule, WebhookModule, CashflowRequestsModule, StockPurchasesModule, ClickCountingModule, PrintQueueModule, SalesOrdersModule, DesignersModule, CompanyBranchesModule, BranchWorkOrdersModule, StockTransferModule, BranchStockModule, BranchSettingsModule, BranchInboxModule, BranchLedgerModule, InterBranchUsageModule, LeadsModule, TemplatesModule, FollowUpsModule, KpiModule, WorkOrdersModule, DiscordModule, LandingModule, ArticlesModule, FixedExpensesModule, BonusModule, CsRatingModule, PrinterRelayModule, SyncModule, LocalSyncModule, WhatsappCloudModule, MetaMessagingModule, MetaAdsModule, CustomProductMetricsModule, TaskBoardModule, StudioAiModule, IntegrationsModule, StorefrontModule],
   controllers: [AppController],
   providers: [AppService],
